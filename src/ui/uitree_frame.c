@@ -640,7 +640,7 @@ frame_rect_for(
  * not place them wants them where the pack put them, moved with the block --
  * which is what every frame written before they were named already asks for,
  * and hiding them instead would take the globe and the banner off frames that
- * are right today. @see enum ToriRS_OrbsMember.
+ * are right today. @see enum ToriRS_HostOrbsMember.
  */
 static int
 frame_orb_member_is_carried(int slot, int member)

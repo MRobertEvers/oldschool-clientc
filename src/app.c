@@ -2700,37 +2700,10 @@ app_overlay_push(
      */
     if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
     {
-        if( app->plugin_ui_boundary_active )
-        {
-            struct AppPluginRoleOverlayRaw* anchored;
-            int cap = (int)(sizeof(app->plugin_role_overlay_raw) /
-                            sizeof(app->plugin_role_overlay_raw[0]));
-            /* An explicit anchor that missed is a drop, never an implicit
-             * promotion to the global canvas overlay. */
-            if( !app->plugin_ui_boundary_valid ||
-                app->plugin_role_overlay_raw_count >= cap )
-                return;
-            anchored = &app->plugin_role_overlay_raw[
-                app->plugin_role_overlay_raw_count++];
-            anchored->item = *item;
-            anchored->node_index = app->plugin_ui_boundary_node;
-            anchored->node_incarnation = app->plugin_ui_boundary_incarnation;
-            anchored->replace = app->plugin_ui_boundary_replace;
-            anchored->place = app->plugin_ui_boundary_place;
-            return;
-        }
         int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
         if( app->canvas_overlay_count >= cap )
             return;
         app->canvas_overlays[app->canvas_overlay_count++] = *item;
-        return;
-    }
-    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_FRAME )
-    {
-        int cap = (int)(sizeof(app->frame_overlays) / sizeof(app->frame_overlays[0]));
-        if( app->frame_overlay_count >= cap )
-            return;
-        app->frame_overlays[app->frame_overlay_count++] = *item;
         return;
     }
 
@@ -2749,79 +2722,11 @@ app_overlay_count(struct App const* app)
     switch( app->plugin_draw_canvas )
     {
     case APP_PLUGIN_SURFACE_CANVAS:
-        return app->canvas_overlay_count + app->plugin_role_overlay_raw_count;
-    case APP_PLUGIN_SURFACE_FRAME:
-        return app->frame_overlay_count;
+        return app->canvas_overlay_count;
     case APP_PLUGIN_SURFACE_PANEL:
         return app->panel_overlay_stage_active ? app->panel_overlay_stage_count : 0;
     default:
         return app->entity_overlay_count;
-    }
-}
-
-static void
-app_role_overlay_group_seed(
-    struct App* app,
-    int32_t node,
-    uint64_t incarnation,
-    int replace,
-    int place)
-{
-    int const cap = (int)(sizeof(app->plugin_role_overlay_groups) /
-                          sizeof(app->plugin_role_overlay_groups[0]));
-
-    assert(app);
-    for( int i = 0; i < app->plugin_role_overlay_group_count; i++ )
-    {
-        struct UITreeRoleOverlayGroup const* group =
-            &app->plugin_role_overlay_groups[i];
-        if( group->node_index == node && group->node_incarnation == incarnation &&
-            group->replace == (replace ? 1 : 0) && group->place == place )
-            return;
-    }
-    if( app->plugin_role_overlay_group_count >= cap )
-        return;
-    struct UITreeRoleOverlayGroup* group =
-        &app->plugin_role_overlay_groups[app->plugin_role_overlay_group_count++];
-    memset(group, 0, sizeof(*group));
-    group->node_index = node;
-    group->node_incarnation = incarnation;
-    group->replace = replace ? 1 : 0;
-    group->place = (uint8_t)place;
-}
-
-static void
-app_role_overlays_group(struct App* app)
-{
-    int write = 0;
-
-    assert(app);
-    /* Every raw item should already have a seed from ui_boundary. Keep this
-     * defensive pass so a future engine draw path cannot orphan one. */
-    for( int i = 0; i < app->plugin_role_overlay_raw_count; i++ )
-    {
-        struct AppPluginRoleOverlayRaw const* raw =
-            &app->plugin_role_overlay_raw[i];
-        app_role_overlay_group_seed(
-            app, raw->node_index, raw->node_incarnation, raw->replace, raw->place);
-    }
-    for( int g = 0; g < app->plugin_role_overlay_group_count; g++ )
-    {
-        struct UITreeRoleOverlayGroup* group =
-            &app->plugin_role_overlay_groups[g];
-        int const start = write;
-        for( int i = 0; i < app->plugin_role_overlay_raw_count; i++ )
-        {
-            struct AppPluginRoleOverlayRaw const* raw =
-                &app->plugin_role_overlay_raw[i];
-            if( raw->node_index != group->node_index ||
-                raw->node_incarnation != group->node_incarnation ||
-                raw->replace != group->replace || raw->place != group->place )
-                continue;
-            app->plugin_role_overlay_items[write++] = raw->item;
-        }
-        group->items = &app->plugin_role_overlay_items[start];
-        group->item_count = write - start;
     }
 }
 
@@ -4034,90 +3939,6 @@ app_minimenu_stamp_node_identities(
 
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
-
-static int
-app_plugin_pointer_capture_matches(
-    struct AppPluginPointerCapture const* capture,
-    struct AppPluginRegion const* region)
-{
-    assert(capture);
-    assert(region);
-    return capture->plugin == region->plugin && capture->tag == region->tag &&
-           capture->surface == region->surface &&
-           capture->ui_bounded == region->ui_bounded &&
-           capture->ui_boundary_replace == region->ui_boundary_replace &&
-           (!capture->ui_bounded ||
-            (capture->ui_boundary_node == region->ui_boundary_node &&
-             capture->ui_boundary_incarnation == region->ui_boundary_incarnation));
-}
-
-/* Latch after top chrome has first refusal but before world/editor raw-input
- * consumers. Final release validation waits until the stable-tree gate, so a
- * frame retried for async settlement cannot lose the one-shot mouse-up. */
-static void
-app_plugin_pointer_capture_latch(
-    struct App* app,
-    struct LibToriRS_Input* input)
-{
-    struct AppPluginPointerCapture* capture = &app->plugin_pointer_capture;
-
-    if( capture->active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) &&
-        !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
-        !input->curr.mouse_button_up[TORIRSM_LEFT] &&
-        !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
-        capture->active = 0;
-
-    if( !capture->active && !app->input_frame_consumed &&
-        !app->interact.minimenu.visible &&
-        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
-    {
-        int const at =
-            app_plugin_region_at(app, input->curr.mouse_x, input->curr.mouse_y);
-        if( at >= 0 )
-        {
-            struct AppPluginRegion const* region = &app->plugin_regions[at];
-            capture->active = 1;
-            capture->plugin = region->plugin;
-            capture->tag = region->tag;
-            capture->surface = region->surface;
-            capture->ui_bounded = region->ui_bounded;
-            capture->ui_boundary_replace = region->ui_boundary_replace;
-            capture->ui_boundary_place = region->ui_boundary_place;
-            capture->ui_boundary_node = region->ui_boundary_node;
-            capture->ui_boundary_incarnation = region->ui_boundary_incarnation;
-        }
-    }
-    if( capture->active )
-        app->input_frame_consumed = 1;
-}
-
-static int
-app_plugin_pointer_capture_release(
-    struct App* app,
-    struct LibToriRS_Input* input)
-{
-    struct AppPluginPointerCapture* capture = &app->plugin_pointer_capture;
-    int result = -1;
-
-    if( !capture->active )
-        return -1;
-    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
-    {
-        int const at = app_plugin_region_at(
-            app,
-            input->last_click_x[TORIRSM_LEFT],
-            input->last_click_y[TORIRSM_LEFT]);
-        if( at >= 0 &&
-            app_plugin_pointer_capture_matches(capture, &app->plugin_regions[at]) )
-            result = at;
-    }
-    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) ||
-        input->curr.mouse_button_up[TORIRSM_LEFT] ||
-        (!LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) &&
-         !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT)) )
-        capture->active = 0;
-    return result;
-}
 
 /**
  * Pixel size of a sprite already resident in the scene.
@@ -5528,68 +5349,12 @@ app_build_canvas_overlays(
 
     app->plugin_canvas_overlay_prepared = 1;
     app->canvas_overlay_count = 0;
-    app->plugin_role_overlay_raw_count = 0;
-    app->plugin_role_overlay_group_count = 0;
-    app->plugin_ui_boundary_seen = 0;
-    app->plugin_ui_boundary_active = 0;
-    app->plugin_ui_boundary_valid = 0;
-    /* Regions are reset by UITREE_HOST_BEGIN_OVERLAYS before either surface is
-     * requested, including trees with no world/FRAME pass. */
     *out_items = app->canvas_overlays;
     if( !app->plugins )
         return 0;
 
     PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    app_role_overlays_group(app);
     return app->canvas_overlay_count;
-}
-
-/*
- * The plugin FRAME overlay -- the same shape again, for the third surface.
- *
- * Click regions are reset once by UITREE_HOST_BEGIN_OVERLAYS, before this pass
- * and the canvas pass. That remains true when no WORLD exists and this list is
- * never requested, so canvas-only regions cannot accumulate over stale ones.
- */
-static int
-app_build_frame_overlays(
-    struct App* app,
-    struct UITreeEntityOverlay const** out_items)
-{
-    assert(app);
-    assert(out_items);
-
-    app->frame_overlay_count = 0;
-    *out_items = app->frame_overlays;
-    if( !app->plugins )
-        return 0;
-
-    PluginHost_DrawFrame(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    /*
-     * TORIRS_FRAME_DEBUG=1: how many pieces the frame's owner drew, and at
-     * what canvas.
-     *
-     * "The layout plugin draws nothing" has two separate causes and they look
-     * identical from a screenshot: the plugin declared nothing (this says
-     * zero), or it declared a frame that something else is drawing over (this
-     * says twenty and the screen still shows the lane's own chrome). Which of
-     * those it is decides whether to look at the plugin or at the
-     * suppression, and there is no other way to tell them apart.
-     */
-    if( torirs_env_frame_debug() )
-        TORIRS_LOG("frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
-            "world=%d map=%d compass=%d chat=%d side=%d modal=%d\n",
-            app->frame_overlay_count,
-            UITREE_LAYOUT_ROOT_W,
-            UITREE_LAYOUT_ROOT_H,
-            app->tree ? UITree_FrameHiddenCount(app->tree) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_VIEWPORT) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MINIMAP) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_COMPASS) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_CHAT) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_SIDEBAR) : 0,
-            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MAIN_MODAL) : 0);
-    return app->frame_overlay_count;
 }
 
 static int
@@ -6349,8 +6114,6 @@ app_host_request(
         if( !app->plugin_overlay_batch_started )
         {
             app->plugin_overlay_batch_started = 1;
-            app->plugin_region_count = 0;
-            app->plugin_role_paint_order = 0;
             app->plugin_canvas_overlay_prepared = 0;
         }
         return 0;
@@ -6407,50 +6170,6 @@ app_host_request(
         *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
         *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
         return app_build_canvas_overlays(app, req->u.get_entity_overlays.out_items);
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-    {
-        struct UITreeEntityOverlay const* ignored = NULL;
-        (void)app_build_canvas_overlays(app, &ignored);
-        if( req->u.get_role_overlay_groups.out_groups )
-            *req->u.get_role_overlay_groups.out_groups =
-                app->plugin_role_overlay_groups;
-        if( req->u.get_role_overlay_groups.out_anchor_seen )
-            *req->u.get_role_overlay_groups.out_anchor_seen =
-                app->plugin_ui_boundary_seen;
-        return app->plugin_role_overlay_group_count;
-    }
-    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
-    {
-        int updated = 0;
-        uint32_t const paint_order = ++app->plugin_role_paint_order;
-        for( int i = 0; i < app->plugin_region_count; i++ )
-        {
-            struct AppPluginRegion* region = &app->plugin_regions[i];
-            if( !region->ui_bounded ||
-                region->ui_boundary_node != req->u.set_role_overlay_clip.node_index ||
-                region->ui_boundary_incarnation !=
-                    req->u.set_role_overlay_clip.node_incarnation ||
-                !!region->ui_boundary_replace != !!req->u.set_role_overlay_clip.replace ||
-                region->ui_boundary_place != req->u.set_role_overlay_clip.place )
-                continue;
-            region->role_clip_x = req->u.set_role_overlay_clip.clip_x;
-            region->role_clip_y = req->u.set_role_overlay_clip.clip_y;
-            region->role_clip_w = req->u.set_role_overlay_clip.clip_w;
-            region->role_clip_h = req->u.set_role_overlay_clip.clip_h;
-            region->role_paint_order = paint_order;
-            updated++;
-        }
-        return updated;
-    }
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
-        /* Cut to the canvas, like the list above it: a gameframe is chrome
-         * around the viewport, so clipping it to the viewport would erase
-         * exactly the part that is the frame. */
-        *req->u.get_entity_overlays.out_clip_x = 0;
-        *req->u.get_entity_overlays.out_clip_y = 0;
-        *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
-        *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
-        return app_build_frame_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CROSS_ACTIVE:
         return UICross_IsActive(&app->cross) ? 1 : 0;
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
@@ -9011,13 +8730,11 @@ app_chrome_route_input(
      * taking the grip when the grip's edge is inside that gap. press_origin is
      * the position the down carried, and for a mouse it is the same number.
      */
-    if( !app->plugin_pointer_capture.active &&
-        input->curr.mouse_button_down[TORIRSM_LEFT] &&
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
         ToriRSChrome_MouseDown(
             ui, input->press_origin_x[TORIRSM_LEFT], input->press_origin_y[TORIRSM_LEFT]) )
         app->input_frame_consumed = 1;
-    if( !app->plugin_pointer_capture.active &&
-        input->curr.mouse_button_up[TORIRSM_LEFT] &&
+    if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
         ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
 
@@ -27376,7 +27093,7 @@ app_hover_text_update(
             scratch.font_id = app->hover_text.font_id;
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
             app_minimenu_stamp_node_identities(app, &scratch);
-            app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
+            app_plugin_menu_build(app, &scratch, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
@@ -27810,7 +27527,7 @@ app_minimenu_open(
      * synchronous rebuild from inside that callback must not transfer a row
      * which was authored for the prior occupant to its same-id replacement. */
     app_minimenu_stamp_node_identities(app, menu);
-    app_plugin_menu_build(app, menu, click_x, click_y, 0);
+    app_plugin_menu_build(app, menu, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
      * row built from it — the one place to see why a loc/obj came up bare. */
@@ -28302,7 +28019,7 @@ app_run_default_ui_row(
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     app_minimenu_stamp_node_identities(app, &scratch);
-    app_plugin_menu_build(app, &scratch, click_x, click_y, 0);
+    app_plugin_menu_build(app, &scratch, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
     /*
      * TORIRS_CLICK_DEBUG=1: the same readout the generic left-click path
@@ -28932,33 +28649,6 @@ app_minimenu_ui_pick_live(
     return 1;
 }
 
-static int
-app_minimenu_plugin_option_live(
-    struct App const* app,
-    struct UIMinimenuOption const* opt)
-{
-    int at;
-    int op;
-    struct AppPluginRegion const* region;
-
-    if( UIMinimenu_ActionNormalize(opt->action) != RS_MINIMENU_ACTION_PLUGIN_REGION )
-        return 1;
-    if( opt->action_index < 0 )
-        return 0;
-    at = opt->action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
-    op = opt->action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
-    if( at < 0 || at >= app->plugin_region_count )
-        return 0;
-    region = &app->plugin_regions[at];
-    if( op < 0 || op >= region->op_count || region->plugin != opt->pick.id ||
-        region->tag != (uint32_t)opt->pick.secondary_id ||
-        (region->ui_bounded ? region->ui_boundary_node : -1) != opt->pick.tertiary_id ||
-        (region->ui_bounded ? region->ui_boundary_incarnation : 0) !=
-            opt->pick.ui_boundary_incarnation )
-        return 0;
-    return app_plugin_role_region_live(app, region);
-}
-
 static void
 app_minimenu_close_if_stale(struct App* app)
 {
@@ -28968,8 +28658,7 @@ app_minimenu_close_if_stale(struct App* app)
         return;
     for( int i = 0; i < menu->option_count; i++ )
     {
-        if( app_minimenu_ui_pick_live(app, &menu->options[i].pick) &&
-            app_minimenu_plugin_option_live(app, &menu->options[i]) )
+        if( app_minimenu_ui_pick_live(app, &menu->options[i].pick) )
             continue;
         UIMinimenu_Hide(menu);
         app->need_redraw = 1;
@@ -29002,8 +28691,6 @@ app_minimenu_run_option(
      * belonging to a now-suppressed/deleted widget only dismisses the popup;
      * it must not paint a cross, reach a plugin, run a hook, or send a packet. */
     if( !app_minimenu_ui_pick_live(app, &opt.pick) )
-        return 0;
-    if( !app_minimenu_plugin_option_live(app, &opt) )
         return 0;
 
     {
@@ -29088,8 +28775,7 @@ app_minimenu_run_option(
     /* A PASS subscriber may still synchronously rebuild or suppress the row's
      * target. Revalidate after returning from plugin code before native action
      * can transfer the retained row to a new same-id occupant. */
-    if( !app_minimenu_ui_pick_live(app, &opt.pick) ||
-        !app_minimenu_plugin_option_live(app, &opt) )
+    if( !app_minimenu_ui_pick_live(app, &opt.pick) )
         return 0;
 
     /* A cache-installed client op. After the plugins, so a plugin may still
@@ -29230,19 +28916,6 @@ app_minimenu_run_option(
             PluginHost_WidgetOperation(app->plugins,c->plugin_owner,app_widget_ref(app->tree,node),c->plugin_op_serial);
         }
         return 0;
-    }
-
-    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_REGION )
-    {
-        int const at = opt.action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
-        int const op = opt.action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
-        if( app_minimenu_plugin_option_live(app, &opt) )
-        {
-            struct AppPluginRegion const* region = &app->plugin_regions[at];
-            PluginHost_CanvasClick(
-                app->plugins, region->plugin, region->tag, op, click_x, click_y);
-        }
-        return 0; /* handled locally; no CS2 task was dispatched */
     }
 
     /* Loc editor "Select" row (rs_minimenu_world.c add_scenery_rows, gated on
@@ -30776,13 +30449,9 @@ App_PluginLayoutTick(struct App* app)
 
     if( !app->plugins )
         return;
-    /* Named-UI contributions are independent of frame selection. Reconcile
-     * them at the same pre-interaction publication fence so a role
-     * rebuilt into a recycled component-array slot cannot leak one native
-     * frame or inherit another target's suppression. */
     /*
-     * Name the cache gameframe's regions before providers and placement code
-     * query them. Frame builds and the emit-fence rebind read these stamps. The
+     * Name the cache gameframe's regions before providers query them. Frame
+     * provision and the emit-fence rebind read these stamps. The
      * tree keeps the binder so the fence can re-run it after a rebuild.
      */
     if( app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0 )
@@ -30794,7 +30463,6 @@ App_PluginLayoutTick(struct App* app)
     PluginHost_WidgetsChanged(app->plugins,
         widgets_ready ? app->tree->instance_id : 0,
         widgets_ready ? app->tree->generation : 0);
-    PluginHost_ReconcileUi(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )
     {
@@ -30806,10 +30474,6 @@ App_PluginLayoutTick(struct App* app)
             UITree_FrameRelease(app->tree);
             UITree_EnsureLayout(app->tree);
             app->plugin_layout_dirty = 0;
-            /* Clear before notifying: on_placement_changed may select or
-             * invalidate a frame, and its new dirty declaration must
-             * survive this release transaction. */
-            PluginHost_LayoutChanged(app->plugins);
         }
         /* A candidate build is independent of committed ownership. Native is
          * deliberately still live here; fall through to the safe layout fence
@@ -30908,36 +30572,24 @@ candidate_layout:
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        /* A provider may change selection from inside its build callback.
-         * The host correctly abandons that transaction (its selection epoch moved),
+        /* A provider may change selection from inside on_gameframe. The host
+         * correctly abandons that transaction (its selection epoch moved),
          * which leaves dirty set and the effective frame released. Give the
          * replacement selection one bounded, sequential attempt now so native
          * chrome cannot leak into interaction between this tick and the final
          * publication tick. Resolve first because the replacement handler may
-         * read named UI while composing its declaration. A provider that keeps
-         * changing selection cannot spin us: it gets at most this one retry. */
+         * read widgets while laying out. A provider that keeps changing
+         * selection cannot spin us: it gets at most this one retry. */
         if( app->plugin_frame_active && app->plugin_layout_dirty )
         {
             UITree_EnsureLayout(app->tree);
             PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         }
-        /* FrameApply installs an effective geometry layer and invalidates the
-         * resolved boxes. Publish that layer before anybody hears that regions
-         * moved: layout-changed subscribers are allowed to read role_rect from
-         * inside their callback, and interaction follows this tick immediately. */
-        UITree_EnsureLayout(app->tree);
-        /*
-         * And tell EVERY plugin, not just the frame's owner.
-         *
-         * The conditions above are exactly the ones that move a region -- a
-         * resize, a tree rebuild, or a new frame build -- so a readout holding a picture
-         * measured against one of them has to hear about it here or nowhere.
-         * PluginHost_Layout is the owner's news; this is everybody else's.
-         */
-        PluginHost_LayoutChanged(app->plugins);
-        /* A callback may change frame selection synchronously. frame_activate
-         * drops the old effective frame immediately, so close
-         * that invalidation before interaction consumes the resolved boxes. */
+        /* FrameProvide installs the chrome suppression and role binding and
+         * invalidates the resolved boxes. Publish that before interaction
+         * consumes them; a provider may also change frame selection from
+         * inside its callback, and frame_activate drops the old effective
+         * frame immediately. */
         UITree_EnsureLayout(app->tree);
     }
     /* UITree_EmitWalk keeps a final generation fence as well. It no longer
@@ -31114,9 +30766,7 @@ App_DrainCommands(
                     /* The band the layout hands to every row whose profile
                      * declared `safe_area=os:bottom` -- the login box on the
                      * profiles that state it, and nothing at all on the ones
-                     * that do not. The same number api->platform_safe_rect answers from,
-                     * so a plugin's chrome and a profile's panel cannot
-                     * disagree about where the keyboard starts. */
+                     * that do not. */
                     UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
                     /* A frame-build invalidation, exactly like a resize: the mobile frame
                      * reads the new platform-safe area and slides its
@@ -31320,8 +30970,6 @@ App_RunOnce(
     int title_captures_keys = 0;
     struct UIInteractOut out;
     int ran_cs2 = 0;
-    int plugin_pointer_owned = 0;
-    int plugin_region_click = -1;
     int plugin_pointer_consumed = 0;
 
     assert(app);
@@ -31446,10 +31094,6 @@ App_RunOnce(
      * it -- so every consumer below answers the question the same way. */
     app->chrome_pointer_owned =
         app_chrome_wants_pointer(app, input->curr.mouse_x, input->curr.mouse_y);
-    /* Plugin regions paint beneath the developer/plugin chrome. Let that
-     * chrome claim a new press first; an already-captured plugin gesture still
-     * owns its held/release edges (app_chrome_route_input fences those). */
-    app_plugin_pointer_capture_latch(app, input);
     /* Map editor panel after the loc editor, for the same reason and in the
      * same order it is drawn: both read this frame's hover, and the map editor
      * acts on activations the overlay latched during the two calls above. */
@@ -31893,9 +31537,6 @@ App_RunOnce(
      * per-cycle timer, and the repeat is what puts the tooltip back. */
     app->interact.client_cycle = app->logic_cycle;
 
-    plugin_pointer_owned = app->plugin_pointer_capture.active;
-    plugin_region_click = app_plugin_pointer_capture_release(app, input);
-
     /*
      * The touch marker, shown for every press that is not a drag.
      *
@@ -31965,11 +31606,11 @@ App_RunOnce(
             &app->ui_host,
             input,
             now_ms,
-            plugin_pointer_owned,
+            0,
             app->chrome_pointer_owned,
             &out);
     }
-    plugin_pointer_consumed = plugin_pointer_owned || out.minimenu_consumed_pointer;
+    plugin_pointer_consumed = out.minimenu_consumed_pointer;
 
     /* World hover: gate on the mouse being over the world element. The pick
      * itself runs inside App_Render (hittest right after each visible model
@@ -32009,98 +31650,6 @@ App_RunOnce(
     /* Mouseover text before any click handling: the reference recomputes it
      * every cycle from the same menu the click paths build. */
     app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
-
-    /*
-     * A plugin's canvas region takes its own LEFT click, before anything else
-     * acts on this frame's gestures.
-     *
-     * First, and off the raw input rather than off `out`, because a left click
-     * reaches this function by three different routes depending on what is
-     * underneath the pointer -- a component id, a minimap gesture, or a
-     * left-click miss -- and a plugin orb drawn over the minimap would
-     * otherwise walk the player before its own row was ever considered. One
-     * test on the click edge covers all three.
-     *
-     * Right clicks are deliberately NOT intercepted: the region contributes a
-     * row to the menu the right click builds (app_plugin_menu_build), so it
-     * appears there beside whatever else is under the pointer, which is what a
-     * right click is for.
-     */
-    if( plugin_region_click >= 0 && out.minimenu_select < 0 && !out.minimenu_closed )
-    {
-        int region = app_plugin_region_at(
-            app,
-            input->last_click_x[TORIRSM_LEFT],
-            input->last_click_y[TORIRSM_LEFT]);
-        if( region < 0 ||
-            !app_plugin_pointer_capture_matches(
-                &app->plugin_pointer_capture, &app->plugin_regions[region]) )
-            region = -1;
-
-        /*
-         * TORIRS_PLUGIN_REGION_DEBUG=1: which plugin region a left click
-         * landed in, and what the frame's regions actually are.
-         *
-         * "The orb does nothing" has three separate causes -- the click missed
-         * the region, the region offered no verb, or the verb pressed a
-         * component this gameframe does not hold -- and from outside they look
-         * identical. This separates the first two; the plugin's own message
-         * names the third.
-         */
-        if( getenv("TORIRS_PLUGIN_REGION_DEBUG") )
-        {
-            TORIRS_LOG("region: click %d,%d -> %d of %d\n",
-                input->last_click_x[TORIRSM_LEFT],
-                input->last_click_y[TORIRSM_LEFT],
-                region,
-                app->plugin_region_count);
-            for( int i = 0; i < app->plugin_region_count; i++ )
-                TORIRS_LOG("  region[%d] plugin=%d %d,%d %dx%d ops=%d '%s'\n",
-                    i,
-                    app->plugin_regions[i].plugin,
-                    app->plugin_regions[i].x,
-                    app->plugin_regions[i].y,
-                    app->plugin_regions[i].w,
-                    app->plugin_regions[i].h,
-                    app->plugin_regions[i].op_count,
-                    app->plugin_regions[i].op_count > 0 ? app->plugin_regions[i].ops[0]
-                                                        : "");
-        }
-        if( region >= 0 )
-        {
-            if( app->plugin_regions[region].op_count > 0 )
-            {
-                /* Op 0 is the default, the same rule the right-click menu's
-                 * top row follows -- they are one decision, made once. */
-                PluginHost_CanvasClick(
-                    app->plugins,
-                    app->plugin_regions[region].plugin,
-                    app->plugin_regions[region].tag,
-                    0,
-                    input->last_click_x[TORIRSM_LEFT],
-                    input->last_click_y[TORIRSM_LEFT]);
-            }
-            /* Everything the click would otherwise have reached. A zero-op
-             * region deliberately follows this same path: its documented job
-             * is to be an opaque input surface without offering an action. */
-            out.clicked_com_id = -1;
-            out.minimap_click = 0;
-            out.chat_button_filter = -1;
-            out.left_click_miss = 0;
-            {
-                int kept = 0;
-                for( int i = 0; i < out.intent_count; i++ )
-                {
-                    if( out.intents[i].is_click )
-                        continue;
-                    out.intents[kept++] = out.intents[i];
-                }
-                out.intent_count = kept;
-            }
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
-        }
-    }
 
     /*
      * A chat filter button, if nothing above took the click.
@@ -32275,7 +31824,7 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
-        app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
+        app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         /*
          * TORIRS_CLICK_DEBUG=1: what the left click resolved to.
@@ -32400,7 +31949,7 @@ App_RunOnce(
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
-        app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
+        app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
@@ -35398,11 +34947,6 @@ App_BuildFrame(
         ToriRS_FrameSetScene(frame, app->scene);
         ToriRS_FrameSetCanvas(frame, width, height);
         ToriRS_FrameSetEmitBuffer(frame, &app->emit);
-        /* The frame's scrollbars wear whatever the standing layout declaration
-         * asked for, which is all zero when no plugin holds the frame or the
-         * one that does brought no scrollbar art. */
-        ToriRS_FrameSetScrollbarSkin(
-            frame, app->plugin_frame_active ? app->plugin_layout_scrollbar : NULL);
 
         /* World pass: paint the visibility-ordered command list for the current
          * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */

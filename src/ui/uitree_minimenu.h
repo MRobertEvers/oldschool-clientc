@@ -93,8 +93,6 @@ struct UIMinimenuPick
     uint64_t action_signature;
     uint32_t native_events;
     uint8_t has_native_events;
-    /** Full-width native boundary identity for a plugin-region row. */
-    uint64_t ui_boundary_incarnation;
     /** Synthetic engine click delegated by a semantic replacement: its native
      * source remains addressable below replacement tombstones. Cache/script
      * hiding and other native visibility fences still invalidate it. */

@@ -2,7 +2,6 @@
 
 #include "log/torirs_log.h"
 #include "plugin/torirs_plugin_frame.h"
-#include "plugin/torirs_plugin_ui.h"
 #include "plugin/torirs_plugin_runtime.h"
 #include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
@@ -24,8 +23,6 @@
  * a plugin must be able to add a row without silently stealing left-click.
  */
 #define PLUGIN_MENU_ACTION_BASE (UITREE_MINIMENU_ACTION_CLIENT_BASE + 16)
-#define PLUGIN_AREA_COUNT (TORIRS_AREA_RAW_VIEWPORT + 1)
-#define PLUGIN_EDGE_COUNT (TORIRS_EDGE_LEFT + 1)
 
 /* Host-internal callback phases. These are dispatch implementation details,
  * not a subscribable ABI: each V2 callback has its own typed table slot. */
@@ -46,7 +43,6 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_MENU_SELECT,
     PLUGIN_CALLBACK_DRAW_WORLD,
     PLUGIN_CALLBACK_DRAW_CANVAS,
-    PLUGIN_CALLBACK_CANVAS_CLICK,
     PLUGIN_CALLBACK_CONFIG_CHANGED,
     PLUGIN_CALLBACK_OBJ_SPAWN,
     PLUGIN_CALLBACK_OBJ_COUNT,
@@ -57,14 +53,11 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_UI,
     PLUGIN_CALLBACK_UI_BUILD,
     PLUGIN_CALLBACK_LAYOUT,
-    PLUGIN_CALLBACK_PLACEMENT_CHANGED,
-    PLUGIN_CALLBACK_DRAW_FRAME,
     PLUGIN_CALLBACK_SCREEN_CHANGE,
     PLUGIN_CALLBACK_PANEL_BUILD,
     PLUGIN_CALLBACK_PANEL_ACTION,
     PLUGIN_CALLBACK_PANEL_LAYOUT,
     PLUGIN_CALLBACK_PANEL_DRAW,
-    PLUGIN_CALLBACK_UI_NODE_ACTION,
     PLUGIN_CALLBACK_WIDGET_BINDING,
     /* An owned control's operation: a player's click, so the input verbs
      * (tab_select and the like) are open to it. */
@@ -105,25 +98,6 @@ static void
 plugin_frame_resolve(struct ToriRS_PluginHost* host);
 static void
 plugin_layout_publish(struct ToriRS_PluginHost* host);
-static void
-plugin_ui_refresh_base(struct ToriRS_PluginHost* host);
-static void
-plugin_layout_notifications_run(struct ToriRS_PluginHost* host);
-struct PluginUiPresentation;
-static void
-plugin_ui_present_suppressions(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* rows,
-    int count,
-    bool enabled);
-static void
-plugin_ui_present_reconcile(struct ToriRS_PluginHost* host);
-static int
-plugin_ui_present_provider(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* provider,
-    uint32_t facet);
 
 struct PluginConfigSlot
 {
@@ -136,9 +110,6 @@ struct PluginConfigSlot
     int schema_index;
 };
 
-#define PLUGIN_UI_CONTRIBUTIONS_MAX 32
-#define PLUGIN_UI_PRESENT_TAG_BIT 0x80000000u
-#define PLUGIN_UI_PRESENTATIONS_MAX TORIRS_UI_REGISTRY_NODES_MAX
 
 struct PluginV2Instance;
 static void plugin_v2_init(struct PluginContext* ctx);
@@ -228,9 +199,6 @@ struct PluginContext
     int meshes[TORIRS_PLUGIN_MESH_BUDGET];
     int mesh_count;
     bool mesh_clipped;
-    bool ui_contributions_registered;
-    struct ToriRS_UiContributionRef ui_contribution_refs[PLUGIN_UI_CONTRIBUTIONS_MAX];
-    int ui_contribution_count;
     struct PluginV2Instance* v2;
     struct PluginWidgetWatch* widget_watches;
     struct PluginWidgetOp* widget_ops;
@@ -240,8 +208,6 @@ struct PluginContext
         void* user);
     void* reload_user;
 };
-
-#define PLUGIN_V2_FRAME_UI_MAX TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX
 
 _Static_assert(
     TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX >= TORIRS_PLUGIN_IMAGES_MAX,
@@ -259,15 +225,6 @@ _Static_assert(TORIRS_PLUGIN_MAX <= 32, "v2 resource namespace covers every plug
 
 struct PluginV2Instance
 {
-    struct PluginV2FrameNode
-    {
-        char name[TORIRS_UI_NAME_MAX];
-        struct ToriRS_UiNode value;
-        char parent[TORIRS_UI_NAME_MAX];
-        char label[TORIRS_UI_LABEL_MAX];
-        char action[TORIRS_UI_ACTION_MAX];
-        char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
-    } frame_ui[PLUGIN_V2_FRAME_UI_MAX], frame_ui_candidate[PLUGIN_V2_FRAME_UI_MAX];
     struct ToriRS_PluginDef const* definition;
     struct ToriRS_PluginDef definition_storage;
     struct ToriRS_PluginCallbacks callbacks_storage;
@@ -277,16 +234,9 @@ struct PluginV2Instance
     struct PluginV2Runtime runtime;
     bool runtime_initialized_once;
     void* state;
-    int frame_ui_count;
-    int frame_ui_candidate_count;
-    bool frame_ui_candidate_invalid;
     /* This plugin's offer was provided through on_gameframe(active) and has
      * not been released yet. */
     bool gameframe_provided;
-    struct ToriRS_ImageRef frame_images[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
-    struct ToriRS_ImageRef frame_images_candidate[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
-    int frame_image_count;
-    int frame_image_candidate_count;
 };
 
 struct PluginMenuRoute
@@ -296,35 +246,6 @@ struct PluginMenuRoute
     uint32_t tag;
 };
 
-struct PluginUiPresentation
-{
-    struct ToriRS_UiNodeRef node;
-    struct ToriRS_UiStoredNode value;
-    int appearance_plugin;
-    int actions_plugin;
-    /** One REPLACE_OR_PROVIDE contribution won both user-visible facets. When
-     * this node maps to a live lane role, its native component is a whole
-     * semantic object rather than a paint leaf and is replaced at the subtree
-     * tombstone. Bounds may remain lane-owned; appearance-only or split
-     * appearance/actions winners keep exact-node suppression. */
-    bool replace_subtree;
-    /** Authored by the selected FrameBuilder: paint and input belong to the
-     * frame surface, below native panels but above the world underneath. */
-    bool frame_surface;
-    uint32_t action_token;
-    uint64_t state_identity;
-    int boundary_place;
-    bool presentable;
-    bool clip_active;
-    struct ToriRS_Rect clip;
-    char boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    /** A closer mapped role which is not live yet. Its transition to live is
-     * probed from this compact list and triggers one presenter rebuild. */
-    char pending_boundary_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    /** Non-empty only when this semantic node itself resolves to a live lane
-     * role. Facet suppression applies here, never to a fallback ancestor. */
-    char target_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-};
 
 /*
  * One resident asset.
@@ -369,8 +290,6 @@ enum PluginEntityScope
     PLUGIN_ENTITY_APPEARANCE = 1 << 0,
     PLUGIN_ENTITY_HITBOX = 1 << 1
 };
-/** Whole surfaces plus every V2 member declaration in one candidate. */
-#define TORIRS_PLUGIN_LAYOUT_RECTS_MAX 96
 /** A 64x64 PNG has no reason to approach this; cap pathological compressed
  * input before the automatic rail-icon decode spends work on it. */
 #define TORIRS_PLUGIN_PANEL_ICON_BYTES_MAX (256 * 1024)
@@ -391,45 +310,6 @@ struct PluginEntityClaim
 };
 
 /**
- * Scratch frame declaration. Nothing in this record is visible to the engine
- * until every geometry, image and named-node invariant has passed.
- */
-struct PluginLayoutCandidate
-{
-    struct PluginLayoutRect
-    {
-        int slot;
-        int member;
-        int x;
-        int y;
-        int w;
-        int h;
-    } rects[TORIRS_PLUGIN_LAYOUT_RECTS_MAX];
-    int rect_count;
-    struct ToriRS_FrameAnchor anchors[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    struct PluginLayoutSkin
-    {
-        bool declared;
-        int art;
-        int mask;
-    } skins[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    struct PluginLayoutOverlay
-    {
-        bool declared;
-        int image;
-        int x;
-        int y;
-        int trans;
-    } overlays[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    bool scrollbar_declared;
-    int scrollbar[6];
-    int scrollbar_count;
-    bool viewport_declared;
-    bool invalid;
-    char reason[TORIRS_FRAME_REASON_MAX];
-};
-
-/**
  * Which of the three draw surfaces is open.
  *
  * The values are the engine's `draw_select_canvas` argument, so the order is
@@ -440,8 +320,6 @@ enum PluginDrawSurface
 {
     PLUGIN_DRAW_SURFACE_WORLD = TORIRS_PLUGIN_ENGINE_DRAW_WORLD,
     PLUGIN_DRAW_SURFACE_CANVAS = TORIRS_PLUGIN_ENGINE_DRAW_CANVAS,
-    /** Over the scene, under the interfaces. @see FrameOffer.draw. */
-    PLUGIN_DRAW_SURFACE_FRAME = TORIRS_PLUGIN_ENGINE_DRAW_FRAME,
     /** Panel-local custom region prepared by the application shell. */
     PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL
 };
@@ -491,7 +369,6 @@ struct ToriRS_PluginHost
     /** Last completely validated and engine-committed offer. */
     int frame_active_entry;
     int frame_bound_root;
-    uint32_t frame_bound_slots;
     /** Offer named by the current request, still only a candidate. */
     int frame_target_entry;
     /** One-shot request consumed by the app's next safe layout fence. */
@@ -504,65 +381,6 @@ struct ToriRS_PluginHost
     int frame_resolving;
     int frame_selection_dirty;
 
-    struct ToriRS_PlacementRegion placement[PLUGIN_AREA_COUNT];
-    /** Layout epoch from which `placement` was last resolved. */
-    int placement_cache_revision;
-    int placement_cache_valid;
-    /**
-     * Public retained-placement state.  Unlike layout_revision, this advances
-     * only when the canonical area sets or a named reservation's assigned box
-     * actually changes.
-     */
-    uint32_t placement_revision;
-    uint32_t placement_notified_revision;
-    int placement_initialized;
-    int placement_notify_pending;
-    /** Last effective lane-owned popout cut observed by placement. Unlike the
-     * selected frame's slots, this mounted sibling can move or hide without a
-     * tree-generation or canvas-size change, so FrameStart polls this one
-     * retained input explicitly. */
-    int placement_lane_chrome_observed;
-    int placement_lane_chrome_active;
-    struct ToriRS_PlacementRect placement_lane_chrome_rect;
-    struct ToriRS_UiRegistry ui_registry;
-    /* Rebuilt only when the named registry revision changes. Per-frame paint
-     * walks this compact winning-provider list, never the registry. */
-    struct PluginUiPresentation ui_presentations[PLUGIN_UI_PRESENTATIONS_MAX];
-    int ui_presentation_count;
-    /** Interned node -> compact presentation index + 1 (zero absent). */
-    int ui_presentation_by_node[TORIRS_UI_REGISTRY_NODES_MAX];
-    uint32_t ui_presentation_revision;
-    uint32_t ui_presentation_rebuilds;
-    uint32_t ui_presentation_change_visits;
-    uint32_t ui_presentation_registry_visits;
-    uint32_t ui_presentation_role_probe_visits;
-    int ui_pending_role_nodes[TORIRS_UI_REGISTRY_NODES_MAX];
-    int ui_pending_role_index[TORIRS_UI_REGISTRY_NODES_MAX];
-    int ui_pending_role_count;
-    /** 0 unknown, 1 absent, 2 non-blocking, 3 hidden. */
-    uint8_t ui_node_visibility_state[TORIRS_UI_REGISTRY_NODES_MAX];
-    bool ui_presentation_roles_dirty;
-    /** Diagnostic copy of consumed registry mutations; never drives state. */
-    uint32_t ui_observed_change_facets[TORIRS_UI_REGISTRY_NODES_MAX];
-    uint32_t ui_observed_change_revision[TORIRS_UI_REGISTRY_NODES_MAX];
-    int ui_observed_change_queue[TORIRS_UI_REGISTRY_NODES_MAX];
-    int ui_observed_change_head;
-    int ui_observed_change_count;
-    uint32_t ui_action_token;
-    int ui_tab_active;
-    uint32_t ui_tab_enabled_mask;
-    bool ui_tab_state_valid;
-    /** The surfaces whose rectangle is the one this frame DREW rather than the
-     *  one the layout laid out: the world viewport and the minimap both read a
-     *  frame's emit descriptor. A descriptor is a frame behind the layout that
-     *  moved it, so the base refresh a layout change triggers reads the old
-     *  box and -- being edge triggered -- would latch it for the session.
-     *  These are the values that refresh published; the poll below compares
-     *  them against the live answer and refreshes again when they move. */
-    struct ToriRS_Rect ui_live_surface_rect[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    bool ui_live_surface_present[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    bool ui_live_surface_valid;
-
     /** enum ToriRS_FrameCanvas, and the pinned size for FIXED. */
     int layout_canvas;
     int layout_fixed_w;
@@ -570,44 +388,9 @@ struct ToriRS_PluginHost
     /** Advances across every resolved offer transition. Fences an in-flight
      * frame-build candidate from committing after selection moved. */
     uint32_t frame_selection_epoch;
-    /** Non-zero only inside a frame-build callback: surface declarations are
-     * legal then and at no other time, for the same reason hit regions are. */
-    int layout_declaring;
-    int layout_declarer;
-    int layout_candidate_entry;
-    struct PluginLayoutCandidate layout_candidate;
-
-    struct PluginPlacementReservation
-    {
-        int plugin;
-        int area;
-        int edge;
-        int pixels;
-        int assigned;
-        char name[TORIRS_HOST_RESERVATION_NAME_MAX];
-        struct ToriRS_PlacementRect rect;
-    } placement_reservations[TORIRS_PLUGIN_RESERVES_MAX];
-
-    /** Last successfully resolved named-reservation assignments. */
-    struct PluginPlacementResolvedReservation
-    {
-        int plugin;
-        int assigned;
-        char name[TORIRS_HOST_RESERVATION_NAME_MAX];
-        struct ToriRS_PlacementRect rect;
-    } placement_resolved_reservations[TORIRS_PLUGIN_RESERVES_MAX];
-
     /* Standing entity presentation/action claims. */
     struct PluginEntityClaim entity_claims[PLUGIN_ENTITY_CLAIMS_MAX];
 
-    /** Moves whenever anything about the layout does. @see layout_revision. */
-    int layout_revision;
-    /** Set while on_placement_changed is being delivered. @see
-     *  PluginHost_LayoutChanged. */
-    int layout_notifying;
-    /** A layout source changed from inside a notification.  It is folded into
-     * the current transaction when possible, otherwise drained next frame. */
-    int layout_notify_pending;
     /* Non-NULL only during an on_menu_build dispatch. */
     void* menu_cursor;
 
@@ -1111,7 +894,7 @@ static int
 plugin_ev_is_draw(enum PluginCallbackKind ev)
 {
     return ev == PLUGIN_CALLBACK_DRAW_WORLD || ev == PLUGIN_CALLBACK_DRAW_CANVAS ||
-           ev == PLUGIN_CALLBACK_DRAW_FRAME || ev == PLUGIN_CALLBACK_PANEL_DRAW;
+           ev == PLUGIN_CALLBACK_PANEL_DRAW;
 }
 
 /* ------------------------------------------------------------ api surface */
@@ -1163,21 +946,6 @@ _Static_assert(
     (int)TORIRS_SCREEN_GAME == 30,
     "plugin screen GAME");
 
-/* And enum ToriRS_HostOrbsMember, which the tree reads, against the contract's
- * enum ToriRS_OrbsMember, which a frame declaration is written in. */
-_Static_assert(
-    (int)TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER ==
-        (int)TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
-    "orb member ACTIVITY_ADVISER");
-_Static_assert(
-    (int)TORIRS_HOST_ORBS_MEMBER_WORLD_MAP == (int)TORIRS_ORBS_MEMBER_WORLD_MAP,
-    "orb member WORLD_MAP");
-_Static_assert(
-    (int)TORIRS_HOST_ORBS_MEMBER_WIKI == (int)TORIRS_ORBS_MEMBER_WIKI,
-    "orb member WIKI");
-_Static_assert(
-    (int)TORIRS_HOST_ORBS_MEMBER_COUNT == (int)TORIRS_ORBS_MEMBER_COUNT,
-    "orb member count");
 
 static int
 api_screen(struct PluginContext* ctx)
@@ -1497,122 +1265,12 @@ static void
 plugin_layout_publish(struct ToriRS_PluginHost* host)
 {
     assert(host);
-    host->placement_cache_valid = 0;
     host->engine.frame_activate(
         host->engine.user,
         plugin_frame_owner(host) >= 0 ? 1 : 0,
         host->layout_canvas,
         host->layout_fixed_w,
         host->layout_fixed_h);
-}
-
-static void
-plugin_layout_candidate_fail(
-    struct ToriRS_PluginHost* host,
-    char const* reason)
-{
-    assert(host);
-    host->layout_candidate.invalid = true;
-    if( !host->layout_candidate.reason[0] && reason )
-        snprintf(
-            host->layout_candidate.reason,
-            sizeof(host->layout_candidate.reason),
-            "%s",
-            reason);
-}
-
-static int
-plugin_layout_rect_valid(int x, int y, int w, int h)
-{
-    int64_t const right = (int64_t)x + w;
-    int64_t const bottom = (int64_t)y + h;
-
-    return w > 0 && h > 0 && right >= INT32_MIN && right <= INT32_MAX &&
-           bottom >= INT32_MIN && bottom <= INT32_MAX;
-}
-
-static int
-host_frame_surface_member(
-    struct PluginContext* ctx,
-    int slot,
-    int member,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    struct ToriRS_PluginHost* host;
-    struct PluginLayoutCandidate* candidate;
-    int qx = 0;
-    int qy = 0;
-    int qw = 0;
-    int qh = 0;
-
-    assert(ctx);
-    /* The same window test the draw verbs make. A slot placed outside the
-     * declaration would land in a table the engine has already applied, so it
-     * would take effect a frame late and survive a declaration that never
-     * mentioned it -- which is exactly the drift the rebuilt-from-nothing rule
-     * exists to prevent. */
-    host = ctx->host;
-    candidate = &host->layout_candidate;
-    assert(host->layout_declaring && "frame surfaces are legal only during frame build");
-    assert(host->layout_declarer == ctx->index);
-    /* A number a plugin computed, so out of range is input. */
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared an unknown surface.");
-        return 0;
-    }
-    if( member < -1 || !plugin_layout_rect_valid(x, y, w, h) )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared an invalid surface rectangle.");
-        return 0;
-    }
-    for( int i = 0; i < candidate->rect_count; i++ )
-        if( candidate->rects[i].slot == slot && candidate->rects[i].member == member )
-        {
-            plugin_layout_candidate_fail(host, "The frame declared a surface or member twice.");
-            return 0;
-        }
-    if( candidate->rect_count >= TORIRS_PLUGIN_LAYOUT_RECTS_MAX )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared too many surfaces or members.");
-        return 0;
-    }
-    candidate->rects[candidate->rect_count++] = (struct PluginLayoutRect){
-        .slot = slot,
-        .member = member,
-        .x = x,
-        .y = y,
-        .w = w,
-        .h = h,
-    };
-    if( slot == TORIRS_HOST_SURFACE_VIEWPORT && member == -1 )
-        candidate->viewport_declared = true;
-
-    /* The return remains the old "does this lane have the target" answer;
-     * recording is host-local until commit and must not mutate the live tree. */
-    if( host->engine.layout_slot_exists )
-        return host->engine.layout_slot_exists(host->engine.user, slot, member);
-    return member < 0
-               ? host->engine.slot_rect(host->engine.user, slot, &qx, &qy, &qw, &qh)
-               : host->engine.slot_member_rect(
-                     host->engine.user, slot, member, &qx, &qy, &qw, &qh);
-}
-
-/* The whole role, which is `member` -1. One entry point with a name for the
- * common case, rather than every caller writing the sentinel. */
-static int
-host_frame_surface(
-    struct PluginContext* ctx,
-    int slot,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    return host_frame_surface_member(ctx, slot, -1, x, y, w, h);
 }
 
 static int
@@ -1632,9 +1290,7 @@ api_tab_select(
     {
     case PLUGIN_CALLBACK_KEY:
     case PLUGIN_CALLBACK_MENU_SELECT:
-    case PLUGIN_CALLBACK_CANVAS_CLICK:
     case PLUGIN_CALLBACK_PANEL_ACTION:
-    case PLUGIN_CALLBACK_UI_NODE_ACTION:
     case PLUGIN_CALLBACK_WIDGET_OPERATION:
         break;
     default:
@@ -1685,1069 +1341,6 @@ struct PluginRect
  */
 /* ---------------------------------------------------------------- exact placement */
 
-static int
-plugin_placement_add_named_occluders(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_PlacementRegion* cuts,
-    uint32_t flag)
-{
-    assert(host);
-    assert(cuts);
-    for( int i = 0; i < ToriRS_UiRegistry_NodeCount(&host->ui_registry); i++ )
-    {
-        struct ToriRS_UiResolvedNode node;
-        struct ToriRS_PlacementRect rect;
-        struct ToriRS_UiNodeRef const ref = ToriRS_UiRegistry_NodeAt(&host->ui_registry, i);
-
-        if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, ref, &node) )
-            continue;
-        if( !(node.available_facets & TORIRS_UI_FACET_BOUNDS) ||
-            !(node.value.flags & TORIRS_UI_NODE_VISIBLE) || !(node.value.flags & flag) )
-            continue;
-        rect.x = node.value.bounds.x;
-        rect.y = node.value.bounds.y;
-        rect.w = node.value.bounds.width;
-        rect.h = node.value.bounds.height;
-        if( rect.w <= 0 || rect.h <= 0 )
-            continue;
-        if( ToriRS_PlacementRegion_AddRect(cuts, &rect) != TORIRS_PLACEMENT_OK )
-            return 0;
-    }
-    return 1;
-}
-
-/*
- * Add lane furniture from the lane itself, independently of the semantic
- * frame tree that a selected provider publishes.
- *
- * `lane_chrome_0` is interface 728's live popout strip on osrs239.  Its
- * canonical UI name is `frame.sidebar.rail`, which is also the name a custom
- * frame quite correctly gives its own tab rail.  Once that frame commits,
- * its base declaration replaces the native declaration in the semantic
- * registry; deriving FRAME_BUILD solely from the winning semantic node then
- * forgets the cache strip and lets the replacement frame slide underneath
- * it.  The strip is still mounted, painted, and noclickthrough, so the result
- * is clipped artwork and dead tab targets.
- *
- * Placement must therefore read this non-replaceable lane fact from the
- * profile role.  Named UI still describes the selected frame, while this cut
- * preserves the native popout as a fully usable sibling.  Adding it again
- * when the native base also won is harmless: PlacementRegion_AddRect is a
- * geometric union.
- */
-static int
-plugin_placement_lane_chrome_rect(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_PlacementRect* rect)
-{
-    assert(host);
-    assert(rect);
-    memset(rect, 0, sizeof(*rect));
-    if( !host->engine.role_rect || !host->engine.role_visible ||
-        !host->engine.role_rect(
-            host->engine.user,
-            "lane_chrome_0",
-            &rect->x,
-            &rect->y,
-            &rect->w,
-            &rect->h) ||
-        !host->engine.role_visible(host->engine.user, "lane_chrome_0") ||
-        rect->w <= 0 || rect->h <= 0 )
-        return 0;
-    return 1;
-}
-
-static int
-plugin_placement_named_before(
-    struct ToriRS_PluginHost const* host,
-    int lhs,
-    int rhs)
-{
-    struct PluginPlacementReservation const* a;
-    struct PluginPlacementReservation const* b;
-    int cmp;
-
-    assert(host);
-    a = &host->placement_reservations[lhs];
-    b = &host->placement_reservations[rhs];
-    if( a->edge != b->edge )
-        return a->edge < b->edge;
-    cmp = strcmp(host->plugins[a->plugin].name, host->plugins[b->plugin].name);
-    if( cmp != 0 )
-        return cmp < 0;
-    return strcmp(a->name, b->name) < 0;
-}
-
-static int
-plugin_placement_reservation_fragment(
-    struct ToriRS_PlacementRegion const* region,
-    int edge,
-    int pixels,
-    struct ToriRS_PlacementRect* out)
-{
-    int best = -1;
-    int count;
-
-    assert(region);
-    assert(out);
-    count = ToriRS_PlacementRegion_RectCount(region);
-    for( int i = 0; i < count; i++ )
-    {
-        struct ToriRS_PlacementRect candidate;
-        int better = best < 0;
-        ToriRS_PlacementRegion_RectAt(region, i, &candidate);
-        if( (edge == TORIRS_EDGE_LEFT ||
-             edge == TORIRS_EDGE_RIGHT) &&
-            candidate.w < pixels )
-            continue;
-        if( (edge == TORIRS_EDGE_TOP ||
-             edge == TORIRS_EDGE_BOTTOM) &&
-            candidate.h < pixels )
-            continue;
-        if( best >= 0 )
-        {
-            int const candidate_far_x = candidate.x + candidate.w;
-            int const best_far_x = out->x + out->w;
-            int const candidate_far_y = candidate.y + candidate.h;
-            int const best_far_y = out->y + out->h;
-            if( edge == TORIRS_EDGE_LEFT )
-                better = candidate.x < out->x || (candidate.x == out->x && candidate.h > out->h);
-            else if( edge == TORIRS_EDGE_RIGHT )
-                better = candidate_far_x > best_far_x ||
-                         (candidate_far_x == best_far_x && candidate.h > out->h);
-            else if( edge == TORIRS_EDGE_TOP )
-                better = candidate.y < out->y || (candidate.y == out->y && candidate.w > out->w);
-            else
-                better = candidate_far_y > best_far_y ||
-                         (candidate_far_y == best_far_y && candidate.w > out->w);
-        }
-        if( better )
-        {
-            best = i;
-            *out = candidate;
-        }
-    }
-    return best >= 0;
-}
-
-static int
-plugin_placement_apply_named_reservations(
-    struct ToriRS_PluginHost* host,
-    int area,
-    struct ToriRS_PlacementRegion* region,
-    struct PluginPlacementResolvedReservation* resolved)
-{
-    int order[TORIRS_PLUGIN_RESERVES_MAX];
-    int count = 0;
-
-    assert(host);
-    assert(region);
-    assert(resolved);
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginPlacementReservation const* reservation =
-            &host->placement_reservations[i];
-        memset(&resolved[i], 0, sizeof(resolved[i]));
-        resolved[i].plugin = -1;
-        if( reservation->plugin >= 0 && reservation->area == area && reservation->pixels > 0 )
-            order[count++] = i;
-    }
-    for( int i = 1; i < count; i++ )
-    {
-        int const value = order[i];
-        int at = i;
-        while( at > 0 && plugin_placement_named_before(host, value, order[at - 1]) )
-        {
-            order[at] = order[at - 1];
-            at--;
-        }
-        order[at] = value;
-    }
-
-    for( int i = 0; i < count; i++ )
-    {
-        int const reservation_index = order[i];
-        struct PluginPlacementReservation const* reservation =
-            &host->placement_reservations[reservation_index];
-        struct ToriRS_PlacementRect rect;
-
-        if( !plugin_placement_reservation_fragment(
-                region, reservation->edge, reservation->pixels, &rect) )
-            continue;
-        if( reservation->edge == TORIRS_EDGE_LEFT )
-            rect.w = reservation->pixels;
-        else if( reservation->edge == TORIRS_EDGE_RIGHT )
-        {
-            rect.x += rect.w - reservation->pixels;
-            rect.w = reservation->pixels;
-        }
-        else if( reservation->edge == TORIRS_EDGE_TOP )
-            rect.h = reservation->pixels;
-        else
-        {
-            rect.y += rect.h - reservation->pixels;
-            rect.h = reservation->pixels;
-        }
-        if( ToriRS_PlacementRegion_SubtractRect(region, &rect, region) != TORIRS_PLACEMENT_OK )
-            return 0;
-        resolved[reservation_index].plugin = reservation->plugin;
-        resolved[reservation_index].assigned = 1;
-        resolved[reservation_index].rect = rect;
-        snprintf(
-            resolved[reservation_index].name,
-            sizeof(resolved[reservation_index].name),
-            "%s",
-            reservation->name);
-    }
-    return 1;
-}
-
-static int
-plugin_placement_rect_equal(
-    struct ToriRS_PlacementRect const* a,
-    struct ToriRS_PlacementRect const* b)
-{
-    assert(a);
-    assert(b);
-    return a->x == b->x && a->y == b->y && a->w == b->w && a->h == b->h;
-}
-
-/** Compare the semantic reservation-to-box mapping, not backing-table slots. */
-static int
-plugin_placement_resolved_equal(
-    struct PluginPlacementResolvedReservation const* a,
-    struct PluginPlacementResolvedReservation const* b)
-{
-    int a_count = 0;
-    int b_count = 0;
-
-    assert(a);
-    assert(b);
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        int found = 0;
-
-        if( a[i].assigned )
-            a_count++;
-        if( b[i].assigned )
-            b_count++;
-        if( !a[i].assigned )
-            continue;
-        for( int j = 0; j < TORIRS_PLUGIN_RESERVES_MAX; j++ )
-            if( b[j].assigned && b[j].plugin == a[i].plugin &&
-                strcmp(b[j].name, a[i].name) == 0 &&
-                plugin_placement_rect_equal(&b[j].rect, &a[i].rect) )
-            {
-                found = 1;
-                break;
-            }
-        if( !found )
-            return 0;
-    }
-    return a_count == b_count;
-}
-
-static uint32_t
-plugin_placement_revision_next(uint32_t revision)
-{
-    revision++;
-    return revision ? revision : 1;
-}
-
-static int
-plugin_placement_rebuild(
-    struct ToriRS_PluginHost* host,
-    int announce_initial)
-{
-    struct ToriRS_PlacementRegion canvas;
-    struct ToriRS_PlacementRegion os;
-    struct ToriRS_PlacementRegion cuts;
-    struct ToriRS_PlacementRegion candidate[PLUGIN_AREA_COUNT];
-    struct PluginPlacementResolvedReservation resolved[TORIRS_PLUGIN_RESERVES_MAX];
-    struct ToriRS_PlacementRect rect;
-    struct ToriRS_PlacementRect lane_chrome_rect;
-    int lane_chrome_active;
-    int changed;
-
-    assert(host);
-    if( host->placement_cache_valid && host->placement_cache_revision == host->layout_revision )
-        return 1;
-    plugin_ui_refresh_base(host);
-    lane_chrome_active = plugin_placement_lane_chrome_rect(host, &lane_chrome_rect);
-
-    ToriRS_PlacementRegion_Clear(&canvas);
-    ToriRS_PlacementRegion_Clear(&os);
-    ToriRS_PlacementRegion_Clear(&cuts);
-    for( int i = 0; i < PLUGIN_AREA_COUNT; i++ )
-        ToriRS_PlacementRegion_Clear(&candidate[i]);
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        memset(&resolved[i], 0, sizeof(resolved[i]));
-        resolved[i].plugin = -1;
-    }
-
-    if( !host->engine.slot_rect(
-            host->engine.user, TORIRS_HOST_SURFACE_CANVAS, &rect.x, &rect.y, &rect.w, &rect.h) ||
-        rect.w <= 0 || rect.h <= 0 )
-        return 0;
-    ToriRS_PlacementRegion_SetRect(&canvas, &rect);
-
-    if( host->engine.platform_safe_next )
-    {
-        int iter = -1;
-        while( (iter = host->engine.platform_safe_next(
-                    host->engine.user, iter, &rect.x, &rect.y, &rect.w, &rect.h)) >= 0 )
-        {
-            if( rect.w <= 0 || rect.h <= 0 )
-                continue;
-            if( ToriRS_PlacementRegion_AddRect(&os, &rect) != TORIRS_PLACEMENT_OK )
-                return 0;
-        }
-    }
-    else if(
-        host->engine.platform_safe_rect &&
-        host->engine.platform_safe_rect(host->engine.user, &rect.x, &rect.y, &rect.w, &rect.h) && rect.w > 0 &&
-        rect.h > 0 )
-        ToriRS_PlacementRegion_SetRect(&os, &rect);
-    else
-        os = canvas;
-    if( ToriRS_PlacementRegion_Intersect(
-            &canvas, &os, &candidate[TORIRS_AREA_PLATFORM_SAFE]) !=
-        TORIRS_PLACEMENT_OK )
-        return 0;
-
-    ToriRS_PlacementRegion_Clear(&cuts);
-    if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_FRAME) )
-        return 0;
-    if( lane_chrome_active &&
-        ToriRS_PlacementRegion_AddRect(&cuts, &lane_chrome_rect) != TORIRS_PLACEMENT_OK )
-        return 0;
-    if( ToriRS_PlacementRegion_Subtract(
-            &candidate[TORIRS_AREA_PLATFORM_SAFE],
-            &cuts,
-            &candidate[TORIRS_AREA_FRAME_BUILD]) != TORIRS_PLACEMENT_OK )
-        return 0;
-
-    if( host->engine.slot_rect(
-            host->engine.user, TORIRS_HOST_SURFACE_VIEWPORT, &rect.x, &rect.y, &rect.w, &rect.h) &&
-        rect.w > 0 && rect.h > 0 )
-        ToriRS_PlacementRegion_SetRect(&candidate[TORIRS_AREA_RAW_VIEWPORT], &rect);
-    else
-        candidate[TORIRS_AREA_RAW_VIEWPORT] = canvas;
-
-    if( ToriRS_PlacementRegion_Intersect(
-            &candidate[TORIRS_AREA_RAW_VIEWPORT],
-            &candidate[TORIRS_AREA_PLATFORM_SAFE],
-            &candidate[TORIRS_AREA_OVERLAY_SAFE]) != TORIRS_PLACEMENT_OK )
-        return 0;
-
-    ToriRS_PlacementRegion_Clear(&cuts);
-    if( !plugin_placement_add_named_occluders(host, &cuts, TORIRS_UI_NODE_BLOCKS_OVERLAY) )
-        return 0;
-    if( lane_chrome_active &&
-        ToriRS_PlacementRegion_AddRect(&cuts, &lane_chrome_rect) != TORIRS_PLACEMENT_OK )
-        return 0;
-    if( ToriRS_PlacementRegion_Subtract(
-            &candidate[TORIRS_AREA_OVERLAY_SAFE],
-            &cuts,
-            &candidate[TORIRS_AREA_OVERLAY_SAFE]) != TORIRS_PLACEMENT_OK )
-        return 0;
-    if( !plugin_placement_apply_named_reservations(
-            host,
-            TORIRS_AREA_OVERLAY_SAFE,
-            &candidate[TORIRS_AREA_OVERLAY_SAFE],
-            resolved) )
-        return 0;
-
-    changed = !host->placement_initialized;
-    if( host->placement_initialized )
-    {
-        for( int i = 0; i < PLUGIN_AREA_COUNT; i++ )
-            if( !ToriRS_PlacementRegion_Equals(&host->placement[i], &candidate[i]) )
-            {
-                changed = 1;
-                break;
-            }
-        if( !changed &&
-            !plugin_placement_resolved_equal(host->placement_resolved_reservations, resolved) )
-            changed = 1;
-    }
-
-    /* The previous complete answer stays live if any operation above fails. */
-    memcpy(host->placement, candidate, sizeof(candidate));
-    memcpy(
-        host->placement_resolved_reservations,
-        resolved,
-        sizeof(host->placement_resolved_reservations));
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        host->placement_reservations[i].assigned = resolved[i].assigned;
-        host->placement_reservations[i].rect = resolved[i].rect;
-    }
-    host->placement_cache_revision = host->layout_revision;
-    host->placement_cache_valid = 1;
-    host->placement_lane_chrome_observed = 1;
-    host->placement_lane_chrome_active = lane_chrome_active;
-    host->placement_lane_chrome_rect = lane_chrome_rect;
-    if( changed )
-    {
-        host->placement_revision = plugin_placement_revision_next(host->placement_revision);
-        if( host->placement_initialized || announce_initial )
-            host->placement_notify_pending = 1;
-        else
-            host->placement_notified_revision = host->placement_revision;
-    }
-    host->placement_initialized = 1;
-    return 1;
-}
-
-static int
-plugin_placement_refresh(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    /* A callback which mutates a reservation schedules another transaction.
-     * Every subscriber in this one continues to observe one frozen retained
-     * placement snapshot and revision. */
-    if( host->layout_notifying && host->placement_initialized )
-        return 1;
-    return plugin_placement_rebuild(host, 0);
-}
-
-static uint32_t
-api_placement_revision(struct PluginContext* ctx)
-{
-    assert(ctx);
-    (void)plugin_placement_refresh(ctx->host);
-    return ctx->host->placement_revision;
-}
-
-static int
-api_placement_rect_next(
-    struct PluginContext* ctx,
-    int area,
-    int iter,
-    struct ToriRS_PlacementRect* out)
-{
-    int next;
-
-    assert(ctx);
-    assert(out);
-    if( area < 0 || area >= PLUGIN_AREA_COUNT )
-        return -1;
-    if( !plugin_placement_refresh(ctx->host) )
-        return -1;
-    if( iter == INT_MAX )
-        return -1;
-    next = iter + 1;
-    if( next < 0 || next >= ToriRS_PlacementRegion_RectCount(&ctx->host->placement[area]) )
-        return -1;
-    ToriRS_PlacementRegion_RectAt(&ctx->host->placement[area], next, out);
-    return next;
-}
-
-static int
-api_placement_place(
-    struct PluginContext* ctx,
-    int area,
-    int anchor,
-    int width,
-    int height,
-    int margin,
-    struct ToriRS_PlacementRect* out)
-{
-    assert(ctx);
-    assert(out);
-    if( area < 0 || area >= PLUGIN_AREA_COUNT )
-        return 0;
-    if( anchor < 0 || anchor >= TORIRS_PLACEMENT_ANCHOR_COUNT || width <= 0 || height <= 0 ||
-        margin < 0 )
-        return 0;
-    if( !plugin_placement_refresh(ctx->host) )
-        return 0;
-    return ToriRS_PlacementRegion_Place(
-               &ctx->host->placement[area], anchor, width, height, margin, out)
-               ? 1
-               : 0;
-}
-
-static int
-api_placement_contains(
-    struct PluginContext* ctx,
-    int area,
-    struct ToriRS_PlacementRect const* rect)
-{
-    assert(ctx);
-    assert(rect);
-    if( area < 0 || area >= PLUGIN_AREA_COUNT )
-        return 0;
-    if( !plugin_placement_refresh(ctx->host) )
-        return 0;
-    return ToriRS_PlacementRegion_ContainsRect(&ctx->host->placement[area], rect) ? 1 : 0;
-}
-
-static int
-plugin_placement_reservation_name_valid(char const* name)
-{
-    size_t length;
-
-    assert(name);
-    length = strlen(name);
-    if( length == 0 || length >= TORIRS_HOST_RESERVATION_NAME_MAX )
-        return 0;
-    for( size_t i = 0; i < length; i++ )
-    {
-        char const c = name[i];
-        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
-            continue;
-        return 0;
-    }
-    return 1;
-}
-
-static int
-api_placement_reserve(
-    struct PluginContext* ctx,
-    char const* name,
-    int area,
-    int edge,
-    int pixels)
-{
-    struct ToriRS_PluginHost* host;
-    int free_row = -1;
-
-    assert(ctx);
-    assert(name);
-    host = ctx->host;
-    if( !plugin_placement_reservation_name_valid(name) )
-        return 0;
-    if( area != TORIRS_AREA_OVERLAY_SAFE )
-        return 0;
-    if( edge < 0 || edge >= PLUGIN_EDGE_COUNT || pixels < 0 )
-        return 0;
-
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginPlacementReservation* reservation = &host->placement_reservations[i];
-        if( reservation->plugin == ctx->index && strcmp(reservation->name, name) == 0 )
-        {
-            if( reservation->area == area && reservation->edge == edge &&
-                reservation->pixels == pixels )
-                return 1;
-            if( pixels == 0 )
-            {
-                memset(reservation, 0, sizeof(*reservation));
-                reservation->plugin = -1;
-            }
-            else
-            {
-                reservation->area = area;
-                reservation->edge = edge;
-                reservation->pixels = pixels;
-                reservation->assigned = 0;
-            }
-            PluginHost_LayoutChanged(host);
-            return 1;
-        }
-        if( reservation->plugin < 0 && free_row < 0 )
-            free_row = i;
-    }
-
-    if( pixels == 0 )
-        return 1;
-    if( free_row < 0 )
-        return 0;
-    host->placement_reservations[free_row].plugin = ctx->index;
-    host->placement_reservations[free_row].area = area;
-    host->placement_reservations[free_row].edge = edge;
-    host->placement_reservations[free_row].pixels = pixels;
-    snprintf(
-        host->placement_reservations[free_row].name,
-        sizeof(host->placement_reservations[free_row].name),
-        "%s",
-        name);
-    PluginHost_LayoutChanged(host);
-    return 1;
-}
-
-static int
-api_placement_reservation_rect(
-    struct PluginContext* ctx,
-    char const* name,
-    struct ToriRS_PlacementRect* out)
-{
-    assert(ctx);
-    assert(name);
-    assert(out);
-    if( !plugin_placement_reservation_name_valid(name) )
-        return 0;
-    if( !plugin_placement_refresh(ctx->host) )
-        return 0;
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginPlacementResolvedReservation const* reservation =
-            &ctx->host->placement_resolved_reservations[i];
-        if( reservation->plugin == ctx->index && reservation->assigned &&
-            strcmp(reservation->name, name) == 0 )
-        {
-            *out = reservation->rect;
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static int
-plugin_ui_contribution_status(
-    struct PluginContext* ctx,
-    char const* node,
-    struct ToriRS_UiContributionStatus* out)
-{
-    struct ToriRS_UiNodeRef wanted;
-
-    assert(ctx);
-    assert(node);
-    assert(out);
-    memset(out, 0, sizeof(*out));
-    if( !ctx->ui_contributions_registered || !ctx->def->ui_contributions )
-        return 0;
-
-    wanted = ToriRS_UiRegistry_PrivateRef(&ctx->host->ui_registry, ctx->name, node);
-    if( wanted.value == 0 )
-        return 0;
-    for( int i = 0; i < ctx->ui_contribution_count; i++ )
-    {
-        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
-            &ctx->host->ui_registry, ctx->name, ctx->def->ui_contributions[i].node);
-
-        if( declared.value != wanted.value ||
-            !ToriRS_UiRegistry_ContributionStatus(
-                &ctx->host->ui_registry, ctx->ui_contribution_refs[i], out) )
-            continue;
-        return 1;
-    }
-    return 0;
-}
-
-/* --------------------------------------------------------- canonical UI */
-
-static char const*
-plugin_ui_base_parent(char const* name)
-{
-    assert(name);
-    if( strcmp(name, "frame.minimap.housing") == 0 ||
-        strcmp(name, "frame.compass") == 0 )
-        return "frame.minimap";
-    if( strcmp(name, "frame.chat.buttons") == 0 )
-        return "frame.chat";
-    if( strcmp(name, "frame.chat.backing") == 0 ||
-        strcmp(name, "frame.chat.bar") == 0 ||
-        strncmp(name, "frame.chat.plate.", 17) == 0 )
-        return "frame.chat";
-    if( strncmp(name, "frame.chat.button.", 18) == 0 )
-        return "frame.chat.buttons";
-    if( strcmp(name, "frame.sidebar.rail") == 0 ||
-        strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-        return "frame.sidebar";
-    if( strncmp(name, "frame.orb.", 10) == 0 )
-        return "frame.orbs";
-    if( strcmp(name, "frame.minimap") == 0 || strcmp(name, "frame.chat") == 0 ||
-        strcmp(name, "frame.sidebar") == 0 || strcmp(name, "frame.modal") == 0 ||
-        strcmp(name, "frame.orbs") == 0 || strcmp(name, "frame.xp.drops") == 0 )
-        return "frame.viewport";
-    return NULL;
-}
-
-static int
-plugin_ui_base_add_rect(
-    struct ToriRS_UiBaseDeclaration* declarations,
-    int count,
-    int capacity,
-    char const* provider,
-    char const* name,
-    int x,
-    int y,
-    int w,
-    int h,
-    uint32_t flags)
-{
-    struct ToriRS_UiBaseDeclaration* declaration;
-
-    assert(declarations);
-    assert(count >= 0);
-    assert(capacity > 0);
-    assert(provider);
-    assert(name);
-    if( w <= 0 || h <= 0 || count >= capacity )
-        return count;
-
-    declaration = &declarations[count++];
-    memset(declaration, 0, sizeof(*declaration));
-    declaration->provider = provider;
-    declaration->node = name;
-    declaration->facets = TORIRS_UI_FACET_ALL;
-    declaration->value.struct_size = sizeof(declaration->value);
-    declaration->value.parent = plugin_ui_base_parent(name);
-    declaration->value.bounds.x = x;
-    declaration->value.bounds.y = y;
-    declaration->value.bounds.width = w;
-    declaration->value.bounds.height = h;
-    declaration->value.anchor = TORIRS_ANCHOR_TOP_LEFT;
-    declaration->value.paint_order = TORIRS_UI_PAINT_AFTER_PARENT;
-    declaration->value.flags = flags | TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED;
-    return count;
-}
-
-/**
- * One surface's live rectangle, with the viewport's documented CANVAS fallback.
- *
- * Both the base refresh and the poll that watches it move must ask the same
- * question, or the poll would refresh for ever over a difference it invented.
- */
-static int
-plugin_ui_surface_rect(
-    struct ToriRS_PluginHost* host,
-    int slot,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int present;
-
-    assert(host);
-    assert(out_x);
-    assert(out_y);
-    assert(out_w);
-    assert(out_h);
-    present = host->engine.slot_rect(host->engine.user, slot, out_x, out_y, out_w, out_h);
-    if( !present && slot == TORIRS_HOST_SURFACE_VIEWPORT )
-        present = host->engine.slot_rect(
-            host->engine.user, TORIRS_HOST_SURFACE_CANVAS, out_x, out_y, out_w, out_h);
-    return present;
-}
-
-static void
-plugin_ui_refresh_base(struct ToriRS_PluginHost* host)
-{
-    static struct
-    {
-        int slot;
-        char const* name;
-        uint32_t flags;
-    } const SURFACE[] = {
-        { TORIRS_HOST_SURFACE_VIEWPORT,     "frame.viewport",     0                             },
-        { TORIRS_HOST_SURFACE_MINIMAP,      "frame.minimap",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_HOST_SURFACE_COMPASS,      "frame.compass",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_HOST_SURFACE_CHAT,         "frame.chat",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_HOST_SURFACE_CHAT_BUTTONS, "frame.chat.buttons", TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_HOST_SURFACE_SIDEBAR,      "frame.sidebar",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { TORIRS_HOST_SURFACE_MODAL,   "frame.modal",        0                             },
-        { TORIRS_HOST_SURFACE_ORBS,         "frame.orbs",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
-    };
-    static char const* const CHAT_BUTTON[] = {
-        "frame.chat.button.public",
-        "frame.chat.button.private",
-        "frame.chat.button.trade",
-        "frame.chat.button.report",
-    };
-    static struct
-    {
-        char const* role;
-        char const* canonical;
-        uint32_t flags;
-    } const ROLE[] = {
-        { "minimap_edge",  "frame.minimap.housing", TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "orb_hitpoints", "frame.orb.hitpoints",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "orb_prayer",    "frame.orb.prayer",      TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "orb_run",       "frame.orb.run",         TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "orb_spec",      "frame.orb.special",     TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_backing",  "frame.chat.backing",    TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_bar",      "frame.chat.bar",        TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_0",  "frame.chat.plate.0",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_1",  "frame.chat.plate.1",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_2",  "frame.chat.plate.2",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_3",  "frame.chat.plate.3",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_4",  "frame.chat.plate.4",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_5",  "frame.chat.plate.5",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_6",  "frame.chat.plate.6",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-        { "chat_plate_7",  "frame.chat.plate.7",   TORIRS_UI_NODE_BLOCKS_OVERLAY },
-    };
-    struct ToriRS_UiBaseDeclaration declarations[
-        TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX + 48];
-    char dynamic_names[15][TORIRS_UI_NAME_MAX];
-    char profile_role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    char const* provider;
-    uint32_t tab_enabled_mask = 0;
-    int active_tab = -1;
-    int count = 0;
-
-    assert(host);
-    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
-    {
-        host->ui_tab_state_valid = false;
-        host->ui_live_surface_valid = false;
-        ToriRS_UiRegistry_ClearBase(&host->ui_registry);
-        return;
-    }
-    provider = host->frame_selection.active_id[0] ? host->frame_selection.active_id : "core/native";
-    if( host->engine.tab_active )
-        active_tab = host->engine.tab_active(host->engine.user);
-    for( int tab = 0; tab < 14; tab++ )
-        if( !host->engine.tab_enabled ||
-            host->engine.tab_enabled(host->engine.user, tab) )
-            tab_enabled_mask |= 1u << tab;
-    host->ui_tab_active = active_tab;
-    host->ui_tab_enabled_mask = tab_enabled_mask;
-    host->ui_tab_state_valid = true;
-    host->ui_live_surface_valid = true;
-
-    for( size_t i = 0; i < sizeof(SURFACE) / sizeof(SURFACE[0]); i++ )
-    {
-        int x, y, w, h;
-        int const present =
-            plugin_ui_surface_rect(host, SURFACE[i].slot, &x, &y, &w, &h);
-        host->ui_live_surface_present[SURFACE[i].slot] = present != 0;
-        host->ui_live_surface_rect[SURFACE[i].slot] =
-            (struct ToriRS_Rect){ present ? x : 0,
-                                  present ? y : 0,
-                                  present ? w : 0,
-                                  present ? h : 0 };
-        if( present )
-            count = plugin_ui_base_add_rect(
-                declarations,
-                count,
-                (int)(sizeof(declarations) / sizeof(declarations[0])),
-                provider,
-                SURFACE[i].name,
-                x,
-                y,
-                w,
-                h,
-                SURFACE[i].flags);
-    }
-
-    for( int i = 0; i < (int)(sizeof(CHAT_BUTTON) / sizeof(CHAT_BUTTON[0])); i++ )
-    {
-        int x, y, w, h;
-        if( host->engine.slot_member_rect(
-                host->engine.user, TORIRS_HOST_SURFACE_CHAT_BUTTONS, i, &x, &y, &w, &h) )
-            count = plugin_ui_base_add_rect(
-                declarations,
-                count,
-                (int)(sizeof(declarations) / sizeof(declarations[0])),
-                provider,
-                CHAT_BUTTON[i],
-                x,
-                y,
-                w,
-                h,
-                TORIRS_UI_NODE_BLOCKS_OVERLAY);
-    }
-
-    for( size_t i = 0; i < sizeof(ROLE) / sizeof(ROLE[0]); i++ )
-    {
-        int x, y, w, h;
-        if( host->engine.role_rect(host->engine.user, ROLE[i].role, &x, &y, &w, &h) &&
-            host->engine.role_visible(host->engine.user, ROLE[i].role) )
-            count = plugin_ui_base_add_rect(
-                declarations,
-                count,
-                (int)(sizeof(declarations) / sizeof(declarations[0])),
-                provider,
-                ROLE[i].canonical,
-                x,
-                y,
-                w,
-                h,
-                ROLE[i].flags);
-    }
-
-    /* The lane-owned popout rail is the first frame-blocking node. Additional
-     * RevConfig occluders migrate to named metadata rather than extending a
-     * numbered public API; this profile read keeps today's profiles. */
-    {
-        int x, y, w, h;
-        if( host->engine.role_rect(host->engine.user, "lane_chrome_0", &x, &y, &w, &h) &&
-            host->engine.role_visible(host->engine.user, "lane_chrome_0") )
-            count = plugin_ui_base_add_rect(
-                declarations,
-                count,
-                (int)(sizeof(declarations) / sizeof(declarations[0])),
-                "core/native",
-                "frame.sidebar.rail",
-                x,
-                y,
-                w,
-                h,
-                TORIRS_UI_NODE_BLOCKS_FRAME | TORIRS_UI_NODE_BLOCKS_OVERLAY);
-    }
-
-    for( int i = 0; i < 14; i++ )
-    {
-        int x, y, w, h;
-        int const before = count;
-        snprintf(profile_role, sizeof(profile_role), "sidetab_%d", i);
-        if( !host->engine.role_rect(host->engine.user, profile_role, &x, &y, &w, &h) )
-            continue;
-        snprintf(dynamic_names[i], sizeof(dynamic_names[i]), "frame.sidebar.tab.%d", i);
-        count = plugin_ui_base_add_rect(
-            declarations,
-            count,
-            (int)(sizeof(declarations) / sizeof(declarations[0])),
-            provider,
-            dynamic_names[i],
-            x,
-            y,
-            w,
-            h,
-            TORIRS_UI_NODE_BLOCKS_OVERLAY);
-        if( count > before )
-        {
-            if( !(tab_enabled_mask & (1u << i)) )
-                declarations[count - 1].value.flags &= ~TORIRS_UI_NODE_ENABLED;
-            if( active_tab == i )
-                declarations[count - 1].value.flags |= TORIRS_UI_NODE_ACTIVE;
-        }
-    }
-
-    /* A v2 frame can publish semantic furniture directly. It replaces the
-     * profile-derived row inferred from the profile role/surface when both name the
-     * same object, and otherwise joins the same atomic base transaction. */
-    {
-        int const owner = plugin_frame_owner(host);
-        struct PluginV2Instance* v2 = owner >= 0 ? host->plugins[owner].v2 : NULL;
-        if( v2 )
-            for( int i = 0; i < v2->frame_ui_count; i++ )
-            {
-                struct PluginV2FrameNode* source = &v2->frame_ui[i];
-                int destination = -1;
-                uint32_t runtime_flags = 0;
-                bool had_runtime = false;
-
-                for( int j = 0; j < count; j++ )
-                    if( strcmp(declarations[j].node, source->name) == 0 )
-                    {
-                        destination = j;
-                        runtime_flags = declarations[j].value.flags &
-                                        (TORIRS_UI_NODE_VISIBLE |
-                                         TORIRS_UI_NODE_ENABLED |
-                                         TORIRS_UI_NODE_ACTIVE);
-                        had_runtime = true;
-                        break;
-                    }
-                if( destination < 0 )
-                {
-                    if( count >= (int)(sizeof(declarations) / sizeof(declarations[0])) )
-                    {
-                        TORIRS_REPORT("plugin: v2 frame named-UI declaration budget exhausted\n");
-                        break;
-                    }
-                    destination = count++;
-                }
-                declarations[destination] = (struct ToriRS_UiBaseDeclaration){
-                    .provider = provider,
-                    .node = source->name,
-                    .facets = TORIRS_UI_FACET_ALL,
-                    .value = source->value,
-                };
-                /* Tab availability/selection is live lane state, not frame
-                 * build state. Preserve it while replacing geometry/art. */
-                if( strncmp(source->name, "frame.sidebar.tab.", 18) == 0 )
-                {
-                    char* end = NULL;
-                    long const tab = strtol(source->name + 18, &end, 10);
-                    declarations[destination].value.flags &=
-                        ~(uint32_t)(TORIRS_UI_NODE_ENABLED |
-                                    TORIRS_UI_NODE_ACTIVE);
-                    if( end && !*end && tab >= 0 && tab < 14 )
-                    {
-                        if( tab_enabled_mask & (1u << tab) )
-                            declarations[destination].value.flags |=
-                                TORIRS_UI_NODE_ENABLED;
-                        if( active_tab == tab )
-                            declarations[destination].value.flags |=
-                                TORIRS_UI_NODE_ACTIVE;
-                    }
-                    if( had_runtime )
-                    {
-                        declarations[destination].value.flags &=
-                            ~TORIRS_UI_NODE_VISIBLE;
-                        declarations[destination].value.flags |=
-                            runtime_flags & TORIRS_UI_NODE_VISIBLE;
-                    }
-                }
-            }
-    }
-
-    if( ToriRS_UiRegistry_ReplaceBase(&host->ui_registry, declarations, count) !=
-        TORIRS_UI_REGISTRY_OK )
-        TORIRS_REPORT("plugin: rejected the resolved named-UI base; keeping the previous tree\n");
-}
-
-/**
- * Refresh the base when a surface rectangle moved without a layout change.
- *
- * The world viewport's and the minimap's boxes are the emit descriptors the
- * last frame drew with, so they arrive one frame after the layout that moved
- * them -- which is one frame after the layout change refreshed the base. With
- * nothing watching them the stale box is what every plugin anchored to that
- * surface keeps: after a window resize the minimap-orbs cluster stayed at the
- * pre-resize position while interface 160, which clips it, moved with the
- * relayout, and the orbs were cut in half at the new container's left edge.
- */
-static void
-plugin_ui_surface_rect_poll(struct ToriRS_PluginHost* host)
-{
-    /* Only these two: every other surface's box is a laid-out node, and a
-     * layout that moves one already refreshes the base through
-     * PluginHost_LayoutChanged. Polling them as well would cost a role lookup
-     * per surface per frame to re-learn what the layout just said. */
-    static int const LIVE_SLOT[] = { TORIRS_HOST_SURFACE_VIEWPORT,
-                                     TORIRS_HOST_SURFACE_MINIMAP };
-
-    assert(host);
-    if( !host->ui_live_surface_valid )
-        return;
-    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
-        return;
-    for( size_t i = 0; i < sizeof(LIVE_SLOT) / sizeof(LIVE_SLOT[0]); i++ )
-    {
-        int const slot = LIVE_SLOT[i];
-        int x = 0, y = 0, w = 0, h = 0;
-        int const present = plugin_ui_surface_rect(host, slot, &x, &y, &w, &h);
-        struct ToriRS_Rect const* known = &host->ui_live_surface_rect[slot];
-
-        if( (present != 0) != host->ui_live_surface_present[slot] ||
-            (present && (x != known->x || y != known->y || w != known->width ||
-                         h != known->height)) )
-        {
-            plugin_ui_refresh_base(host);
-            return;
-        }
-    }
-}
-
-/** Publish sidebar ACTIVE/ENABLED state only when the lane's live answer moves. */
-static void
-plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
-{
-    uint32_t enabled_mask = 0;
-    int active = -1;
-
-    assert(host);
-    if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
-        return;
-    if( host->engine.tab_active )
-        active = host->engine.tab_active(host->engine.user);
-    for( int tab = 0; tab < 14; tab++ )
-        if( !host->engine.tab_enabled ||
-            host->engine.tab_enabled(host->engine.user, tab) )
-            enabled_mask |= 1u << tab;
-    if( !host->ui_tab_state_valid || host->ui_tab_active != active ||
-        host->ui_tab_enabled_mask != enabled_mask )
-        plugin_ui_refresh_base(host);
-}
-
 /**
  * Does the GAMEFRAME exist right now?
  *
@@ -2763,8 +1356,8 @@ plugin_ui_tab_state_poll(struct ToriRS_PluginHost* host)
  * name" is only safe while the names mean what the asker thinks they mean, and
  * off the gameframe they do not.
  *
- * A refusal, not an abort: a plugin polling role_rect every frame across a
- * logout is doing nothing wrong, and this is the answer it should get.
+ * A refusal, not an abort: a plugin polling a surface's size every frame
+ * across a logout is doing nothing wrong, and this is the answer it should get.
  */
 static bool
 host_game_screen(struct PluginContext const* ctx)
@@ -2836,27 +1429,6 @@ api_component_rect(
     if( out_h )
         *out_h = h;
     return 1;
-}
-
-static void
-plugin_placement_reservations_drop_plugin(
-    struct ToriRS_PluginHost* host,
-    int plugin)
-{
-    int dropped = 0;
-
-    assert(host);
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        struct PluginPlacementReservation* reservation = &host->placement_reservations[i];
-        if( reservation->plugin != plugin )
-            continue;
-        memset(reservation, 0, sizeof(*reservation));
-        reservation->plugin = -1;
-        dropped = 1;
-    }
-    if( dropped )
-        PluginHost_LayoutChanged(host);
 }
 
 static int
@@ -5834,189 +4406,6 @@ plugin_entity_apply_ops(
     }
 }
 
-static int
-host_frame_surface_skin(
-    struct PluginContext* ctx,
-    int slot,
-    int art,
-    int mask)
-{
-    struct ToriRS_PluginHost* host;
-    struct PluginLayoutSkin* staged;
-    int x = 0, y = 0, w = 0, h = 0;
-
-    assert(ctx);
-    host = ctx->host;
-    assert(host->layout_declaring && "frame skins are legal only during frame build");
-    assert(host->layout_declarer == ctx->index);
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-    {
-        plugin_layout_candidate_fail(host, "The frame skinned an unknown surface.");
-        return 0;
-    }
-    if( slot != TORIRS_HOST_SURFACE_MINIMAP && slot != TORIRS_HOST_SURFACE_COMPASS )
-    {
-        plugin_layout_candidate_fail(host, "The frame skinned a surface that cannot be skinned.");
-        return 0;
-    }
-    /* The minimap picture is the live baked world; only its cut-out belongs to
-     * the frame. Compass art is static frame art and is replaceable. */
-    if( slot == TORIRS_HOST_SURFACE_MINIMAP && art >= 0 )
-    {
-        plugin_layout_candidate_fail(host, "The frame replaced the live minimap image.");
-        return 0;
-    }
-    /*
-     * Not resident yet is the ORDINARY state for the first frames after a
-     * load -- api_draw_image says the same and for the same reason -- so an
-     * image still crossing the IO queue leaves the surface as it was rather
-     * than skinning it with nothing. The layout pass runs again at the next
-     * resize or rebuild, which is when the handle has pixels behind it.
-     */
-    if( art >= 0 )
-    {
-        struct PluginImage const* image = plugin_image_owned(ctx, art);
-        if( !image || !image->published )
-        {
-            plugin_layout_candidate_fail(host, "The frame used foreign or unready skin artwork.");
-            return 0;
-        }
-    }
-    if( mask >= 0 )
-    {
-        struct PluginImage const* image = plugin_image_owned(ctx, mask);
-        if( !image || !image->published )
-        {
-            plugin_layout_candidate_fail(host, "The frame used foreign or unready mask artwork.");
-            return 0;
-        }
-    }
-    staged = &host->layout_candidate.skins[slot];
-    if( staged->declared )
-    {
-        plugin_layout_candidate_fail(host, "The frame skinned one surface twice.");
-        return 0;
-    }
-    staged->declared = true;
-    staged->art = art;
-    staged->mask = mask;
-    return host->engine.slot_rect(host->engine.user, slot, &x, &y, &w, &h);
-}
-
-static int
-host_frame_surface_overlay(
-    struct PluginContext* ctx,
-    int slot,
-    int image,
-    int x,
-    int y,
-    int trans)
-{
-    struct PluginImage const* owned;
-    struct ToriRS_PluginHost* host;
-    struct PluginLayoutOverlay* staged;
-    int sx = 0, sy = 0, sw = 0, sh = 0;
-
-    assert(ctx);
-    host = ctx->host;
-    assert(host->layout_declaring && "frame overlays are legal only during frame build");
-    assert(host->layout_declarer == ctx->index);
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-    {
-        plugin_layout_candidate_fail(host, "The frame overlaid an unknown surface.");
-        return 0;
-    }
-    if( trans < 0 || trans > 255 )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared invalid overlay transparency.");
-        return 0;
-    }
-
-    /* Unlike a skin, this is an ordinary sprite scene. Its natural dimensions
-     * are read by the renderer after publication, so retaining a valid pending
-     * handle is both safe and necessary: otherwise an initial frame build would
-     * discard the declaration and the housing would not appear until resize. */
-    owned = plugin_image_owned(ctx, image);
-    if( !owned || !owned->published )
-    {
-        plugin_layout_candidate_fail(host, "The frame used foreign or unready overlay artwork.");
-        return 0;
-    }
-    staged = &host->layout_candidate.overlays[slot];
-    if( staged->declared )
-    {
-        plugin_layout_candidate_fail(host, "The frame overlaid one surface twice.");
-        return 0;
-    }
-    staged->declared = true;
-    staged->image = image;
-    staged->x = x;
-    staged->y = y;
-    staged->trans = trans;
-    return host->engine.slot_rect(host->engine.user, slot, &sx, &sy, &sw, &sh);
-}
-
-static int
-host_frame_scrollbar(
-    struct PluginContext* ctx,
-    int trough,
-    int dragger_top,
-    int dragger_mid,
-    int dragger_bottom,
-    int arrow_up,
-    int arrow_down)
-{
-    int images[6];
-    struct ToriRS_PluginHost* host;
-    int absent = 0;
-
-    assert(ctx);
-    host = ctx->host;
-    assert(host->layout_declaring && "frame scrollbars are legal only during frame build");
-    assert(host->layout_declarer == ctx->index);
-
-    if( host->layout_candidate.scrollbar_declared )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared its scrollbar twice.");
-        return 0;
-    }
-
-    images[0] = trough;
-    images[1] = dragger_top;
-    images[2] = dragger_mid;
-    images[3] = dragger_bottom;
-    images[4] = arrow_up;
-    images[5] = arrow_down;
-    for( int i = 0; i < 6; i++ )
-    {
-        struct PluginImage const* image;
-        /* Six absent pieces explicitly select the lane's scrollbar. A partial
-         * set is neither that nor a complete skin and is rejected atomically. */
-        if( images[i] < 0 )
-        {
-            absent++;
-            continue;
-        }
-        image = plugin_image_owned(ctx, images[i]);
-        if( !image || !image->published )
-        {
-            plugin_layout_candidate_fail(
-                host, "The frame used foreign or unready scrollbar artwork.");
-            return 0;
-        }
-    }
-    if( absent != 0 && absent != 6 )
-    {
-        plugin_layout_candidate_fail(host, "The frame declared an incomplete scrollbar skin.");
-        return 0;
-    }
-    host->layout_candidate.scrollbar_declared = true;
-    host->layout_candidate.scrollbar_count = absent == 6 ? 0 : 6;
-    if( absent == 0 )
-        memcpy(host->layout_candidate.scrollbar, images, sizeof(images));
-    return 1;
-}
-
 static void
 api_draw_image(
     struct PluginContext* ctx,
@@ -6052,45 +4441,7 @@ api_draw_image(
         trans);
 }
 
-/* -- canvas hit regions, and the one verb that acts -- */
-
-static int
-api_hit_region(
-    struct PluginContext* ctx,
-    void* surface,
-    int x,
-    int y,
-    int w,
-    int h,
-    char const* const* ops,
-    int op_count,
-    uint32_t tag)
-{
-    assert(ctx);
-    /* The same window test the draw verbs make, and for the same reason: a
-     * region declared outside the draw dispatch would go into a list the
-     * engine has already read and answer clicks for a frame that is gone. */
-    assert(ctx->host->draw_surface);
-    assert(surface == ctx->host->draw_surface);
-    /* Legal on both screen surfaces and not on the world one. A layout draws
-     * its tab stones through FrameOffer.draw and they have to be clickable, so
-     * the test is "not the world" rather than "the canvas": the world surface
-     * is cut to the viewport and its coordinates are the scene's, which is
-     * what a region cannot be expressed in. */
-    assert(
-        ctx->host->draw_canvas != PLUGIN_DRAW_SURFACE_WORLD &&
-        "a hit region is a rectangle of the SCREEN; the world surface has none");
-    (void)surface;
-
-    if( w <= 0 || h <= 0 )
-        return 0;
-    if( !ops || op_count < 0 )
-        op_count = 0;
-    if( op_count > TORIRS_PLUGIN_REGION_OPS_MAX )
-        op_count = TORIRS_PLUGIN_REGION_OPS_MAX;
-    return ctx->host->engine.hit_region(
-        ctx->host->engine.user, ctx->index, x, y, w, h, ops, op_count, tag);
-}
+/* -- the one verb that acts -- */
 
 static void
 api_text_input(
@@ -6140,13 +4491,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->frame_ms);
     assert(engine->frame_work_us);
     assert(engine->frame_activate);
-    assert(engine->layout_begin);
-    assert(engine->layout_end);
     assert(engine->frame_provide);
-    assert(engine->layout_slot);
-    assert(engine->layout_slot_skin);
-    assert(engine->layout_slot_overlay);
-    assert(engine->layout_scrollbar);
     assert(engine->tab_active);
     assert(engine->tab_select);
     assert(engine->tab_enabled);
@@ -6198,15 +4543,9 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
-    assert(engine->slot_rect);
-    assert(engine->slot_member_rect);
     assert(engine->slot_native_size);
     assert(engine->component_rect);
-    assert(engine->role_rect);
-    assert(engine->role_visible);
-    assert(engine->role_click);
     assert(engine->menu_drop);
-    assert(engine->ui_boundary);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -6220,7 +4559,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->loot_source_next);
     assert(engine->loot_row_next);
     assert(engine->draw_image);
-    assert(engine->hit_region);
     assert(engine->if_click);
     assert(engine->obj_info);
     assert(engine->inv_slot);
@@ -6243,9 +4581,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * on the first frame. */
     host->last_screen = engine->screen(engine->user);
     PluginFrameCatalog_Init(&host->frame_catalog);
-    ToriRS_UiRegistry_Init(&host->ui_registry);
-    host->ui_presentation_revision =
-        ToriRS_UiRegistry_Revision(&host->ui_registry);
     snprintf(
         host->frame_selection.requested_id, sizeof(host->frame_selection.requested_id), "%s", "auto");
     host->frame_selection.struct_size = sizeof(host->frame_selection);
@@ -6256,19 +4591,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     host->frame_active_entry = -1;
     host->frame_target_entry = -1;
     host->frame_selection_dirty = 1;
-    host->placement_cache_revision = -1;
-    /* 0 is a real plugin index, so an empty reservation row needs a value of
-     * its own rather than the calloc's zero. */
-    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
-    {
-        host->placement_reservations[i].plugin = -1;
-        host->placement_resolved_reservations[i].plugin = -1;
-    }
-    /* Same reasoning again for the chrome tier's two tables. */
+    /* 0 is a real plugin index, so an empty claim row needs a value of its
+     * own rather than the calloc's zero. */
     for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
         host->entity_claims[i].plugin = -1;
-    host->layout_declarer = -1;
-    host->layout_candidate_entry = -1;
     /* -1 is the free marker and 0 is plugin index zero, so the calloc above
      * would have handed every image slot to the first plugin registered. */
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
@@ -6295,9 +4621,6 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
 {
     if( !host )
         return;
-
-    plugin_ui_present_suppressions(
-        host, host->ui_presentations, host->ui_presentation_count, false);
 
     /* Keep the same lifecycle ordering as runtime disable: the selected page
      * becomes invisible while its handler is still subscribed. */
@@ -6568,10 +4891,6 @@ plugin_frame_engine_activate(
     host->layout_fixed_w = width;
     host->layout_fixed_h = height;
     plugin_layout_publish(host);
-    for( int i = 0; i < host->plugin_count; i++ )
-        if( host->plugins[i].def && host->plugins[i].def->frames )
-            ToriRS_UiRegistry_SetPluginScope(&host->ui_registry, host->plugins[i].name, i == owner);
-
 }
 
 static void plugin_frame_target_set(struct ToriRS_PluginHost* host, int entry);
@@ -6581,15 +4900,10 @@ plugin_frame_discard_stale_binding(struct ToriRS_PluginHost* host, int desired_e
 {
     if( host->frame_active_entry < 0 ) return;
     bool stale = host->engine.frame_root && host->engine.frame_root(host->engine.user) != host->frame_bound_root;
-    if( host->engine.layout_slot_exists )
-        for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
-            if( (host->frame_bound_slots & (1u << slot)) &&
-                !host->engine.layout_slot_exists(host->engine.user, slot, -1) ) stale = true;
     if( !stale ) return;
     plugin_frame_engine_activate(host, -1);
     plugin_frame_target_set(host, desired_entry);
     host->frame_layout_requested = 1;
-    plugin_ui_refresh_base(host);
 }
 
 static int
@@ -6806,408 +5120,24 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
     host->frame_resolving = 0;
 }
 
-static struct ToriRS_UiNodeRef
-plugin_v2_ui_ref(
-    void* user,
-    struct PluginContext* context,
-    char const* name)
-{
-    struct ToriRS_PluginHost* host = user;
-
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    (void)context;
-    return PluginHost_UiRef(host, context->index, name);
-}
-
-static bool
-plugin_v2_ui_info(
-    void* user,
-    struct PluginContext* context,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_UiNodeInfo* out)
-{
-    struct ToriRS_PluginHost* host = user;
-
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    (void)context;
-    return PluginHost_UiInfo(host, node, out);
-}
-
-static bool
-plugin_v2_ui_invoke(
-    void* user,
-    struct PluginContext* context,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    struct ToriRS_PluginHost* host = user;
-
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    (void)context;
-    return PluginHost_UiInvoke(host, node, action);
-}
-
-static bool
-plugin_v2_ui_contribution_info_hook(
-    void* user,
-    struct PluginContext* context,
-    char const* node,
-    uint32_t facets,
-    struct ToriRS_UiContributionInfo* out)
-{
-    struct ToriRS_UiContributionStatus status;
-    struct ToriRS_UiContributionInfo snapshot;
-    struct ToriRS_PluginHost* host = user;
-    uint32_t capacity;
-
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    assert(out);
-    (void)host;
-    capacity = out->struct_size;
-    if( capacity < TORIRS_UI_CONTRIBUTION_INFO_REQUIRED_SIZE )
-        return false;
-    memset(&snapshot, 0, sizeof(snapshot));
-    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
-    if( facets == 0 || (facets & ~TORIRS_UI_FACET_ALL) != 0 ||
-        !plugin_ui_contribution_status(context, node, &status) )
-        return false;
-    snapshot.state = status.state;
-    snapshot.active_facets = status.active_facets & facets;
-    (void)snprintf(
-        snapshot.conflict_plugin,
-        sizeof(snapshot.conflict_plugin),
-        "%s",
-        status.conflict_plugin);
-    memcpy(out, &snapshot, capacity < sizeof(snapshot) ? capacity : sizeof(snapshot));
-    return true;
-}
-
-static enum ToriRS_Result
-plugin_v2_ui_update_image_ready(
-    struct PluginContext* context,
-    struct ToriRS_ImageRef image)
-{
-    int image_slot;
-    struct PluginImage const* owned;
-
-    assert(context);
-    assert(context->v2);
-    if( image.value == 0 )
-        return TORIRS_RESULT_OK;
-    image_slot = plugin_v2_runtime_image_slot(&context->v2->runtime, image);
-    if( image_slot < 0 )
-        return TORIRS_RESULT_INVALID;
-    owned = plugin_image_owned(context, image_slot);
-    if( !owned )
-        return TORIRS_RESULT_INVALID;
-    return owned->published ? TORIRS_RESULT_OK : TORIRS_RESULT_PENDING;
-}
-
-static enum ToriRS_Result
-plugin_v2_ui_update_hook(
-    void* user,
-    struct PluginContext* context,
-    struct ToriRS_UiNodeRef node,
-    uint32_t facets,
-    struct ToriRS_UiNode const* value)
-{
-    struct ToriRS_PluginHost* host = user;
-    struct ToriRS_UiContributionRef contribution = { 0 };
-    uint32_t revision;
-
-    assert(host);
-    assert(context);
-    assert(value);
-    if( context->host != host || node.value == 0 || !context->ui_contributions_registered ||
-        !context->def->ui_contributions || facets == 0 ||
-        (facets & ~TORIRS_UI_FACET_ALL) != 0 )
-        return TORIRS_RESULT_INVALID;
-
-    for( int i = 0; i < context->ui_contribution_count; i++ )
-    {
-        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
-            &host->ui_registry, context->name, context->def->ui_contributions[i].node);
-        if( declared.value != node.value )
-            continue;
-        if( (facets & ~context->def->ui_contributions[i].facets) != 0 )
-            return TORIRS_RESULT_INVALID;
-        contribution = context->ui_contribution_refs[i];
-        break;
-    }
-    if( contribution.value == 0 )
-        return TORIRS_RESULT_NOT_FOUND;
-
-    if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 )
-    {
-        size_t const node_size =
-            value->struct_size ? value->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
-        enum ToriRS_Result image_result =
-            plugin_v2_ui_update_image_ready(context, value->image);
-        if( image_result != TORIRS_RESULT_OK )
-            return image_result;
-        if( node_size >= offsetof(struct ToriRS_UiNode, state_images) +
-                            sizeof(value->state_images) )
-            for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
-                if( (value->state_image_mask & (1u << state)) != 0 )
-                {
-                    image_result = plugin_v2_ui_update_image_ready(
-                        context, value->state_images[state]);
-                    if( image_result != TORIRS_RESULT_OK )
-                        return image_result;
-                }
-    }
-
-    revision = ToriRS_UiRegistry_Revision(&host->ui_registry);
-    switch( ToriRS_UiRegistry_UpdateContribution(
-        &host->ui_registry, contribution, facets, value) )
-    {
-    case TORIRS_UI_REGISTRY_OK:
-        if( revision != ToriRS_UiRegistry_Revision(&host->ui_registry) )
-        {
-            host->placement_cache_valid = 0;
-            host->layout_notify_pending = 1;
-        }
-        return TORIRS_RESULT_OK;
-    case TORIRS_UI_REGISTRY_FULL:
-        return TORIRS_RESULT_BUDGET;
-    case TORIRS_UI_REGISTRY_DUPLICATE:
-        return TORIRS_RESULT_CONFLICT;
-    default:
-        return TORIRS_RESULT_INVALID;
-    }
-}
-
-static enum ToriRS_Result
-plugin_v2_ui_set_enabled_hook(
-    void* user,
-    struct PluginContext* context,
-    struct ToriRS_UiNodeRef node,
-    bool enabled)
-{
-    struct ToriRS_PluginHost* host = user;
-    struct ToriRS_UiContributionRef contribution = { 0 };
-    uint32_t revision;
-
-    assert(host);
-    assert(context);
-    if( context->host != host || node.value == 0 ||
-        !context->ui_contributions_registered ||
-        !context->def->ui_contributions )
-        return TORIRS_RESULT_INVALID;
-    for( int i = 0; i < context->ui_contribution_count; i++ )
-    {
-        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
-            &host->ui_registry,
-            context->name,
-            context->def->ui_contributions[i].node);
-        if( declared.value == node.value )
-        {
-            contribution = context->ui_contribution_refs[i];
-            break;
-        }
-    }
-    if( contribution.value == 0 )
-        return TORIRS_RESULT_NOT_FOUND;
-    revision = ToriRS_UiRegistry_Revision(&host->ui_registry);
-    if( ToriRS_UiRegistry_SetContributionEnabled(
-            &host->ui_registry, contribution, enabled) != TORIRS_UI_REGISTRY_OK )
-        return TORIRS_RESULT_INVALID;
-    if( revision != ToriRS_UiRegistry_Revision(&host->ui_registry) )
-    {
-        host->placement_cache_valid = 0;
-        host->layout_notify_pending = 1;
-    }
-    return TORIRS_RESULT_OK;
-}
-
-static void
-plugin_v2_frame_node_repoint(struct PluginV2FrameNode* node)
-{
-    assert(node);
-    node->value.parent = node->parent[0] ? node->parent : NULL;
-    node->value.label = node->label[0] ? node->label : NULL;
-    node->value.action = node->action[0] ? node->action : NULL;
-    for( int i = 0; i < TORIRS_UI_NAMED_ACTIONS_MAX; i++ )
-        node->value.actions[i] =
-            i < (int)node->value.action_count && node->actions[i][0] ? node->actions[i] : NULL;
-}
-
-static int
-plugin_v2_copy_frame_node(
-    struct PluginV2FrameNode* out,
-    char const* name,
-    struct ToriRS_UiNode const* node)
-{
-    size_t copy_size;
-    int written;
-
-    assert(out);
-    assert(name);
-    assert(node);
-    copy_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
-    if( copy_size < TORIRS_UI_NODE_V2_0_SIZE )
-        return 0;
-    memset(out, 0, sizeof(*out));
-    written = snprintf(out->name, sizeof(out->name), "%s", name);
-    if( written <= 0 || written >= (int)sizeof(out->name) )
-        return 0;
-    if( copy_size > sizeof(out->value) )
-        copy_size = sizeof(out->value);
-    memcpy(&out->value, node, copy_size);
-    out->value.struct_size = sizeof(out->value);
-    if( node->parent )
-    {
-        written = snprintf(out->parent, sizeof(out->parent), "%s", node->parent);
-        if( written < 0 || written >= (int)sizeof(out->parent) )
-            return 0;
-    }
-    if( node->label )
-    {
-        written = snprintf(out->label, sizeof(out->label), "%s", node->label);
-        if( written < 0 || written >= (int)sizeof(out->label) )
-            return 0;
-    }
-    if( node->action )
-    {
-        written = snprintf(out->action, sizeof(out->action), "%s", node->action);
-        if( written < 0 || written >= (int)sizeof(out->action) )
-            return 0;
-    }
-    if( copy_size >= offsetof(struct ToriRS_UiNode, action_count) + sizeof(node->action_count) )
-    {
-        if( node->action_count > TORIRS_UI_NAMED_ACTIONS_MAX ||
-            (node->action_count != 0 &&
-             copy_size < offsetof(struct ToriRS_UiNode, actions) + sizeof(node->actions)) )
-            return 0;
-        for( uint32_t i = 0; i < node->action_count; i++ )
-        {
-            if( !node->actions[i] )
-                return 0;
-            written = snprintf(out->actions[i], sizeof(out->actions[i]), "%s", node->actions[i]);
-            if( written <= 0 || written >= (int)sizeof(out->actions[i]) )
-                return 0;
-        }
-    }
-    plugin_v2_frame_node_repoint(out);
-    return 1;
-}
-
-static void
-plugin_v2_frame_ui_node(
-    void* user,
-    struct PluginContext* context,
-    char const* name,
-    struct ToriRS_UiNode const* node)
-{
-    struct ToriRS_PluginHost* host = user;
-    struct PluginV2Instance* v2;
-    struct ToriRS_UiNode normalized;
-    struct ToriRS_UiNodeRef name_ref;
-    char const* canonical_name;
-    size_t node_size;
-
-    assert(host);
-    assert(context);
-    assert(context->host == host);
-    (void)host;
-    v2 = context->v2;
-    assert(v2);
-    name_ref = ToriRS_UiRegistry_PrivateRef(&context->host->ui_registry, context->name, name);
-    canonical_name = ToriRS_UiRegistry_Name(&context->host->ui_registry, name_ref);
-    if( !canonical_name )
-    {
-        v2->frame_ui_candidate_invalid = true;
-        return;
-    }
-    node_size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
-    if( node_size < TORIRS_UI_NODE_V2_0_SIZE )
-    {
-        v2->frame_ui_candidate_invalid = true;
-        return;
-    }
-    memset(&normalized, 0, sizeof(normalized));
-    memcpy(&normalized, node, node_size < sizeof(normalized) ? node_size : sizeof(normalized));
-    normalized.struct_size = sizeof(normalized);
-    if( node->parent && node->parent[0] )
-    {
-        struct ToriRS_UiNodeRef const parent_ref =
-            ToriRS_UiRegistry_PrivateRef(&context->host->ui_registry, context->name, node->parent);
-        normalized.parent = ToriRS_UiRegistry_Name(&context->host->ui_registry, parent_ref);
-        if( !normalized.parent )
-        {
-            v2->frame_ui_candidate_invalid = true;
-            return;
-        }
-    }
-    if( v2->frame_ui_candidate_count >= PLUGIN_V2_FRAME_UI_MAX )
-    {
-        v2->frame_ui_candidate_invalid = true;
-        return;
-    }
-    for( int i = 0; i < v2->frame_ui_candidate_count; i++ )
-        if( strcmp(v2->frame_ui_candidate[i].name, canonical_name) == 0 )
-        {
-            v2->frame_ui_candidate_invalid = true;
-            return;
-        }
-    if( !plugin_v2_copy_frame_node(
-            &v2->frame_ui_candidate[v2->frame_ui_candidate_count], canonical_name, &normalized) )
-    {
-        v2->frame_ui_candidate_invalid = true;
-        return;
-    }
-    v2->frame_ui_candidate_count++;
-}
-
 static void
 plugin_v2_image_release(
     void* user,
     struct PluginContext* context,
     struct ToriRS_ImageRef image)
 {
-    struct ToriRS_PluginHost* host = user;
     struct PluginV2Instance* v2;
     int image_slot;
-    bool retained_by_frame = false;
 
-    assert(host);
+    assert(user);
     assert(context);
-    assert(context->host == host);
+    assert(context->host == (struct ToriRS_PluginHost*)user);
+    (void)user;
     v2 = context->v2;
     assert(v2);
     image_slot = plugin_v2_runtime_image_slot(&v2->runtime, image);
     if( image_slot < 0 )
         return;
-    for( int i = 0; i < v2->frame_image_count; i++ )
-        if( v2->frame_images[i].value == image.value )
-        {
-            retained_by_frame = true;
-            break;
-        }
-
-    /* The engine's committed layout consumes internal image slots. Take a
-     * frame that retained this exact token off-screen before freeing the slot;
-     * otherwise a subsequent allocation in the same slot would repaint the
-     * old frame with unrelated art before its next layout transaction. */
-    if( retained_by_frame && plugin_frame_owner(host) == context->index )
-    {
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(
-            host,
-            "core/native",
-            TORIRS_FRAME_STATUS_FALLBACK,
-            "The selected gameframe released artwork it retained.");
-        host->frame_selection_dirty = 1;
-        v2->frame_image_count = 0;
-    }
     api_image_release(context, image_slot);
 }
 
@@ -7700,8 +5630,6 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_ui_draw != NULL;
     case PLUGIN_CALLBACK_PANEL_LAYOUT:
         return def->callbacks.on_ui_layout != NULL;
-    case PLUGIN_CALLBACK_PLACEMENT_CHANGED:
-        return def->callbacks.on_placement_changed != NULL;
     default:
         return 0;
     }
@@ -7882,60 +5810,6 @@ plugin_v2_shutdown(struct PluginContext* ctx)
     free(v2->state);
     v2->state = NULL;
     plugin_v2_runtime_reset(&v2->runtime);
-    v2->frame_ui_count = 0;
-    v2->frame_ui_candidate_count = 0;
-    v2->frame_ui_candidate_invalid = false;
-    memset(v2->frame_images, 0, sizeof(v2->frame_images));
-    memset(v2->frame_images_candidate, 0, sizeof(v2->frame_images_candidate));
-    v2->frame_image_count = 0;
-    v2->frame_image_candidate_count = 0;
-}
-
-static int
-plugin_ui_contributions_start(struct PluginContext* ctx)
-{
-    int count = 0;
-
-    assert(ctx);
-    if( !ctx->def->ui_contributions || ctx->ui_contributions_registered )
-        return 1;
-    while( ctx->def->ui_contributions[count].node )
-        count++;
-    if( count == 0 )
-    {
-        ctx->ui_contributions_registered = true;
-        return 1;
-    }
-    if( count > PLUGIN_UI_CONTRIBUTIONS_MAX )
-    {
-        PluginHost_SetError(
-            ctx->host, ctx->index, "Its named UI declaration count exceeds the per-plugin budget.");
-        return 0;
-    }
-
-    ctx->ui_contribution_count = 0;
-    for( int i = 0; i < count; i++ )
-    {
-        struct ToriRS_UiContributionRef ref;
-        if( ToriRS_UiRegistry_AddContribution(
-                &ctx->host->ui_registry, ctx->name, &ctx->def->ui_contributions[i], &ref) !=
-            TORIRS_UI_REGISTRY_OK )
-        {
-            (void)ToriRS_UiRegistry_RemovePlugin(&ctx->host->ui_registry, ctx->name);
-            memset(ctx->ui_contribution_refs, 0, sizeof(ctx->ui_contribution_refs));
-            ctx->ui_contribution_count = 0;
-            PluginHost_SetError(
-                ctx->host, ctx->index, "Its named UI declarations are invalid for this build.");
-            return 0;
-        }
-        ctx->ui_contribution_refs[ctx->ui_contribution_count++] = ref;
-    }
-    if( ctx->def->frames )
-        ToriRS_UiRegistry_SetPluginScope(&ctx->host->ui_registry, ctx->name,
-                                        plugin_frame_owner(ctx->host) == ctx->index);
-    ctx->ui_contributions_registered = true;
-    ctx->host->placement_cache_valid = 0;
-    return 2;
 }
 
 static int
@@ -8021,7 +5895,6 @@ PluginHost_Register(
                                         TORIRS_PLUGIN_HIDDEN;
     struct PluginV2Instance* v2;
     struct ToriRS_FrameOffer const* source_frames = NULL;
-    struct ToriRS_UiContribution const* contributions = NULL;
     uint32_t flags = 0;
     int event_priority = 0;
     int draw_order = 0;
@@ -8045,8 +5918,6 @@ PluginHost_Register(
     }
     if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, frames) )
         source_frames = def->frames;
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, ui_contributions) )
-        contributions = def->ui_contributions;
     if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, flags) )
         flags = def->flags;
     if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, event_priority) )
@@ -8100,7 +5971,7 @@ PluginHost_Register(
             if( frame_count >= TORIRS_PLUGIN_FRAME_OFFERS_MAX ||
                 offer->struct_size < TORIRS_FRAME_OFFER_REQUIRED_SIZE ||
                 !offer->title || !offer->title[0] ||
-                (!offer->build && !v2->callbacks_storage.on_gameframe) ||
+                !v2->callbacks_storage.on_gameframe ||
                 (offer->canvas != TORIRS_FRAME_CANVAS_FIXED &&
                  offer->canvas != TORIRS_FRAME_CANVAS_WINDOW) ||
                 (offer->canvas == TORIRS_FRAME_CANVAS_FIXED &&
@@ -8122,9 +5993,6 @@ PluginHost_Register(
             stored->height = offer->height;
             stored->min_width = offer->min_width;
             stored->min_height = offer->min_height;
-            stored->build = offer->build;
-            if( PLUGIN_V2_FIELD_AVAILABLE(offer, ToriRS_FrameOffer, draw) )
-                stored->draw = offer->draw;
             frame_count++;
         }
     }
@@ -8142,7 +6010,6 @@ PluginHost_Register(
     }
     v2->definition_storage.callbacks = v2->callbacks_storage;
     v2->definition_storage.frames = frame_count > 0 ? v2->frame_offers : NULL;
-    v2->definition_storage.ui_contributions = contributions;
     v2->definition_storage.flags = flags;
     v2->definition_storage.event_priority = event_priority;
     v2->definition_storage.draw_order = draw_order;
@@ -8183,48 +6050,6 @@ PluginHost_Register(
             return -1;
         }
     }
-    if( contributions )
-    {
-        struct ToriRS_UiRegistry* validation;
-        int contribution_count = 0;
-        while( contributions[contribution_count].node )
-            contribution_count++;
-        if( contribution_count > PLUGIN_UI_CONTRIBUTIONS_MAX )
-        {
-            if( frame_count > 0 )
-                PluginFrameCatalog_RemovePlugin(&host->frame_catalog, index);
-            TORIRS_ERR(
-                "plugin: '%s' declares %d named UI contributions; the per-plugin budget is %d\n",
-                def->id,
-                contribution_count,
-                PLUGIN_UI_CONTRIBUTIONS_MAX);
-            free(v2);
-            return -1;
-        }
-        validation = malloc(sizeof(*validation));
-        assert(validation);
-        *validation = host->ui_registry;
-        for( int i = 0; i < contribution_count; i++ )
-        {
-            struct ToriRS_UiContributionRef contribution;
-            enum ToriRS_UiRegistryResult const result = ToriRS_UiRegistry_AddContribution(
-                validation, def->id, &contributions[i], &contribution);
-            if( result != TORIRS_UI_REGISTRY_OK )
-            {
-                free(validation);
-                if( frame_count > 0 )
-                    PluginFrameCatalog_RemovePlugin(&host->frame_catalog, index);
-                TORIRS_ERR(
-                    "plugin: '%s' has an invalid named-UI contribution at row %d\n",
-                    def->id,
-                    i);
-                free(v2);
-                return -1;
-            }
-        }
-        free(validation);
-    }
-
     {
         struct PluginContext* ctx = &host->plugins[index];
         memset(ctx, 0, sizeof(*ctx));
@@ -8245,8 +6070,6 @@ PluginHost_Register(
 void
 PluginHost_Start(struct ToriRS_PluginHost* host)
 {
-    bool contributions_changed = false;
-
     assert(host);
     int const previous_owner=host->dispatching, previous_event=host->dispatch_event;
 
@@ -8257,26 +6080,6 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
 
     plugin_frame_preference_load(host);
     plugin_frame_resolve(host);
-
-    /* Publish the complete retained declaration set before any newly started
-     * plugin runs. An on_start query therefore cannot observe only the
-     * contributions of plugins that happened to register before it. */
-    for( int i = 0; i < host->plugin_count; i++ )
-    {
-        struct PluginContext* ctx = &host->plugins[i];
-        if( ctx->running || !ctx->enabled || ctx->refused )
-            continue;
-        int const contribution_result = plugin_ui_contributions_start(ctx);
-        if( contribution_result == 0 )
-        {
-            ctx->refused = true;
-            continue;
-        }
-        if( contribution_result == 2 )
-            contributions_changed = true;
-    }
-    if( contributions_changed )
-        PluginHost_LayoutChanged(host);
 
     for( int i = 0; i < host->plugin_count; i++ )
     {
@@ -8324,7 +6127,6 @@ plugin_teardown(
     int plugin_index)
 {
     struct PluginContext* ctx = plugin_at(host, plugin_index);
-    bool ui_changed = false;
     int const previous_owner=host->dispatching, previous_event=host->dispatch_event;
 
     if( ctx->tearing_down )
@@ -8351,8 +6153,7 @@ plugin_teardown(
         host->dispatch_event = -1;
         /* on_stop observes the plugin as live. From this point onward no
          * direct retained-state notifier may target it: v2 shutdown frees
-         * state and clears the runtime before reservation/UI cleanup can
-         * publish placement changes. */
+         * state and clears the runtime before the resource cleanup below. */
         ctx->running = false;
         plugin_v2_shutdown(ctx);
     }
@@ -8367,23 +6168,9 @@ plugin_teardown(
     plugin_assets_drop_plugin(host, plugin_index);
     plugin_obj_icons_drop_plugin(host, plugin_index);
     plugin_images_drop_plugin(host, plugin_index);
-    /* Reservations go too, and that is what makes `reserve` safe to use: a
-     * dock that is switched off gives its edge back without anybody asking,
-     * and the readouts beside it widen on the next frame. */
-    plugin_placement_reservations_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
     /* Drop its retained entity appearance/action declarations. */
     plugin_entity_drop_plugin(host, plugin_index);
-    if( ctx->ui_contributions_registered )
-    {
-        ui_changed = ToriRS_UiRegistry_RemovePlugin(&host->ui_registry, ctx->name) > 0;
-        ctx->ui_contributions_registered = false;
-        memset(ctx->ui_contribution_refs, 0, sizeof(ctx->ui_contribution_refs));
-        ctx->ui_contribution_count = 0;
-        host->placement_cache_valid = 0;
-    }
-    if( ui_changed )
-        plugin_ui_present_reconcile(host);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
@@ -8408,8 +6195,6 @@ plugin_teardown(
             plugin_frame_target_set(host, -1);
     }
     ctx->tearing_down = false;
-    if( ui_changed )
-        PluginHost_LayoutChanged(host);
     host->dispatching=previous_owner;
     host->dispatch_event=previous_event;
 }
@@ -8725,1628 +6510,6 @@ PluginHost_IndexOf(
 }
 
 
-struct ToriRS_UiNodeRef
-PluginHost_UiRef(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    char const* name)
-{
-    struct PluginContext* ctx;
-
-    assert(host);
-    assert(name);
-    ctx = plugin_at(host, plugin_index);
-    return ToriRS_UiRegistry_PrivateRef(&host->ui_registry, ctx->name, name);
-}
-
-bool
-PluginHost_UiInfo(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_UiNodeInfo* out)
-{
-    struct ToriRS_UiNodeInfo snapshot;
-    struct ToriRS_UiResolvedNode resolved;
-    uint32_t capacity;
-
-    assert(host);
-    assert(out);
-    capacity = out->struct_size;
-    if( capacity < TORIRS_UI_NODE_INFO_V2_0_SIZE )
-        return false;
-    memset(&snapshot, 0, sizeof(snapshot));
-    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
-    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) )
-        return false;
-    snapshot.bounds = resolved.value.bounds;
-    snapshot.available_facets = resolved.available_facets;
-    snapshot.visible = (resolved.value.flags & TORIRS_UI_NODE_VISIBLE) != 0;
-    snapshot.enabled = (resolved.value.flags & TORIRS_UI_NODE_ENABLED) != 0;
-    snapshot.active = (resolved.value.flags & TORIRS_UI_NODE_ACTIVE) != 0;
-    snapshot.parent = resolved.value.parent;
-    snapshot.anchor = resolved.value.anchor;
-    snapshot.paint_order = resolved.value.paint_order;
-    snapshot.clip = resolved.value.clip;
-    memcpy(snapshot.state_images, resolved.value.state_images, sizeof(snapshot.state_images));
-    (void)snprintf(snapshot.label, sizeof(snapshot.label), "%s", resolved.value.label);
-    snapshot.label_x = resolved.value.label_x;
-    snapshot.label_y = resolved.value.label_y;
-    snapshot.hit_rect = resolved.value.hit_rect;
-    snapshot.action_count = resolved.value.action_count;
-    memcpy(snapshot.actions, resolved.value.actions, sizeof(snapshot.actions));
-    memcpy(out, &snapshot, capacity < sizeof(snapshot) ? capacity : sizeof(snapshot));
-    return true;
-}
-
-/** Build the open RevConfig role for one semantic base action. This convention
- * keeps the host out of the vocabulary business: adding a new core node or
- * action requires only `[role:action_<node>_<action>]` in each supporting
- * profile, never another C routing branch. */
-static bool
-plugin_ui_base_action_role(
-    char const* name,
-    char const* action,
-    char* out,
-    size_t out_size)
-{
-    size_t at = 0;
-    char const* part[2] = { name, action };
-
-    if( !name || !name[0] || !action || !action[0] || !out || out_size == 0 )
-        return false;
-    for( char const* prefix = "action_"; *prefix; prefix++ )
-        if( at + 1 >= out_size )
-            return false;
-        else
-            out[at++] = *prefix;
-    for( int p = 0; p < 2; p++ )
-    {
-        if( p != 0 )
-        {
-            if( at + 1 >= out_size )
-                return false;
-            out[at++] = '_';
-        }
-        for( char const* s = part[p]; *s; s++ )
-        {
-            char c = *s;
-            if( c == '.' || c == '-' )
-                c = '_';
-            else if( !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') )
-                return false;
-            if( at + 1 >= out_size )
-                return false;
-            out[at++] = c;
-        }
-    }
-    out[at] = '\0';
-    return true;
-}
-
-/** -1 unresolved, 0 present but authoritatively unavailable, 1 live. */
-static int
-plugin_ui_base_role_available(
-    struct ToriRS_PluginHost* host,
-    char const* role)
-{
-    int x, y, w, h;
-
-    if( host->engine.role_action_available )
-        return host->engine.role_action_available(host->engine.user, role);
-    return host->engine.role_rect &&
-                   host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h)
-               ? 1
-               : -1;
-}
-
-static bool
-plugin_ui_base_role_invoke(
-    struct ToriRS_PluginHost* host,
-    char const* role)
-{
-    if( !host->engine.role_click )
-        return false;
-    if( host->engine.role_click(host->engine.user, role, 0) )
-        return true;
-    return host->engine.role_click(host->engine.user, role, 1) != 0;
-}
-
-bool
-PluginHost_UiBaseActionAvailable(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    char const* name;
-    int available;
-
-    assert(host);
-    assert(action);
-    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    if( !plugin_ui_base_action_role(name, action, role, sizeof(role)) )
-        return false;
-    available = plugin_ui_base_role_available(host, role);
-    if( available >= 0 )
-        return available > 0;
-
-    if( strcmp(action, "activate") == 0 && name &&
-        strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-    {
-        char* end = NULL;
-        long const tab = strtol(name + 18, &end, 10);
-        return end && !*end && tab >= 0 && tab < 14 && host->engine.tab_enabled &&
-               host->engine.tab_enabled(host->engine.user, (int)tab) != 0;
-    }
-    return false;
-}
-
-bool
-PluginHost_UiInvokeBase(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    char const* name;
-    int available;
-
-    assert(host);
-    assert(action);
-    name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    if( !plugin_ui_base_action_role(name, action, role, sizeof(role)) )
-        return false;
-    available = plugin_ui_base_role_available(host, role);
-    if( available >= 0 )
-        return available > 0 && plugin_ui_base_role_invoke(host, role);
-
-    if( strcmp(action, "activate") == 0 && name &&
-        strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-    {
-        char* end = NULL;
-        long const tab = strtol(name + 18, &end, 10);
-        return end && !*end && tab >= 0 && tab < 14 && host->engine.tab_select &&
-               host->engine.tab_select(host->engine.user, (int)tab) != 0;
-    }
-    return false;
-}
-
-bool
-PluginHost_UiInvoke(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    struct ToriRS_UiResolvedNode resolved;
-    bool action_declared = false;
-
-    assert(host);
-    assert(action);
-    if( !ToriRS_UiRegistry_Name(&host->ui_registry, node) )
-        return false;
-    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) ||
-        (resolved.available_facets & TORIRS_UI_FACET_ACTIONS) == 0 ||
-        (resolved.value.flags & TORIRS_UI_NODE_ENABLED) == 0 )
-        return false;
-    for( uint32_t i = 0; i < resolved.value.action_count; i++ )
-        if( strcmp(resolved.value.actions[i], action) == 0 )
-        {
-            action_declared = true;
-            break;
-        }
-    /* Compatibility base nodes predate named-action metadata; their one
-     * conventional operation remains `activate` until RevConfig owns it. */
-    if( resolved.value.action_count == 0 )
-        action_declared = strcmp(action, "activate") == 0;
-    if( !action_declared )
-        return false;
-
-    /* A plugin-provided action facet gets first refusal. Returning CONTINUE
-     * deliberately falls through to the lane-owned semantic action. */
-    {
-        int const provider = plugin_ui_present_provider(
-            host,
-            node,
-            resolved.actions_provider,
-            TORIRS_UI_FACET_ACTIONS);
-        if( provider >= 0 && host->plugins[provider].enabled && host->plugins[provider].running &&
-            host->plugins[provider].v2 &&
-            host->plugins[provider].v2->definition->callbacks.on_ui_node_action )
-        {
-            struct PluginV2Instance* v2 = host->plugins[provider].v2;
-            int const previous = host->dispatching;
-            int const previous_event = host->dispatch_event;
-            enum ToriRS_CallbackResult result;
-
-            host->dispatching = provider;
-            host->dispatch_event = PLUGIN_CALLBACK_UI_NODE_ACTION;
-            result = v2->definition->callbacks.on_ui_node_action(
-                &v2->runtime.api, v2->state, node, action);
-            host->dispatching = previous;
-            host->dispatch_event = previous_event;
-            if( result == TORIRS_CALLBACK_CONSUME )
-                return true;
-        }
-    }
-    if( strcmp(action, "activate") != 0 )
-        return false;
-    return PluginHost_UiInvokeBase(host, node, action);
-}
-
-static void
-plugin_ui_observe_change(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiChange const* change)
-{
-    int tail;
-    int node;
-
-    assert(host);
-    assert(change);
-    if( change->node.value == 0 ||
-        change->node.value > TORIRS_UI_REGISTRY_NODES_MAX )
-        return;
-    node = (int)change->node.value - 1;
-    if( host->ui_observed_change_facets[node] == 0 )
-    {
-        assert(host->ui_observed_change_count < TORIRS_UI_REGISTRY_NODES_MAX);
-        tail = (host->ui_observed_change_head +
-                host->ui_observed_change_count) % TORIRS_UI_REGISTRY_NODES_MAX;
-        host->ui_observed_change_queue[tail] = node;
-        host->ui_observed_change_count++;
-    }
-    host->ui_observed_change_facets[node] |= change->facets;
-    host->ui_observed_change_revision[node] = change->revision;
-}
-
-int
-PluginHost_UiChangeNext(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiChange* out)
-{
-    int node;
-
-    assert(host);
-    assert(out);
-    /* The presenter is the registry journal's sole stateful consumer.
-     * Diagnostics observe its coalesced copy and can no longer steal a change
-     * from rendering by polling first. */
-    plugin_ui_present_reconcile(host);
-    if( host->ui_observed_change_count <= 0 )
-        return 0;
-    node = host->ui_observed_change_queue[host->ui_observed_change_head];
-    host->ui_observed_change_head =
-        (host->ui_observed_change_head + 1) % TORIRS_UI_REGISTRY_NODES_MAX;
-    host->ui_observed_change_count--;
-    out->node.value = (uint32_t)node + 1u;
-    out->facets = host->ui_observed_change_facets[node];
-    out->revision = host->ui_observed_change_revision[node];
-    host->ui_observed_change_facets[node] = 0;
-    host->ui_observed_change_revision[node] = 0;
-    return 1;
-}
-
-static int
-plugin_ui_present_provider(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* provider,
-    uint32_t facet)
-{
-    int plugin;
-
-    assert(host);
-    assert(provider);
-    plugin = PluginHost_IndexOf(host, provider);
-    if( plugin < 0 )
-    {
-        int const offer = PluginFrameCatalog_Find(&host->frame_catalog, provider);
-        struct PluginFrameCatalogEntry const* entry =
-            offer >= 0 ? PluginFrameCatalog_At(&host->frame_catalog, offer) : NULL;
-
-        plugin = entry ? entry->plugin : -1;
-        if( plugin >= 0 && plugin < host->plugin_count &&
-            host->plugins[plugin].v2 && host->plugins[plugin].enabled &&
-            host->plugins[plugin].running )
-        {
-            struct PluginV2Instance const* v2 = host->plugins[plugin].v2;
-            char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-
-            for( int i = 0; name && i < v2->frame_ui_count; i++ )
-                if( strcmp(v2->frame_ui[i].name, name) == 0 )
-                {
-                    if( facet == TORIRS_UI_FACET_BOUNDS )
-                        return plugin;
-                    if( facet == TORIRS_UI_FACET_APPEARANCE )
-                        return plugin;
-                    if( facet == TORIRS_UI_FACET_ACTIONS &&
-                        v2->frame_ui[i].value.action_count > 0 )
-                        return plugin;
-                    return -1;
-                }
-        }
-        return -1;
-    }
-    if( !host->plugins[plugin].v2 || !host->plugins[plugin].enabled ||
-        !host->plugins[plugin].running || !host->plugins[plugin].ui_contributions_registered )
-        return -1;
-    for( int i = 0; i < host->plugins[plugin].ui_contribution_count; i++ )
-    {
-        struct ToriRS_UiContributionStatus status;
-        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
-            &host->ui_registry,
-            host->plugins[plugin].name,
-            host->plugins[plugin].def->ui_contributions[i].node);
-        if( declared.value == node.value &&
-            ToriRS_UiRegistry_ContributionStatus(
-                &host->ui_registry,
-                host->plugins[plugin].ui_contribution_refs[i],
-                &status) &&
-            (status.active_facets & facet) != 0 )
-            return plugin;
-    }
-    return -1;
-}
-
-/**
- * Did one REPLACE_OR_PROVIDE declaration win the node's visible behavior?
- *
- * The distinction is observable only when the semantic name maps to a live
- * UITree role. A partial appearance/actions override replaces the target's own
- * facets and deliberately leaves child controls alive. Appearance plus actions
- * from one replacement stands for the object as a whole even when bounds stay
- * lane-owned; OSRS minimap orbs and the report button are composite layer roots,
- * so leaving their children alive would draw/operate the native object too.
- */
-static bool
-plugin_ui_present_complete_replacement(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    int plugin)
-{
-    uint32_t const replaced_facets =
-        TORIRS_UI_FACET_APPEARANCE | TORIRS_UI_FACET_ACTIONS;
-    struct PluginContext* context;
-
-    assert(host);
-    if( plugin < 0 || plugin >= host->plugin_count )
-        return false;
-    context = &host->plugins[plugin];
-    if( !context->v2 || !context->ui_contributions_registered ||
-        !context->def->ui_contributions )
-        return false;
-
-    for( int i = 0; i < context->ui_contribution_count; i++ )
-    {
-        struct ToriRS_UiContribution const* declaration =
-            &context->def->ui_contributions[i];
-        struct ToriRS_UiContributionStatus status;
-        struct ToriRS_UiNodeRef const declared = ToriRS_UiRegistry_PrivateRef(
-            &host->ui_registry, context->name, declaration->node);
-
-        if( declared.value != node.value ||
-            declaration->mode != TORIRS_UI_REPLACE_OR_PROVIDE ||
-            (declaration->facets & replaced_facets) != replaced_facets )
-            continue;
-        if( ToriRS_UiRegistry_ContributionStatus(
-                &host->ui_registry, context->ui_contribution_refs[i], &status) &&
-            (status.active_facets & replaced_facets) == replaced_facets )
-            return true;
-    }
-    return false;
-}
-
-static bool
-plugin_ui_rect_intersect(
-    struct ToriRS_Rect* destination,
-    struct ToriRS_Rect const* source)
-{
-    int64_t left;
-    int64_t top;
-    int64_t right;
-    int64_t bottom;
-
-    assert(destination);
-    assert(source);
-    left = destination->x > source->x ? destination->x : source->x;
-    top = destination->y > source->y ? destination->y : source->y;
-    right = (int64_t)destination->x + destination->width;
-    if( right > (int64_t)source->x + source->width )
-        right = (int64_t)source->x + source->width;
-    bottom = (int64_t)destination->y + destination->height;
-    if( bottom > (int64_t)source->y + source->height )
-        bottom = (int64_t)source->y + source->height;
-    if( right <= left || bottom <= top )
-        return false;
-    *destination =
-        (struct ToriRS_Rect){ (int)left, (int)top, (int)(right - left), (int)(bottom - top) };
-    return true;
-}
-
-static bool
-plugin_ui_present_tree_state(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    bool frame_surface,
-    bool* out_clip_active,
-    struct ToriRS_Rect* out_clip,
-    uint64_t* out_identity)
-{
-    bool clip_active = false;
-    uint64_t identity = UINT64_C(1469598103934665603);
-
-    assert(host);
-    assert(out_clip_active);
-    assert(out_clip);
-    assert(out_identity);
-    *out_clip_active = false;
-    *out_clip = (struct ToriRS_Rect){ 0 };
-    for( int depth = 0; node.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
-    {
-        struct ToriRS_UiResolvedNode current;
-        struct ToriRS_UiResolvedNode parent;
-
-        if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &current) )
-        {
-            *out_identity = identity;
-            /* A committed FrameBuilder declaration was validated as one
-             * complete tree. During a base refresh its generated surface
-             * ancestor can be absent for one registry edge while the authored
-             * child remains the current frame's real control. Do not turn that
-             * bookkeeping gap into a click-through frame. */
-            if( frame_surface && depth > 0 )
-            {
-                *out_clip_active = clip_active;
-                return true;
-            }
-            return false;
-        }
-        identity ^= node.value;
-        identity *= UINT64_C(1099511628211);
-        /* Hash the ancestry facts this state actually depends on. A registry-
-         * wide revision made an unrelated node update invalidate every open
-         * action token, which defeats exact mutation consumption. */
-        {
-            uint32_t const facts[] = {
-                current.available_facets,
-                current.value.flags & TORIRS_UI_NODE_VISIBLE,
-                current.value.parent.value,
-                (uint32_t)current.value.bounds.x,
-                (uint32_t)current.value.bounds.y,
-                (uint32_t)current.value.bounds.width,
-                (uint32_t)current.value.bounds.height,
-                (uint32_t)current.value.clip,
-            };
-            for( size_t i = 0; i < sizeof(facts) / sizeof(facts[0]); i++ )
-            {
-                identity ^= facts[i];
-                identity *= UINT64_C(1099511628211);
-            }
-        }
-        if( (current.available_facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
-            (current.value.flags & TORIRS_UI_NODE_VISIBLE) == 0 )
-        {
-            *out_identity = identity;
-            return false;
-        }
-        if( current.value.clip == TORIRS_UI_CLIP_BOUNDS )
-        {
-            if( !clip_active )
-            {
-                *out_clip = current.value.bounds;
-                clip_active = true;
-            }
-            else if( !plugin_ui_rect_intersect(out_clip, &current.value.bounds) )
-            {
-                *out_identity = identity;
-                return false;
-            }
-        }
-        else if( current.value.clip == TORIRS_UI_CLIP_PARENT &&
-                 current.value.parent.value != 0 )
-        {
-            if( !ToriRS_UiRegistry_Resolve(
-                    &host->ui_registry, current.value.parent, &parent) )
-            {
-                *out_identity = identity;
-                return false;
-            }
-            if( !clip_active )
-            {
-                *out_clip = parent.value.bounds;
-                clip_active = true;
-            }
-            else if( !plugin_ui_rect_intersect(out_clip, &parent.value.bounds) )
-            {
-                *out_identity = identity;
-                return false;
-            }
-        }
-        node = current.value.parent;
-    }
-    if( node.value != 0 )
-    {
-        *out_identity = identity;
-        return false;
-    }
-    *out_clip_active = clip_active;
-    *out_identity = identity;
-    return true;
-}
-
-static char const*
-plugin_ui_present_role(
-    char const* name,
-    char* dynamic,
-    size_t dynamic_size)
-{
-    assert(name);
-    assert(dynamic);
-    if( strcmp(name, "frame.viewport") == 0 )
-        return "viewport";
-    if( strcmp(name, "frame.minimap") == 0 )
-        return "minimap";
-    if( strcmp(name, "frame.minimap.housing") == 0 )
-        return "minimap_edge";
-    if( strcmp(name, "frame.compass") == 0 )
-        return "compass";
-    if( strcmp(name, "frame.chat") == 0 )
-        return "chat";
-    if( strcmp(name, "frame.chat.buttons") == 0 )
-        return "chat_buttons";
-    if( strcmp(name, "frame.chat.backing") == 0 )
-        return "chat_backing";
-    if( strcmp(name, "frame.chat.bar") == 0 )
-        return "chat_bar";
-    if( strncmp(name, "frame.chat.plate.", 17) == 0 )
-    {
-        (void)snprintf(dynamic, dynamic_size, "chat_plate_%s", name + 17);
-        return dynamic;
-    }
-    if( strcmp(name, "frame.chat.button.report") == 0 )
-        return "report_button";
-    if( strcmp(name, "frame.sidebar") == 0 )
-        return "sidebar";
-    /* A selected frame's sidebar rail and the lane's auxiliary popout strip
-     * are adjacent objects, not two providers for one object.  Mapping the
-     * former onto `lane_chrome_0` suppresses interface 728 after the frame's
-     * first post-login rebuild: the custom art stops clipping, but XP/Loot/
-     * Hiscores disappear with it.  The live lane strip participates directly
-     * in FRAME_BUILD placement; it is deliberately not a presentation target
-     * for replacement frame furniture. */
-    if( strcmp(name, "frame.sidebar.rail") == 0 )
-        return NULL;
-    if( strncmp(name, "frame.sidebar.tab.", 18) == 0 )
-    {
-        (void)snprintf(dynamic, dynamic_size, "sidetab_%s", name + 18);
-        return dynamic;
-    }
-    if( strcmp(name, "frame.modal") == 0 )
-        return "main_modal";
-    if( strcmp(name, "frame.orbs") == 0 )
-        return "orbs";
-    if( strcmp(name, "frame.orb.hitpoints") == 0 )
-        return "orb_hitpoints";
-    if( strcmp(name, "frame.orb.prayer") == 0 )
-        return "orb_prayer";
-    if( strcmp(name, "frame.orb.run") == 0 )
-        return "orb_run";
-    if( strcmp(name, "frame.orb.special") == 0 )
-        return "orb_spec";
-    if( strcmp(name, "frame.xp.drops") == 0 )
-        return "xp_drops";
-    return NULL;
-}
-
-static int
-plugin_ui_present_index(
-    struct ToriRS_PluginHost const* host,
-    struct ToriRS_UiNodeRef node)
-{
-    int indexed;
-
-    assert(host);
-    if( node.value == 0 || node.value > TORIRS_UI_REGISTRY_NODES_MAX )
-        return -1;
-    indexed = host->ui_presentation_by_node[node.value - 1u];
-    return indexed > 0 ? indexed - 1 : -1;
-}
-
-static void
-plugin_ui_present_reindex(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    memset(
-        host->ui_presentation_by_node,
-        0,
-        sizeof(host->ui_presentation_by_node));
-    for( int i = 0; i < host->ui_presentation_count; i++ )
-    {
-        uint32_t const node = host->ui_presentations[i].node.value;
-        assert(node > 0 && node <= TORIRS_UI_REGISTRY_NODES_MAX);
-        assert(host->ui_presentation_by_node[node - 1u] == 0);
-        host->ui_presentation_by_node[node - 1u] = i + 1;
-    }
-}
-
-static bool
-plugin_ui_present_mapped_role(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char* out,
-    size_t out_size)
-{
-    char dynamic[TORIRS_PLUGIN_ROLE_NAME_MAX];
-    char const* name = ToriRS_UiRegistry_Name(&host->ui_registry, node);
-    char const* role = name ? plugin_ui_present_role(name, dynamic, sizeof(dynamic)) : NULL;
-
-    if( !role )
-        return false;
-    (void)snprintf(out, out_size, "%s", role);
-    return true;
-}
-
-static bool
-plugin_ui_present_role_live(
-    struct ToriRS_PluginHost* host,
-    char const* role)
-{
-    int x, y, w, h;
-
-    assert(host);
-    return role && role[0] &&
-           host->engine.role_rect(host->engine.user, role, &x, &y, &w, &h) &&
-           host->engine.role_visible(host->engine.user, role);
-}
-
-static void
-plugin_ui_present_boundary(
-    struct ToriRS_PluginHost* host,
-    int index)
-{
-    struct PluginUiPresentation* rows = host->ui_presentations;
-    struct ToriRS_UiNodeRef boundary;
-    int root = index;
-
-    assert(host);
-    rows[index].target_role[0] = '\0';
-    rows[index].boundary_role[0] = '\0';
-    rows[index].pending_boundary_role[0] = '\0';
-    /* A FrameBuilder node is the replacement frame's own control, not an
-     * overlay attached to the lane node that happens to share its semantic
-     * name. Requiring that native node to be visible makes custom redstones
-     * lose input exactly when the frame correctly hides native chrome. */
-    if( rows[index].frame_surface )
-    {
-        rows[index].boundary_place = PLUGIN_UI_BOUNDARY_AFTER;
-        return;
-    }
-    (void)plugin_ui_present_mapped_role(
-        host, rows[index].node, rows[index].target_role,
-        sizeof(rows[index].target_role));
-
-    /* The closest live node inside the presented semantic ancestry is the
-     * subtree boundary. Every provided descendant below it shares SELF, and
-     * the recursive ordering pass supplies before/parent/after within that
-     * one contiguous insertion point. */
-    for( int current = index;; )
-    {
-        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        int const parent = plugin_ui_present_index(
-            host, rows[current].value.parent);
-
-        if( plugin_ui_present_mapped_role(host, rows[current].node, role, sizeof(role)) )
-        {
-            if( plugin_ui_present_role_live(host, role) )
-            {
-                (void)snprintf(
-                    rows[index].boundary_role,
-                    sizeof(rows[index].boundary_role),
-                    "%s",
-                    role);
-                rows[index].boundary_place = PLUGIN_UI_BOUNDARY_SELF;
-                return;
-            }
-            if( !rows[index].pending_boundary_role[0] )
-                (void)snprintf(
-                    rows[index].pending_boundary_role,
-                    sizeof(rows[index].pending_boundary_role),
-                    "%s",
-                    role);
-        }
-        if( parent < 0 )
-            break;
-        root = parent;
-        current = parent;
-    }
-
-    rows[index].boundary_place =
-        rows[root].value.paint_order == TORIRS_UI_PAINT_BEFORE_PARENT
-            ? PLUGIN_UI_BOUNDARY_BEFORE
-            : PLUGIN_UI_BOUNDARY_AFTER;
-    boundary = rows[root].value.parent;
-    for( int depth = 0; boundary.value != 0 && depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
-    {
-        struct ToriRS_UiResolvedNode parent;
-        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        if( plugin_ui_present_mapped_role(host, boundary, role, sizeof(role)) )
-        {
-            if( plugin_ui_present_role_live(host, role) )
-            {
-                (void)snprintf(
-                    rows[index].boundary_role,
-                    sizeof(rows[index].boundary_role),
-                    "%s",
-                    role);
-                return;
-            }
-            if( !rows[index].pending_boundary_role[0] )
-                (void)snprintf(
-                    rows[index].pending_boundary_role,
-                    sizeof(rows[index].pending_boundary_role),
-                    "%s",
-                    role);
-        }
-        if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, boundary, &parent) )
-            return;
-        boundary = parent.value.parent;
-    }
-}
-
-static void
-plugin_ui_present_order_visit(
-    struct PluginUiPresentation const* source,
-    int index,
-    int const* before_head,
-    int const* after_head,
-    int const* next,
-    bool* emitted,
-    struct PluginUiPresentation* destination,
-    int* destination_count)
-{
-    if( emitted[index] )
-        return;
-    for( int child = before_head[index]; child >= 0; child = next[child] )
-        plugin_ui_present_order_visit(
-            source,
-            child,
-            before_head,
-            after_head,
-            next,
-            emitted,
-            destination,
-            destination_count);
-    emitted[index] = true;
-    destination[(*destination_count)++] = source[index];
-    for( int child = after_head[index]; child >= 0; child = next[child] )
-        plugin_ui_present_order_visit(
-            source,
-            child,
-            before_head,
-            after_head,
-            next,
-            emitted,
-            destination,
-            destination_count);
-}
-
-/** Restore semantic before/parent/after order in O(active + interned nodes). */
-static void
-plugin_ui_present_reorder(struct ToriRS_PluginHost* host)
-{
-    struct PluginUiPresentation* ordered;
-    int before_head[PLUGIN_UI_PRESENTATIONS_MAX];
-    int before_tail[PLUGIN_UI_PRESENTATIONS_MAX];
-    int after_head[PLUGIN_UI_PRESENTATIONS_MAX];
-    int after_tail[PLUGIN_UI_PRESENTATIONS_MAX];
-    int next[PLUGIN_UI_PRESENTATIONS_MAX];
-    bool emitted[PLUGIN_UI_PRESENTATIONS_MAX] = { false };
-    int root_head = -1;
-    int root_tail = -1;
-    int ordered_count = 0;
-
-    assert(host);
-    if( host->ui_presentation_count <= 1 )
-    {
-        plugin_ui_present_reindex(host);
-        return;
-    }
-    for( int i = 0; i < PLUGIN_UI_PRESENTATIONS_MAX; i++ )
-    {
-        before_head[i] = before_tail[i] = -1;
-        after_head[i] = after_tail[i] = -1;
-        next[i] = -1;
-    }
-    /* Node refs are interned deterministically. Walking that index, not compact
-     * slot order, keeps sibling order stable after swap-removal. */
-    for( uint32_t node = 1;
-         node <= (uint32_t)ToriRS_UiRegistry_NodeCount(&host->ui_registry);
-         node++ )
-    {
-        struct ToriRS_UiNodeRef const ref = { node };
-        int const child = plugin_ui_present_index(host, ref);
-        int parent;
-        int* head;
-        int* tail;
-
-        if( child < 0 )
-            continue;
-        parent = plugin_ui_present_index(
-            host, host->ui_presentations[child].value.parent);
-        if( parent < 0 )
-        {
-            if( root_tail < 0 )
-                root_head = child;
-            else
-                next[root_tail] = child;
-            root_tail = child;
-            continue;
-        }
-        if( host->ui_presentations[child].value.paint_order ==
-            TORIRS_UI_PAINT_BEFORE_PARENT )
-        {
-            head = &before_head[parent];
-            tail = &before_tail[parent];
-        }
-        else
-        {
-            head = &after_head[parent];
-            tail = &after_tail[parent];
-        }
-        if( *tail < 0 )
-            *head = child;
-        else
-            next[*tail] = child;
-        *tail = child;
-    }
-
-    ordered = calloc((size_t)host->ui_presentation_count, sizeof(*ordered));
-    assert(ordered);
-    for( int root = root_head; root >= 0; root = next[root] )
-        plugin_ui_present_order_visit(
-            host->ui_presentations,
-            root,
-            before_head,
-            after_head,
-            next,
-            emitted,
-            ordered,
-            &ordered_count);
-    /* Registry validation forbids cycles. Keep this defensive tail so a
-     * damaged presenter cache cannot silently drop a row. */
-    for( int i = 0; i < host->ui_presentation_count; i++ )
-        plugin_ui_present_order_visit(
-            host->ui_presentations,
-            i,
-            before_head,
-            after_head,
-            next,
-            emitted,
-            ordered,
-            &ordered_count);
-    assert(ordered_count == host->ui_presentation_count);
-    memcpy(
-        host->ui_presentations,
-        ordered,
-        (size_t)ordered_count * sizeof(*ordered));
-    free(ordered);
-    plugin_ui_present_reindex(host);
-}
-
-static void
-plugin_ui_present_suppressions(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* rows,
-    int count,
-    bool enabled)
-{
-    if( !host->engine.role_suppress_facets )
-        return;
-    for( int i = 0; i < count; i++ )
-    {
-        if( !rows[i].target_role[0] )
-            continue;
-        /* Canonical frame names map injectively to lane roles; aliases intern
-         * to the same node before reaching this list. One row therefore owns
-         * one exact suppression update, with no prior/suffix search. */
-        (void)host->engine.role_suppress_facets(
-            host->engine.user,
-            rows[i].target_role,
-            enabled && rows[i].presentable && rows[i].appearance_plugin >= 0,
-            enabled && rows[i].presentable && rows[i].actions_plugin >= 0,
-            enabled && rows[i].presentable && rows[i].replace_subtree &&
-                rows[i].boundary_role[0] &&
-                strcmp(rows[i].boundary_role, rows[i].target_role) == 0);
-    }
-}
-
-static bool
-plugin_ui_present_anchor_available(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row)
-{
-    assert(host);
-    assert(row);
-    if( row->boundary_role[0] )
-        return plugin_ui_present_role_live(host, row->boundary_role);
-    /* A mapped native boundary which has not appeared yet is not permission
-     * to promote the contribution to the global canvas. A genuinely private
-     * root has neither string and remains a valid canvas-local declaration. */
-    return !row->pending_boundary_role[0];
-}
-
-static uint32_t
-plugin_ui_present_action_token_next(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    host->ui_action_token = (host->ui_action_token + 1u) &
-                            ~PLUGIN_UI_PRESENT_TAG_BIT;
-    if( host->ui_action_token == 0 )
-        host->ui_action_token = 1;
-    return host->ui_action_token;
-}
-
-static bool
-plugin_ui_present_actions_equal(
-    struct PluginUiPresentation const* old,
-    struct PluginUiPresentation const* candidate)
-{
-    if( !old || old->actions_plugin != candidate->actions_plugin ||
-        old->frame_surface != candidate->frame_surface ||
-        old->replace_subtree != candidate->replace_subtree ||
-        old->value.action_count != candidate->value.action_count ||
-        old->presentable != candidate->presentable ||
-        old->state_identity != candidate->state_identity ||
-        ((old->value.flags ^ candidate->value.flags) &
-         (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) != 0 ||
-        old->boundary_place != candidate->boundary_place ||
-        strcmp(old->boundary_role, candidate->boundary_role) != 0 ||
-        strcmp(old->pending_boundary_role, candidate->pending_boundary_role) != 0 )
-        return false;
-    for( uint32_t i = 0; i < candidate->value.action_count; i++ )
-        if( strcmp(old->value.actions[i], candidate->value.actions[i]) != 0 )
-            return false;
-    return true;
-}
-
-/** Resolve only the changed semantic node into a presenter candidate. */
-static bool
-plugin_ui_present_candidate(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    struct PluginUiPresentation* out)
-{
-    struct ToriRS_UiResolvedNode resolved;
-    int bounds;
-    int appearance;
-    int actions;
-
-    assert(host);
-    assert(out);
-    memset(out, 0, sizeof(*out));
-    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) ||
-        (resolved.available_facets & TORIRS_UI_FACET_BOUNDS) == 0 )
-        return false;
-    appearance = plugin_ui_present_provider(
-        host, node, resolved.appearance_provider, TORIRS_UI_FACET_APPEARANCE);
-    actions = plugin_ui_present_provider(
-        host, node, resolved.actions_provider, TORIRS_UI_FACET_ACTIONS);
-    if( appearance < 0 && actions < 0 )
-        return false;
-    out->node = node;
-    out->value = resolved.value;
-    out->appearance_plugin = appearance;
-    out->actions_plugin = actions;
-    bounds = plugin_ui_present_provider(
-        host, node, resolved.bounds_provider, TORIRS_UI_FACET_BOUNDS);
-    out->frame_surface = bounds >= 0 && bounds == plugin_frame_owner(host);
-    out->replace_subtree = appearance >= 0 && appearance == actions &&
-                           plugin_ui_present_complete_replacement(
-                               host, node, appearance);
-    return true;
-}
-
-static void
-plugin_ui_present_suppression_one(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row,
-    bool enabled)
-{
-    if( host->engine.role_suppress_facets && row && row->target_role[0] )
-        (void)host->engine.role_suppress_facets(
-            host->engine.user,
-            row->target_role,
-            enabled && row->presentable && row->appearance_plugin >= 0,
-            enabled && row->presentable && row->actions_plugin >= 0,
-            enabled && row->presentable && row->replace_subtree && row->boundary_role[0] &&
-                strcmp(row->boundary_role, row->target_role) == 0);
-}
-
-/** Maintain an exact compact list of rows with a not-yet-live role boundary. */
-static void
-plugin_ui_present_pending_set(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    bool pending)
-{
-    int at;
-
-    assert(host);
-    assert(node.value > 0 && node.value <= TORIRS_UI_REGISTRY_NODES_MAX);
-    at = host->ui_pending_role_index[node.value - 1u] - 1;
-    if( pending )
-    {
-        if( at >= 0 )
-            return;
-        assert(host->ui_pending_role_count < TORIRS_UI_REGISTRY_NODES_MAX);
-        at = host->ui_pending_role_count++;
-        host->ui_pending_role_nodes[at] = (int)node.value;
-        host->ui_pending_role_index[node.value - 1u] = at + 1;
-        return;
-    }
-    if( at < 0 )
-        return;
-    {
-        int const last = --host->ui_pending_role_count;
-        int const moved = host->ui_pending_role_nodes[last];
-        host->ui_pending_role_index[node.value - 1u] = 0;
-        if( at != last )
-        {
-            host->ui_pending_role_nodes[at] = moved;
-            host->ui_pending_role_index[moved - 1] = at + 1;
-        }
-        host->ui_pending_role_nodes[last] = 0;
-    }
-}
-
-/** Re-resolve ancestry/boundary state for one already-indexed row. */
-static void
-plugin_ui_present_finish_row(
-    struct ToriRS_PluginHost* host,
-    int index,
-    struct PluginUiPresentation const* old)
-{
-    struct PluginUiPresentation* row;
-    bool tree_presentable;
-
-    assert(host);
-    assert(index >= 0 && index < host->ui_presentation_count);
-    row = &host->ui_presentations[index];
-    tree_presentable = plugin_ui_present_tree_state(
-        host,
-        row->node,
-        row->frame_surface,
-        &row->clip_active,
-        &row->clip,
-        &row->state_identity);
-    plugin_ui_present_boundary(host, index);
-    /* Updating one standing role must be one suppression restatement, not an
-     * off/on pulse. Paint/input-only flags merely dirtied the target, but a
-     * subtree replacement changes reachability and therefore the tree
-     * generation on both edges. Pulsing it during every base refresh creates a
-     * self-sustaining relayout loop and a visible frame with no replacement.
-     * The engine callback overwrites and re-aggregates the row atomically, so
-     * only a genuinely different role needs the old one released first. */
-    if( old && old->target_role[0] &&
-        strcmp(old->target_role, row->target_role) != 0 )
-        plugin_ui_present_suppression_one(host, old, false);
-    row->presentable = tree_presentable &&
-                       plugin_ui_present_anchor_available(host, row);
-    if( row->actions_plugin >= 0 && row->value.action_count > 0 )
-        row->action_token =
-            old && plugin_ui_present_actions_equal(old, row)
-                ? old->action_token
-                : plugin_ui_present_action_token_next(host);
-    else
-        row->action_token = 0;
-    plugin_ui_present_pending_set(
-        host, row->node, row->pending_boundary_role[0] != '\0');
-    plugin_ui_present_suppression_one(host, row, true);
-}
-
-/** Swap-remove one presenter row while preserving the direct node index. */
-static void
-plugin_ui_present_remove(struct ToriRS_PluginHost* host, int index)
-{
-    struct PluginUiPresentation old;
-    int const last = host->ui_presentation_count - 1;
-
-    assert(host);
-    assert(index >= 0 && index <= last);
-    old = host->ui_presentations[index];
-    plugin_ui_present_suppression_one(host, &old, false);
-    plugin_ui_present_pending_set(host, old.node, false);
-    host->ui_presentation_by_node[old.node.value - 1u] = 0;
-    if( index != last )
-    {
-        host->ui_presentations[index] = host->ui_presentations[last];
-        host->ui_presentation_by_node[
-            host->ui_presentations[index].node.value - 1u] = index + 1;
-    }
-    memset(&host->ui_presentations[last], 0, sizeof(host->ui_presentations[last]));
-    host->ui_presentation_count--;
-}
-
-/** Apply one registry-journal row without visiting an unrelated named node. */
-static void
-plugin_ui_present_apply_change(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiChange const* change,
-    bool* order_dirty)
-{
-    struct PluginUiPresentation candidate;
-    struct PluginUiPresentation old;
-    int index;
-
-    assert(host);
-    assert(change);
-    assert(order_dirty);
-    index = plugin_ui_present_index(host, change->node);
-    if( !plugin_ui_present_candidate(host, change->node, &candidate) )
-    {
-        if( index >= 0 )
-        {
-            plugin_ui_present_remove(host, index);
-            *order_dirty = true;
-        }
-        return;
-    }
-    if( index < 0 )
-    {
-        if( host->ui_presentation_count >= PLUGIN_UI_PRESENTATIONS_MAX )
-            return;
-        index = host->ui_presentation_count++;
-        host->ui_presentations[index] = candidate;
-        host->ui_presentation_by_node[change->node.value - 1u] = index + 1;
-        plugin_ui_present_finish_row(host, index, NULL);
-        *order_dirty = true;
-        return;
-    }
-
-    old = host->ui_presentations[index];
-    host->ui_presentations[index] = candidate;
-    plugin_ui_present_finish_row(host, index, &old);
-    if( old.value.parent.value != candidate.value.parent.value ||
-        old.value.paint_order != candidate.value.paint_order )
-        *order_dirty = true;
-}
-
-static bool
-plugin_ui_present_descends_from(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    bool const* changed)
-{
-    for( int depth = 0; node.value != 0 &&
-         depth < TORIRS_UI_REGISTRY_NODES_MAX; depth++ )
-    {
-        struct ToriRS_UiResolvedNode current;
-        if( node.value <= TORIRS_UI_REGISTRY_NODES_MAX &&
-            changed[node.value - 1u] )
-            return true;
-        if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &current) )
-            return false;
-        node = current.value.parent;
-    }
-    return false;
-}
-
-/** An ancestor visibility/clip/parent mutation affects only its descendants. */
-static void
-plugin_ui_present_refresh_dependents(
-    struct ToriRS_PluginHost* host,
-    bool const* directly_changed)
-{
-    for( int i = 0; i < host->ui_presentation_count; i++ )
-    {
-        struct PluginUiPresentation old;
-        struct ToriRS_UiNodeRef parent = host->ui_presentations[i].value.parent;
-        if( !plugin_ui_present_descends_from(host, parent, directly_changed) )
-            continue;
-        old = host->ui_presentations[i];
-        plugin_ui_present_finish_row(host, i, &old);
-    }
-}
-
-/** Probe only the exceptional live-role dependencies, never the registry. */
-static bool
-plugin_ui_present_refresh_roles(struct ToriRS_PluginHost* host)
-{
-    bool changed = false;
-
-    assert(host);
-    if( !host->ui_presentation_roles_dirty &&
-        host->ui_pending_role_count == 0 )
-        return false;
-    if( host->ui_presentation_roles_dirty )
-    {
-        for( int i = 0; i < host->ui_presentation_count; i++ )
-        {
-            struct PluginUiPresentation old = host->ui_presentations[i];
-            host->ui_presentation_role_probe_visits++;
-            plugin_ui_present_finish_row(host, i, &old);
-        }
-        changed = true;
-    }
-    else
-    {
-        for( int pending = 0; pending < host->ui_pending_role_count; )
-        {
-            struct ToriRS_UiNodeRef const node = {
-                (uint32_t)host->ui_pending_role_nodes[pending]
-            };
-            int const index = plugin_ui_present_index(host, node);
-            int const count_before = host->ui_pending_role_count;
-
-            if( index < 0 ||
-                !host->ui_presentations[index].pending_boundary_role[0] )
-            {
-                plugin_ui_present_pending_set(host, node, false);
-                continue;
-            }
-            host->ui_presentation_role_probe_visits++;
-            if( plugin_ui_present_role_live(
-                    host,
-                    host->ui_presentations[index].pending_boundary_role) )
-            {
-                struct PluginUiPresentation old = host->ui_presentations[index];
-                plugin_ui_present_finish_row(host, index, &old);
-                changed = true;
-            }
-            if( host->ui_pending_role_count == count_before )
-                pending++;
-        }
-    }
-    host->ui_presentation_roles_dirty = false;
-    return changed;
-}
-
-/**
- * Did this node's appearance change whether descendants may be presented?
- * Label/image/active-state updates stay local; only absence or VISIBLE moves
- * through semantic ancestry.
- */
-static bool
-plugin_ui_present_visibility_changed(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node)
-{
-    struct ToriRS_UiResolvedNode resolved;
-    uint8_t next;
-    uint8_t old;
-
-    assert(host);
-    if( node.value == 0 || node.value > TORIRS_UI_REGISTRY_NODES_MAX )
-        return true;
-    if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, node, &resolved) )
-        next = 1; /* absent: an ancestry walk stops here */
-    else if( (resolved.available_facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
-             (resolved.value.flags & TORIRS_UI_NODE_VISIBLE) == 0 )
-        next = 3;
-    else
-        next = 2;
-    old = host->ui_node_visibility_state[node.value - 1u];
-    host->ui_node_visibility_state[node.value - 1u] = next;
-    return old == 0 || old != next;
-}
-
-/** Recovery-only complete rebuild; ordinary revisions use ChangeNext below. */
-static void
-plugin_ui_present_rebuild_all(struct ToriRS_PluginHost* host)
-{
-    int const nodes = ToriRS_UiRegistry_NodeCount(&host->ui_registry);
-
-    plugin_ui_present_suppressions(
-        host, host->ui_presentations, host->ui_presentation_count, false);
-    memset(host->ui_presentations, 0, sizeof(host->ui_presentations));
-    memset(
-        host->ui_presentation_by_node,
-        0,
-        sizeof(host->ui_presentation_by_node));
-    memset(host->ui_pending_role_nodes, 0, sizeof(host->ui_pending_role_nodes));
-    memset(host->ui_pending_role_index, 0, sizeof(host->ui_pending_role_index));
-    memset(
-        host->ui_node_visibility_state,
-        0,
-        sizeof(host->ui_node_visibility_state));
-    host->ui_presentation_count = 0;
-    host->ui_pending_role_count = 0;
-    for( int i = 0; i < nodes; i++ )
-    {
-        struct ToriRS_UiNodeRef const node =
-            ToriRS_UiRegistry_NodeAt(&host->ui_registry, i);
-        struct PluginUiPresentation candidate;
-        int index;
-
-        host->ui_presentation_registry_visits++;
-        (void)plugin_ui_present_visibility_changed(host, node);
-        if( !plugin_ui_present_candidate(host, node, &candidate) ||
-            host->ui_presentation_count >= PLUGIN_UI_PRESENTATIONS_MAX )
-            continue;
-        index = host->ui_presentation_count++;
-        host->ui_presentations[index] = candidate;
-        host->ui_presentation_by_node[node.value - 1u] = index + 1;
-    }
-    for( int i = 0; i < host->ui_presentation_count; i++ )
-        plugin_ui_present_finish_row(host, i, NULL);
-    plugin_ui_present_reorder(host);
-}
-
-static void
-plugin_ui_present_reconcile(struct ToriRS_PluginHost* host)
-{
-    bool directly_changed[TORIRS_UI_REGISTRY_NODES_MAX] = { false };
-    bool ancestor_dirty = false;
-    bool order_dirty = false;
-    bool any_change = false;
-    bool reconciled = false;
-    struct ToriRS_UiChange change;
-    uint32_t const revision = ToriRS_UiRegistry_Revision(&host->ui_registry);
-
-    assert(host);
-    while( ToriRS_UiRegistry_ChangeNext(&host->ui_registry, &change) )
-    {
-        host->ui_presentation_change_visits++;
-        plugin_ui_observe_change(host, &change);
-        if( change.node.value > 0 &&
-            change.node.value <= TORIRS_UI_REGISTRY_NODES_MAX )
-            directly_changed[change.node.value - 1u] = true;
-        if( (change.facets & TORIRS_UI_FACET_BOUNDS) != 0 ||
-            ((change.facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
-             plugin_ui_present_visibility_changed(host, change.node)) )
-            ancestor_dirty = true;
-        plugin_ui_present_apply_change(host, &change, &order_dirty);
-        any_change = true;
-    }
-    if( any_change )
-    {
-        if( ancestor_dirty )
-            plugin_ui_present_refresh_dependents(host, directly_changed);
-        if( order_dirty )
-        {
-            plugin_ui_present_reorder(host);
-            /* Map indices moved; boundaries use that map but semantic ancestry
-             * did not, so no row state needs another refresh. */
-        }
-        host->ui_presentation_revision = revision;
-        reconciled = true;
-    }
-    else if( host->ui_presentation_revision != revision )
-    {
-        /* The raw registry journal has a single consumer. Reaching this branch
-         * means a diagnostic or future integration bypassed the host wrapper;
-         * recover once rather than trusting a skipped delta. */
-        plugin_ui_present_rebuild_all(host);
-        host->ui_presentation_revision = revision;
-        reconciled = true;
-    }
-    if( plugin_ui_present_refresh_roles(host) )
-        reconciled = true;
-    if( reconciled )
-        host->ui_presentation_rebuilds++;
-}
-
-static bool
-plugin_ui_present_anchor(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row)
-{
-    assert(host);
-    assert(row);
-    if( !row->boundary_role[0] )
-        return true;
-    if( host->engine.ui_boundary(
-            host->engine.user,
-            row->boundary_role,
-            row->boundary_place) )
-        return true;
-    /* The live role disappeared between reconciliation and paint. Do not scan
-     * all rows speculatively each frame; this failed exact dependency is the
-     * event that schedules one role-state reconciliation on the next fence. */
-    plugin_ui_present_suppression_one(host, row, false);
-    host->ui_presentation_roles_dirty = true;
-    return false;
-}
-
-static void
-plugin_ui_present_anchor_reset(
-    struct ToriRS_PluginHost* host,
-    struct PluginUiPresentation const* row)
-{
-    if( row->boundary_role[0] )
-        (void)host->engine.ui_boundary(host->engine.user, NULL, 0);
-}
-
-static struct ToriRS_ImageRef
-plugin_ui_present_image(
-    struct PluginUiPresentation const* row,
-    bool hovered)
-{
-    struct ToriRS_ImageRef image = { 0 };
-    int wanted;
-
-    assert(row);
-    if( !(row->value.flags & TORIRS_UI_NODE_ENABLED) )
-        wanted = TORIRS_UI_VISUAL_DISABLED;
-    else if( row->value.flags & TORIRS_UI_NODE_ACTIVE )
-        wanted = hovered ? TORIRS_UI_VISUAL_ACTIVE_HOVER : TORIRS_UI_VISUAL_ACTIVE;
-    else
-        wanted = hovered ? TORIRS_UI_VISUAL_HOVER : TORIRS_UI_VISUAL_IDLE;
-    image = row->value.state_images[wanted];
-    if( image.value == 0 && wanted == TORIRS_UI_VISUAL_ACTIVE_HOVER )
-        image = row->value.state_images[TORIRS_UI_VISUAL_ACTIVE];
-    if( image.value == 0 && hovered )
-        image = row->value.state_images[TORIRS_UI_VISUAL_HOVER];
-    if( image.value == 0 )
-        image = row->value.state_images[TORIRS_UI_VISUAL_IDLE];
-    return image;
-}
-
-static void
-plugin_ui_present_draw(
-    struct ToriRS_PluginHost* host,
-    void* surface,
-    bool frame_surface)
-{
-    int mouse_x = 0;
-    int mouse_y = 0;
-    bool const have_mouse = host->engine.mouse_pos(host->engine.user, &mouse_x, &mouse_y) != 0;
-
-    assert(host);
-    assert(surface);
-    plugin_ui_present_reconcile(host);
-    for( int i = 0; i < host->ui_presentation_count; i++ )
-    {
-        struct PluginUiPresentation const* row = &host->ui_presentations[i];
-        bool const hovered = have_mouse && mouse_x >= row->value.hit_rect.x &&
-                             mouse_x < row->value.hit_rect.x + row->value.hit_rect.width &&
-                             mouse_y >= row->value.hit_rect.y &&
-                             mouse_y < row->value.hit_rect.y + row->value.hit_rect.height;
-
-        if( !row->presentable || row->frame_surface != frame_surface )
-            continue;
-
-        if( row->appearance_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
-            plugin_ui_present_anchor(host, row) )
-        {
-            struct PluginContext* context = &host->plugins[row->appearance_plugin];
-            struct PluginV2Instance* v2 = context->v2;
-            struct PluginV2DrawScope scope;
-            struct ToriRS_Graphics builder;
-            struct ToriRS_ImageRef const image = plugin_ui_present_image(row, hovered);
-            int const previous_dispatching = host->dispatching;
-            int const previous_event = host->dispatch_event;
-
-            host->dispatching = row->appearance_plugin;
-            host->dispatch_event = PLUGIN_CALLBACK_DRAW_CANVAS;
-            plugin_v2_runtime_draw_begin(&v2->runtime, surface, &scope, &builder);
-            if( row->clip_active )
-                plugin_v2_runtime_draw_clip(&scope, row->clip);
-            if( image.value != 0 )
-            {
-                int const image_slot =
-                    plugin_v2_runtime_image_slot(&v2->runtime, image);
-                struct PluginImage const* owned = plugin_image_owned(context, image_slot);
-                if( owned && owned->published )
-                    builder.image(
-                        &builder, image, row->value.bounds.x, row->value.bounds.y, 255);
-            }
-            if( row->value.label[0] )
-                builder.text(
-                    &builder,
-                    row->value.bounds.x + row->value.label_x,
-                    row->value.bounds.y + row->value.label_y,
-                    row->value.label,
-                    0xffffffu);
-            if( v2->definition->callbacks.on_ui_node_draw )
-                v2->definition->callbacks.on_ui_node_draw(
-                    &v2->runtime.api, v2->state, row->node, &builder);
-            plugin_v2_runtime_draw_end(&scope, &builder);
-            host->dispatching = previous_dispatching;
-            host->dispatch_event = previous_event;
-        }
-        plugin_ui_present_anchor_reset(host, row);
-
-        if( row->actions_plugin >= 0 && (row->value.flags & TORIRS_UI_NODE_VISIBLE) &&
-            (row->value.flags & TORIRS_UI_NODE_ENABLED) && row->value.action_count > 0 &&
-            plugin_ui_present_anchor(host, row) )
-        {
-            struct ToriRS_Rect hit = row->value.hit_rect;
-            char const* actions[TORIRS_UI_NAMED_ACTIONS_MAX];
-            int count = (int)row->value.action_count;
-
-            if( row->clip_active && !plugin_ui_rect_intersect(&hit, &row->clip) )
-                count = 0;
-            if( count > TORIRS_PLUGIN_REGION_OPS_MAX )
-                count = TORIRS_PLUGIN_REGION_OPS_MAX;
-            for( int action = 0; action < count; action++ )
-                actions[action] = row->value.actions[action];
-            if( count > 0 )
-                (void)host->engine.hit_region(
-                    host->engine.user,
-                    row->actions_plugin,
-                    hit.x,
-                    hit.y,
-                    hit.width,
-                    hit.height,
-                    actions,
-                    count,
-                    PLUGIN_UI_PRESENT_TAG_BIT | row->action_token);
-        }
-        plugin_ui_present_anchor_reset(host, row);
-    }
-}
-
-int
-PluginHost_UiPresentationCount(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->ui_presentation_count : 0;
-}
-
-uint32_t
-PluginHost_UiPresentationRebuilds(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->ui_presentation_rebuilds : 0;
-}
-
-uint32_t
-PluginHost_UiPresentationChangeVisits(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->ui_presentation_change_visits : 0;
-}
-
-uint32_t
-PluginHost_UiPresentationRegistryVisits(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->ui_presentation_registry_visits : 0;
-}
-
-uint32_t
-PluginHost_UiPresentationRoleProbeVisits(struct ToriRS_PluginHost const* host)
-{
-    return host ? host->ui_presentation_role_probe_visits : 0;
-}
-
-/**
- * Observe the one lane-owned placement input that is not part of the selected
- * frame's retained slot topology.
- *
- * CS2 changes interface 728's popout from a collapsed rail to an expanded
- * panel (and can hide it again) by mutating that mounted interface in place.
- * Neither the canvas size nor the selected-frame slot set changes, so the
- * App's ordinary relayout fences cannot discover it. One role lookup and a
- * four-int comparison at the frame boundary closes that gap without turning
- * every UI layout change into a gameframe rebuild.
- */
-static void
-plugin_placement_poll_lane_chrome(struct ToriRS_PluginHost* host)
-{
-    struct ToriRS_PlacementRect rect;
-    int active;
-    int changed;
-
-    assert(host);
-    active = plugin_placement_lane_chrome_rect(host, &rect);
-    if( !host->placement_lane_chrome_observed )
-    {
-        host->placement_lane_chrome_observed = 1;
-        host->placement_lane_chrome_active = active;
-        host->placement_lane_chrome_rect = rect;
-        return;
-    }
-    changed = active != host->placement_lane_chrome_active ||
-              (active && !plugin_placement_rect_equal(
-                             &rect, &host->placement_lane_chrome_rect));
-    if( !changed )
-        return;
-
-    /* LayoutChanged performs the one canonical rebuild and publishes only if
-     * its area sets really differ. The successful rebuild updates this
-     * observation; on failure the old value deliberately remains so the next
-     * frame retries instead of swallowing the transition. */
-    PluginHost_LayoutChanged(host);
-}
-
 /* ------------------------------------------------------------------ seams */
 
 void
@@ -10363,18 +6526,6 @@ PluginHost_FrameStart(
         host->plugins[i].draw_used = 0;
         host->plugins[i].draw_clipped = false;
     }
-
-    /* A placement callback may restate a reservation. That schedules this
-     * later transaction instead of recursively entering the callback list. */
-    if( host->layout_notify_pending )
-        plugin_layout_notifications_run(host);
-
-    /* A mounted CS2 popout is independent of selected-frame topology. Poll it
-     * before plugins read placement or receive this frame's callbacks. */
-    plugin_placement_poll_lane_chrome(host);
-
-    plugin_ui_surface_rect_poll(host);
-    plugin_ui_tab_state_poll(host);
 
     /* The screen poll. Here rather than at the transitions themselves because
      * the app changes screens from half a dozen places (login, logout, a
@@ -10763,10 +6914,6 @@ PluginHost_DrawCanvas(
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
     canvas.surface = host->draw_surface;
     canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
-    /* Retained contributions are a compact presenter list rebuilt only at
-     * named-registry revisions. Only facet winners enter this pass, so two
-     * providers cannot draw the same semantic node. */
-    plugin_ui_present_draw(host, host->draw_surface, false);
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_CANVAS] > 0 )
         plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_CANVAS, &canvas);
     host->draw_surface = NULL;
@@ -10774,13 +6921,6 @@ PluginHost_DrawCanvas(
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
 }
 
-void
-PluginHost_ReconcileUi(struct ToriRS_PluginHost* host)
-{
-    if( !host )
-        return;
-    plugin_ui_present_reconcile(host);
-}
 static struct ToriRS_FrameOffer const*
 plugin_v2_frame_offer(
     struct PluginContext* ctx,
@@ -10800,366 +6940,10 @@ plugin_v2_frame_offer(
     return NULL;
 }
 
-void
-PluginHost_DrawFrame(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height)
-{
-    struct PluginCanvasDispatch canvas;
-    struct ToriRS_FrameOffer const* v2_offer;
-    int owner;
-
-    if( !host )
-        return;
-    owner = plugin_frame_owner(host);
-    if( owner < 0 )
-        return;
-    v2_offer = plugin_v2_frame_offer(&host->plugins[owner], host->frame_active_entry);
-    if( !v2_offer )
-        return;
-
-    /* A third token, for the third surface, on the same reasoning as the
-     * canvas one: compared and never dereferenced, so three distinct addresses
-     * are the whole mechanism that catches a handler which kept the wrong
-     * event's surface. */
-    host->draw_surface = &host->engine;
-    host->draw_canvas = PLUGIN_DRAW_SURFACE_FRAME;
-    canvas.surface = &host->engine;
-    canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
-    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_FRAME);
-    /* The imperative frame draw belongs to the owner. Resolved contributors
-     * to its retained named furniture join only in the presenter pass below. */
-    if( v2_offer )
-    {
-        if( v2_offer->draw )
-        {
-            struct PluginV2Instance* v2 = host->plugins[owner].v2;
-            struct PluginV2DrawScope scope;
-            struct ToriRS_Graphics builder;
-            int const previous_dispatching = host->dispatching;
-            int const previous_event = host->dispatch_event;
-
-            host->dispatching = owner;
-            host->dispatch_event = PLUGIN_CALLBACK_DRAW_FRAME;
-            plugin_v2_runtime_draw_begin(&v2->runtime, canvas.surface, &scope, &builder);
-            plugin_v2_runtime_draw_region(&scope, canvas.bounds);
-            v2_offer->draw(&v2->runtime.api, v2->state, &builder);
-            plugin_v2_runtime_draw_end(&scope, &builder);
-            host->dispatching = previous_dispatching;
-            host->dispatch_event = previous_event;
-        }
-    }
-    /* FrameBuilder furniture shares the selected frame's depth. Its regions
-     * therefore capture the world under a redstone while native panel widgets
-     * can still cover it. */
-    plugin_ui_present_draw(host, host->draw_surface, true);
-    host->draw_surface = NULL;
-    host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
-    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
-}
-
-/** Deliver one immutable resolved-placement transaction to v2 plugins. */
-static void
-plugin_placement_notify_v2(struct ToriRS_PluginHost* host)
-{
-    uint32_t revision;
-    int const previous_dispatching = host->dispatching;
-    int const previous_event = host->dispatch_event;
-
-    assert(host);
-    if( !host->placement_notify_pending ||
-        host->placement_notified_revision == host->placement_revision )
-    {
-        host->placement_notify_pending = 0;
-        return;
-    }
-
-    revision = host->placement_revision;
-    /* A callback can invalidate placement again. Acknowledge this snapshot
-     * before entering user code so that mutation schedules the next one. */
-    host->placement_notify_pending = 0;
-    host->placement_notified_revision = revision;
-    for( int i = 0; i < host->plugin_count; i++ )
-    {
-        struct PluginContext* ctx = &host->plugins[i];
-        struct PluginV2Instance* v2 = ctx->v2;
-
-        if( !ctx->enabled || !ctx->running || ctx->tearing_down || !v2 ||
-            !v2->definition->callbacks.on_placement_changed )
-            continue;
-        host->dispatching = i;
-        host->dispatch_event = PLUGIN_CALLBACK_PLACEMENT_CHANGED;
-        v2->definition->callbacks.on_placement_changed(
-            &v2->runtime.api, v2->state, revision);
-        host->dispatching = previous_dispatching;
-        host->dispatch_event = previous_event;
-    }
-}
-
-/**
- * Resolve one canonical placement result and publish it to V2 consumers.
- */
-static void
-plugin_layout_notifications_run(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    if( host->layout_notifying )
-    {
-        host->layout_notify_pending = 1;
-        return;
-    }
-
-    /* Establish the transaction's first immutable placement snapshot before
-     * callbacks. The forced rebuild below folds in changes callbacks make. */
-    (void)plugin_placement_rebuild(host, 1);
-    host->layout_notifying = 1;
-    host->layout_notify_pending = 0;
-    /* Fold callback-side reservation changes into the next non-recursive
-     * placement transaction. */
-    if( host->layout_notify_pending )
-        (void)plugin_placement_rebuild(host, 1);
-    host->layout_notify_pending = 0;
-    plugin_placement_notify_v2(host);
-    /* A v2 callback which mutates placement leaves layout_notify_pending set.
-     * FrameStart drains it as a later transaction, never recursively. */
-    host->layout_notifying = 0;
-}
-
-void
-PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
-{
-    if( !host )
-        return;
-    host->placement_cache_valid = 0;
-
-    /* Publish semantic names from the geometry the engine has just settled
-     * before any subscriber is told to query them. ReplaceBase is atomic. */
-    host->ui_presentation_roles_dirty = true;
-    plugin_ui_refresh_base(host);
-
-    /*
-     * The revision moves for EVERY change, including one made from inside the
-     * notification. Readers compare it and re-read a live region, so they are
-     * correct either way.
-     */
-    host->layout_revision++;
-    if( host->layout_notifying )
-    {
-        host->layout_notify_pending = 1;
-        return;
-    }
-    plugin_layout_notifications_run(host);
-}
-
 bool
 PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host)
 {
     return host && host->frame_layout_requested;
-}
-
-static char const*
-plugin_frame_surface_name(int slot)
-{
-    static char const* const NAMES[TORIRS_HOST_SURFACE_PLACEABLE_COUNT] = {
-        [TORIRS_HOST_SURFACE_VIEWPORT] = "frame.viewport",
-        [TORIRS_HOST_SURFACE_MINIMAP] = "frame.minimap",
-        [TORIRS_HOST_SURFACE_COMPASS] = "frame.compass",
-        [TORIRS_HOST_SURFACE_CHAT] = "frame.chat",
-        [TORIRS_HOST_SURFACE_CHAT_BUTTONS] = "frame.chat.buttons",
-        [TORIRS_HOST_SURFACE_SIDEBAR] = "frame.sidebar",
-        [TORIRS_HOST_SURFACE_MODAL] = "frame.modal",
-        [TORIRS_HOST_SURFACE_ORBS] = "frame.orbs",
-    };
-
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return NULL;
-    return NAMES[slot];
-}
-
-static uint32_t
-plugin_frame_surface_flags(int slot)
-{
-    switch( slot )
-    {
-    case TORIRS_HOST_SURFACE_MINIMAP:
-    case TORIRS_HOST_SURFACE_COMPASS:
-    case TORIRS_HOST_SURFACE_CHAT:
-    case TORIRS_HOST_SURFACE_CHAT_BUTTONS:
-    case TORIRS_HOST_SURFACE_SIDEBAR:
-    case TORIRS_HOST_SURFACE_ORBS:
-        return TORIRS_UI_NODE_BLOCKS_OVERLAY;
-    default:
-        return 0;
-    }
-}
-
-static int
-plugin_frame_ui_image_ready(
-    struct PluginContext* ctx,
-    struct ToriRS_ImageRef image)
-{
-    struct PluginImage const* owned;
-    int image_slot;
-
-    assert(ctx);
-    assert(ctx->v2);
-    if( image.value == 0 )
-        return 1;
-    image_slot = plugin_v2_runtime_image_slot(&ctx->v2->runtime, image);
-    if( image_slot < 0 )
-        return 0;
-    owned = plugin_image_owned(ctx, image_slot);
-    return owned && owned->published;
-}
-
-/** Validate the named half on a private registry copy before geometry moves. */
-static int
-plugin_frame_candidate_ui_valid(
-    struct ToriRS_PluginHost* host,
-    int owner,
-    char* reason,
-    size_t reason_size)
-{
-    struct ToriRS_UiBaseDeclaration declarations[48];
-    struct PluginV2Instance* v2 = host->plugins[owner].v2;
-    struct PluginFrameCatalogEntry const* target =
-        PluginFrameCatalog_At(&host->frame_catalog, host->layout_candidate_entry);
-    struct ToriRS_UiRegistry* validation;
-    char const* provider = target ? target->id : host->plugins[owner].name;
-    int count = 0;
-
-    memset(declarations, 0, sizeof(declarations));
-    for( int i = 0; i < host->layout_candidate.rect_count; i++ )
-    {
-        struct PluginLayoutRect const* rect = &host->layout_candidate.rects[i];
-        char const* name;
-
-        if( rect->member != -1 )
-            continue;
-        name = plugin_frame_surface_name(rect->slot);
-        if( !name )
-            continue;
-        count = plugin_ui_base_add_rect(
-            declarations,
-            count,
-            (int)(sizeof(declarations) / sizeof(declarations[0])),
-            provider,
-            name,
-            rect->x,
-            rect->y,
-            rect->w,
-            rect->h,
-            plugin_frame_surface_flags(rect->slot));
-    }
-
-    if( v2 )
-        for( int i = 0; i < v2->frame_ui_candidate_count; i++ )
-        {
-            struct PluginV2FrameNode* node = &v2->frame_ui_candidate[i];
-            int destination = -1;
-
-            if( !plugin_frame_ui_image_ready(&host->plugins[owner], node->value.image) )
-            {
-                snprintf(reason, reason_size, "%s", "The frame used foreign or unready named artwork.");
-                return 0;
-            }
-            for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
-                if( (node->value.state_image_mask & (1u << state)) != 0 &&
-                    !plugin_frame_ui_image_ready(
-                        &host->plugins[owner], node->value.state_images[state]) )
-                {
-                    snprintf(
-                        reason,
-                        reason_size,
-                        "%s",
-                        "The frame used foreign or unready named state artwork.");
-                    return 0;
-                }
-            for( int j = 0; j < count; j++ )
-                if( strcmp(declarations[j].node, node->name) == 0 )
-                {
-                    destination = j;
-                    break;
-                }
-            if( destination < 0 )
-            {
-                if( count >= (int)(sizeof(declarations) / sizeof(declarations[0])) )
-                {
-                    snprintf(reason, reason_size, "%s", "The frame declared too many named nodes.");
-                    return 0;
-                }
-                destination = count++;
-            }
-            declarations[destination] = (struct ToriRS_UiBaseDeclaration){
-                .provider = provider,
-                .node = node->name,
-                .facets = TORIRS_UI_FACET_ALL,
-                .value = node->value,
-            };
-        }
-
-    validation = malloc(sizeof(*validation));
-    assert(validation);
-    *validation = host->ui_registry;
-    if( ToriRS_UiRegistry_ReplaceBase(validation, declarations, count) !=
-        TORIRS_UI_REGISTRY_OK )
-    {
-        free(validation);
-        snprintf(reason, reason_size, "%s", "The frame's named UI tree is invalid or cyclic.");
-        return 0;
-    }
-    free(validation);
-    return 1;
-}
-
-static void
-plugin_layout_candidate_apply(struct ToriRS_PluginHost* host)
-{
-    struct PluginLayoutCandidate const* candidate = &host->layout_candidate;
-
-    assert(host);
-    host->engine.layout_begin(host->engine.user);
-    for( int i = 0; i < candidate->rect_count; i++ )
-    {
-        struct PluginLayoutRect const* rect = &candidate->rects[i];
-        (void)host->engine.layout_slot(
-            host->engine.user,
-            rect->slot,
-            rect->member,
-            rect->x,
-            rect->y,
-            rect->w,
-            rect->h);
-    }
-    for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
-    {
-        if( candidate->skins[slot].declared )
-            (void)host->engine.layout_slot_skin(
-                host->engine.user,
-                slot,
-                candidate->skins[slot].art,
-                candidate->skins[slot].mask);
-        if( candidate->overlays[slot].declared )
-            (void)host->engine.layout_slot_overlay(
-                host->engine.user,
-                slot,
-                candidate->overlays[slot].image,
-                candidate->overlays[slot].x,
-                candidate->overlays[slot].y,
-                candidate->overlays[slot].trans);
-    }
-    if( candidate->scrollbar_declared )
-        (void)host->engine.layout_scrollbar(
-            host->engine.user,
-            candidate->scrollbar_count ? candidate->scrollbar : NULL,
-            candidate->scrollbar_count);
-
-    if( host->engine.layout_slot_anchor )
-        for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
-            host->engine.layout_slot_anchor(host->engine.user, slot,
-                candidate->anchors[slot].relation, candidate->anchors[slot].slot);
-    host->engine.layout_end(host->engine.user);
 }
 
 void
@@ -11171,13 +6955,15 @@ PluginHost_Layout(
     struct PluginFrameLayout ev;
     struct PluginFrameCatalogEntry const* entry;
     struct ToriRS_FrameOffer const* v2_offer;
-    enum ToriRS_FrameBuildResult v2_result = TORIRS_FRAME_READY;
+    struct PluginV2Instance* v2;
+    struct ToriRS_GameframeEvent gameframe;
+    enum ToriRS_FrameBuildResult v2_result;
     char v2_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
-    char validation_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
     int build_entry;
     int transitioning;
     int owner;
-    int provided = 0;
+    int previous_dispatching;
+    int previous_event;
     uint32_t selection_epoch;
 
     if( !host )
@@ -11194,7 +6980,6 @@ PluginHost_Layout(
     v2_offer = plugin_v2_frame_offer(&host->plugins[owner], build_entry);
     if( !v2_offer )
         return;
-    host->placement_cache_valid = 0;
     /*
      * A canvas of nothing is refused rather than laid out against.
      *
@@ -11241,125 +7026,38 @@ PluginHost_Layout(
     if( transitioning )
         host->frame_layout_requested = 0;
     selection_epoch = host->frame_selection_epoch;
-    memset(&host->layout_candidate, 0, sizeof(host->layout_candidate));
-    host->layout_candidate_entry = build_entry;
-    host->layout_declaring = 1;
-    host->layout_declarer = owner;
-    if( v2_offer && !v2_offer->build )
-    {
-        /* Provided, not declared: the offer's on_gameframe edits widgets and
-         * answers. No candidate table is built; the engine only takes the
-         * chrome and binds the roles (frame_provide). */
-        struct PluginV2Instance* v2 = host->plugins[owner].v2;
-        struct ToriRS_GameframeEvent gameframe;
-        int const previous_dispatching = host->dispatching;
-        int const previous_event = host->dispatch_event;
 
-        assert(v2->definition->callbacks.on_gameframe);
-        memset(&gameframe, 0, sizeof(gameframe));
-        gameframe.offer_id = v2_offer->id;
-        gameframe.active = true;
-        gameframe.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED ? TORIRS_FRAME_CANVAS_FIXED
-                                                                       : TORIRS_FRAME_CANVAS_WINDOW;
-        gameframe.width = ev.width;
-        gameframe.height = ev.height;
-        (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
-        gameframe.reason = v2_reason;
-        gameframe.reason_capacity = sizeof(v2_reason);
-        host->dispatching = owner;
-        host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
-        v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
-        host->dispatching = previous_dispatching;
-        host->dispatch_event = previous_event;
-        if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_ERROR )
-            v2_result = TORIRS_FRAME_ERROR;
-        provided = 1;
-    }
-    else if( v2_offer )
-    {
-        struct PluginV2Instance* v2 = host->plugins[owner].v2;
-        struct PluginV2FrameScope scope;
-        struct ToriRS_FrameBuilder builder;
-        struct ToriRS_FrameBuildContext context;
-        int const previous_dispatching = host->dispatching;
-        int const previous_event = host->dispatch_event;
-
-        memset(v2->frame_ui_candidate, 0, sizeof(v2->frame_ui_candidate));
-        v2->frame_ui_candidate_count = 0;
-        v2->frame_ui_candidate_invalid = false;
-        memset(v2->frame_images_candidate, 0, sizeof(v2->frame_images_candidate));
-        v2->frame_image_candidate_count = 0;
-        memset(&context, 0, sizeof(context));
-        context.struct_size = sizeof(context);
-        context.offer_id = v2_offer->id;
-        context.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED
-                             ? TORIRS_FRAME_CANVAS_FIXED
-                             : TORIRS_FRAME_CANVAS_WINDOW;
-        context.logical_canvas = (struct ToriRS_Rect){ 0, 0, ev.width, ev.height };
-        context.available =
-            v2->runtime.api.placement.area(&v2->runtime.api, TORIRS_AREA_FRAME_BUILD);
-        (void)v2->runtime.api.core.lane(&v2->runtime.api, &context.lane);
-
-        host->dispatching = owner;
-        host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
-        plugin_v2_runtime_frame_begin(&v2->runtime, &scope, &builder);
-        v2_result = v2_offer->build(&v2->runtime.api, v2->state, &builder, &context);
-        if( v2_result == TORIRS_FRAME_READY &&
-            !plugin_v2_runtime_frame_valid(&scope) )
-            v2->frame_ui_candidate_invalid = true;
-        v2->frame_image_candidate_count = scope.image_ref_count;
-        memcpy(
-            v2->frame_images_candidate,
-            scope.image_refs,
-            (size_t)scope.image_ref_count * sizeof(scope.image_refs[0]));
-        (void)snprintf(
-            v2_reason, sizeof(v2_reason), "%s", plugin_v2_runtime_frame_reason(&scope));
-        plugin_v2_runtime_frame_end(&scope, &builder);
-        host->dispatching = previous_dispatching;
-        host->dispatch_event = previous_event;
-        if( v2->frame_ui_candidate_invalid || v2_result < TORIRS_FRAME_READY ||
-            v2_result > TORIRS_FRAME_ERROR )
-        {
-            v2_result = TORIRS_FRAME_ERROR;
-            if( !v2_reason[0] )
-                snprintf(
-                    v2_reason,
-                    sizeof(v2_reason),
-                    "%s",
-                    "The frame's named UI declaration is invalid or over budget.");
-        }
-    }
-    host->layout_declaring = 0;
-    host->layout_declarer = -1;
+    /* Provided, not declared: the offer's on_gameframe edits widgets and
+     * answers. The engine only takes the chrome and binds the roles
+     * (frame_provide); the provider's retained widget edits are the layout. */
+    v2 = host->plugins[owner].v2;
+    assert(v2->definition->callbacks.on_gameframe);
+    memset(&gameframe, 0, sizeof(gameframe));
+    gameframe.offer_id = v2_offer->id;
+    gameframe.active = true;
+    gameframe.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED ? TORIRS_FRAME_CANVAS_FIXED
+                                                                   : TORIRS_FRAME_CANVAS_WINDOW;
+    gameframe.width = ev.width;
+    gameframe.height = ev.height;
+    (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
+    gameframe.reason = v2_reason;
+    gameframe.reason_capacity = sizeof(v2_reason);
+    previous_dispatching = host->dispatching;
+    previous_event = host->dispatch_event;
+    host->dispatching = owner;
+    host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
+    v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
+    host->dispatching = previous_dispatching;
+    host->dispatch_event = previous_event;
+    if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_ERROR )
+        v2_result = TORIRS_FRAME_ERROR;
 
     if( host->frame_selection_epoch != selection_epoch ||
         (transitioning && host->frame_target_entry != build_entry) ||
         (!transitioning && host->frame_active_entry != build_entry) )
         return;
 
-    if( !host->layout_candidate.viewport_declared && !provided )
-        plugin_layout_candidate_fail(host, "The frame did not declare its required viewport.");
-    for( int slot = 0; slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; slot++ )
-        if( host->layout_candidate.skins[slot].declared )
-        {
-            int surface_declared = 0;
-            for( int i = 0; i < host->layout_candidate.rect_count; i++ )
-                if( host->layout_candidate.rects[i].slot == slot &&
-                    host->layout_candidate.rects[i].member == -1 )
-                {
-                    surface_declared = 1;
-                    break;
-                }
-            if( !surface_declared )
-                plugin_layout_candidate_fail(
-                    host,
-                    "The frame skinned a surface it did not declare in this candidate.");
-        }
-    if( v2_offer && host->plugins[owner].v2->frame_ui_candidate_invalid )
-        plugin_layout_candidate_fail(
-            host, "The frame's named UI declaration is invalid or over budget.");
-
-    if( v2_offer && v2_result != TORIRS_FRAME_READY )
+    if( v2_result != TORIRS_FRAME_READY )
     {
         int const status = v2_result == TORIRS_FRAME_PENDING ? TORIRS_FRAME_STATUS_LOADING
                                                              : TORIRS_FRAME_STATUS_FALLBACK;
@@ -11373,211 +7071,33 @@ PluginHost_Layout(
         /* A provided frame that stops answering READY is released: its
          * retained edits are the layout, and a provider that says it cannot
          * lay this lane out must not keep the chrome suppressed under it. */
-        if( provided && host->frame_active_entry == build_entry )
+        if( host->frame_active_entry == build_entry )
             plugin_frame_engine_activate(host, -1);
         /* PENDING from a provider means "ask again": its roles have not bound
          * yet, or its art is still crossing the IO queue. Keep the request
          * standing so the next layout fence asks; a provider that never
          * becomes READY costs one refused find per tick and nothing else. */
-        if( provided && v2_result == TORIRS_FRAME_PENDING )
+        if( v2_result == TORIRS_FRAME_PENDING )
             host->frame_layout_requested = 1;
         plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
         return;
     }
 
-    if( provided )
+    /* The only publication point. */
     {
         int const old_owner = plugin_frame_owner(host);
 
         plugin_frame_engine_activate(host, build_entry);
-        host->plugins[owner].v2->gameframe_provided = true;
+        v2->gameframe_provided = true;
         host->engine.frame_provide(host->engine.user);
         host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
-        host->frame_bound_slots = 0;
         plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
-        plugin_ui_refresh_base(host);
-        host->placement_cache_valid = 0;
-        if( old_owner >= 0 && old_owner != owner )
-        {
-            host->plugins[old_owner].enabled = false;
-            plugin_teardown(host, old_owner);
-        }
-        return;
-    }
-
-    {
-        uint32_t declared = 0;
-        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
-            declared |= 1u << host->layout_candidate.rects[i].slot;
-        if( !PluginFrameAnchorsValid(host->layout_candidate.anchors,
-                TORIRS_HOST_SURFACE_PLACEABLE_COUNT, declared,
-                validation_reason, sizeof(validation_reason)) )
-            plugin_layout_candidate_fail(host, validation_reason);
-        if( !host->engine.layout_slot_anchor )
-            for( int i = 0; i < TORIRS_HOST_SURFACE_PLACEABLE_COUNT; i++ )
-                if( host->layout_candidate.anchors[i].relation )
-                    plugin_layout_candidate_fail(host, "This host cannot apply anchored surfaces.");
-    }
-    if( host->engine.layout_slot_exists )
-        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
-        {
-            struct PluginLayoutRect const* rect = &host->layout_candidate.rects[i];
-            if( rect->member == -1 && !host->engine.layout_slot_exists(host->engine.user, rect->slot, -1) )
-            {
-                snprintf(validation_reason, sizeof(validation_reason),
-                         "The native layout has no bound %s surface.", plugin_frame_surface_name(rect->slot));
-                plugin_layout_candidate_fail(host, validation_reason);
-            }
-        }
-    if( host->layout_candidate.invalid )
-    {
-        plugin_frame_discard_stale_binding(host, build_entry);
-        plugin_frame_selection_active(
-            host,
-            plugin_frame_committed_id(host),
-            TORIRS_FRAME_STATUS_FALLBACK,
-            host->layout_candidate.reason[0]
-                ? host->layout_candidate.reason
-                : "The requested gameframe declaration is invalid.");
-        return;
-    }
-    if( !plugin_frame_candidate_ui_valid(
-            host, owner, validation_reason, sizeof(validation_reason)) )
-    {
-        plugin_frame_discard_stale_binding(host, build_entry);
-        plugin_frame_selection_active(
-            host,
-            plugin_frame_committed_id(host),
-            TORIRS_FRAME_STATUS_FALLBACK,
-            validation_reason);
-        return;
-    }
-
-    /* The only publication point. Geometry, frame art and named nodes were
-     * all validated above while the old frame was untouched. */
-    {
-        int const old_owner = plugin_frame_owner(host);
-
-        plugin_frame_engine_activate(host, build_entry);
-        if( v2_offer )
-        {
-            struct PluginV2Instance* v2 = host->plugins[owner].v2;
-            memcpy(v2->frame_ui, v2->frame_ui_candidate, sizeof(v2->frame_ui));
-            v2->frame_ui_count = v2->frame_ui_candidate_count;
-            memcpy(
-                v2->frame_images,
-                v2->frame_images_candidate,
-                sizeof(v2->frame_images));
-            v2->frame_image_count = v2->frame_image_candidate_count;
-            for( int i = 0; i < v2->frame_ui_count; i++ )
-                plugin_v2_frame_node_repoint(&v2->frame_ui[i]);
-        }
-        plugin_layout_candidate_apply(host);
-        host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
-        host->frame_bound_slots = 0;
-        for( int i = 0; i < host->layout_candidate.rect_count; i++ )
-            if( host->layout_candidate.rects[i].member == -1 )
-                host->frame_bound_slots |= 1u << host->layout_candidate.rects[i].slot;
-        plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
-        plugin_ui_refresh_base(host);
-        host->placement_cache_valid = 0;
-
         /* Teardown follows publication, so no frame exists where neither end
          * owns the live geometry or rendering surface. */
         if( old_owner >= 0 && old_owner != owner )
         {
             host->plugins[old_owner].enabled = false;
             plugin_teardown(host, old_owner);
-        }
-    }
-}
-
-void
-PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    uint32_t tag,
-    int op,
-    int x,
-    int y)
-{
-    struct PluginContext* ctx;
-    int prev;
-    int prev_event;
-
-    if( !host )
-        return;
-    if( plugin_index < 0 || plugin_index >= host->plugin_count )
-        return;
-
-    ctx = &host->plugins[plugin_index];
-    /* A region outlives the frame it was declared in by one -- the menu is
-     * built from the previous frame's list -- so a plugin disabled in between
-     * can still be named by a click. It hears nothing. */
-    if( !ctx->enabled || !ctx->running )
-        return;
-
-    if( ctx->v2 && (tag & PLUGIN_UI_PRESENT_TAG_BIT) != 0 )
-    {
-        uint32_t const action_token = tag & ~PLUGIN_UI_PRESENT_TAG_BIT;
-
-        plugin_ui_present_reconcile(host);
-        for( int i = 0; i < host->ui_presentation_count; i++ )
-        {
-            struct PluginUiPresentation const* row = &host->ui_presentations[i];
-            struct ToriRS_UiResolvedNode current;
-            struct ToriRS_Rect clip = { 0 };
-            bool clip_active = false;
-            uint64_t state_identity = 0;
-
-            if( row->action_token != action_token || row->actions_plugin != plugin_index || op < 0 ||
-                op >= (int)row->value.action_count || !row->presentable ||
-                (row->value.flags &
-                 (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) !=
-                    (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED) )
-                continue;
-            if( !ToriRS_UiRegistry_Resolve(&host->ui_registry, row->node, &current) ||
-                plugin_ui_present_provider(
-                    host,
-                    row->node,
-                    current.actions_provider,
-                    TORIRS_UI_FACET_ACTIONS) != plugin_index ||
-                op >= (int)current.value.action_count ||
-                strcmp(current.value.actions[op], row->value.actions[op]) != 0 ||
-                (current.value.flags &
-                 (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED)) !=
-                    (TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED) ||
-                !plugin_ui_present_tree_state(
-                    host,
-                    row->node,
-                    row->frame_surface,
-                    &clip_active,
-                    &clip,
-                    &state_identity) ||
-                state_identity != row->state_identity ||
-                !plugin_ui_present_anchor_available(host, row) )
-                continue;
-            (void)PluginHost_UiInvoke(host, row->node, row->value.actions[op]);
-            return;
-        }
-        return;
-    }
-
-    {
-        struct PluginV2Instance* v2 = ctx->v2;
-        enum ToriRS_CallbackResult (*callback)(
-            struct ToriRS_Api*, void*, uint32_t, int, int, int) =
-            v2->definition->callbacks.on_canvas_action;
-
-        if( callback && op >= 0 )
-        {
-            prev = host->dispatching;
-            prev_event = host->dispatch_event;
-            host->dispatching = plugin_index;
-            host->dispatch_event = PLUGIN_CALLBACK_CANVAS_CLICK;
-            (void)callback(&v2->runtime.api, v2->state, tag, op, x, y);
-            host->dispatching = prev;
-            host->dispatch_event = prev_event;
         }
     }
 }

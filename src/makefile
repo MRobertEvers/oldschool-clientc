@@ -744,7 +744,6 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-	plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
@@ -2223,8 +2222,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 		plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -2311,13 +2309,9 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c \
-		plugin/torirs_plugin_ui.c \
 		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c \
-		plugin/torirs_plugin_ui.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
@@ -2356,27 +2350,6 @@ test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 		plugin/test/plugin_panel_route_test.c ui/torirs_chrome_rail.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_panel_route_test
 
-# Exact fragmented safe-area geometry. Pure data: no host, app, cache, or
-# renderer belongs in this link, which keeps the placement arithmetic usable
-# by both frame construction and the public plugin API.
-.PHONY: test-plugin-placement
-test-plugin-placement: $(OBJ_DIR) plugin/torirs_plugin_placement.c \
-		plugin/test/torirs_plugin_placement_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_placement_test \
-		plugin/torirs_plugin_placement.c plugin/test/torirs_plugin_placement_test.c \
-		$(LDFLAGS)
-	./$(OBJ_DIR)/plugin_placement_test
-
-# Canonical named-UI policy.  This target deliberately links no host, UITree,
-# renderer, or cache: references, retained facet resolution, and conflicts are
-# deterministic data operations shared by all eventual executors.
-.PHONY: test-plugin-ui
-test-plugin-ui: $(OBJ_DIR) plugin/torirs_plugin_ui.c \
-		plugin/test/torirs_plugin_ui_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_ui_test \
-		plugin/torirs_plugin_ui.c plugin/test/torirs_plugin_ui_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/plugin_ui_test
-
 # The client-owned Gameframe dropdown against the public legacy API. This is a
 # small adapter test: visible titles may change (or even contain the old pipe
 # delimiter), while a click must always send the canonical catalogue id.
@@ -2400,8 +2373,7 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test
@@ -2466,8 +2438,7 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
@@ -2488,8 +2459,7 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
@@ -2507,8 +2477,7 @@ test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/xp_orbs_test

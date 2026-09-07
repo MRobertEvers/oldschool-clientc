@@ -156,7 +156,6 @@ int main(void)
     widgets[W_MAP_PARENT] = (struct FakeWidget){ .parent = 0, .x = 0, .y = 0, .w = 765, .h = 503, .alive = 1 };
     widgets[W_MINIMAP] = (struct FakeWidget){ .parent = W_MAP_PARENT, .x = 600, .y = 20, .w = 146, .h = 151, .alive = 1 };
 
-    CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_ui_node_draw == NULL && TORIRS_PLUGIN_MINIMAP_ORBS.ui_contributions == NULL);
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start && TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed);
     state = calloc(1, TORIRS_PLUGIN_MINIMAP_ORBS.state_size); CHECK(state);
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_start(&api, state);

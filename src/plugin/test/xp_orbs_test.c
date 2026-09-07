@@ -85,11 +85,6 @@ struct FakeBlit
 
 static struct FakeBlit g_blit[64];
 static int g_blit_count;
-static int g_region_count;
-static uint32_t g_region_tag;
-static int g_region_x;
-static int g_region_y;
-static int g_region_w;
 
 /** The stat table the plugin polls. */
 static int g_xp[25];
@@ -369,29 +364,6 @@ fake_mouse_pos(void* u, int* x, int* y)
 }
 /* Regions, by role. `w` of 0 means "this gameframe has no such region", which
  * is how the fallback chain in slot_rect's contract gets exercised. */
-static int g_slot_x[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_y[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_w[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_h[TORIRS_HOST_SURFACE_COUNT];
-
-static int
-fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
-        return 0;
-    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
-        return 0;
-    if( x )
-        *x = g_slot_x[slot];
-    if( y )
-        *y = g_slot_y[slot];
-    if( w )
-        *w = g_slot_w[slot];
-    if( h )
-        *h = g_slot_h[slot];
-    return 1;
-}
 
 /* No frame under test declares MEMBERS of a role, so the honest answer is
  * "this gameframe has no such member" -- @see
@@ -409,19 +381,6 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 0;
 }
 
-static int
-fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    (void)slot;
-    (void)member;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-
 /* Nothing under test mounts a component tree, so every id answers "not
  * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
@@ -434,59 +393,6 @@ fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
     (void)w;
     (void)h;
     return 0;
-}
-
-/* No role table under test either: every name answers "this revision does not
- * have that", which is the contract's own reading of an unbound role. */
-static int
-fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( !role || strcmp(role, "viewport") != 0 )
-        return 0;
-    if( x ) *x = g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT]
-                      ? g_slot_x[TORIRS_HOST_SURFACE_VIEWPORT]
-                      : g_slot_x[TORIRS_HOST_SURFACE_CANVAS];
-    if( y ) *y = g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT]
-                      ? g_slot_y[TORIRS_HOST_SURFACE_VIEWPORT]
-                      : g_slot_y[TORIRS_HOST_SURFACE_CANVAS];
-    if( w ) *w = g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT]
-                      ? g_slot_w[TORIRS_HOST_SURFACE_VIEWPORT]
-                      : g_slot_w[TORIRS_HOST_SURFACE_CANVAS];
-    if( h ) *h = g_slot_h[TORIRS_HOST_SURFACE_VIEWPORT]
-                      ? g_slot_h[TORIRS_HOST_SURFACE_VIEWPORT]
-                      : g_slot_h[TORIRS_HOST_SURFACE_CANVAS];
-    return (!w || *w > 0) && (!h || *h > 0);
-}
-
-static int
-fake_role_visible(void* u, char const* role)
-{
-    (void)u;
-    return role && strcmp(role, "viewport") == 0;
-}
-
-static int
-fake_role_click(void* u, char const* role, int op)
-{
-    (void)u;
-    (void)role;
-    (void)op;
-    return 0;
-}
-
-static int
-fake_role_suppress_facets(void* u, char const* role, int paint, int input, int subtree)
-{
-    (void)u; (void)role; (void)paint; (void)input; (void)subtree;
-    return 1;
-}
-
-static int
-fake_ui_boundary(void* u, char const* role, int place)
-{
-    (void)place; (void)u;
-    return !role || strcmp(role, "viewport") == 0;
 }
 
 static int
@@ -686,31 +592,6 @@ fake_draw_image(
 }
 
 static int
-fake_hit_region(
-    void* u,
-    int plugin,
-    int x,
-    int y,
-    int w,
-    int h,
-    char const* const* ops,
-    int op_count,
-    uint32_t tag)
-{
-    (void)u;
-    (void)plugin;
-    (void)h;
-    (void)ops;
-    (void)op_count;
-    g_region_count++;
-    g_region_tag = tag;
-    g_region_x = x;
-    g_region_y = y;
-    g_region_w = w;
-    return 1;
-}
-
-static int
 fake_if_click(void* u, int component, int op)
 {
     (void)u;
@@ -826,61 +707,13 @@ fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
     (void)fixed_w;
     (void)fixed_h;
 }
-static void
-fake_layout_begin(void* u)
-{
-    (void)u;
-}
-static void
-fake_layout_end(void* u)
-{
-    (void)u;
-}
+
 static void
 fake_frame_provide(void* u)
 {
     (void)u;
 }
-static int
-fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
-{
-    (void)u;
-    (void)slot;
-    (void)member;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-static int
-fake_layout_slot_skin(void* u, int slot, int art, int mask)
-{
-    (void)u;
-    (void)slot;
-    (void)art;
-    (void)mask;
-    return 0;
-}
-static int
-fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
-{
-    (void)u;
-    (void)slot;
-    (void)image;
-    (void)x;
-    (void)y;
-    (void)trans;
-    return 0;
-}
-static int
-fake_layout_scrollbar(void* u, int const* images, int count)
-{
-    (void)u;
-    (void)images;
-    (void)count;
-    return 0;
-}
+
 static int
 fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
 {
@@ -1221,15 +1054,8 @@ main(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.slot_rect = fake_slot_rect;
-    e.slot_member_rect = fake_slot_member_rect;
     e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
-    e.role_rect = fake_role_rect;
-    e.role_visible = fake_role_visible;
-    e.role_click = fake_role_click;
-    e.role_suppress_facets = fake_role_suppress_facets;
-    e.ui_boundary = fake_ui_boundary;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1244,7 +1070,6 @@ main(void)
     e.loot_source_next = fake_loot_source_next;
     e.loot_row_next = fake_loot_row_next;
     e.draw_image = fake_draw_image;
-    e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
@@ -1253,13 +1078,7 @@ main(void)
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
     e.frame_activate = fake_frame_activate;
-    e.layout_begin = fake_layout_begin;
-    e.layout_end = fake_layout_end;
     e.frame_provide = fake_frame_provide;
-    e.layout_slot = fake_layout_slot;
-    e.layout_slot_skin = fake_layout_slot_skin;
-    e.layout_slot_overlay = fake_layout_slot_overlay;
-    e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
@@ -1293,10 +1112,7 @@ main(void)
 
     CHECK(TORIRS_PLUGIN_XP_ORBS.struct_size == sizeof(TORIRS_PLUGIN_XP_ORBS) &&
               TORIRS_PLUGIN_XP_ORBS.state_size > 0 &&
-              TORIRS_PLUGIN_XP_ORBS.callbacks.on_frame_start &&
-              !TORIRS_PLUGIN_XP_ORBS.callbacks.on_ui_node_draw &&
-              !TORIRS_PLUGIN_XP_ORBS.callbacks.on_canvas_action &&
-              !TORIRS_PLUGIN_XP_ORBS.ui_contributions,
+              TORIRS_PLUGIN_XP_ORBS.callbacks.on_frame_start,
         "the orbs are owned widget controls, not a named-UI contribution or a canvas region");
     index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");

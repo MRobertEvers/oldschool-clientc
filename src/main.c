@@ -3520,21 +3520,6 @@ frame_loop_teardown(void)
                 RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE));
         }
 
-        if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
-        {
-            static char const* parts[] = { "frame.orb.hitpoints", "frame.orb.prayer",
-                "frame.orb.run", "frame.orb.special", "frame.chat.backing", "frame.chat.bar" };
-            int reader = PluginHost_IndexOf(app.plugins, "minimap-orbs");
-            for( size_t i = 0; reader >= 0 && i < sizeof(parts) / sizeof(parts[0]); i++ )
-            {
-                struct ToriRS_UiNodeRef ref = PluginHost_UiRef(app.plugins, reader, parts[i]);
-                struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-                if( PluginHost_UiInfo(app.plugins, ref, &info) )
-                    TORIRS_REPORT("UI_PART name=%s visible=%d box=%d,%d %dx%d\n", parts[i], info.visible,
-                                  info.bounds.x, info.bounds.y, info.bounds.width, info.bounds.height);
-            }
-        }
-
         /* TORIRS_DUMP_EMIT_EXIT: post-net draw list (the boot-time
          * TORIRS_DUMP_EMIT fires before any server interface has mounted, so
          * it never shows sub-interface content). Value selects the filter:

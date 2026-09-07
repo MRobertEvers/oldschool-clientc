@@ -3,8 +3,8 @@
 
 /*
  * Engine-facing values used by the plugin host implementation. They are not
- * part of the public plugin contract; V2 plugins address these through
- * ToriRS_Surface, named UI, frame builders, and placement areas.
+ * part of the public plugin contract; a plugin names a surface only through
+ * ToriRS_Surface, and everything else through the widget API's roles.
  */
 
 enum ToriRS_HostSurfaceSlot
@@ -23,11 +23,9 @@ enum ToriRS_HostSurfaceSlot
 };
 
 /*
- * Members of TORIRS_HOST_SURFACE_ORBS, spelled again from enum
- * ToriRS_OrbsMember. The tree needs the numbering -- the two kinds of member
- * mean different things by an unmentioned box -- and a headless uitree test
- * links no plugin contract to read it from. Kept true by the static asserts
- * in torirs_plugin_host.c, which sees both headers.
+ * Members of TORIRS_HOST_SURFACE_ORBS. The tree needs the numbering -- the
+ * two kinds of member mean different things by an unmentioned box -- and a
+ * headless uitree test links no plugin contract to read it from.
  */
 enum ToriRS_HostOrbsMember
 {

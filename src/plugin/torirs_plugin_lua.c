@@ -32,7 +32,6 @@
 
 #define PLUGIN_LUA_MAX_SCRIPTS TORIRS_PLUGIN_MAX
 #define PLUGIN_LUA_MAX_CONFIG 32
-#define PLUGIN_LUA_MAX_CONTRIBUTIONS 16
 #define PLUGIN_LUA_MAX_FRAMES 32
 #define PLUGIN_LUA_STR_MAX 96
 #define PLUGIN_LUA_STEP_BUDGET 400000
@@ -76,10 +75,6 @@ enum LuaHandler
     LUA_ON_UI_BUILD,
     LUA_ON_UI_ACTION,
     LUA_ON_UI_DRAW,
-    LUA_ON_PLACEMENT_CHANGED,
-    LUA_ON_UI_NODE_DRAW,
-    LUA_ON_UI_NODE_ACTION,
-    LUA_ON_CANVAS_ACTION,
     LUA_ON_UI_LAYOUT,
     LUA_ON_GAMEFRAME,
     LUA_HANDLER_COUNT
@@ -112,21 +107,8 @@ static char const* const LUA_HANDLER_NAMES[LUA_HANDLER_COUNT] = {
     "on_ui_build",
     "on_ui_action",
     "on_ui_draw",
-    "on_placement_changed",
-    "on_ui_node_draw",
-    "on_ui_node_action",
-    "on_canvas_action",
     "on_ui_layout",
     "on_gameframe",
-};
-
-struct LuaContributionStorage
-{
-    char node[TORIRS_UI_NAME_MAX];
-    char parent[TORIRS_UI_NAME_MAX];
-    char label[TORIRS_UI_LABEL_MAX];
-    char action[TORIRS_UI_ACTION_MAX];
-    char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
 };
 
 struct LuaCallbackScope
@@ -134,7 +116,6 @@ struct LuaCallbackScope
     struct ToriRS_Api* api;
     struct ToriRS_Graphics* draw;
     struct ToriRS_PanelBuilder* panel;
-    struct ToriRS_FrameBuilder* frame;
     struct ToriRS_MenuBuildEvent* menu;
     size_t memory_limit;
 };
@@ -170,10 +151,7 @@ struct LuaScript
     int api_ref;
     int draw_ref;
     int panel_builder_ref;
-    int frame_builder_ref;
     int handler_ref[LUA_HANDLER_COUNT];
-    int frame_build_ref[PLUGIN_LUA_MAX_FRAMES];
-    int frame_draw_ref[PLUGIN_LUA_MAX_FRAMES];
 
     char name[TORIRS_PLUGIN_NAME_MAX];
     char title[TORIRS_PLUGIN_TITLE_MAX];
@@ -183,9 +161,6 @@ struct LuaScript
     struct ToriRS_ConfigItem config[PLUGIN_LUA_MAX_CONFIG + 1];
     char cfg_str[PLUGIN_LUA_MAX_CONFIG][4][PLUGIN_LUA_STR_MAX];
     int config_count;
-    struct ToriRS_UiContribution contributions[PLUGIN_LUA_MAX_CONTRIBUTIONS + 1];
-    struct LuaContributionStorage contribution_strings[PLUGIN_LUA_MAX_CONTRIBUTIONS];
-    int contribution_count;
     struct ToriRS_FrameOffer frames[PLUGIN_LUA_MAX_FRAMES + 1];
     char frame_ids[PLUGIN_LUA_MAX_FRAMES][TORIRS_PLUGIN_FRAME_ID_MAX];
     char frame_titles[PLUGIN_LUA_MAX_FRAMES][TORIRS_PLUGIN_TITLE_MAX];
@@ -198,7 +173,6 @@ struct LuaScript
     struct ToriRS_Api* cur_api;
     struct ToriRS_Graphics* cur_draw;
     struct ToriRS_PanelBuilder* cur_panel;
-    struct ToriRS_FrameBuilder* cur_frame;
     struct ToriRS_MenuBuildEvent* cur_menu;
     struct LuaCallbackScope callback_scopes[PLUGIN_LUA_CALLBACK_DEPTH_MAX];
     int callback_depth;
@@ -361,14 +335,12 @@ lua_callback_scope_push(struct LuaScript* script, struct ToriRS_Api* api)
     saved->api = script->cur_api;
     saved->draw = script->cur_draw;
     saved->panel = script->cur_panel;
-    saved->frame = script->cur_frame;
     saved->menu = script->cur_menu;
     saved->memory_limit = script->memory_limit;
     script->memory_limit = PLUGIN_LUA_HARD_MEM_CAP_BYTES;
     script->cur_api = api;
     script->cur_draw = NULL;
     script->cur_panel = NULL;
-    script->cur_frame = NULL;
     script->cur_menu = NULL;
     return true;
 }
@@ -382,7 +354,6 @@ lua_callback_scope_pop(struct LuaScript* script)
     script->cur_api = saved->api;
     script->cur_draw = saved->draw;
     script->cur_panel = saved->panel;
-    script->cur_frame = saved->frame;
     script->cur_menu = saved->menu;
     script->memory_limit = saved->memory_limit;
 }
@@ -590,86 +561,6 @@ lua_enum_integer(lua_State* L, int index, int minimum, int maximum, char const* 
     return value;
 }
 
-static int
-lua_area_from_arg(lua_State* L, int index)
-{
-    char const* name;
-    if( lua_isinteger(L, index) )
-        return lua_enum_integer(L, index, TORIRS_AREA_PLATFORM_SAFE, TORIRS_AREA_RAW_VIEWPORT,
-            "placement area");
-    name = luaL_checkstring(L, index);
-    if( strcmp(name, "platform_safe") == 0 ) return TORIRS_AREA_PLATFORM_SAFE;
-    if( strcmp(name, "frame_build") == 0 ) return TORIRS_AREA_FRAME_BUILD;
-    if( strcmp(name, "overlay_safe") == 0 ) return TORIRS_AREA_OVERLAY_SAFE;
-    if( strcmp(name, "raw_viewport") == 0 ) return TORIRS_AREA_RAW_VIEWPORT;
-    return luaL_error(L, "unknown placement area '%s'", name);
-}
-
-static int
-lua_anchor_from_arg(lua_State* L, int index)
-{
-    char const* name;
-    static char const* const NAMES[] = {
-        "top-left", "top", "top-right", "left", "center", "right",
-        "bottom-left", "bottom", "bottom-right"
-    };
-    if( lua_isinteger(L, index) )
-        return lua_enum_integer(L, index, TORIRS_ANCHOR_TOP_LEFT, TORIRS_ANCHOR_BOTTOM_RIGHT,
-            "anchor");
-    name = luaL_checkstring(L, index);
-    for( int i = 0; i < 9; i++ )
-        if( strcmp(name, NAMES[i]) == 0 ) return i;
-    return luaL_error(L, "unknown anchor '%s'", name);
-}
-
-static int
-lua_edge_from_arg(lua_State* L, int index)
-{
-    char const* name;
-    if( lua_isinteger(L, index) )
-        return lua_enum_integer(L, index, TORIRS_EDGE_TOP, TORIRS_EDGE_LEFT, "edge");
-    name = luaL_checkstring(L, index);
-    if( strcmp(name, "top") == 0 ) return TORIRS_EDGE_TOP;
-    if( strcmp(name, "right") == 0 ) return TORIRS_EDGE_RIGHT;
-    if( strcmp(name, "bottom") == 0 ) return TORIRS_EDGE_BOTTOM;
-    if( strcmp(name, "left") == 0 ) return TORIRS_EDGE_LEFT;
-    return luaL_error(L, "unknown edge '%s'", name);
-}
-
-static uint32_t
-lua_facets_from_arg(lua_State* L, int index)
-{
-    uint32_t facets = 0;
-    if( lua_isinteger(L, index) )
-    {
-        uint32_t const value = (uint32_t)lua_tointeger(L, index);
-        if( value == 0 || (value & ~TORIRS_UI_FACET_ALL) != 0 )
-            luaL_error(L, "UI facets must be a non-empty subset of 0x7");
-        return value;
-    }
-    if( lua_type(L, index) == LUA_TSTRING )
-    {
-        char const* name = lua_tostring(L, index);
-        if( strcmp(name, "bounds") == 0 ) return TORIRS_UI_FACET_BOUNDS;
-        if( strcmp(name, "appearance") == 0 ) return TORIRS_UI_FACET_APPEARANCE;
-        if( strcmp(name, "actions") == 0 ) return TORIRS_UI_FACET_ACTIONS;
-        if( strcmp(name, "all") == 0 ) return TORIRS_UI_FACET_ALL;
-        luaL_error(L, "unknown UI facet '%s'", name);
-    }
-    luaL_checktype(L, index, LUA_TTABLE);
-    for( lua_Integer i = 1, n = (lua_Integer)lua_rawlen(L, index); i <= n; i++ )
-    {
-        lua_rawgeti(L, index, i);
-        if( lua_type(L, -1) == LUA_TTABLE )
-            return (uint32_t)luaL_error(L, "UI facets must be a flat array");
-        facets |= lua_facets_from_arg(L, -1);
-        lua_pop(L, 1);
-    }
-    if( facets == 0 )
-        luaL_error(L, "UI facets must not be empty");
-    return facets;
-}
-
 static struct ToriRS_ImageRef lua_image_arg(lua_State* L, int index)
 {
     struct ToriRS_ImageRef ref = { (int)luaL_checkinteger(L, index) };
@@ -688,11 +579,6 @@ static struct ToriRS_MeshRef lua_mesh_arg(lua_State* L, int index)
 static struct ToriRS_SceneInstanceRef lua_instance_arg(lua_State* L, int index)
 {
     struct ToriRS_SceneInstanceRef ref = { (int)luaL_checkinteger(L, index) };
-    return ref;
-}
-static struct ToriRS_UiNodeRef lua_ui_ref_arg(lua_State* L, int index)
-{
-    struct ToriRS_UiNodeRef ref = { (uint32_t)luaL_checkinteger(L, index) };
     return ref;
 }
 
@@ -1374,69 +1260,9 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"set_on_op",lua_widget_set_on_op},{"remove",lua_widget_remove},{NULL,NULL}
 };
 
-static int lua_ui_ref(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiNodeRef r=a->ui.ref(a,luaL_checkstring(L,1));if(!r.value)lua_pushnil(L);else lua_pushinteger(L,r.value);return 1; }
-static int lua_ui_info(lua_State* L)
-{
-    struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiNodeInfo v;
-    memset(&v,0,sizeof(v));v.struct_size=sizeof(v);
-    if(!a->ui.info(a,lua_ui_ref_arg(L,1),&v)){lua_pushnil(L);return 1;}
-    lua_createtable(L,0,14);lua_push_rect(L,v.bounds);lua_setfield(L,-2,"bounds");
-    lua_pushinteger(L,v.available_facets);lua_setfield(L,-2,"available_facets");
-    lua_pushboolean(L,v.visible);lua_setfield(L,-2,"visible");lua_pushboolean(L,v.enabled);lua_setfield(L,-2,"enabled");lua_pushboolean(L,v.active);lua_setfield(L,-2,"active");
-    if(v.parent.value)lua_pushinteger(L,v.parent.value);else lua_pushnil(L);lua_setfield(L,-2,"parent");
-    lua_pushinteger(L,v.anchor);lua_setfield(L,-2,"anchor");lua_pushinteger(L,v.paint_order);lua_setfield(L,-2,"paint_order");lua_pushinteger(L,v.clip);lua_setfield(L,-2,"clip");
-    lua_pushstring(L,v.label);lua_setfield(L,-2,"label");lua_pushinteger(L,v.label_x);lua_setfield(L,-2,"label_x");lua_pushinteger(L,v.label_y);lua_setfield(L,-2,"label_y");
-    lua_push_rect(L,v.hit_rect);lua_setfield(L,-2,"hit_rect");
-    lua_createtable(L,(int)v.action_count,0);for(uint32_t i=0;i<v.action_count;i++){lua_pushstring(L,v.actions[i]);lua_rawseti(L,-2,(lua_Integer)i+1);}lua_setfield(L,-2,"actions");
-    lua_createtable(L,TORIRS_UI_VISUAL_STATE_COUNT,0);for(int i=0;i<TORIRS_UI_VISUAL_STATE_COUNT;i++){if(v.state_images[i].value)lua_pushinteger(L,v.state_images[i].value);else lua_pushnil(L);lua_rawseti(L,-2,i+1);}lua_setfield(L,-2,"state_images");
-    return 1;
-}
-static int lua_ui_invoke(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->ui.invoke(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
-static int lua_ui_base_action_available(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->ui.base_action_available(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
-static int lua_ui_invoke_base(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->ui.invoke_base(a,lua_ui_ref_arg(L,1),luaL_checkstring(L,2)));return 1; }
-static int lua_ui_contribution_info(lua_State* L)
-{
-    struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiContributionInfo v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);
-    if(!a->ui.contribution_info(a,luaL_checkstring(L,1),lua_facets_from_arg(L,2),&v)){lua_pushnil(L);return 1;}
-    lua_createtable(L,0,3);lua_pushinteger(L,v.state);lua_setfield(L,-2,"state");lua_pushinteger(L,v.active_facets);lua_setfield(L,-2,"active_facets");lua_pushstring(L,v.conflict_plugin);lua_setfield(L,-2,"conflict_plugin");return 1;
-}
 
-static void
-lua_ui_node_arg(lua_State* L, int index, struct ToriRS_UiNode* node)
-{
-    static char const* const IMAGE_KEYS[TORIRS_UI_VISUAL_STATE_COUNT]={"idle","hover","active","active_hover","disabled"};
-    memset(node,0,sizeof(*node));node->struct_size=sizeof(*node);index=lua_absindex(L,index);luaL_checktype(L,index,LUA_TTABLE);
-    lua_raw_getfield(L,index,"bounds");if(lua_istable(L,-1))node->bounds=lua_check_rect(L,-1);lua_pop(L,1);
-    node->parent=lua_table_string(L,index,"parent");
-    lua_raw_getfield(L,index,"anchor");if(!lua_isnil(L,-1))node->anchor=lua_anchor_from_arg(L,-1);lua_pop(L,1);
-    node->paint_order=lua_table_int(L,index,"paint_order",TORIRS_UI_PAINT_AFTER_PARENT);
-    node->flags=(uint32_t)lua_table_int(L,index,"flags",TORIRS_UI_NODE_VISIBLE|TORIRS_UI_NODE_ENABLED);
-    lua_raw_getfield(L,index,"image");if(lua_isinteger(L,-1))node->image.value=(int)lua_tointeger(L,-1);lua_pop(L,1);
-    node->label=lua_table_string(L,index,"label");node->action=lua_table_string(L,index,"action");
-    node->clip=lua_table_int(L,index,"clip",TORIRS_UI_CLIP_NONE);node->label_x=lua_table_int(L,index,"label_x",0);node->label_y=lua_table_int(L,index,"label_y",0);
-    lua_raw_getfield(L,index,"hit_rect");if(lua_istable(L,-1)){node->hit_rect=lua_check_rect(L,-1);node->hit_rect_mode=TORIRS_UI_HIT_RECT_CUSTOM;}lua_pop(L,1);
-    lua_raw_getfield(L,index,"state_images");if(lua_istable(L,-1))for(int i=0;i<TORIRS_UI_VISUAL_STATE_COUNT;i++){lua_raw_getfield(L,-1,IMAGE_KEYS[i]);if(lua_isinteger(L,-1)){node->state_images[i].value=(int)lua_tointeger(L,-1);node->state_image_mask|=1u<<i;}lua_pop(L,1);}lua_pop(L,1);
-    lua_raw_getfield(L,index,"actions");if(lua_istable(L,-1)){uint32_t n=(uint32_t)lua_rawlen(L,-1);if(n>TORIRS_UI_NAMED_ACTIONS_MAX)luaL_error(L,"UI node has too many actions");node->action_count=n;for(uint32_t i=0;i<n;i++){lua_rawgeti(L,-1,(lua_Integer)i+1);if(lua_type(L,-1)!=LUA_TSTRING)luaL_error(L,"UI node action %d must be a string",(int)i+1);node->actions[i]=lua_tostring(L,-1);lua_pop(L,1);}}lua_pop(L,1);
-}
-
-static int lua_ui_update(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_UiNode v;lua_ui_node_arg(L,3,&v);lua_push_result(L,a->ui.update(a,lua_ui_ref_arg(L,1),lua_facets_from_arg(L,2),&v));return 2; }
 static int lua_menu_add(lua_State* L) { struct LuaScript* s=lua_upvalue_script(L);struct ToriRS_Api* a=lua_current_api(L);if(!s->cur_menu)return luaL_error(L,"menu.add is only valid in on_menu_build");lua_pushboolean(L,a->menu.add(a,s->cur_menu,luaL_checkstring(L,1),(uint32_t)luaL_checkinteger(L,2)));return 1; }
-static int lua_ui_set_enabled(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->ui.set_enabled(a,lua_ui_ref_arg(L,1),lua_toboolean(L,2)!=0));return 2; }
 
-/* ---------------------------------------------------------- api.placement */
-
-static int lua_placement_revision(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->placement.revision(a));return 1; }
-static int lua_placement_area(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_PlacementAreaRef r=a->placement.area(a,lua_area_from_arg(L,1));if(!r.value)lua_pushnil(L);else lua_pushinteger(L,r.value);return 1; }
-static int lua_placement_primary(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_PlacementAreaRef r={(uint32_t)luaL_checkinteger(L,1)};struct ToriRS_Rect v;if(!a->placement.primary(a,r,&v)){lua_pushnil(L);return 1;}lua_push_rect(L,v);return 1; }
-static int lua_placement_place(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_Rect v;if(!a->placement.place(a,lua_area_from_arg(L,1),lua_anchor_from_arg(L,2),(int)luaL_checkinteger(L,3),(int)luaL_checkinteger(L,4),(int)luaL_optinteger(L,5,0),&v)){lua_pushnil(L);return 1;}lua_push_rect(L,v);return 1; }
-static int lua_placement_rect_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_PlacementAreaRef r={(uint32_t)luaL_checkinteger(L,1)};struct ToriRS_Rect v;int n=a->placement.rect_next(a,r,(int)luaL_optinteger(L,2,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_push_rect(L,v);return 2; }
-static int lua_placement_contains(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_PlacementAreaRef r={(uint32_t)luaL_checkinteger(L,1)};lua_pushboolean(L,a->placement.contains(a,r,lua_check_rect(L,2)));return 1; }
-static int lua_placement_reserve(lua_State* L)
-{
-    struct ToriRS_Api* a=lua_current_api(L);enum ToriRS_PlacementReserveResult result=a->placement.reserve(a,luaL_checkstring(L,1),lua_area_from_arg(L,2),lua_edge_from_arg(L,3),(int)luaL_checkinteger(L,4));
-    static char const* const names[]={"ok","no_space","budget","invalid"};lua_pushboolean(L,result==TORIRS_RESERVE_OK);lua_pushstring(L,result>=TORIRS_RESERVE_OK&&result<=TORIRS_RESERVE_INVALID?names[result]:"invalid");return 2;
-}
-static int lua_placement_reservation_rect(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_Rect v;if(!a->placement.reservation_rect(a,luaL_checkstring(L,1),&v)){lua_pushnil(L);return 1;}lua_push_rect(L,v);return 1; }
 
 /* -------------------------------------------------------------- api.frame */
 
@@ -1722,9 +1548,7 @@ static int lua_builder_text(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_b
 static int lua_builder_image(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);d->image(d,lua_image_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),(int)luaL_optinteger(L,4,255));return 0; }
 static int lua_builder_world_tile(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);uint32_t fill=lua_color_arg(L,4);uint32_t outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);lua_push_result(L,d->world_tile(d,(int)luaL_checkinteger(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),fill,outline,(int)luaL_optinteger(L,6,0)));return 2; }
 static int lua_builder_world_hull(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);int shape=TORIRS_HULL_BOUNDS;if(lua_type(L,4)==LUA_TSTRING){char const*name=lua_tostring(L,4);if(strcmp(name,"mesh")==0)shape=TORIRS_HULL_MESH;else if(strcmp(name,"bounds")!=0)return luaL_error(L,"unknown hull shape '%s'",name);}else if(!lua_isnoneornil(L,4))shape=lua_enum_integer(L,4,TORIRS_HULL_BOUNDS,TORIRS_HULL_MESH,"hull shape");lua_push_result(L,d->world_hull(d,(int)luaL_checkinteger(L,1),lua_color_arg(L,2),(int)luaL_optinteger(L,3,0),shape));return 2; }
-static int lua_builder_action_region(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);lua_push_result(L,d->action_region(d,lua_check_rect(L,1),luaL_checkstring(L,2)));return 2; }
 static int lua_builder_image_clip(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);d->image_clip(d,lua_image_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),lua_check_rect(L,4),(int)luaL_optinteger(L,5,255));return 0; }
-static int lua_builder_action_region_id(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);lua_push_result(L,d->action_region_id(d,lua_check_rect(L,1),luaL_checkstring(L,2),(uint32_t)luaL_checkinteger(L,3)));return 2; }
 static int lua_builder_context(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);struct ToriRS_DrawContext v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);if(!d->context(d,&v)){lua_pushnil(L);return 1;}lua_createtable(L,0,2);lua_push_rect(L,v.bounds);lua_setfield(L,-2,"bounds");lua_push_rect(L,v.clip);lua_setfield(L,-2,"clip");return 1; }
 
 /* ---------------------------------------------------- panel builder object */
@@ -1770,16 +1594,7 @@ static int lua_panel_builder_node(lua_State* L)
     return 2;
 }
 
-/* ---------------------------------------------------- frame builder object */
-
-static struct ToriRS_FrameBuilder*
-lua_frame_builder(lua_State* L)
-{
-    struct LuaScript* script = lua_upvalue_script(L);
-    if( !script || !script->cur_frame )
-        return (void*)(intptr_t)luaL_error(L, "frame builder used outside an offer build callback");
-    return script->cur_frame;
-}
+/* ------------------------------------------------------- frame surfaces */
 
 static int
 lua_surface_from_arg(lua_State* L, int index)
@@ -1798,99 +1613,6 @@ lua_surface_from_arg(lua_State* L, int index)
     return luaL_error(L, "unknown frame surface '%s'", name);
 }
 
-static struct ToriRS_ImageRef
-lua_optional_image(lua_State* L, int table, char const* field)
-{
-    struct ToriRS_ImageRef image = { 0 };
-    table = lua_absindex(L, table);
-    lua_raw_getfield(L, table, field);
-    if( lua_isinteger(L, -1) ) image.value = (int)lua_tointeger(L, -1);
-    lua_pop(L, 1);
-    return image;
-}
-
-static int lua_frame_builder_surface(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    frame->surface(frame, lua_surface_from_arg(L, 1), lua_check_rect(L, 2));
-    return 0;
-}
-static int lua_frame_builder_surface_anchored(lua_State* L)
-{
-    static char const* const relations[] = {"native","over","behind","replace",NULL};
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    struct ToriRS_FrameAnchor anchor = {
-        .relation = (enum ToriRS_FrameRelation)luaL_checkoption(L,3,NULL,relations),
-        .slot = lua_surface_from_arg(L,4)
-    };
-    frame->surface_anchored(frame,lua_surface_from_arg(L,1),lua_check_rect(L,2),anchor);
-    return 0;
-}
-static int lua_frame_builder_surface_member(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    frame->surface_member(frame, lua_surface_from_arg(L, 1),
-        (int)luaL_checkinteger(L, 2), lua_check_rect(L, 3));
-    return 0;
-}
-static int lua_frame_builder_skin(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    struct ToriRS_FrameSkin skin;
-    luaL_checktype(L, 2, LUA_TTABLE);
-    memset(&skin, 0, sizeof(skin));
-    skin.struct_size = sizeof(skin);
-    skin.image = lua_optional_image(L, 2, "image");
-    skin.mask = lua_optional_image(L, 2, "mask");
-    frame->skin(frame, lua_surface_from_arg(L, 1), &skin);
-    return 0;
-}
-static int lua_frame_builder_ui_node(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    struct ToriRS_UiNode node;
-    lua_ui_node_arg(L, 2, &node);
-    frame->ui_node(frame, luaL_checkstring(L, 1), &node);
-    return 0;
-}
-static int lua_frame_builder_scrollbar(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    struct ToriRS_FrameScrollbar skin;
-    luaL_checktype(L, 1, LUA_TTABLE);
-    memset(&skin, 0, sizeof(skin));
-    skin.struct_size = sizeof(skin);
-    skin.up = lua_optional_image(L, 1, "up");
-    skin.down = lua_optional_image(L, 1, "down");
-    skin.track = lua_optional_image(L, 1, "track");
-    skin.thumb = lua_optional_image(L, 1, "thumb");
-    skin.split_thumb = lua_table_bool(L, 1, "split_thumb", false);
-    skin.thumb_top = lua_optional_image(L, 1, "thumb_top");
-    skin.thumb_middle = lua_optional_image(L, 1, "thumb_middle");
-    skin.thumb_bottom = lua_optional_image(L, 1, "thumb_bottom");
-    frame->scrollbar(frame, &skin);
-    return 0;
-}
-static int lua_frame_builder_reason(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    frame->reason(frame, luaL_checkstring(L, 1));
-    return 0;
-}
-static int lua_frame_builder_surface_overlay(lua_State* L)
-{
-    struct ToriRS_FrameBuilder* frame = lua_frame_builder(L);
-    struct ToriRS_FrameSurfaceOverlay overlay;
-    luaL_checktype(L, 2, LUA_TTABLE);
-    memset(&overlay, 0, sizeof(overlay));
-    overlay.struct_size = sizeof(overlay);
-    overlay.image = lua_optional_image(L, 2, "image");
-    overlay.x = lua_table_int(L, 2, "x", 0);
-    overlay.y = lua_table_int(L, 2, "y", 0);
-    overlay.alpha = lua_table_int(L, 2, "alpha", 255);
-    frame->surface_overlay(frame, lua_surface_from_arg(L, 1), &overlay);
-    return 0;
-}
 
 /* Registration arrays are the runtime inventory.  The Python contract test
  * reads these exact arrays and compares them bidirectionally with LuaLS. */
@@ -1919,17 +1641,6 @@ static struct LuaFn const LUA_INPUT_FNS[] = {
 };
 static struct LuaFn const LUA_MENU_FNS[] = {
     {"add",lua_menu_add},{NULL,NULL}
-};
-static struct LuaFn const LUA_UI_FNS[] = {
-    {"ref",lua_ui_ref},{"info",lua_ui_info},{"invoke",lua_ui_invoke},
-    {"base_action_available",lua_ui_base_action_available},{"invoke_base",lua_ui_invoke_base},
-    {"contribution_info",lua_ui_contribution_info},{"update",lua_ui_update},
-    {"set_enabled",lua_ui_set_enabled},{NULL,NULL}
-};
-static struct LuaFn const LUA_PLACEMENT_FNS[] = {
-    {"revision",lua_placement_revision},{"area",lua_placement_area},{"primary",lua_placement_primary},
-    {"place",lua_placement_place},{"rect_next",lua_placement_rect_next},{"contains",lua_placement_contains},
-    {"reserve",lua_placement_reserve},{"reservation_rect",lua_placement_reservation_rect},{NULL,NULL}
 };
 static struct LuaFn const LUA_FRAME_FNS[] = {
     {"offer_next",lua_frame_offer_next},{"selection",lua_frame_selection},{"select",lua_frame_select},
@@ -1984,8 +1695,7 @@ static struct LuaFn const LUA_GAME_FNS[] = {
 static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"rect",lua_builder_rect},{"line",lua_builder_line},{"text",lua_builder_text},
     {"image",lua_builder_image},{"world_tile",lua_builder_world_tile},{"world_hull",lua_builder_world_hull},
-    {"action_region",lua_builder_action_region},{"image_clip",lua_builder_image_clip},
-    {"action_region_id",lua_builder_action_region_id},{"context",lua_builder_context},{NULL,NULL}
+    {"image_clip",lua_builder_image_clip},{"context",lua_builder_context},{NULL,NULL}
 };
 static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
     {"heading",lua_panel_builder_heading},{"paragraph",lua_panel_builder_paragraph},
@@ -1995,14 +1705,6 @@ static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
     {"action_row",lua_panel_builder_action_row},
     {"node",lua_panel_builder_node},{NULL,NULL}
 };
-static struct LuaFn const LUA_FRAME_BUILDER_FNS[] = {
-    {"surface",lua_frame_builder_surface},{"surface_member",lua_frame_builder_surface_member},
-    {"surface_anchored",lua_frame_builder_surface_anchored},
-    {"skin",lua_frame_builder_skin},{"ui_node",lua_frame_builder_ui_node},
-    {"scrollbar",lua_frame_builder_scrollbar},{"reason",lua_frame_builder_reason},
-    {"surface_overlay",lua_frame_builder_surface_overlay},{NULL,NULL}
-};
-
 struct LuaModuleRegistration
 {
     char const* name;
@@ -2011,7 +1713,7 @@ struct LuaModuleRegistration
 
 static struct LuaModuleRegistration const LUA_API_MODULES[] = {
     {"widgets",LUA_WIDGET_FNS},{"core",LUA_CORE_FNS},{"config",LUA_CONFIG_FNS},{"world",LUA_WORLD_FNS},
-    {"scripts",LUA_SCRIPTS_FNS},{"input",LUA_INPUT_FNS},{"ui",LUA_UI_FNS},{"menu",LUA_MENU_FNS},{"placement",LUA_PLACEMENT_FNS},
+    {"scripts",LUA_SCRIPTS_FNS},{"input",LUA_INPUT_FNS},{"menu",LUA_MENU_FNS},
     {"frame",LUA_FRAME_FNS},{"draw",LUA_DRAW_API_FNS},{"assets",LUA_ASSETS_FNS},
     {"scene",LUA_SCENE_FNS},{"panel",LUA_PANEL_FNS},{"cache",LUA_CACHE_FNS},
     {"client",LUA_CLIENT_FNS},{"game",LUA_GAME_FNS},{NULL,NULL}
@@ -2042,7 +1744,6 @@ lua_build_api_table(struct LuaScript* script)
     script->api_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_GRAPHICS_FNS);script->draw_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_PANEL_BUILDER_FNS);script->panel_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);
-    lua_register_functions(L,script,LUA_FRAME_BUILDER_FNS);script->frame_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);
 }
 
 static void
@@ -2199,10 +1900,6 @@ static void lua_cb_draw_canvas(struct ToriRS_Api*a,void*state,struct ToriRS_Grap
 static void lua_cb_ui_build(struct ToriRS_Api*a,void*state,struct ToriRS_PanelBuilder*p,int view){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_BUILD)){s->cur_panel=p;lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->panel_builder_ref);lua_pushstring(s->L,view==TORIRS_PANEL_VIEW_SETTINGS?"settings":"page");lua_call_end(s,LUA_ON_UI_BUILD,3,false);}}
 static void lua_cb_ui_action(struct ToriRS_Api*a,void*state,struct ToriRS_PanelActionEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_ACTION)){lua_push_panel_action(s->L,e);lua_call_end(s,LUA_ON_UI_ACTION,2,false);}}
 static void lua_cb_ui_draw(struct ToriRS_Api*a,void*state,char const*node,struct ToriRS_Graphics*d){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_DRAW)){s->cur_draw=d;lua_pushstring(s->L,node?node:"");lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,LUA_ON_UI_DRAW,3,false);}}
-static void lua_cb_placement(struct ToriRS_Api*a,void*state,uint32_t revision){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_PLACEMENT_CHANGED)){lua_pushinteger(s->L,revision);lua_call_end(s,LUA_ON_PLACEMENT_CHANGED,2,false);}}
-static void lua_cb_ui_node_draw(struct ToriRS_Api*a,void*state,struct ToriRS_UiNodeRef node,struct ToriRS_Graphics*d){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_NODE_DRAW)){s->cur_draw=d;lua_pushinteger(s->L,node.value);lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,LUA_ON_UI_NODE_DRAW,3,false);}}
-static enum ToriRS_CallbackResult lua_cb_ui_node_action(struct ToriRS_Api*a,void*state,struct ToriRS_UiNodeRef node,char const*action){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_UI_NODE_ACTION))return TORIRS_CALLBACK_CONTINUE;lua_pushinteger(s->L,node.value);lua_pushstring(s->L,action?action:"");return lua_call_end(s,LUA_ON_UI_NODE_ACTION,3,true);}
-static enum ToriRS_CallbackResult lua_cb_canvas_action(struct ToriRS_Api*a,void*state,uint32_t id,int operation,int x,int y){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_CANVAS_ACTION))return TORIRS_CALLBACK_CONTINUE;lua_createtable(s->L,0,4);lua_pushinteger(s->L,id);lua_setfield(s->L,-2,"id");lua_pushinteger(s->L,operation);lua_setfield(s->L,-2,"operation");lua_pushinteger(s->L,x);lua_setfield(s->L,-2,"x");lua_pushinteger(s->L,y);lua_setfield(s->L,-2,"y");return lua_call_end(s,LUA_ON_CANVAS_ACTION,2,true);}
 /* on_gameframe(api, ev) -> "ready" | "pending" | "unsupported" [, reason]. A
  * nil or true return is ready; false is unsupported. */
 static enum ToriRS_FrameBuildResult lua_cb_gameframe(struct ToriRS_Api*a,void*state,struct ToriRS_GameframeEvent const*e)
@@ -2236,143 +1933,6 @@ static enum ToriRS_FrameBuildResult lua_cb_gameframe(struct ToriRS_Api*a,void*st
 }
 static void lua_cb_ui_layout(struct ToriRS_Api*a,void*state,struct ToriRS_PanelLayoutEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_LAYOUT)){lua_push_panel_layout(s->L,e);lua_call_end(s,LUA_ON_UI_LAYOUT,2,false);}}
 
-static int
-lua_frame_offer_index(struct LuaScript const* script, char const* offer_id)
-{
-    if( !offer_id ) return -1;
-    for( int i = 0; i < script->frame_count; i++ )
-        if( strcmp(script->frames[i].id, offer_id) == 0 ) return i;
-    return -1;
-}
-
-static void
-lua_push_frame_build_context(lua_State* L, struct ToriRS_FrameBuildContext const* context)
-{
-    lua_createtable(L, 0, 5);
-    lua_pushstring(L, context->offer_id ? context->offer_id : "");
-    lua_setfield(L, -2, "offer_id");
-    lua_pushstring(L,
-        context->canvas == TORIRS_FRAME_CANVAS_FIXED ? "fixed" : "window");
-    lua_setfield(L, -2, "canvas");
-    lua_push_rect(L, context->logical_canvas);
-    lua_setfield(L, -2, "logical_canvas");
-    if( context->available.value ) lua_pushinteger(L, context->available.value);
-    else lua_pushnil(L);
-    lua_setfield(L, -2, "available");
-    lua_createtable(L, 0, 3);
-    lua_pushinteger(L, context->lane.game); lua_setfield(L, -2, "game");
-    lua_pushinteger(L, context->lane.epoch); lua_setfield(L, -2, "epoch");
-    lua_pushinteger(L, context->lane.revision); lua_setfield(L, -2, "revision");
-    lua_setfield(L, -2, "lane");
-}
-
-static enum ToriRS_FrameBuildResult
-lua_frame_build_result(lua_State* L, int index)
-{
-    char const* name;
-    if( lua_isinteger(L, index) )
-    {
-        int result = (int)lua_tointeger(L, index);
-        if( result >= TORIRS_FRAME_READY && result <= TORIRS_FRAME_ERROR )
-            return (enum ToriRS_FrameBuildResult)result;
-        return TORIRS_FRAME_ERROR;
-    }
-    name = lua_tostring(L, index);
-    if( name && strcmp(name, "ready") == 0 ) return TORIRS_FRAME_READY;
-    if( name && strcmp(name, "pending") == 0 ) return TORIRS_FRAME_PENDING;
-    if( name && strcmp(name, "unsupported") == 0 ) return TORIRS_FRAME_UNSUPPORTED;
-    return TORIRS_FRAME_ERROR;
-}
-
-static enum ToriRS_FrameBuildResult
-lua_frame_offer_build(
-    struct ToriRS_Api* api,
-    void* state,
-    struct ToriRS_FrameBuilder* frame,
-    struct ToriRS_FrameBuildContext const* context)
-{
-    struct LuaScript* script = lua_script_for_api(api);
-    int offer;
-    int status;
-    enum ToriRS_FrameBuildResult result;
-    (void)state;
-    if( !script || !script->alive || script->reload_failed || !context )
-        return TORIRS_FRAME_ERROR;
-    offer = lua_frame_offer_index(script, context->offer_id);
-    if( offer < 0 || script->frame_build_ref[offer] == LUA_NOREF )
-        return TORIRS_FRAME_ERROR;
-
-    if( !lua_callback_scope_push(script, api) )
-        return TORIRS_FRAME_ERROR;
-    script->cur_frame = frame;
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->frame_build_ref[offer]);
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->api_ref);
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->frame_builder_ref);
-    lua_push_frame_build_context(script->L, context);
-    status = lua_callback_pcall(script, 3, 1);
-    if( status != LUA_OK )
-    {
-        char error[128];
-        char const* text = lua_tostring(script->L, -1);
-        snprintf(error, sizeof(error), "%s", text ? text : "error");
-        lua_pop(script->L, 1);
-        lua_script_fault(script, api, "frame.build", error);
-        return TORIRS_FRAME_ERROR;
-    }
-    result = lua_frame_build_result(script->L, -1);
-    lua_pop(script->L, 1);
-    if( lua_script_flush_disable(script, api) )
-        return TORIRS_FRAME_ERROR;
-    return result;
-}
-
-static int
-lua_selected_frame_index(struct LuaScript* script, struct ToriRS_Api* api)
-{
-    struct ToriRS_FrameSelection selection;
-    char canonical[TORIRS_PLUGIN_FRAME_ID_MAX];
-    memset(&selection, 0, sizeof(selection));
-    selection.struct_size = sizeof(selection);
-    api->frame.selection(api, &selection);
-    for( int i = 0; i < script->frame_count; i++ )
-    {
-        snprintf(canonical, sizeof(canonical), "%s/%s", script->name, script->frames[i].id);
-        if( strcmp(selection.active_id, canonical) == 0 ) return i;
-    }
-    return -1;
-}
-
-static void
-lua_frame_offer_draw(
-    struct ToriRS_Api* api,
-    void* state,
-    struct ToriRS_Graphics* draw)
-{
-    struct LuaScript* script = lua_script_for_api(api);
-    int offer;
-    int status;
-    (void)state;
-    if( !script || !script->alive || script->reload_failed ) return;
-    offer = lua_selected_frame_index(script, api);
-    if( offer < 0 || script->frame_draw_ref[offer] == LUA_NOREF ) return;
-    if( !lua_callback_scope_push(script, api) )
-        return;
-    script->cur_draw = draw;
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->frame_draw_ref[offer]);
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->api_ref);
-    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->draw_ref);
-    status = lua_callback_pcall(script, 2, 0);
-    if( status != LUA_OK )
-    {
-        char error[128];
-        char const* text = lua_tostring(script->L, -1);
-        snprintf(error, sizeof(error), "%s", text ? text : "error");
-        lua_pop(script->L, 1);
-        lua_script_fault(script, api, "frame.draw", error);
-    }
-    (void)lua_script_flush_disable(script, api);
-}
-
 /* ------------------------------------------------------- script lifecycle */
 
 static void
@@ -2385,7 +1945,6 @@ lua_script_release(struct LuaScript* script)
     script->cur_api = NULL;
     script->cur_draw = NULL;
     script->cur_panel = NULL;
-    script->cur_frame = NULL;
     script->cur_menu = NULL;
     script->callback_depth = 0;
     memset(script->callback_scopes, 0, sizeof(script->callback_scopes));
@@ -2484,107 +2043,6 @@ lua_read_config_item(struct LuaScript* script, lua_State* L, int table, int slot
     return true;
 }
 
-static int
-lua_ui_mode_from_value(lua_State* L, int index)
-{
-    char const* mode;
-    if( lua_isinteger(L, index) )
-        return lua_enum_integer(L, index, TORIRS_UI_MODIFY, TORIRS_UI_REPLACE_OR_PROVIDE,
-            "UI contribution mode");
-    mode = luaL_checkstring(L, index);
-    if( strcmp(mode, "modify") == 0 ) return TORIRS_UI_MODIFY;
-    if( strcmp(mode, "provide_if_missing") == 0 ) return TORIRS_UI_PROVIDE_IF_MISSING;
-    if( strcmp(mode, "replace_or_provide") == 0 ) return TORIRS_UI_REPLACE_OR_PROVIDE;
-    return luaL_error(L, "unknown UI contribution mode '%s'", mode);
-}
-
-static void
-lua_copy_contribution_strings(
-    struct LuaContributionStorage* strings,
-    struct ToriRS_UiContribution* contribution)
-{
-    struct ToriRS_UiNode* node = &contribution->value;
-    snprintf(strings->node, sizeof(strings->node), "%s", contribution->node);
-    contribution->node = strings->node;
-    if( node->parent )
-    {
-        snprintf(strings->parent, sizeof(strings->parent), "%s", node->parent);
-        node->parent = strings->parent;
-    }
-    if( node->label )
-    {
-        snprintf(strings->label, sizeof(strings->label), "%s", node->label);
-        node->label = strings->label;
-    }
-    if( node->action )
-    {
-        snprintf(strings->action, sizeof(strings->action), "%s", node->action);
-        node->action = strings->action;
-    }
-    for( uint32_t i = 0; i < node->action_count; i++ )
-    {
-        snprintf(strings->actions[i], sizeof(strings->actions[i]), "%s", node->actions[i]);
-        node->actions[i] = strings->actions[i];
-    }
-}
-
-static bool
-lua_read_contribution(struct LuaScript* script, lua_State* L, int table, int slot)
-{
-    struct ToriRS_UiContribution* contribution = &script->contributions[slot];
-    char const* node;
-
-    table = lua_absindex(L, table);
-    memset(contribution, 0, sizeof(*contribution));
-    contribution->struct_size = sizeof(*contribution);
-    lua_raw_getfield(L, table, "node");
-    node = lua_type(L, -1) == LUA_TSTRING ? lua_tostring(L, -1) : NULL;
-    if( !node || !node[0] )
-    {
-        lua_pop(L, 1);
-        return false;
-    }
-    if( !lua_string_fits(node, sizeof(script->contribution_strings[slot].node)) )
-    {
-        lua_pop(L, 1);
-        return false;
-    }
-    contribution->node = node;
-    lua_pop(L, 1);
-
-    lua_raw_getfield(L, table, "mode");
-    contribution->mode = lua_isnil(L, -1) ? TORIRS_UI_MODIFY : lua_ui_mode_from_value(L, -1);
-    lua_pop(L, 1);
-    lua_raw_getfield(L, table, "facets");
-    contribution->facets = lua_isnil(L, -1) ? TORIRS_UI_FACET_ALL : lua_facets_from_arg(L, -1);
-    lua_pop(L, 1);
-    if( contribution->facets == 0 )
-        return false;
-
-    lua_raw_getfield(L, table, "value");
-    if( !lua_istable(L, -1) )
-    {
-        lua_pop(L, 1);
-        return false;
-    }
-    lua_ui_node_arg(L, -1, &contribution->value);
-    lua_pop(L, 1);
-    if( !lua_string_fits(contribution->value.parent,
-            sizeof(script->contribution_strings[slot].parent)) ||
-        !lua_string_fits(contribution->value.label,
-            sizeof(script->contribution_strings[slot].label)) ||
-        !lua_string_fits(contribution->value.action,
-            sizeof(script->contribution_strings[slot].action)) )
-        return false;
-    for( uint32_t i = 0; i < contribution->value.action_count; i++ )
-        if( !lua_string_fits(contribution->value.actions[i],
-                sizeof(script->contribution_strings[slot].actions[i])) )
-            return false;
-    lua_copy_contribution_strings(
-        &script->contribution_strings[slot], contribution);
-    return true;
-}
-
 static bool
 lua_read_frame_offer(struct LuaScript* script, lua_State* L, int table, int slot)
 {
@@ -2615,28 +2073,22 @@ lua_read_frame_offer(struct LuaScript* script, lua_State* L, int table, int slot
     offer->min_width = lua_table_int(L, table, "min_width", 0);
     offer->min_height = lua_table_int(L, table, "min_height", 0);
 
+    /* An offer is served by on_gameframe; a declarative build or draw
+     * function is not an API and is refused rather than silently ignored. */
     lua_raw_getfield(L, table, "build");
-    if( !lua_isfunction(L, -1) )
+    if( !lua_isnil(L, -1) )
     {
         lua_pop(L, 1);
         return false;
     }
-    script->frame_build_ref[slot] = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 1);
     lua_raw_getfield(L, table, "draw");
-    if( lua_isfunction(L, -1) )
-        script->frame_draw_ref[slot] = luaL_ref(L, LUA_REGISTRYINDEX);
-    else if( !lua_isnil(L, -1) )
+    if( !lua_isnil(L, -1) )
     {
         lua_pop(L, 1);
         return false;
     }
-    else
-        lua_pop(L, 1);
-    offer->build = lua_frame_offer_build;
-    /* Always install the generic draw bridge so a source reload may add or
-     * remove an offer's draw function without changing the host's static
-     * callback shape. A missing Lua function is an O(1) return. */
-    offer->draw = lua_frame_offer_draw;
+    lua_pop(L, 1);
     return true;
 }
 
@@ -2671,10 +2123,6 @@ lua_definition_callbacks(struct ToriRS_PluginCallbacks* callbacks)
     callbacks->on_ui_build = lua_cb_ui_build;
     callbacks->on_ui_action = lua_cb_ui_action;
     callbacks->on_ui_draw = lua_cb_ui_draw;
-    callbacks->on_placement_changed = lua_cb_placement;
-    callbacks->on_ui_node_draw = lua_cb_ui_node_draw;
-    callbacks->on_ui_node_action = lua_cb_ui_node_action;
-    callbacks->on_canvas_action = lua_cb_canvas_action;
     callbacks->on_ui_layout = lua_cb_ui_layout;
     callbacks->on_gameframe = lua_cb_gameframe;
 }
@@ -2759,26 +2207,6 @@ lua_parse_definition(lua_State* L)
         return luaL_error(L, "frames must be an array");
     lua_pop(L, 1);
 
-    lua_raw_getfield(L, 1, "ui_contributions");
-    if( lua_istable(L, -1) )
-    {
-        int const count = (int)lua_rawlen(L, -1);
-        if( count > PLUGIN_LUA_MAX_CONTRIBUTIONS )
-            return luaL_error(L, "declares %d UI contributions; limit is %d",
-                count, PLUGIN_LUA_MAX_CONTRIBUTIONS);
-        for( int i = 0; i < count; i++ )
-        {
-            lua_rawgeti(L, -1, i + 1);
-            if( !lua_istable(L, -1) || !lua_read_contribution(script, L, -1, i) )
-                return luaL_error(L, "invalid UI contribution at %d", i + 1);
-            lua_pop(L, 1);
-            script->contribution_count++;
-        }
-    }
-    else if( !lua_isnil(L, -1) )
-        return luaL_error(L, "ui_contributions must be an array");
-    lua_pop(L, 1);
-
     for( int i = 0; i < LUA_HANDLER_COUNT; i++ )
     {
         lua_raw_getfield(L, 1, LUA_HANDLER_NAMES[i]);
@@ -2800,10 +2228,9 @@ lua_parse_definition(lua_State* L)
     script->def.title = script->title;
     script->def.version = script->version;
     /* These addresses are copied into the host once. Keep the stable empty
-     * schema/array published so a reload may add its first item/contribution. */
+     * schema published so a reload may add its first item. */
     script->def.config = &script->config_schema;
     script->def.frames = script->frame_count ? script->frames : NULL;
-    script->def.ui_contributions = script->contributions;
     script->def.event_priority = lua_table_int(L, 1, "event_priority", 0);
     script->def.draw_order = lua_table_int(L, 1, "draw_order", 0);
     lua_definition_callbacks(&script->def.callbacks);
@@ -2826,20 +2253,11 @@ lua_script_build(
     script->api_ref = LUA_NOREF;
     script->draw_ref = LUA_NOREF;
     script->panel_builder_ref = LUA_NOREF;
-    script->frame_builder_ref = LUA_NOREF;
     for( int i = 0; i < LUA_HANDLER_COUNT; i++ )
         script->handler_ref[i] = LUA_NOREF;
-    for( int i = 0; i < PLUGIN_LUA_MAX_FRAMES; i++ )
-    {
-        script->frame_build_ref[i] = LUA_NOREF;
-        script->frame_draw_ref[i] = LUA_NOREF;
-    }
     script->config_count = 0;
-    script->contribution_count = 0;
     script->frame_count = 0;
     memset(script->config, 0, sizeof(script->config));
-    memset(script->contributions, 0, sizeof(script->contributions));
-    memset(script->contribution_strings, 0, sizeof(script->contribution_strings));
     memset(script->frames, 0, sizeof(script->frames));
     memset(script->frame_ids, 0, sizeof(script->frame_ids));
     memset(script->frame_titles, 0, sizeof(script->frame_titles));
@@ -2977,8 +2395,6 @@ lua_frame_signatures_restore(
         offer->height = saved[i].height;
         offer->min_width = saved[i].min_width;
         offer->min_height = saved[i].min_height;
-        offer->build = lua_frame_offer_build;
-        offer->draw = lua_frame_offer_draw;
     }
 }
 
@@ -3000,9 +2416,7 @@ lua_script_reload(struct ToriRS_PluginHost* host, int plugin_index, void* userda
     {
         lua_frame_signatures_restore(script, frames_before, frame_count_before);
         memset(script->config, 0, sizeof(script->config));
-        memset(script->contributions, 0, sizeof(script->contributions));
         script->config_count = 0;
-        script->contribution_count = 0;
         script->reload_failed = true;
         return;
     }
@@ -3017,7 +2431,6 @@ lua_script_reload(struct ToriRS_PluginHost* host, int plugin_index, void* userda
          * dispatch it. on_start uses disable_self after Reload clears the old
          * error, which also marks a frame provider unavailable. */
         script->reload_failed = true;
-        script->contributions[0].node = NULL;
         lua_frame_signatures_restore(script, frames_before, frame_count_before);
         return;
     }

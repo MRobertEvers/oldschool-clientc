@@ -14,7 +14,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "plugin/torirs_plugin_placement.h"
 
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
@@ -70,7 +69,7 @@
  *  authored range stops one short of them rather than letting a plugin ask for
  *  "almost gone" and get a black triangle. */
 #define TORIRS_PLUGIN_MESH_ALPHA_MAX 253
-/** Verbs one canvas hit region may offer, matching a component's op1..op5. */
+/** Verbs one entity claim may offer, matching a component's op1..op5. */
 #define TORIRS_PLUGIN_REGION_OPS_MAX 8
 
 /*

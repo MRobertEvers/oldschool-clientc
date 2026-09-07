@@ -1200,8 +1200,7 @@ struct RevConfigUILayoutItem
      * A profile that says nothing here keeps its row exactly where it authored
      * it, on a phone as on a desktop.
      *
-     * @see REVCONFIG_SAFE_AREA_SOURCE_* and ToriRS_PlacementApi::area -- the
-     * same band, offered to plugins that place their own chrome.
+     * @see REVCONFIG_SAFE_AREA_SOURCE_*.
      */
     int safe_area_source;
     int safe_area_flags;

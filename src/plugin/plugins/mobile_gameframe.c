@@ -231,7 +231,7 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 /* The activity adviser inside that block, at the resizable and mobile
  * toplevels' own spot under the run orb (torirs_gridmaster_pos). The one
  * child of the pack the TOPLEVEL positions: over the Fixed toplevel it would
- * otherwise sit right-aligned, inside the map circle. @see ToriRS_OrbsMember */
+ * otherwise sit right-aligned, inside the map circle. */
 #define MOBILE_O_ADVISER_DX 85
 #define MOBILE_O_ADVISER_DY 143
 #define MOBILE_O_ADVISER_W 34
@@ -2359,16 +2359,14 @@ mobile_member(struct MobileCall* ctx, int surface, int member, int x, int y, int
  *   frame.minimap.housing      the housing plate, applied over the compass
  *   chat-toggle / keyboard-toggle  the two switches, owned controls
  *   frame.sidebar.rail         a tap blocker over the rail plate
- *   frame.sidebar.tab.N        nothing here: the tab table carries the cell
  *   frame.chat.button.*        a 2004 plate behind a lane filter button
  */
 static void
 mobile_ui_node(
     struct MobileCall* ctx, char const* name, char const* parent, struct ToriRS_Rect bounds,
-    struct ToriRS_ImageRef image, char const* action, uint32_t extra_flags)
+    struct ToriRS_ImageRef image, char const* action)
 {
     (void)parent;
-    (void)extra_flags;
     assert(ctx);
     assert(name);
     if( strcmp(name, "frame.minimap.housing") == 0 )
@@ -2407,7 +2405,6 @@ mobile_ui_node(
             }
         return;
     }
-    /* frame.sidebar.tab.N: the cell is the tab table's; nothing to record. */
 }
 
 /*
@@ -3029,22 +3026,6 @@ mobile_layout_rail_classic(
             entry->icon = g_image[
                 (mobile_lane_oldschool(ctx) ? IMG_O_SIDEICON_0 : IMG_SIDEICON_0) + tab];
             entry->lit = g_art[ART_STONE_0 + tab];
-            {
-                char name[TORIRS_UI_NAME_MAX];
-                uint32_t const active =
-                    g_drawer_open && g_api->cache.tab_active(g_api) == tab
-                        ? TORIRS_UI_NODE_ACTIVE
-                        : 0;
-                (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tab);
-                mobile_ui_node(
-                    ctx,
-                    name,
-                    "frame.sidebar.rail",
-                    (struct ToriRS_Rect){ cell_x, cell_y, cell_w, cell_h },
-                    (struct ToriRS_ImageRef){ 0 },
-                    "activate",
-                    TORIRS_UI_NODE_BLOCKS_OVERLAY | active);
-            }
         }
     }
 }
@@ -3101,23 +3082,6 @@ mobile_layout_rail_oldschool(
             entry->tabno = tab;
             entry->icon = g_image[IMG_O_SIDEICON_0 + tab];
             entry->lit = g_image[IMG_O_STONE_LIT];
-            {
-                char name[TORIRS_UI_NAME_MAX];
-                uint32_t const active =
-                    g_drawer_open && g_api->cache.tab_active(g_api) == tab
-                        ? TORIRS_UI_NODE_ACTIVE
-                        : 0;
-                (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tab);
-                mobile_ui_node(
-                    ctx,
-                    name,
-                    "frame.sidebar.rail",
-                    (struct ToriRS_Rect){
-                        cell_x, cell_y, MOBILE_O_STONE, MOBILE_O_STONE },
-                    (struct ToriRS_ImageRef){ 0 },
-                    "activate",
-                    TORIRS_UI_NODE_BLOCKS_OVERLAY | active);
-            }
         }
     }
 }
@@ -3195,8 +3159,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         "frame.minimap",
         (struct ToriRS_Rect){ map_x, map_y, g_map_w, g_map_h },
         g_image[housing->art],
-        NULL,
-        TORIRS_UI_NODE_BLOCKS_OVERLAY);
+        NULL);
     /* Both surfaces go in the windows the RING says it has, at the boxes the
      * housing states. @see MobileHousing. */
     mobile_surface(
@@ -3349,8 +3312,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         (struct ToriRS_Rect){
             g_frame.toggle_x, g_frame.toggle_y, g_frame.toggle_w, g_frame.toggle_h },
         (struct ToriRS_ImageRef){ 0 },
-        "toggle-chat",
-        TORIRS_UI_NODE_BLOCKS_OVERLAY);
+        "toggle-chat");
     mobile_ui_node(
         ctx,
         "keyboard-toggle",
@@ -3358,8 +3320,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         (struct ToriRS_Rect){
             g_frame.keys_x, g_frame.keys_y, g_frame.toggle_w, g_frame.toggle_h },
         (struct ToriRS_ImageRef){ 0 },
-        "toggle-keyboard",
-        TORIRS_UI_NODE_BLOCKS_OVERLAY);
+        "toggle-keyboard");
 
     /*
      * The ROLE, and then its members.
@@ -3382,8 +3343,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         "frame.viewport",
         (struct ToriRS_Rect){ rail_x, rail_y, rail_w, rail_h },
         (struct ToriRS_ImageRef){ 0 },
-        NULL,
-        TORIRS_UI_NODE_BLOCKS_OVERLAY);
+        NULL);
 
     if( family == FAMILY_OLDSCHOOL )
         mobile_layout_rail_oldschool(ctx, rail_x, rail_y, panel_x, panel_y);
@@ -3481,8 +3441,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
             "frame.chat.buttons",
             bounds,
             g_art[ART_CHAT_BUTTON_0 + i],
-            NULL,
-            TORIRS_UI_NODE_BLOCKS_OVERLAY);
+            NULL);
     }
 }
 

@@ -579,9 +579,8 @@ enum AppPluginSurface
 {
     APP_PLUGIN_SURFACE_WORLD = 0,
     APP_PLUGIN_SURFACE_CANVAS = 1,
-    APP_PLUGIN_SURFACE_FRAME = 2,
     /** Selected semantic page's custom well; never enters a game draw list. */
-    APP_PLUGIN_SURFACE_PANEL = 3
+    APP_PLUGIN_SURFACE_PANEL = 2
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -1198,49 +1197,12 @@ struct App
      */
     struct UITreeEntityOverlay canvas_overlays[512];
     int canvas_overlay_count;
-    /** Canvas primitives explicitly bound to a semantic role. The raw list
-     * preserves draw order while handlers run; the grouped list gives the
-     * UITree one contiguous span per exact target incarnation. */
-    struct AppPluginRoleOverlayRaw
-    {
-        struct UITreeEntityOverlay item;
-        int32_t node_index;
-        uint64_t node_incarnation;
-        uint8_t replace;
-        uint8_t place;
-    } plugin_role_overlay_raw[512];
-    int plugin_role_overlay_raw_count;
-    struct UITreeEntityOverlay plugin_role_overlay_items[512];
-    struct UITreeRoleOverlayGroup plugin_role_overlay_groups[64];
-    int plugin_role_overlay_group_count;
     /** UITREE_HOST_BEGIN_OVERLAYS has already opened this App_RunOnce's
      * overlay batch. A retained refresh can discover a new role anchor and
      * immediately fall back to a full walk; the second BEGIN must reuse the
      * first Canvas dispatch rather than consuming plugin draw budget twice. */
     int plugin_overlay_batch_started;
     int plugin_canvas_overlay_prepared;
-    int plugin_ui_boundary_seen;
-    /** Current canvas subscriber's explicit anchor. `active && !valid` is a
-     * missing target and therefore DROPS draws instead of making them global. */
-    int plugin_ui_boundary_active;
-    int plugin_ui_boundary_valid;
-    int32_t plugin_ui_boundary_node;
-    uint64_t plugin_ui_boundary_incarnation;
-    uint8_t plugin_ui_boundary_replace;
-    uint8_t plugin_ui_boundary_place;
-    /*
-     * The plugin FRAME overlay: chrome, over the 3D scene and under the
-     * interfaces (UITREE_HOST_GET_FRAME_OVERLAYS).
-     *
-     * The third list, for the same reason there is a second: a third clip and
-     * a third place in the emit order need a third desc. It is the biggest of
-     * them because a whole gameframe is drawn through it -- a 2004 surround is
-     * a dozen stone blits, a modern one is that plus fourteen tab stones,
-     * fourteen icons and their pressed twins -- where the canvas list carries
-     * a handful of orbs.
-     */
-    struct UITreeEntityOverlay frame_overlays[512];
-    int frame_overlay_count;
     /**
      * Retained custom-page drawing, isolated from all three game lists.
      *
@@ -1273,118 +1235,20 @@ struct App
      * AppPluginSurface, which IS the host's enum PluginDrawSurface. */
     int plugin_draw_canvas;
     /*
-     * Clickable rectangles a plugin claimed while drawing its canvas overlay.
-     *
-     * Rebuilt with the overlay list, from nothing, every frame -- they
-     * describe the same pixels and would be a lie the moment the two could
-     * differ. Read one frame LATER than they are written, because the overlay
-     * is built inside the emit walk and the click paths run before it; a
-     * region that has not moved (which is every orb, most frames) answers the
-     * same either way, and one that has just moved is wrong for one frame
-     * rather than wrong until the next click.
-     */
-    struct AppPluginRegion
-    {
-        /** Which plugin declared it, so a click reaches only its owner. */
-        int plugin;
-        int x;
-        int y;
-        int w;
-        int h;
-        uint32_t tag;
-        /** enum AppPluginSurface. Declaration order is the z-order within a
-         * global surface; anchored Canvas regions use role_paint_order below. */
-        uint8_t surface;
-        uint8_t ui_bounded;
-        uint8_t ui_boundary_replace;
-        uint8_t ui_boundary_place;
-        int32_t ui_boundary_node;
-        uint64_t ui_boundary_incarnation;
-        int role_clip_x;
-        int role_clip_y;
-        int role_clip_w;
-        int role_clip_h;
-        /** Monotonic order in which the emit walk reached this exact role
-         * boundary. Unlike declaration order, this is the z-order after Canvas
-         * declarations have been relocated into their semantic subtrees. */
-        uint32_t role_paint_order;
-        /** The verbs the player reads, in declaration order; op 0 is the
-         *  left-click default. `op_count` 0 is a region that offers none and
-         *  exists only to stop a click falling through. */
-        char ops[TORIRS_PLUGIN_REGION_OPS_MAX][40];
-        int op_count;
-    } plugin_regions[64];
-    int plugin_region_count;
-    uint32_t plugin_role_paint_order;
-
-    /** A plugin hit region owns one complete physical left-button gesture.
-     * The semantic identity is retained instead of an array index because the
-     * draw list is rebuilt between press and release. */
-    struct AppPluginPointerCapture
-    {
-        int active;
-        int plugin;
-        uint32_t tag;
-        uint8_t surface;
-        uint8_t ui_bounded;
-        uint8_t ui_boundary_replace;
-        uint8_t ui_boundary_place;
-        int32_t ui_boundary_node;
-        uint64_t ui_boundary_incarnation;
-    } plugin_pointer_capture;
-
-    /** Engine-side incarnation fences for named-UI facet suppression. The
-     * host arbitrates ownership; these rows remember the exact component-array
-     * occupant while appearance and actions remain independently composable.
-     * `subtree` is used only when one complete REPLACE_OR_PROVIDE contribution
-     * owns the whole semantic object. */
-    struct AppPluginRoleFacetSuppression
-    {
-        char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
-        int32_t node_index;
-        uint64_t node_incarnation;
-        uint8_t paint;
-        uint8_t input;
-        uint8_t subtree;
-    } plugin_role_facet_suppressions[64];
-
-    /*
      * Internal engine mirror of the host's committed plugin gameframe.
      *
      * `plugin_frame_active` is derived from the host's committed selection:
      * nonzero means a validated plugin frame is active. While zero, the lane's
      * own frame remains live.
      *
-     * The slots are a declaration, not a running total: each frame build empties
-     * the table, the provider fills it, and app_plugin_layout_end applies the
-     * result and hides every role the handler did not mention. That is why
-     * `placed` is on each rectangle rather than being implied by a non-empty
-     * one -- a slot at 0,0 0x0 and a slot nobody asked for are different
-     * states, and only one of them means "hide it".
-     *
-     * The table is the tree's own type, not a copy of it, because the only
-     * thing that happens to it is being handed to UITree_FrameApply. A second
-     * shape here would be a second thing to keep in step for no reader's
-     * benefit.
+     * A provided frame's retained widget edits are its layout; the engine
+     * only takes the lane's chrome and binds the roles (UITree_FrameProvide).
      */
     int plugin_frame_active;
     /** enum ToriRS_FrameCanvas. */
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;
-    /* The PLACEABLE half only: CANVAS and SAFE are derived and are never
-     * placed, so a row for each would be two that nothing ever writes. */
-    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
-    /**
-     * Scene ids of the scrollbar art the standing declaration asked for, or
-     * all zero for the client's own painted bar.
-     *
-     * Beside the slots and emptied with them, because it is part of the same
-     * declaration: a provider states its whole frame in each build, and a
-     * scrollbar skin that survived a declaration which stopped asking for one
-     * would be the one piece of the old frame still on screen.
-     */
-    int plugin_layout_scrollbar[UITREE_SCROLLBAR_SKIN_COUNT];
     /** Canvas the last declaration was made against, so the app can tell a
      *  resize (which needs a fresh declaration) from a frame that merely
      *  rendered again. */
@@ -2637,8 +2501,8 @@ struct App
 
     /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
      *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
-     *  What api->platform_safe_rect subtracts from the canvas, and what the layout
-     *  subtracts for every row whose profile declared `safe_area=os:bottom` --
+     *  What the layout subtracts for every row whose profile declared
+     *  `safe_area=os:bottom` --
      *  the login box, on the profiles that say so. */
     int keyboard_inset;
 

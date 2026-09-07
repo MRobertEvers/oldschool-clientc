@@ -38,10 +38,6 @@ warn = nil
 ---@alias torirs.ResultName 'ok'|'not_found'|'pending'|'unsupported'|'conflict'|'budget'|'invalid'|'error'
 ---@alias torirs.AssetState 'pending'|'ready'|'missing'|'invalid'|'budget'|'error'
 ---@alias torirs.Verdict boolean|'consume'|nil
----@alias torirs.UiFacet 'bounds'|'appearance'|'actions'|'all'
----@alias torirs.Area 'platform_safe'|'frame_build'|'overlay_safe'|'raw_viewport'|integer
----@alias torirs.Anchor 'top-left'|'top'|'top-right'|'left'|'center'|'right'|'bottom-left'|'bottom'|'bottom-right'|integer
----@alias torirs.Edge 'top'|'right'|'bottom'|'left'|integer
 ---@alias torirs.PanelView 'page'|'settings'
 ---@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
@@ -49,8 +45,6 @@ warn = nil
 ---@alias torirs.ModelRef integer
 ---@alias torirs.MeshRef integer
 ---@alias torirs.SceneInstanceRef integer
----@alias torirs.UiNodeRef integer
----@alias torirs.PlacementAreaRef integer
 
 ---@class torirs.Rect
 ---@field x integer
@@ -203,12 +197,6 @@ warn = nil
 ---@field game_visible boolean
 ---@field generation integer
 
----@class torirs.CanvasActionEvent
----@field id integer
----@field operation integer
----@field x integer
----@field y integer
-
 ---@class torirs.CoreApi
 ---@field log fun(...: any)
 ---@field notify fun(text: string)
@@ -260,64 +248,6 @@ warn = nil
 ---@class torirs.MenuApi
 ---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
 
----@class torirs.UiApi
----@field ref fun(name: string): torirs.UiNodeRef?
----@field info fun(node: torirs.UiNodeRef): torirs.UiNodeInfo?
----@field invoke fun(node: torirs.UiNodeRef, action: string): boolean
----@field base_action_available fun(node: torirs.UiNodeRef, action: string): boolean True when the lane binds this semantic action beneath any plugin replacement. Since API 2.3.
----@field invoke_base fun(node: torirs.UiNodeRef, action: string): boolean Invoke the lane-owned semantic action without redispatching the plugin action provider. Since API 2.3.
----@field contribution_info fun(node: string, facets: torirs.UiFacet[]|torirs.UiFacet|integer): torirs.UiContributionInfo?
----@field update fun(node: torirs.UiNodeRef, facets: torirs.UiFacet[]|torirs.UiFacet|integer, value: torirs.UiNode): boolean, torirs.ResultName
----@field set_enabled fun(node: torirs.UiNodeRef, enabled: boolean): boolean, torirs.ResultName Activate or release this plugin's static contribution.
-
----@class torirs.UiNode
----@field bounds? torirs.Rect
----@field parent? string
----@field anchor? torirs.Anchor
----@field paint_order? integer
----@field flags? integer
----@field image? torirs.ImageRef
----@field label? string
----@field action? string
----@field clip? integer
----@field label_x? integer
----@field label_y? integer
----@field hit_rect? torirs.Rect
----@field state_images? table<string, torirs.ImageRef>
----@field actions? string[]
-
----@class torirs.UiNodeInfo
----@field bounds torirs.Rect
----@field available_facets integer
----@field visible boolean
----@field enabled boolean
----@field active boolean
----@field parent torirs.UiNodeRef?
----@field anchor integer
----@field paint_order integer
----@field clip integer
----@field label string
----@field label_x integer
----@field label_y integer
----@field hit_rect torirs.Rect
----@field actions string[]
----@field state_images torirs.ImageRef[]
-
----@class torirs.UiContributionInfo
----@field state integer
----@field active_facets integer
----@field conflict_plugin string
-
----@class torirs.PlacementApi
----@field revision fun(): integer
----@field area fun(area: torirs.Area): torirs.PlacementAreaRef?
----@field primary fun(area: torirs.PlacementAreaRef): torirs.Rect?
----@field place fun(area: torirs.Area, anchor: torirs.Anchor, width: integer, height: integer, margin?: integer): torirs.Rect?
----@field rect_next fun(area: torirs.PlacementAreaRef, cursor?: integer): integer?, torirs.Rect?
----@field contains fun(area: torirs.PlacementAreaRef, rect: torirs.Rect): boolean
----@field reserve fun(name: string, area: torirs.Area, edge: torirs.Edge, pixels: integer): boolean, string
----@field reservation_rect fun(name: string): torirs.Rect?
-
 ---@class torirs.FrameApi
 ---@field offer_next fun(cursor?: integer): integer?, torirs.FrameOfferInfo?
 ---@field selection fun(): torirs.FrameSelection
@@ -344,23 +274,6 @@ warn = nil
 ---@field reason string
 ---@field revision integer
 
----@class torirs.FrameBuildContext
----@field offer_id string Local offer id.
----@field canvas 'fixed'|'window'
----@field logical_canvas torirs.Rect
----@field available torirs.PlacementAreaRef?
----@field lane torirs.Lane
-
----@class torirs.FrameBuilder
----@field surface fun(surface: torirs.Surface, rect: torirs.Rect)
----@field surface_member fun(surface: torirs.Surface, member: integer, rect: torirs.Rect)
----@field surface_anchored fun(surface:torirs.Surface,rect:torirs.Rect,relation:"native"|"over"|"behind"|"replace",anchor:torirs.Surface)
----@field skin fun(surface: torirs.Surface, skin: table)
----@field ui_node fun(name: string, node: torirs.UiNode)
----@field scrollbar fun(skin: table)
----@field reason fun(text: string)
----@field surface_overlay fun(surface: torirs.Surface, overlay: table)
-
 ---@class torirs.FrameOffer
 ---@field id string Local stable id; the catalogue exposes `<plugin-id>/<id>`.
 ---@field title string
@@ -369,8 +282,6 @@ warn = nil
 ---@field height? integer Required for fixed canvas.
 ---@field min_width? integer Required for window canvas.
 ---@field min_height? integer Required for window canvas.
----@field build fun(api: torirs.Api, frame: torirs.FrameBuilder, context: torirs.FrameBuildContext): 'ready'|'pending'|'unsupported'|'error'
----@field draw? fun(api: torirs.Api, draw: torirs.Graphics)
 
 ---@class torirs.DrawApi
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer?
@@ -530,9 +441,7 @@ warn = nil
 ---@field image fun(image: torirs.ImageRef, x: integer, y: integer, alpha?: integer)
 ---@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer): boolean, torirs.ResultName
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
----@field action_region fun(rect: torirs.Rect, action: string): boolean, torirs.ResultName
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
----@field action_region_id fun(rect: torirs.Rect, action: string, action_id: integer): boolean, torirs.ResultName
 ---@field context fun(): torirs.DrawContext?
 
 ---@class torirs.PanelBuilder
@@ -569,12 +478,6 @@ warn = nil
 ---@class torirs.PanelDescription
 ---@field icon_asset? string
 ---@field preferred_width? integer
-
----@class torirs.UiContribution
----@field node string Canonical semantic name.
----@field mode? 'modify'|'provide_if_missing'|'replace_or_provide'
----@field facets? torirs.UiFacet[]|torirs.UiFacet|integer
----@field value torirs.UiNode
 
 ---@class torirs.ConfigItem
 ---@field key string
@@ -659,9 +562,7 @@ warn = nil
 ---@field config torirs.ConfigApi
 ---@field world torirs.WorldApi
 ---@field input torirs.InputApi
----@field ui torirs.UiApi
 ---@field menu torirs.MenuApi
----@field placement torirs.PlacementApi
 ---@field frame torirs.FrameApi
 ---@field draw torirs.DrawApi
 ---@field assets torirs.AssetsApi
@@ -678,8 +579,7 @@ warn = nil
 ---@field event_priority? integer Higher values receive ordinary events first.
 ---@field draw_order? integer Lower values draw first within a draw pass.
 ---@field config? torirs.ConfigItem[]
----@field ui_contributions? torirs.UiContribution[]
----@field frames? torirs.FrameOffer[] Static offers published before startup.
+---@field frames? torirs.FrameOffer[] Static offers published before startup; each is served by on_gameframe.
 ---@field on_start? fun(api: torirs.Api)
 ---@field on_stop? fun(api: torirs.Api)
 ---@field on_frame_start? fun(api: torirs.Api, ev: torirs.FrameEvent)
@@ -707,8 +607,4 @@ warn = nil
 ---@field on_ui_build? fun(api: torirs.Api, panel: torirs.PanelBuilder, view: torirs.PanelView)
 ---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)
 ---@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.Graphics)
----@field on_placement_changed? fun(api: torirs.Api, revision: integer)
----@field on_ui_node_draw? fun(api: torirs.Api, node: torirs.UiNodeRef, draw: torirs.Graphics)
----@field on_ui_node_action? fun(api: torirs.Api, node: torirs.UiNodeRef, action: string): torirs.Verdict
----@field on_canvas_action? fun(api: torirs.Api, ev: torirs.CanvasActionEvent): torirs.Verdict
 ---@field on_ui_layout? fun(api: torirs.Api, ev: torirs.PanelLayoutEvent)

@@ -152,12 +152,6 @@ static struct
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
  *  "a slot the frame does not have answers 0" is exercised. */
-static int
-fake_has_slot(int slot)
-{
-    (void)slot;
-    return 1;
-}
 
 static void
 fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
@@ -171,115 +165,10 @@ fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 }
 
 static void
-fake_layout_begin(void* u)
-{
-    (void)u;
-    memset(g_frame.slot, 0, sizeof(g_frame.slot));
-    memset(g_frame.member, 0, sizeof(g_frame.member));
-    memset(g_frame.skin, 0, sizeof(g_frame.skin));
-    memset(g_frame.overlay, 0, sizeof(g_frame.overlay));
-    g_frame.scrollbar_pieces = 0;
-    g_frame.begin_calls++;
-}
-
-static void
-fake_layout_end(void* u)
-{
-    (void)u;
-    g_frame.end_calls++;
-}
-static void
 fake_frame_provide(void* u)
 {
     (void)u;
     g_frame.provide_calls++;
-}
-
-static void
-fake_layout_slot_anchor(void* u, int slot, int relation, int target)
-{
-    (void)u;
-    g_frame.anchor_relation[slot] = relation;
-    g_frame.anchor_slot[slot] = target;
-}
-
-static int
-fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
-{
-    (void)u;
-    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
-    if( member >= FAKE_SLOT_MEMBERS )
-        return 0;
-    /* A lane whose sidebar is missing one panel -- rs289lc has no clan chat --
-     * answers "no such member" for it, and the layout has to cope. */
-    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
-        return 0;
-    if( member < 0 )
-    {
-        g_frame.slot[slot].placed = 1;
-        g_frame.slot[slot].x = x;
-        g_frame.slot[slot].y = y;
-        g_frame.slot[slot].w = w;
-        g_frame.slot[slot].h = h;
-    }
-    else
-    {
-        g_frame.member[slot][member].placed = 1;
-        g_frame.member[slot][member].x = x;
-        g_frame.member[slot][member].y = y;
-        g_frame.member[slot][member].w = w;
-        g_frame.member[slot][member].h = h;
-    }
-    return fake_has_slot(slot);
-}
-
-static int
-fake_layout_slot_exists(void* u, int slot, int member)
-{
-    (void)u;
-    if( member >= FAKE_SLOT_MEMBERS )
-        return 0;
-    if( slot == TORIRS_HOST_SURFACE_SIDEBAR && member >= 0 &&
-        member == g_frame.missing_tab )
-        return 0;
-    return fake_has_slot(slot);
-}
-
-/** What the last declaration skinned each role with, so a test can ask whether
- *  the resizable frame reached for its OWN map ring and not the fixed one. */
-static int
-fake_layout_slot_skin(void* u, int slot, int art, int mask)
-{
-    (void)u;
-    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
-    g_frame.skin[slot].placed = 1;
-    g_frame.skin[slot].art = art;
-    g_frame.skin[slot].mask = mask;
-    return fake_has_slot(slot);
-}
-
-static int
-fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
-{
-    (void)u;
-    assert(slot >= 0 && slot < TORIRS_HOST_SURFACE_COUNT);
-    g_frame.overlay[slot].placed = 1;
-    g_frame.overlay[slot].image = image;
-    g_frame.overlay[slot].x = x;
-    g_frame.overlay[slot].y = y;
-    g_frame.overlay[slot].trans = trans;
-    return fake_has_slot(slot);
-}
-
-/** The scrollbar skin is one call for the whole frame, so the fake only has to
- *  record that it arrived and how many pieces came with it. */
-static int
-fake_layout_scrollbar(void* u, int const* images, int count)
-{
-    (void)u;
-    (void)images;
-    g_frame.scrollbar_pieces = count;
-    return count > 0;
 }
 
 static int
@@ -319,22 +208,6 @@ fake_draw_image(
         g_frame.blit_y[g_frame.blits] = y;
     }
     g_frame.blits++;
-    return 1;
-}
-
-static int
-fake_hit_region(
-    void* u, int plugin, int x, int y, int w, int h,
-    char const* const* ops, int op_count, uint32_t tag)
-{
-    (void)u; (void)plugin; (void)w; (void)h; (void)ops; (void)op_count;
-    if( g_frame.regions < 64 )
-    {
-        g_frame.region_tag[g_frame.regions] = tag;
-        g_frame.region_x[g_frame.regions] = x;
-        g_frame.region_y[g_frame.regions] = y;
-    }
-    g_frame.regions++;
     return 1;
 }
 
@@ -580,24 +453,6 @@ static int fake_draw_text(void* u, int x, int y, char const* t, uint32_t r) { (v
 static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a) { (void)u; (void)x; (void)y; (void)w; (void)h; (void)c; (void)a; return 0; }
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
-/*
- * Answered from what the last declaration PLACED, as the real engine answers
- * from the placed node. The host's chrome pass reads these back to paint the
- * parts the arranger declared, so a fake that said "no such region" would
- * make every declared plate vanish from the blit count.
- */
-static int
-fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( a < 0 || a >= TORIRS_HOST_SURFACE_COUNT || !g_frame.slot[a].placed )
-        return 0;
-    if( x ) *x = g_frame.slot[a].x;
-    if( y ) *y = g_frame.slot[a].y;
-    if( w ) *w = g_frame.slot[a].w;
-    if( h ) *h = g_frame.slot[a].h;
-    return 1;
-}
 
 /** The lane states no size for any surface, so a caller falls back to its own.
  *  @see ToriRS_FrameApi::surface_native_size. */
@@ -611,29 +466,13 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 0;
 }
 
-static int
-fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( a < 0 || a >= TORIRS_HOST_SURFACE_COUNT || m < 0 || m >= FAKE_SLOT_MEMBERS )
-        return 0;
-    if( !g_frame.member[a][m].placed )
-        return 0;
-    if( x ) *x = g_frame.member[a][m].x;
-    if( y ) *y = g_frame.member[a][m].y;
-    if( w ) *w = g_frame.member[a][m].w;
-    if( h ) *h = g_frame.member[a][m].h;
-    return 1;
-}
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
 /** Whether this fake lane has a `minimap_edge` object -- the 2004 housing --
  *  for the classic layout to PROVIDE rather than blit. Off by default so the
  *  fallback (an overlay on the compass slot) is what most of the file sees. */
-static int g_fake_minimap_edge;
 /** Whether this fake lane has the OldSchool chatbox pack MOUNTED, with its
  *  backing and its 519x23 bar. Off by default: the pack is server-mounted, so
  *  every pre-login pass has to answer "not here". @see frame_chat_dress. */
-static int g_fake_chat_pieces;
 /** Where the pack's furniture is, on the fixed toplevel's (0, 338). */
 #define F_CHAT_BACK_Y 338
 #define F_CHAT_BAR_Y 480
@@ -642,58 +481,7 @@ static int g_fake_chat_pieces;
  *  apart from x=3, and a 79-wide Report right-aligned with the same margin
  *  (interfaces/chatbox.if). The frame reads these boxes to know where to cut
  *  the bar's hollows, so the fake lane has to state them. */
-static int const F_CHAT_PLATE_X[8] = { 3, 65, 127, 189, 251, 313, 375, 437 };
-static int const F_CHAT_PLATE_W[8] = { 56, 56, 56, 56, 56, 56, 56, 79 };
 
-static int
-fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h)
-{
-    int bx, by, bw, bh;
-
-    (void)u;
-    if( g_fake_minimap_edge && strcmp(r, "minimap_edge") == 0 )
-    {
-        bx = 550; by = 4; bw = 172; bh = 156;
-    }
-    else if( g_fake_chat_pieces && strcmp(r, "chat_backing") == 0 )
-    {
-        bx = 0; by = F_CHAT_BACK_Y; bw = 519; bh = 142;
-    }
-    else if( g_fake_chat_pieces && strcmp(r, "chat_bar") == 0 )
-    {
-        bx = 0; by = F_CHAT_BAR_Y; bw = 519; bh = F_CHAT_BAR_H;
-    }
-    else if( g_fake_chat_pieces && strncmp(r, "chat_plate_", 11) == 0 &&
-             r[11] >= '0' && r[11] <= '7' && r[12] == '\0' )
-    {
-        int const at = r[11] - '0';
-
-        bx = F_CHAT_PLATE_X[at];
-        by = F_CHAT_BAR_Y + 1;
-        bw = F_CHAT_PLATE_W[at];
-        bh = F_CHAT_BAR_H - 1;
-    }
-    else
-        return 0;
-    if( x ) *x = bx;
-    if( y ) *y = by;
-    if( w ) *w = bw;
-    if( h ) *h = bh;
-    return 1;
-}
-static int fake_role_visible(void* u, char const* r)
-{
-    (void)u;
-    return g_fake_chat_pieces &&
-           (strcmp(r, "chat_backing") == 0 || strcmp(r, "chat_bar") == 0 ||
-            (strncmp(r, "chat_plate_", 11) == 0 && r[11] >= '0' && r[11] <= '7' &&
-             r[12] == '\0'));
-}
-static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
-static int fake_role_suppress_facets(void* u, char const* r, int paint, int input, int subtree)
-{ (void)u; (void)r; (void)paint; (void)input; (void)subtree; return 1; }
-static int fake_ui_boundary(void* u, char const* r, int place)
-{ (void)place; (void)u; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -1153,25 +941,10 @@ main(void)
     e.draw_rect = fake_draw_rect;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
-    e.slot_rect = fake_slot_rect;
-    e.slot_member_rect = fake_slot_member_rect;
     e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
-    e.role_rect = fake_role_rect;
-    e.role_visible = fake_role_visible;
-    e.role_click = fake_role_click;
-    e.role_suppress_facets = fake_role_suppress_facets;
-    e.ui_boundary = fake_ui_boundary;
     e.frame_activate = fake_frame_activate;
-    e.layout_begin = fake_layout_begin;
-    e.layout_end = fake_layout_end;
     e.frame_provide = fake_frame_provide;
-    e.layout_slot = fake_layout_slot;
-    e.layout_slot_anchor = fake_layout_slot_anchor;
-    e.layout_slot_exists = fake_layout_slot_exists;
-    e.layout_slot_skin = fake_layout_slot_skin;
-    e.layout_slot_overlay = fake_layout_slot_overlay;
-    e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
@@ -1189,7 +962,6 @@ main(void)
     e.loot_source_next = fake_loot_source_next;
     e.loot_row_next = fake_loot_row_next;
     e.draw_image = fake_draw_image;
-    e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
@@ -1233,11 +1005,8 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    CHECK(TORIRS_PLUGIN_GAMEFRAME.callbacks.on_gameframe != NULL && TORIRS_PLUGIN_GAMEFRAME.frames[0].build == NULL,
-          "the gameframe is a provided frame: on_gameframe, no builder");
-    CHECK(TORIRS_PLUGIN_GAMEFRAME.ui_contributions == NULL && TORIRS_PLUGIN_GAMEFRAME.callbacks.on_ui_node_action == NULL &&
-          TORIRS_PLUGIN_GAMEFRAME.callbacks.on_placement_changed == NULL,
-          "no superseded execution API remains on the definition");
+    CHECK(TORIRS_PLUGIN_GAMEFRAME.callbacks.on_gameframe != NULL,
+          "the gameframe is a provided frame: on_gameframe serves every offer");
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
     CHECK(PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0, "the settings client registers");

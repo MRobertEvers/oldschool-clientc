@@ -254,21 +254,6 @@ _Static_assert(
     RS_MINIMENU_ACTION_CHAT_FILTER == REVCONFIG_MINIMENU_CHAT_FILTER,
     "the profile's CHAT_FILTER id is not this client action");
 
-/*
- * A PLUGIN CANVAS REGION's row: "Toggle Run" on an orb a plugin drew.
- *
- * One action id for every region, with the region's index carried in the
- * option's `action_index` -- the same shape RS_MINIMENU_ACTION_CLIENTOP uses,
- * and for the same reason: the dispatcher does one thing for all of them, look
- * the region up and tell its owner.
- *
- * Distinct from the plugin MENU rows (torirs_plugin_host.c's own action base),
- * which are api->menu_add's, sit in a menu the game owns, and must never take
- * the default click from what is underneath them. A region has nothing
- * underneath it -- it is a rectangle the plugin drew and claimed -- so its row
- * is default-eligible, and having two ids is how that difference is stated.
- */
-#define RS_MINIMENU_ACTION_PLUGIN_REGION (UITREE_MINIMENU_ACTION_CLIENT_BASE + 6)
 #define RS_MINIMENU_ACTION_PLUGIN_WIDGET UITREE_MINIMENU_ACTION_OWNED_WIDGET
 
 /**
@@ -288,7 +273,7 @@ static inline int
 RS_Minimenu_ActionIsDefaultable(int action)
 {
     return action < 1000 || action == RS_MINIMENU_ACTION_PLUGIN_PANEL ||
-           action == RS_MINIMENU_ACTION_PLUGIN_REGION || action == RS_MINIMENU_ACTION_PLUGIN_WIDGET;
+           action == RS_MINIMENU_ACTION_PLUGIN_WIDGET;
 }
 
 /** Pack a client op's (kind, slot) into a minimenu option's action_index, and

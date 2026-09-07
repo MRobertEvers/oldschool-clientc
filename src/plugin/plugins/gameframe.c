@@ -187,7 +187,7 @@ enum FrameLayout
  * run orb. A frame of one shape over the other toplevel has to say which, or
  * the button lands inside the map circle or on the tab stones. Copied from
  * the proc, as the block numbers are from the .if files.
- * @see ToriRS_OrbsMember
+ * @see FRAME_ORBS_MEMBER_ACTIVITY_ADVISER
  */
 #define FRAME_O_ADVISER_W 34
 #define FRAME_O_ADVISER_H 34
@@ -215,7 +215,7 @@ enum FrameLayout
  * and eight columns left of its own. The frame states the inset it wants and
  * the two become members it seats, which is what the adviser above already
  * is. Read off the two procs, as the adviser's numbers are.
- * @see ToriRS_OrbsMember, frame_place_orbs.
+ * @see frame_place_orbs.
  */
 #define FRAME_O_WORLD_MAP_W 30
 #define FRAME_O_WORLD_MAP_H 30

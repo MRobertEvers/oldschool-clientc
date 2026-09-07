@@ -2,8 +2,8 @@
 #define TORIRS_PLUGIN_API_H
 
 /* Public plugin API major 3. One existing host/runtime serves all plugins.
- * The widgets module is the live-widget migration path; obsolete frame/UI
- * builders still present below are removed as their product ports land.
+ * Live UI is authored through the widget API (torirs_plugin_contract.h) and
+ * the application panel; a gameframe is PROVIDED through on_gameframe.
  * No previous binary ABI is accepted or preserved by this aggregate. */
 
 #include "plugin/torirs_plugin_types.h"
@@ -15,13 +15,11 @@
 #define TORIRS_PLUGIN_API_MAJOR 3u
 #define TORIRS_PLUGIN_API_MINOR 0u
 
+/* Bytes of a semantic role / widget name and of a caption, terminator
+ * included. Shared by the host's watch table and the roster labels. */
 #define TORIRS_UI_NAME_MAX 128
-#define TORIRS_UI_ACTION_MAX 48
 #define TORIRS_UI_LABEL_MAX 128
-#define TORIRS_UI_NAMED_ACTIONS_MAX 8
-#define TORIRS_PLACEMENT_RESERVATION_MAX 64
 #define TORIRS_FRAME_REASON_MAX 160
-#define TORIRS_FRAME_NODES_MAX 48
 #define TORIRS_API_V2_MODULE_RESERVED_SLOTS 8
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
@@ -33,7 +31,6 @@
 struct ToriRS_Api;
 struct ToriRS_Graphics;
 struct ToriRS_DrawContext;
-struct ToriRS_FrameBuilder;
 struct ToriRS_PanelBuilder;
 struct ToriRS_ClientApi;
 struct ToriRS_GameApi;
@@ -48,20 +45,6 @@ struct ToriRS_Rect
     int y;
     int width;
     int height;
-};
-
-/* A semantic-name token. Zero is invalid; a valid token survives UI-tree and
- * frame rebuilds, while ToriRS_UiNodeInfo is only a current snapshot. */
-struct ToriRS_UiNodeRef
-{
-    uint32_t value;
-};
-
-/* A composed area token. It is normally obtained from placement.area(), or
- * supplied to a selected frame provider in ToriRS_FrameBuildContext. */
-struct ToriRS_PlacementAreaRef
-{
-    uint32_t value;
 };
 
 /* Resource references are uniformly zero-invalid, positive opaque tokens. A
@@ -86,7 +69,7 @@ struct ToriRS_SceneInstanceRef
 };
 
 /* Common operation outcomes. APIs with domain-specific state, such as frame
- * building and asynchronous assets, use their narrower enums below. */
+ * provision and asynchronous assets, use their narrower enums below. */
 enum ToriRS_Result
 {
     TORIRS_RESULT_OK = 0,
@@ -144,204 +127,7 @@ struct ToriRS_SkillSnapshot
 #define TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
 
 /* ------------------------------------------------------------------------ */
-/* Named UI                                                                 */
-/* ------------------------------------------------------------------------ */
-
-enum ToriRS_UiFacet
-{
-    TORIRS_UI_FACET_BOUNDS = 1u << 0,
-    TORIRS_UI_FACET_APPEARANCE = 1u << 1,
-    TORIRS_UI_FACET_ACTIONS = 1u << 2,
-    TORIRS_UI_FACET_ALL = (1u << 3) - 1u,
-};
-
-enum ToriRS_UiContributionMode
-{
-    TORIRS_UI_MODIFY = 0,
-    TORIRS_UI_PROVIDE_IF_MISSING,
-    TORIRS_UI_REPLACE_OR_PROVIDE,
-};
-
-enum ToriRS_UiContributionState
-{
-    TORIRS_UI_CONTRIBUTION_INACTIVE = 0,
-    TORIRS_UI_CONTRIBUTION_ACTIVE,
-    TORIRS_UI_CONTRIBUTION_TARGET_ABSENT,
-    TORIRS_UI_CONTRIBUTION_CONFLICT,
-};
-
-enum ToriRS_UiNodeFlags
-{
-    TORIRS_UI_NODE_VISIBLE = 1u << 0,
-    TORIRS_UI_NODE_ENABLED = 1u << 1,
-    TORIRS_UI_NODE_BLOCKS_FRAME = 1u << 2,
-    TORIRS_UI_NODE_BLOCKS_OVERLAY = 1u << 3,
-    /* Select ACTIVE/ACTIVE_HOVER retained art. Owned by APPEARANCE. */
-    TORIRS_UI_NODE_ACTIVE = 1u << 4,
-};
-
-enum ToriRS_UiPaintOrder
-{
-    TORIRS_UI_PAINT_BEFORE_PARENT = 0,
-    TORIRS_UI_PAINT_AFTER_PARENT,
-};
-
-/* Clipping is part of the retained tree relationship, not an executor hint.
- * PARENT uses the resolved parent's clip; BOUNDS starts a clip at this node's
- * own rectangle for its descendants. */
-enum ToriRS_UiClip
-{
-    TORIRS_UI_CLIP_NONE = 0,
-    TORIRS_UI_CLIP_PARENT,
-    TORIRS_UI_CLIP_BOUNDS,
-};
-
-/* Stable visual states shared by frame art and plugin contributions. A zero
- * state image falls back to IDLE; a zero IDLE image means no image. */
-enum ToriRS_UiVisualState
-{
-    TORIRS_UI_VISUAL_IDLE = 0,
-    TORIRS_UI_VISUAL_HOVER,
-    TORIRS_UI_VISUAL_ACTIVE,
-    TORIRS_UI_VISUAL_ACTIVE_HOVER,
-    TORIRS_UI_VISUAL_DISABLED,
-    TORIRS_UI_VISUAL_STATE_COUNT,
-};
-
-enum ToriRS_UiHitRectMode
-{
-    /* Use the resolved bounds rectangle. This is the zero/default value. */
-    TORIRS_UI_HIT_RECT_BOUNDS = 0,
-    TORIRS_UI_HIT_RECT_CUSTOM,
-};
-
-/* Retained node data used by frame builders and static contributions. Parent
- * is a semantic name, never a component id or UITree index. */
-struct ToriRS_UiNode
-{
-    uint32_t struct_size;
-    struct ToriRS_Rect bounds;
-    char const* parent;
-    int anchor;
-    int paint_order;
-    uint32_t flags;
-    struct ToriRS_ImageRef image;
-    char const* label;
-    char const* action;
-
-    /* Append-only rich facet data. The common fields above remain convenient
-     * shorthands: `image` supplies IDLE when its bit is absent below, and
-     * `action` is the one-action set when action_count is zero. */
-    int clip;
-    uint32_t state_image_mask;
-    struct ToriRS_ImageRef state_images[TORIRS_UI_VISUAL_STATE_COUNT];
-    int label_x;
-    int label_y;
-    int hit_rect_mode;
-    struct ToriRS_Rect hit_rect;
-    uint32_t action_count;
-    char const* actions[TORIRS_UI_NAMED_ACTIONS_MAX];
-    /* This descriptor is embedded in a strided contribution array. Consume
-     * these words for minor-version fields; never grow sizeof(UiNode). */
-    uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS];
-};
-
-/* The prefix accepted by V2.0. New readers must never access
- * fields at or after `clip` unless struct_size proves that they exist. */
-#define TORIRS_UI_NODE_V2_0_SIZE ((uint32_t)offsetof(struct ToriRS_UiNode, clip))
-
-/* Set struct_size to the caller's capacity before ui.info(). The host writes
- * no more than that prefix and preserves the accepted capacity so the same
- * older buffer is safe to reuse. */
-struct ToriRS_UiNodeInfo
-{
-    uint32_t struct_size;
-    struct ToriRS_Rect bounds;
-    uint32_t available_facets;
-    bool visible;
-    bool enabled;
-    bool active;
-
-    /* Pointer-free current snapshot of the same three retained facets. */
-    struct ToriRS_UiNodeRef parent;
-    int anchor;
-    int paint_order;
-    int clip;
-    struct ToriRS_ImageRef state_images[TORIRS_UI_VISUAL_STATE_COUNT];
-    char label[TORIRS_UI_LABEL_MAX];
-    int label_x;
-    int label_y;
-    struct ToriRS_Rect hit_rect;
-    uint32_t action_count;
-    char actions[TORIRS_UI_NAMED_ACTIONS_MAX][TORIRS_UI_ACTION_MAX];
-};
-
-#define TORIRS_UI_NODE_INFO_V2_0_SIZE ((uint32_t)offsetof(struct ToriRS_UiNodeInfo, parent))
-
-/* A NULL node name terminates a static contribution array. */
-struct ToriRS_UiContribution
-{
-    uint32_t struct_size;
-    char const* node;
-    int mode;
-    uint32_t facets;
-    struct ToriRS_UiNode value;
-    uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS];
-};
-
-struct ToriRS_UiContributionInfo
-{
-    uint32_t struct_size;
-    int state;
-    uint32_t active_facets;
-    char conflict_plugin[TORIRS_PLUGIN_NAME_MAX];
-};
-
-#define TORIRS_UI_CONTRIBUTION_INFO_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
-
-/* ------------------------------------------------------------------------ */
-/* Placement                                                                */
-/* ------------------------------------------------------------------------ */
-
-enum ToriRS_PlacementArea
-{
-    TORIRS_AREA_PLATFORM_SAFE = 0,
-    TORIRS_AREA_FRAME_BUILD,
-    TORIRS_AREA_OVERLAY_SAFE,
-    TORIRS_AREA_RAW_VIEWPORT,
-};
-
-enum ToriRS_Anchor
-{
-    TORIRS_ANCHOR_TOP_LEFT = 0,
-    TORIRS_ANCHOR_TOP,
-    TORIRS_ANCHOR_TOP_RIGHT,
-    TORIRS_ANCHOR_LEFT,
-    TORIRS_ANCHOR_CENTER,
-    TORIRS_ANCHOR_RIGHT,
-    TORIRS_ANCHOR_BOTTOM_LEFT,
-    TORIRS_ANCHOR_BOTTOM,
-    TORIRS_ANCHOR_BOTTOM_RIGHT,
-};
-
-enum ToriRS_Edge
-{
-    TORIRS_EDGE_TOP = 0,
-    TORIRS_EDGE_RIGHT,
-    TORIRS_EDGE_BOTTOM,
-    TORIRS_EDGE_LEFT,
-};
-
-enum ToriRS_PlacementReserveResult
-{
-    TORIRS_RESERVE_OK = 0,
-    TORIRS_RESERVE_NO_SPACE,
-    TORIRS_RESERVE_BUDGET,
-    TORIRS_RESERVE_INVALID,
-};
-
-/* ------------------------------------------------------------------------ */
-/* Frames and callback-scoped builders                                      */
+/* Frames                                                                   */
 /* ------------------------------------------------------------------------ */
 
 enum ToriRS_FrameCanvas
@@ -366,6 +152,9 @@ enum ToriRS_FrameStatus
     TORIRS_FRAME_STATUS_FALLBACK,
 };
 
+/* The live surfaces a lane lays out. The numbering is public only as the
+ * argument of ToriRS_FrameApi::surface_native_size; a provided frame moves
+ * the surfaces themselves through the widget API. */
 enum ToriRS_Surface
 {
     TORIRS_SURFACE_VIEWPORT = 0,
@@ -377,91 +166,6 @@ enum ToriRS_Surface
     TORIRS_SURFACE_COMPASS,
     TORIRS_SURFACE_ORBS,
     TORIRS_SURFACE_COUNT,
-};
-
-/*
- * Members of TORIRS_SURFACE_ORBS, for ToriRS_FrameBuilder::surface_member.
- *
- * The orb pack (OldSchool interface 160) is placed whole by the ORBS surface
- * and lays most of its children out inside that box on its own: the four
- * orbs, the XP toggle and the store button are anchored to the block's top
- * left and follow it wherever a frame puts it, so the block's rectangle is
- * all a frame has to say about them.
- *
- * The three below are the ones the pack positions by TOPLEVEL, so a frame of
- * one shape standing over another toplevel inherits the wrong spot for them:
- *
- *   ACTIVITY_ADVISER -- `torirs_gridmaster_pos` right-aligns it beside the
- *     map on the fixed toplevel and puts it under the run orb on the
- *     resizable ones, so the wrong one lands inside the map circle or on the
- *     tab stones below the housing;
- *   WORLD_MAP / WIKI -- `orbs_worldmap_setup_1700` and `wiki_icon_update_3306`
- *     anchor both to the block's RIGHT edge and inset them by 10 and 8
- *     columns on the fixed toplevel (1129) and by nothing on the resizable
- *     ones (1130/1131), so the wrong one leaves the globe's rim and the
- *     banner hanging off the alcove they are drawn to sit in.
- *
- * The two kinds behave differently when a declaration says nothing about
- * them, because "nothing" means different things:
- *
- *   the adviser is SEATED -- a frame that does not place it does not show it,
- *     because its native spot on the other toplevel is somewhere this frame
- *     has no room for at all;
- *   the globe and the banner are CARRIED -- a frame that does not place them
- *     gets them where the pack put them, moved with the block, which is what
- *     every frame written before they were named already asks for.
- */
-enum ToriRS_OrbsMember
-{
-    TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
-    TORIRS_ORBS_MEMBER_WORLD_MAP,
-    TORIRS_ORBS_MEMBER_WIKI,
-    TORIRS_ORBS_MEMBER_COUNT,
-};
-
-struct ToriRS_FrameSkin
-{
-    uint32_t struct_size;
-    struct ToriRS_ImageRef image;
-    struct ToriRS_ImageRef mask;
-};
-
-struct ToriRS_FrameScrollbar
-{
-    uint32_t struct_size;
-    struct ToriRS_ImageRef up;
-    struct ToriRS_ImageRef down;
-    struct ToriRS_ImageRef track;
-    /* A single-piece thumb when split_thumb is false. */
-    struct ToriRS_ImageRef thumb;
-    bool split_thumb;
-    struct ToriRS_ImageRef thumb_top;
-    struct ToriRS_ImageRef thumb_middle;
-    struct ToriRS_ImageRef thumb_bottom;
-};
-
-#define TORIRS_FRAME_SCROLLBAR_V2_0_SIZE                                                  \
-    ((uint32_t)offsetof(struct ToriRS_FrameScrollbar, split_thumb))
-
-/* One retained decoration tied to a live surface. Coordinates are canvas
- * coordinates and alpha follows the rest of v2: 0 invisible, 255 opaque. */
-struct ToriRS_FrameSurfaceOverlay
-{
-    uint32_t struct_size;
-    struct ToriRS_ImageRef image;
-    int x;
-    int y;
-    int alpha;
-};
-
-struct ToriRS_FrameBuildContext
-{
-    uint32_t struct_size;
-    char const* offer_id;
-    int canvas;
-    struct ToriRS_Rect logical_canvas;
-    struct ToriRS_PlacementAreaRef available;
-    struct ToriRS_LaneInfo lane;
 };
 
 /** Callback-scoped drawing coordinates. Bounds are local to the callback;
@@ -519,10 +223,6 @@ struct ToriRS_Graphics
         uint32_t rgb,
         int alpha,
         int shape);
-    enum ToriRS_Result (*action_region)(
-        struct ToriRS_Graphics* draw,
-        struct ToriRS_Rect rect,
-        char const* action);
     /** Blit at native size while intersecting with a canvas-space clip. */
     void (*image_clip)(
         struct ToriRS_Graphics* draw,
@@ -531,96 +231,15 @@ struct ToriRS_Graphics
         int y,
         struct ToriRS_Rect clip,
         int alpha);
-    /** Dynamic action region routed to callbacks.on_canvas_action by id. */
-    enum ToriRS_Result (*action_region_id)(
-        struct ToriRS_Graphics* draw,
-        struct ToriRS_Rect rect,
-        char const* action,
-        uint32_t action_id);
     /** Current callback's local drawable bounds and clip. */
     bool (*context)(
         struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
 };
 
-enum ToriRS_FrameRelation
-{
-    TORIRS_FRAME_RELATION_NATIVE = 0,
-    TORIRS_FRAME_RELATION_OVER,
-    TORIRS_FRAME_RELATION_BEHIND,
-    TORIRS_FRAME_RELATION_REPLACE,
-};
-
-/** Order the whole surface and its attached art relative to another surface.
- * REPLACE suppresses that target's paint and input until this frame releases it.
- * The target must be declared in the same build. The required live viewport
- * may be arranged but cannot be substituted by another surface. Cycles and competing
- * replacements reject the entire candidate and preserve the current frame. */
-struct ToriRS_FrameAnchor
-{
-    enum ToriRS_FrameRelation relation;
-    int slot; /* enum ToriRS_Surface */
-};
-
-/** A presentation declaration over live native UI. Server, CS1 and CS2
- * mutations continue beneath effective geometry. Native hide/availability
- * vetoes surface paint, attached contributions and actionable regions.
- * Release exposes current native values. REPLACE inherits the target's
- * native visibility and yields to it when the replacement source is hidden.
- * Layout callbacks must not issue native navigation commands. */
-struct ToriRS_FrameBuilder
-{
-    uint32_t struct_size;
-    void* implementation;
-
-    /** Place a live surface. Non-viewport surfaces default to OVER(viewport),
-     * preserving a safe frame order even when only geometry is specified.
-     * Use surface_anchored for an explicit different relation. */
-    void (*surface)(
-        struct ToriRS_FrameBuilder* frame,
-        int surface,
-        struct ToriRS_Rect rect);
-    void (*surface_member)(
-        struct ToriRS_FrameBuilder* frame,
-        int surface,
-        int member,
-        struct ToriRS_Rect rect);
-    void (*skin)(
-        struct ToriRS_FrameBuilder* frame,
-        int surface,
-        struct ToriRS_FrameSkin const* skin);
-    void (*ui_node)(
-        struct ToriRS_FrameBuilder* frame,
-        char const* name,
-        struct ToriRS_UiNode const* node);
-    void (*scrollbar)(
-        struct ToriRS_FrameBuilder* frame,
-        struct ToriRS_FrameScrollbar const* skin);
-    void (*reason)(
-        struct ToriRS_FrameBuilder* frame,
-        char const* reason);
-    void (*surface_overlay)(
-        struct ToriRS_FrameBuilder* frame,
-        int surface,
-        struct ToriRS_FrameSurfaceOverlay const* overlay);
-    void (*surface_anchored)(
-        struct ToriRS_FrameBuilder* frame, int surface,
-        struct ToriRS_Rect rect, struct ToriRS_FrameAnchor anchor);
-};
-
-typedef enum ToriRS_FrameBuildResult (*ToriRS_FrameBuildCallback)(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_FrameBuilder* frame,
-    struct ToriRS_FrameBuildContext const* context);
-
-typedef void (*ToriRS_FrameDrawCallback)(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_Graphics* draw);
-
 /* A NULL id terminates an offer array. Only the fields for the chosen canvas
- * policy are meaningful: width/height for FIXED, min_* for WINDOW. */
+ * policy are meaningful: width/height for FIXED, min_* for WINDOW. An offer
+ * is served by the definition's on_gameframe callback. */
 struct ToriRS_FrameOffer
 {
     uint32_t struct_size;
@@ -631,15 +250,13 @@ struct ToriRS_FrameOffer
     int height;
     int min_width;
     int min_height;
-    ToriRS_FrameBuildCallback build;
-    ToriRS_FrameDrawCallback draw;
     /* FrameOffer arrays are NULL-id terminated and therefore fixed-stride. */
     uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS];
 };
 
 #define TORIRS_FRAME_OFFER_REQUIRED_SIZE                                                 \
-    ((uint32_t)(offsetof(struct ToriRS_FrameOffer, build) +                              \
-                sizeof(((struct ToriRS_FrameOffer*)0)->build)))
+    ((uint32_t)(offsetof(struct ToriRS_FrameOffer, min_height) +                         \
+                sizeof(((struct ToriRS_FrameOffer*)0)->min_height)))
 
 struct ToriRS_FrameOfferInfo
 {
@@ -917,96 +534,6 @@ struct ToriRS_MenuApi
         char const* text, uint32_t action_id);
 };
 
-struct ToriRS_UiApi
-{
-    uint32_t struct_size;
-    struct ToriRS_UiNodeRef (*ref)(
-        struct ToriRS_Api* api,
-        char const* name);
-    bool (*info)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        struct ToriRS_UiNodeInfo* out);
-    bool (*invoke)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        char const* action);
-    bool (*contribution_info)(
-        struct ToriRS_Api* api,
-        char const* node,
-        uint32_t facets,
-        struct ToriRS_UiContributionInfo* out);
-    enum ToriRS_Result (*update)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        uint32_t facets,
-        struct ToriRS_UiNode const* value);
-    enum ToriRS_Result (*set_enabled)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        bool enabled);
-    /**
-     * Since API 2.3. Query and invoke the lane-owned action beneath the
-     * composed node. These deliberately bypass a plugin's ACTIONS provider,
-     * so a replacement can delegate to the cache control it stands for
-     * without recursively invoking itself. `action` is semantic (for example
-     * `activate`, or `enable`/`disable` for a two-state control); RevConfig
-     * owns the live component and numeric operation on each lane. The binding
-     * is open vocabulary: node/action become the role
-     * `action_<node-with-dots-as-underscores>_<action>`.
-     */
-    bool (*base_action_available)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        char const* action);
-    bool (*invoke_base)(
-        struct ToriRS_Api* api,
-        struct ToriRS_UiNodeRef node,
-        char const* action);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
-};
-
-struct ToriRS_PlacementApi
-{
-    uint32_t struct_size;
-    uint32_t (*revision)(struct ToriRS_Api* api);
-    struct ToriRS_PlacementAreaRef (*area)(
-        struct ToriRS_Api* api,
-        int area);
-    bool (*primary)(
-        struct ToriRS_Api* api,
-        struct ToriRS_PlacementAreaRef area,
-        struct ToriRS_Rect* out);
-    bool (*place)(
-        struct ToriRS_Api* api,
-        int area,
-        int anchor,
-        int width,
-        int height,
-        int margin,
-        struct ToriRS_Rect* out);
-    int (*rect_next)(
-        struct ToriRS_Api* api,
-        struct ToriRS_PlacementAreaRef area,
-        int iterator,
-        struct ToriRS_Rect* out);
-    bool (*contains)(
-        struct ToriRS_Api* api,
-        struct ToriRS_PlacementAreaRef area,
-        struct ToriRS_Rect rect);
-    enum ToriRS_PlacementReserveResult (*reserve)(
-        struct ToriRS_Api* api,
-        char const* name,
-        int area,
-        int edge,
-        int pixels);
-    bool (*reservation_rect)(
-        struct ToriRS_Api* api,
-        char const* name,
-        struct ToriRS_Rect* out);
-    TORIRS_API_V2_MODULE_RESERVED;
-};
-
 struct ToriRS_FrameApi
 {
     uint32_t struct_size;
@@ -1254,8 +781,8 @@ struct ToriRS_PanelApi
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
-/* Explicit escape hatch for lane-specific plugins. Nothing in the ui, frame,
- * or placement modules exposes cache component ids or numeric cache ops. */
+/* Explicit escape hatch for lane-specific plugins. Nothing in the widget or
+ * frame modules exposes cache component ids or numeric cache ops. */
 struct ToriRS_CacheApi
 {
     uint32_t struct_size;
@@ -1410,9 +937,7 @@ struct ToriRS_Api
     struct ToriRS_ConfigApi config;
     struct ToriRS_WorldApi world;
     struct ToriRS_InputApi input;
-    struct ToriRS_UiApi ui;
     struct ToriRS_MenuApi menu;
-    struct ToriRS_PlacementApi placement;
     struct ToriRS_FrameApi frame;
     struct ToriRS_DrawApi draw;
     struct ToriRS_AssetsApi assets;
@@ -1535,35 +1060,8 @@ struct ToriRS_PluginCallbacks
         void* state,
         char const* node,
         struct ToriRS_Graphics* draw);
-    void (*on_placement_changed)(
-        struct ToriRS_Api* api,
-        void* state,
-        uint32_t revision);
-
-    /* Retained named-node callbacks. These are deliberately distinct from
-     * panel custom wells: `node` survives frame and cache rebuilds. */
-    void (*on_ui_node_draw)(
-        struct ToriRS_Api* api,
-        void* state,
-        struct ToriRS_UiNodeRef node,
-        struct ToriRS_Graphics* draw);
-    enum ToriRS_CallbackResult (*on_ui_node_action)(
-        struct ToriRS_Api* api,
-        void* state,
-        struct ToriRS_UiNodeRef node,
-        char const* action);
-
-    /** Action declared by DrawBuilder.action_region_id. */
-    enum ToriRS_CallbackResult (*on_canvas_action)(
-        struct ToriRS_Api* api,
-        void* state,
-        uint32_t action_id,
-        int operation,
-        int x,
-        int y);
-
-    /** Frame provision through the widget API; see ToriRS_GameframeEvent. An
-     *  offer without a builder is served by this callback. */
+    /** Frame provision through the widget API; see ToriRS_GameframeEvent.
+     *  Every offer in ToriRS_PluginDef.frames is served by this callback. */
     enum ToriRS_FrameBuildResult (*on_gameframe)(
         struct ToriRS_Api* api,
         void* state,
@@ -1593,7 +1091,6 @@ struct ToriRS_PluginDef
     size_t state_size;
     struct ToriRS_ConfigSchema const* config;
     struct ToriRS_FrameOffer const* frames;
-    struct ToriRS_UiContribution const* ui_contributions;
 
     /* Optional policy/ordering fields. Zero is the ordinary default. */
     uint32_t flags;
