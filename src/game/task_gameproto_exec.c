@@ -3,6 +3,8 @@
 #include "app.h"
 #include "net/rev/gameproto_parse.h"
 #include "rs_gameproto_exec.h"
+#include "plugin/torirs_plugin_host.h"
+#include "net/net.h"
 #include "task_exec_entity_info.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/world_builder/task_world_load.h"
@@ -476,6 +478,21 @@ Task_GameProtoExec_Run(
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ExecPlayerInfo(
             app, self->packet._player_info.data, self->packet._player_info.length));
+        /*
+         * The plugin server tick on a lane without an end-of-tick packet.
+         *
+         * OldSchool sends SERVER_TICK_END and the executor raises the plugin
+         * tick at that fence. The 2004 lanes send no such packet, so plugins
+         * there never saw a server tick at all -- measured: the Lua probe's
+         * on_server_tick logged nothing on rs289lc while OSRS239 logged its
+         * cycle. On those lanes PLAYER_INFO arrives exactly once per server
+         * tick and IS the boundary, so the tick is raised after its world
+         * mutation has landed. Gated on the revision's packet table, not the
+         * revision name, so a lane that does carry the fence never fires twice.
+         */
+        if( app->plugins && app->net && app->net->rev &&
+            app->net->rev->packetin_wire(PKT_NAME_SERVER_TICK_END) < 0 )
+            PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
     }
     else if( self->packet.packet_type == PKT_NAME_NPC_INFO && app->world_active )
     {
