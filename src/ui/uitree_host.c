@@ -344,8 +344,8 @@ uitree_host_minimenu_drawn(struct UITreeHost const* host)
 
 struct NativeAvailability { bool paint, input; };
 
-/* One native state interpretation feeds paint, attached contributions and
- * input. Structural containers are available even when they draw no pixels. */
+/* One native state interpretation feeds paint and input. Structural
+ * containers are available even when they draw no pixels. */
 static struct NativeAvailability
 component_native_availability(struct UITreeComponent const* component, struct UITreeHost const* host)
 {

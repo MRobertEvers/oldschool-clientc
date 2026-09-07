@@ -2582,23 +2582,14 @@ emit_walk_node(
     if( !UITree_NodeNativeVisible(tree, host, idx, hovered_component_id) ) return;
 
     /*
-     * Native/script hiding outranks replacement art: an anchor is local to a
+     * Native/script hiding outranks anchored art: an anchor is local to a
      * target that is actually present in this frame, not a way to resurrect a
-     * collapsed tab or a surface the screen has no room for.
-     *
-     * A gameframe layout's suppression is the one exception, and only for a
-     * node something REPLACED. `frame_hidden` means "an arranger is drawing
-     * this decoration itself"; `replacement_hidden` means "a plugin provides
-     * this named object". When both hold, the object is provided -- by the
-     * arranger, which claimed the name rather than merely painting over the
-     * lane's art -- and everything hung off that name has to land at its
-     * tombstone. Skipping it here is what left an orb column anchored to
-     * `minimap_edge` with nowhere to paint the moment a layout owned the
-     * frame. Screen and projection hiding still win: those say the surface
-     * itself is gone, not who draws it.
+     * collapsed tab or a surface the screen has no room for. A gameframe
+     * layout's suppression (`frame_hidden`: "an arranger is drawing this
+     * decoration itself") prunes the subtree the same way, and so do screen
+     * and projection hiding, which say the surface itself is gone.
      */
-    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) ||
-        (c->frame_hidden && !c->replacement_hidden) )
+    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) || c->frame_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
@@ -2634,17 +2625,9 @@ emit_walk_node(
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
-    /* Structural collapse is decided before replacement and before drag. A
-     * replacement cannot resurrect a zero-sized clipping layer; conversely a
-     * target that became replacement-hidden during the canvas prepass must
-     * never enter the deferred-drag machinery and leak its native ghost on the
-     * second pass. */
+    /* Structural collapse is decided before drag: a zero-sized clipping
+     * layer never enters the deferred-drag machinery. */
     if( UITree_LayerCullsChildren(c, w, h) )
-    {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
-        return;
-    }
-    if( c->replacement_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
@@ -2776,7 +2759,7 @@ emit_walk_node(
         }
     }
 
-    if( !c->replacement_paint_hidden && !if1_bar && c->type == UIELEM_RS_INV )
+    if( !if1_bar && c->type == UIELEM_RS_INV )
     {
         emit_rs_inv_slots(
             host,
@@ -2793,36 +2776,36 @@ emit_walk_node(
             in_deferred,
             parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              c->type == UIELEM_BUILTIN_MINIMENU )
     {
         /* Screen-anchored popup chrome: multi-desc expansion, never scrolled
          * or dragged (same shape as the RS_INV slot expansion above). */
         emit_minimenu(host, out, c, idx, parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              c->type == UIELEM_BUILTIN_HOVERTEXT )
     {
         emit_hovertext(host, out, c, idx, parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              c->type == UIELEM_BUILTIN_CHAT_BUTTON )
     {
         /* Fixed chrome: multi-desc expansion, never scrolled or dragged. */
         emit_chat_button(host, out, c, idx, parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              c->type == UIELEM_BUILTIN_CHAT )
     {
         emit_chat(host, out, c, idx, parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              c->type == UIELEM_RS_INV_TEXT )
     {
         emit_rs_inv_text_slots(
             host, out, c, idx, x, y, scroll_off_x, scroll_off_y, parent_clip);
     }
-    else if( !c->replacement_paint_hidden && !if1_bar &&
+    else if( !if1_bar &&
              UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
         /* World/minimap/compass are screen-anchored chrome: they still emit,
@@ -2993,7 +2976,7 @@ emit_walk_node(
         }
     }
 
-    if( if1_bar && !drag_pass && !c->replacement_paint_hidden )
+    if( if1_bar && !drag_pass )
     {
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);

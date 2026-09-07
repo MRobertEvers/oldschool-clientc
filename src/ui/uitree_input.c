@@ -331,7 +331,7 @@ hit_test_interactive_recursive(
      * and the left half of Cancel -- both buttons visibly lit and dead over
      * the overlap. */
     if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
-        component->replacement_hidden || (component->projection_hidden || component->widget_hidden) )
+        (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -389,15 +389,14 @@ hit_test_interactive_recursive(
             (int)UITree_ComponentHitTestVisibleHost(component, -1, host));
 
     int32_t hit = -1;
-    if( !component->replacement_input_hidden && point_in_self &&
+    if( point_in_self &&
         !UITree_ComponentIsPassThrough(component, host) &&
         UITree_ComponentHitTestVisibleHost(component, -1, host) )
         hit = node_index;
 
     /* A no_click_through node covering the point blocks click-through to nodes
      * rendered underneath it (even if the node itself is a passthrough container). */
-    int blocks = (!component->replacement_input_hidden && point_in_self &&
-                  component->no_click_through) ? 1 : 0;
+    int blocks = (point_in_self && component->no_click_through) ? 1 : 0;
     int blocks_world = blocks;
 
     int child_scroll_x = scroll_off_x;
@@ -524,13 +523,13 @@ UITree_HitTestRecursive(
 
     /* Match emit: hidden subtrees are not interactive. */
     if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
-        component->replacement_hidden || (component->projection_hidden || component->widget_hidden) )
+        (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     int32_t hit = -1;
     /* Layers are containers only — do not claim the hit themselves. Empty overlay
      * layers otherwise steal clicks from hooked widgets underneath. */
-    if( !component->replacement_input_hidden && component->type != UIELEM_RS_LAYER &&
+    if( component->type != UIELEM_RS_LAYER &&
         UITree_PointInComponent(&component->position, px, py) )
         hit = node_index;
 
@@ -612,14 +611,8 @@ collect_nodes_recursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        (component->frame_hidden && !component->replacement_hidden) ) return;
+        component->frame_hidden ) return;
     if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
-    if( component->replacement_hidden )
-    {
-        if( ctx->events && ctx->count < ctx->max )
-            ctx->events[ctx->count++] = (struct FrameInputEvent){ .node_plus_one = node_index + 1 };
-        return;
-    }
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before the no_click_through barrier below. Otherwise an inactive
@@ -650,7 +643,7 @@ collect_nodes_recursive(
 
     /* A blocking panel discards everything rendered under it — including
      * entries already collected — but keeps itself and its subtree. */
-    if( !ctx->events && !component->replacement_input_hidden && point_in_self &&
+    if( !ctx->events && point_in_self &&
         component->no_click_through && ctx->count > ctx->barrier )
         ctx->barrier = ctx->count;
 
@@ -661,13 +654,13 @@ collect_nodes_recursive(
         !clipped && collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
     struct FrameInputEvent event = { .node_plus_one = node_index + 1 };
-    event.barrier = !component->replacement_input_hidden && point_in_self && component->no_click_through;
+    event.barrier = point_in_self && component->no_click_through;
     event.world = node_index == tree->world_index && point_in_self;
-    event.geometric = !component->replacement_input_hidden && point_in_self && component->type != UIELEM_RS_LAYER;
-    event.interactive = !component->replacement_input_hidden && point_in_self &&
+    event.geometric = point_in_self && component->type != UIELEM_RS_LAYER;
+    event.interactive = point_in_self &&
                         !UITree_ComponentIsPassThrough(component, host) &&
                         UITree_ComponentHitTestVisibleHost(component, -1, host);
-    if( !component->replacement_input_hidden && (point_in_self || inv_slot_hit) &&
+    if( (point_in_self || inv_slot_hit) &&
         UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
         bool const inv_grid =
@@ -927,8 +920,6 @@ input_gesture_target_display_hidden(
             return 1;
         if( UITree_NodeOrAncestorDisplayHidden(tree, state->pressed) )
             return 1;
-        if( tree->components[state->pressed].replacement_input_hidden )
-            return 1;
     }
     /* UIInputState predates an explicit initializer, so callers which only
      * initialize hovered/pressed leave this scalar at C's zero default. A
@@ -945,8 +936,7 @@ input_gesture_target_display_hidden(
             state->drag_source_incarnation ||
         tree->components[state->drag_source_idx].component_id != state->drag_source_id )
         return 1;
-    return tree->components[state->drag_source_idx].replacement_input_hidden ||
-           UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
+    return UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
 }
 
 static void

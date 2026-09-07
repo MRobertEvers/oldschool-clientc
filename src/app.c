@@ -28149,7 +28149,6 @@ app_inv_resolve_drop(
          * visible, and an explicitly frame-suppressed cell is not a target. */
         if( node < 0 || (uint32_t)node >= app->tree->component_count ||
             app->tree->components[node].freed || app->tree->components[node].frame_hidden ||
-            app->tree->components[node].replacement_hidden ||
             (app->tree->components[node].parent >= 0 &&
              UITree_NodeOrAncestorDisplayHidden(
                  app->tree, app->tree->components[node].parent)) )
@@ -28582,10 +28581,7 @@ app_minimenu_ui_pick_live(
             app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
         if( UITree_NodeOrAncestorDisplayHiddenEx(
-                app->tree,
-                pick->node_index,
-                pick->allow_replacement_hidden,
-                pick->allow_frame_hidden) )
+                app->tree, pick->node_index, pick->allow_frame_hidden) )
             return 0;
         idx = pick->node_index;
     }
@@ -28606,13 +28602,6 @@ app_minimenu_ui_pick_live(
             : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
         if( current != pick->native_events ) return 0;
     }
-    /* A winning named ACTIONS facet retires the target's native rows without
-     * pruning independent descendants. An already-open native menu therefore
-     * has to revalidate this exact node against the same facet fence used by
-     * hit collection; otherwise it can fire after the provider took over. */
-    if( app->tree->components[idx].replacement_input_hidden &&
-        !pick->allow_replacement_hidden )
-        return 0;
     if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
         app->tree->components[idx].type == UIELEM_RS_INV )
     {
@@ -28634,8 +28623,7 @@ app_minimenu_ui_pick_live(
         int obj = 0;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) ||
-            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) ||
-            app->tree->components[cell].replacement_input_hidden )
+            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
             return 0;
         if( pick->has_node_identity && pick->node_index != cell )
             return 0;
@@ -29999,8 +29987,7 @@ component_hidden_or_orphaned(
         struct UITreeComponent const* c;
         assert((uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
-        if( c->freed || c->behavior.hide || c->mount_hidden || c->frame_hidden ||
-            c->replacement_hidden )
+        if( c->freed || c->behavior.hide || c->mount_hidden || c->frame_hidden )
             return 1;
         idx = c->parent;
     }

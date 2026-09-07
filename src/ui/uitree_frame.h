@@ -67,11 +67,6 @@ int UITree_FrameHasDepth(struct UITree const* tree);
  * records. */
 int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
                        size_t stride, size_t node_offset);
-/** 1 when a presented widget REPLACE has taken `node` (or a node above it),
- *  or `node` sits inside a REPLACE source whose target is not natively visible. */
-int UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
-/** Effective eligibility for attached contributions and retained actions. */
-int UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
 
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no

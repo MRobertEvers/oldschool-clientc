@@ -2105,8 +2105,7 @@ rs_cs2_input_focused_node(struct RS_CS2Host* host, struct UITreeHost const* ui_h
     if( com_id < 0 )
         return NULL;
     idx = UITree_FindByComponentId(tree, com_id);
-    if( idx < 0 || tree->components[idx].replacement_input_hidden ||
-        UITree_NodeOrAncestorDisplayHidden(tree, idx) ||
+    if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(tree, idx) ||
         !UITree_NodeNativeInputPresent(tree, ui_host, idx) )
         return NULL;
     return &tree->components[idx];

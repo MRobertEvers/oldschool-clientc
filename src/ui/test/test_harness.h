@@ -284,6 +284,7 @@ void test_inkwell_spec_copy(void);
 void test_open_close_steady(void);
 void test_mounted_component_inherits_container_hidden(void);
 void test_clear_hooks_preserves_sibling_on_op(void);
+void test_click_hook_inherits_nearest_parent(void);
 void test_mount_slot_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
@@ -293,6 +294,5 @@ void test_entity_overlay_draw_order(void);
 void test_server_driven_viewport_widgets(void);
 void test_frame_replacement(void);
 void test_frame_authored_metadata(void);
-void test_frame_declared_depth(void);
 
 #endif

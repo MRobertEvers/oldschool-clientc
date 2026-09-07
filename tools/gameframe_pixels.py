@@ -446,7 +446,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -566,6 +566,16 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             if not absent: failures.append(f"forbidden_log:{pattern}")
         if screenshot_saved:
             check_screenshot_saved(log, failures)
+    for spec in find_all_holes or []:
+        # ROLE:COUNT:MISSING against the LAST PLUGIN_FIND_ALL line for that role:
+        # the numbering the bridge handed the frame plugin, holes included.
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        role, count, missing = spec.split(":")
+        answers = re.findall(rf"PLUGIN_FIND_ALL owner=\S+ role={re.escape(role)} count=(\d+) missing=(\S*)", log)
+        observed = answers[-1] if answers else None
+        valid = observed == (count, missing)
+        print(f"PIXEL find_all_holes={'PASS' if valid else 'FAIL'} role={role} expected={count}:{missing} observed={observed}")
+        if not valid: failures.append(f"find_all_holes:{spec}")
     if report_replaced:
         check_report_replaced(Path(bounds_path).read_text() if bounds_path else "", failures)
     if highlight_color:
@@ -747,10 +757,11 @@ if __name__ == "__main__":
     parser.add_argument("--overlay-text-absent", action="append", default=[], help="no overlay label with this exact text was drawn (repeatable)")
     parser.add_argument("--native-caption-absent", action="append", default=[], help="no painted native ground caption carries this exact text (repeatable)")
     parser.add_argument("--scene-objects", type=int, help="PLUGIN_SCENE_OBJECTS active count the engine must hold at exit")
+    parser.add_argument("--find-all-holes", action="append", default=[], help="ROLE:COUNT:MISSING the last PLUGIN_FIND_ALL line for ROLE must report (repeatable)")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

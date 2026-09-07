@@ -5382,7 +5382,7 @@ main(
                 c->component_id,
                 (int)c->type,
                 c->dynamic ? " dynamic" : "",
-                (c->behavior.hide || c->frame_hidden || c->replacement_hidden)
+                (c->behavior.hide || c->frame_hidden)
                     ? " hidden"
                     : "",
                 c->position.abs_x,

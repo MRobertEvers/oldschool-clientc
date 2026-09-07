@@ -3430,13 +3430,9 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
     pick.has_node_identity = 1;
     pick.node_index = node;
     pick.node_incarnation = app->tree->components[node].incarnation;
-    /* A semantic replacement is still allowed to delegate its native action,
-     * including to a button below the composite root it replaced. Ignore
-     * replacement tombstones on that ancestry; cache/script hiding and any
-     * rebuild during menu interception remain hard lifetime fences. */
-    pick.allow_replacement_hidden = 1;
     /*
-     * And the frame plugin's own suppression is not a fence either.
+     * The frame plugin's own suppression is not a fence. Cache/script hiding
+     * and any rebuild during menu interception remain hard lifetime fences.
      *
      * A gameframe plugin hides what it is not showing -- the mobile drawer
      * puts every sidebar panel away when it is shut -- and that flag is a
@@ -3625,21 +3621,6 @@ app_plugin_node_rect(
 }
 
 /*
- * A region's box, by role. @see slot_rect.
- *
- * Resolved through UITree_FrameSlotNode, which is the same role->node lookup
- * the layout WRITE path uses -- so a role a layout plugin can place is exactly
- * a role a readout can read, on every lane, with no second table to keep in
- * step. That is the whole point of collapsing the old anchor enum into this
- * one: before it, "the viewport" was two different lookups that happened to
- * agree.
- *
- * The lookup is a linear walk of the tree and its own header says "once per
- * declaration, never per frame". This IS per frame, so the answer is cached
- * against the tree revision below.
- */
-
-/*
  * The size the LANE gave a surface, before this frame moved it.
  * @see slot_native_size.
  *
@@ -3662,17 +3643,6 @@ app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
     return UITree_FrameSlotNativeSize(app->tree, slot, out_w, out_h);
 }
 
-/*
- * One member of a region, for engine.slot_member (the widget API's find_all).
- *
- * UITree_FrameSlotMemberNode rather than the cached per-role node above,
- * because that one holds the answer to "any member" and a caller asking for
- * the report button wants the fourth chat filter and not whichever chat button
- * the walk saw first. The walk is a linear one and this is a per-frame read,
- * so it is the one region the CALLER is expected to be sparing with -- a
- * plugin anchoring to a member reads it once per frame, not once per drawn
- * thing.
- */
 /*
  * Where a component is. @see component_rect.
  *
@@ -3780,6 +3750,56 @@ static void app_widget_actions(struct App* app,int32_t node,struct UIMinimenu* m
     UIMinimenu_SortPriorityActions(menu);
 }
 
+/*
+ * PLUGIN_FIND_ALL, for the harness: the numbering a find_all caller was
+ * handed -- count, and the members inside it whose slot holds an invalid
+ * reference. Once per answer that CHANGED for an (owner, role), so a layout
+ * pass that asks every frame reports each role once and a rebuild that
+ * grows a hole reports it again.
+ */
+static void
+app_plugin_trace_find_all(
+    struct App const* app, uint64_t owner, char const* role, size_t count, uint32_t missing)
+{
+    static struct
+    {
+        uint64_t owner;
+        char role[32];
+        size_t count;
+        uint32_t missing;
+    } seen[32];
+    static int seen_count;
+    char list[UITREE_FRAME_SLOT_NODES_MAX * 4];
+    size_t used = 0;
+    int at;
+
+    assert(app);
+    assert(role);
+    if( !getenv("TORIRS_TRACE_PLUGIN_WORLD") )
+        return;
+    for( at = 0; at < seen_count; at++ )
+        if( seen[at].owner == owner && strcmp(seen[at].role, role) == 0 )
+            break;
+    if( at < seen_count && seen[at].count == count && seen[at].missing == missing )
+        return;
+    if( at == seen_count && seen_count < (int)(sizeof(seen) / sizeof(seen[0])) )
+        seen_count++;
+    if( at < (int)(sizeof(seen) / sizeof(seen[0])) )
+    {
+        seen[at].owner = owner;
+        snprintf(seen[at].role, sizeof(seen[at].role), "%s", role);
+        seen[at].count = count;
+        seen[at].missing = missing;
+    }
+    list[0] = '\0';
+    for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
+        if( missing & (1u << member) )
+            used += (size_t)snprintf(list + used, sizeof(list) - used, "%s%d", used ? "," : "", member);
+    TORIRS_REPORT("PLUGIN_FIND_ALL owner=%s role=%s count=%zu missing=%s\n",
+        app->plugins && owner >= 1 ? PluginHost_Name(app->plugins, (int)owner - 1) : "-",
+        role, count, list);
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -3833,6 +3853,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         *r->count=0;
         if( slot>=0 && slot<TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         {
+            uint32_t missing=0;
             UITree_FrameBind(tree);
             for( int member=0; member<UITREE_FRAME_SLOT_NODES_MAX; ++member )
             {
@@ -3840,14 +3861,20 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
                 if( (size_t)member<r->capacity )
                     r->refs[member]=node<0 ? (struct ToriRS_WidgetRef){{0}} : app_widget_ref(tree,node);
                 if( node>=0 ) *r->count=(size_t)member+1;
+                else missing|=1u<<member;
             }
-            if( *r->count ) return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+            if( *r->count )
+            {
+                app_plugin_trace_find_all(app,owner,r->name,*r->count,missing&((1u<<*r->count)-1));
+                return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+            }
         }
         int32_t idx=app_plugin_role_node(app,r->name);
         if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
             idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
         if( idx<0 ) return TORIRS_CONTRACT_UNAVAILABLE;
         *r->count=1;
+        app_plugin_trace_find_all(app,owner,r->name,1,0);
         if( !r->capacity ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
         r->refs[0]=app_widget_ref(tree,idx);return TORIRS_CONTRACT_OK;
     }

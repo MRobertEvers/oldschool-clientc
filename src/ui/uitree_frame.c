@@ -1139,50 +1139,15 @@ done:
     return count;
 }
 
-/* 1 when `node` sits inside a target that a presented widget REPLACE has taken,
- * or inside a REPLACE source whose target is not natively visible. */
-static int
-frame_widget_anchor_suppressed(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
-{
-    if( UITree_WidgetAnchorCount(tree) <= 0 ) return 0;
-    for( int32_t at = node; at >= 0; at = tree->components[at].parent )
-    {
-        int32_t target;
-        if( UITree_WidgetAnchorAt(tree, at, &target) == UITREE_WIDGET_RELATION_REPLACE &&
-            !UITree_NodeNativeVisible(tree, host, target, -1) )
-            return 1;
-        for( uint32_t n = 0; n < tree->component_count; n++ )
-            if( UITree_WidgetAnchorAt(tree, (int32_t)n, &target) == UITREE_WIDGET_RELATION_REPLACE &&
-                target == at && UITree_NodeNativeVisible(tree, host, (int32_t)n, -1) &&
-                UITree_NodeNativeVisible(tree, host, at, -1) )
-                return 1;
-    }
-    return 0;
-}
-
-int
-UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
-{
-    assert(tree);
-    return frame_widget_anchor_suppressed(tree, host, node);
-}
-
-int
-UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
-{
-    assert(tree);
-    if( !UITree_NodeNativeVisible(tree, host, node, -1) ) return 0;
-    return !frame_widget_anchor_suppressed(tree, host, node);
-}
-
 int
 UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
                    size_t stride, size_t node_offset)
 {
     assert(tree);
-    assert(records || count <= 0);
     if( count <= 0 ) return count;
-    assert(stride >= sizeof(int32_t) && node_offset <= stride - sizeof(int32_t));
+    assert(records);
+    assert(stride >= sizeof(int32_t));
+    assert(node_offset <= stride - sizeof(int32_t));
     assert((size_t)count <= SIZE_MAX / stride);
     return frame_reorder_widget_anchors(tree, host, records, count, stride, node_offset);
 }

@@ -474,11 +474,11 @@ find_scrollbar_recursive(
         return false;
 
     struct UITreeComponent const* component = &tree->components[node_index];
-    /* A plugin replacement is display:none, not merely unpainted.  Prune the
-     * whole subtree exactly as emit/hit/menu do, or an invisible IF1 bar can
-     * capture the pointer before generic hit-testing gets a say. */
+    /* A hidden subtree is display:none, not merely unpainted.  Prune it
+     * exactly as emit/hit/menu do, or an invisible IF1 bar can capture the
+     * pointer before generic hit-testing gets a say. */
     if( component->behavior.hide || component->mount_hidden || component->frame_hidden ||
-        component->replacement_hidden || (component->projection_hidden || component->widget_hidden) )
+        (component->projection_hidden || component->widget_hidden) )
         return false;
     int bx = 0;
     int by = 0;
@@ -491,10 +491,8 @@ find_scrollbar_recursive(
         int const hit_bx = bx - scroll_off_x;
         int const hit_by = by - scroll_off_y;
 
-        enum UITreeScrollbarHitKind vhit = component->replacement_input_hidden
-                                               ? UITREE_SCROLLBAR_NONE
-                                               : hit_vertical_scrollbar(
-                                                     component, hit_bx, hit_by, bw, bh, px, py);
+        enum UITreeScrollbarHitKind vhit =
+            hit_vertical_scrollbar(component, hit_bx, hit_by, bw, bh, px, py);
         if( vhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = vhit;
@@ -509,10 +507,8 @@ find_scrollbar_recursive(
             return true;
         }
 
-        enum UITreeScrollbarHitKind hhit = component->replacement_input_hidden
-                                               ? UITREE_SCROLLBAR_NONE
-                                               : hit_horizontal_scrollbar(
-                                                     component, hit_bx, hit_by, bw, bh, px, py);
+        enum UITreeScrollbarHitKind hhit =
+            hit_horizontal_scrollbar(component, hit_bx, hit_by, bw, bh, px, py);
         if( hhit != UITREE_SCROLLBAR_NONE )
         {
             out->kind = hhit;

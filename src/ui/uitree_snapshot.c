@@ -255,11 +255,10 @@ snapshot_write_node(
     snapshot_write(
         writer,
         "\"visibility\":{\"own_hidden\":%s,\"frame_hidden\":%s,"
-        "\"replacement_hidden\":%s,\"effective_hidden\":%s,\"culled\":%s,"
+        "\"effective_hidden\":%s,\"culled\":%s,"
         "\"walked\":%s,\"displayable\":%s},",
         own_hidden ? "true" : "false",
         component->frame_hidden ? "true" : "false",
-        component->replacement_hidden ? "true" : "false",
         effective_hidden ? "true" : "false",
         culled ? "true" : "false",
         walked ? "true" : "false",

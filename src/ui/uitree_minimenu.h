@@ -93,10 +93,6 @@ struct UIMinimenuPick
     uint64_t action_signature;
     uint32_t native_events;
     uint8_t has_native_events;
-    /** Synthetic engine click delegated by a semantic replacement: its native
-     * source remains addressable below replacement tombstones. Cache/script
-     * hiding and other native visibility fences still invalidate it. */
-    int allow_replacement_hidden;
     /** Synthetic engine click into a subtree a gameframe PLUGIN is not
      * showing -- a sidebar panel behind a shut drawer, a stone the plugin
      * replaced. The press names a component rather than a screen position, so

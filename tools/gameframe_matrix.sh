@@ -163,6 +163,9 @@ one() {
   [[ "$BASELINE" == 1 && "${GF_MATRIX_WIDGET_DEMO:-0}" == 0 && -z "${GF_MATRIX_PLUGIN:-}" ]] && env_extra+=(TORIRS_PLUGINS=0)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && env_extra+=(TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && env_extra+=(TORIRS_WIDGET_DEMO=lua TORIRS_PLUGIN_LOG=1)
+  # The PLUGIN_FIND_ALL lines the --find-all-holes rule reads are traced under
+  # TORIRS_TRACE_PLUGIN_WORLD.
+  [[ -n "${GF_MATRIX_FIND_ALL_HOLES:-}" ]] && env_extra+=(TORIRS_TRACE_PLUGIN_WORLD=1)
   [[ "${GF_MATRIX_PERF:-0}" == 1 ]] && env_extra+=(TORIRS_PERF=1 TORIRS_PERF_CSV="$run/perf.csv" TORIRS_PERF_WINDOW=200)
   local -a client_args
   client_args=()
@@ -299,6 +302,14 @@ while IFS='|' read tag m f s; do
   if [[ -n "${GF_MATRIX_NATIVE_CAPTION_ABSENT:-}" ]]; then
     for absent_text in "${(@s:|:)GF_MATRIX_NATIVE_CAPTION_ABSENT}"; do
       widget_args+=(--native-caption-absent "$absent_text")
+    done
+  fi
+  # GF_MATRIX_FIND_ALL_HOLES: pipe-separated ROLE:COUNT:MISSING, each the
+  # numbering the bridge's last PLUGIN_FIND_ALL line for ROLE must report --
+  # count one past the highest member, MISSING the comma list of holes.
+  if [[ -n "${GF_MATRIX_FIND_ALL_HOLES:-}" ]]; then
+    for find_all_spec in "${(@s:|:)GF_MATRIX_FIND_ALL_HOLES}"; do
+      widget_args+=(--find-all-holes "$find_all_spec")
     done
   fi
   # GF_MATRIX_SCENE_OBJECTS=N: the engine holds exactly N active plugin world

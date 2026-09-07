@@ -825,17 +825,6 @@ struct UITreeComponent
      * script can argue with it.
      */
     uint8_t screen_hidden;
-    /** Suppressed by an owner-scoped semantic role replacement. Separate from
-     * frame_hidden so either owner may release without revealing a subtree
-     * the other still owns. Cache scripts never write this flag. */
-    uint8_t replacement_hidden;
-    /** Suppress only this node's native descriptors. Children and input stay
-     * live so an APPEARANCE facet can replace a plate without disabling the
-     * working control or mounted subtree it decorates. */
-    uint8_t replacement_paint_hidden;
-    /** Suppress only this node's native hit/menu/hover behavior. Paint and
-     * children stay live for an ACTIONS-only facet replacement. */
-    uint8_t replacement_input_hidden;
     /** Camera projection temporarily rejected this scripted entity-overlay
      * layer (for example, its subject crossed behind the near plane). Kept
      * separate from `behavior.hide`, which remains script-owned. */
@@ -2846,25 +2835,20 @@ UITree_NodeOrAncestorDisplayHidden(
     int32_t node_index);
 
 /**
- * The same query with each exemption stated separately.
+ * The same query with the gameframe plugin's own suppression excused.
  *
- * `ignore_replacement_hidden` drops replacement tombstones from the whole
- * ancestry walk. It exists for a semantic provider delegating to a native
- * child of the composite object it replaced; ordinary pixel input must never
- * request it.
  * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
  * fence, and exists for the one caller that is not a click on pixels: a
  * synthesised button press names a component, not a place on the screen, so a
  * panel the arranger is simply not showing right now is not a reason to
  * refuse it -- while a hide the cache or a script authored still is. Every
- * Other flags (behavior.hide, screen, projection, and an orphaned root) fence
+ * other flag (behavior.hide, screen, projection, and an orphaned root) fences
  * as before.
  */
 int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_replacement_hidden,
     int ignore_frame_hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.

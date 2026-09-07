@@ -478,13 +478,6 @@ fake_mouse_pos(
     (void)y;
     return 0;
 }
-/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
- * is how the fallback chain in slot_rect's contract gets exercised. */
-
-/* No frame under test declares MEMBERS of a role, so the honest answer is
- * "this gameframe has no such member" -- @see
- * the host's surface-member query, where that is an answer and not a
- * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
  *  @see ToriRS_FrameApi::surface_native_size. */
 static int

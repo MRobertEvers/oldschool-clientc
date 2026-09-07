@@ -380,9 +380,7 @@ static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a
 static void fake_draw_select_canvas(void* u, int c) { (void)u; g_draw_surface = c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
 
-/* The canvas every test below declares against. Above the fakes because
- * fake_slot_rect and fake_role_rect both answer boxes measured from its
- * edges. */
+/* The canvas every test below declares against. */
 #define M_W 1020
 #define M_H 460
 

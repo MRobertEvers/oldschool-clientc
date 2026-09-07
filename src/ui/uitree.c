@@ -6226,9 +6226,7 @@ uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
     int32_t idx,
     int include_plugin_hidden,
-    int32_t ignore_own_replacement,
-    int ignore_frame_hidden,
-    int ignore_replacement_hidden)
+    int ignore_frame_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -6249,25 +6247,15 @@ uitree_node_or_ancestor_hidden(
         do
         {
             group_root = idx;
-            /* On the node whose own replacement the caller stands for, the
-             * gameframe's suppression is excused along with the replacement
-             * itself: the replacement IS what the arranger provides in place
-             * of the decoration it hid. @see emit_walk_node, which paints the
-             * tombstone of such a node for the same reason.
-             *
-             * The Ex form can excuse frame and replacement hiding on the whole
-             * walk for a caller that names a COMPONENT rather than a place --
-             * a synthesised semantic press. The exact-node exception remains
-             * separate because it is used for painting at one tombstone.
+            /* The Ex form can excuse the gameframe plugin's own hiding on the
+             * whole walk for a caller that names a COMPONENT rather than a
+             * place -- a synthesised press.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
                 (include_plugin_hidden &&
-                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden &&
-                   idx != ignore_own_replacement) ||
+                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden) ||
                   tree->components[idx].screen_hidden ||
-                  tree->components[idx].projection_hidden || tree->components[idx].widget_hidden ||
-                  (tree->components[idx].replacement_hidden && !ignore_replacement_hidden &&
-                   idx != ignore_own_replacement))) )
+                  tree->components[idx].projection_hidden || tree->components[idx].widget_hidden)) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -6301,7 +6289,7 @@ UITree_ComponentOrAncestorHidden(
     /* Cache/script activity remains live beneath a plugin frame so native CS2
      * state is current the instant the effective frame layer is released. */
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 0, -1, 0, 0);
+        tree, UITree_FindByComponentId(tree, component_id), 0, 0);
 }
 
 int
@@ -6310,7 +6298,7 @@ UITree_ComponentOrAncestorDisplayHidden(
     int component_id)
 {
     return uitree_node_or_ancestor_hidden(
-        tree, UITree_FindByComponentId(tree, component_id), 1, -1, 0, 0);
+        tree, UITree_FindByComponentId(tree, component_id), 1, 0);
 }
 
 int
@@ -6321,26 +6309,19 @@ UITree_NodeOrAncestorDisplayHidden(
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0, 0);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, 0);
 }
 
 int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_replacement_hidden,
     int ignore_frame_hidden)
 {
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(
-        tree,
-        node_index,
-        1,
-        -1,
-        ignore_frame_hidden,
-        ignore_replacement_hidden);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_frame_hidden);
 }
 
 static int
@@ -6372,7 +6353,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->mount_hidden || c->frame_hidden || c->screen_hidden || c->replacement_hidden ||
+    if( c->behavior.hide || c->mount_hidden || c->frame_hidden || c->screen_hidden ||
         (c->projection_hidden || c->widget_hidden) )
         return 0;
     if( c->component_id == exclude_component_id )
@@ -6450,7 +6431,7 @@ drop_target_pick_in_subtree(
         }
     }
 
-    if( !c->replacement_input_hidden && hit && UITree_ComponentIsDropTarget(c) &&
+    if( hit && UITree_ComponentIsDropTarget(c) &&
         depth >= *best_depth )
     {
         *best_depth = depth;
@@ -6477,7 +6458,6 @@ UITree_FindDropTargetNode(
     {
         if( tree->components[root].behavior.hide || tree->components[root].mount_hidden || tree->components[root].frame_hidden ||
             tree->components[root].screen_hidden ||
-            tree->components[root].replacement_hidden ||
             (tree->components[root].projection_hidden || tree->components[root].widget_hidden) )
             continue;
         drop_target_pick_in_subtree(

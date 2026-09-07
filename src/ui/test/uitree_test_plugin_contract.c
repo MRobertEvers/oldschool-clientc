@@ -109,7 +109,6 @@ void test_plugin_contract_copy(void)
     UITree_SetScrollSizeAt(tree, source, 200, 300);
     UITree_SetScrollPosAt(tree, source, 12, 23);
     tree->components[source].frame_hidden = 1;
-    tree->components[source].replacement_paint_hidden = 1;
     int copy = UITree_CcCopy(tree, parent, 0x220000, 0, 1);
     TEST_ASSERT(copy >= 0, "copy succeeds");
     if( copy < 0 ) { UITree_Free(tree); return; }
@@ -132,7 +131,7 @@ void test_plugin_contract_copy(void)
     TEST_ASSERT(text && strcmp(text, "source parameter") == 0, "copy preserves string parameters");
     TEST_ASSERT(tree->components[copy].scroll_x == 12 && tree->components[copy].scroll_y == 23,
                 "copy preserves native scrolling");
-    TEST_ASSERT(!tree->components[copy].frame_hidden && !tree->components[copy].replacement_paint_hidden,
+    TEST_ASSERT(!tree->components[copy].frame_hidden,
                 "copy cannot acquire source presentation claims");
     UITree_ApplyText(tree, source_id, "changed");
     UITree_ApplyComponentParam(tree, source_id, 101, 0, "changed");

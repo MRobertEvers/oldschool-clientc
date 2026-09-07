@@ -20,6 +20,16 @@ static int rect_pixel(struct UITreeEmitBuffer const* buffer, int x, int y)
     return pixel;
 }
 
+/* Whether the node contributed any descriptor of its own to the walk: the
+ * public face of "presented" -- a REPLACE target drops out of the emit list
+ * entirely, not merely from the pixels its replacement covers. */
+static int emit_has_node(struct UITreeEmitBuffer const* buffer, int32_t node)
+{
+    for( int i = 0; i < buffer->count; i++ )
+        if( buffer->cmds[i].node_index == node ) return 1;
+    return 0;
+}
+
 static int32_t anchor_button(struct UITree* tree, int32_t parent, int id, int color, int x, int y, int w, int h)
 {
     int32_t node = UITree_TestPushXy(tree, parent, UIELEM_RS_RECT, id, x, y, w, h);
@@ -118,28 +128,28 @@ static void test_anchor_replace_follows_native_visibility(void)
                 "REPLACE removes the target's paint and input even where the replacement does not cover");
     TEST_ASSERT(rect_pixel(&s.buffer, 22, 22) == 0x00ff00 && UITree_HitTestInteractive(s.tree, &s.host, 22, 22) == s.b,
                 "the replacement paints and is hit in the target's place");
-    TEST_ASSERT(!UITree_FrameNodePresented(s.tree, &s.host, s.a) && UITree_FrameNodeReplaced(s.tree, &s.host, s.a),
-                "a replaced target is not presented");
-    TEST_ASSERT(UITree_FrameNodePresented(s.tree, &s.host, s.b), "the presented replacement is presented");
+    TEST_ASSERT(!emit_has_node(&s.buffer, s.a), "a replaced target emits no descriptor of its own");
+    TEST_ASSERT(emit_has_node(&s.buffer, s.b), "the replacement's descriptor is emitted in its place");
 
     /* A hidden replacement reveals the target. */
     TEST_ASSERT(UITree_WidgetSetHidden(s.tree, ref(&s, s.b), 7, true), "hide the replacement");
     scene_publish(&s);
     TEST_ASSERT(rect_pixel(&s.buffer, 12, 12) == 0xff0000 && UITree_HitTestInteractive(s.tree, &s.host, 12, 12) == s.a,
                 "a hidden replacement reveals the target");
-    TEST_ASSERT(UITree_FrameNodePresented(s.tree, &s.host, s.a), "the revealed target is presented again");
+    TEST_ASSERT(emit_has_node(&s.buffer, s.a) && !emit_has_node(&s.buffer, s.b),
+                "the revealed target emits again and the hidden replacement does not");
     TEST_ASSERT(UITree_WidgetSetHidden(s.tree, ref(&s, s.b), 7, false), "show the replacement");
 
     /* A natively hidden target drops its replacement: REPLACE inherits the veto. */
     UITree_SetHideAt(s.tree, s.a, 1);
     scene_publish(&s);
-    printf("WIDGET_ANCHOR replace target_hidden covered=%06x uncovered=%06x hit=%d presented=%d\n",
+    printf("WIDGET_ANCHOR replace target_hidden covered=%06x uncovered=%06x hit=%d emitted_b=%d\n",
            rect_pixel(&s.buffer, 30, 30), rect_pixel(&s.buffer, 22, 22),
-           UITree_HitTestInteractive(s.tree, &s.host, 30, 30), UITree_FrameNodePresented(s.tree, &s.host, s.b));
+           UITree_HitTestInteractive(s.tree, &s.host, 30, 30), emit_has_node(&s.buffer, s.b));
     TEST_ASSERT(rect_pixel(&s.buffer, 30, 30) == 0x0000ff && UITree_HitTestInteractive(s.tree, &s.host, 30, 30) == s.c &&
                 rect_pixel(&s.buffer, 22, 22) == -1 && UITree_HitTestInteractive(s.tree, &s.host, 22, 22) == -1,
                 "a natively hidden target takes its replacement down with it");
-    TEST_ASSERT(!UITree_FrameNodePresented(s.tree, &s.host, s.b), "a replacement of a hidden target is not presented");
+    TEST_ASSERT(!emit_has_node(&s.buffer, s.b), "a replacement of a hidden target emits nothing");
     scene_close(&s);
 }
 

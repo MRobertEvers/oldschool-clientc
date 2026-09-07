@@ -1216,7 +1216,7 @@ test_synthetic_press_sees_through_frame_hidden(void)
 
     TEST_ASSERT(
         !UITree_NodeOrAncestorDisplayHidden(tree, button) &&
-            !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+            !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
         "a shown button is hidden by neither query");
 
     tree->components[panel].frame_hidden = 1;
@@ -1224,27 +1224,18 @@ test_synthetic_press_sees_through_frame_hidden(void)
         UITree_NodeOrAncestorDisplayHidden(tree, button),
         "a click on pixels still refuses a frame-hidden subtree");
     TEST_ASSERT(
-        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
         "a synthesised press reaches into a frame-hidden subtree");
-
-    tree->components[panel].replacement_hidden = 1;
-    TEST_ASSERT(
-        UITree_NodeOrAncestorDisplayHidden(tree, button),
-        "ordinary input cannot reach a child of a replaced composite node");
-    TEST_ASSERT(
-        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1, 1),
-        "semantic delegation reaches the native child below its replacement tombstone");
-    tree->components[panel].replacement_hidden = 0;
 
     tree->components[panel].screen_hidden = 1;
     TEST_ASSERT(
-        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
         "screen suppression is not the frame plugin's and still fences");
     tree->components[panel].screen_hidden = 0;
 
     tree->components[panel].behavior.hide = 1;
     TEST_ASSERT(
-        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 0, 1),
+        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
         "a hide the cache or a script authored still fences the press");
 
     UITree_Free(tree);

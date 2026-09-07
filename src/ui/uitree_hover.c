@@ -114,16 +114,7 @@ find_hovered_recursive(
      * tooltips stay correct: the visible cell redirects via over_layer_id;
      * the hidden tooltip layer never needs to self-report. */
     if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        (component->frame_hidden && !component->replacement_hidden) ) return;
-    if( component->replacement_hidden )
-    {
-        if( ordered->items )
-        {
-            assert(ordered->count < ordered->capacity);
-            ordered->items[ordered->count++] = (struct FrameHoverEvent){ node_index + 1, -1, 0 };
-        }
-        return;
-    }
+        component->frame_hidden ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before this node can self-report as hovered via over_layer_id /
@@ -149,11 +140,10 @@ find_hovered_recursive(
      * ordering here: discard the previous hover, then let this node/children
      * become hovered below. */
     int candidate = -1;
-    int const reset = !component->replacement_input_hidden && mouse_in_bounds &&
+    int const reset = mouse_in_bounds &&
                       (component->no_click_through || (ordered->items && node_index == tree->world_index));
 
-    if( !component->replacement_input_hidden && mouse_in_bounds &&
-        component->component_id >= 0 )
+    if( mouse_in_bounds && component->component_id >= 0 )
     {
         /* IF1 over-layer / colourOver redirect (TS addComponentOptions). */
         if( component->behavior.over_layer_id >= 0 )
