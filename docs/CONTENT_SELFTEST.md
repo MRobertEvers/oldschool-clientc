@@ -161,3 +161,11 @@ No quest is marked validated simply because the canoe pilot passes.
 - `make -C src OPT=1 test-ssc` passes, including incremental rollback tests.
 
 These are measured pilot timings, not budgets guaranteed on other machines.
+
+## Full canoe animation coverage
+
+The follow-up [canoe animation gate](CANOE_ANIMATION_TEST.md) covers every pose
+of chopping, tree falling, carving, pushing, boarding, rowing/bobbing and
+sinking. It adds a batched `observe` command, rendered-mesh checks, forward-facing
+paddling, fade assertions, all four hulls and all eleven arrival points. Use
+`tools/canoe_animation_test.py` for that gate; `--film` produces animation GIFs.

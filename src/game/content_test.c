@@ -8,6 +8,7 @@
 #include "ui/uitree_layout.h"
 #include "painters/painters.h"
 #include "content_test_sailing.h"
+#include "plugin/torirs_plugin_host.h"
 #include "game/rs_cs2_dispatch.h"
 #include <assert.h>
 #include <stdio.h>
@@ -37,7 +38,7 @@ int ContentTest_Enabled(void)
 static uint64_t test_now = 1000, last_real, started_us;
 static int remaining, active, finishing, running, publish_pending, restore_pending;
 static int observe_requested, observe_drawn, observe_x, observe_z, observe_bit;
-static char observe_widget[512];
+static char observe_widget[512], observe_npcs[512];
 static int click_phase = -1, click_x, click_y, click_button;
 static int hover_requested;
 static char command[2048], result[16384], capture_path[1024];
@@ -171,6 +172,32 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
             player ? base_z + player->grid_position.z : -1,
             app->cam_script.scripted, player ? player->animation.primary.anim_id : -1,
             player ? player->animation.primary.frame : -1, VarCManager_GetInt(&app->varcs, 11));
+        size_t facing_end = strlen(result);
+        snprintf(result + facing_end - 1, sizeof(result) - facing_end + 1,
+            ",\"player_yaw\":%d}", player ? player->orientation.yaw : -1);
+        int cutscene_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "cutscene_status");
+        int fov_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fov_clamp");
+        int visible_orbs = 0;
+        int orb_plugin = app->plugins ? PluginHost_IndexOf(app->plugins, "minimap-orbs") : -1;
+        const char* orb_names[] = { "frame.orb.hitpoints", "frame.orb.prayer", "frame.orb.run", "frame.orb.special" };
+        for( int i = 0; orb_plugin >= 0 && i < 4; ++i )
+        {
+            struct ToriRS_UiNodeRef ref = PluginHost_UiRef(app->plugins, orb_plugin, orb_names[i]);
+            struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
+            if( PluginHost_UiInfo(app->plugins, ref, &info) && info.visible ) ++visible_orbs;
+        }
+        size_t camera_end = strlen(result);
+        snprintf(result + camera_end - 1, sizeof(result) - camera_end + 1,
+            ",\"cinematic\":{\"eye_x\":%d,\"eye_z\":%d,\"eye_height\":%d,"
+            "\"look_x\":%d,\"look_z\":%d,\"look_height\":%d,"
+            "\"render_yaw\":%d,\"render_pitch\":%d,\"render_x\":%d,\"render_y\":%d,\"render_z\":%d,"
+            "\"hide_panels\":%d,\"fov_mode\":%d,\"visible_orbs\":%d}}",
+            app->cam_script.move_lx + base_x, app->cam_script.move_lz + base_z, app->cam_script.move_height,
+            app->cam_script.look_lx + base_x, app->cam_script.look_lz + base_z, app->cam_script.look_height,
+            app->world_camera.yaw, app->world_camera.pitch, app->world_camera_pos.x + base_x * 128,
+            app->world_camera_pos.y, app->world_camera_pos.z + base_z * 128,
+            cutscene_bit >= 0 ? VarPManager_GetVarbit(&app->varps, cutscene_bit) : -1,
+            fov_bit >= 0 ? VarPManager_GetVarbit(&app->varps, fov_bit) : -1, visible_orbs);
         char rig[256];
         geometry_json(app, player ? player->element_id : -1, rig, sizeof(rig));
         size_t rig_end = strlen(result);
@@ -225,6 +252,58 @@ static void scenery_json(struct App* app, int x, int z, char* out, size_t capaci
             }
             size_t used = strlen(result);
             snprintf(result + used, sizeof(result) - used, "]}");
+    snprintf(out, capacity, "%s", result);
+}
+
+static void npc_json(struct App* app, struct ToriRSServerEmbed* embed,
+                     const char* name, char* out, size_t capacity)
+{
+    char result[16384];
+    struct ToriRSServerPlayer* server = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, name);
+    int count = 0, x = -1, z = -1, truncated = 0;
+    int server_count = 0, server_x = -1, server_z = -1;
+    struct ToriRSServer* srv = server ? ToriRSServer_EmbedWorld(embed) : NULL;
+    if( srv && id >= 0 )
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; ++i )
+            if( srv->npcs[i].active && srv->npcs[i].type == id )
+            { ++server_count; server_x = srv->npcs[i].x; server_z = srv->npcs[i].z; }
+    snprintf(result, sizeof(result), "{\"ok\":%s,\"items\":[", id >= 0 ? "true" : "false");
+    if( app->world && id >= 0 )
+    {
+        struct World_EntityPool* pool = &app->world->entities.npc;
+        for( int i = World_EntityPoolHead(pool); i >= 0; i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+            if( !npc || (npc->npc_id != id && npc->base_npc_id != id) ) continue;
+            int world_slot = server ? ToriRSServer_SlotMapWorld(server, npc->server_slot) : -1;
+            struct ToriRSServerNpc* source = srv && world_slot >= 0 &&
+                world_slot < TORIRSSERVER_NPC_MAX ? &srv->npcs[world_slot] : NULL;
+            struct ToriDraw_SceneElement* e = npc->element_id >= 0 ?
+                ToriDraw_SceneElementGet(app->scene, npc->element_id) : NULL;
+            char rig[256];
+            geometry_json(app, npc->element_id, rig, sizeof(rig));
+            size_t used = strlen(result);
+            if( sizeof(result) - used < 1024 ) { truncated = 1; break; }
+            x = npc->draw_position.x; z = npc->draw_position.z;
+            snprintf(result + used, sizeof(result) - used,
+                "%s{\"slot\":%d,\"generation\":%d,\"x\":%d,\"z\":%d,\"yaw\":%d,"
+                "\"render_x\":%d,\"render_y\":%d,\"render_z\":%d,\"render_yaw\":%d,\"size\":%d,"
+                "\"server_x\":%d,\"server_z\":%d,\"mode\":%d,\"waypoint\":%d,\"rig\":%s}",
+                count++ ? "," : "", npc->server_slot, source ? source->generation : -1,
+                x + app->world->_base_tile_x * 128, z + app->world->_base_tile_z * 128,
+                npc->orientation.yaw, e ? e->world_position.x : -1,
+                e ? e->world_position.y : -1, e ? e->world_position.z : -1,
+                e ? e->world_position.yaw : -1, npc->size,
+                source ? source->x : -1, source ? source->z : -1,
+                source ? source->mode : -1, source ? source->waypoint_index : -1, rig);
+        }
+    }
+    size_t used = strlen(result);
+    snprintf(result + used, sizeof(result) - used,
+        "],\"count\":%d,\"x\":%d,\"z\":%d,\"server_count\":%d,\"server_x\":%d,\"server_z\":%d}",
+        count, x, z, server_count, server_x, server_z);
+    if( truncated ) snprintf(result, sizeof(result), "{\"ok\":false,\"error\":\"too many NPCs for one observation\"}");
     snprintf(out, capacity, "%s", result);
 }
 
@@ -362,6 +441,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
             active = 1;
             finishing = remaining = publish_pending = 0;
             observe_requested = observe_drawn = 0;
+            observe_npcs[0] = 0;
             hover_requested=0;
             capture_path[0] = 0;
             started_us = PlatformWindow_TicksUs();
@@ -373,7 +453,7 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 running = 0;
                 remaining = frames;
             }
-            else if( sscanf(command, "observe %d %d %d %511s %511s", &frames, &observe_x, &observe_z, name, observe_widget) == 5 )
+            else if( sscanf(command, "observe %d %d %d %511s %511s %511s", &frames, &observe_x, &observe_z, name, observe_widget, observe_npcs) >= 5 )
             {
                 observe_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
                 if( frames < 0 || frames > 30000 || observe_bit < 0 ) error("invalid observation frames or varbit");
@@ -648,6 +728,30 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         snprintf(result, sizeof(result), "{\"ok\":true,\"state\":%s,\"station\":{\"client\":%d,\"server\":%d},\"scenery\":%s,\"fade\":%s}",
             state, VarPManager_GetVarbit(&app->varps, observe_bit),
             server ? ToriRSServer_VarbitGet(server, observe_bit) : -1, scenery, widget_state);
+        /* Optional comma-separated NPC types share the same rendered frame
+         * and mailbox response. No additional simulation or rendering occurs. */
+        char actors[8192] = "{";
+        int count = 0, failed = 0;
+        for( char* next = observe_npcs; *next; )
+        {
+            char* end = strchr(next, ',');
+            if( end ) *end = 0;
+            char actor[16384];
+            npc_json(app, embed, next, actor, sizeof(actor));
+            size_t used = strlen(actors);
+            if( strstr(actor, "\"ok\":false") ||
+                used + strlen(next) + strlen(actor) + 8 >= sizeof(actors) )
+            { failed = 1; break; }
+            snprintf(actors + used, sizeof(actors) - used, "%s\"%s\":%s", count++ ? "," : "", next, actor);
+            if( !end ) break;
+            next = end + 1;
+        }
+        strcat(actors, "}");
+        size_t used = strlen(result);
+        if( failed || used + strlen(actors) + 12 >= sizeof(result) )
+            error("invalid or oversized NPC observation");
+        else
+            snprintf(result + used - 1, sizeof(result) - used + 1, ",\"npcs\":%s}", actors);
         observe_requested = 0;
     }
     else if( !strcmp(command,"wev") || !strncmp(command,"wevlimit ",9) || !strncmp(command,"wevgroup ",9) )
@@ -765,30 +869,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
         }
     }
     else if( sscanf(command, "npc %511s", name) == 1 )
-    {
-        int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, name);
-        int count = 0, x = -1, z = -1;
-        if( app->world && id >= 0 )
-        {
-            struct World_EntityPool* pool = &app->world->entities.npc;
-            for( int i = World_EntityPoolHead(pool); i >= 0; i = World_EntityPoolNext(pool, i) )
-            {
-                struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-                if( npc && (npc->npc_id == id || npc->base_npc_id == id) )
-                { count++; x = npc->draw_position.x; z = npc->draw_position.z; }
-            }
-        }
-        int server_count=0, server_x=-1, server_z=-1;
-        if( server && id>=0 )
-        {
-            struct ToriRSServer* srv=ToriRSServer_EmbedWorld(embed);
-            for( int i=0; i<TORIRSSERVER_NPC_MAX; ++i )
-                if( srv->npcs[i].active && srv->npcs[i].type==id )
-                { ++server_count; server_x=srv->npcs[i].x; server_z=srv->npcs[i].z; }
-        }
-        snprintf(result, sizeof(result), "{\"ok\":%s,\"count\":%d,\"x\":%d,\"z\":%d,\"server_count\":%d,\"server_x\":%d,\"server_z\":%d}",
-            id >= 0 ? "true" : "false", count, x, z, server_count, server_x, server_z);
-    }
+        npc_json(app, embed, name, result, sizeof(result));
     else if( sscanf(command, "widget %511s %d", name, &sub) == 2 )
     {
         widget_json(app, name, sub, result, sizeof(result));

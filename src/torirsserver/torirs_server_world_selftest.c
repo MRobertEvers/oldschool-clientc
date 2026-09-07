@@ -3016,24 +3016,36 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                       0xff,                        0xff };
 
                     selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, go, 6);
-                    for( int tick = 0; tick < 30; tick++ )
+                    for( int tick = 0; tick < 45; tick++ )
                     {
                         selftest_tick(srv);
-                        if( player->x == 1817 && player->z == 4514 )
+                        if( player->x == 1817 && player->z == 4515 )
                             seat_seen = 1;
                         if( player->x == 3199 && player->z == 3344 )
                             break;
                     }
                     SELFTEST_CHECK(seat_seen,
                                    "the ride should seat the player in the m28_70 canoe at "
-                                   "1817,4514, got %d,%d",
+                                   "1817,4515, got %d,%d",
                                    player->x, player->z);
                     SELFTEST_CHECK(player->x == 3199 && player->z == 3344,
                                    "and land them at the Champions' Guild, got %d,%d",
                                    player->x, player->z);
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, state_bit) == 0,
-                                   "and the canoe should have sunk, leaving a tree, got %d",
+                                   "departure should restore the station tree, got %d",
                                    ToriRSServer_VarbitGet(player, state_bit));
+                    int sink_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "canoeing_log_sinking");
+                    int born = -1, removed = -1;
+                    for( int tick = 0; tick < 16; tick++ )
+                    {
+                        selftest_tick(srv);
+                        int slot = ToriRSServer_SceneFindLocId(3197, 3341, 0, sink_loc);
+                        if( slot >= 0 && born < 0 ) born = tick;
+                        if( slot < 0 && born >= 0 ) { removed = tick; break; }
+                    }
+                    SELFTEST_CHECK(born >= 0, "arrival should create an actual sinking canoe in the river");
+                    SELFTEST_CHECK(removed >= 0 && removed - born >= 6,
+                        "sinking canoe must survive the fade and 128 animation cycles, then despawn (born=%d removed=%d)", born, removed);
                 }
 
                 ToriRSServer_VarbitSet(srv, state_bit, 0);

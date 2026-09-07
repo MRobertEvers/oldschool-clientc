@@ -99,6 +99,9 @@ def canoes(session):
     session.call('pointer -100 -100')
     session.call('close')
     session.call('cheat god 1')
+    for stat in ['attack', 'strength', 'defence', 'hitpoints']:
+        session.call(f'cheat setlevel {stat} 99')
+    session.call('cheat canoe 2')
     session.step(780)  # expire scenery from previous runs before resetting the station
     session.call('cheat canoe 1')
     session.until(lambda s: abs(s['x']-3243) <= 6 and abs(s['z']-3237) <= 6, 'Lumbridge station')
@@ -124,12 +127,14 @@ def canoes(session):
     session.step(180)
     session.bit('canoestation_state_lumbridge', 11)
     session.call(station)
-    session.step(60)
+    session.step(120)
     assert session.call('widget canoe_map_lum:destination_2 -1')['exists'], 'travel map absent'
     images.append(session.shot('02-destinations'))
     session.call('button canoe_map_lum:destination_2 -1 1')
-    seat = session.until(lambda s: (s['x'], s['z']) == (1817, 4514) and s['camera'] == 1, 'river cutscene')
-    assert seat['animation'] == 3302, seat
+    seat = session.until(lambda s: (s['x'], s['z']) == (1817, 4515) and s['camera'] == 1, 'river cutscene')
+    session.until(lambda st: not session.call('widget fade_overlay:fader -1')['exists'], 'river fade complete')
+    seat=session.call('state')
+    assert seat['animation'] == 3302 and seat['player_yaw'] == 512, seat
     images.append(session.shot('03-river-start'))
     # NPC_INFO must produce the moving backdrop in the client's actual world.
     scenery = session.call('npc canoeing_bullrush')
@@ -141,6 +146,8 @@ def canoes(session):
     assert rowing['animation'] == 3302 and rowing['anim_frame'] != seat['anim_frame'], (seat, rowing)
     images.append(session.shot('04-river-motion'))
     arrival = session.until(lambda s: (s['x'], s['z']) == (3199, 3344), 'Champions Guild arrival')
+    session.until(lambda st: session.call('widget messagebox:continue -1')['exists'], 'arrival dialogue')
+    arrival=session.call('state')
     assert arrival['camera'] == 0 and arrival['animation'] == 65535, arrival
     assert arrival['chat_blocked'] == 0, arrival
     session.bit('canoestation_state_lumbridge', 0)
@@ -150,12 +157,15 @@ def canoes(session):
     # Cave scene has its own camera and scenery; all four boat models use the real multiloc.
     for boat in range(1, 5):
         session.call(f'cheat canoecave {boat}')
-        seat = session.until(lambda s: (s['x'], s['z']) == (1845, 4491) and s['camera'] == 1, 'cave cutscene')
+        seat = session.until(lambda s: (s['x'], s['z']) == (1845, 4492) and s['camera'] == 1, 'cave cutscene')
+        session.until(lambda st: not session.call('widget fade_overlay:fader -1')['exists'], 'cave fade complete')
+        seat=session.call('state')
         session.bit('canoe_type', boat)
-        assert seat['animation'] == 3302, seat
+        assert seat['animation'] == 3302 and seat['player_yaw'] == 512, seat
         images.append(session.shot(f'06-cave-{boat}'))
         arrival = session.until(lambda s: (s['x'], s['z']) == (3141, 3796), 'Wilderness arrival')
         assert arrival['camera'] == 0, arrival
+        session.until(lambda st: session.call('widget messagebox:continue -1')['exists'], 'cave arrival dialogue')
         session.call('resume messagebox:continue')
         session.step(780)  # expire the previous cave's scenery before another rider
     pixels = visual_checks(session)

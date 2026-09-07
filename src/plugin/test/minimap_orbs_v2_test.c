@@ -180,10 +180,17 @@ static void image_release(struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image
 static void asset_release(struct ToriRS_ApiV2* api, char const* name)
 { (void)api; (void)name; }
 
+static int cutscene_status;
+
+static int cache_varbit(struct ToriRS_ApiV2* api, int id)
+{ (void)api; return id == 542 ? cutscene_status : 0; }
+
 static bool named_id(
     struct ToriRS_ApiV2* api, char const* kind, char const* name, int* out)
 {
     (void)api;
+    if( strcmp(kind, "varbit") == 0 && strcmp(name, "cutscene_status") == 0 )
+    { *out = 542; return true; }
     if( strcmp(kind, "iface") == 0 ) return false;
     if( strcmp(kind, "varp") == 0 )
         *out = strcmp(name, "run_mode") == 0 ? 173 : 300;
@@ -277,6 +284,7 @@ int main(void)
     api.assets.release = asset_release;
     api.cache.named_id = named_id;
     api.cache.varp = cache_varp;
+    api.cache.varbit = cache_varbit;
     api.cache.invoke = cache_invoke;
     game.skill = skill;
     game.run_energy = run_energy;
@@ -324,6 +332,14 @@ int main(void)
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
         CHECK(ui_updates == settled_updates);
     }
+    /* A cutscene hides the orbs even when the minimap bounds stay live. It
+     * must restore them without requiring a layout/placement event. */
+    cutscene_status = 1;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+    for( int i = 2; i <= 5; ++i ) CHECK(!(nodes[i].flags & TORIRS_UI_NODE_VISIBLE));
+    cutscene_status = 0;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+    for( int i = 2; i <= 5; ++i ) CHECK(nodes[i].flags & TORIRS_UI_NODE_VISIBLE);
     CHECK(nodes[2].state_images[TORIRS_UI_VISUAL_IDLE].value != 0);
     CHECK(nodes[2].action_count == 1 && strcmp(nodes[2].actions[0], "Cure") == 0);
     CHECK(nodes[3].action_count == 0 && nodes[5].action_count == 0);
