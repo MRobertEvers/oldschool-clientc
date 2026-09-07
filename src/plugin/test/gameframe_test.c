@@ -1036,13 +1036,22 @@ static int anchored(struct FakeWidget const* n, char const* role, int relation)
 {
     return n && n->anchor_relation == relation && n->anchor_target == fw_find(role, -1);
 }
+/* Pieces anchored OVER the scene; the LAST of them is what the surfaces sit on. */
+static struct FakeWidget const* g_last_piece;
 static int pieces_behind_viewport(void)
 {
     int n = 0;
+    g_last_piece = NULL;
     for( int i = 0; i < g_w_count; i++ )
         if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 &&
-            anchored(&g_w[i], "viewport", TORIRS_WIDGET_RELATION_BEHIND) ) n++;
+            anchored(&g_w[i], "viewport", TORIRS_WIDGET_RELATION_OVER) ) { n++; g_last_piece = &g_w[i]; }
     return n;
+}
+static int over_chrome(char const* role)
+{
+    struct FakeWidget const* n = native(role, -1);
+    return n && g_last_piece && n->anchor_relation == TORIRS_WIDGET_RELATION_OVER &&
+           n->anchor_target == (int)(g_last_piece - g_w);
 }
 static void press(char const* key)
 {
@@ -1242,8 +1251,7 @@ main(void)
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
           "classic-fixed pins the canvas at the classic frame");
     CHECK(placed("viewport", -1, 4, 4, 512, 334), "classic viewport is the dat1 frame's 512x334 at 4,4");
-    CHECK(placed("minimap", -1, 575, 9, 146, 151) && anchored(native("minimap", -1), "viewport", TORIRS_WIDGET_RELATION_OVER),
-          "classic minimap sits in the housing's window, over the scene");
+    CHECK(placed("minimap", -1, 575, 9, 146, 151), "classic minimap sits in the housing's window");
     CHECK(placed("compass", -1, 550, 4, 33, 33), "classic compass is the housing's rose window");
     CHECK(placed("chat", -1, 17, 357, 479, 96), "classic chat is the dat1 frame's");
     CHECK(placed("sidebar", -1, 553, 205, 190, 261), "classic sidebar is the dat1 frame's");
@@ -1252,7 +1260,9 @@ main(void)
           "the four 2004 chat buttons stand at the reference's own columns");
     printf("GAMEFRAME classic pieces=%d tabs=%d icons=%d housing=%d\n", pieces_behind_viewport(), owned_count("tab."),
            owned_count("icon."), owned("housing") != NULL);
-    CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images behind the scene");
+    CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images over the scene");
+    CHECK(over_chrome("minimap") && over_chrome("chat") && over_chrome("sidebar"),
+          "the live surfaces sit on the last piece of chrome, so world, chrome, surfaces stack in that order");
     CHECK(owned_at("piece.00", 0, 0) && owned_at("piece.10", 17, 357) && owned_at("piece.13", 496, 466),
           "the surround pieces stand where the 2004 frame draws them");
     CHECK(owned_at("housing", 550, 4) && anchored(owned("housing"), "compass", TORIRS_WIDGET_RELATION_OVER),

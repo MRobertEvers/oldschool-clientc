@@ -2891,11 +2891,12 @@ frame_parent_origin(struct FrameCall* ctx, struct ToriRS_WidgetRef widget, int* 
     return true;
 }
 
-/* Move a native widget to a canvas rectangle, and keep it over the scene. */
+/* Move a native widget to a canvas rectangle, and keep it over `base`: the
+ * last piece of the frame's own chrome, or the scene when there is none. */
 static bool
 frame_place_widget(
     struct FrameCall* ctx, struct ToriRS_WidgetRef widget, struct ToriRS_Rect rect,
-    struct ToriRS_WidgetRef viewport, bool over_viewport)
+    struct ToriRS_WidgetRef base, bool over_base)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     int px;
@@ -2909,8 +2910,8 @@ frame_place_widget(
     if( ui->set_size(ui->context, widget, rect.width, rect.height) != TORIRS_CONTRACT_OK )
         return false;
     (void)ui->set_hidden(ui->context, widget, false);
-    if( over_viewport && ToriRS_WidgetRefValid(viewport) )
-        (void)ui->set_anchor(ui->context, widget, viewport, TORIRS_WIDGET_RELATION_OVER);
+    if( over_base && ToriRS_WidgetRefValid(base) )
+        (void)ui->set_anchor(ui->context, widget, base, TORIRS_WIDGET_RELATION_OVER);
     return true;
 }
 
@@ -3007,14 +3008,22 @@ frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_I
     return art;
 }
 
-/* The surround: every blit an owned image, anchored directly behind the scene
- * in the order the layout stated them. Unused children from a larger layout
- * are removed. */
-static void
+/*
+ * The surround: every blit an owned image, anchored directly OVER the scene in
+ * the order the layout stated them, and the live surfaces are then anchored
+ * over the LAST of them (@see frame_apply_surfaces). That is the stacking a
+ * frame is: world, then its chrome, then the chat, the map, the panels on the
+ * chrome. Behind the scene would do for a fixed frame, whose pieces never
+ * overlap the world, but a resizable frame's scene is the whole canvas and
+ * everything behind it is simply not seen. Unused children from a larger
+ * layout are removed. Returns the last live piece, or `viewport` when none.
+ */
+static struct ToriRS_WidgetRef
 frame_apply_pieces(struct FrameCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef viewport)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct FrameState* state = ctx->state;
+    struct ToriRS_WidgetRef last = viewport;
     char key[24];
 
     assert(ctx);
@@ -3044,9 +3053,11 @@ frame_apply_pieces(struct FrameCall* ctx, struct ToriRS_WidgetRef parent, struct
             continue;
         }
         (void)snprintf(key, sizeof(key), "piece.%02d", i);
-        if( frame_owned_image(ctx, &state->piece[i], parent, key, image, w, h, b->x, b->y, b->trans) )
-            (void)ui->set_anchor(ui->context, state->piece[i].ref, viewport, TORIRS_WIDGET_RELATION_BEHIND);
+        if( frame_owned_image(ctx, &state->piece[i], parent, key, image, w, h, b->x, b->y, b->trans) &&
+            ui->set_anchor(ui->context, state->piece[i].ref, viewport, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->piece[i].ref;
     }
+    return last;
 }
 
 /* The housing, directly over the compass -- the later of the two live
@@ -3208,7 +3219,7 @@ frame_chat_switch_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_Widg
  * its own box, or hidden when the plan left it out.
  */
 static void
-frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport)
+frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport, struct ToriRS_WidgetRef base)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct FrameState* state = ctx->state;
@@ -3228,7 +3239,7 @@ frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport)
             s != FRAME_SURFACE_CHAT_BUTTONS )
         {
             if( g_plan.surface[s].placed )
-                (void)frame_place_widget(ctx, widget, g_plan.surface[s].rect, viewport, s != FRAME_SURFACE_VIEWPORT);
+                (void)frame_place_widget(ctx, widget, g_plan.surface[s].rect, base, s != FRAME_SURFACE_VIEWPORT);
             else if( !has_members )
                 (void)ui->set_hidden(ui->context, widget, true);
         }
@@ -3243,7 +3254,7 @@ frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport)
              * the plan did not seat is hidden -- the adviser cut away, or a
              * panel this lane has and this frame does not show. */
             if( at->placed )
-                (void)frame_place_widget(ctx, members[m], at->rect, viewport, true);
+                (void)frame_place_widget(ctx, members[m], at->rect, base, true);
             else if( s == FRAME_SURFACE_ORBS )
                 (void)ui->set_hidden(ui->context, members[m], true);
         }
@@ -3402,12 +3413,20 @@ frame_apply(struct FrameCall* ctx, char* reason, size_t reason_capacity)
         (void)snprintf(reason, reason_capacity, "%s", "The gameframe is waiting for the scene.");
         return TORIRS_FRAME_PENDING;
     }
-    /* The frame's own children live beside the scene, under whatever the lane
-     * arranges its frame in -- the 2004 fixed shell, an OldSchool toplevel. */
-    if( ui->parent(ui->context, viewport, &parent) != TORIRS_CONTRACT_OK )
-        parent = viewport;
-    frame_apply_pieces(ctx, parent, viewport);
-    frame_apply_surfaces(ctx, viewport);
+    /* The frame's own children live under the ROOT the lane arranges its frame
+     * in -- the 2004 fixed shell, an OldSchool toplevel -- and not under the
+     * scene's own container: on 548 that container is the size of the scene
+     * and clips its children, so a surround placed beside the scene from
+     * inside it painted nothing at all. */
+    parent = viewport;
+    for( int depth = 0; depth < 32; depth++ )
+    {
+        struct ToriRS_WidgetRef above;
+        if( ui->parent(ui->context, parent, &above) != TORIRS_CONTRACT_OK )
+            break;
+        parent = above;
+    }
+    frame_apply_surfaces(ctx, viewport, frame_apply_pieces(ctx, parent, viewport));
     frame_apply_skins(ctx);
     frame_apply_housing(ctx, parent);
     frame_apply_tabs(ctx, parent);
