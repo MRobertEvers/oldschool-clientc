@@ -596,6 +596,7 @@ warn = nil
 ---@field create_image fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's keyed image child.
 ---@field set_image fun(self:torirs.Widget,image:integer,width:integer,height:integer):boolean,string Owned image controls only; one of this plugin's live images plus the control's size. Releasing the image blanks the control.
 ---@field set_opacity fun(self:torirs.Widget,opacity:integer):boolean,string Owned widgets only; 255 opaque, 0 invisible.
+---@field set_anchor fun(self:torirs.Widget,target:torirs.Widget?,relation:"native"|"over"|"behind"|"replace"):boolean,string Retained depth relation to another widget: drawn and hit directly over it, behind it, or in its place (replace inherits the target's native visibility both ways). "native" with a nil target clears this owner's relation; self, ancestor/descendant pairs and cycles are invalid_argument.
 ---@field set_on_op fun(self:torirs.Widget,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms one left-click/menu operation delivered through the native hit test and retained-menu checks; replacing the callback retires earlier menu rows; nil removes it.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.

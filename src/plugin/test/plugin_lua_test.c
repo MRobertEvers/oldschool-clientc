@@ -649,6 +649,33 @@ static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
           "Lua rejects an empty operation label before reaching native dispatch");
 }
 
+static int lua_anchor_sets,lua_anchor_relation;
+static struct ToriRS_WidgetRef lua_anchor_target;
+static enum ToriRS_ContractResult fake_lua_set_anchor(void* ctx,struct ToriRS_WidgetRef widget,struct ToriRS_WidgetRef target,
+    enum ToriRS_WidgetRelation relation)
+{
+    (void)ctx;++lua_anchor_sets;lua_anchor_relation=(int)relation;lua_anchor_target=target;
+    CHECK(widget.opaque[0]==7 && widget.opaque[1]==8 && widget.opaque[2]==9,"Lua forwards the anchored widget identity");
+    return TORIRS_CONTRACT_OK;
+}
+static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
+{
+    static char const source[]=
+        "local p={id='widget-anchor'};function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));local target=assert(api.widgets.get(1));"
+        " assert(control:set_anchor(target,'behind'));"
+        " assert(control:set_anchor(nil,'native'));"
+        " assert(not pcall(function() control:set_anchor(target,'sideways') end));"
+        " assert(not pcall(function() control:set_anchor(nil,'over') end)) end;return p";
+    struct FakeInstance instance={"widget-anchor",""};struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_anchor=fake_lua_set_anchor;
+    int index=PluginLua_AddScript(host,"widget-anchor",source,(int)strlen(source));
+    CHECK(index>=0,"anchor script registers");
+    lua_anchor_sets=0;
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(lua_anchor_sets==2 && lua_anchor_relation==TORIRS_WIDGET_RELATION_NATIVE && lua_anchor_target.opaque[0]==0,
+          "Lua forwards named relations and a nil target for native");
+}
 static int lua_img_slot,lua_img_w,lua_img_h,lua_img_opacity,lua_img_creates;
 static enum ToriRS_ContractResult fake_lua_create_image(void* ctx,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out)
 {
@@ -793,6 +820,7 @@ main(void)
     test_widget_watch(&host);
     test_widget_actions(&host);
     test_widget_set_on_op(&host);
+    test_widget_set_anchor(&host);
     test_widget_images(&host);
     test_menu_module(&host);
     PluginLua_Shutdown();

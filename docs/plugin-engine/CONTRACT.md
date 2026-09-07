@@ -136,6 +136,30 @@ Combined with `set_on_op`, an image control is a complete button: the
 Screenshot plugin's camera is an owned image control in the live viewport, or
 over the report button's slot while that native button's presentation is hidden.
 
+### Widget anchors (implemented slice)
+
+C `widgets.set_anchor(context, widget, target, relation)` and Lua
+`widget:set_anchor(target, "over"|"behind"|"replace"|"native")` retain a depth
+relation from one widget to another: its paint and input are ordered directly
+OVER the target, directly BEHIND it, or in its place. This is the element-
+anchored depth the frame declarations already had between slots, now stated
+between nodes and available to every plugin. The anchor is an ordinary retained
+edit on the anchored widget (any widget this plugin may edit, owned or native):
+the latest writer wins, `reset` drops it, and the owner's teardown releases it.
+`"native"` clears this owner's relation and takes no target.
+
+Ordering is one common pass shared by paint, hit testing, hover and retained
+menu liveness (`UITree_FrameReorder`). A target's subtree is written where its
+earliest record stood: BEHIND children, then the target itself or a presented
+REPLACE child, then OVER children, each recursively. REPLACE inherits the
+target's native veto both ways: a natively hidden target takes its replacement
+down, a hidden replacement reveals the target, and a replaced target is not
+presented (no retained menu rows, no contribution). A target that emits nothing
+leaves its OVER/BEHIND children at their native positions; there is nothing to
+be over or behind. Rejected at set time: self, an ancestor or descendant of the
+widget, a cycle through the effective anchors (`INVALID_ARGUMENT`), a dead
+target (`STALE_REFERENCE`), another owner's control (`NATIVE_BLOCKED`).
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

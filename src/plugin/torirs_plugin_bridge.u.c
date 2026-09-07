@@ -4206,6 +4206,11 @@ app_plugin_ui_boundary_node(struct App* app, char const* role)
     return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
 }
 
+_Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_NATIVE &&
+               (int)TORIRS_WIDGET_RELATION_OVER==(int)UITREE_WIDGET_RELATION_OVER &&
+               (int)TORIRS_WIDGET_RELATION_BEHIND==(int)UITREE_WIDGET_RELATION_BEHIND &&
+               (int)TORIRS_WIDGET_RELATION_REPLACE==(int)UITREE_WIDGET_RELATION_REPLACE,
+               "public widget relations must match the tree's anchor relations");
 _Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
     "public owned-control label capacity must match native menu option storage");
 
@@ -4401,6 +4406,26 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
         app->need_redraw=1;
         break;
+    case PLUGIN_WIDGET_ANCHOR:
+    {
+        struct UITreeNodeRef target={0};
+        if( r->a!=TORIRS_WIDGET_RELATION_NATIVE )
+        {
+            if( !r->target.opaque[1] || r->target.opaque[1]>INT32_MAX ) return TORIRS_CONTRACT_STALE_REFERENCE;
+            target=(struct UITreeNodeRef){.tree_instance=r->target.opaque[0],
+                .index=(int32_t)r->target.opaque[1]-1,.incarnation=r->target.opaque[2]};
+        }
+        switch( UITree_WidgetSetAnchor(tree,ref,owner,target,(enum UITreeWidgetRelation)r->a) )
+        {
+        case UITREE_WIDGET_ANCHOR_OK: break;
+        case UITREE_WIDGET_ANCHOR_STALE: return TORIRS_CONTRACT_STALE_REFERENCE;
+        case UITREE_WIDGET_ANCHOR_BLOCKED: return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        case UITREE_WIDGET_ANCHOR_BUDGET: return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        default: return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        }
+        app->need_redraw=1;
+        break;
+    }
     case PLUGIN_WIDGET_SET_TEXT:
     case PLUGIN_WIDGET_TEXT_COLOR:
     case PLUGIN_WIDGET_TEXT_ALIGN:

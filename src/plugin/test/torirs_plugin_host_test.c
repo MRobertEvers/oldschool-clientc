@@ -3319,6 +3319,8 @@ static int img_slot=-1, img_w, img_h, img_sets, img_opacity=-1;
 static char op_label[64];
 static uint64_t op_registration;
 static int op_requests;
+static int anchor_relation,anchor_sets;
+static struct ToriRS_WidgetRef anchor_target;
 static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     (void)user;
@@ -3337,6 +3339,7 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
     if( r->kind == PLUGIN_WIDGET_CREATE_IMAGE ) *r->refs=(struct ToriRS_WidgetRef){{77,40,1}};
     if( r->kind == PLUGIN_WIDGET_SET_IMAGE ) { img_slot=r->id; img_w=r->a; img_h=r->b; ++img_sets; }
     if( r->kind == PLUGIN_WIDGET_OPACITY ) { img_opacity=r->a; }
+    if( r->kind == PLUGIN_WIDGET_ANCHOR ) { anchor_relation=r->a; anchor_target=r->target; ++anchor_sets; }
     if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
     if( r->kind == PLUGIN_WIDGET_VISIBLE ) *r->flag=true;
     if( r->kind == PLUGIN_WIDGET_ACTIONS )
@@ -3498,6 +3501,15 @@ static void img_start(struct ToriRS_Api* api,void* state)
           "a live image reaches the adapter as a validated slot with the control size");
     CHECK(ui->set_opacity(ui->context,img_control,300)==TORIRS_CONTRACT_INVALID_ARGUMENT,"opacity is bounded");
     CHECK(ui->set_opacity(ui->context,img_control,85)==TORIRS_CONTRACT_OK && img_opacity==85,"opacity reaches the adapter");
+    CHECK(ui->set_anchor(ui->context,img_control,parent,(enum ToriRS_WidgetRelation)7)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "an unknown anchor relation is rejected");
+    CHECK(ui->set_anchor(ui->context,img_control,(struct ToriRS_WidgetRef){{0,0,0}},TORIRS_WIDGET_RELATION_OVER)==TORIRS_CONTRACT_STALE_REFERENCE,
+          "an empty anchor target is stale before reaching the adapter");
+    CHECK(ui->set_anchor(ui->context,img_control,parent,TORIRS_WIDGET_RELATION_BEHIND)==TORIRS_CONTRACT_OK && anchor_sets==1 &&
+          anchor_relation==TORIRS_WIDGET_RELATION_BEHIND && ToriRS_WidgetRefEqual(anchor_target,parent),
+          "an anchor reaches the adapter with its target and relation");
+    CHECK(ui->set_anchor(ui->context,img_control,(struct ToriRS_WidgetRef){{0,0,0}},TORIRS_WIDGET_RELATION_NATIVE)==TORIRS_CONTRACT_OK && anchor_sets==2,
+          "clearing an anchor needs no target");
     api->assets.image_release(api,img_ref);
     CHECK(ui->set_image(ui->context,img_control,img_ref,2,2)==TORIRS_CONTRACT_INVALID_ARGUMENT,
           "a released image token can no longer be installed");
@@ -3509,6 +3521,8 @@ static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* 
           "paint cannot change an owned image");
     CHECK(api->widgets.set_opacity(api->widgets.context,img_control,85)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "paint cannot change owned opacity");
+    CHECK(api->widgets.set_anchor(api->widgets.context,img_control,(struct ToriRS_WidgetRef){{77,2,3}},TORIRS_WIDGET_RELATION_OVER)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot anchor a widget");
 }
 static void test_widget_images(void)
 {

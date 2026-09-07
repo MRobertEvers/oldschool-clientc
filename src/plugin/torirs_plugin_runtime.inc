@@ -3757,6 +3757,14 @@ static enum ToriRS_ContractResult widget_set_opacity(void* u, struct ToriRS_Widg
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_OPACITY,.ref=ref,.a=opacity};
     return plugin_widget_request(u,&r);
 }
+static enum ToriRS_ContractResult widget_set_anchor(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef target,
+                                                    enum ToriRS_WidgetRelation relation)
+{
+    if( relation<TORIRS_WIDGET_RELATION_NATIVE || relation>TORIRS_WIDGET_RELATION_REPLACE ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( relation!=TORIRS_WIDGET_RELATION_NATIVE && !ToriRS_WidgetRefValid(target) ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_ANCHOR,.ref=ref,.target=target,.a=(int)relation};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
 {
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
@@ -3878,7 +3886,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
-            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

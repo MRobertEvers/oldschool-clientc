@@ -1319,6 +1319,16 @@ static int lua_widget_set_opacity(lua_State* L)
     int opacity=lua_enum_integer(L,2,0,255,"opacity");
     return lua_widget_result(L,ui->set_opacity(ui->context,lua_widget_arg(L),opacity));
 }
+static int lua_widget_set_anchor(lua_State* L)
+{
+    static char const* const names[]={"native","over","behind","replace",NULL};
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef self=lua_widget_arg(L), target={{0,0,0}};
+    int relation=luaL_checkoption(L,3,NULL,names);
+    if( relation!=TORIRS_WIDGET_RELATION_NATIVE || !lua_isnoneornil(L,2) )
+        target=*(struct ToriRS_WidgetRef*)luaL_checkudata(L,2,LUA_WIDGET_MT);
+    return lua_widget_result(L,ui->set_anchor(ui->context,self,target,(enum ToriRS_WidgetRelation)relation));
+}
 static int lua_widget_set_text(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
@@ -1350,7 +1360,7 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
-    {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},
+    {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},{"set_anchor",lua_widget_set_anchor},
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"set_on_op",lua_widget_set_on_op},{"remove",lua_widget_remove},{NULL,NULL}
 };
 

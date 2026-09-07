@@ -129,6 +129,14 @@ struct ToriRS_WidgetEvent
 };
 
 struct ToriRS_Api;
+
+enum ToriRS_WidgetRelation
+{
+    TORIRS_WIDGET_RELATION_NATIVE = 0,
+    TORIRS_WIDGET_RELATION_OVER,
+    TORIRS_WIDGET_RELATION_BEHIND,
+    TORIRS_WIDGET_RELATION_REPLACE,
+};
 /* Access is valid only during this plugin's synchronous script callback.
  * Stack indices are zero-based from the top. Setters cannot resize stacks. */
 struct ToriRS_ScriptApi
@@ -197,6 +205,13 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*create_image)(void*,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out);
     enum ToriRS_ContractResult (*set_image)(void*,struct ToriRS_WidgetRef,struct ToriRS_ImageRef image,int width,int height);
     enum ToriRS_ContractResult (*set_opacity)(void*,struct ToriRS_WidgetRef,int opacity);
+    /* Depth relative to a named widget: drawn and hit directly OVER it, directly
+     * BEHIND it, or in its place (REPLACE, which inherits the target's native
+     * visibility both ways). Retained per owner on any widget this plugin may
+     * edit; the latest writer wins and reset drops it. NATIVE clears this
+     * owner's relation and needs no target. Self, ancestor/descendant pairs and
+     * cycles are INVALID_ARGUMENT; a dead target is STALE_REFERENCE. */
+    enum ToriRS_ContractResult (*set_anchor)(void*,struct ToriRS_WidgetRef,struct ToriRS_WidgetRef target,enum ToriRS_WidgetRelation relation);
 
     /* Follow a semantic binding at native publication boundaries. A new
      * subscription receives BOUND when available; replacement sends UNBOUND
