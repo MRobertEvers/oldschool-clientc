@@ -15841,6 +15841,200 @@ App_SimulateNpcOp(
     return -1;
 }
 
+int
+App_NpcScreenPosition(
+    struct App* app,
+    int npc_id,
+    int* out_x,
+    int* out_y,
+    int* out_type)
+{
+    /* Inside the world viewport with this much to spare: a body projected on
+     * the viewport's edge is half under the frame, and the frame takes the
+     * click. */
+    enum { MARGIN = 12 };
+    struct UITreeEmitDesc const* viewport;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_type);
+    if( !app->world || !app->world_view_valid )
+        return -1;
+    viewport = &app->world_emit_desc;
+    struct World_EntityPool* pool = &app->world->entities.npc;
+    /* Of the candidates on screen, the one nearest the viewport's centre: a
+     * body at the corner is mostly clipped, and a hull drawn round it later
+     * is a few pixels that prove nothing. */
+    int best_slot = -1;
+    long best_distance = 0;
+    int const centre_x = viewport->x + viewport->w / 2;
+    int const centre_y = viewport->y + viewport->h / 2;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        int x;
+        int y;
+        long distance;
+
+        /* npc_id < 0 takes any npc that is on screen. */
+        if( !npc || npc->server_slot < 0 || (npc_id >= 0 && npc->npc_id != npc_id) )
+            continue;
+        /* Mid-body rather than the feet: the feet of an npc standing behind a
+         * table project onto the table, and a click there is the table's. */
+        if( !app_world_project_actor(
+                app,
+                &npc->view_placement,
+                npc->grid_position.level,
+                (int)npc->draw_position.x,
+                (int)npc->draw_position.z,
+                60,
+                &x,
+                &y) )
+            continue;
+        if( x < viewport->x + MARGIN || x >= viewport->x + viewport->w - MARGIN ||
+            y < viewport->y + MARGIN || y >= viewport->y + viewport->h - MARGIN )
+            continue;
+        distance = (long)(x - centre_x) * (x - centre_x) + (long)(y - centre_y) * (y - centre_y);
+        if( best_slot >= 0 && distance >= best_distance )
+            continue;
+        best_slot = npc->server_slot;
+        best_distance = distance;
+        *out_x = x;
+        *out_y = y;
+        *out_type = npc->npc_id;
+    }
+    return best_slot;
+}
+
+bool
+App_LocalPlayerTiles(
+    struct App* app,
+    int* true_x,
+    int* true_z,
+    int* level,
+    int* dest_x,
+    int* dest_z,
+    int* flag_x,
+    int* flag_z,
+    int* draw_x,
+    int* draw_z)
+{
+    struct WorldEntity_Player* player;
+    int base_x;
+    int base_z;
+
+    assert(app);
+    assert(true_x);
+    assert(true_z);
+    assert(level);
+    assert(dest_x);
+    assert(dest_z);
+    assert(flag_x);
+    assert(flag_z);
+    assert(draw_x);
+    assert(draw_z);
+    player = app_local_player(app);
+    if( !player || !app->world )
+        return false;
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    /* The interpolated model position in fine units (128 per tile), scene
+     * relative: where the figure is DRAWN, against the whole tile above. */
+    *draw_x = (int)player->draw_position.x;
+    *draw_z = (int)player->draw_position.z;
+    /* route[0] is the server's whole tile; the draw position slides between
+     * tiles every frame. Same reading as the plugin bridge's player snapshot. */
+    if( player->pathing.route_length > 0 )
+    {
+        *true_x = base_x + player->pathing.route_x[0];
+        *true_z = base_z + player->pathing.route_z[0];
+    }
+    else
+    {
+        *true_x = base_x + player->grid_position.x;
+        *true_z = base_z + player->grid_position.z;
+    }
+    *level = player->grid_position.level;
+    if( app->minimap_flag_x >= 0 )
+    {
+        *flag_x = base_x + app->minimap_flag_x;
+        *flag_z = base_z + app->minimap_flag_z;
+        *dest_x = *flag_x;
+        *dest_z = *flag_z;
+    }
+    else
+    {
+        *flag_x = -1;
+        *flag_z = -1;
+        *dest_x = *true_x;
+        *dest_z = *true_z;
+    }
+    return true;
+}
+
+void
+App_PluginObjectCounts(
+    struct App* app,
+    int* in_use,
+    int* active,
+    int* built)
+{
+    assert(app);
+    assert(in_use);
+    assert(active);
+    assert(built);
+    *in_use = 0;
+    *active = 0;
+    *built = 0;
+    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    {
+        struct AppPluginObject const* object = &app->plugin_objects[i];
+
+        if( !object->in_use )
+            continue;
+        (*in_use)++;
+        if( object->active )
+            (*active)++;
+        if( object->element_id >= 0 )
+            (*built)++;
+    }
+}
+
+bool
+App_MinimenuRowCenter(
+    struct App* app,
+    char const* prefix,
+    int* out_x,
+    int* out_y,
+    char* out_text,
+    size_t out_text_capacity)
+{
+    struct UIMinimenu const* menu;
+    size_t prefix_len;
+
+    assert(app);
+    assert(prefix);
+    assert(out_x);
+    assert(out_y);
+    menu = &app->interact.minimenu;
+    if( !menu->visible )
+        return false;
+    prefix_len = strlen(prefix);
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        if( strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
+            continue;
+        *out_x = menu->x + menu->width / 2;
+        *out_y = UIMinimenu_OptionY(menu, i);
+        if( out_text && out_text_capacity > 0 )
+            snprintf(out_text, out_text_capacity, "%s", menu->options[i].text);
+        return true;
+    }
+    return false;
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void

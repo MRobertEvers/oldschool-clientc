@@ -279,6 +279,31 @@ while IFS='|' read tag m f s; do
   # GF_MATRIX_PANEL_CUSTOM_INK=ID[:min]: a plugin page custom row has its allotted
   # region and at least min distinct colours painted inside it.
   [[ -n "${GF_MATRIX_PANEL_CUSTOM_INK:-}" ]] && widget_args+=(--panel-custom-ink "$GF_MATRIX_PANEL_CUSTOM_INK")
+  # GF_MATRIX_DEST_TILE=1: the tile indicator's yellow destination marker is
+  # painted while NATIVE_PLAYER reports the walk still under way.
+  [[ "${GF_MATRIX_DEST_TILE:-0}" == 1 ]] && widget_args+=(--dest-tile)
+  # GF_MATRIX_MENU_ROW: pipe-separated regexes, each matching one row of the
+  # right-click menu TORIRS_MINIMENU_DEBUG=1 reported.
+  if [[ -n "${GF_MATRIX_MENU_ROW:-}" ]]; then
+    for menu_row in "${(@s:|:)GF_MATRIX_MENU_ROW}"; do
+      widget_args+=(--menu-row "$menu_row")
+    done
+  fi
+  # GF_MATRIX_OVERLAY_TEXT_ABSENT / GF_MATRIX_NATIVE_CAPTION_ABSENT: pipe-separated
+  # exact label texts that must NOT have been drawn (a hidden ground item).
+  if [[ -n "${GF_MATRIX_OVERLAY_TEXT_ABSENT:-}" ]]; then
+    for absent_text in "${(@s:|:)GF_MATRIX_OVERLAY_TEXT_ABSENT}"; do
+      widget_args+=(--overlay-text-absent "$absent_text")
+    done
+  fi
+  if [[ -n "${GF_MATRIX_NATIVE_CAPTION_ABSENT:-}" ]]; then
+    for absent_text in "${(@s:|:)GF_MATRIX_NATIVE_CAPTION_ABSENT}"; do
+      widget_args+=(--native-caption-absent "$absent_text")
+    done
+  fi
+  # GF_MATRIX_SCENE_OBJECTS=N: the engine holds exactly N active plugin world
+  # objects at exit (loot beams).
+  [[ -n "${GF_MATRIX_SCENE_OBJECTS:-}" ]] && widget_args+=(--scene-objects "$GF_MATRIX_SCENE_OBJECTS")
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
   # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native

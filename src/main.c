@@ -2509,6 +2509,147 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_CLICK_NPC="frame,npc_type[,right]": click the first live
+         * npc of that cache type (-1: any npc) where it is DRAWN, inside the
+         * world viewport. The pointer moves to the
+         * npc's projected body on the frame, presses three frames later and
+         * releases the frame after, like TORIRS_SIM_CLICK_AT; the projection
+         * is asked again every frame until the npc is in the scene and on
+         * screen. Wandering npcs make a fixed coordinate a coin toss, and a
+         * right-click with TORIRS_SIM_KEYHOLD's shift is the only headless
+         * way to a plugin's rows on an npc's menu. */
+        {
+            static int sim_npc_init = 0;
+            static long npc_frame = -1, npc_type, npc_right, npc_step = -1;
+            static int npc_x, npc_y, npc_followed_type = -1;
+            if( !sim_npc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_CLICK_NPC");
+                char* end = NULL;
+                sim_npc_init = 1;
+                if( spec && *spec )
+                {
+                    npc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        npc_type = strtol(end + 1, &end, 0);
+                        npc_right = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                    }
+                    else
+                        npc_frame = -1;
+                }
+            }
+            if( npc_frame >= 0 && frame_count >= npc_frame )
+            {
+                if( npc_step < 0 )
+                {
+                    int found_type = -1;
+                    int slot = App_NpcScreenPosition(&app, (int)npc_type, &npc_x, &npc_y, &found_type);
+                    if( slot >= 0 )
+                    {
+                        npc_step = 0;
+                        npc_followed_type = found_type;
+                        CmdBus_PushMouseMove(&bus, npc_x, npc_y);
+                        TORIRS_REPORT(
+                            "sim_click_npc: frame=%ld type=%d slot=%d move %d,%d right=%ld\n",
+                            frame_count,
+                            found_type,
+                            slot,
+                            npc_x,
+                            npc_y,
+                            npc_right);
+                    }
+                }
+                else
+                {
+                    uint8_t btn = npc_right ? 3 : 1;
+                    npc_step++;
+                    /* Follow the body until the press: a wandering npc walks
+                     * out from under a pointer parked three frames earlier,
+                     * and the menu then belongs to the ground it stood on. */
+                    if( npc_step < 3 )
+                    {
+                        int follow_type = -1;
+                        int follow_x;
+                        int follow_y;
+                        if( App_NpcScreenPosition(&app, (int)npc_type, &follow_x, &follow_y, &follow_type) >= 0 &&
+                            (npc_type >= 0 || follow_type == npc_followed_type) )
+                        {
+                            npc_x = follow_x;
+                            npc_y = follow_y;
+                            CmdBus_PushMouseMove(&bus, npc_x, npc_y);
+                        }
+                    }
+                    if( npc_step == 3 )
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, npc_x, npc_y);
+                    else if( npc_step >= 4 )
+                    {
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, npc_x, npc_y);
+                        TORIRS_REPORT("sim_click_npc: released %d,%d\n", npc_x, npc_y);
+                        npc_frame = -1;
+                    }
+                }
+            }
+        }
+
+        /* TORIRS_SIM_MENU_ROW="frame,prefix": from that frame on, wait for an
+         * open right-click menu with a row whose text starts with `prefix`
+         * (colour tags included: "Tag @yel@") and left-click its centre with
+         * the same move/press/release cadence as TORIRS_SIM_CLICK_AT. This is
+         * how a plugin's retained menu row is picked headlessly: the menu's
+         * position follows the click that opened it, so no fixed coordinate
+         * can be written down in advance. */
+        {
+            static int sim_row_init = 0;
+            static long row_frame = -1, row_step = -1;
+            static char row_prefix[64];
+            static int row_x, row_y;
+            if( !sim_row_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_MENU_ROW");
+                char* end = NULL;
+                sim_row_init = 1;
+                if( spec && *spec )
+                {
+                    row_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        snprintf(row_prefix, sizeof(row_prefix), "%s", end + 1);
+                    else
+                        row_frame = -1;
+                }
+            }
+            if( row_frame >= 0 && frame_count >= row_frame )
+            {
+                if( row_step < 0 )
+                {
+                    char text[128];
+                    if( App_MinimenuRowCenter(&app, row_prefix, &row_x, &row_y, text, sizeof(text)) )
+                    {
+                        row_step = 0;
+                        CmdBus_PushMouseMove(&bus, row_x, row_y);
+                        TORIRS_REPORT("sim_menu_row: frame=%ld row '%s' move %d,%d\n",
+                            frame_count, text, row_x, row_y);
+                    }
+                }
+                else
+                {
+                    row_step++;
+                    if( row_step == 3 )
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, row_x, row_y);
+                    else if( row_step >= 4 )
+                    {
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, row_x, row_y);
+                        TORIRS_REPORT("sim_menu_row: released %d,%d\n", row_x, row_y);
+                        row_frame = -1;
+                    }
+                }
+            }
+        }
+
         /* TORIRS_SIM_MOVE_AT="frame,x,y[;frame,x,y...]": park the pointer at a
          * main-loop frame WITHOUT pressing anything. The hover-driven native
          * paths (the cache's mouse-over highlight groups, tooltips, hover
@@ -3201,6 +3342,19 @@ frame_loop_teardown(void)
                 TORIRS_REPORT("PLUGIN_STATE id=%s enabled=%d running=%d error=%d\n",
                     PluginHost_Name(app.plugins,i),PluginHost_IsEnabled(app.plugins,i),
                     PluginHost_IsRunning(app.plugins,i),PluginHost_Error(app.plugins,i)!=NULL);
+        /* The local player's whole tiles and the plugin world-object counts,
+         * for the tile-marker and loot-beam rules: a marker or a beam is
+         * judged against what the engine holds, not only against its pixels. */
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        {
+            int true_x, true_z, level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+            int in_use, active, built;
+            if( App_LocalPlayerTiles(&app, &true_x, &true_z, &level, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z) )
+                TORIRS_REPORT("NATIVE_PLAYER true=%d,%d,%d dest=%d,%d flag=%d,%d draw=%d,%d\n",
+                    true_x, true_z, level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z);
+            App_PluginObjectCounts(&app, &in_use, &active, &built);
+            TORIRS_REPORT("PLUGIN_SCENE_OBJECTS in_use=%d active=%d built=%d\n", in_use, active, built);
+        }
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
             dump_tree(&app, cfg.interface_id);
         if( getenv("TORIRS_DUMP_ROOTS") && app.tree )

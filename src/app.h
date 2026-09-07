@@ -4158,4 +4158,60 @@ App_SimulateNpcOp(
     int op_num,
     int npc_id);
 
+/**
+ * Where the first live npc of the given cache type is drawn, in canvas pixels,
+ * for a headless click on it. Returns the npc's server slot, or -1 when no
+ * synced npc of that type is in the scene or its body projects off screen.
+ * Wandering npcs make a fixed click coordinate a coin toss; a run that wants
+ * the npc's right-click menu asks here on the frame it clicks.
+ */
+int
+App_NpcScreenPosition(
+    struct App* app,
+    int npc_id,
+    int* out_x,
+    int* out_y,
+    int* out_type);
+
+/**
+ * The local player's TRUE tile (the server's whole tile, route[0]), level, and
+ * where the current walk ends (the map flag; the true tile when no flag is
+ * set). Absolute tiles. False before the local player has spawned.
+ */
+bool
+App_LocalPlayerTiles(
+    struct App* app,
+    int* true_x,
+    int* true_z,
+    int* level,
+    int* dest_x,
+    int* dest_z,
+    int* flag_x,
+    int* flag_z,
+    int* draw_x,
+    int* draw_z);
+
+/**
+ * The centre of the open right-click menu's first row whose text starts with
+ * `prefix` (colour tags included, e.g. "Tag @yel@"), in canvas pixels, for a
+ * headless pick of a plugin's retained row. False when no menu is open or no
+ * row matches. `out_text` receives the row's text when non-NULL.
+ */
+bool
+App_MinimenuRowCenter(
+    struct App* app,
+    char const* prefix,
+    int* out_x,
+    int* out_y,
+    char* out_text,
+    size_t out_text_capacity);
+
+/** How many plugin world objects exist, are active, and have a live scene element. */
+void
+App_PluginObjectCounts(
+    struct App* app,
+    int* in_use,
+    int* active,
+    int* built);
+
 #endif

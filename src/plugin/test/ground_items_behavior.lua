@@ -101,8 +101,16 @@ return {id='ground-behavior',on_start=function(host)
     product.on_script_callback(api,{name='groundItemCaption',ref={},widget=widget})
     assert(width==458 and height==60 and lift==160 and outlined and offset==30,
         'native callback applies projection height, gap and outline through live widgets')
+    -- The reveal key is live: a transition asks for one rebuild, a held key none.
+    api.input.key_held=function() return true end
+    product.on_frame_start(api,{})
+    product.on_frame_start(api,{})
+    assert(invalidations==1, 'a reveal key transition refreshes the native captions once')
+    api.input.key_held=function() return false end
+    product.on_frame_start(api,{})
+    assert(invalidations==2, 'releasing the reveal key refreshes the native captions again')
     product.on_config_changed(api,'price_mode')
     product.on_stop(api)
-    assert(invalidations==2, 'configuration and disable refresh current native caption results')
+    assert(invalidations==4, 'configuration and disable refresh current native caption results')
     host.core.log('ground behavior passed')
 end}

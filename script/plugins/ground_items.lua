@@ -266,6 +266,11 @@ local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 -- it is not shipped; the cache cost is the fallback either way.
 local prices = {}
 local native_captions = false
+-- What the reveal key said the last time the native captions were checked.
+-- The native rows re-run their caption script only when a row changes, so a
+-- key pressed between rows would otherwise reveal nothing until the next
+-- despawn; the change asks for the coalesced rebuild instead.
+local reveal_shown = false
 
 local function items(api)
     local cursor = -1
@@ -500,6 +505,20 @@ end
 function plugin.on_stop(api)
     if native_captions then api.scripts.invalidate("groundItemCaption") end
     native_captions = false
+    reveal_shown = false
+end
+
+-- The reveal key is live on the native caption lane too: RuneLite re-renders
+-- its overlay every frame, so holding the key shows the hidden stacks at
+-- once. The native rows only re-run the caption script when a row changes,
+-- so a key transition asks for one coalesced rebuild. An event context, not
+-- the paint pass: paint may not schedule native work.
+function plugin.on_frame_start(api)
+    if not native_captions then return end
+    local reveal = reveal_held(api)
+    if reveal == reveal_shown then return end
+    reveal_shown = reveal
+    api.scripts.invalidate("groundItemCaption")
 end
 
 -- The native row will measure this result before positioning its buttons and

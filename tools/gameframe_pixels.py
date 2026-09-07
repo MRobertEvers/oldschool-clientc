@@ -418,7 +418,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -544,6 +544,44 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         check_highlight_color(rows, Path(bounds_path).read_text() if bounds_path else "", highlight_color, failures)
     if panel_custom_ink:
         check_panel_custom_ink(rows, Path(bounds_path).read_text() if bounds_path else "", panel_custom_ink, failures)
+    if dest_tile:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        yellow=sum(pixel==(0,255,255) for row in rows for pixel in row)
+        tiles=re.findall(r"NATIVE_PLAYER true=(-?\d+),(-?\d+),(\d+) dest=(-?\d+),(-?\d+) flag=(-?\d+),(-?\d+)",log)
+        walking=bool(tiles) and (tiles[-1][0],tiles[-1][1])!=(tiles[-1][3],tiles[-1][4])
+        valid=yellow>=30 and walking
+        print(f"PIXEL dest_tile_marker={'PASS' if valid else 'FAIL'} yellow_pixels={yellow} native_player={tiles[-1] if tiles else None}")
+        if not valid: failures.append("dest_tile_marker")
+    if menu_row:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        row_lines=[line for line in log.splitlines() if line.startswith("minimenu: row[")]
+        for pattern in menu_row:
+            hit=[line for line in row_lines if re.search(pattern,line)]
+            valid=len(hit)>=1
+            print(f"PIXEL menu_row={'PASS' if valid else 'FAIL'} pattern={pattern!r} rows={len(row_lines)} matched={hit[0] if hit else None}")
+            if not valid: failures.append(f"menu_row:{pattern}")
+    for text in overlay_text_absent or []:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        raw=text.encode();fingerprint=14695981039346656037
+        for byte in raw: fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
+        entries=re.findall(rf"OVERLAY_TEXT x=-?\d+ y=-?\d+ color=[0-9a-f]+ len={len(raw)} hash={fingerprint:016x}",log)
+        valid=not entries
+        print(f"PIXEL overlay_text_absent={'PASS' if valid else 'FAIL'} text={text!r} copies={len(entries)}")
+        if not valid: failures.append(f"overlay_text_absent:{text}")
+    for text in native_caption_absent or []:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        raw=text.encode();fingerprint=14695981039346656037
+        for byte in raw: fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
+        entries=re.findall(rf"NATIVE_GROUND_CAPTION root=\d+ node=\d+ painted=[1-9]\d* box=[-0-9,]+ color=[0-9a-f]+ len={len(raw)} hash={fingerprint:016x}",log)
+        valid=not entries
+        print(f"PIXEL native_caption_absent={'PASS' if valid else 'FAIL'} text={text!r} painted={len(entries)}")
+        if not valid: failures.append(f"native_caption_absent:{text}")
+    if scene_objects is not None:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        counts=re.findall(r"PLUGIN_SCENE_OBJECTS in_use=(\d+) active=(\d+) built=(\d+)",log)
+        valid=bool(counts) and int(counts[-1][1])==scene_objects and int(counts[-1][2])>=min(scene_objects,int(counts[-1][1]))
+        print(f"PIXEL scene_objects={'PASS' if valid else 'FAIL'} expected_active={scene_objects} counts={counts[-1] if counts else None}")
+        if not valid: failures.append("scene_objects")
     if owned_text is not None or owned_count==0:
         log = Path(bounds_path).read_text() if bounds_path else ""
         records = re.findall(r"OWNED_WIDGET owner=\d+ key=strength node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+) len=(\d+) hash=([0-9a-f]+)",log)
@@ -676,10 +714,15 @@ if __name__ == "__main__":
     parser.add_argument("--native-caption")
     parser.add_argument("--ground-row-gap",type=int)
     parser.add_argument("--public-chat-mode",choices=("on","friends"),default="on")
+    parser.add_argument("--dest-tile", action="store_true", help="the tile indicator's yellow destination marker is painted while NATIVE_PLAYER says the walk has not ended")
+    parser.add_argument("--menu-row", action="append", default=[], help="regex one 'minimenu: row[..]' line of the opened right-click menu must match (repeatable)")
+    parser.add_argument("--overlay-text-absent", action="append", default=[], help="no overlay label with this exact text was drawn (repeatable)")
+    parser.add_argument("--native-caption-absent", action="append", default=[], help="no painted native ground caption carries this exact text (repeatable)")
+    parser.add_argument("--scene-objects", type=int, help="PLUGIN_SCENE_OBJECTS active count the engine must hold at exit")
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)
