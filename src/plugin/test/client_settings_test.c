@@ -243,6 +243,24 @@ int main(void)
           strcmp(fake.selected_value, "removed-provider/favourite") == 0,
         "the unavailable row retains and selects the exact saved id");
 
+    /* A lane whose saved choice is its own native gameframe (rs289lc saves
+     * "core/native"): NATIVE status with requested == active is already up,
+     * not switching. Found reading "Switching to Native gameframe. Active for
+     * now: Native gameframe." in the rs289lc panel capture. */
+    snprintf(fake.selection.requested_id, sizeof(fake.selection.requested_id),
+        "%s", "core/native");
+    snprintf(fake.selection.active_id, sizeof(fake.selection.active_id),
+        "%s", "core/native");
+    fake.selection.status = TORIRS_FRAME_STATUS_NATIVE;
+    fake.selection.revision++;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_frame_start(&api, state, NULL);
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_build(&api, state, &panel, 0);
+    CHECK(strcmp(fake.detail, "Active: Native gameframe.") == 0,
+        "an explicitly requested native gameframe reads as active, not switching");
+    CHECK(strcmp(fake.selected_value, "core/native") == 0 &&
+          strcmp(fake.option_label[fake.option_count - 1], "Native gameframe") == 0,
+        "the saved native gameframe is offered as itself, not as unavailable");
+
     free(state);
     printf("client_settings_test: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

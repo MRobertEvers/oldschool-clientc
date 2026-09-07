@@ -119,6 +119,16 @@ cs_frame_choices(
             selected_present = true;
         info.struct_size = sizeof(info);
     }
+    /* The lane's own gameframe is filtered out of the offers above because
+     * Auto already means it -- but a saved choice of exactly "core/native"
+     * (rs289lc saves it) is a real, available frame, not a missing provider.
+     * Found reading "Unavailable: core/native" in the rs289lc panel capture. */
+    if( !selected_present && strcmp(selection->requested_id, "core/native") == 0 )
+    {
+        cs_frame_row(state, "core/native", "Native gameframe", true,
+            "This lane's own gameframe");
+        selected_present = true;
+    }
     if( !selected_present && selection->requested_id[0] )
     {
         char label[TORIRS_UI_LABEL_MAX];
@@ -144,7 +154,12 @@ cs_frame_detail(
     if( selection->status == TORIRS_FRAME_STATUS_NATIVE &&
         strcmp(selection->requested_id, "auto") == 0 )
         snprintf(out, out_size, "Active: %s. Auto follows this lane.", active);
-    else if( selection->status == TORIRS_FRAME_STATUS_ACTIVE &&
+    /* NATIVE as well as ACTIVE: a lane whose saved choice IS its native
+     * gameframe (rs289lc's "core/native") reports NATIVE with the requested and
+     * active ids equal, and read "Switching to ... Active for now: ..." for a
+     * frame that was already up. Found by the rs289lc panel capture. */
+    else if( (selection->status == TORIRS_FRAME_STATUS_ACTIVE ||
+              selection->status == TORIRS_FRAME_STATUS_NATIVE) &&
              strcmp(selection->requested_id, selection->active_id) == 0 )
         snprintf(out, out_size, "Active: %s.", active);
     else if( selection->status == TORIRS_FRAME_STATUS_LOADING )

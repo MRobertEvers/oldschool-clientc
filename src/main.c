@@ -3318,6 +3318,33 @@ frame_loop_teardown(void)
                 }
         }
 
+        /* The plugin window's active page as the host holds it: which plugin
+         * and face is up, and every model widget with its current selection.
+         * Independent of the chrome executor that painted it. Beside it, the
+         * two device options the Client Settings page writes, read from the
+         * CS2 host's option table rather than from the page. */
+        if( getenv("TORIRS_TRACE_NATIVE_UI") && app.plugins )
+        {
+            int const active = PluginHost_PanelActive(app.plugins);
+            uint32_t const generation = PluginHost_PanelSelectionGeneration(app.plugins);
+            int const count = active >= 0 ? PluginHost_PanelWidgetCount(app.plugins, generation) : 0;
+            TORIRS_REPORT("PLUGIN_PANEL visible=%d plugin=%s view=%d generation=%u widgets=%d\n",
+                app.plugin_panel_visible, active >= 0 ? PluginHost_Name(app.plugins, active) : "-",
+                PluginHost_PanelView(app.plugins), generation, count);
+            for( int i = 0; i < count; i++ )
+            {
+                struct ToriRS_PanelWidget const* w = PluginHost_PanelWidgetAt(app.plugins, generation, i);
+                if( !w )
+                    continue;
+                TORIRS_REPORT("PLUGIN_PANEL_WIDGET index=%d kind=%d id=%s label=%s selected=%d value=%s text=%s\n",
+                    i, w->kind, w->id, w->label, w->selected,
+                    w->structured_select ? w->selected_value : "", w->text);
+            }
+            TORIRS_REPORT("NATIVE_DEVICE_OPTION ui_scale=%d ui_scale_mode=%d\n",
+                RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE),
+                RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE));
+        }
+
         if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
         {
             static char const* parts[] = { "frame.orb.hitpoints", "frame.orb.prayer",

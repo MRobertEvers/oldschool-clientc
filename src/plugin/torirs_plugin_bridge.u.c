@@ -2471,6 +2471,11 @@ app_plugin_feature_set(void* user, char const* key, int value)
             &app->revconfig_profile, app->world_cam_zoom);
     }
 
+    /* The write as the engine now holds it, for the capture harness: the
+     * plugin's pick, the store's value, both from the same read the page uses. */
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT("PLUGIN_FEATURE_SET key=%s value=%d readback=%d default=%d\n",
+            key, value, app_plugin_feature_read(app, desc, 0), app_plugin_feature_read(app, desc, 1));
     app_plugin_feature_repush(app);
     return 1;
 }
