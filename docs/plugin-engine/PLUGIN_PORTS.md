@@ -7,7 +7,7 @@ This is an implementation checklist, not a completion claim. Every row still has
 Two sessions work in this worktree. A session claims a batch here before editing and
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
-- No batch is currently claimed by the second session (the Lua demos and probes are committed).
+- **Claimed 2026-09-07 (second session, after 461113fbf):** Lua product acceptance batch: `script/plugins/tile_indicator.lua`, `script/plugins/entity_highlighter.lua`, `script/plugins/ground_items.lua`, `script/plugins/loot_beam.lua`, `src/plugin/plugins/tileind.c`, their manifests/metadata, and the harness/pixel rules those captures need. The frame products and the superseded execution API removal are the first session's.
 - Claimed by the first session (2026-09-06): the frame products batch: `src/plugin/plugins/gameframe.c`,
   `src/plugin/plugins/mobile_gameframe.c`, `src/plugin/test/gameframe_test.c`,
   `src/plugin/test/mobile_gameframe_test.c`, their harness/pixel rules, and afterwards the removal of
