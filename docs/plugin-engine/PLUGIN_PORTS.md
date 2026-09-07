@@ -35,7 +35,7 @@ removes the claim in the commit that closes it; the other session leaves those f
 | `script/plugins/tile_indicator.lua` | walking accepted: yellow destination marker on the map flag while the cyan true tile trails it, `NATIVE_PLAYER` showing true != dest; rs289lc from a ground click, OSRS239 from a minimap click (the running player crosses a ground click's few tiles inside two ticks) | `tilewalk-lua-rs289-v2/r01`, `tilewalk-lua-osrs-v14/m01` |
 | `src/plugin/plugins/client_settings.c` | essential settings page on the host panel model (request/build/action/retained option and text rows); page opened and the scaling filter picked on both revisions with the CS2 host option table re-read; detail wording fixed for a saved native gameframe; unknown-frame pick ignored; web presenters and real dropdown clicks not captured | `client-settings-osrs-v2/m01`, `client-settings-rs289-v3/r01`, `client-settings-osrs-negative-v2/m01` |
 | `src/plugin/plugins/feature_flags.c` | essential settings page listing the engine's twenty flags under four headings; arrow-key orbit picked to Off on both revisions with the camera bit written, read back and persisted to plugin_prefs.ini; illegal enum pick refused before any write; long-page scrolling not captured | `feature-flags-osrs/m01`, `feature-flags-rs289/r01`, `feature-flags-osrs-negative-v2/m01` |
-| `src/plugin/plugins/gameframe.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
+| `src/plugin/plugins/gameframe.c` | ported to a PROVIDED frame (on_gameframe + widget API: owned pieces anchored behind the scene, owned stone controls, role moves, masks, OldSchool chat re-skin); test-gameframe 92 checks; all three layouts live on both revisions, every pixel rule passing, each 2x inspected (rs289lc: classic/modern/resizable at 765x503; OSRS239 548: classic and modern at 765x503, resizable at 1200x800); scrollbar skin, popout safe area, resize/tab/remount scenarios and the 40-run matrix open | `gf-classic-rs289-v3/r01`, `gf-modern-rs289-v1/r01`, `gf-resizable-rs289-v2/r01`, `gf-classic-osrs-v6/m03`, `gf-modern-osrs-v1/m05`, `gf-resizable-osrs-v2/m08` |
 | `src/plugin/plugins/item_stats.c` | ported off `api->placement` onto the graphics context's canvas bounds; hover tooltip beside an inventory item captured on both revisions and kept on the canvas; unit test pins the canvas clamp with an observed negative | `item-stats-osrs/m01`, `item-stats-rs289/r01` |
 | `src/plugin/plugins/loot_tracker.c` | page on the host panel model with a custom strip row; OSRS239 shows two client-recorded Goblin kills (count, value, item strip); rs289lc despawn-attribution lane accepted with a real kill: a Man spawned on the player's tile (`~npc man`) attacked from its right-click menu by a strength-boosted new account dies, Bones and 5 Coins land on the tile, the tracker notifies `Man x1 loot: 6 gp` and the page shows the kill row with both item icons | `loot-tracker-osrs-probe/m01`, `loot-attribution-rs289-v4/r01` |
 | `src/plugin/plugins/minimap_orbs.c` | ported off `ui_contributions`/`on_ui_node_draw`/`on_ui_node_action`: each orb is an owned image control composed from the shipped art; covers interface 160's roots on OSRS and hangs beside the minimap on rs289lc; run orb pressed natively on both revisions (checked native action on OSRS, compat component on rs289lc); hover plate not reproduced; full lifecycle/composition gate pending | `orbs-osrs-probe/m01`, `orbs-rs289-probe/r01`, `orbs-osrs-run-v2/m01`, `orbs-rs289-run-v2/r01` |
@@ -243,3 +243,37 @@ The verify worktree (`/private/tmp/3draster-plugin-engine-verify`, detached at 9
 ## Settings-driven highlight group
 
 The All Settings rows that arm the hovered/current/destination tile groups cannot be clicked headlessly, and a varbit write alone arms nothing: the row runs clientscript 5198, which reads the varbit and the colour row and describes tile group 5. `TORIRS_SIM_VARBIT="450,12977,1"` followed by `TORIRS_SIM_RUNSCRIPT="480,5198"` reproduces the row's effect from the content's own entry point; `NATIVE_HIGHLIGHT kind=7 group=5 colour=beba6e outline=0 opacity=70 members=1` and `highlight-resolve: 1 drawn (tile 1` are the engine's word, the 2x frame shows the fill under the pointer. The negative run (no script) keeps `members=0` and `0 drawn`. The exact-colour pixel rule does not apply to a group with no outline and a translucent fill; the frame was inspected instead.
+
+## Frame products: the widget-API contract slices and the gameframe port (2026-09-06)
+
+Three contract slices landed for the frame batch, each with a tree test whose pins were
+observed red under a stubbed mechanism before being kept:
+
+- **Widget anchors** (`widgets.set_anchor(widget, target, over|behind|replace|native)`): the
+  frame declarations' element-anchored depth, stated between nodes and retained per owner.
+  One ordering pass (`UITree_FrameReorder`) serves paint, hit testing, hover and retained
+  menu liveness; REPLACE inherits the target's native veto both ways.
+- **Native re-skin** (`set_image(native sprite/graphic/compass, image, 0, 0)`,
+  `set_mask(minimap/compass/sprite, image|nil)`): retained art and clip on a native widget,
+  applied last and only while the native widget shows a graphic; releasing the image drops it.
+- **Provided gameframes** (`on_gameframe`, `UITree_FrameProvide`): an offer without a builder
+  is laid out by the provider's own widget edits; the engine takes the lane's chrome, binds the
+  roles, places and hides nothing, owns no geometry. A non-READY answer releases the frame.
+
+`gameframe-layout` (commits `698f742c4`..`92a6fcbd3`) records its three layouts into a plan and
+applies it with those verbs. Three live findings shaped the port and are pinned in tests: a
+PENDING provider must be re-asked (the toplevel mounts after the first ask); the owned pieces
+hang off the frame's root, anchored OVER the scene with the live surfaces over the last piece
+(behind the scene is invisible on a resizable frame whose scene is the canvas); and a provided
+frame releases the native containers above every moved surface (548's scene and map blocks
+clipped the moved world and map). Evidence: `gameframe-port-checkpoint.json`; six live captures
+across both revisions, every pixel rule passing, each inspected at 2x. Open: resize/tab/remount
+scenarios and the 40-run matrix; the six-piece scrollbar skin
+(the client's emit paints the bars, no widget to re-skin); the resizable frame's safe area
+against the OSRS popout strip (`placement.primary` is superseded and nothing replaces it yet);
+`mobile_gameframe.c`.
+
+OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engine-prepared-actions.ini`,
+`TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's
+`OSRS-Content` carries live uncommitted edits and its manifest is refused by the freshness gate.
+
