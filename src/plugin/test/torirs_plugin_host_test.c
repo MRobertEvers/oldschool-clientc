@@ -3315,6 +3315,7 @@ static int widget_requests, widget_resets;
 static uint64_t widget_owner;
 static struct ToriRS_WidgetRef watched_native = {{77,2,3}};
 static struct ToriRS_WidgetRef const stale_control = {{77,9,1}};
+static int img_slot=-1, img_w, img_h, img_sets, img_opacity=-1;
 static char op_label[64];
 static uint64_t op_registration;
 static int op_requests;
@@ -3333,6 +3334,9 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
         snprintf(op_label,sizeof(op_label),"%s",r->name);
         op_registration=r->registration;
     }
+    if( r->kind == PLUGIN_WIDGET_CREATE_IMAGE ) *r->refs=(struct ToriRS_WidgetRef){{77,40,1}};
+    if( r->kind == PLUGIN_WIDGET_SET_IMAGE ) { img_slot=r->id; img_w=r->a; img_h=r->b; ++img_sets; }
+    if( r->kind == PLUGIN_WIDGET_OPACITY ) { img_opacity=r->a; }
     if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
     if( r->kind == PLUGIN_WIDGET_VISIBLE ) *r->flag=true;
     if( r->kind == PLUGIN_WIDGET_ACTIONS )
@@ -3470,6 +3474,55 @@ static void op_stop(struct ToriRS_Api* api,void* state)
     CHECK(api->widgets.set_on_op(api->widgets.context,op_control,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
           "shutdown removal is accepted as a no-op");
 }
+/* Owned image controls through the public C API: only this plugin's live
+ * image tokens reach the adapter, and they reach it as validated slots. */
+static struct ToriRS_WidgetRef img_control;
+static struct ToriRS_ImageRef img_ref;
+static void img_start(struct ToriRS_Api* api,void* state)
+{
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    struct ToriRS_WidgetRef parent={{77,2,3}};
+    uint32_t argb[4]={0xff102030,0xff405060,0xff708090,0xffa0b0c0};
+    (void)state;
+    CHECK(api->assets.image_compose(api,"camera",2,2,argb,&img_ref)==TORIRS_ASSET_READY && img_ref.value!=0,
+          "a composed image is a live image token");
+    CHECK(ui->create_image(ui->context,parent,"",&img_control)==TORIRS_CONTRACT_INVALID_ARGUMENT,"an owned image needs a key");
+    CHECK(ui->create_image(ui->context,parent,"camera",&img_control)==TORIRS_CONTRACT_OK && img_control.opaque[1]==40,
+          "owned image creation returns the adapter's child");
+    CHECK(ui->set_image(ui->context,img_control,(struct ToriRS_ImageRef){0},2,2)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a zero image token is rejected");
+    CHECK(ui->set_image(ui->context,img_control,(struct ToriRS_ImageRef){img_ref.value+1000},2,2)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "an image token this plugin never received is rejected");
+    CHECK(ui->set_image(ui->context,img_control,img_ref,5000,2)==TORIRS_CONTRACT_INVALID_ARGUMENT,"image control size is bounded");
+    CHECK(ui->set_image(ui->context,img_control,img_ref,2,2)==TORIRS_CONTRACT_OK && img_sets==1 && img_slot>=0 && img_w==2 && img_h==2,
+          "a live image reaches the adapter as a validated slot with the control size");
+    CHECK(ui->set_opacity(ui->context,img_control,300)==TORIRS_CONTRACT_INVALID_ARGUMENT,"opacity is bounded");
+    CHECK(ui->set_opacity(ui->context,img_control,85)==TORIRS_CONTRACT_OK && img_opacity==85,"opacity reaches the adapter");
+    api->assets.image_release(api,img_ref);
+    CHECK(ui->set_image(ui->context,img_control,img_ref,2,2)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a released image token can no longer be installed");
+}
+static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)state;(void)graphics;
+    CHECK(api->widgets.set_image(api->widgets.context,img_control,img_ref,2,2)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot change an owned image");
+    CHECK(api->widgets.set_opacity(api->widgets.context,img_control,85)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot change owned opacity");
+}
+static void test_widget_images(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);img_sets=0;img_slot=-1;img_opacity=-1;
+    struct ToriRS_PluginDef def={.struct_size=sizeof(def),.id="img-plugin",.title="Img",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=img_start,.on_draw_canvas=img_draw}};
+    CHECK(PluginHost_Register(host,&def)>=0,"image fixture registers");
+    PluginHost_Start(host);
+    PluginHost_DrawCanvas(host,765,503);
+    CHECK(img_sets==1,"paint attempts never reached the adapter");
+    PluginHost_Free(host);
+}
+
 static void test_widget_operations(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
@@ -5149,6 +5202,7 @@ main(void)
     }
     test_script_callbacks();
     test_widget_operations();
+    test_widget_images();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

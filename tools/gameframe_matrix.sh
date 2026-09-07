@@ -259,6 +259,17 @@ while IFS='|' read tag m f s; do
   # GF_MATRIX_WIDGET_OP=1: the simulated click (TORIRS_SIM_CLICK_AT) must land
   # inside the demo's owned control and its operation must run.
   [[ "${GF_MATRIX_WIDGET_OP:-0}" == 1 ]] && widget_args+=(--widget-op)
+  # GF_MATRIX_EXPECT_LOG: pipe-separated regexes the client log must contain.
+  if [[ -n "${GF_MATRIX_EXPECT_LOG:-}" ]]; then
+    for expected_line in "${(@s:|:)GF_MATRIX_EXPECT_LOG}"; do
+      widget_args+=(--expect-log "$expected_line")
+    done
+  fi
+  # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
+  [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
+  # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native
+  # hide untouched) and the plugin's camera control sits inside its slot.
+  [[ "${GF_MATRIX_REPORT_REPLACED:-0}" == 1 ]] && widget_args+=(--report-replaced)
   if [[ "$m" == R ]]; then
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \
       --root 0 --revision rs289lc --rs289-scenario "${GF_MATRIX_RS289_SCENARIO:-baseline}" \

@@ -68,10 +68,7 @@ struct ToriRS_PlacementAreaRef
  * zeroed state or descriptor therefore owns no accidental resource. Slot,
  * plugin-instance and incarnation encoding is a host detail and
  * never leaks into plugin code. */
-struct ToriRS_ImageRef
-{
-    int value;
-};
+/* struct ToriRS_ImageRef lives in torirs_plugin_contract.h beside the widget API that takes it. */
 
 struct ToriRS_ModelRef
 {

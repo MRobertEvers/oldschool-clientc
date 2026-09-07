@@ -221,15 +221,21 @@ def main() -> int:
 
     screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
     for required in (
-        'node = "frame.chat.button.report"',
-        'mode = "replace_or_provide"',
-        "api.ui.set_enabled",
-        "api.ui.update",
-        "on_ui_node_draw",
-        "on_ui_node_action",
+        'api.widgets.watch("report_button"',
+        'api.widgets.watch("viewport"',
+        ":create_image(",
+        ":set_image(",
+        ":set_on_op(",
+        "report:set_hidden(",
+        '"report-button"',
+        'off|top-left|top-right|bottom-left|bottom-right|report-button',
+        "api.assets.screenshot(",
     ):
         if required not in screenshot:
-            errors.append(f"screenshot.lua: missing retained named-UI behavior: {required}")
+            errors.append(f"screenshot.lua: missing retained camera behavior: {required}")
+    for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
+        if forbidden in screenshot:
+            errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
 
     if errors:
         for error in errors:

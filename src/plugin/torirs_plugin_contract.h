@@ -12,6 +12,12 @@
 #define TORIRS_PLUGIN_CONTRACT_MINOR 0u
 
 struct ToriRS_WidgetRef { uint64_t opaque[3]; };
+/* A plugin image handle (see assets.image). Zero is "no image"; the host
+ * validates every use against the owning plugin's live resources. */
+struct ToriRS_ImageRef
+{
+    int value;
+};
 struct ToriRS_ScriptRef { uint64_t token; };
 struct ToriRS_ScriptEvent
 {
@@ -183,6 +189,14 @@ struct ToriRS_WidgetApi
      * menu checks. Replacing the listener retires earlier retained rows. A NULL
      * listener removes the operation. */
     enum ToriRS_ContractResult (*set_on_op)(void*,struct ToriRS_WidgetRef,char const* label,ToriRS_WidgetListener,void* user);
+    /* Owned image controls. create_image returns this owner's keyed child
+     * (idempotent like create_text). set_image installs one of this plugin's
+     * live images and the control's size in canvas pixels; releasing the image
+     * later blanks the control. set_opacity: 255 opaque .. 0 invisible, owned
+     * widgets only. */
+    enum ToriRS_ContractResult (*create_image)(void*,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out);
+    enum ToriRS_ContractResult (*set_image)(void*,struct ToriRS_WidgetRef,struct ToriRS_ImageRef image,int width,int height);
+    enum ToriRS_ContractResult (*set_opacity)(void*,struct ToriRS_WidgetRef,int opacity);
 
     /* Follow a semantic binding at native publication boundaries. A new
      * subscription receives BOUND when available; replacement sends UNBOUND

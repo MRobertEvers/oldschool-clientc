@@ -4185,6 +4185,73 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     return index;
 }
 
+/* The owned-child creation shared by text and graphic controls: owner/key
+ * scoped, idempotent per parent, capped at 128 owned nodes per owner. */
+static int32_t uitree_widget_create_owned(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner,
+                                          char const* key, struct UITreeNodeSpec* spec)
+{
+    int32_t p = UITree_ResolveRef(tree,parent);
+    if( p < 0 || !owner || !key || !*key || strlen(key) > 63 ||
+        (tree->components[p].plugin_owner && tree->components[p].plugin_owner != owner) ) return -1;
+    for( int32_t child=tree->components[p].first_child; child>=0; child=tree->components[child].next_sibling )
+        if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
+            strcmp(tree->components[child].plugin_key,key)==0 ) return child;
+    int count=0;
+    for( uint32_t i=0; i<tree->component_count; ++i )
+        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+    if( count>=128 ) return -1;
+    char* saved_key=strdup(key);
+    assert(saved_key);
+    spec->component_id=-1; spec->plugin_owner=owner;
+    int32_t index=UITree_Push(tree,p,spec);
+    if( index<0 ) { free(saved_key); return -1; }
+    tree->components[index].plugin_key=saved_key;
+    return index;
+}
+
+int32_t UITree_WidgetCreateGraphic(struct UITree* tree, struct UITreeNodeRef parent, uint64_t owner, char const* key)
+{
+    struct UITreeNodeSpec spec={0};
+    spec.type=UIELEM_RS_GRAPHIC;
+    return uitree_widget_create_owned(tree,parent,owner,key,&spec);
+}
+
+bool UITree_WidgetSetGraphic(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,
+                             int scene_id,int width,int height)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || scene_id<0 || width<0 || height<0 || width>4096 || height>4096 ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return false;
+    UITree_SetGraphicAt(tree,idx,scene_id,0);
+    UITree_SetSizeModesAt(tree,idx,width,height,0,0);
+    return true;
+}
+
+int UITree_WidgetClearGraphic(struct UITree* tree, int scene_id)
+{
+    assert(tree);
+    int cleared=0;
+    if( scene_id<=0 ) return 0;
+    for( uint32_t i=0; i<tree->component_count; ++i )
+    {
+        struct UITreeComponent* c=&tree->components[i];
+        if( c->freed || !c->plugin_owner || c->type!=UIELEM_RS_GRAPHIC || c->u.rs_graphic.scene_id!=scene_id ) continue;
+        UITree_SetGraphicAt(tree,(int32_t)i,0,0);
+        ++cleared;
+    }
+    return cleared;
+}
+
+bool UITree_WidgetSetTransparency(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,int transparency)
+{
+    int32_t idx=UITree_ResolveRef(tree,ref);
+    if( idx<0 || !owner || transparency<0 || transparency>255 ) return false;
+    struct UITreeComponent* c=&tree->components[idx];
+    if( c->plugin_owner!=owner ) return false;
+    return UITree_SetTransparencyAt(tree,idx,transparency);
+}
+
 bool UITree_WidgetSetOperation(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,
                                 uint64_t serial,char const* label)
 {

@@ -3728,6 +3728,35 @@ static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetR
                                    : (struct PluginWidgetOp){0};
     return TORIRS_CONTRACT_OK;
 }
+static enum ToriRS_ContractResult widget_create_image(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
+{
+    if( !out || !key || !*key || strlen(key)>63 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_CREATE_IMAGE,.ref=parent,.name=key,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+/* The image token is resolved here, against this plugin's own live resources,
+ * so the adapter only ever sees a validated slot. */
+static enum ToriRS_ContractResult widget_set_image(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image, int width, int height)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    /* Context before arguments: paint never learns anything from this call,
+     * not even whether its image token is still live. */
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( width<0 || height<0 || width>4096 || height>4096 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    int slot=plugin_v2_runtime_image_slot(runtime,image);
+    if( slot<0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_IMAGE,.ref=ref,.id=slot,.a=width,.b=height};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_opacity(void* u, struct ToriRS_WidgetRef ref, int opacity)
+{
+    if( opacity<0 || opacity>255 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_OPACITY,.ref=ref,.a=opacity};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
 {
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
@@ -3849,7 +3878,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
-            .set_on_op=widget_set_on_op,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

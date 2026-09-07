@@ -649,6 +649,42 @@ static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
           "Lua rejects an empty operation label before reaching native dispatch");
 }
 
+static int lua_img_slot,lua_img_w,lua_img_h,lua_img_opacity,lua_img_creates;
+static enum ToriRS_ContractResult fake_lua_create_image(void* ctx,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out)
+{
+    (void)ctx;++lua_img_creates;
+    CHECK(parent.opaque[0]==7 && strcmp(key,"camera")==0,"Lua forwards the parent and key of an owned image");
+    *out=(struct ToriRS_WidgetRef){{7,40,1}};return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult fake_lua_set_image(void* ctx,struct ToriRS_WidgetRef widget,struct ToriRS_ImageRef image,int w,int h)
+{
+    (void)ctx;CHECK(widget.opaque[1]==40,"Lua sets the image on the created control");
+    lua_img_slot=image.value;lua_img_w=w;lua_img_h=h;return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult fake_lua_set_opacity(void* ctx,struct ToriRS_WidgetRef widget,int opacity)
+{
+    (void)ctx;(void)widget;lua_img_opacity=opacity;return TORIRS_CONTRACT_OK;
+}
+static void test_widget_images(struct ToriRS_PluginHost* host)
+{
+    static char const source[]=
+        "local p={id='widget-img'};function p.on_start(api) "
+        " local parent=assert(api.widgets.get(1));local control=assert(parent:create_image('camera'));"
+        " assert(control:set_image(12,20,10));assert(control:set_opacity(85));api.core.log('image set') end;"
+        "function p.on_key(api) local parent=api.widgets.get(1);parent:set_opacity(300) end;return p";
+    struct FakeInstance instance={"widget-img",""};struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.get_widget=fake_lua_get_widget;api.widgets.create_image=fake_lua_create_image;
+    api.widgets.set_image=fake_lua_set_image;api.widgets.set_opacity=fake_lua_set_opacity;
+    int index=PluginLua_AddScript(host,"widget-img",source,(int)strlen(source));
+    CHECK(index>=0,"owned image script registers");
+    int logs=g_logs;g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(g_logs==logs+1 && lua_img_creates==1 && lua_img_slot==12 && lua_img_w==20 && lua_img_h==10 && lua_img_opacity==85,
+          "Lua owned image control forwards image token, size and opacity");
+    int disables=g_disabled_self;struct ToriRS_KeyEvent key={0};
+    g_defs[index]->callbacks.on_key(&api,NULL,&key);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"opacity"),"Lua rejects an out-of-range opacity before native dispatch");
+}
+
 static int menu_calls;
 static struct ToriRS_MenuBuildEvent* expected_menu;
 static bool fake_menu_entry(struct ToriRS_Api* api,struct ToriRS_MenuBuildEvent* menu,
@@ -757,12 +793,15 @@ main(void)
     test_widget_watch(&host);
     test_widget_actions(&host);
     test_widget_set_on_op(&host);
+    test_widget_images(&host);
     test_menu_module(&host);
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
     test_product_behavior(&host,"../script/plugins/_roleprobe.lua",
         "plugin/test/roleprobe_behavior.lua","roleprobe-behavior");
+    test_product_behavior(&host,"../script/plugins/screenshot.lua",
+        "plugin/test/screenshot_behavior.lua","screenshot-behavior");
     test_product_behavior(&host,"../script/plugins/performance_display.lua",
         "plugin/test/performance_display_behavior.lua","performance-behavior");
     test_product_behavior(&host,"../script/plugins/tile_indicator.lua",

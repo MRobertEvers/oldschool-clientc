@@ -3152,6 +3152,10 @@ app_plugin_image_release(void* user, int slot)
     struct App* app = (struct App*)user;
     assert(app);
     UITreeSceneBridge_ReleasePluginImage(&app->bridge, slot);
+    /* An owned image control still showing this slot would otherwise draw
+     * whatever the next publish puts there. */
+    if( app->tree && UITree_WidgetClearGraphic(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0 )
+        app->need_redraw = 1;
 }
 
 /*
@@ -4349,6 +4353,25 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( child<0 ) return TORIRS_CONTRACT_FAILED;
         break;
     }
+    case PLUGIN_WIDGET_CREATE_IMAGE:
+    {
+        int child=UITree_WidgetCreateGraphic(tree,ref,owner,r->name);
+        *r->refs=app_widget_ref(tree,child);
+        if( child<0 ) return TORIRS_CONTRACT_FAILED;
+        break;
+    }
+    case PLUGIN_WIDGET_SET_IMAGE:
+        /* r->id is a validated plugin image slot; the tree draws it at the
+         * scene id the publish used (see app_plugin_image_scene_id). */
+        if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetGraphic(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id,r->a,r->b) ) return TORIRS_CONTRACT_FAILED;
+        app->need_redraw=1;
+        break;
+    case PLUGIN_WIDGET_OPACITY:
+        if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
+        app->need_redraw=1;
+        break;
     case PLUGIN_WIDGET_SET_TEXT:
     case PLUGIN_WIDGET_TEXT_COLOR:
     case PLUGIN_WIDGET_TEXT_ALIGN:

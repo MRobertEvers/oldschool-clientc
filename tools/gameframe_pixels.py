@@ -146,7 +146,47 @@ def check_owned_operation(log, language, failures):
     if not ran: failures.append("owned_widget_operation_ran")
 
 
-def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on"):
+def check_screenshot_saved(log, failures):
+    """A plugin reported a capture and the file it named exists with PNG bytes.
+
+    The path comes from the client's own log line, so a plugin that reported
+    success without writing, or wrote somewhere else, fails here."""
+    paths = re.findall(r"\] captured (\S+\.png)", log)
+    saved = []
+    for path in paths:
+        p = Path(path)
+        try:
+            saved.append(p.is_file() and p.stat().st_size > 8 and p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n")
+        except OSError:
+            saved.append(False)
+    ok = bool(saved) and all(saved)
+    print(f"PIXEL screenshot_saved={'PASS' if ok else 'FAIL'} reported={len(paths)} files={sum(saved)}")
+    if not ok: failures.append("screenshot_saved")
+
+
+def check_report_replaced(log, failures):
+    """The plugin's report-slot camera lies inside a native control whose
+    presentation the plugin hid: native paint and input off, native hide still
+    zero (server state intact), while the camera itself is a painted owned
+    graphic. Read from the final publication only."""
+    final = log[log.rfind("NATIVE_ROOT id="):] if "NATIVE_ROOT id=" in log else log
+    cams = [tuple(map(int, m)) for m in re.findall(r"SCREENSHOT_CAMERA camera_report (-?\d+) (-?\d+) (\d+) (\d+)", log)]
+    cam = cams[-1] if cams else None
+    nodes = re.findall(r"NATIVE_UI node=\d+[^\n]*com=(-?\d+) type=(\w+) hidden=(\d) native_paint=(\d) native_input=(\d) native_hide=(\d)[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
+    def contains(outer, inner):
+        ox, oy, ow, oh = outer; ix, iy, iw, ih = inner
+        return ox <= ix and oy <= iy and ix + iw <= ox + ow and iy + ih <= oy + oh
+    hidden_hosts = [n for n in nodes if cam and n[2] == "0" and n[3] == "0" and n[4] == "0" and n[5] == "0"
+                    and contains(tuple(map(int, n[6:])), cam) and n[1] in ("rs_graphic", "rs_layer", "chat_button")]
+    camera_nodes = [n for n in nodes if cam and n[0] == "-1" and n[1] == "rs_graphic" and n[3] == "1"
+                    and tuple(map(int, n[6:])) == cam]
+    print(f"PIXEL report_control_plugin_hidden={'PASS' if hidden_hosts else 'FAIL'} hosts={len(hidden_hosts)} camera={cam}")
+    if not hidden_hosts: failures.append("report_control_plugin_hidden")
+    print(f"PIXEL report_camera_painted={'PASS' if camera_nodes else 'FAIL'} nodes={len(camera_nodes)}")
+    if not camera_nodes: failures.append("report_camera_painted")
+
+
+def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on", report_replaced=False):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
     The RS2 frame has three mode controls and Report. Do not borrow the
@@ -159,8 +199,9 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
             failures.append(name)
     boxes = [tuple(map(int, values)) for values in re.findall(
         r"NATIVE_UI[^\n]*type=chat_button hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", log)]
-    report("rs289_four_chat_controls", len(boxes) == 4, f"controls={len(boxes)}")
-    report("rs289_controls_inside_canvas", len(boxes) == 4 and all(
+    painted = 3 if report_replaced else 4
+    report("rs289_four_chat_controls", len(boxes) == painted, f"controls={len(boxes)} expected={painted}")
+    report("rs289_controls_inside_canvas", len(boxes) == painted and all(
         x >= 0 and y >= 0 and w > 0 and h > 0 and x+w <= width and y+h <= height
         for x,y,w,h in boxes))
     modes = captions = 0
@@ -170,7 +211,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
         modes += sum(g > 150 and r < 100 and b < 100 for b,g,r in ps) >= 10
         captions += sum(min(b,g,r) > 180 and max(b,g,r)-min(b,g,r) < 30 for b,g,r in ps) >= 20
     report("rs289_live_chat_modes", modes == (2 if public_chat_mode=="friends" else 3), f"green_cells={modes}")
-    report("rs289_chat_captions", captions == 4, f"captions={captions}")
+    report("rs289_chat_captions", captions == painted, f"captions={captions} expected={painted}")
     report("rs289_actual_cs1_values", bool(re.search(r"^NATIVE_CS1 com=\d+ incarnation=[1-9]\d* value\[0\]=[1-9]\d*", log, re.M)))
     report("rs289_mounted_cache_interfaces", bool(re.search(
         r"NATIVE_UI[^\n]*com=[1-9]\d* type=rs_\w+ hidden=0 native_paint=1", log)))
@@ -262,7 +303,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -366,6 +407,16 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
                     for dx,dy in ink["pixels"])
             print(f"PIXEL native_widget_moved_item_ink={'PASS' if painted else 'FAIL'}")
             if not painted: failures.append("native_widget_moved_item_ink")
+    if expect_log or screenshot_saved:
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        for pattern in expect_log or []:
+            found = re.search(pattern, log) is not None
+            print(f"PIXEL expected_log={'PASS' if found else 'FAIL'} pattern={pattern!r}")
+            if not found: failures.append(f"expected_log:{pattern}")
+        if screenshot_saved:
+            check_screenshot_saved(log, failures)
+    if report_replaced:
+        check_report_replaced(Path(bounds_path).read_text() if bounds_path else "", failures)
     if owned_text is not None or owned_count==0:
         log = Path(bounds_path).read_text() if bounds_path else ""
         records = re.findall(r"OWNED_WIDGET owner=\d+ key=strength node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+) len=(\d+) hash=([0-9a-f]+)",log)
@@ -386,7 +437,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
-        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode)
+        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
         return failures
     if frame == "gameframe-layout/classic-fixed":
         # The approved plain-rock band spans x=0..495, y=467..498.
@@ -476,6 +527,9 @@ if __name__ == "__main__":
     parser.add_argument("--native-focus-hide", action="store_true", help="verify the native Hiscores typing/hide packet sequence")
     parser.add_argument("--widget-demo", choices=("c", "lua"))
     parser.add_argument("--widget-op", action="store_true", help="the simulated click must press the demo's owned control")
+    parser.add_argument("--expect-log", action="append", default=[], help="regex the client log must contain (repeatable)")
+    parser.add_argument("--screenshot-saved", action="store_true", help="a plugin 'captured <path>' line names an existing PNG")
+    parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     parser.add_argument("--owned-text")
@@ -495,7 +549,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

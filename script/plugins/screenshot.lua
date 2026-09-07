@@ -1,11 +1,14 @@
--- Screenshot capture, including a canonical named-UI replacement for the
--- report button. The contribution is static; configuration only activates it
--- and updates its retained appearance.
+-- Screenshot capture: game-event and hotkey captures, plus a camera control
+-- that is an owned widget with one native operation. The corner modes place
+-- the control inside the live viewport; the report-button mode hides the
+-- native Report button's presentation and puts the camera over its slot. The
+-- native button keeps its identity and comes back when the mode changes or the
+-- plugin stops.
 ---@type torirs.Plugin
 local plugin = {
     id = "screenshot",
     title = "Screenshots",
-    version = "2.0.0",
+    version = "3.0.0",
     config = {
         { key = "destination", type = "string", default = "",
           label = "Save folder (empty = client plugin folder)" },
@@ -30,28 +33,14 @@ local plugin = {
           choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
           default = "off", label = "Camera button" },
     },
-    ui_contributions = {
-        {
-            node = "frame.chat.button.report",
-            mode = "replace_or_provide",
-            facets = { "appearance", "actions" },
-            value = {
-                flags = 3, -- VISIBLE | ENABLED
-                action = "capture",
-                actions = { "capture" },
-            },
-        },
-    },
 }
 
-local REPORT = "frame.chat.button.report"
-local ACTION_CAPTURE = 1
 local MARGIN = 6
-local icon
-local icon_small
-local icon_small_width
-local icon_small_height
-local report_ref
+local OPERATION = "Take screenshot"
+local IDLE_OPACITY = 170
+local icon, icon_small
+local viewport, report            -- current native widgets, nil when unbound
+local corner_control, report_control
 local pending = {}
 
 local KINDS = {
@@ -115,58 +104,89 @@ local function wanted(api, ev)
     return kind[2]
 end
 
-local function update_report(api)
-    if not report_ref then return end
-    local enabled = api.config.camera == "report-button"
-    api.ui.set_enabled(report_ref, enabled)
-    if not enabled then return end
-
-    if icon_small then
-        icon_small_width, icon_small_height = api.assets.image_size(icon_small)
-    end
-
-    api.ui.update(report_ref, { "appearance", "actions" }, {
-        flags = 3,
-        action = "capture",
-        actions = { "capture" },
-    })
+-- One camera control: an owned image child of `parent` at (x, y), sized to the
+-- image, armed with the capture operation. Returns nil until the image bytes
+-- have decoded; on_asset re-places it then.
+local function place_camera(api, parent, key, image, x, y)
+    if not image then return nil end
+    local width, height = api.assets.image_size(image)
+    if not width then return nil end
+    local control = parent:create_image(key)
+    if not control then return nil end
+    assert(control:set_image(image, width, height))
+    assert(control:set_position(x, y))
+    assert(control:set_opacity(IDLE_OPACITY))
+    assert(control:set_on_op(OPERATION, function(widget)
+        widget:set_opacity(255)
+        capture_now(api)
+    end))
+    assert(control:revalidate())
+    local box = control:bounds()
+    if box then api.core.log("SCREENSHOT_CAMERA", key, box.x, box.y, box.width, box.height) end
+    return control
 end
 
-function plugin.on_ui_node_draw(api, node, draw)
-    if node ~= report_ref or api.config.camera ~= "report-button" or
-        not icon_small or not icon_small_width then return end
-    local info = api.ui.info(node)
-    if not info then return end
-    local box = info.bounds
-    local mouse_x, mouse_y = api.input.pointer()
-    local hovered = mouse_x and mouse_x >= box.x and mouse_x < box.x + box.width and
-        mouse_y >= box.y and mouse_y < box.y + box.height
-    local plate = hovered and 0x873838 or 0x5C1D1C
-    draw.rect(box.x, box.y, box.width, box.height, 0x2A1412, 255)
-    if box.width > 2 and box.height > 2 then
-        draw.rect(box.x + 1, box.y + 1, box.width - 2, box.height - 2, plate, 255)
+local function corner_position(api, where, width, height)
+    local box = viewport and viewport:position()
+    if not box or not width then return nil end
+    local x = where:find("right") and box.width - width - MARGIN or MARGIN
+    local y = where:find("bottom") and box.height - height - MARGIN or MARGIN
+    return x, y
+end
+
+local function update_controls(api)
+    local where = api.config.camera
+    -- Corner control lives in the viewport.
+    if corner_control then corner_control:remove(); corner_control = nil end
+    if viewport and icon and where ~= "off" and where ~= "report-button" then
+        local width, height = api.assets.image_size(icon)
+        local x, y = corner_position(api, where, width, height)
+        if x then corner_control = place_camera(api, viewport, "camera", icon, x, y) end
     end
-    draw.image(icon_small,
-        box.x + (box.width - icon_small_width) // 2,
-        box.y + (box.height - icon_small_height) // 2,
-        255)
+    -- Report-button mode hides the native button's presentation only; its
+    -- native identity, operation and later server updates stay intact and are
+    -- revealed again by set_hidden(false), reset or plugin teardown.
+    if report_control then report_control:remove(); report_control = nil end
+    if report then
+        local replace = where == "report-button"
+        assert(report:set_hidden(replace))
+        if replace and icon_small then
+            local parent, box = report:parent(), report:position()
+            local width, height = api.assets.image_size(icon_small)
+            if parent and box and width then
+                report_control = place_camera(api, parent, "camera_report", icon_small,
+                    box.x + (box.width - width) // 2, box.y + (box.height - height) // 2)
+            end
+        end
+    end
 end
 
 function plugin.on_start(api)
-    report_ref = api.ui.ref(REPORT)
+    pending = {}
     icon = api.assets.image("camera.png")
     icon_small = api.assets.image("camera_small.png")
-    update_report(api)
+    assert(api.widgets.watch("viewport", function(widget, event)
+        viewport = event.kind == "bound" and widget or nil
+        if event.kind == "unbound" then corner_control = nil end
+        update_controls(api)
+    end))
+    assert(api.widgets.watch("report_button", function(widget, event)
+        report = event.kind == "bound" and widget or nil
+        if event.kind == "unbound" then report_control = nil end
+        update_controls(api)
+    end))
 end
 
 function plugin.on_asset(api, ev)
     if ev.name == "camera.png" or ev.name == "camera_small.png" then
-        update_report(api)
+        icon = icon or api.assets.image("camera.png")
+        icon_small = icon_small or api.assets.image("camera_small.png")
+        update_controls(api)
     end
 end
 
 function plugin.on_config_changed(api, key)
-    if key == "camera" then update_report(api) end
+    if key == "camera" then update_controls(api) end
 end
 
 function plugin.on_game_event(api, ev)
@@ -199,39 +219,13 @@ function plugin.on_key(api, ev)
     if hotkey ~= 0 and ev.down and ev.key == hotkey then capture_now(api) end
 end
 
-function plugin.on_draw_canvas(api, draw)
-    local where = api.config.camera
-    if where == "off" or where == "report-button" or not api.world.local_player() then return end
-    if not icon then return end
-    local width, height = api.assets.image_size(icon)
-    if not width then return end
-    local box = api.placement.place("overlay_safe", where, width, height, MARGIN)
-    if not box then return end
-    draw.action_region_id(box, "capture", ACTION_CAPTURE)
-    local x, y = api.input.pointer()
-    local hovered = x and x >= box.x and x < box.x + box.width and
-        y >= box.y and y < box.y + box.height
-    draw.image(icon, box.x, box.y, hovered and 255 or 85)
-end
-
-function plugin.on_canvas_action(api, ev)
-    if ev.id ~= ACTION_CAPTURE then return end
-    capture_now(api)
-    return "consume"
-end
-
-function plugin.on_ui_node_action(api, node, action)
-    if node ~= report_ref or action ~= "capture" then return end
-    capture_now(api)
-    return "consume"
-end
-
 function plugin.on_stop(api)
     pending = {}
-    if report_ref then api.ui.set_enabled(report_ref, false) end
+    -- Owner teardown removes the owned controls and the report button's
+    -- presentation hide; only the image handles are ours to release.
     if icon then api.assets.image_release(icon) end
     if icon_small then api.assets.image_release(icon_small) end
-    icon, icon_small, icon_small_width, icon_small_height, report_ref = nil, nil, nil, nil, nil
+    icon, icon_small, viewport, report, corner_control, report_control = nil, nil, nil, nil, nil, nil
 end
 
 return plugin

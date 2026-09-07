@@ -495,3 +495,39 @@ void test_owned_widget_operations(void)
         "a recreated control starts unarmed");
     UITree_Free(t);
 }
+
+/* Owned image controls: keyed graphic children, owner-checked image and
+ * opacity setters, and the release sweep that blanks a freed scene id on
+ * plugin-owned graphics only. */
+void test_owned_image_widgets(void)
+{
+    struct UITree* t=UITree_New(16);
+    int root=UITree_TestPushXy(t,-1,UIELEM_RS_LAYER,0x360000,0,0,300,300);
+    int native=UITree_TestPushXy(t,root,UIELEM_RS_GRAPHIC,0x360002,0,0,20,20);
+    UITree_SetGraphicAt(t,native,7001,0);
+    struct UITreeNodeRef parent=UITree_RefAt(t,root);
+    int image=UITree_WidgetCreateGraphic(t,parent,1,"camera");
+    int text=UITree_WidgetCreateText(t,parent,1,"label",0);
+    TEST_ASSERT(image>=0 && t->components[image].type==UIELEM_RS_GRAPHIC && t->components[image].plugin_owner==1 &&
+        t->components[image].component_id==-1,"owned image child is a plugin-owned graphic without a component id");
+    TEST_ASSERT(UITree_WidgetCreateGraphic(t,parent,1,"camera")==image,"owned image create is idempotent by key");
+    TEST_ASSERT(UITree_WidgetCreateGraphic(t,parent,2,"camera")!=image,"owned image keys are isolated by owner");
+    struct UITreeNodeRef ref=UITree_RefAt(t,image);
+    TEST_ASSERT(!UITree_WidgetSetGraphic(t,ref,2,7001,20,20),"another owner cannot set an owned image");
+    TEST_ASSERT(!UITree_WidgetSetGraphic(t,UITree_RefAt(t,native),1,7001,20,20),"a native graphic never takes a plugin image");
+    TEST_ASSERT(!UITree_WidgetSetGraphic(t,UITree_RefAt(t,text),1,7001,20,20),"an owned text control is not an image control");
+    TEST_ASSERT(!UITree_WidgetSetGraphic(t,ref,1,7001,5000,20),"image size is bounded");
+    TEST_ASSERT(UITree_WidgetSetGraphic(t,ref,1,7001,24,16),"the owner installs its image");
+    UITree_LayoutResolve(t,0,0,300,300);
+    TEST_ASSERT(t->components[image].u.rs_graphic.scene_id==7001 && t->components[image].position.abs_w==24 &&
+        t->components[image].position.abs_h==16,"image scene and control size are installed together");
+    TEST_ASSERT(!UITree_WidgetSetTransparency(t,ref,2,100),"another owner cannot change an owned control's opacity");
+    TEST_ASSERT(!UITree_WidgetSetTransparency(t,UITree_RefAt(t,native),1,100),"native opacity is not a plugin field here");
+    TEST_ASSERT(UITree_WidgetSetTransparency(t,ref,1,170) && t->components[image].trans==170,"the owner sets its control's transparency");
+    TEST_ASSERT(UITree_WidgetClearGraphic(t,7001)==1 && t->components[image].u.rs_graphic.scene_id==0 &&
+        t->components[native].u.rs_graphic.scene_id==7001,"releasing an image blanks only plugin-owned graphics showing it");
+    TEST_ASSERT(UITree_WidgetClearGraphic(t,7001)==0,"a second sweep finds nothing");
+    UITree_WidgetRemove(t,ref,1);
+    TEST_ASSERT(!UITree_WidgetSetGraphic(t,ref,1,7001,24,16),"a removed image control is stale");
+    UITree_Free(t);
+}

@@ -1296,6 +1296,29 @@ static int lua_widget_create_text(lua_State* L)
     if( result!=TORIRS_CONTRACT_OK ) { lua_pushnil(L);return 1; }
     lua_push_widget(L,created);return 1;
 }
+static int lua_widget_create_image(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef created;
+    enum ToriRS_ContractResult result=ui->create_image(ui->context,lua_widget_arg(L),luaL_checkstring(L,2),&created);
+    if( result!=TORIRS_CONTRACT_OK ) { lua_pushnil(L);return 1; }
+    lua_push_widget(L,created);return 1;
+}
+static int lua_widget_set_image(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef ref=lua_widget_arg(L);
+    struct ToriRS_ImageRef image=lua_image_arg(L,2);
+    lua_Integer w=luaL_checkinteger(L,3),h=luaL_checkinteger(L,4);
+    if( w<0 || h<0 || w>4096 || h>4096 ) return luaL_argerror(L,3,"image size out of range");
+    return lua_widget_result(L,ui->set_image(ui->context,ref,image,(int)w,(int)h));
+}
+static int lua_widget_set_opacity(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    int opacity=lua_enum_integer(L,2,0,255,"opacity");
+    return lua_widget_result(L,ui->set_opacity(ui->context,lua_widget_arg(L),opacity));
+}
 static int lua_widget_set_text(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
@@ -1327,6 +1350,7 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
+    {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"set_on_op",lua_widget_set_on_op},{"remove",lua_widget_remove},{NULL,NULL}
 };
 

@@ -121,6 +121,21 @@ Lua alike; a full table reclaims only a registration whose widget no longer
 exists and never evicts a live one. Lua releases the callback closure on
 removal, on reclamation and on stop.
 
+### Owned image controls (implemented slice)
+
+C `widgets.create_image(context, parent, key, out)` and Lua
+`widget:create_image(key)` create this owner's keyed graphic child, idempotent
+like `create_text`. `set_image(widget, image, width, height)` installs one of
+this plugin's live image tokens (validated in the plugin's own runtime, so the
+adapter only ever sees a slot it published) together with the control's size;
+a token the plugin never received, or has released, is `INVALID_ARGUMENT`.
+Releasing an image later blanks every owned control still showing it, so a
+recycled slot is never drawn. `set_opacity(widget, 255..0)` applies to owned
+widgets only. Native graphics never take a plugin image (`NATIVE_BLOCKED`).
+Combined with `set_on_op`, an image control is a complete button: the
+Screenshot plugin's camera is an owned image control in the live viewport, or
+over the report button's slot while that native button's presentation is hidden.
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

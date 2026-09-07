@@ -2127,6 +2127,14 @@ void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
                                char const* key, int font_id);
 bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owner,uint64_t serial,char const* label);
+/* Owned image control: a plugin-owned RS_GRAPHIC child, keyed like owned text.
+ * SetGraphic installs a scene sprite and the node's requested size in one
+ * step; ClearGraphic blanks every plugin-owned graphic still showing a scene id
+ * whose pixels were released, so a freed slot is never drawn again. */
+int32_t UITree_WidgetCreateGraphic(struct UITree*, struct UITreeNodeRef parent, uint64_t owner, char const* key);
+bool UITree_WidgetSetGraphic(struct UITree*,struct UITreeNodeRef,uint64_t owner,int scene_id,int width,int height);
+int UITree_WidgetClearGraphic(struct UITree*, int scene_id);
+bool UITree_WidgetSetTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
 bool UITree_WidgetRemove(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 
 int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);
