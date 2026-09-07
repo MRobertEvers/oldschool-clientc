@@ -1328,13 +1328,227 @@ UITree_FrameSlotNodes(
     return n;
 }
 
-int
-UITree_FrameHasDepth(struct UITree const* tree)
+_Static_assert((int)UITREE_WIDGET_RELATION_NATIVE == (int)UITREE_FRAME_RELATION_NATIVE &&
+               (int)UITREE_WIDGET_RELATION_OVER == (int)UITREE_FRAME_RELATION_OVER &&
+               (int)UITREE_WIDGET_RELATION_BEHIND == (int)UITREE_FRAME_RELATION_BEHIND &&
+               (int)UITREE_WIDGET_RELATION_REPLACE == (int)UITREE_FRAME_RELATION_REPLACE,
+               "widget anchors and frame slot anchors share one relation vocabulary");
+
+static int
+frame_slot_depth(struct UITree const* tree)
 {
     struct UITreeFrameLayout const* fl = tree->frame_layout;
     if( !fl || !fl->active ) return 0;
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
         if( fl->slot_rect[s].anchor.relation ) return 1;
+    return 0;
+}
+
+int
+UITree_FrameHasDepth(struct UITree const* tree)
+{
+    assert(tree);
+    return frame_slot_depth(tree) || UITree_WidgetAnchorCount(tree) > 0;
+}
+
+/*
+ * Widget anchors: the same three relations, stated between NODES instead of
+ * frame slots, and retained on the anchored node by its owner
+ * (UITree_WidgetSetAnchor). Every consumer that orders by frame slots orders
+ * by these too, through the same UITree_FrameReorder call.
+ *
+ * An ordering UNIT is the subtree of an anchored node or of an anchor target,
+ * cut at any nested unit. A target's tree is written where its earliest record
+ * stood: BEHIND children first, then the target's own records -- or a presented
+ * REPLACE child's instead -- then OVER children, each child recursively. A
+ * child whose target has no records at all keeps its native position: there is
+ * nothing to be over or behind. REPLACE inherits the target's native veto: a
+ * hidden target drops its replacement, and a hidden replacement reveals the
+ * target.
+ */
+struct AnchorWork
+{
+    struct UITree const* tree;
+    struct UITreeHost const* host;
+    unsigned char const* input;
+    unsigned char* output;
+    size_t stride;
+    int count;
+    int written;
+    int32_t* record_unit;   /* per record: unit node, or -1 */
+    int32_t* unit_of;       /* per node memo: -2 unknown, -1 none, else the unit */
+    int32_t* target;        /* per node: anchor target, -1 when not anchored */
+    unsigned char* relation;/* per node: effective relation */
+    unsigned char* is_target;
+    unsigned char* handled; /* per node: unit already written or dropped */
+    int* first;             /* per node: earliest record of the unit, count when absent */
+};
+
+static int32_t
+anchor_unit_of(struct AnchorWork* w, int32_t node)
+{
+    struct UITree const* tree = w->tree;
+    int32_t walk = node;
+    uint32_t guard = 0;
+    while( walk >= 0 && guard++ < tree->component_count )
+    {
+        if( w->unit_of[walk] != -2 ) break;
+        if( w->target[walk] >= 0 || w->is_target[walk] ) { w->unit_of[walk] = walk; break; }
+        walk = tree->components[walk].parent;
+    }
+    int32_t unit = walk < 0 ? -1 : w->unit_of[walk];
+    /* Memoise the whole path walked. */
+    for( int32_t p = node; p >= 0 && p != walk; p = tree->components[p].parent )
+        w->unit_of[p] = unit;
+    return unit;
+}
+
+static int
+anchor_node_visible(struct AnchorWork const* w, int32_t node)
+{
+    return UITree_NodeNativeVisible(w->tree, w->host, node, -1);
+}
+
+/* The earliest record of a target's whole tree, children included. */
+static int
+anchor_tree_first(struct AnchorWork const* w, int32_t unit, int depth)
+{
+    int first = w->first[unit];
+    if( depth > 64 ) return first;
+    for( uint32_t n = 0; n < w->tree->component_count; n++ )
+        if( w->target[n] == (int32_t)unit )
+        {
+            int child = anchor_tree_first(w, (int32_t)n, depth + 1);
+            if( child < first ) first = child;
+        }
+    return first;
+}
+
+static void
+anchor_write_tree(struct AnchorWork* w, int32_t unit, int depth)
+{
+    struct UITree const* tree = w->tree;
+    int32_t children[64];
+    int count = 0, replacement = -1;
+    if( depth > 64 || w->handled[unit] ) return;
+    w->handled[unit] = 1;
+    for( uint32_t n = 0; n < tree->component_count && count < 64; n++ )
+    {
+        if( w->target[n] != unit ) continue;
+        int at = count++;
+        while( at > 0 && w->first[children[at - 1]] > w->first[n] )
+        { children[at] = children[at - 1]; at--; }
+        children[at] = (int32_t)n;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        int32_t child = children[i];
+        if( w->relation[child] == UITREE_WIDGET_RELATION_BEHIND )
+            anchor_write_tree(w, child, depth + 1);
+        else if( w->relation[child] == UITREE_WIDGET_RELATION_REPLACE &&
+                 anchor_node_visible(w, child) && anchor_node_visible(w, unit) )
+            replacement = child;
+    }
+    if( replacement >= 0 )
+        anchor_write_tree(w, replacement, depth + 1);
+    else
+        for( int i = 0; i < w->count; i++ )
+            if( w->record_unit[i] == unit )
+                memcpy(w->output + (size_t)w->written++ * w->stride,
+                       w->input + (size_t)i * w->stride, w->stride);
+    for( int i = 0; i < count; i++ )
+    {
+        int32_t child = children[i];
+        if( w->relation[child] == UITREE_WIDGET_RELATION_OVER )
+            anchor_write_tree(w, child, depth + 1);
+        else if( w->relation[child] == UITREE_WIDGET_RELATION_REPLACE )
+            w->handled[child] = 1; /* not presented: inherits the target's veto */
+    }
+}
+
+static int
+frame_reorder_widget_anchors(struct UITree const* tree, struct UITreeHost const* host, void* records,
+                             int count, size_t stride, size_t node_offset)
+{
+    struct AnchorWork w = { .tree = tree, .host = host, .input = records, .stride = stride, .count = count };
+    uint32_t const n = tree->component_count;
+    int anchored = 0;
+    if( count <= 0 || UITree_WidgetAnchorCount(tree) <= 0 ) return count;
+    w.target = malloc((size_t)n * sizeof(*w.target));
+    w.unit_of = malloc((size_t)n * sizeof(*w.unit_of));
+    w.first = malloc((size_t)n * sizeof(*w.first));
+    w.relation = calloc(n, sizeof(*w.relation));
+    w.is_target = calloc(n, sizeof(*w.is_target));
+    w.handled = calloc(n, sizeof(*w.handled));
+    w.record_unit = malloc((size_t)count * sizeof(*w.record_unit));
+    w.output = malloc((size_t)count * stride);
+    assert(w.target);
+    assert(w.unit_of);
+    assert(w.first);
+    assert(w.relation);
+    assert(w.is_target);
+    assert(w.handled);
+    assert(w.record_unit);
+    assert(w.output);
+    for( uint32_t i = 0; i < n; i++ )
+    {
+        int32_t target;
+        w.unit_of[i] = -2;
+        w.first[i] = count;
+        w.relation[i] = (unsigned char)UITree_WidgetAnchorAt(tree, (int32_t)i, &target);
+        w.target[i] = w.relation[i] == UITREE_WIDGET_RELATION_NATIVE ? -1 : target;
+        if( w.target[i] >= 0 ) { w.is_target[target] = 1; anchored++; }
+    }
+    if( !anchored )
+        goto done;
+    for( int i = 0; i < count; i++ )
+    {
+        int32_t node_plus_one;
+        memcpy(&node_plus_one, w.input + (size_t)i * stride + node_offset, sizeof(node_plus_one));
+        w.record_unit[i] = node_plus_one > 0 && (uint32_t)(node_plus_one - 1) < n
+                               ? anchor_unit_of(&w, node_plus_one - 1) : -1;
+        if( w.record_unit[i] >= 0 && w.first[w.record_unit[i]] == count )
+            w.first[w.record_unit[i]] = i;
+    }
+    /* Roots: targets that are not themselves anchored. Each tree is written
+     * where its earliest record stood; a root with no records anywhere in its
+     * tree is never written and its children keep their native positions. */
+    for( int i = 0; i <= count; i++ )
+    {
+        for( uint32_t r = 0; r < n; r++ )
+            if( w.is_target[r] && w.target[r] < 0 && !w.handled[r] && anchor_tree_first(&w, (int32_t)r, 0) == i )
+                anchor_write_tree(&w, (int32_t)r, 0);
+        if( i == count ) break;
+        int32_t unit = w.record_unit[i];
+        if( unit >= 0 && w.handled[unit] ) continue;
+        memcpy(w.output + (size_t)w.written++ * stride, w.input + (size_t)i * stride, stride);
+    }
+    memcpy(records, w.output, (size_t)w.written * stride);
+    count = w.written;
+done:
+    free(w.target); free(w.unit_of); free(w.first); free(w.relation);
+    free(w.is_target); free(w.handled); free(w.record_unit); free(w.output);
+    return count;
+}
+
+/* 1 when `node` sits inside a target that a presented widget REPLACE has taken,
+ * or inside a REPLACE source whose target is not natively visible. */
+static int
+frame_widget_anchor_suppressed(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
+{
+    if( UITree_WidgetAnchorCount(tree) <= 0 ) return 0;
+    for( int32_t at = node; at >= 0; at = tree->components[at].parent )
+    {
+        int32_t target;
+        if( UITree_WidgetAnchorAt(tree, at, &target) == UITREE_WIDGET_RELATION_REPLACE &&
+            !UITree_NodeNativeVisible(tree, host, target, -1) )
+            return 1;
+        for( uint32_t n = 0; n < tree->component_count; n++ )
+            if( UITree_WidgetAnchorAt(tree, (int32_t)n, &target) == UITREE_WIDGET_RELATION_REPLACE &&
+                target == at && UITree_NodeNativeVisible(tree, host, (int32_t)n, -1) &&
+                UITree_NodeNativeVisible(tree, host, at, -1) )
+                return 1;
+    }
     return 0;
 }
 
@@ -1393,6 +1607,7 @@ int
 UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
 {
     struct UITreeFrameLayout const* fl = tree->frame_layout;
+    if( frame_widget_anchor_suppressed(tree, host, node) ) return 1;
     int slot = UITree_FrameNodeSlot(tree, node);
     if( slot < 0 || !fl || !fl->active ) return 0;
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
@@ -1406,6 +1621,7 @@ int
 UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
 {
     if( !UITree_NodeNativeVisible(tree, host, node, -1) ) return 0;
+    if( frame_widget_anchor_suppressed(tree, host, node) ) return 0;
     int slot = UITree_FrameNodeSlot(tree, node);
     return slot < 0 || (frame_replacement_available(tree, host, slot, NULL) &&
                        !UITree_FrameNodeReplaced(tree, host, node));
@@ -1466,7 +1682,9 @@ UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, vo
     struct UITreeFrameLayout const* fl = tree->frame_layout;
     int roots[UITREE_FRAME_SLOT_COUNT], active[UITREE_FRAME_SLOT_COUNT] = { 0 };
     struct FrameOrderWork work = { .input = records, .count = count, .stride = stride };
-    if( !UITree_FrameHasDepth(tree) || count <= 0 ) return count;
+    if( count <= 0 ) return count;
+    if( !frame_slot_depth(tree) )
+        return frame_reorder_widget_anchors(tree, host, records, count, stride, node_offset);
     assert(stride >= sizeof(int32_t) && node_offset <= stride - sizeof(int32_t));
     assert((size_t)count <= SIZE_MAX / stride);
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
@@ -1543,7 +1761,7 @@ UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, vo
     memcpy(records, work.output, (size_t)work.written * stride);
     free(work.output);
     free(owners);
-    return work.written;
+    return frame_reorder_widget_anchors(tree, host, records, work.written, stride, node_offset);
 }
 
 int

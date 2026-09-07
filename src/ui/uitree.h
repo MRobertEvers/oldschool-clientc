@@ -1550,6 +1550,8 @@ struct UITree
     /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
      *  which it is on every lane until a layout plugin claims one. */
     struct UITreeFrameLayout* frame_layout;
+    /** Retained widget anchor edits alive on this tree; the cheap depth gate. */
+    int widget_anchor_edits;
     /**
      * Stamps the frame roles a cache gameframe does not declare for itself,
      * before any declaration is collected. NULL on a tree nobody has bound.
@@ -2119,6 +2121,33 @@ int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
 bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
 bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
+
+/* Presentation depth of a widget relative to a named target widget: drawn and
+ * hit directly OVER it, directly BEHIND it, or in its place (REPLACE, which
+ * inherits the target's native visibility). Retained per owner like the
+ * geometry edits: the latest writer wins, NATIVE records "no relation", reset
+ * drops it. Numeric values match UITreeFrameRelation (pinned in uitree_frame.c). */
+enum UITreeWidgetRelation
+{
+    UITREE_WIDGET_RELATION_NATIVE = 0,
+    UITREE_WIDGET_RELATION_OVER,
+    UITREE_WIDGET_RELATION_BEHIND,
+    UITREE_WIDGET_RELATION_REPLACE,
+};
+enum UITreeWidgetAnchorResult
+{
+    UITREE_WIDGET_ANCHOR_OK = 0,
+    UITREE_WIDGET_ANCHOR_STALE,   /* the widget or the target no longer resolves */
+    UITREE_WIDGET_ANCHOR_BLOCKED, /* the widget is another plugin's owned control */
+    UITREE_WIDGET_ANCHOR_INVALID, /* self, ancestor/descendant, cycle, bad relation */
+    UITREE_WIDGET_ANCHOR_BUDGET,  /* the node's per-owner edit budget is spent */
+};
+enum UITreeWidgetAnchorResult UITree_WidgetSetAnchor(struct UITree*, struct UITreeNodeRef widget, uint64_t owner,
+                                                     struct UITreeNodeRef target, enum UITreeWidgetRelation relation);
+/* The effective anchor of `idx`: the latest edit whose target still resolves.
+ * Writes the live target index (-1 for NATIVE). */
+enum UITreeWidgetRelation UITree_WidgetAnchorAt(struct UITree const*, int32_t idx, int32_t* out_target);
+int UITree_WidgetAnchorCount(struct UITree const*);
 bool UITree_WidgetSetProjectionHeight(struct UITree*,struct UITreeNodeRef,uint64_t owner,int height);
 int UITree_WidgetProjectionHeight(struct UITree const*,int32_t node);
 bool UITree_WidgetSetTextOutline(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool outline);

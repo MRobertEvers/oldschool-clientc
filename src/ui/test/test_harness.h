@@ -274,6 +274,7 @@ void test_scripted_entity_overlay(void);
 void test_scripted_entity_overlay_clipped(void);
 void test_scripted_overlay_arc(void);
 void test_dirty_marking(void);
+void test_widget_anchor_depth(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);
 void test_hover_input(void);

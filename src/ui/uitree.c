@@ -25,6 +25,10 @@ struct UITreeWidgetGeometry
     int x, y, width, height;
     bool hidden;
     bool outline;
+    /* Depth relation to another widget; anchor_serial 0 = never stated. */
+    uint64_t anchor_serial;
+    int anchor_relation;
+    struct UITreeNodeRef anchor_target;
 };
 static uint64_t widget_geometry_serial;
 
@@ -1557,13 +1561,17 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
 /* Free a component's heap-owned resources and NULL the pointers so the slot is
  * safe to reuse and UITree_Free cannot double-free. */
 static void
-uitree_component_free_owned(struct UITreeComponent* c)
+uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
 {
+    assert(tree);
+    assert(c);
     free(c->plugin_key);
     c->plugin_key = NULL;
     while( c->widget_geometry )
     {
         struct UITreeWidgetGeometry* next = c->widget_geometry->next;
+        if( c->widget_geometry->anchor_serial )
+            tree->widget_anchor_edits--;
         free(c->widget_geometry);
         c->widget_geometry = next;
     }
@@ -1680,7 +1688,7 @@ uitree_reclaim_subtree(
     uitree_live_unregister(tree, idx);
     /* Must read the id, so before the memset clears it. */
     uitree_id_index_note_removed(tree, idx);
-    uitree_component_free_owned(c);
+    uitree_component_free_owned(tree, c);
     memset(c, 0, sizeof(*c));
     c->parent = -1;
     c->first_child = -1;
@@ -1701,7 +1709,7 @@ UITree_Free(struct UITree* tree)
     assert(tree);
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
-        uitree_component_free_owned(&tree->components[i]);
+        uitree_component_free_owned(tree, &tree->components[i]);
     free(tree->id_index_keys);
     free(tree->id_index_vals);
     free(tree->layout_order);
@@ -3212,7 +3220,7 @@ UITree_CcCopy(
 
     /* Push owns default lazy blocks for builtin arms. Drop those before
      * installing an independently owned payload; identity/topology stay new. */
-    uitree_component_free_owned(dst);
+    uitree_component_free_owned(tree, dst);
     dst->u = src.u;
     if( src.type == UIELEM_RS_TEXT )
     {
@@ -4101,6 +4109,83 @@ bool UITree_WidgetSetHidden(struct UITree* tree,struct UITreeNodeRef ref,uint64_
     return true;
 }
 
+enum UITreeWidgetRelation UITree_WidgetAnchorAt(struct UITree const* tree, int32_t idx, int32_t* out_target)
+{
+    assert(tree);
+    assert(out_target);
+    *out_target = -1;
+    if( idx < 0 || (uint32_t)idx >= tree->component_count || tree->components[idx].freed )
+        return UITREE_WIDGET_RELATION_NATIVE;
+    struct UITreeWidgetGeometry const* last = NULL;
+    for( struct UITreeWidgetGeometry const* e = tree->components[idx].widget_geometry; e; e = e->next )
+        if( e->anchor_serial && (!last || e->anchor_serial > last->anchor_serial) ) last = e;
+    if( !last || last->anchor_relation == UITREE_WIDGET_RELATION_NATIVE )
+        return UITREE_WIDGET_RELATION_NATIVE;
+    /* A target that died leaves the edit standing and binding nothing; a fresh
+     * incarnation at the same index is a different widget and never inherits it. */
+    int32_t target = UITree_ResolveRef(tree, last->anchor_target);
+    if( target < 0 )
+        return UITREE_WIDGET_RELATION_NATIVE;
+    *out_target = target;
+    return (enum UITreeWidgetRelation)last->anchor_relation;
+}
+
+int UITree_WidgetAnchorCount(struct UITree const* tree)
+{
+    assert(tree);
+    return tree->widget_anchor_edits;
+}
+
+enum UITreeWidgetAnchorResult
+UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
+                       struct UITreeNodeRef target, enum UITreeWidgetRelation relation)
+{
+    assert(tree);
+    assert(owner);
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX )
+        return UITREE_WIDGET_ANCHOR_STALE;
+    struct UITreeComponent* c = &tree->components[idx];
+    if( c->plugin_owner && c->plugin_owner != owner )
+        return UITREE_WIDGET_ANCHOR_BLOCKED;
+    if( relation < UITREE_WIDGET_RELATION_NATIVE || relation > UITREE_WIDGET_RELATION_REPLACE )
+        return UITREE_WIDGET_ANCHOR_INVALID;
+    int32_t t = -1;
+    if( relation != UITREE_WIDGET_RELATION_NATIVE )
+    {
+        t = UITree_ResolveRef(tree, target);
+        if( t < 0 )
+            return UITREE_WIDGET_ANCHOR_STALE;
+        if( t == idx )
+            return UITREE_WIDGET_ANCHOR_INVALID;
+        /* An ordering unit is a subtree, and units must be disjoint: neither
+         * side may contain the other. */
+        for( int32_t p = tree->components[t].parent; p >= 0; p = tree->components[p].parent )
+            if( p == idx ) return UITREE_WIDGET_ANCHOR_INVALID;
+        for( int32_t p = c->parent; p >= 0; p = tree->components[p].parent )
+            if( p == t ) return UITREE_WIDGET_ANCHOR_INVALID;
+        /* No cycle through the effective anchors the target already has. */
+        int32_t at = t;
+        for( uint32_t guard = 0; guard < tree->component_count; ++guard )
+        {
+            int32_t next;
+            if( UITree_WidgetAnchorAt(tree, at, &next) == UITREE_WIDGET_RELATION_NATIVE ) break;
+            if( next == idx ) return UITREE_WIDGET_ANCHOR_INVALID;
+            at = next;
+        }
+    }
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit )
+        return UITREE_WIDGET_ANCHOR_BUDGET;
+    if( !edit->anchor_serial )
+        tree->widget_anchor_edits++;
+    edit->anchor_serial = ++widget_geometry_serial;
+    edit->anchor_relation = relation;
+    edit->anchor_target = t >= 0 ? UITree_RefAt(tree, t) : (struct UITreeNodeRef){0};
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return UITREE_WIDGET_ANCHOR_OK;
+}
+
 bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)
 {
     int32_t idx = UITree_ResolveRef(tree, ref);
@@ -4111,10 +4196,14 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
         struct UITreeWidgetGeometry* edit = *link;
         if( edit->owner == owner )
         {
+            bool const anchored = edit->anchor_serial != 0;
             *link = edit->next;
+            if( anchored )
+                tree->widget_anchor_edits--;
             free(edit);
             uitree_widget_refresh_hidden(tree,idx);
-            uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+            uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF |
+                                            (anchored ? UITREE_IMPACT_REACHABILITY : 0));
             break;
         }
         link = &edit->next;

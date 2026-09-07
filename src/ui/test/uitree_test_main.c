@@ -34,6 +34,7 @@ main(void)
     test_owned_widgets();
     test_owned_widget_operations();
     test_owned_image_widgets();
+    test_widget_anchor_depth();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
     }
@@ -48,6 +49,7 @@ main(void)
     test_owned_widgets();
     test_owned_widget_operations();
     test_owned_image_widgets();
+    test_widget_anchor_depth();
     test_plugin_contract_copy();
     test_dirty_marking();
     test_walk_topology();
