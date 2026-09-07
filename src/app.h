@@ -1249,8 +1249,8 @@ struct App
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;
-    /** Canvas the last declaration was made against, so the app can tell a
-     *  resize (which needs a fresh declaration) from a frame that merely
+    /** Canvas the frame was last provided against, so the app can tell a
+     *  resize (which asks the provider again) from a frame that merely
      *  rendered again. */
     int plugin_layout_w;
     int plugin_layout_h;
@@ -2755,9 +2755,9 @@ int
 App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h);
 
 /**
- * Bring the frame up to date once per frame: re-declare it if the canvas or
- * the tree changed under the claim, and re-assert the chrome suppression the
- * declaration made.
+ * Bring the frame up to date once per frame: ask the provider again if the
+ * canvas or the tree changed under the claim, and re-assert the chrome
+ * suppression the provision made.
  *
  * The re-assert is not redundant. On a cache gameframe the toplevel's own
  * scripts show and hide its decoration constantly, so a suppression applied

@@ -1233,13 +1233,13 @@ mobile_housing(struct MobileCall* ctx)
  */
 
 /*
- * Which tabs this lane actually has, learned from the declaration.
+ * Which tabs this lane actually has, learned from the widget API.
  *
- * layout_slot_at both places a mount and answers whether the frame HAS one, and
- * that answer is the only way to tell a tab this cache lacks from one it puts
- * somewhere else -- rs289lc has no clan chat, and a stone wearing an icon for a
- * panel that cannot open is worse than a blank one, because it invites the tap
- * that does nothing.
+ * The apply pass's widgets.find_all by role both moves a mount and answers
+ * whether the frame HAS one, and that answer is the only way to tell a tab
+ * this cache lacks from one it puts somewhere else -- rs289lc has no clan
+ * chat, and a stone wearing an icon for a panel that cannot open is worse than
+ * a blank one, because it invites the tap that does nothing.
  *
  * Cached because the question can only be asked while the drawer is OPEN: a
  * shut drawer places no mounts, so it has nothing to ask with. That is sound
@@ -2354,7 +2354,8 @@ mobile_member(struct MobileCall* ctx, int surface, int member, int x, int y, int
 }
 
 /*
- * The named nodes the layout used to publish, by what each one IS:
+ * One piece of the plan, recorded by what it IS so the apply pass can build
+ * it as an owned widget:
  *
  *   frame.minimap.housing      the housing plate, applied over the compass
  *   chat-toggle / keyboard-toggle  the two switches, owned controls
@@ -2363,10 +2364,8 @@ mobile_member(struct MobileCall* ctx, int surface, int member, int x, int y, int
  */
 static void
 mobile_ui_node(
-    struct MobileCall* ctx, char const* name, char const* parent, struct ToriRS_Rect bounds,
-    struct ToriRS_ImageRef image, char const* action)
+    struct MobileCall* ctx, char const* name, struct ToriRS_Rect bounds, struct ToriRS_ImageRef image)
 {
-    (void)parent;
     assert(ctx);
     assert(name);
     if( strcmp(name, "frame.minimap.housing") == 0 )
@@ -2385,7 +2384,6 @@ mobile_ui_node(
         t->box = bounds;
         t->face = g_frame.toggle_art;
         t->glyph = name[0] == 'c' ? g_art[ART_ICON_CHAT] : g_image[IMG_ICON_KEYBOARD];
-        (void)action;
         return;
     }
     if( strcmp(name, "frame.sidebar.rail") == 0 )
@@ -3156,10 +3154,8 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     mobile_ui_node(
         ctx,
         "frame.minimap.housing",
-        "frame.minimap",
         (struct ToriRS_Rect){ map_x, map_y, g_map_w, g_map_h },
-        g_image[housing->art],
-        NULL);
+        g_image[housing->art]);
     /* Both surfaces go in the windows the RING says it has, at the boxes the
      * housing states. @see MobileHousing. */
     mobile_surface(
@@ -3308,19 +3304,15 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     mobile_ui_node(
         ctx,
         "chat-toggle",
-        "frame.viewport",
         (struct ToriRS_Rect){
             g_frame.toggle_x, g_frame.toggle_y, g_frame.toggle_w, g_frame.toggle_h },
-        (struct ToriRS_ImageRef){ 0 },
-        "toggle-chat");
+        (struct ToriRS_ImageRef){ 0 });
     mobile_ui_node(
         ctx,
         "keyboard-toggle",
-        "frame.viewport",
         (struct ToriRS_Rect){
             g_frame.keys_x, g_frame.keys_y, g_frame.toggle_w, g_frame.toggle_h },
-        (struct ToriRS_ImageRef){ 0 },
-        "toggle-keyboard");
+        (struct ToriRS_ImageRef){ 0 });
 
     /*
      * The ROLE, and then its members.
@@ -3340,10 +3332,8 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     mobile_ui_node(
         ctx,
         "frame.sidebar.rail",
-        "frame.viewport",
         (struct ToriRS_Rect){ rail_x, rail_y, rail_w, rail_h },
-        (struct ToriRS_ImageRef){ 0 },
-        NULL);
+        (struct ToriRS_ImageRef){ 0 });
 
     if( family == FAMILY_OLDSCHOOL )
         mobile_layout_rail_oldschool(ctx, rail_x, rail_y, panel_x, panel_y);
@@ -3438,10 +3428,8 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         mobile_ui_node(
             ctx,
             NAME[i],
-            "frame.chat.buttons",
             bounds,
-            g_art[ART_CHAT_BUTTON_0 + i],
-            NULL);
+            g_art[ART_CHAT_BUTTON_0 + i]);
     }
 }
 

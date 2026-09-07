@@ -2499,6 +2499,13 @@ static void test_gameframe_provider(void)
           "a READY provider publishes chrome suppression and its canvas policy without a slot declaration");
     CHECK(selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
           "the provided offer is the active frame");
+    {
+        struct ToriRS_FrameOfferInfo offer={.struct_size=sizeof(offer)};
+        CHECK(gf_api->frame.offer_next(gf_api,-1,&offer)==0 && strcmp(offer.id,"gf-provider/event")==0,
+              "the catalogue iterator starts at the provider's own offer");
+        CHECK(gf_api->frame.offer_next(gf_api,INT_MAX,&offer)==-1,
+              "the public iterator rejects INT_MAX without signed overflow");
+    }
     /* A canvas change asks again. */
     PluginHost_Layout(host,900,600);
     CHECK(gf_events==2 && g_engine.frame_provides==2,"every layout pass re-asks the provider");

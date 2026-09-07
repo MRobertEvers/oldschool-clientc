@@ -81,7 +81,6 @@ static int g_draw_surface;
 
 /* Fourteen sidebar mounts and four chat buttons: a member number is the
  * role's OWN numbering, so the table has to be as wide as the widest role. */
-#define FAKE_SLOT_MEMBERS 16
 
 /** What the selected frame declared: activation, surfaces, and drawing. */
 static struct
@@ -92,61 +91,19 @@ static struct
     int fixed_h;
     int set_calls;
 
-    struct FakeRect
-    {
-        int placed;
-        int x;
-        int y;
-        int w;
-        int h;
-    } slot[TORIRS_HOST_SURFACE_COUNT];
-    struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
-    int anchor_relation[TORIRS_HOST_SURFACE_COUNT];
-    int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
-    int begin_calls;
-    int end_calls;
     int provide_calls;
 
     int blits;
     int blit_x[128];
     int blit_y[128];
-    int regions;
-    uint32_t region_tag[64];
-    int region_plugin[64];
-    int region_x[64];
-    int region_y[64];
-    int region_w[64];
-    int region_h[64];
-    int region_op_count[64];
-    int region_surface[64];
 
     int active_tab;
     int selected_tab;
     int select_calls;
-    struct
-    {
-        int placed;
-        int art;
-        int mask;
-    } skin[TORIRS_HOST_SURFACE_COUNT];
-    struct
-    {
-        int placed;
-        int image;
-        int x;
-        int y;
-        int trans;
-    } overlay[TORIRS_HOST_SURFACE_COUNT];
-    int scrollbar_pieces;
-    /** A sidebar tab this fake gameframe does NOT have, or -1. */
-    int missing_tab;
     /** A tab the frame HAS and the server has not handed over, or -1. The
-     *  tutorial's state, and a different question from missing_tab. */
+     *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
 } g_frame;
-
-/** Which roles this fake gameframe has. Everything but the compass, so that
- *  "a slot the frame does not have answers 0" is exercised. */
 
 static void
 fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
@@ -936,7 +893,6 @@ main(void)
     e.hsl_to_rgb = fake_hsl_to_rgb;
     e.widget_request = fake_widget_request;
 
-    g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
     g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
@@ -960,8 +916,8 @@ main(void)
     /* ---- 1. the plan on a 2004 lane, drawer shut, sheet up -------------- */
     CHECK(g_frame.active == 0, "native stays live while Stone Drawer prepares");
     declare(M_W, M_H);
-    CHECK(g_frame.active == 1 && g_frame.provide_calls >= 1 && g_frame.end_calls == 0,
-          "the Stone Drawer owns the frame through frame_provide, with no slot declaration");
+    CHECK(g_frame.active == 1 && g_frame.provide_calls >= 1,
+          "the Stone Drawer owns the frame through frame_provide");
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW, "a phone frame follows the window rather than pinning a canvas");
     CHECK(placed("viewport", -1, 0, 0, M_W, M_H), "the scene is the whole canvas");
     /* The masks are cut from the housing's own pixels on the first frame, and

@@ -129,27 +129,6 @@ struct UITreeEntityOverlay
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };
 
-/** One role-local canvas list, already grouped by exact target incarnation.
- * `replace` selects the pruned target's tombstone; `place` selects the exact
- * before/native-self/after boundary for a live target. */
-/* Where a role overlay group paints relative to its target. These values are
- * the internal UITree side of the host's named-UI boundary contract. */
-#define UITREE_ROLE_PLACE_AFTER 0
-#define UITREE_ROLE_PLACE_BEFORE 1
-/** The target's own appearance, when a plugin provides it: paints between the
- *  BEFORE and AFTER groups, where the native subtree would have. */
-#define UITREE_ROLE_PLACE_SELF 2
-
-struct UITreeRoleOverlayGroup
-{
-    int32_t node_index;
-    uint64_t node_incarnation;
-    uint8_t replace;
-    uint8_t place;
-    struct UITreeEntityOverlay const* items;
-    int item_count;
-};
-
 /* One blit on the world map surface: a baked map region, or a map element icon
  * over it. Both are positioned by the host in absolute screen pixels — regions
  * are baked at exactly the view's pixels-per-tile, so nothing scales here — the
@@ -331,17 +310,6 @@ enum UITreeHostRequestKind
      * clipped away entirely.
      */
     UITREE_HOST_GET_CANVAS_OVERLAYS,
-    /** Prepare the canvas dispatch and return its role-local groups. The host
-     * writes whether role.anchor was requested even when every target missed,
-     * which fences retained emit from silently promoting those draws global. */
-    UITREE_HOST_GET_ROLE_OVERLAY_GROUPS,
-    /** Publish the exact parent clip used for a role-local group so its hit
-     * regions obey the same local clipping on the next interaction frame. */
-    UITREE_HOST_SET_ROLE_OVERLAY_CLIP,
-    /** The plugin FRAME overlay: a layout plugin's own chrome, cut to the
-     *  canvas like GET_CANVAS_OVERLAYS and emitted in a different place --
-     *  over the 3D scene, under the interfaces. @see FrameOffer.draw. */
-    UITREE_HOST_GET_FRAME_OVERLAYS,
     /**
      * Writes the host-owned world map tile array (the baked regions covering
      * the map surface this frame, same-frame lifetime) to
@@ -675,22 +643,6 @@ struct UITreeHostRequest
             int* out_clip_w;
             int* out_clip_h;
         } get_entity_overlays;
-        struct
-        {
-            struct UITreeRoleOverlayGroup const** out_groups;
-            int* out_anchor_seen;
-        } get_role_overlay_groups;
-        struct
-        {
-            int32_t node_index;
-            uint64_t node_incarnation;
-            int replace;
-            int clip_x;
-            int clip_y;
-            int clip_w;
-            int clip_h;
-            int place;
-        } set_role_overlay_clip;
         struct
         {
             struct UIMinimenu const** out;

@@ -957,10 +957,12 @@ bool
 PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host);
 
 /**
- * Ask the requested candidate (or committed provider on relayout) to declare
- * against a canvas of `width` x `height`.
+ * Ask the requested candidate (or committed provider on relayout) to provide
+ * the frame against a canvas of `width` x `height`: its on_gameframe edits the
+ * live surfaces through the widget API, and a READY answer takes the lane's
+ * chrome (engine.frame_provide).
  *
- * The engine calls this at the three moments the last declaration stopped
+ * The engine calls this at the three moments the last provision stopped
  * being true: the canvas resized, the gameframe was rebuilt, and a selection
  * or explicit invalidation requested another candidate. A no-op with no
  * plugin candidate or committed frame.

@@ -1,8 +1,8 @@
 /*
  * A frame PROVIDED through the widget API: the engine takes the lane's chrome
- * and binds the roles, but places and hides no surface -- unlike a declaration,
- * whose unplaced surfaces are hidden. The provider's retained edits then move
- * the surfaces without the declaration's ownership gate standing in the way.
+ * and binds the roles, but places and hides no surface. The provider's
+ * retained edits then move the surfaces, and every container above a moved
+ * surface stops clipping.
  */
 #include "test_harness.h"
 #include "uitree_frame.h"
@@ -28,27 +28,16 @@ void test_frame_provide(void)
     UITree_TestHostInit(&host, &state);
     UITree_TestResolve(tree);
 
-    /* Contrast: an empty DECLARATION hides every surface it did not place. */
-    {
-        struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT] = { 0 };
-        UITree_FrameApply(tree, slots, group);
-        TEST_ASSERT(tree->components[chrome].frame_hidden && tree->components[chat].frame_hidden,
-                    "an empty declaration hides the chrome and the unplaced chat");
-        UITree_FrameRelease(tree);
-        TEST_ASSERT(!tree->components[chrome].frame_hidden && !tree->components[chat].frame_hidden, "release reveals both");
-    }
-
     UITree_FrameProvide(tree, group);
-    printf("FRAME_PROVIDE active=%d hidden=%d chrome=%d chat=%d world=%d owned=%d\n", UITree_FrameActive(tree),
+    printf("FRAME_PROVIDE active=%d hidden=%d chrome=%d chat=%d world=%d\n", UITree_FrameActive(tree),
            UITree_FrameHiddenCount(tree), tree->components[chrome].frame_hidden, tree->components[chat].frame_hidden,
-           tree->components[world].frame_hidden, UITree_FramePositionOwned(tree, chat));
+           tree->components[world].frame_hidden);
     TEST_ASSERT(UITree_FrameActive(tree) && tree->components[chrome].frame_hidden,
                 "a provided frame suppresses the lane's chrome");
     TEST_ASSERT(!tree->components[chat].frame_hidden && !tree->components[world].frame_hidden,
                 "a provided frame hides no surface: the provider decides with set_hidden");
     TEST_ASSERT(UITree_FrameSlotCount(tree, UITREE_FRAME_SLOT_CHAT) == 1 && UITree_FrameSlotCount(tree, UITREE_FRAME_SLOT_VIEWPORT) == 1,
                 "the roles are bound so staleness and reassert keep working");
-    TEST_ASSERT(!UITree_FramePositionOwned(tree, chat), "no declaration owns the chat's box");
     TEST_ASSERT(!tree->components[chat_box].frame_stretched, "an unmoved chat leaves its container clipping");
     TEST_ASSERT(UITree_WidgetSetPosition(tree, UITree_RefAt(tree, chat), 7, 17, 19), "the provider moves the chat with a retained edit");
     /* The app provides again after the provider's edits, at the layout fence. */

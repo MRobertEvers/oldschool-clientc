@@ -106,7 +106,6 @@ main(void)
     test_server_driven_viewport_widgets();
     test_frame_replacement();
     test_frame_authored_metadata();
-    test_frame_declared_depth();
     test_roles();
 
     if( g_failures )

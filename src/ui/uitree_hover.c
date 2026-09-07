@@ -281,7 +281,7 @@ UITree_FindHoveredComponentIdForRegion(
     if( ordered.items )
     {
         ordered.count = UITree_FrameReorder(tree, host, ordered.items, ordered.count,
-                          sizeof(*ordered.items), offsetof(struct FrameHoverEvent, node_plus_one), NULL);
+                          sizeof(*ordered.items), offsetof(struct FrameHoverEvent, node_plus_one));
         for( int i = 0; i < ordered.count; i++ )
         {
             if( ordered.items[i].reset ) hovered = -1;

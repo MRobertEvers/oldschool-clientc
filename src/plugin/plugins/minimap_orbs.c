@@ -325,7 +325,8 @@ orbs_parse_button(
  * Compatibility lookup for profiles that predate semantic action roles.
  *
  * The profile's old `[iface:<name>]` entry resolves to a component id. New
- * profiles bind a `[role:<name>]` and are reached through ui.invoke_base; this
+ * profiles bind a `[role:<name>]`, which orbs_native_action resolves to a
+ * checked action ref invoked through the widget API (widgets.invoke); this
  * path remains so an older/private profile keeps working during migration.
  *
  * @return 1 when a button was named, and then `out_*` describe it.

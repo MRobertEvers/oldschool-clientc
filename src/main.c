@@ -3423,14 +3423,29 @@ frame_loop_teardown(void)
                         c->slot_tag, c->frame_member_plus1, c->role_id,
                         c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
                         c->behavior.scripts_count, c->cs1_active);
+                /* Every widget a plugin OWNS, by the key it created it under:
+                 * a text's length and hash, so a caption's content can be
+                 * checked; an image's scene id, so its draw command can be
+                 * found in the EMIT_EXIT list; and whether it is hidden, so a
+                 * plate the plugin put away is not read as one it drew. */
                 if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner && c->type==UIELEM_RS_TEXT )
                 {
                     char const* text=c->u.rs_text.text ? c->u.rs_text.text : "";
                     uint64_t hash=UINT64_C(14695981039346656037);
                     for( unsigned char const* p=(unsigned char const*)text; *p; ++p ) hash=(hash^*p)*UINT64_C(1099511628211);
-                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 "\n",
+                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 " hidden=%d\n",
                         c->plugin_owner,c->plugin_key ? c->plugin_key : "",i,
-                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,strlen(text),hash);
+                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,strlen(text),hash,
+                        dump_node_hidden(app.tree, (int32_t)i));
+                }
+                else if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner )
+                {
+                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d type=%s scene=%d hidden=%d\n",
+                        c->plugin_owner,c->plugin_key ? c->plugin_key : "",i,
+                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,
+                        UITree_ComponentTypeStr(c->type),
+                        c->type == UIELEM_RS_GRAPHIC ? c->u.rs_graphic.scene_id : -1,
+                        dump_node_hidden(app.tree, (int32_t)i));
                 }
                 if( getenv("TORIRS_TRACE_NATIVE_UI") && c->type == UIELEM_RS_TEXT && c->u.rs_text.input )
                 {
@@ -3443,6 +3458,22 @@ frame_loop_teardown(void)
                         c->component_id, UITree_InputFocusId(app.tree) == c->component_id,
                         strlen(text), hash);
                 }
+            }
+            /* Every semantic role that resolves, and the box of the node it
+             * resolves to: the lane's own surface a plugin dressed by role
+             * (the chat backing, the chat bar) is found the way the plugin
+             * found it, not by a cache id that differs per toplevel. */
+            for( int ri = 0; getenv("TORIRS_TRACE_NATIVE_UI") && ri < app.ui_roles.count; ri++ )
+            {
+                int32_t const node = UITree_RoleNode(app.tree, &app.ui_roles, (uint16_t)(ri + 1));
+                struct UITreeComponent const* c;
+                if( node < 0 )
+                    continue;
+                c = &app.tree->components[node];
+                TORIRS_REPORT("ROLE_WIDGET role=%s node=%d com=0x%08x box=%d,%d,%d,%d hidden=%d\n",
+                    app.ui_roles.entries[ri].name, (int)node, (unsigned)c->component_id,
+                    c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
+                    dump_node_hidden(app.tree, node));
             }
         }
 

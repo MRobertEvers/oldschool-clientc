@@ -12,14 +12,19 @@
  *
  * The distinction is load-bearing on a CS2 frame. Its resize and transmit
  * hooks are allowed to restate the native component geometry every tick, and
- * the plugin declaration has to remain the box that layout and emit observe
- * without writing its rectangle back into `component.position`. Otherwise the
- * two owners alternate writes forever; depending on where a frame is sampled,
- * that is the original frame flashing through the plugin one.
+ * the provider's retained widget edits have to remain the box that layout and
+ * emit observe without writing their rectangle back into
+ * `component.position`. Otherwise the two owners alternate writes forever;
+ * depending on where a frame is sampled, that is the original frame flashing
+ * through the plugin one.
  *
  * The compass skin is the same contract for art: emit sees the plugin image,
  * while the component continues to own the cache image that must return when
  * the claim is released.
+ *
+ * The engine's own half -- UITree_FrameProvide -- takes the lane's chrome,
+ * binds the roles and releases the containers above a moved surface from
+ * clipping; it places nothing itself.
  */
 
 enum
@@ -31,7 +36,6 @@ enum
     FRAME_CHAT_ID = (FRAME_GROUP << 16) | 1,
     FRAME_COMPASS_ID = (FRAME_GROUP << 16) | 2,
     FRAME_CHROME_ID = (FRAME_GROUP << 16) | 3,
-    FRAME_MINIMAP_ID = (FRAME_GROUP << 16) | 4,
     FRAME_WORLD_ID = (FRAME_GROUP << 16) | 5,
     FRAME_ENTITY_OVERLAY_ID = (FRAME_GROUP << 16) | 6,
     FRAME_CROSS_ID = (FRAME_GROUP << 16) | 7,
@@ -58,16 +62,17 @@ enum
 
     NATIVE_COMPASS_ART = 41,
     NATIVE_COMPASS_MASK = 42,
-    NATIVE_MINIMAP_MASK = 43,
     PLUGIN_COMPASS_ART = 141,
     PLUGIN_COMPASS_MASK = 142,
+
+    /** The provider's owner id for its retained widget edits. */
+    PLUGIN_OWNER = 7,
 };
 
 enum RetainedOverlaySource
 {
     RETAINED_OVERLAY_ENTITY = 0,
     RETAINED_OVERLAY_CANVAS,
-    RETAINED_OVERLAY_FRAME,
     RETAINED_OVERLAY_SOURCE_COUNT,
     RETAINED_OVERLAY_PHASE_COUNT = 4,
 };
@@ -81,7 +86,6 @@ struct RetainedOverlayHost
     int call_seq;
     int phase;
     int zero_initial;
-    int role_anchor_seen;
     struct UITree* mutate_tree;
     enum UITreeHostRequestKind mutate_kind;
     int mutated;
@@ -112,20 +116,11 @@ retained_overlay_host_request(void* user, struct UITreeHostRequest* req)
         if( req->u.get_cross_position.out_y )
             *req->u.get_cross_position.out_y = 50;
         return 1;
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-        if( req->u.get_role_overlay_groups.out_groups )
-            *req->u.get_role_overlay_groups.out_groups = NULL;
-        if( req->u.get_role_overlay_groups.out_anchor_seen )
-            *req->u.get_role_overlay_groups.out_anchor_seen = state->role_anchor_seen;
-        return 0;
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
         source = RETAINED_OVERLAY_ENTITY;
         break;
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
         source = RETAINED_OVERLAY_CANVAS;
-        break;
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
-        source = RETAINED_OVERLAY_FRAME;
         break;
     default:
         return 0;
@@ -252,27 +247,45 @@ push_cache_frame(struct UITree* tree, int32_t shell, int variant)
     return out;
 }
 
+/* The provider's edits on one cache-frame generation: the chat and the
+ * compass moved to the plugin's rectangles, the compass re-skinned. Both live
+ * directly under the frame root at 0,0, so a retained edit (relative to the
+ * surface's native parent) lands at the same canvas numbers. */
 static void
-declare_plugin_frame(struct UITree* tree)
+provide_plugin_edits(struct UITree* tree, struct FrameNodes const* frame)
 {
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    struct UITreeNodeRef const chat = UITree_RefAt(tree, frame->chat);
+    struct UITreeNodeRef const compass = UITree_RefAt(tree, frame->compass);
 
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_CHAT].all.x = PLUGIN_CHAT_X;
-    slots[UITREE_FRAME_SLOT_CHAT].all.y = PLUGIN_CHAT_Y;
-    slots[UITREE_FRAME_SLOT_CHAT].all.w = PLUGIN_CHAT_W;
-    slots[UITREE_FRAME_SLOT_CHAT].all.h = PLUGIN_CHAT_H;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.x = PLUGIN_COMPASS_X;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.y = PLUGIN_COMPASS_Y;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.w = PLUGIN_COMPASS_W;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.h = PLUGIN_COMPASS_H;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.placed = 1;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.art_scene_id = PLUGIN_COMPASS_ART;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.mask_scene_id = PLUGIN_COMPASS_MASK;
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(tree, chat, PLUGIN_OWNER, PLUGIN_CHAT_X, PLUGIN_CHAT_Y) &&
+            UITree_WidgetSetSize(tree, chat, PLUGIN_OWNER, PLUGIN_CHAT_W, PLUGIN_CHAT_H),
+        "the provider moves the chat");
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y) &&
+            UITree_WidgetSetSize(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_W, PLUGIN_COMPASS_H) &&
+            UITree_WidgetSetArt(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_ART) &&
+            UITree_WidgetSetMask(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_MASK),
+        "the provider moves and re-skins the compass");
+}
 
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
+/* The engine takes the frame, the provider edits, and the engine provides
+ * again at the layout fence so the containers above the moved surfaces stop
+ * clipping -- the order App_PluginLayoutTick runs them in. */
+static void
+provide_plugin_frame(struct UITree* tree, struct FrameNodes const* frame)
+{
+    UITree_FrameProvide(tree, FRAME_GROUP);
+    provide_plugin_edits(tree, frame);
+    UITree_FrameProvide(tree, FRAME_GROUP);
+}
+
+/* The provider drops its edits and the engine gives the frame back. */
+static void
+release_plugin_frame(struct UITree* tree)
+{
+    UITree_WidgetResetOwner(tree, PLUGIN_OWNER);
+    UITree_FrameRelease(tree);
 }
 
 static int
@@ -330,16 +343,6 @@ emit_find(struct UITreeEmitBuffer const* buf, int32_t node)
 }
 
 static int
-emit_find_scene(struct UITreeEmitBuffer const* buf, int scene_id)
-{
-    for( int i = 0; i < buf->count; i++ )
-        if( buf->cmds[i].kind == UITREE_EMIT_SPRITE &&
-            buf->cmds[i].scene_id == scene_id )
-            return i;
-    return -1;
-}
-
-static int
 emit_find_overlay_source(
     struct UITreeEmitBuffer const* buf,
     int source)
@@ -350,8 +353,6 @@ emit_find_overlay_source(
         wanted = UITREE_EMIT_OVERLAY_ENTITY;
     else if( source == RETAINED_OVERLAY_CANVAS )
         wanted = UITREE_EMIT_OVERLAY_CANVAS;
-    else if( source == RETAINED_OVERLAY_FRAME )
-        wanted = UITREE_EMIT_OVERLAY_FRAME;
     for( int i = 0; i < buf->count; i++ )
         if( buf->cmds[i].entity_overlay_source == wanted )
             return i;
@@ -423,7 +424,7 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
         UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     TEST_ASSERT(shell >= 0, "persistent display shell");
     frame = push_cache_frame(tree, shell, 0);
-    declare_plugin_frame(tree);
+    provide_plugin_frame(tree, &frame);
     UITree_FrameReassert(tree);
     UITree_TestResolve(tree);
 
@@ -431,12 +432,12 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
         raw_box_is(
             tree, frame.chat,
             NATIVE_CHAT_X, NATIVE_CHAT_Y, NATIVE_CHAT_W, NATIVE_CHAT_H),
-        "applying a frame does not replace the chat component's native rectangle");
+        "a retained edit does not replace the chat component's native rectangle");
     TEST_ASSERT(
         raw_box_is(
             tree, frame.compass,
             NATIVE_COMPASS_X, NATIVE_COMPASS_Y, NATIVE_COMPASS_W, NATIVE_COMPASS_H),
-        "applying a frame does not replace the compass component's native rectangle");
+        "a retained edit does not replace the compass component's native rectangle");
     TEST_ASSERT(
         effective_box_is(
             tree, frame.chat,
@@ -451,10 +452,10 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
     assert_plugin_emit(tree, &buf, &frame);
 
     quiet_dirty = tree->dirty_gen;
-    declare_plugin_frame(tree);
+    UITree_FrameProvide(tree, FRAME_GROUP);
     TEST_ASSERT(
         tree->dirty_gen == quiet_dirty && tree->components[frame.chrome].frame_hidden,
-        "an identical declaration is an atomic no-op, never a release/reapply flash");
+        "providing again over an unchanged binding is an atomic no-op, never a release/retake flash");
 
     /* The cache's resize hook restates a new native box while the plugin owns
      * the frame. This must update native state without becoming visible until
@@ -513,7 +514,7 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
             raw_box_is(tree, frame.compass, 548, 18, 37, 38),
         "steady reassert never copies plugin geometry into native fields");
 
-    UITree_FrameRelease(tree);
+    release_plugin_frame(tree);
     UITree_TestResolve(tree);
     TEST_ASSERT(
         effective_box_is(tree, frame.chat, 43, 302, 451, 107) &&
@@ -555,7 +556,7 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
         UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     TEST_ASSERT(shell >= 0, "persistent display shell");
     frame = push_cache_frame(tree, shell, 0);
-    declare_plugin_frame(tree);
+    provide_plugin_frame(tree, &frame);
     assert_plugin_emit(tree, &buf, &frame);
 
     for( int generation = 1; generation <= 3; generation++ )
@@ -566,9 +567,9 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
         int const decoy_x = generation * 9;
         int const decoy_y = generation * 11;
 
-        /* A root remount reclaims the old semantic nodes after the declaration
-         * was applied. Push an unrelated node first so the free-list gives it
-         * an old frame index; a stale reassert must not place or restore it. */
+        /* A root remount reclaims the old semantic nodes after the frame was
+         * taken. Push an unrelated node first so the free-list gives it an old
+         * frame index; a stale reassert must not touch or restore it. */
         UITree_ReclaimInterfaceGroup(tree, FRAME_GROUP);
         decoy[generation - 1] = UITree_TestPushXy(
             tree, shell, UIELEM_RS_RECT, decoy_id, decoy_x, decoy_y, 13, 14);
@@ -603,13 +604,21 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
             "rebind preserves the rebuilt compass's native geometry");
         TEST_ASSERT(
             effective_box_is(
-                tree, frame.chat,
-                PLUGIN_CHAT_X, PLUGIN_CHAT_Y, PLUGIN_CHAT_W, PLUGIN_CHAT_H) &&
+                tree,
+                frame.chat,
+                NATIVE_CHAT_X + generation * 7,
+                NATIVE_CHAT_Y - generation * 7,
+                NATIVE_CHAT_W - generation * 7,
+                NATIVE_CHAT_H + generation * 7) &&
                 effective_box_is(
-                    tree, frame.compass,
-                    PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y,
-                    PLUGIN_COMPASS_W, PLUGIN_COMPASS_H),
-            "reassert binds the standing declaration to the rebuilt roles");
+                    tree,
+                    frame.compass,
+                    NATIVE_COMPASS_X - generation * 7,
+                    NATIVE_COMPASS_Y + generation * 7,
+                    NATIVE_COMPASS_W + generation * 7,
+                    NATIVE_COMPASS_H + generation * 7),
+            "a retained edit dies with the node it was made on: the rebuilt roles wear "
+            "the lane's own geometry until the provider is asked again");
         TEST_ASSERT(
             tree->components[frame.chrome].frame_hidden,
             "reassert suppresses rebuilt original chrome before emit");
@@ -622,6 +631,19 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
                 UITree_FrameSlotCount(tree, UITREE_FRAME_SLOT_COMPASS) == 1,
             "reconciliation replaces rather than accumulates its node tables");
         assert_native_art(tree, &frame);
+
+        /* The fence asks the provider again, and it edits the rebuilt nodes. */
+        provide_plugin_frame(tree, &frame);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(
+            effective_box_is(
+                tree, frame.chat,
+                PLUGIN_CHAT_X, PLUGIN_CHAT_Y, PLUGIN_CHAT_W, PLUGIN_CHAT_H) &&
+                effective_box_is(
+                    tree, frame.compass,
+                    PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y,
+                    PLUGIN_COMPASS_W, PLUGIN_COMPASS_H),
+            "the provider's fresh edits move the rebuilt roles");
         assert_plugin_emit(tree, &buf, &frame);
 
         for( int i = 0; i < generation; i++ )
@@ -633,7 +655,7 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
         }
     }
 
-    UITree_FrameRelease(tree);
+    release_plugin_frame(tree);
     UITree_TestResolve(tree);
     TEST_ASSERT(
         effective_box_is(
@@ -701,8 +723,7 @@ test_retained_overlay_refresh_preserves_source(void)
     for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
         desc[source] = emit_find_overlay_source(&buf, source);
     TEST_ASSERT(
-        desc[RETAINED_OVERLAY_ENTITY] < 0 && desc[RETAINED_OVERLAY_CANVAS] < 0 &&
-            desc[RETAINED_OVERLAY_FRAME] < 0,
+        desc[RETAINED_OVERLAY_ENTITY] < 0 && desc[RETAINED_OVERLAY_CANVAS] < 0,
         "zero-count overlay sources add no renderer commands");
     TEST_ASSERT(
         buf.volatile_refs == RETAINED_OVERLAY_SOURCE_COUNT && !buf.volatile_unrefreshable,
@@ -712,33 +733,20 @@ test_retained_overlay_refresh_preserves_source(void)
         "standing overlay records do not request a whole-list volatile scan");
     TEST_ASSERT(
         state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
-            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
-            state.calls[RETAINED_OVERLAY_FRAME] == 1,
+            state.calls[RETAINED_OVERLAY_CANVAS] == 1,
         "the initial walk requests every overlay source once");
 
     state.mutate_tree = tree;
-    state.mutate_kind = UITREE_HOST_GET_ROLE_OVERLAY_GROUPS;
+    state.mutate_kind = UITREE_HOST_BEGIN_OVERLAYS;
     TEST_ASSERT(
         !UITree_EmitRefreshVolatile(tree, &host, &buf),
-        "a replacement visibility mutation during Canvas preflight rejects retention");
+        "a visibility mutation while the overlays begin rejects retention");
     TEST_ASSERT(
         state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
-            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
-            state.calls[RETAINED_OVERLAY_FRAME] == 1,
-        "replacement mutation rejects before disposable overlay callbacks");
+            state.calls[RETAINED_OVERLAY_CANVAS] == 1,
+        "the mutation rejects before any disposable overlay callback");
     state.mutate_tree = NULL;
     state.mutate_kind = 0;
-
-    state.role_anchor_seen = 1;
-    TEST_ASSERT(
-        !UITree_EmitRefreshVolatile(tree, &host, &buf),
-        "a role anchor appearing on a retained frame requires a local full walk");
-    TEST_ASSERT(
-        state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
-            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
-            state.calls[RETAINED_OVERLAY_FRAME] == 1,
-        "anchor preflight rejects retention before any disposable overlay callback");
-    state.role_anchor_seen = 0;
 
     state.phase = 1;
     TEST_ASSERT(
@@ -748,13 +756,11 @@ test_retained_overlay_refresh_preserves_source(void)
     for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
         desc[source] = emit_find_overlay_source(&buf, source);
     TEST_ASSERT(
-        desc[RETAINED_OVERLAY_ENTITY] >= 0 && desc[RETAINED_OVERLAY_FRAME] >= 0 &&
-            desc[RETAINED_OVERLAY_CANVAS] >= 0,
-        "nonempty refresh inserts all three renderer descriptors");
+        desc[RETAINED_OVERLAY_ENTITY] >= 0 && desc[RETAINED_OVERLAY_CANVAS] >= 0,
+        "nonempty refresh inserts both renderer descriptors");
     TEST_ASSERT(
-        desc[RETAINED_OVERLAY_ENTITY] < desc[RETAINED_OVERLAY_FRAME] &&
-            desc[RETAINED_OVERLAY_FRAME] < desc[RETAINED_OVERLAY_CANVAS],
-        "entity overlays stay below frame chrome and canvas chrome stays above interfaces");
+        desc[RETAINED_OVERLAY_ENTITY] < desc[RETAINED_OVERLAY_CANVAS],
+        "entity overlays stay below canvas chrome, which stays above interfaces");
     for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
     {
         struct UITreeEmitDesc const* refreshed =
@@ -773,13 +779,12 @@ test_retained_overlay_refresh_preserves_source(void)
     }
     TEST_ASSERT(
         state.calls[RETAINED_OVERLAY_ENTITY] == 2 &&
-            state.calls[RETAINED_OVERLAY_CANVAS] == 2 &&
-            state.calls[RETAINED_OVERLAY_FRAME] == 2,
-        "retained refresh reissues entity, canvas, and frame requests once each");
+            state.calls[RETAINED_OVERLAY_CANVAS] == 2,
+        "retained refresh reissues the entity and canvas requests once each");
     TEST_ASSERT(
-        state.last_call_seq[RETAINED_OVERLAY_FRAME] <
+        state.last_call_seq[RETAINED_OVERLAY_ENTITY] <
             state.last_call_seq[RETAINED_OVERLAY_CANVAS],
-        "retained refresh rebuilds frame state before the canvas overlay consumes it");
+        "retained refresh asks for the entity overlays before the canvas ones");
 
     UITree_EmitBufferInit(&fresh);
     UITree_EmitWalk(tree, &host, &fresh, -1);
@@ -799,13 +804,11 @@ test_retained_overlay_refresh_preserves_source(void)
         "nonzero-to-zero refresh removes descriptors without a second walk");
     TEST_ASSERT(
         emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY) < 0 &&
-            emit_find_overlay_source(&buf, RETAINED_OVERLAY_FRAME) < 0 &&
             emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS) < 0,
         "zeroed overlay sources leave no stale renderer descriptors");
     TEST_ASSERT(
         state.calls[RETAINED_OVERLAY_ENTITY] == 4 &&
-            state.calls[RETAINED_OVERLAY_CANVAS] == 4 &&
-            state.calls[RETAINED_OVERLAY_FRAME] == 4,
+            state.calls[RETAINED_OVERLAY_CANVAS] == 4,
         "each retained transition dispatches every overlay source exactly once");
 
     UITree_EmitBufferInit(&fresh);
@@ -966,95 +969,9 @@ test_transparent_entity_overlay_stays_absent_on_refresh(void)
 }
 
 static void
-test_zero_mask_skin_explicitly_unmasks(void)
-{
-    struct UITree* tree = UITree_New(8);
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
-    struct UITreeEmitBuffer buf;
-    struct UITreeHost host;
-    struct TestHostState host_state;
-    struct FrameNodes frame;
-    struct UITreeEmitDesc const* compass;
-    struct UITreeEmitDesc const* minimap_desc;
-    int32_t shell;
-    int32_t minimap;
-
-    TEST_ASSERT(tree != NULL, "UITree_New");
-    tree->mask_keep_opaque = 1;
-    shell = UITree_TestPushXy(
-        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
-        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    frame = push_cache_frame(tree, shell, 0);
-    minimap = UITree_TestPushXy(
-        tree, frame.root, UIELEM_BUILTIN_MINIMAP, FRAME_MINIMAP_ID, 600, 20, 120, 120);
-    TEST_ASSERT(shell >= 0 && minimap >= 0, "skinned minimap fixture");
-    tree->components[minimap].u.minimap.mask_scene_id = NATIVE_MINIMAP_MASK;
-    tree->components[minimap].u.minimap.mask_atlas_index = 5;
-
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_COMPASS].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.x = PLUGIN_COMPASS_X;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.y = PLUGIN_COMPASS_Y;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.w = PLUGIN_COMPASS_W;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.h = PLUGIN_COMPASS_H;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.placed = 1;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.art_scene_id = PLUGIN_COMPASS_ART;
-    slots[UITREE_FRAME_SLOT_COMPASS].skin.mask_scene_id = 0;
-    slots[UITREE_FRAME_SLOT_MINIMAP].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_MINIMAP].all.x = 600;
-    slots[UITREE_FRAME_SLOT_MINIMAP].all.y = 20;
-    slots[UITREE_FRAME_SLOT_MINIMAP].all.w = 120;
-    slots[UITREE_FRAME_SLOT_MINIMAP].all.h = 120;
-    slots[UITREE_FRAME_SLOT_MINIMAP].skin.placed = 1;
-    slots[UITREE_FRAME_SLOT_MINIMAP].skin.mask_scene_id = 0;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
-
-    UITree_TestHostInit(&host, &host_state);
-    host_state.minimap_scene_id = 501;
-    UITree_EmitBufferInit(&buf);
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    compass = emit_find(&buf, frame.compass);
-    minimap_desc = emit_find(&buf, minimap);
-    TEST_ASSERT(compass != NULL && minimap_desc != NULL, "zero-mask frame surfaces emit");
-    if( compass )
-        TEST_ASSERT(
-            compass->scene_id == PLUGIN_COMPASS_ART && compass->mask_scene_id == 0 &&
-                compass->mask_atlas_index == 0 && !compass->mask_keep_opaque,
-            "a placed zero compass mask disables the native mask and its polarity");
-    if( minimap_desc )
-        TEST_ASSERT(
-            minimap_desc->scene_id == host_state.minimap_scene_id &&
-                minimap_desc->mask_scene_id == 0 && minimap_desc->mask_atlas_index == 0 &&
-                !minimap_desc->mask_keep_opaque,
-            "a placed zero minimap mask disables the native mask and its polarity");
-    TEST_ASSERT(
-        tree->components[frame.compass].u.sprite.mask_scene_id == NATIVE_COMPASS_MASK &&
-            tree->components[frame.compass].u.sprite.mask_atlas_index == 4 &&
-            tree->components[minimap].u.minimap.mask_scene_id == NATIVE_MINIMAP_MASK &&
-            tree->components[minimap].u.minimap.mask_atlas_index == 5,
-        "explicit unmasking leaves both cache-authored masks native");
-
-    UITree_FrameRelease(tree);
-    buf.count = 0;
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    compass = emit_find(&buf, frame.compass);
-    minimap_desc = emit_find(&buf, minimap);
-    TEST_ASSERT(
-        compass && compass->mask_scene_id == NATIVE_COMPASS_MASK &&
-            compass->mask_atlas_index == 4 && compass->mask_keep_opaque == 1 && minimap_desc &&
-            minimap_desc->mask_scene_id == NATIVE_MINIMAP_MASK &&
-            minimap_desc->mask_atlas_index == 5 && minimap_desc->mask_keep_opaque == 1,
-        "release restores the native compass and minimap masks and polarity");
-
-    UITree_EmitBufferFree(&buf);
-    UITree_Free(tree);
-}
-
-static void
 test_frame_visibility_invalidates_retention_and_hover(void)
 {
     struct UITree* tree = UITree_New(4);
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
     struct UITreeEmitBuffer buf;
     int32_t shell;
     int32_t root;
@@ -1078,8 +995,7 @@ test_frame_visibility_invalidates_retention_and_hover(void)
     UITree_EmitWalk(tree, NULL, &buf, -1);
     TEST_ASSERT(emit_find(&buf, chrome) != NULL, "native chrome starts reached and visible");
 
-    memset(slots, 0, sizeof(slots));
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP);
     buf.count = 0;
     UITree_EmitWalk(tree, NULL, &buf, -1);
     TEST_ASSERT(tree->components[chrome].frame_hidden, "frame claim hides native chrome");
@@ -1147,7 +1063,7 @@ test_ancestor_keeps_its_native_box_across_a_shrink(void)
         native_large_h);
     TEST_ASSERT(shell >= 0, "large frame ancestor");
     frame = push_cache_frame(tree, shell, 0);
-    declare_plugin_frame(tree);
+    provide_plugin_frame(tree, &frame);
     UITree_TestResolve(tree);
     TEST_ASSERT(
         raw_box_is(tree, shell, native_x, native_y, native_large_w, native_large_h) &&
@@ -1170,14 +1086,15 @@ test_ancestor_keeps_its_native_box_across_a_shrink(void)
         "the shrunken ancestor's effective box is the lane's, not the canvas");
     TEST_ASSERT(
         tree->components[shell].frame_stretched,
-        "and it carries the containment release that lets the frame out of it");
+        "and it carries the containment release that lets the moved surfaces out of it");
     TEST_ASSERT(
         effective_box_is(
             tree, frame.compass,
-            PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y, PLUGIN_COMPASS_W, PLUGIN_COMPASS_H),
-        "canvas-coordinate plugin placement ignores the native ancestor offset");
+            native_x + PLUGIN_COMPASS_X, native_y + PLUGIN_COMPASS_Y,
+            PLUGIN_COMPASS_W, PLUGIN_COMPASS_H),
+        "a retained edit is relative to the surface's native parent and rides the ancestor's offset");
 
-    UITree_FrameRelease(tree);
+    release_plugin_frame(tree);
     UITree_TestResolve(tree);
     TEST_ASSERT(
         effective_box_is(
@@ -1217,7 +1134,17 @@ test_release_ignores_same_id_recycled_incarnations(void)
         NATIVE_COMPASS_MASK);
     TEST_ASSERT(shell >= 0 && old_root >= 0 && old_compass >= 0, "recycle fixture");
     old_incarnation = tree->components[old_compass].incarnation;
-    declare_plugin_frame(tree);
+    UITree_FrameProvide(tree, FRAME_GROUP);
+    {
+        struct UITreeNodeRef const compass = UITree_RefAt(tree, old_compass);
+        TEST_ASSERT(
+            UITree_WidgetSetPosition(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y) &&
+                UITree_WidgetSetSize(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_W, PLUGIN_COMPASS_H) &&
+                UITree_WidgetSetArt(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_ART) &&
+                UITree_WidgetSetMask(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_MASK),
+            "the provider moves and re-skins the old compass");
+    }
+    UITree_FrameProvide(tree, FRAME_GROUP);
 
     UITree_ReclaimInterfaceGroup(tree, FRAME_GROUP);
     new_root = UITree_TestPushXy(
@@ -1232,176 +1159,31 @@ test_release_ignores_same_id_recycled_incarnations(void)
             tree->components[new_compass].incarnation != old_incarnation,
         "replacement keeps the same semantic id but has a new incarnation");
 
-    /* Do not reassert: the standing declaration still names the reclaimed
-     * incarnation. Effective geometry and skin lookups must reject that stale
-     * entry even though both its array index and semantic component id collide. */
+    /* Do not reassert: the standing binding still names the reclaimed
+     * incarnation. The retained edits were made on the old node and must not
+     * reach the new one even though both its array index and semantic
+     * component id collide. */
     UITree_TestResolve(tree);
     memset(&native_desc, 0, sizeof(native_desc));
     TEST_ASSERT(
         effective_box_is(tree, new_compass, 512, 27, 31, 32),
-        "a recycled same-id node does not inherit stale effective geometry");
+        "a recycled same-id node does not inherit a stale retained edit's geometry");
     TEST_ASSERT(
         UITree_EmitFill(
             tree, NULL, &tree->components[new_compass], new_compass, -1, &native_desc) &&
             native_desc.scene_id == 901 && native_desc.mask_scene_id == 902,
-        "a recycled same-id node does not inherit stale effective skin");
+        "a recycled same-id node does not inherit a stale retained edit's skin");
 
-    /* Release the declaration without reasserting it onto the replacement.
-     * Index + component id both collide; only incarnation can distinguish the
-     * new native node from the one whose frame layer is being dropped. */
-    UITree_FrameRelease(tree);
+    /* Release the frame without reasserting it onto the replacement. Index +
+     * component id both collide; only incarnation can distinguish the new
+     * native node from the one whose binding is being dropped. */
+    release_plugin_frame(tree);
     TEST_ASSERT(
         raw_box_is(tree, new_compass, 512, 27, 31, 32) &&
             tree->components[new_compass].u.sprite.scene_id == 901 &&
             tree->components[new_compass].u.sprite.mask_scene_id == 902,
         "release never restores stale geometry or skin onto a recycled same-id node");
 
-    UITree_Free(tree);
-}
-
-static void
-test_frame_slot_overlay_follows_target_subtree(void)
-{
-    enum
-    {
-        ANCHOR_GROUP = 190,
-        ANCHOR_ROOT_ID = (ANCHOR_GROUP << 16) | 0,
-        ANCHOR_BUTTON_ID = (191 << 16) | 0,
-        ANCHOR_CHILD_ID = (CONTENT_GROUP << 16) | 20,
-        ANCHOR_SIBLING_ID = (CONTENT_GROUP << 16) | 21,
-        ANCHOR_SCENE = 7171,
-        ANCHOR_SCENE_CHANGED = 7172,
-        ANCHOR_X = 91,
-        ANCHOR_Y = 72,
-        ANCHOR_W = 280,
-        ANCHOR_H = 180,
-    };
-    struct UITree* tree = UITree_New(8);
-    struct UITreeEmitBuffer buf;
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
-    struct UITreeHost host;
-    int32_t shell;
-    int32_t root;
-    int32_t button;
-    int32_t child;
-    int32_t sibling;
-    int overlay_at;
-    int child_at = -1;
-    int sibling_at = -1;
-    int button_descs = 0;
-    uint32_t quiet_dirty;
-
-    TEST_ASSERT(tree != NULL, "UITree_New");
-    UITree_EmitBufferInit(&buf);
-    UITree_HostInit(&host);
-    shell = UITree_TestPushXy(
-        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
-        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    root = UITree_TestPushXy(
-        tree, shell, UIELEM_RS_LAYER, ANCHOR_ROOT_ID, 10, 11, 120, 90);
-    tree->components[root].slot_tag = UITREE_SLOT_CHAT;
-    button = UITree_TestPushXy(
-        tree, root, UIELEM_BUILTIN_CHAT_BUTTON, ANCHOR_BUTTON_ID, 8, 9, 100, 32);
-    child = UITree_TestPushXy(
-        tree, button, UIELEM_RS_RECT, ANCHOR_CHILD_ID, 2, 3, 12, 13);
-    sibling = UITree_TestPushXy(
-        tree, root, UIELEM_RS_RECT, ANCHOR_SIBLING_ID, 30, 40, 14, 15);
-    TEST_ASSERT(
-        shell >= 0 && root >= 0 && button >= 0 && child >= 0 && sibling >= 0,
-        "slot-overlay fixture builds");
-    {
-        struct UITreeChatButtonConfig* cfg = UITree_ChatButtonMut(&tree->components[button]);
-        snprintf(cfg->label, sizeof(cfg->label), "%s", "Public chat");
-        snprintf(cfg->mode_label[0], sizeof(cfg->mode_label[0]), "%s", "On");
-    }
-
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_CHAT].all =
-        (struct UITreeFrameRect){ 1, ANCHOR_X, ANCHOR_Y, ANCHOR_W, ANCHOR_H };
-    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].all =
-        (struct UITreeFrameRect){ 1, ANCHOR_X + 8, ANCHOR_Y + 9, 100, 32 };
-    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay =
-        (struct UITreeFrameOverlay){ 1, ANCHOR_SCENE, ANCHOR_X + 3, ANCHOR_Y + 4, 17 };
-    UITree_FrameApply(tree, slots, /*root_group=*/-1);
-    UITree_EmitWalk(tree, &host, &buf, -1);
-
-    overlay_at = emit_find_scene(&buf, ANCHOR_SCENE);
-    for( int i = 0; i < buf.count; i++ )
-    {
-        if( buf.cmds[i].node_index == button )
-            button_descs++;
-        if( buf.cmds[i].node_index == child )
-            child_at = i;
-        if( buf.cmds[i].node_index == sibling )
-            sibling_at = i;
-    }
-    TEST_ASSERT(button_descs == 2, "the target expands into both of its own descriptors");
-    TEST_ASSERT(
-        child_at >= 0 && overlay_at == child_at + 1 && sibling_at == overlay_at + 1,
-        "slot paint is immediately after the whole target subtree and before its sibling");
-    if( overlay_at >= 0 )
-    {
-        struct UITreeEmitDesc const* overlay = &buf.cmds[overlay_at];
-        TEST_ASSERT(
-            overlay->node_index == -1 && overlay->component_id == -1,
-            "attached paint does not become an interactive copy of the target");
-        TEST_ASSERT(
-            overlay->x == ANCHOR_X + 3 && overlay->y == ANCHOR_Y + 4 &&
-                overlay->trans == 17 && !overlay->if3,
-            "attached paint retains its canvas sprite declaration");
-        TEST_ASSERT(
-            overlay->clip.x == ANCHOR_X && overlay->clip.y == ANCHOR_Y &&
-                overlay->clip.w == ANCHOR_W && overlay->clip.h == ANCHOR_H,
-            "attached paint uses the target parent clip, not the whole canvas");
-    }
-
-    quiet_dirty = tree->dirty_gen;
-    UITree_FrameApply(tree, slots, /*root_group=*/-1);
-    TEST_ASSERT(
-        tree->dirty_gen == quiet_dirty,
-        "an identical attached-paint declaration preserves the retained list");
-
-    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.scene_id = ANCHOR_SCENE_CHANGED;
-    UITree_FrameApply(tree, slots, /*root_group=*/-1);
-    TEST_ASSERT(
-        tree->dirty_gen > quiet_dirty,
-        "changing attached paint invalidates the target's retained subtree");
-    buf.count = 0;
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    TEST_ASSERT(
-        emit_find_scene(&buf, ANCHOR_SCENE) < 0 &&
-            emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) >= 0,
-        "a retained declaration changes overlay scene atomically");
-
-    quiet_dirty = tree->dirty_gen;
-    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.placed = 0;
-    UITree_FrameApply(tree, slots, /*root_group=*/-1);
-    TEST_ASSERT(tree->dirty_gen > quiet_dirty, "nonzero-to-zero attached paint invalidates emit");
-    buf.count = 0;
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    TEST_ASSERT(
-        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0,
-        "omitting attached paint removes it from the declaration");
-
-    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.placed = 1;
-    UITree_FrameApply(tree, slots, /*root_group=*/-1);
-    TEST_ASSERT(UITree_ApplyHide(tree, ANCHOR_BUTTON_ID, 1), "hide the semantic target");
-    buf.count = 0;
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    TEST_ASSERT(
-        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0,
-        "a hidden target drops its attached paint with the whole subtree");
-
-    TEST_ASSERT(UITree_ApplyHide(tree, ANCHOR_BUTTON_ID, 0), "show the semantic target");
-    UITree_ReclaimInterfaceGroup(tree, 191);
-    buf.count = 0;
-    UITree_EmitWalk(tree, &host, &buf, -1);
-    TEST_ASSERT(
-        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0 &&
-            emit_find(&buf, sibling) != NULL,
-        "an absent target drops attached paint without disturbing later siblings");
-
-    UITree_EmitBufferFree(&buf);
     UITree_Free(tree);
 }
 
@@ -1523,7 +1305,6 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t tip_host;
     int32_t tip_plate;
     int32_t panel_border;
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
 
     shell = UITree_TestPushXy(
         tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -1531,7 +1312,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
         tree, shell, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W,
         UITREE_LAYOUT_ROOT_H);
     /* A container layer of the toplevel's own with the chat inside it: kept,
-     * both as a container and as an ancestor of a placed surface. */
+     * both as a container and as an ancestor of a bound surface. */
     container = UITree_TestPushXy(
         tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 20, 0, 300, 519, 165);
     chat = UITree_TestPushXy(
@@ -1575,7 +1356,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     /* A bare root-group layer the toplevel keeps for its clientscripts to draw
      * into -- rev-239's `mouseover`, which holds nothing until the cursor
      * tooltip is built in it. Neither a control nor an ancestor of anything
-     * placed, so the declaration does not take it over. */
+     * bound, so the provision does not take it over. */
     tip_host = UITree_TestPushXy(
         tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 26, 0, 0, UITREE_LAYOUT_ROOT_W,
         UITREE_LAYOUT_ROOT_H);
@@ -1606,25 +1387,9 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_globe = globe;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_CHAT].all.x = 0;
-    slots[UITREE_FRAME_SLOT_CHAT].all.y = 338;
-    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
-    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].placed = 1;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].x = 100;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].y = 100;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].w = 190;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].h = 261;
-    slots[UITREE_FRAME_SLOT_ORBS].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_ORBS].all.x = 700;
-    slots[UITREE_FRAME_SLOT_ORBS].all.y = 10;
-    slots[UITREE_FRAME_SLOT_ORBS].all.w = 207;
-    slots[UITREE_FRAME_SLOT_ORBS].all.h = 197;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP);
 
-    TEST_ASSERT(g_binder_calls == 1, "a declaration runs the binder before it collects");
+    TEST_ASSERT(g_binder_calls == 1, "a provision runs the binder before it collects");
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_CHAT) == chat,
         "the stamped layer is the chat slot");
@@ -1649,18 +1414,16 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
 
     UITree_EnsureLayout(tree);
     TEST_ASSERT(
-        effective_box_is(tree, chat, 0, 338, 519, 165),
-        "the chat container takes the declared canvas box");
-    TEST_ASSERT(
-        effective_box_is(tree, side3, 100, 100, 190, 261),
-        "and the side panel its member box");
+        effective_box_is(tree, chat, 0, 300, 519, 165) &&
+            effective_box_is(tree, side3, 547, 205, 190, 261),
+        "a provision moves nothing: every bound surface keeps the lane's own box");
 
     TEST_ASSERT(tree->components[blocker].frame_hidden, "a root-group click-blocker layer is chrome");
     TEST_ASSERT(tree->components[control].frame_hidden, "a root-group layer with an op is chrome");
     TEST_ASSERT(
         !tree->components[container].frame_hidden,
-        "a plain container layer above a placed surface is not");
-    TEST_ASSERT(!tree->components[chat].frame_hidden, "a placed surface is never chrome");
+        "a plain container layer above a bound surface is not");
+    TEST_ASSERT(!tree->components[chat].frame_hidden, "a bound surface is never chrome");
     TEST_ASSERT(
         !tree->components[tip_host].frame_hidden,
         "a bare root-group layer a clientscript draws into is not chrome");
@@ -1674,70 +1437,42 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         tree->components[panel_border].frame_hidden,
         "and one drawn inside a container the frame took over is its surround");
-    TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the placed orb block");
-    /* A member of the orb block the declaration did not mention is HIDDEN --
-     * a button inside the pack, not a mount the block's box applies to -- and
-     * the pack around it keeps the block's box. */
+    TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the bound orb block");
+    /* The members inside the block -- the adviser the profile seats, the globe
+     * the pack carries -- are the provider's to move or hide through the
+     * widget API; the engine leaves both showing where the pack drew them. */
     TEST_ASSERT(
-        tree->components[adviser].frame_hidden,
-        "an orbs member the declaration did not place is hidden");
+        !tree->components[adviser].frame_hidden && !tree->components[globe].frame_hidden &&
+            !tree->components[pack].frame_hidden,
+        "the pack and its members stay showing until the provider says otherwise");
     TEST_ASSERT(
-        !tree->components[pack].frame_hidden && effective_box_is(tree, orbs, 700, 10, 207, 197),
-        "and the block itself is placed whole around it");
-    /*
-     * A CARRIED member -- the globe, the wiki banner -- answers the same
-     * question the other way: unmentioned, it is furniture the pack drew
-     * inside the block, so it stays visible and keeps the spot the pack gave
-     * it, moved with the block. Hiding it instead would take the globe off
-     * every frame written before the member was named.
-     */
-    TEST_ASSERT(
-        !tree->components[globe].frame_hidden,
-        "a carried orbs member the declaration did not place is NOT hidden");
-    TEST_ASSERT(
-        effective_box_is(tree, globe, 700 + 206, 10 + 115, 30, 30),
-        "it keeps the pack's own spot, moved with the block");
+        effective_box_is(tree, adviser, 516 + 202, 4 + 50, 34, 34) &&
+            effective_box_is(tree, globe, 516 + 206, 4 + 115, 30, 30),
+        "and keep the spots the pack gave them");
 
-    /* Placing the member seats it at ITS box, in canvas coordinates. */
-    slots[UITREE_FRAME_SLOT_ORBS].at[0].placed = 1;
-    slots[UITREE_FRAME_SLOT_ORBS].at[0].x = 785;
-    slots[UITREE_FRAME_SLOT_ORBS].at[0].y = 153;
-    slots[UITREE_FRAME_SLOT_ORBS].at[0].w = 34;
-    slots[UITREE_FRAME_SLOT_ORBS].at[0].h = 34;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    /* The provider seats the adviser: the block, and the pack root between
+     * the moved member and the block, keep their own boxes -- the member is
+     * inside a surface that is not itself moved, and the containers above
+     * the BLOCK are what a moved member releases. */
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(tree, UITree_RefAt(tree, adviser), PLUGIN_OWNER, 20, 20),
+        "the provider moves the adviser");
+    UITree_FrameProvide(tree, FRAME_GROUP);
     UITree_EnsureLayout(tree);
     TEST_ASSERT(
-        !tree->components[adviser].frame_hidden,
-        "a placed orbs member is shown again");
+        effective_box_is(tree, adviser, 516 + 20, 4 + 20, 34, 34) &&
+            effective_box_is(tree, pack, 516, 4, 236, 163) &&
+            effective_box_is(tree, orbs, 516, 4, 236, 163),
+        "a moved member keeps the pack and the block where the lane put them");
     TEST_ASSERT(
-        effective_box_is(tree, adviser, 785, 153, 34, 34),
-        "at the member box the declaration gave it");
-    /* The pack root between the placed member and the placed block is the
-     * block's content: it keeps the block's box, so the pack's right- and
-     * bottom-anchored children (the globe, the wiki banner) stay beside the
-     * map instead of following a canvas-wide layer to the corner. */
-    TEST_ASSERT(
-        !tree->components[pack].frame_stretched && effective_box_is(tree, pack, 700, 10, 236, 163),
-        "the pack root under a placed block is not widened for a member inside it");
+        tree->components[pack].frame_stretched && tree->components[orbs].frame_stretched &&
+            !tree->components[adviser].frame_stretched,
+        "the containers above a moved member stop clipping; the member keeps its own containment");
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
         "and the whole-role answer is still the block, not the member");
 
-    /* And a carried member the declaration DOES place is seated at its box,
-     * which is what a fixed frame over a resizable toplevel has to say to put
-     * the globe back in its alcove. */
-    slots[UITREE_FRAME_SLOT_ORBS].at[1].placed = 1;
-    slots[UITREE_FRAME_SLOT_ORBS].at[1].x = 867;
-    slots[UITREE_FRAME_SLOT_ORBS].at[1].y = 125;
-    slots[UITREE_FRAME_SLOT_ORBS].at[1].w = 30;
-    slots[UITREE_FRAME_SLOT_ORBS].at[1].h = 30;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
-    UITree_EnsureLayout(tree);
-    TEST_ASSERT(
-        !tree->components[globe].frame_hidden &&
-            effective_box_is(tree, globe, 867, 125, 30, 30),
-        "a placed carried member is seated at the member box");
-
+    UITree_WidgetResetOwner(tree, PLUGIN_OWNER);
     UITree_FrameRelease(tree);
     TEST_ASSERT(!tree->components[blocker].frame_hidden, "release gives the blocker back");
     UITree_Free(tree);
@@ -1746,17 +1481,16 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
 /*
  * The Fixed (548) toplevel's shape: the minimap group -- and the compass in
  * it -- is emitted BEFORE the group holding the viewport, from a container
- * whose own origin is 516,4. A plugin frame that places the viewport across
- * the canvas and the compass at 504 needs two things from the engine that
- * the native order does not give: the world painted first, and the container
- * clipping nothing.
+ * whose own origin is 516,4. A plugin frame that moves the viewport across
+ * the canvas and the compass to 504 -- and anchors the compass OVER the world
+ * -- needs two things from the engine that the native order does not give:
+ * the world painted first, and the container clipping nothing.
  */
 static void
 test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
 {
     struct UITree* tree = UITree_New(8);
     struct UITreeEmitBuffer buf;
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
     struct UITreeEmitDesc const* world_desc;
     struct UITreeEmitDesc const* compass_desc;
     int32_t shell;
@@ -1798,23 +1532,29 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
         "the native compass is clipped to its container");
     TEST_ASSERT(!tree->components[map_container].frame_stretched, "no frame, no release");
 
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = UITREE_LAYOUT_ROOT_W;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = UITREE_LAYOUT_ROOT_H;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.x = placed_compass_x;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.y = placed_compass_y;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.w = 33;
-    slots[UITREE_FRAME_SLOT_COMPASS].all.h = 33;
-    slots[UITREE_FRAME_SLOT_COMPASS].anchor =
-        (struct UITreeFrameAnchor){ UITREE_FRAME_RELATION_OVER, UITREE_FRAME_SLOT_VIEWPORT };
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP);
+    /* Retained edits are relative to the native parent: the world's container
+     * sits at 4,4 and the compass's at 516,4. */
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(tree, UITree_RefAt(tree, world), PLUGIN_OWNER, -4, -4) &&
+            UITree_WidgetSetSize(
+                tree, UITree_RefAt(tree, world), PLUGIN_OWNER, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H),
+        "the provider spreads the world across the canvas");
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(
+            tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, placed_compass_x - container_x,
+            placed_compass_y - container_y) &&
+            UITree_WidgetSetSize(tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, 33, 33) &&
+            UITree_WidgetSetAnchor(
+                tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, UITree_RefAt(tree, world),
+                UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
+        "the provider moves the compass over the world");
+    UITree_FrameProvide(tree, FRAME_GROUP);
     TEST_ASSERT(
         tree->components[map_container].frame_stretched &&
             tree->components[shell].frame_stretched &&
             tree->components[main_container].frame_stretched,
-        "every ancestor of a placed surface is released from clipping");
+        "every ancestor of a moved surface is released from clipping");
 
     emit_frame(tree, &buf);
     world_desc = emit_find(&buf, world);
@@ -1822,7 +1562,7 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
     TEST_ASSERT(world_desc && compass_desc, "plugin frame emits both surfaces");
     TEST_ASSERT(
         buf.count > 0 && buf.cmds[0].kind == UITREE_EMIT_WORLD,
-        "a plugin-placed world is the first thing painted");
+        "a world the compass is anchored over is painted before the compass's own group");
     TEST_ASSERT(
         world_desc && compass_desc && world_desc < compass_desc,
         "the relocated compass paints over the world");
@@ -1836,7 +1576,7 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
             compass_desc->clip.x + compass_desc->clip.w >= placed_compass_x + 33,
         "the relocated compass is clipped to the canvas, not to its native container");
 
-    UITree_FrameRelease(tree);
+    release_plugin_frame(tree);
     TEST_ASSERT(
         !tree->components[map_container].frame_stretched &&
             !tree->components[shell].frame_stretched,
@@ -1853,167 +1593,6 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
     UITree_Free(tree);
 }
 
-/*
- * A fixed toplevel's GAME AREA follows the scene a window-following frame
- * placed, so the lane's own world overlays follow it too.
- *
- * 548's shape: `main` is a 512x334 box authored in pixels, the scene fills it,
- * and the world overlays -- here one bottom-anchored HUD -- are the scene's
- * SIBLINGS inside it, seated against its box. A Modern Resizable declaration
- * places the scene at the whole window; without the game area following, the
- * HUD stays at the 503-tall frame's Y and floats in mid-air over the world.
- *
- * The area is the scene minus the frame's own chat band and right-hand
- * column, which is what the lane's resizable toplevel does for itself.
- */
-static void
-test_fixed_game_area_follows_a_window_following_frame(void)
-{
-    struct UITree* tree = UITree_New(8);
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
-    int32_t shell;
-    int32_t area;
-    int32_t world;
-    int32_t hud;
-    int const area_x = 4;
-    int const area_y = 4;
-    int const area_w = 512;
-    int const area_h = 334;
-    int const hud_w = 46;
-    int const hud_h = 35;
-    int const canvas_w = 1158;
-    int const canvas_h = 800;
-    int const chat_y = 635;
-    int const side_x = 938;
-
-    TEST_ASSERT(tree != NULL, "UITree_New");
-    shell = UITree_TestPushXy(
-        tree, -1, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
-        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    area = UITree_TestPushXy(
-        tree, shell, UIELEM_RS_LAYER, FRAME_CHAT_ID + 40, area_x, area_y, area_w, area_h);
-    world = UITree_TestPushXy(
-        tree, area, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 0, 0, 0, 0);
-    hud = UITree_TestPushXy(
-        tree, area, UIELEM_RS_LAYER, FRAME_CONTENT_ID, 2, 2, hud_w, hud_h);
-    TEST_ASSERT(
-        shell >= 0 && area >= 0 && world >= 0 && hud >= 0, "548-shaped game area builds");
-    /* The scene FILLS the game area (if3 size mode 1 with a zero inset), and
-     * the HUD is two pixels up from its bottom edge (position mode 2). That
-     * pair is the whole shape this rule keys on. */
-    tree->components[world].position.width_mode = 1;
-    tree->components[world].position.height_mode = 1;
-    tree->components[hud].position.y_mode = 2;
-    UITree_LayoutInvalidate(tree);
-
-    UITree_TestResolve(tree);
-    TEST_ASSERT(
-        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
-            effective_box_is(
-                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
-        "the lane seats its HUD against its own game area");
-
-    /* A FIXED declaration -- scene in the lane's own hole, chat below it,
-     * column beside it -- leaves the game area exactly where the lane put it. */
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.x = area_x;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.y = area_y;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = area_w;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = area_h;
-    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_CHAT].all.y = area_y + area_h;
-    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
-    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].all.x = area_x + area_w + 31;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].all.w = 190;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].all.h = 261;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
-    UITree_TestResolve(tree);
-    TEST_ASSERT(
-        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
-            effective_box_is(
-                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
-        "a fixed frame's chat and column are outside the scene and take nothing off");
-
-    /* The window-following one. */
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = canvas_w;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = canvas_h;
-    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_CHAT].all.y = chat_y;
-    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
-    slots[UITREE_FRAME_SLOT_CHAT].all.h = canvas_h - chat_y;
-    /* Stated only through a member, as the Stone Drawer states its sidebar. */
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].placed = 1;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].x = side_x;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].y = 200;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].w = 190;
-    slots[UITREE_FRAME_SLOT_SIDEBAR].at[3].h = 261;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
-    UITree_TestResolve(tree);
-    TEST_ASSERT(
-        effective_box_is(tree, area, 0, 0, side_x, chat_y),
-        "the game area becomes the scene minus the frame's chat band and column");
-    TEST_ASSERT(
-        effective_box_is(tree, hud, 2, chat_y - hud_h - 2, hud_w, hud_h),
-        "and the lane's bottom-anchored HUD is seated on the frame's chat");
-    TEST_ASSERT(
-        raw_box_is(tree, area, area_x, area_y, area_w, area_h),
-        "the lane's own geometry is untouched underneath");
-
-    UITree_FrameRelease(tree);
-    UITree_TestResolve(tree);
-    TEST_ASSERT(
-        effective_box_is(tree, area, area_x, area_y, area_w, area_h) &&
-            effective_box_is(
-                tree, hud, area_x + 2, area_y + area_h - hud_h - 2, hud_w, hud_h),
-        "release hands the lane its game area back");
-
-    UITree_Free(tree);
-}
-
-/*
- * A shell that merely CONTAINS the scene is not a game area.
- *
- * The 2004 lane's `fixed_shell` is authored in pixels too, but it holds the
- * minimap, the compass and the chat buttons beside a scene that fills no part
- * of it. Re-boxing that would move every one of them.
- */
-static void
-test_a_shell_the_scene_does_not_fill_is_not_re_boxed(void)
-{
-    struct UITree* tree = UITree_New(8);
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
-    int32_t shell;
-    int32_t world;
-
-    TEST_ASSERT(tree != NULL, "UITree_New");
-    shell = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, 765, 503);
-    world = UITree_TestPushXy(
-        tree, shell, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 4, 4, 512, 334);
-    TEST_ASSERT(shell >= 0 && world >= 0, "2004-shaped shell builds");
-
-    memset(slots, 0, sizeof(slots));
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.w = 1158;
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all.h = 800;
-    slots[UITREE_FRAME_SLOT_CHAT].all.placed = 1;
-    slots[UITREE_FRAME_SLOT_CHAT].all.y = 635;
-    slots[UITREE_FRAME_SLOT_CHAT].all.w = 519;
-    slots[UITREE_FRAME_SLOT_CHAT].all.h = 165;
-    UITree_FrameApply(tree, slots, FRAME_GROUP);
-    UITree_TestResolve(tree);
-    TEST_ASSERT(
-        effective_box_is(tree, shell, 0, 0, 765, 503),
-        "the 2004 shell keeps the box its own chrome is laid out in");
-
-    UITree_FrameRelease(tree);
-    UITree_Free(tree);
-}
-
 void
 test_frame_replacement(void)
 {
@@ -2025,13 +1604,9 @@ test_frame_replacement(void)
     test_retained_overlay_refresh_preserves_source();
     test_retained_empty_entity_keeps_final_no_world_order();
     test_transparent_entity_overlay_stays_absent_on_refresh();
-    test_zero_mask_skin_explicitly_unmasks();
     test_frame_visibility_invalidates_retention_and_hover();
     test_ancestor_keeps_its_native_box_across_a_shrink();
     test_release_ignores_same_id_recycled_incarnations();
-    test_frame_slot_overlay_follows_target_subtree();
     test_synthetic_press_sees_through_frame_hidden();
     test_placed_world_paints_first_and_stretched_ancestor_clips_nothing();
-    test_fixed_game_area_follows_a_window_following_frame();
-    test_a_shell_the_scene_does_not_fill_is_not_re_boxed();
 }

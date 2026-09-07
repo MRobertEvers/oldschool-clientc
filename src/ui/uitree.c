@@ -1754,8 +1754,8 @@ UITree_Clear(struct UITree* tree)
     uitree_all_sets_clear(tree);
     /* A plugin layout's hold names NODES, and every one of them has just
      * stopped existing. Dropping it rather than releasing it is deliberate:
-     * there is nothing left to restore, and the frame's owner is asked for a
-     * fresh declaration once the new tree is baked. */
+     * there is nothing left to restore, and the frame's provider is asked
+     * again once the new tree is baked. */
     UITree_FrameForget(tree);
 }
 
@@ -1885,77 +1885,6 @@ UITree_MarkNodeVisibilityDirty(
      * zero emit_visited bit precisely because it was hidden last walk, so the
      * ordinary filtered mark cannot describe this transition. */
     uitree_topo_bump(tree, __LINE__);
-}
-
-int
-UITree_SetReplacementHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden)
-{
-    struct UITreeComponent* component;
-
-    assert(tree);
-    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
-        return 0;
-    component = &tree->components[node_index];
-    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
-        return 0;
-    hidden = hidden ? 1 : 0;
-    if( component->replacement_hidden != hidden )
-    {
-        component->replacement_hidden = (uint8_t)hidden;
-        /* Both hiding and revealing change reachability. Use the unconditional
-         * visibility bump so a previously pruned target cannot be retained. */
-        UITree_MarkNodeVisibilityDirty(tree, node_index);
-    }
-    return 1;
-}
-
-int
-UITree_SetReplacementPaintHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden)
-{
-    struct UITreeComponent* component;
-
-    assert(tree);
-    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
-        return 0;
-    component = &tree->components[node_index];
-    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
-        return 0;
-    hidden = hidden ? 1 : 0;
-    if( component->replacement_paint_hidden != hidden )
-    {
-        component->replacement_paint_hidden = (uint8_t)hidden;
-        /* Paint-only: the node remains reachable so its children and input do
-         * not need a topology rebuild. */
-        UITree_MarkNodeDirty(tree, node_index);
-    }
-    return 1;
-}
-
-int
-UITree_SetReplacementInputHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden)
-{
-    struct UITreeComponent* component;
-
-    assert(tree);
-    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
-        return 0;
-    component = &tree->components[node_index];
-    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
-        return 0;
-    component->replacement_input_hidden = hidden ? 1u : 0u;
-    return 1;
 }
 
 void
@@ -4804,24 +4733,14 @@ UITree_SetPositionAt(
     struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
     if( !com )
         return false;
-    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y &&
-        (com->position.layout_resolved || frame_owned) )
+        com->position.layout_resolved )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.x = x;
     com->position.y = y;
-    /* The plugin owns only the effective box. Keep accepting the cache's
-     * native state underneath it, but do not invalidate or dirty a frame whose
-     * visible result did not change. Release will expose this value and marks
-     * the node once at that transition. */
-    if( frame_owned )
-    {
-        uitree_note_mutation(tree, idx, UITREE_IMPACT_GEOMETRY_STATE);
-        return true;
-    }
     uitree_note_mutation(
         tree,
         idx,
@@ -4881,20 +4800,14 @@ UITree_SetSizeAt(
     struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
     if( !com )
         return false;
-    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
-        (com->position.layout_resolved || frame_owned) )
+        com->position.layout_resolved )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
     }
     com->position.width = width;
     com->position.height = height;
-    if( frame_owned )
-    {
-        uitree_note_mutation(tree, idx, UITREE_IMPACT_GEOMETRY_STATE);
-        return true;
-    }
     uitree_note_mutation(
         tree,
         idx,
@@ -4926,10 +4839,9 @@ UITree_SetPositionModesAt(
     struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
     if( !com )
         return false;
-    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
         com->position.y_mode == (int8_t)y_mode &&
-        (com->position.layout_resolved || frame_owned) )
+        com->position.layout_resolved )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -4938,11 +4850,6 @@ UITree_SetPositionModesAt(
     com->position.y = y;
     com->position.x_mode = (int8_t)x_mode;
     com->position.y_mode = (int8_t)y_mode;
-    if( frame_owned )
-    {
-        uitree_note_mutation(tree, idx, UITREE_IMPACT_GEOMETRY_STATE);
-        return true;
-    }
     uitree_note_mutation(
         tree,
         idx,
@@ -4976,11 +4883,10 @@ UITree_SetSizeModesAt(
     struct UITreeComponent* const com = uitree_component_at_mutable(tree, idx);
     if( !com )
         return false;
-    int const frame_owned = UITree_FramePositionOwned(tree, idx);
     if( com->position.width == width && com->position.height == height &&
         com->position.width_mode == (int8_t)width_mode &&
         com->position.height_mode == (int8_t)height_mode &&
-        (com->position.layout_resolved || frame_owned) )
+        com->position.layout_resolved )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
@@ -4989,11 +4895,6 @@ UITree_SetSizeModesAt(
     com->position.height = height;
     com->position.width_mode = (int8_t)width_mode;
     com->position.height_mode = (int8_t)height_mode;
-    if( frame_owned )
-    {
-        uitree_note_mutation(tree, idx, UITREE_IMPACT_GEOMETRY_STATE);
-        return true;
-    }
     uitree_note_mutation(
         tree,
         idx,
@@ -6421,18 +6322,6 @@ UITree_NodeOrAncestorDisplayHidden(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1, 0, 0);
-}
-
-int
-UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
-    struct UITree const* tree,
-    int32_t node_index)
-{
-    assert(tree);
-    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
-        return 1;
-    return uitree_node_or_ancestor_hidden(
-        tree, node_index, 1, node_index, 0, 0);
 }
 
 int

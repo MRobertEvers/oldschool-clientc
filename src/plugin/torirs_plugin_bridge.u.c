@@ -3663,7 +3663,7 @@ app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
 }
 
 /*
- * One member of a region. @see slot_member_rect.
+ * One member of a region, for engine.slot_member (the widget API's find_all).
  *
  * UITree_FrameSlotMemberNode rather than the cached per-role node above,
  * because that one holds the answer to "any member" and a caller asking for
@@ -4022,9 +4022,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     case PLUGIN_WIDGET_POSITION:
     case PLUGIN_WIDGET_SIZE:
-        /* A slot the frame layer itself positions is not a plugin's to move
-         * through this native-parent API. */
-        if( UITree_FramePositionOwned(tree, idx) ) return TORIRS_CONTRACT_UNSUPPORTED_LAYOUT;
         if( !(r->kind == PLUGIN_WIDGET_POSITION
                 ? UITree_WidgetSetPosition(tree, ref, owner, r->a, r->b)
                 : UITree_WidgetSetSize(tree, ref, owner, r->a, r->b)) )

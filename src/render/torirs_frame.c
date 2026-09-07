@@ -62,10 +62,10 @@ frame_take_queued(
  *   - try_emit_world_draw_model assigns every field of the model arm, so it
  *     needs nothing further.  It is the one that runs 1,621 times a frame,
  *     and it is the whole reason this exists.
- *   - the single-arm helpers (fill_rect_cmd, sprite_cmd, sprite_tiled_cmd)
- *     zero THEIR ARM, 40 or 100 bytes rather than the union's 120.  The
- *     sprite pair genuinely leaves seventeen optional fields implicit and
- *     spelling them out per call site would be worse than saying so once.
+ *   - the single-arm helpers (fill_rect_cmd, sprite_cmd) zero THEIR ARM,
+ *     40 or 100 bytes rather than the union's 120.  sprite_cmd genuinely
+ *     leaves seventeen optional fields implicit and spelling them out per
+ *     call site would be worse than saying so once.
  *   - the two switch emitters (frame_translate_scene_event,
  *     translate_ui_cmd) still zero the union: they pick an arm per case and
  *     the cases disagree about which fields they set, so dropping it would
@@ -478,46 +478,6 @@ sprite_cmd(
     if( rotation_r2pi2048 != 0 )
         sprite_src_center(frame, scene_id, atlas, &src_cx, &src_cy);
     sprite_set_rotated(&out->u.sprite, rotation_r2pi2048, w / 2, h / 2, src_cx, src_cy);
-    out->u.sprite.if3 = 0;
-}
-
-/*
- * A sprite TILED over a box, rather than stretched into it.
- *
- * Which is what a scrollbar's trough and dragger middle need: both are five
- * rows of texture meant to repeat down a groove of any length, and stretching
- * five rows over ninety smears them into bands. One command either way -- the
- * repeat happens in the blit.
- */
-static void
-sprite_tiled_cmd(
-    struct ToriRS_RenderCommand* out,
-    int scene_id,
-    int x,
-    int y,
-    int w,
-    int h,
-    struct UITreeEmitClip const* clip)
-{
-    /* Unlike the emitters around it this one leaves the sprite arm's
-     * optional half -- rotation, mask, flip, outline, tiling -- to the
-     * zero rather than spelling out seventeen fields per call site.  So it
-     * zeroes, but only the arm it is about to write (100 bytes), not the
-     * whole command; and it is chrome, not the per-model path. */
-    frame_command_reset(out);
-    memset(&out->u.sprite, 0, sizeof(out->u.sprite));
-    out->kind = TORIRSRC_SPRITE;
-    out->u.sprite.scene_id = scene_id;
-    out->u.sprite.atlas_index = 0;
-    out->u.sprite.x = x;
-    out->u.sprite.y = y;
-    out->u.sprite.w = w;
-    out->u.sprite.h = h;
-    out->u.sprite.tiled = 1;
-    out->u.sprite.scissor_x = clip->x;
-    out->u.sprite.scissor_y = clip->y;
-    out->u.sprite.scissor_w = clip->w;
-    out->u.sprite.scissor_h = clip->h;
     out->u.sprite.if3 = 0;
 }
 

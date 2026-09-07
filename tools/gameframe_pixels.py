@@ -41,8 +41,13 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
     def inside(box):
         x, y, w, h = box
         return x >= 0 and y >= 0 and w > 0 and h > 0 and x+w <= width and y+h <= height
-    parts = {name: tuple(map(int, box)) for name, *box in re.findall(
-        r"UI_PART name=(\S+) visible=1 box=(-?\d+),(-?\d+) (\d+)x(\d+)", log)}
+    # What the tree reports at exit: every widget a plugin OWNS, by the key
+    # the plugin created it under, and every semantic ROLE with the box of
+    # the lane's own node it resolves to. A hidden one is not on screen.
+    owned = {key: tuple(map(int, box)) for key, *box in re.findall(
+        r"OWNED_WIDGET owner=\d+ key=(\S+) node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]* hidden=0", log)}
+    roles = {name: tuple(map(int, box)) for name, *box in re.findall(
+        r"ROLE_WIDGET role=(\S+) node=\d+ com=0x[0-9a-f]+ box=(-?\d+),(-?\d+),(\d+),(\d+) hidden=0", log)}
     emitted = [(int(kind), tuple(map(int, box))) for kind, *box in re.findall(
         r"EMIT_EXIT\[\d+\] kind=(\d+)[^\n]*? x=(-?\d+) y=(-?\d+) w=(\d+) h=(\d+)", log)]
     if minimap_state is not None:
@@ -95,9 +100,12 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
     # moved or never drew (a box shifted three pixels reads discs=3).
     draw_list = [(int(i), tuple(map(int, box))) for i, *box in re.findall(
         r"EMIT_EXIT\[(\d+)\] kind=\d+ com=0x[0-9a-f]+[^\n]*? x=(-?\d+) y=(-?\d+) w=(\d+) h=(\d+)", log)]
+    # The minimap-orbs plugin's own plates, the owned images it keys
+    # orb_hitpoints .. orb_special (minimap_orbs.c ORB_PART); each sits in the
+    # lane's orb layer at the plate's 57x34.
     discs = 0
     for name in ("hitpoints", "prayer", "run", "special"):
-        box = parts.get("frame.orb."+name)
+        box = owned.get("orb_"+name)
         if not box or not inside(box):
             continue
         x,y,w,h = box
@@ -124,9 +132,13 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                 for child,box in controls if child not in (5,32))
     report("filter_modes_visible", modes == (5 if public_chat_mode=="friends" else 6), f"green_cells={modes}")
     if frame in ("gameframe-layout/classic-fixed", "mobile-gameframe/stone-drawer"):
+        # The chat pack's own backing and bar, found by the roles the frame
+        # plugin dressed them through (gameframe.c frame_chat_dress,
+        # mobile_gameframe.c: set_image on the chat_backing / chat_bar role
+        # nodes). Their boxes are the lane's; the pixels are the plugin's.
         fractions = []
-        for name in ("frame.chat.backing", "frame.chat.bar"):
-            ps = pixels(parts.get(name,(0,0,0,0)))
+        for name in ("chat_backing", "chat_bar"):
+            ps = pixels(roles.get(name,(0,0,0,0)))
             fractions.append(sum(r>140 and g>100 and r>g>b for b,g,r in ps)/len(ps) if ps else -1)
         report("chat_backing_parchment_bar_rock", fractions[0] > .65 and 0 <= fractions[1] < .1,
                f"warm_backing={fractions[0]:.3f} warm_bar={fractions[1]:.3f}")

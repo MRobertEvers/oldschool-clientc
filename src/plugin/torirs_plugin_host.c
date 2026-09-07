@@ -71,13 +71,6 @@ struct PluginCanvasDispatch
     struct ToriRS_Rect bounds;
 };
 
-struct PluginFrameLayout
-{
-    int width;
-    int height;
-    int canvas;
-};
-
 struct PluginPanelDraw
 {
     void* surface;
@@ -6952,7 +6945,6 @@ PluginHost_Layout(
     int width,
     int height)
 {
-    struct PluginFrameLayout ev;
     struct PluginFrameCatalogEntry const* entry;
     struct ToriRS_FrameOffer const* v2_offer;
     struct PluginV2Instance* v2;
@@ -6992,7 +6984,7 @@ PluginHost_Layout(
     if( entry->canvas != TORIRS_FRAME_CANVAS_FIXED && (width <= 0 || height <= 0) )
     {
         TORIRS_LOG(
-            "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
+            "plugin: %s asked to lay out against a %dx%d canvas; not asked to provide\n",
             host->plugins[owner].name,
             width,
             height);
@@ -7010,15 +7002,9 @@ PluginHost_Layout(
      */
     if( entry->canvas == TORIRS_FRAME_CANVAS_FIXED )
     {
-        ev.width = entry->width;
-        ev.height = entry->height;
+        width = entry->width;
+        height = entry->height;
     }
-    else
-    {
-        ev.width = width;
-        ev.height = height;
-    }
-    ev.canvas = entry->canvas;
 
     /* Consume only the attempt we are about to make. A callback that changes
      * selection or invalidates again raises a fresh request and the epoch
@@ -7037,8 +7023,8 @@ PluginHost_Layout(
     gameframe.active = true;
     gameframe.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED ? TORIRS_FRAME_CANVAS_FIXED
                                                                    : TORIRS_FRAME_CANVAS_WINDOW;
-    gameframe.width = ev.width;
-    gameframe.height = ev.height;
+    gameframe.width = width;
+    gameframe.height = height;
     (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
     gameframe.reason = v2_reason;
     gameframe.reason_capacity = sizeof(v2_reason);

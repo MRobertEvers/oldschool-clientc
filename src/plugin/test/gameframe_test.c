@@ -89,7 +89,6 @@ static struct
 
 /* Fourteen sidebar mounts and four chat buttons: a member number is the
  * role's OWN numbering, so the table has to be as wide as the widest role. */
-#define FAKE_SLOT_MEMBERS 16
 
 /** What the selected frame declared: activation, surfaces, and drawing. */
 static struct
@@ -100,19 +99,6 @@ static struct
     int fixed_h;
     int set_calls;
 
-    struct FakeRect
-    {
-        int placed;
-        int x;
-        int y;
-        int w;
-        int h;
-    } slot[TORIRS_HOST_SURFACE_COUNT];
-    struct FakeRect member[TORIRS_HOST_SURFACE_COUNT][FAKE_SLOT_MEMBERS];
-    int anchor_relation[TORIRS_HOST_SURFACE_COUNT];
-    int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
-    int begin_calls;
-    int end_calls;
     int provide_calls;
 
     int blits;
@@ -120,38 +106,13 @@ static struct
     int blit_x[128];
     int blit_y[128];
 
-    int regions;
-    uint32_t region_tag[64];
-    int region_x[64];
-    int region_y[64];
-
     int active_tab;
     int selected_tab;
     int select_calls;
-    struct
-    {
-        int placed;
-        int art;
-        int mask;
-    } skin[TORIRS_HOST_SURFACE_COUNT];
-    struct
-    {
-        int placed;
-        int image;
-        int x;
-        int y;
-        int trans;
-    } overlay[TORIRS_HOST_SURFACE_COUNT];
-    int scrollbar_pieces;
-    /** A sidebar tab this fake gameframe does NOT have, or -1. */
-    int missing_tab;
     /** A tab the frame HAS and the server has not handed over, or -1. The
-     *  tutorial's state, and a different question from missing_tab. */
+     *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
 } g_frame;
-
-/** Which roles this fake gameframe has. Everything but the compass, so that
- *  "a slot the frame does not have answers 0" is exercised. */
 
 static void
 fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
@@ -467,20 +428,6 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
 }
 
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
-/** Whether this fake lane has a `minimap_edge` object -- the 2004 housing --
- *  for the classic layout to PROVIDE rather than blit. Off by default so the
- *  fallback (an overlay on the compass slot) is what most of the file sees. */
-/** Whether this fake lane has the OldSchool chatbox pack MOUNTED, with its
- *  backing and its 519x23 bar. Off by default: the pack is server-mounted, so
- *  every pre-login pass has to answer "not here". @see frame_chat_dress. */
-/** Where the pack's furniture is, on the fixed toplevel's (0, 338). */
-#define F_CHAT_BACK_Y 338
-#define F_CHAT_BAR_Y 480
-#define F_CHAT_BAR_H 23
-/** And rev-239's own eight filter plates on that bar: seven 56-wide cells six
- *  apart from x=3, and a 79-wide Report right-aligned with the same margin
- *  (interfaces/chatbox.if). The frame reads these boxes to know where to cut
- *  the bar's hollows, so the fake lane has to state them. */
 
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
@@ -991,7 +938,6 @@ main(void)
 
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
-    g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
     g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
@@ -1039,8 +985,8 @@ main(void)
         CHECK(strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 && selected.status == TORIRS_FRAME_STATUS_ACTIVE,
               "a READY classic plan becomes the active offer");
     }
-    CHECK(g_frame.active == 1 && g_frame.provide_calls == 1 && g_frame.end_calls == 0,
-          "the provider owns the frame through frame_provide, with no slot declaration");
+    CHECK(g_frame.active == 1 && g_frame.provide_calls == 1,
+          "the provider owns the frame through frame_provide");
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
           "classic-fixed pins the canvas at the classic frame");
     CHECK(placed("viewport", -1, 4, 4, 512, 334), "classic viewport is the dat1 frame's 512x334 at 4,4");

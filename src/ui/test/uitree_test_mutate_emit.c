@@ -392,9 +392,6 @@ test_host_input_epochs(void)
         [UITREE_HOST_GET_ENTITY_OVERLAYS] = camera | world | overlays,
         [UITREE_HOST_GET_CANVAS_OVERLAYS] = overlays,
         [UITREE_HOST_BEGIN_OVERLAYS] = 0,
-        [UITREE_HOST_GET_ROLE_OVERLAY_GROUPS] = overlays,
-        [UITREE_HOST_SET_ROLE_OVERLAY_CLIP] = 0,
-        [UITREE_HOST_GET_FRAME_OVERLAYS] = overlays,
         [UITREE_HOST_GET_WORLDMAP_TILES] = camera | world | assets | overlays,
         [UITREE_HOST_GET_WORLDMAP_OVERVIEW] = camera | world | assets | overlays,
         [UITREE_HOST_GET_TAB_ENABLED] = client,
@@ -532,9 +529,9 @@ test_host_input_epochs(void)
             !UITree_EmitBufferHostInputsCurrent(&emit, &host),
             "camera change rejects retained compass emit");
 
-        /* Same pointer vocabulary, three different host producers. Retained
+        /* Same pointer vocabulary, two different host producers. Retained
          * refresh must preserve that provenance rather than replacing plugin
-         * frame/canvas output with the world entity list. */
+         * canvas output with the world entity list. */
         {
             struct UITreeEntityOverlay item = { 0 };
             struct UITreeEmitBuffer refresh;
@@ -544,17 +541,14 @@ test_host_input_epochs(void)
                 UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_WORLD, 702, 0, 0, 1, 1);
             uint8_t const all_overlay_sources =
                 (uint8_t)((1u << UITREE_EMIT_OVERLAY_ENTITY) |
-                          (1u << UITREE_EMIT_OVERLAY_CANVAS) |
-                          (1u << UITREE_EMIT_OVERLAY_FRAME));
-            int source_count[UITREE_EMIT_OVERLAY_FRAME + 1] = { 0 };
+                          (1u << UITREE_EMIT_OVERLAY_CANVAS));
+            int source_count[UITREE_EMIT_OVERLAY_CANVAS + 1] = { 0 };
 
             TEST_ASSERT(overlay >= 0 && world >= 0, "push retained overlay fixture");
             hs.entity_overlays = &item;
             hs.canvas_overlays = &item;
-            hs.frame_overlays = &item;
             hs.entity_overlay_count = 0;
             hs.canvas_overlay_count = 0;
-            hs.frame_overlay_count = 0;
             UITree_TestResolve(tree);
             UITree_EmitBufferInit(&refresh);
             UITree_EmitWalk(tree, &host, &refresh, -1);
@@ -568,7 +562,6 @@ test_host_input_epochs(void)
             memset(hs.request_count, 0, sizeof(hs.request_count));
             hs.entity_overlay_count = 1;
             hs.canvas_overlay_count = 1;
-            hs.frame_overlay_count = 1;
             TEST_ASSERT(
                 UITree_EmitRefreshVolatile(tree, &host, &refresh),
                 "standing overlay records refresh across zero-to-nonzero transitions");
@@ -578,20 +571,16 @@ test_host_input_epochs(void)
             TEST_ASSERT(
                 hs.request_count[UITREE_HOST_GET_CANVAS_OVERLAYS] == 1,
                 "canvas overlay refresh preserves canvas provenance");
-            TEST_ASSERT(
-                hs.request_count[UITREE_HOST_GET_FRAME_OVERLAYS] == 1,
-                "frame overlay refresh preserves frame provenance");
             for( int i = 0; i < refresh.count; i++ )
             {
                 int const source = refresh.cmds[i].entity_overlay_source;
                 if( source >= UITREE_EMIT_OVERLAY_ENTITY &&
-                    source <= UITREE_EMIT_OVERLAY_FRAME )
+                    source <= UITREE_EMIT_OVERLAY_CANVAS )
                     source_count[source]++;
             }
             TEST_ASSERT(
                 source_count[UITREE_EMIT_OVERLAY_ENTITY] == 1 &&
-                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1 &&
-                    source_count[UITREE_EMIT_OVERLAY_FRAME] == 1,
+                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1,
                 "refresh inserts one command with each original overlay source");
             UITree_EmitBufferFree(&refresh);
         }

@@ -37,7 +37,6 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_SET_INV_SOURCE_SLOT:
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_BEGIN_OVERLAYS:
-    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
     case UITREE_HOST_TITLE_ACTION:
         return 0;
 
@@ -132,8 +131,6 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
         return camera | world | overlays;
 
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
         return overlays;
 
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -285,9 +282,6 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_BEGIN_OVERLAYS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
     case UITREE_HOST_GET_WORLDMAP_TILES:
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
     case UITREE_HOST_GET_DEBUG_OVERLAY:

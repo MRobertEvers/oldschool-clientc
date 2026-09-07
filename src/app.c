@@ -30512,22 +30512,18 @@ candidate_layout:
      * And nothing is declared against a tree that is not a gameframe at all.
      *
      * A committed plugin frame belongs to the game screen, not the title tree.
-     * Its provider may remain running across logout, but its retained gameframe
-     * declaration must not be applied while the title tree bakes.
+     * Its provider may remain running across logout, but the frame must not be
+     * taken (UITree_FrameProvide) while the title tree bakes.
      *
-     * A provider correctly declines to build outside the game, but applying an
-     * empty candidate here would still be destructive.
-     *
-     * An empty declaration is not "leave it alone". It is a complete one that
-     * happens to place no slots, and UITree_FrameApply answers it exactly as
-     * asked -- every role unplaced and therefore hidden, then the lane's own
-     * chrome collected and hidden too. Against the login screen that reads as
-     * the login screen falling apart: the plate and most of the background
+     * A provider correctly declines to build outside the game, but taking the
+     * frame here would still be destructive: the chrome collection hides every
+     * root-group decoration it finds, and against the login screen that reads
+     * as the login screen falling apart -- the plate and most of the background
      * gone, two strips of brazier left standing.
      *
-     * Marked dirty rather than merely skipped, so the frame is re-declared on
-     * the first READY frame of the next session instead of inheriting whatever
-     * the last one left behind.
+     * Marked dirty rather than merely skipped, so the provider is asked again
+     * on the first READY frame of the next session instead of inheriting
+     * whatever the last one left behind.
      */
     if( app->screen != APP_SCREEN_GAME )
     {

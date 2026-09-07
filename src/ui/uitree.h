@@ -681,9 +681,9 @@ struct UITreeComponent
      *
      * Array indices are storage, not identity: CC_DELETEALL puts an index on
      * the free list and the next CC_CREATE can hand it straight to an
-     * unrelated node. Long-lived side tables (notably a plugin gameframe
-     * declaration) pair an index with this value before touching it, so an
-     * old declaration can never restore state through a recycled index.
+     * unrelated node. Long-lived side tables (notably a plugin gameframe's
+     * binding) pair an index with this value before touching it, so a stale
+     * binding can never restore state through a recycled index.
      * Zero is reserved for an empty/reclaimed slot.
      */
     uint64_t incarnation;
@@ -794,11 +794,11 @@ struct UITreeComponent
     char* plugin_key;
     uint64_t plugin_op_serial; /* Host listener version; never copied with native content. */
     /**
-     * A layer the plugin frame declared NOT to clip.
+     * A layer the plugin frame released from clipping.
      *
-     * Every ancestor of a placed surface: the lane's shell and the toplevel's
-     * mount groups are authored for the lane's own gameframe, and a layer
-     * clips to its own box. Widening the box was tried first and was never
+     * Every ancestor of a surface the provider moved: the lane's shell and
+     * the toplevel's mount groups are authored for the lane's own gameframe,
+     * and a layer clips to its own box. Widening the box was tried first and was never
      * enough, because a layer's box has an ORIGIN too -- the 548 toplevel's
      * `mapcontainer` sits at 516,4, so a compass the frame placed at 504 was
      * cut off at 516 however wide the layer had been made -- and it was
@@ -826,8 +826,8 @@ struct UITreeComponent
      */
     uint8_t screen_hidden;
     /** Suppressed by an owner-scoped semantic role replacement. Separate from
-     * frame_hidden so either declaration may release without revealing a
-     * subtree the other still owns. Cache scripts never write this flag. */
+     * frame_hidden so either owner may release without revealing a subtree
+     * the other still owns. Cache scripts never write this flag. */
     uint8_t replacement_hidden;
     /** Suppress only this node's native descriptors. Children and input stay
      * live so an APPEARANCE facet can replace a plate without disabling the
@@ -1554,7 +1554,7 @@ struct UITree
     int widget_anchor_edits;
     /**
      * Stamps the frame roles a cache gameframe does not declare for itself,
-     * before any declaration is collected. NULL on a tree nobody has bound.
+     * before any binding is collected. NULL on a tree nobody has bound.
      * @see UITree_FrameSetBinder.
      */
     void (*frame_binder)(struct UITree* tree, void* user);
@@ -2845,15 +2845,6 @@ UITree_NodeOrAncestorDisplayHidden(
     struct UITree const* tree,
     int32_t node_index);
 
-/** The replacement-overlay visibility query: identical to the display-hidden
- * form except the target node's own replacement_hidden is the tombstone being
- * tested and is ignored. Native/frame hiding, an ancestor replacement,
- * InterfaceParent containers and orphaned roots still hide it. */
-int
-UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
-    struct UITree const* tree,
-    int32_t node_index);
-
 /**
  * The same query with each exemption stated separately.
  *
@@ -2875,31 +2866,6 @@ UITree_NodeOrAncestorDisplayHiddenEx(
     int32_t node_index,
     int ignore_replacement_hidden,
     int ignore_frame_hidden);
-
-/** Set a replacement suppression only when `node_index` still holds the exact
- * incarnation the caller resolved. Returns 1 when the identity was live (also
- * for an idempotent write), 0 for a missing or recycled slot. */
-int
-UITree_SetReplacementHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden);
-
-/** Facet-specific variants used by the named-UI presenter. Neither prunes the
- * target's children; SetReplacementHidden is the whole-subtree operation. */
-int
-UITree_SetReplacementPaintHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden);
-int
-UITree_SetReplacementInputHidden(
-    struct UITree* tree,
-    int32_t node_index,
-    uint64_t incarnation,
-    int hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
  *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */

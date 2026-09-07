@@ -38,7 +38,6 @@ enum UITreeEmitOverlaySource
     UITREE_EMIT_OVERLAY_NONE = 0,
     UITREE_EMIT_OVERLAY_ENTITY,
     UITREE_EMIT_OVERLAY_CANVAS,
-    UITREE_EMIT_OVERLAY_FRAME,
 };
 
 struct UITreeEmitClip
@@ -189,7 +188,6 @@ UITree_EmitFill(
 
 struct UITreeEmitBuffer
 {
-    struct UITreeFrameOrderHints frame_order;
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
@@ -216,9 +214,9 @@ struct UITreeEmitBuffer
     uint8_t volatile_overlay_nonempty;
     /** Fully processed descriptor shapes, including node identity and common
      *  clipping/scroll fields, retained even while a source has zero items. */
-    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_FRAME + 1];
-    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_FRAME + 1];
-    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_FRAME + 1];
+    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_CANVAS + 1];
     /** Set when at least one volatile desc cannot be re-issued from the desc
      *  alone, so the whole list must be rebuilt by the walk instead of
      *  refreshed. Today that is WORLDMAP, whose desc does not record tiles vs

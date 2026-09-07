@@ -1143,20 +1143,17 @@ test_hidden_focus_does_not_receive_keys(void)
     UITree_SetTextAt(fx.tree, field, "a");
     UITree_InputSetFocusId(fx.tree, id);
     CHECK(RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'b'), "visible focused field receives typing");
-    for( int mode = 0; mode < 3; ++mode )
+    for( int mode = 0; mode < 2; ++mode )
     {
         UITree_SetTextAt(fx.tree, field, "ab");
         fx.tree->components[field].u.rs_text.caret = 2;
         if( mode == 0 ) UITree_SetHideAt(fx.tree, parent, 1);
         if( mode == 1 ) UITree_SetMountHiddenAt(fx.tree, parent, 1);
-        if( mode == 2 ) UITree_SetReplacementInputHidden(fx.tree, field,
-                            fx.tree->components[field].incarnation, 1);
         CHECK(!RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'x'), "unavailable focus rejects typing mode=%d", mode);
         CHECK(strcmp(fx.tree->components[field].u.rs_text.text, "ab") == 0,
               "unavailable focus preserves text mode=%d", mode);
         UITree_SetHideAt(fx.tree, parent, 0);
         UITree_SetMountHiddenAt(fx.tree, parent, 0);
-        UITree_SetReplacementInputHidden(fx.tree, field, fx.tree->components[field].incarnation, 0);
     }
     CHECK(UITree_InputFocusId(fx.tree) == id, "visibility does not transfer logical focus");
     CHECK(RS_CS2_InputKey(&fx.host, &fx.runner, NULL, -1, 'c'), "same field receives keys when available again");

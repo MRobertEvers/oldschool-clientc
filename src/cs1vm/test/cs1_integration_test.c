@@ -462,7 +462,7 @@ test_cs1_under_frame_ownership(void)
     struct RS_CS1Host host;
     struct UITreeHost ui_host;
     struct UITreeEmitBuffer buffer;
-    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT] = { 0 };
+    uint64_t const provider = 7;
     InvManager_Init(&invs);
     VarPManager_Init(&varps);
     cs1_test_declare_varps(&varps);
@@ -475,12 +475,17 @@ test_cs1_under_frame_ownership(void)
     tree->components[text].slot_tag = UITREE_SLOT_CHAT;
     struct UITreeNodeSpec world = { .type = UIELEM_BUILTIN_WORLD, .component_id = 101,
                                     .width = 200, .height = 120 };
-    UITree_Push(tree, -1, &world);
-    slots[UITREE_FRAME_SLOT_VIEWPORT].all = (struct UITreeFrameRect){ 1, 0, 0, 200, 120 };
-    slots[UITREE_FRAME_SLOT_CHAT].all = (struct UITreeFrameRect){ 1, 20, 30, 120, 20 };
-    slots[UITREE_FRAME_SLOT_CHAT].anchor = (struct UITreeFrameAnchor){ UITREE_FRAME_RELATION_OVER, UITREE_FRAME_SLOT_VIEWPORT };
+    int32_t world_node = UITree_Push(tree, -1, &world);
     UITree_LayoutResolve(tree, 0, 0, 765, 503);
-    UITree_FrameApply(tree, slots, 0);
+    /* A plugin provides the frame: the engine takes the chrome, the provider
+     * moves the chat surface over the scene with retained widget edits. */
+    UITree_FrameProvide(tree, 0);
+    TEST_ASSERT(UITree_WidgetSetPosition(tree, UITree_RefAt(tree, text), provider, 20, 30) &&
+                    UITree_WidgetSetSize(tree, UITree_RefAt(tree, text), provider, 120, 20) &&
+                    UITree_WidgetSetAnchor(tree, UITree_RefAt(tree, text), provider, UITree_RefAt(tree, world_node),
+                                           UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
+                "the provider moves the chat surface over the scene");
+    UITree_FrameProvide(tree, 0);
     UITree_EmitBufferInit(&buffer);
     int values[] = { 0, 7, 9 };
     for( int n = 0; n < 3; n++ )
@@ -497,13 +502,14 @@ test_cs1_under_frame_ownership(void)
                     "real CS1 values remain live inside a plugin-placed surface");
         TEST_ASSERT(found && found->color == (values[n] == 7 ? 0xff0000 : 0x111111),
                     "real CS1 active state changes cache-owned appearance");
-        TEST_ASSERT(found && found->x == 20 && found->y == 30, "only the declared geometry remains overridden");
+        TEST_ASSERT(found && found->x == 20 && found->y == 30, "only the retained geometry remains overridden");
         if( found ) printf("CS1_FRAME varp=%d text=%s color=%06x xy=%d,%d\n", values[n], found->text_formatted, found->color, found->x, found->y);
     }
     UITree_ApplyHide(tree, 100, 1);
     UITree_ApplyPosition(tree, 100, 43, 44);
     VarPManager_SetVarpOptimistic(&varps, 42, 7);
     cs1_test_eval_tree(&host, tree);
+    UITree_WidgetResetOwner(tree, provider);
     UITree_FrameRelease(tree);
     buffer.count = 0;
     UITree_EmitWalk(tree, &ui_host, &buffer, 100);

@@ -24,8 +24,9 @@
  * orbs are: it brings its own art and it names nothing by cache id, so it is
  * pinned to no revision. What it cannot bring is the LIVE surfaces -- the
  * scene, the minimap, the chat log, the sidebar interface, the modal region
- * -- so it declares where each of those goes and the host puts them there.
- * @see ToriRS_Surface.
+ * -- so it finds each of those by role through the widget API and moves,
+ * hides, skins and anchors it there itself (frame_surface, frame_apply_surfaces);
+ * the engine only takes the lane's own chrome. @see ToriRS_WidgetApi.
  *
  * ## The OldSchool lane, where the frame is a CS2 toplevel
  *
@@ -38,7 +39,7 @@
  * Resizable on rs289lc and on osrs239, whatever the server opened.
  *
  * Three things are different on that lane, and each is asked of the host
- * rather than assumed from the revision (api->lane, api->frame_root):
+ * rather than assumed from the revision (api->core.lane, api->cache.frame_root):
  *
  *   The CHAT is a pack. Interface 162 mounts into the toplevel's 519x165
  *   `chat_container` and draws its own backing, its own filter buttons and
@@ -2607,8 +2608,8 @@ frame_layout_modern_resizable(
      * the pack is simply placed. */
     int const chat_open = oldschool || g_chat_open;
     /* How much of the activity adviser is above the top tab strip. @see the
-     * placement below; 0 or less is a member the declaration leaves out, which
-     * the host reads as one its holder hides. */
+     * placement below; 0 or less is a member this plan leaves out, which
+     * frame_apply_surfaces hides itself. */
     int const adviser_h =
         top_row_y - (FRAME_O_ORBS_R_DY + FRAME_O_ADVISER_R_DY) < FRAME_O_ADVISER_H
             ? top_row_y - (FRAME_O_ORBS_R_DY + FRAME_O_ADVISER_R_DY)
@@ -2767,9 +2768,10 @@ frame_layout_modern_resizable(
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK_R, IMG_O_COMPASS_MASK_R);
     frame_skin_scrollbar(ctx);
     /*
-     * A role this declaration does not mention is one the host HIDES, which is
-     * the whole mechanism behind the switch: closing the chatbox is not a flag
-     * the chat widget reads, it is a frame that stops having a chatbox in it.
+     * A role this plan does not mention is one the plugin HIDES itself when it
+     * applies the plan (frame_apply_surfaces), which is the whole mechanism
+     * behind the switch: closing the chatbox is not a flag the chat widget
+     * reads, it is a frame that stops having a chatbox in it.
      */
     if( chat_open )
         frame_place_chat(ctx, 0, chat_y);
