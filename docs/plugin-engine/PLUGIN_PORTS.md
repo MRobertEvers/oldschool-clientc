@@ -7,8 +7,9 @@ This is an implementation checklist, not a completion claim. Every row still has
 Two sessions work in this worktree. A session claims a batch here before editing and
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
-- No batch is currently claimed by the second session (hidden native features and the two
-  essential panel plugins are committed).
+- **Claimed 2026-09-07 02:05 UTC (session resumed 23:17 UTC):** panels and data views
+  batch: `src/plugin/plugins/item_stats.c`, `xp_tracker.c`, `loot_tracker.c`,
+  `script/plugins/_paneldemo.lua`, their tests, and their harness/pixel rules.
 
 | Consumer | Current state | Captures |
 |---|---|---|
