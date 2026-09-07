@@ -2148,6 +2148,18 @@ enum UITreeWidgetAnchorResult UITree_WidgetSetAnchor(struct UITree*, struct UITr
  * Writes the live target index (-1 for NATIVE). */
 enum UITreeWidgetRelation UITree_WidgetAnchorAt(struct UITree const*, int32_t idx, int32_t* out_target);
 int UITree_WidgetAnchorCount(struct UITree const*);
+
+/* Native re-skin, retained per owner like the other edits. Art applies to a
+ * native sprite, graphic or compass (scene id > 0) and only while the native
+ * widget shows a graphic of its own; a mask applies to a native minimap,
+ * compass or sprite (0 = draw unmasked). Plugin masks always cut where they
+ * are transparent. Owned controls take their picture through set_image. */
+bool UITree_WidgetSetArt(struct UITree*, struct UITreeNodeRef, uint64_t owner, int scene_id);
+bool UITree_WidgetSetMask(struct UITree*, struct UITreeNodeRef, uint64_t owner, int scene_id);
+/* Effective skin of `idx`: bit 1 art, bit 2 mask; outputs written when set. */
+int UITree_WidgetSkinAt(struct UITree const*, int32_t idx, int* out_art_scene_id, int* out_mask_scene_id);
+/* Drop every retained art/mask edit naming `scene_id` (a released plugin image). */
+int UITree_WidgetClearSkin(struct UITree*, int scene_id);
 bool UITree_WidgetSetProjectionHeight(struct UITree*,struct UITreeNodeRef,uint64_t owner,int height);
 int UITree_WidgetProjectionHeight(struct UITree const*,int32_t node);
 bool UITree_WidgetSetTextOutline(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool outline);

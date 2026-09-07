@@ -204,6 +204,14 @@ struct ToriRS_WidgetApi
      * widgets only. */
     enum ToriRS_ContractResult (*create_image)(void*,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out);
     enum ToriRS_ContractResult (*set_image)(void*,struct ToriRS_WidgetRef,struct ToriRS_ImageRef image,int width,int height);
+    /* Native re-skin. set_image on a native sprite, graphic or compass with
+     * width and height 0 retains this plugin's image as that widget's art while
+     * the widget shows a graphic of its own (the widget keeps its geometry; a
+     * non-zero size is INVALID_ARGUMENT). set_mask on a native minimap, compass
+     * or sprite retains the clip: transparent pixels are the window; an empty
+     * image reference removes the native mask. Other widgets: NATIVE_BLOCKED.
+     * Releasing the image drops the skin; reset drops this owner's edits. */
+    enum ToriRS_ContractResult (*set_mask)(void*,struct ToriRS_WidgetRef,struct ToriRS_ImageRef image);
     enum ToriRS_ContractResult (*set_opacity)(void*,struct ToriRS_WidgetRef,int opacity);
     /* Depth relative to a named widget: drawn and hit directly OVER it, directly
      * BEHIND it, or in its place (REPLACE, which inherits the target's native

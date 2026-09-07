@@ -3751,6 +3751,22 @@ static enum ToriRS_ContractResult widget_set_image(void* u, struct ToriRS_Widget
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_IMAGE,.ref=ref,.id=slot,.a=width,.b=height};
     return plugin_widget_request(u,&r);
 }
+static enum ToriRS_ContractResult widget_set_mask(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    /* An empty reference is the explicit "no mask"; anything else must be a live token. */
+    int slot=-1;
+    if( image.value )
+    {
+        slot=plugin_v2_runtime_image_slot(runtime,image);
+        if( slot<0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    }
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_MASK,.ref=ref,.id=slot};
+    return plugin_widget_request(u,&r);
+}
 static enum ToriRS_ContractResult widget_set_opacity(void* u, struct ToriRS_WidgetRef ref, int opacity)
 {
     if( opacity<0 || opacity>255 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -3886,7 +3902,7 @@ v2_runtime_init(
         .widgets = {
             .context = runtime, .find = widget_find, .get_widget = widget_get,
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
-            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.set_mask=widget_set_mask,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,

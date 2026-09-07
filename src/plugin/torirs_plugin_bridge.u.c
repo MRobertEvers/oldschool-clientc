@@ -3170,7 +3170,8 @@ app_plugin_image_release(void* user, int slot)
     UITreeSceneBridge_ReleasePluginImage(&app->bridge, slot);
     /* An owned image control still showing this slot would otherwise draw
      * whatever the next publish puts there. */
-    if( app->tree && UITree_WidgetClearGraphic(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0 )
+    if( app->tree && (UITree_WidgetClearGraphic(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0 ||
+                      UITree_WidgetClearSkin(app->tree, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot) > 0) )
         app->need_redraw = 1;
 }
 
@@ -4397,8 +4398,25 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     case PLUGIN_WIDGET_SET_IMAGE:
         /* r->id is a validated plugin image slot; the tree draws it at the
          * scene id the publish used (see app_plugin_image_scene_id). */
-        if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        if( !UITree_WidgetSetGraphic(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id,r->a,r->b) ) return TORIRS_CONTRACT_FAILED;
+        if( c->plugin_owner==owner && c->type==UIELEM_RS_GRAPHIC )
+        {
+            if( !UITree_WidgetSetGraphic(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id,r->a,r->b) ) return TORIRS_CONTRACT_FAILED;
+        }
+        else if( !c->plugin_owner &&
+                 (c->type==UIELEM_BUILTIN_SPRITE || c->type==UIELEM_RS_GRAPHIC || c->type==UIELEM_BUILTIN_COMPASS) )
+        {
+            /* Native re-skin: the widget keeps its own geometry; size is set_size's. */
+            if( r->a || r->b ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+            if( !UITree_WidgetSetArt(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
+        }
+        else return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        app->need_redraw=1;
+        break;
+    case PLUGIN_WIDGET_SET_MASK:
+        if( c->plugin_owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( c->type!=UIELEM_BUILTIN_MINIMAP && c->type!=UIELEM_BUILTIN_COMPASS && c->type!=UIELEM_BUILTIN_SPRITE )
+            return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetMask(tree,ref,owner,r->id<0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
         app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_OPACITY:

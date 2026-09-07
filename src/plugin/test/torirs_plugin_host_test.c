@@ -3320,6 +3320,7 @@ static char op_label[64];
 static uint64_t op_registration;
 static int op_requests;
 static int anchor_relation,anchor_sets;
+static int mask_slot,mask_sets;
 static struct ToriRS_WidgetRef anchor_target;
 static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -3340,6 +3341,7 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
     if( r->kind == PLUGIN_WIDGET_SET_IMAGE ) { img_slot=r->id; img_w=r->a; img_h=r->b; ++img_sets; }
     if( r->kind == PLUGIN_WIDGET_OPACITY ) { img_opacity=r->a; }
     if( r->kind == PLUGIN_WIDGET_ANCHOR ) { anchor_relation=r->a; anchor_target=r->target; ++anchor_sets; }
+    if( r->kind == PLUGIN_WIDGET_SET_MASK ) { mask_slot=r->id; ++mask_sets; }
     if( r->kind == PLUGIN_WIDGET_FIND ) *r->refs = watched_native;
     if( r->kind == PLUGIN_WIDGET_VISIBLE ) *r->flag=true;
     if( r->kind == PLUGIN_WIDGET_ACTIONS )
@@ -3501,6 +3503,12 @@ static void img_start(struct ToriRS_Api* api,void* state)
           "a live image reaches the adapter as a validated slot with the control size");
     CHECK(ui->set_opacity(ui->context,img_control,300)==TORIRS_CONTRACT_INVALID_ARGUMENT,"opacity is bounded");
     CHECK(ui->set_opacity(ui->context,img_control,85)==TORIRS_CONTRACT_OK && img_opacity==85,"opacity reaches the adapter");
+    CHECK(ui->set_mask(ui->context,parent,(struct ToriRS_ImageRef){img_ref.value+1000})==TORIRS_CONTRACT_INVALID_ARGUMENT,
+          "a mask token this plugin never received is rejected");
+    CHECK(ui->set_mask(ui->context,parent,img_ref)==TORIRS_CONTRACT_OK && mask_sets==1 && mask_slot==img_slot,
+          "a live mask reaches the adapter as its validated slot");
+    CHECK(ui->set_mask(ui->context,parent,(struct ToriRS_ImageRef){0})==TORIRS_CONTRACT_OK && mask_sets==2 && mask_slot==-1,
+          "an empty mask reference is the explicit unmask");
     CHECK(ui->set_anchor(ui->context,img_control,parent,(enum ToriRS_WidgetRelation)7)==TORIRS_CONTRACT_INVALID_ARGUMENT,
           "an unknown anchor relation is rejected");
     CHECK(ui->set_anchor(ui->context,img_control,(struct ToriRS_WidgetRef){{0,0,0}},TORIRS_WIDGET_RELATION_OVER)==TORIRS_CONTRACT_STALE_REFERENCE,
@@ -3523,6 +3531,8 @@ static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* 
           "paint cannot change owned opacity");
     CHECK(api->widgets.set_anchor(api->widgets.context,img_control,(struct ToriRS_WidgetRef){{77,2,3}},TORIRS_WIDGET_RELATION_OVER)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "paint cannot anchor a widget");
+    CHECK(api->widgets.set_mask(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},img_ref)==TORIRS_CONTRACT_WRONG_CONTEXT,
+          "paint cannot re-skin a widget");
 }
 static void test_widget_images(void)
 {

@@ -29,6 +29,9 @@ struct UITreeWidgetGeometry
     uint64_t anchor_serial;
     int anchor_relation;
     struct UITreeNodeRef anchor_target;
+    /* Native re-skin: serial 0 = never stated. */
+    uint64_t art_serial, mask_serial;
+    int art_scene_id, mask_scene_id;
 };
 static uint64_t widget_geometry_serial;
 
@@ -4184,6 +4187,72 @@ UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
     edit->anchor_target = t >= 0 ? UITree_RefAt(tree, t) : (struct UITreeNodeRef){0};
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
     return UITREE_WIDGET_ANCHOR_OK;
+}
+
+static bool uitree_widget_art_type(enum UITreeComponentType type)
+{ return type == UIELEM_BUILTIN_SPRITE || type == UIELEM_RS_GRAPHIC || type == UIELEM_BUILTIN_COMPASS; }
+static bool uitree_widget_mask_type(enum UITreeComponentType type)
+{ return type == UIELEM_BUILTIN_MINIMAP || type == UIELEM_BUILTIN_COMPASS || type == UIELEM_BUILTIN_SPRITE; }
+
+static bool uitree_widget_set_skin(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, int scene_id, bool mask)
+{
+    assert(tree);
+    assert(owner);
+    int32_t idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || widget_geometry_serial == UINT64_MAX ) return false;
+    struct UITreeComponent* c = &tree->components[idx];
+    /* Owned controls carry their picture directly (UITree_WidgetSetGraphic). */
+    if( c->plugin_owner ) return false;
+    if( mask ? (!uitree_widget_mask_type(c->type) || scene_id < 0)
+             : (!uitree_widget_art_type(c->type) || scene_id <= 0) ) return false;
+    struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
+    if( !edit ) return false;
+    if( mask ) { edit->mask_scene_id = scene_id; edit->mask_serial = ++widget_geometry_serial; }
+    else { edit->art_scene_id = scene_id; edit->art_serial = ++widget_geometry_serial; }
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool UITree_WidgetSetArt(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, int scene_id)
+{ return uitree_widget_set_skin(tree, ref, owner, scene_id, false); }
+bool UITree_WidgetSetMask(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, int scene_id)
+{ return uitree_widget_set_skin(tree, ref, owner, scene_id, true); }
+
+int UITree_WidgetSkinAt(struct UITree const* tree, int32_t idx, int* out_art_scene_id, int* out_mask_scene_id)
+{
+    assert(tree);
+    assert(out_art_scene_id);
+    assert(out_mask_scene_id);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count || tree->components[idx].freed ) return 0;
+    struct UITreeWidgetGeometry const* art = NULL;
+    struct UITreeWidgetGeometry const* mask = NULL;
+    for( struct UITreeWidgetGeometry const* e = tree->components[idx].widget_geometry; e; e = e->next )
+    {
+        if( e->art_serial && (!art || e->art_serial > art->art_serial) ) art = e;
+        if( e->mask_serial && (!mask || e->mask_serial > mask->mask_serial) ) mask = e;
+    }
+    if( art ) *out_art_scene_id = art->art_scene_id;
+    if( mask ) *out_mask_scene_id = mask->mask_scene_id;
+    return (art ? 1 : 0) | (mask ? 2 : 0);
+}
+
+int UITree_WidgetClearSkin(struct UITree* tree, int scene_id)
+{
+    assert(tree);
+    int cleared = 0;
+    if( scene_id <= 0 ) return 0;
+    for( uint32_t i = 0; i < tree->component_count; ++i )
+    {
+        struct UITreeComponent* c = &tree->components[i];
+        if( c->freed ) continue;
+        for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+        {
+            if( e->art_serial && e->art_scene_id == scene_id ) { e->art_serial = 0; e->art_scene_id = 0; ++cleared; }
+            if( e->mask_serial && e->mask_scene_id == scene_id ) { e->mask_serial = 0; e->mask_scene_id = 0; ++cleared; }
+        }
+        if( cleared ) uitree_note_mutation(tree, (int32_t)i, UITREE_IMPACT_EMIT_SELF);
+    }
+    return cleared;
 }
 
 bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner)

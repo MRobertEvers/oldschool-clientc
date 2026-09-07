@@ -160,6 +160,21 @@ be over or behind. Rejected at set time: self, an ancestor or descendant of the
 widget, a cycle through the effective anchors (`INVALID_ARGUMENT`), a dead
 target (`STALE_REFERENCE`), another owner's control (`NATIVE_BLOCKED`).
 
+### Native re-skin (implemented slice)
+
+`set_image(widget, image, 0, 0)` on a native sprite, graphic or compass retains
+this plugin's image as that widget's art; `set_mask(widget, image)` on a native
+minimap, compass or sprite retains the clip, where an empty image reference is
+the explicit "no mask". Both are ordinary retained edits: latest writer wins,
+`reset` drops this owner's, releasing the image drops every skin naming it. The
+emit walk applies them last, after the lane's own state and any frame
+declaration, and only while the native widget shows a graphic of its own, so a
+skin never substitutes for a picture a script or the server took away. The
+widget keeps its own geometry (a non-zero size is `INVALID_ARGUMENT`; use
+`set_size`). Plugin masks always cut where they are transparent, whichever
+polarity the era's cache masks use. Owned image controls keep taking their
+picture through `set_image` with a size, and take no mask (`NATIVE_BLOCKED`).
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

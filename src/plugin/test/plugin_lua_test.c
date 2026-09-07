@@ -692,21 +692,29 @@ static enum ToriRS_ContractResult fake_lua_set_opacity(void* ctx,struct ToriRS_W
 {
     (void)ctx;(void)widget;lua_img_opacity=opacity;return TORIRS_CONTRACT_OK;
 }
+static int lua_mask_sets,lua_mask_value;
+static enum ToriRS_ContractResult fake_lua_set_mask(void* ctx,struct ToriRS_WidgetRef widget,struct ToriRS_ImageRef image)
+{
+    (void)ctx;(void)widget;++lua_mask_sets;lua_mask_value=image.value;return TORIRS_CONTRACT_OK;
+}
 static void test_widget_images(struct ToriRS_PluginHost* host)
 {
     static char const source[]=
         "local p={id='widget-img'};function p.on_start(api) "
         " local parent=assert(api.widgets.get(1));local control=assert(parent:create_image('camera'));"
-        " assert(control:set_image(12,20,10));assert(control:set_opacity(85));api.core.log('image set') end;"
+        " assert(control:set_image(12,20,10));assert(control:set_opacity(85));"
+        " assert(parent:set_mask(12));assert(parent:set_mask(nil));api.core.log('image set') end;"
         "function p.on_key(api) local parent=api.widgets.get(1);parent:set_opacity(300) end;return p";
     struct FakeInstance instance={"widget-img",""};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.create_image=fake_lua_create_image;
     api.widgets.set_image=fake_lua_set_image;api.widgets.set_opacity=fake_lua_set_opacity;
+    api.widgets.set_mask=fake_lua_set_mask;
     int index=PluginLua_AddScript(host,"widget-img",source,(int)strlen(source));
     CHECK(index>=0,"owned image script registers");
     int logs=g_logs;g_defs[index]->callbacks.on_start(&api,NULL);
     CHECK(g_logs==logs+1 && lua_img_creates==1 && lua_img_slot==12 && lua_img_w==20 && lua_img_h==10 && lua_img_opacity==85,
           "Lua owned image control forwards image token, size and opacity");
+    CHECK(lua_mask_sets==2 && lua_mask_value==0,"Lua forwards a mask token and nil as the explicit unmask");
     int disables=g_disabled_self;struct ToriRS_KeyEvent key={0};
     g_defs[index]->callbacks.on_key(&api,NULL,&key);
     CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"opacity"),"Lua rejects an out-of-range opacity before native dispatch");

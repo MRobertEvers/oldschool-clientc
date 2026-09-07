@@ -12,6 +12,18 @@
 #include "uitree_minimenu.h"
 #include "uitree_scroll.h"
 
+/* A plugin's retained re-skin of a native picture-bearing widget: art and/or
+ * mask (UITree_WidgetSetArt/SetMask). Applied last, after the lane's own state
+ * and any frame declaration, and only to a widget that is showing a graphic. */
+static void
+emit_apply_widget_skin(struct UITree const* tree, int32_t node_index, struct UITreeEmitDesc* out)
+{
+    int art = 0, mask = 0;
+    int const flags = UITree_WidgetSkinAt(tree, node_index, &art, &mask);
+    if( flags & 1 ) { out->scene_id = art; out->atlas_index = 0; }
+    if( flags & 2 ) { out->mask_scene_id = mask; out->mask_atlas_index = 0; out->mask_keep_opaque = 0; }
+}
+
 static int
 clip_intersect(
     struct UITreeEmitClip* out,
@@ -393,6 +405,7 @@ UITree_EmitFill(
         }
         if( out->scene_id <= 0 )
             return false;
+        emit_apply_widget_skin(tree, node_index, out);
         return true;
 
     case UIELEM_RS_TEXT:
@@ -631,6 +644,7 @@ UITree_EmitFill(
         /* Plugin masks have one stable API convention: transparent pixels are
          * the window. Native cache masks remain era-dependent. */
         out->mask_keep_opaque = frame_mask_overridden ? 0 : tree->mask_keep_opaque;
+        emit_apply_widget_skin(tree, node_index, out);
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         /* Entity/flag overlay dots, computed by the host in center-relative
          * pixels (reference minimapDraw). */
@@ -742,6 +756,7 @@ UITree_EmitFill(
             out->mask_atlas_index = component->u.sprite.mask_atlas_index;
         }
         out->mask_keep_opaque = frame_mask_overridden ? 0 : tree->mask_keep_opaque;
+        emit_apply_widget_skin(tree, node_index, out);
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
     }
