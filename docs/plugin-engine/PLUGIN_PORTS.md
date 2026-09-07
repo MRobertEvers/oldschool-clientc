@@ -2,6 +2,15 @@
 
 This is an implementation checklist, not a completion claim. Every row still has the full plan’s lifecycle, interaction, composition and release gates. Changing the ABI or a graphics type alone does not close a product row. Screenshots live under `/private/tmp/plugin-engine-evidence`; fixture receipts, logs, saved state and source copies accompany captures.
 
+## Concurrent work claims
+
+Two sessions work in this worktree. A session claims a batch here before editing and
+removes the claim in the commit that closes it; the other session leaves those files alone.
+
+- **Claimed 2026-09-07 00:05 UTC (session resumed 23:17 UTC):** essential/hidden native
+  features batch: `src/plugin/plugins/client_settings.c`, `feature_flags.c`,
+  `nxt_highlight.c`, `nxt_bird_nest.c`, their tests, and their harness/pixel rules.
+
 | Consumer | Current state | Captures |
 |---|---|---|
 | `script/plugins/_beamprobe.lua` | common logic tick and live settings port; both-revision column captures inspected; full release gate pending | `beamprobe-port-osrs/m01`, `beamprobe-port-lc/r01` |
