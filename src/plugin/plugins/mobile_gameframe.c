@@ -3985,7 +3985,10 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
                 backing_box.y - MOBILE_O_PAPER_PAD_T) )
         {
             (void)ui->set_anchor(ui->context, state->pack_sheet.ref, chat, TORIRS_WIDGET_RELATION_BEHIND);
-            (void)ui->set_hidden(ui->context, backing, true);
+            /* The backing keeps its box and loses its picture -- a transparent
+             * re-skin rather than a hide -- so the sheet behind the pack shows
+             * through it and every native part consumer still sees the block. */
+            (void)ui->set_image(ui->context, backing, state->blank, 0, 0);
         }
     }
     for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )

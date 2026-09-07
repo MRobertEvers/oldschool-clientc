@@ -1319,7 +1319,8 @@ main(void)
     CHECK(owned_at("chat-toggle", 439, 406), "the switches take the far end of the strip on this lane");
     CHECK(owned_count("icon.") == 14, "every stone wears rev-239's icon");
     frame_tick();
-    CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->hidden, "the pack's bar wears the 2004 strip and its backing gives way to the sheet");
+    CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0 && !native("chat_backing", -1)->hidden,
+          "the pack's bar wears the 2004 strip and its backing wears a transparent picture over the sheet");
     CHECK(owned("pack-sheet") && owned("pack-sheet")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND &&
               owned("pack-sheet")->anchor_target == fw_find("chat", -1),
           "the torn sheet is an owned image directly behind the pack");
