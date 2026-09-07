@@ -8465,6 +8465,36 @@ App_LastFrameUs(struct App const* app)
         [(app->dbg_frame_head + APP_DEBUG_FRAME_SAMPLES - 1) % APP_DEBUG_FRAME_SAMPLES];
 }
 
+/*
+ * The client-side cheats, in one place.
+ *
+ * `lootkill <source> <obj> [qty]` seeds the loot store as a kill would; it is
+ * answered here because no server knows the client's loot store. Every path a
+ * cheat can arrive by -- typed into the chat line, the login cheat list, or
+ * the headless TORIRS_SIM_CMD sender -- asks this first, so a headless run and
+ * a typed command reach the same code. True when the text was consumed.
+ */
+static bool
+app_client_cheat(struct App* app, char const* body)
+{
+    assert(app);
+    assert(body);
+    if( strncmp(body, "lootkill ", 9) == 0 )
+    {
+        char lk_source[64] = { 0 };
+        int lk_obj = 0;
+        int lk_qty = 1;
+        if( sscanf(body + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+        {
+            if( lk_qty <= 0 )
+                lk_qty = 1;
+            App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+        }
+        return true;
+    }
+    return false;
+}
+
 bool
 App_SendCommand(
     struct App* app,
@@ -8480,6 +8510,8 @@ App_SendCommand(
      * verdict lets it retry until the send lands. */
     if( !app->net || app->net->state != TORIRS_NET_GAME )
         return false;
+    if( app_client_cheat(app, text) )
+        return true;
     APP_NET_SEND(
         app,
         net_out_client_cheat(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text));
@@ -16987,18 +17019,8 @@ app_logic_tick(struct App* app)
                     }
                     if( take && body[0] )
                     {
-                        if( strncmp(body, "lootkill ", 9) == 0 )
-                        {
-                            char lk_source[64] = { 0 };
-                            int lk_obj = 0;
-                            int lk_qty = 1;
-                            if( sscanf(body + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
-                            {
-                                if( lk_qty <= 0 )
-                                    lk_qty = 1;
-                                App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
-                            }
-                        }
+                        if( app_client_cheat(app, body) )
+                            ;
                         else
                         {
                             APP_NET_SEND(
@@ -17671,19 +17693,8 @@ app_logic_tick(struct App* app)
                         send.colour_effect));
                 break;
             case RS_CS2_SOCIAL_SEND_CHEAT:
-                if( strncmp(send.text, "lootkill ", 9) == 0 )
-                {
-                    char lk_source[64] = { 0 };
-                    int lk_obj = 0;
-                    int lk_qty = 1;
-                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
-                    {
-                        if( lk_qty <= 0 )
-                            lk_qty = 1;
-                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
-                    }
+                if( app_client_cheat(app, send.text) )
                     break;
-                }
                 APP_NET_SEND(
                     app,
                     net_out_client_cheat(

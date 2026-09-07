@@ -115,13 +115,14 @@ fake_inv_size(int inv)
     return inv == TORIRS_INVENTORY_WORN ? FAKE_WORN_SLOTS : 0;
 }
 
+static int g_mouse_x = 100, g_mouse_y = 100;
 static int
 fake_mouse_pos(int* out_x, int* out_y)
 {
     if( out_x )
-        *out_x = 100;
+        *out_x = g_mouse_x;
     if( out_y )
-        *out_y = 100;
+        *out_y = g_mouse_y;
     return 1;
 }
 
@@ -408,14 +409,21 @@ static enum ToriRS_AssetState v2_image_compose(
 }
 static void v2_image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; fake_image_release(image.value); }
-static struct ToriRS_PlacementAreaRef v2_area(struct ToriRS_Api* api, int area)
-{ struct ToriRS_PlacementAreaRef out = { (uint32_t)area + 1u }; (void)api; return out; }
-static bool v2_primary(
-    struct ToriRS_Api* api, struct ToriRS_PlacementAreaRef area, struct ToriRS_Rect* out)
-{ (void)api; (void)area; *out = (struct ToriRS_Rect){ 0, 0, 765, 503 }; return true; }
+/* The canvas this paint callback may draw on, as the plugin now reads it from
+ * the graphics context. No placement area is offered at all, so a plugin that
+ * still asked the placement API would call a null function here. */
+static struct ToriRS_Rect g_canvas_bounds = { 0, 0, 765, 503 };
+static bool v2_draw_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* out)
+{
+    (void)draw;
+    if( out->struct_size < sizeof(*out) ) return false;
+    out->bounds = g_canvas_bounds;
+    return true;
+}
+static int g_draw_x, g_draw_y;
 static void v2_draw_image(
     struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
-{ (void)draw; (void)image; (void)x; (void)y; (void)alpha; g_client.draw_count++; }
+{ (void)draw; (void)image; (void)alpha; g_draw_x = x; g_draw_y = y; g_client.draw_count++; }
 
 static void
 api_init(void)
@@ -436,8 +444,6 @@ api_init(void)
     g_api.assets.image_pixels = v2_image_pixels;
     g_api.assets.image_compose = v2_image_compose;
     g_api.assets.image_release = v2_image_release;
-    g_api.placement.area = v2_area;
-    g_api.placement.primary = v2_primary;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.run_energy = v2_run_energy;
@@ -494,6 +500,7 @@ frame(int hovered_obj_id)
     memset(&draw, 0, sizeof(draw));
     draw.struct_size = sizeof(draw);
     draw.image = v2_draw_image;
+    draw.context = v2_draw_context;
     g_client.compose_w = 0;
     g_client.compose_h = 0;
     g_client.draw_count = 0;
@@ -576,6 +583,39 @@ test_food_heals(void)
     frame(385);
     TEST_ASSERT(g_client.draw_count == 1, "a shark gets a panel");
     TEST_ASSERT(tip_rows() == 1, "one stat changes; got %d rows", tip_rows());
+}
+
+/* The tooltip stays inside the graphics context's canvas bounds, not inside a
+ * placement area: a pointer near the canvas corner flips the panel up and left
+ * of the pointer, and a smaller canvas moves that edge. An inventory hover is
+ * outside the 3D viewport and must NOT flip: the canvas, not the viewport, is
+ * the bound. */
+static void
+test_tooltip_clamps_to_draw_canvas(void)
+{
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    g_mouse_x = 100; g_mouse_y = 100;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 116,
+        "away from the edge the panel sits right and below the pointer (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 618; g_mouse_y = 235; /* inventory slot 1 on the fixed frame */
+    frame(385);
+    TEST_ASSERT(g_draw_x == 630 && g_draw_y == 251,
+        "an inventory hover outside the 3D viewport keeps the panel beside the pointer (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 760; g_mouse_y = 495;
+    frame(385);
+    TEST_ASSERT(g_draw_x < 760 && g_draw_y < 495,
+        "at the canvas corner the panel flips up and left (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 250; g_mouse_y = 190;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 300, 200 };
+    frame(385);
+    TEST_ASSERT(g_draw_x < 250 && g_draw_y < 190,
+        "a smaller canvas moves the flip edge with it (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 100; g_mouse_y = 100;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
 }
 
 static void
@@ -883,6 +923,7 @@ main(void)
     test_no_hover();
     test_unknown_item();
     test_food_heals();
+    test_tooltip_clamps_to_draw_canvas();
     test_food_at_full_health();
     test_dose_suffix_is_stripped();
     test_combo_potion();

@@ -3854,9 +3854,14 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
                         value = o;
                 /* 0 here is the host's own fence refusing the intent (a value
                  * the row does not offer, a stale serial); the plugin never
-                 * saw it. Said as such, not as a missing row. */
-                dispatched = app_plugin_panel_dispatch_row(
-                    app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
+                 * saw it. Said as such, not as a missing row. The literal
+                 * value "!activate" presses a button or action row instead of
+                 * picking, through the same dispatch. */
+                dispatched = strcmp(sim_pick_value, "!activate") == 0
+                    ? app_plugin_panel_dispatch_row(
+                          app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
+                    : app_plugin_panel_dispatch_row(
+                          app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
                 fprintf(stderr, "chrome: sim pick '%s' %s = '%s' (option %d) -> %s (tick %d)\n",
                     sim_pick_plugin, sim_pick_widget, sim_pick_value, value,
                     dispatched ? "dispatched" : "refused by the host fence", g_plugin_panel_ticks);

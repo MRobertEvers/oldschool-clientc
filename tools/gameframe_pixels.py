@@ -203,6 +203,25 @@ def check_highlight_color(rows, log, spec, failures):
     if ink < wanted: failures.append("highlight_painted")
 
 
+def check_panel_custom_ink(rows, log, spec, failures):
+    """A plugin page's custom row was allotted a region (PLUGIN_PANEL_CUSTOM, the
+    executor's own record) and the plugin painted into it: at least MIN distinct
+    colours inside the region, so a blank plate or a single fill cannot pass.
+    spec is ID[:MIN]."""
+    row_id, _, minimum = spec.partition(":")
+    wanted = int(minimum) if minimum else 12
+    regions = re.findall(rf"PLUGIN_PANEL_CUSTOM id={re.escape(row_id)} region=(-?\d+),(-?\d+),(\d+),(\d+)", log)
+    colours = set()
+    if regions:
+        x, y, w, h = map(int, regions[-1])
+        for yy in range(max(0, y), min(len(rows), y + h)):
+            for xx in range(max(0, x), min(len(rows[0]), x + w)):
+                colours.add(rows[yy][xx])
+    ok = bool(regions) and len(colours) >= wanted
+    print(f"PIXEL panel_custom_ink={'PASS' if ok else 'FAIL'} id={row_id} regions={len(regions)} colours={len(colours)} wanted={wanted}")
+    if not ok: failures.append("panel_custom_ink")
+
+
 def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on", report_replaced=False):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
@@ -399,7 +418,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -523,6 +542,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         check_report_replaced(Path(bounds_path).read_text() if bounds_path else "", failures)
     if highlight_color:
         check_highlight_color(rows, Path(bounds_path).read_text() if bounds_path else "", highlight_color, failures)
+    if panel_custom_ink:
+        check_panel_custom_ink(rows, Path(bounds_path).read_text() if bounds_path else "", panel_custom_ink, failures)
     if owned_text is not None or owned_count==0:
         log = Path(bounds_path).read_text() if bounds_path else ""
         records = re.findall(r"OWNED_WIDGET owner=\d+ key=strength node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+) len=(\d+) hash=([0-9a-f]+)",log)
@@ -638,6 +659,7 @@ if __name__ == "__main__":
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--highlight-color", help="RRGGBB[:min] a live cache highlight group of this colour has members and its exact colour is painted")
+    parser.add_argument("--panel-custom-ink", help="ID[:min] a plugin page custom row has an allotted region with at least min distinct colours painted")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     parser.add_argument("--owned-text")
@@ -657,7 +679,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

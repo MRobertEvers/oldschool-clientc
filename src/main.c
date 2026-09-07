@@ -3340,6 +3340,24 @@ frame_loop_teardown(void)
                     i, w->kind, w->id, w->label, w->selected,
                     w->structured_select ? w->selected_value : "", w->text);
             }
+            /* Custom rows draw through the plugin's own on_ui_draw into a
+             * region the executor allotted; the region is the only native
+             * record of where that painting landed. */
+            for( int i = 0; i < app.plugin_panel_row_count; i++ )
+            {
+                struct AppPluginPanelRow const* row = &app.plugin_panel_rows[i];
+                if( row->widget_kind != TORIRS_PANEL_WIDGET_CUSTOM || !row->custom_layout_valid )
+                    continue;
+                TORIRS_REPORT("PLUGIN_PANEL_CUSTOM id=%s region=%d,%d,%d,%d\n", row->widget_id,
+                    row->custom_region.x, row->custom_region.y, row->custom_region.w, row->custom_region.h);
+            }
+            /* The client's own stat table, as the server has stated it: a
+             * skill with last_seen 0 has no reading yet (the plugin API says
+             * so too), which is what separates the login burst from a gain. */
+            for( int i = 0; i < RS_PLAYER_STATS_SKILL_COUNT; i++ )
+                TORIRS_REPORT("NATIVE_SKILL index=%d base=%d current=%d xp=%d stated=%d\n", i,
+                    app.stats.base_level[i], app.stats.current_level[i], app.stats.xp[i],
+                    app.stats.last_seen_level[i]);
             TORIRS_REPORT("NATIVE_DEVICE_OPTION ui_scale=%d ui_scale_mode=%d\n",
                 RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE),
                 RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE));

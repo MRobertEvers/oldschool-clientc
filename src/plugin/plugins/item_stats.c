@@ -2815,11 +2815,21 @@ is_on_draw_canvas(
 
     x = mouse_x + 12;
     y = mouse_y + 16;
-    (void)g_api->placement.primary(
-        g_api, g_api->placement.area(g_api, TORIRS_AREA_RAW_VIEWPORT), &canvas);
-    if( x + g_tip_w > canvas.x + canvas.width )
+    /* Kept on the canvas this callback may draw on: the graphics context's
+     * own bounds, which for a canvas paint is the whole canvas. That is what
+     * the retired placement area meant here; the 3D viewport is not it -- an
+     * inventory hover sits outside the viewport and its tooltip must not flip
+     * away over the minimap. */
+    {
+        struct ToriRS_DrawContext context;
+        memset(&context, 0, sizeof(context));
+        context.struct_size = sizeof(context);
+        if( draw->context && draw->context(draw, &context) )
+            canvas = context.bounds;
+    }
+    if( canvas.width > 0 && x + g_tip_w > canvas.x + canvas.width )
         x = mouse_x - g_tip_w - 4;
-    if( y + g_tip_h > canvas.y + canvas.height )
+    if( canvas.height > 0 && y + g_tip_h > canvas.y + canvas.height )
         y = mouse_y - g_tip_h - 4;
     if( x < 0 )
         x = 0;

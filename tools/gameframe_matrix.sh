@@ -276,6 +276,9 @@ while IFS='|' read tag m f s; do
   # GF_MATRIX_HIGHLIGHT_COLOR=RRGGBB[:min]: the engine recorded a live cache
   # highlight group of that colour with members, and the renderer painted it.
   [[ -n "${GF_MATRIX_HIGHLIGHT_COLOR:-}" ]] && widget_args+=(--highlight-color "$GF_MATRIX_HIGHLIGHT_COLOR")
+  # GF_MATRIX_PANEL_CUSTOM_INK=ID[:min]: a plugin page custom row has its allotted
+  # region and at least min distinct colours painted inside it.
+  [[ -n "${GF_MATRIX_PANEL_CUSTOM_INK:-}" ]] && widget_args+=(--panel-custom-ink "$GF_MATRIX_PANEL_CUSTOM_INK")
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
   # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native

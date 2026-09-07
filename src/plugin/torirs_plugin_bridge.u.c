@@ -3349,6 +3349,19 @@ app_plugin_draw_image(
     assert(app);
     before = app_overlay_count(app);
 
+    /* One line per placement change, not per frame: a tooltip that follows
+     * the pointer reports where it landed each time it moves, and a still
+     * one reports once. The harness reads this beside the pixels. */
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+    {
+        static int last_slot = -1, last_x, last_y, last_w, last_h;
+        if( slot != last_slot || x != last_x || y != last_y || w != last_w || h != last_h )
+        {
+            last_slot = slot; last_x = x; last_y = y; last_w = w; last_h = h;
+            TORIRS_REPORT("PLUGIN_CANVAS_IMAGE slot=%d box=%d,%d,%d,%d\n", slot, x, y, w, h);
+        }
+    }
+
     memset(&item, 0, sizeof(item));
     item.kind = UITREE_ENTITY_OVERLAY_SPRITE;
     item.scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
