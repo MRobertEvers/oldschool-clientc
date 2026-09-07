@@ -7,7 +7,9 @@ This is an implementation checklist, not a completion claim. Every row still has
 Two sessions work in this worktree. A session claims a batch here before editing and
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
-- No batch is currently claimed by the second session (panels and data views are committed).
+- **Claimed 2026-09-07 03:05 UTC (session resumed 23:17 UTC):** Lua demos and pending
+  rs289lc probes batch: `script/plugins/_probe.lua`, `_windemo.lua`, `_gicount.lua`,
+  `_hoverprobe.lua`, their manifests, and their harness/pixel rules.
 
 | Consumer | Current state | Captures |
 |---|---|---|
