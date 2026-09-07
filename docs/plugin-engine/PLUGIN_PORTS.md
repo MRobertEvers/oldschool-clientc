@@ -282,9 +282,10 @@ Review of the port (2026-09-07, seven claims from session 3draster-15's read-onl
 checked by reading and pinned): (1) the popout strip was never subtracted -- nothing in the tree
 sets `TORIRS_UI_NODE_BLOCKS_FRAME`, so the old FRAME_BUILD area was the canvas less the
 platform-safe rect, which on the desktop is the whole window and on the phone the keyboard band
-the Stone Drawer used to hang its strip from; the provided event carries no safe rect and
-`placement.*` is being removed, so this stays OPEN with its fix named (a `safe` rect on
-`ToriRS_GameframeEvent` filled from `platform_safe_rect`, re-raised on change). (2) the bridge's
+the Stone Drawer used to hang its strip from; the provided event carried no safe rect while
+`placement.*` was being removed. FIXED: `ToriRS_GameframeEvent.safe` is filled from the restored
+engine `platform_safe_rect` hook and the host re-asks the provided frame once when it moves
+(`test-plugin-host` pins both); the frame plugins switch their strip to it next. (2) the bridge's
 `find_all` for a frame role compacts missing members (`torirs_plugin_bridge.u.c`, the slot-member
 loop skips `node<0`) while both frame plugins index members by position: OPEN, fix in the bridge
 (keep the role's numbering with a zero reference) once the API removal lands. (3) FIXED: a stone's

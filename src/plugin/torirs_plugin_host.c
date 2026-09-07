@@ -378,6 +378,17 @@ struct ToriRS_PluginHost
     int layout_canvas;
     int layout_fixed_w;
     int layout_fixed_h;
+    /** The platform-safe rect the provided frame was last laid out against
+     *  (ToriRS_GameframeEvent.safe). The frame boundary polls the engine's
+     *  band against this, and a move re-asks the provider once. */
+    int safe_raised_x;
+    int safe_raised_y;
+    int safe_raised_w;
+    int safe_raised_h;
+    /** And the canvas that raise was against: what `safe` falls back to when
+     *  the engine reports no band. */
+    int canvas_raised_w;
+    int canvas_raised_h;
     /** Advances across every resolved offer transition. Fences an in-flight
      * frame-build candidate from committing after selection moved. */
     uint32_t frame_selection_epoch;
@@ -4810,6 +4821,47 @@ plugin_frame_selection_active(
 
 }
 
+/* The canvas less the platform's band, as ToriRS_GameframeEvent.safe: the
+ * engine's answer when it has one, else the whole `width` x `height`. */
+static void
+plugin_safe_rect_read(
+    struct ToriRS_PluginHost const* host,
+    int width,
+    int height,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0;
+    int y = 0;
+    int w = width;
+    int h = height;
+
+    assert(host);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    if( host->engine.platform_safe_rect &&
+        host->engine.platform_safe_rect(host->engine.user, &x, &y, &w, &h) )
+    {
+        assert(w > 0);
+        assert(h > 0);
+    }
+    else
+    {
+        x = 0;
+        y = 0;
+        w = width;
+        h = height;
+    }
+    *out_x = x;
+    *out_y = y;
+    *out_w = w;
+    *out_h = h;
+}
+
 /* Tell a provider its offer is released. Dispatch context matches a build. */
 static void
 plugin_gameframe_release(struct ToriRS_PluginHost* host, int owner)
@@ -4838,6 +4890,8 @@ plugin_gameframe_release(struct ToriRS_PluginHost* host, int owner)
     (void)v2->runtime.api.core.lane(&v2->runtime.api, &ev.lane);
     ev.reason = reason;
     ev.reason_capacity = sizeof(reason);
+    plugin_safe_rect_read(
+        host, ev.width, ev.height, &ev.safe.x, &ev.safe.y, &ev.safe.width, &ev.safe.height);
     host->dispatching = owner;
     host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
     (void)v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &ev);
@@ -6542,6 +6596,30 @@ PluginHost_FrameStart(
     if( host->started_once && host->frame_selection_dirty )
         PluginHost_Start(host);
 
+    /* The platform band poll. A provided frame was laid out against one
+     * safe rect (ToriRS_GameframeEvent.safe); when the engine's answer leaves
+     * it -- the phone's keyboard coming up or going away -- the provider is
+     * asked again, once, through the same one-shot request a selection
+     * transition uses. Only a provided frame is watched: nothing else was
+     * told the old rect. Without a hook the rect is the canvas and only a
+     * canvas change (which re-asks on its own) can move it. */
+    if( host->engine.platform_safe_rect )
+    {
+        int const owner = plugin_frame_owner(host);
+        if( owner >= 0 && host->plugins[owner].v2 &&
+            host->plugins[owner].v2->gameframe_provided && !host->frame_layout_requested )
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            plugin_safe_rect_read(host, host->canvas_raised_w, host->canvas_raised_h, &x, &y, &w, &h);
+            if( x != host->safe_raised_x || y != host->safe_raised_y ||
+                w != host->safe_raised_w || h != host->safe_raised_h )
+                host->frame_layout_requested = 1;
+        }
+    }
+
     if( host->callback_count[PLUGIN_CALLBACK_FRAME_START] == 0 )
         return;
 
@@ -7006,11 +7084,11 @@ PluginHost_Layout(
         height = entry->height;
     }
 
-    /* Consume only the attempt we are about to make. A callback that changes
-     * selection or invalidates again raises a fresh request and the epoch
-     * fence below preserves it. */
-    if( transitioning )
-        host->frame_layout_requested = 0;
+    /* Consume only the attempt we are about to make -- a transition to the
+     * target, or a re-ask of the standing frame (the platform band moved). A
+     * callback that changes selection or invalidates again raises a fresh
+     * request and the epoch fence below preserves it. */
+    host->frame_layout_requested = 0;
     selection_epoch = host->frame_selection_epoch;
 
     /* Provided, not declared: the offer's on_gameframe edits widgets and
@@ -7028,6 +7106,23 @@ PluginHost_Layout(
     (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
     gameframe.reason = v2_reason;
     gameframe.reason_capacity = sizeof(v2_reason);
+    plugin_safe_rect_read(
+        host,
+        width,
+        height,
+        &gameframe.safe.x,
+        &gameframe.safe.y,
+        &gameframe.safe.width,
+        &gameframe.safe.height);
+    /* What the provider is being laid out against; the frame boundary
+     * re-asks when the engine's band leaves it. Recorded before the call so
+     * a band that moves DURING the callback is still seen as a move. */
+    host->safe_raised_x = gameframe.safe.x;
+    host->safe_raised_y = gameframe.safe.y;
+    host->safe_raised_w = gameframe.safe.width;
+    host->safe_raised_h = gameframe.safe.height;
+    host->canvas_raised_w = width;
+    host->canvas_raised_h = height;
     previous_dispatching = host->dispatching;
     previous_event = host->dispatch_event;
     host->dispatching = owner;

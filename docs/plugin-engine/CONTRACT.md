@@ -208,6 +208,20 @@ its teardown. Canvas policy (a FIXED offer pins the window,
 a WINDOW offer states a minimum) is unchanged. Lua: `on_gameframe(api, ev)`
 returns nothing or `"ready"`, or `"pending"`/`"unsupported"` with a reason.
 
+The event also carries `safe` (`x, y, width, height`, canvas pixels): the canvas
+less what the platform is covering -- the soft keyboard band on a phone -- and
+the whole canvas when no band is up. It is the engine's `platform_safe_rect`,
+which reads the same `UITree_LayoutSafeBottomEdge` a profile's
+`safe_area=os:bottom` row reads, so a provider's bottom strip and the login box
+cannot disagree about where the keyboard starts. The host polls that rect at the
+frame boundary while a frame is provided and, when it moves, re-asks the
+provider once through the same one-shot layout request a selection transition
+uses (the app's keyboard-inset path marks the layout dirty as well; both
+collapse into one `on_gameframe`). The lane's own popout strip
+(`lane_chrome_0`) is deliberately NOT subtracted: it is a widget, and the frame
+plugins find and subtract it themselves. Lua receives it as `ev.safe`, a
+`torirs.Rect`.
+
 ## Events, listeners and actions
 
 `widgets.watch(role, listener, user)` follows the current semantic binding at the

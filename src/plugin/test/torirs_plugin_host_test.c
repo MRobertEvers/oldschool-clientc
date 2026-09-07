@@ -92,6 +92,12 @@ struct FakeEngine
     char frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX];
     int frame_preference_present;
     int frame_migration_version;
+    /* The platform band: what platform_safe_rect answers, when `safe_present`. */
+    int safe_present;
+    int safe_x;
+    int safe_y;
+    int safe_w;
+    int safe_h;
 };
 
 static struct FakeEngine g_engine;
@@ -900,6 +906,13 @@ fake_frame_activate(
     e->layout_fixed_h = fixed_h;
 }
 static int fake_frame_root(void* user) { return ((struct FakeEngine*)user)->native_root; }
+static int fake_platform_safe_rect(void* user,int* out_x,int* out_y,int* out_w,int* out_h)
+{
+    struct FakeEngine* e=user;
+    if( !e->safe_present ) return 0;
+    *out_x=e->safe_x;*out_y=e->safe_y;*out_w=e->safe_w;*out_h=e->safe_h;
+    return 1;
+}
 
 static int
 fake_slot_native_size(
@@ -1378,6 +1391,7 @@ fake_engine(void)
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_root = fake_frame_root;
+    e.platform_safe_rect = fake_platform_safe_rect;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.frame_preference = fake_frame_preference;
@@ -2448,6 +2462,7 @@ static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* 
 /* Frame provision through the widget API: every offer is served by
  * on_gameframe; the host takes only the chrome (frame_provide). */
 static int gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_widget_ok;
+static int gf_safe_x,gf_safe_y,gf_safe_w,gf_safe_h;
 static struct ToriRS_Api* gf_api;
 static char gf_offer[TORIRS_PLUGIN_FRAME_LOCAL_ID_MAX];
 static enum ToriRS_FrameBuildResult gf_answer=TORIRS_FRAME_READY;
@@ -2456,6 +2471,7 @@ static enum ToriRS_FrameBuildResult gf_on_gameframe(struct ToriRS_Api* api,void*
     struct ToriRS_WidgetRef ref;
     (void)state;gf_api=api;
     ++gf_events;gf_active_last=ev->active;gf_w=ev->width;gf_h=ev->height;gf_canvas=ev->canvas;
+    gf_safe_x=ev->safe.x;gf_safe_y=ev->safe.y;gf_safe_w=ev->safe.width;gf_safe_h=ev->safe.height;
     snprintf(gf_offer,sizeof(gf_offer),"%s",ev->offer_id ? ev->offer_id : "");
     if( api->widgets.find(api->widgets.context,"viewport",&ref)==TORIRS_CONTRACT_OK &&
         api->widgets.set_position(api->widgets.context,ref,4,4)==TORIRS_CONTRACT_OK ) gf_widget_ok=1;
@@ -2509,24 +2525,45 @@ static void test_gameframe_provider(void)
     /* A canvas change asks again. */
     PluginHost_Layout(host,900,600);
     CHECK(gf_events==2 && g_engine.frame_provides==2,"every layout pass re-asks the provider");
+    /* The platform band. With none reported the event's safe rect is the
+     * canvas; a band that comes up re-asks the provider once, through the
+     * frame boundary, carrying the engine's rect. */
+    CHECK(gf_safe_x==0 && gf_safe_y==0 && gf_safe_w==765 && gf_safe_h==503,
+          "without a platform band the event's safe rect is the whole canvas");
+    PluginHost_FrameStart(host,1,0);
+    CHECK(!PluginHost_FrameNeedsLayout(host),"an unchanged band requests nothing");
+    g_engine.safe_present=1;g_engine.safe_x=0;g_engine.safe_y=0;g_engine.safe_w=765;g_engine.safe_h=300;
+    PluginHost_FrameStart(host,2,0);
+    CHECK(PluginHost_FrameNeedsLayout(host),"a band that moved requests a re-ask at the frame boundary");
+    PluginHost_Layout(host,900,600);
+    CHECK(gf_events==3 && gf_active_last==1 && gf_safe_x==0 && gf_safe_y==0 && gf_safe_w==765 && gf_safe_h==300,
+          "the re-ask carries the engine's safe rect");
+    CHECK(!PluginHost_FrameNeedsLayout(host) && g_engine.frame_active==1,"the re-ask consumed its request");
+    PluginHost_FrameStart(host,3,0);
+    CHECK(!PluginHost_FrameNeedsLayout(host) && gf_events==3,"the same band re-asks exactly once");
+    g_engine.safe_present=0;
+    PluginHost_FrameStart(host,4,0);
+    CHECK(PluginHost_FrameNeedsLayout(host),"the band going away is a move too");
+    PluginHost_Layout(host,900,600);
+    CHECK(gf_events==4 && gf_safe_w==765 && gf_safe_h==503,"the re-ask carries the whole canvas again");
     /* PENDING keeps the request standing so the next fence asks again. */
     gf_answer=TORIRS_FRAME_PENDING;
     PluginHost_Layout(host,900,600);
     gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==4 && gf_active_last==0 && PluginHost_FrameNeedsLayout(host) &&
+    CHECK(gf_events==6 && gf_active_last==0 && PluginHost_FrameNeedsLayout(host) &&
           selection.status==TORIRS_FRAME_STATUS_LOADING && g_engine.frame_active==0,
           "PENDING releases the standing provision, keeps native up and asks again next fence");
     gf_answer=TORIRS_FRAME_READY;
     PluginHost_Layout(host,900,600);
     gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==5 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && !PluginHost_FrameNeedsLayout(host) &&
+    CHECK(gf_events==7 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && !PluginHost_FrameNeedsLayout(host) &&
           g_engine.frame_active==1,
           "the next READY answer provides the frame again and the request is consumed");
     gf_answer=TORIRS_FRAME_UNSUPPORTED;
     /* Declining with a reason falls back to native with that reason. */
     PluginHost_Layout(host,900,600);
     gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==7 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
+    CHECK(gf_events==9 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
     CHECK(selection.status==TORIRS_FRAME_STATUS_FALLBACK && strcmp(selection.reason,"No stones cut for this lane.")==0 &&
           g_engine.frame_active==0,
           "UNSUPPORTED falls back to native carrying the provider's reason");

@@ -1907,12 +1907,13 @@ static enum ToriRS_FrameBuildResult lua_cb_gameframe(struct ToriRS_Api*a,void*st
     (void)state;struct LuaScript*s=lua_script_for_api(a);
     if(!lua_call_begin(s,a,LUA_ON_GAMEFRAME))return e->active?TORIRS_FRAME_UNSUPPORTED:TORIRS_FRAME_READY;
     lua_State*L=s->L;enum ToriRS_FrameBuildResult result=TORIRS_FRAME_READY;
-    lua_createtable(L,0,6);
+    lua_createtable(L,0,7);
     lua_pushstring(L,e->offer_id?e->offer_id:"");lua_setfield(L,-2,"offer_id");
     lua_pushboolean(L,e->active);lua_setfield(L,-2,"active");
     lua_pushstring(L,e->canvas==TORIRS_FRAME_CANVAS_FIXED?"fixed":"window");lua_setfield(L,-2,"canvas");
     lua_pushinteger(L,e->width);lua_setfield(L,-2,"width");
     lua_pushinteger(L,e->height);lua_setfield(L,-2,"height");
+    lua_push_rect(L,(struct ToriRS_Rect){e->safe.x,e->safe.y,e->safe.width,e->safe.height});lua_setfield(L,-2,"safe");
     int status=lua_callback_pcall(s,2,2);
     if(status!=LUA_OK)
     {

@@ -181,6 +181,19 @@ struct ToriRS_PluginEngine
      *  @see screen. */
     int (*screen)(void* user);
 
+    /** Canvas minus what the OS is covering (the soft keyboard), in canvas
+     *  pixels. Returns 1 with the rect, or 0 when the platform reports no
+     *  band and the whole canvas is safe. Carried to every frame provider as
+     *  ToriRS_GameframeEvent.safe, and polled at the frame boundary so a band
+     *  that moves re-asks the provided frame. Optional for focused harnesses;
+     *  absent means the whole canvas, always. @see platform_safe_rect. */
+    int (*platform_safe_rect)(
+        void* user,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
     uint64_t (*frame_work_us)(void* user);

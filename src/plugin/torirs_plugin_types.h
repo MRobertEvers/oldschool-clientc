@@ -995,7 +995,15 @@ struct ToriRS_LaneInfo
  *  UNSUPPORTED (this lane cannot take the frame), writing `reason` for the
  *  latter two. Raised again on every canvas change while the offer stands.
  *  `active` false: the offer is being released; the return is ignored and the
- *  provider's teardown follows. */
+ *  provider's teardown follows.
+ *
+ *  `safe` is the canvas less what the PLATFORM is covering -- the soft
+ *  keyboard band on a phone, and nothing else so far -- in canvas pixels; it
+ *  is the whole canvas (0, 0, width, height) when no band is up. A provider
+ *  hanging a strip from the bottom edge hangs it from `safe.y + safe.height`,
+ *  and the event is raised again when that band moves, exactly as on a canvas
+ *  change. The lane's own popout strip (`lane_chrome_0`) is NOT in it: that
+ *  is a widget the provider finds and subtracts itself. */
 struct ToriRS_GameframeEvent
 {
     char const* offer_id;
@@ -1006,6 +1014,13 @@ struct ToriRS_GameframeEvent
     struct ToriRS_LaneInfo lane;
     char* reason;
     size_t reason_capacity;
+    struct
+    {
+        int x;
+        int y;
+        int width;
+        int height;
+    } safe;
 };
 
 /* ------------------------------------------------------------------------ */

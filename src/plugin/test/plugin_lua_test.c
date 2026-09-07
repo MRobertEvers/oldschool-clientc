@@ -268,6 +268,7 @@ test_runtime(struct ToriRS_PluginHost* host)
         "  if not ev.active then return end"
         "  if ev.offer_id=='ready' then"
         "   assert(ev.canvas=='fixed' and ev.width==765 and ev.height==503)"
+        "   assert(ev.safe.x==0 and ev.safe.y==0 and ev.safe.width==765 and ev.safe.height==420 and ev.safe.h==420)"
         "   local w,h=api.frame.surface_native_size('chat');assert(w==519 and h==165)"
         "   return 'ready'"
         "  elseif ev.offer_id=='waiting' then return 'pending','still loading'"
@@ -342,9 +343,11 @@ test_runtime(struct ToriRS_PluginHost* host)
     gameframe.height = 503;
     gameframe.reason = reason;
     gameframe.reason_capacity = sizeof(reason);
+    gameframe.safe.width = 765;
+    gameframe.safe.height = 420;
     gameframe.offer_id = "ready";
     CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_READY,
-        "Lua on_gameframe returns READY");
+        "Lua on_gameframe returns READY and reads the event's safe rect");
     gameframe.offer_id = "waiting";
     gameframe.canvas = TORIRS_FRAME_CANVAS_WINDOW;
     reason[0] = '\0';

@@ -4468,6 +4468,29 @@ app_plugin_layout_root_group(struct App const* app)
     return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
 }
 
+/* The canvas less the soft keyboard, for ToriRS_GameframeEvent.safe. The
+ * layout's own answer, not a second computation off app->keyboard_inset: a
+ * provider hanging a strip from the bottom edge must be dodging exactly the
+ * band a profile-authored `safe_area=os:bottom` row dodges, and the clamping
+ * (a keyboard can never cover the WHOLE canvas) lives there. */
+static int
+app_plugin_platform_safe_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    (void)app;
+    *out_x = 0;
+    *out_y = 0;
+    *out_w = UITREE_LAYOUT_ROOT_W;
+    *out_h = UITree_LayoutSafeBottomEdge();
+    return 1;
+}
+
 static void
 app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int fixed_h)
 {
@@ -4853,6 +4876,7 @@ app_plugin_engine(struct App* app)
     engine.user = app;
     engine.widget_request = app_plugin_widget_request;
     engine.screen = app_plugin_screen;
+    engine.platform_safe_rect = app_plugin_platform_safe_rect;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;

@@ -128,6 +128,7 @@ warn = nil
 ---@field canvas "fixed"|"window"
 ---@field width integer Logical canvas width the frame is laid out against.
 ---@field height integer
+---@field safe torirs.Rect The canvas less what the platform is covering (the soft keyboard band), in canvas pixels; the whole canvas when no band is up. Hang a bottom strip from safe.y + safe.height. The event is raised again when it changes. The lane's own popout strip (lane_chrome_0) is not subtracted; find and subtract that widget yourself.
 
 ---@class torirs.ScreenChangedEvent
 ---@field screen string
