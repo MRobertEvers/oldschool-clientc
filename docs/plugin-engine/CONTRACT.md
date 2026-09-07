@@ -196,11 +196,14 @@ The engine's half of a provided frame is `UITree_FrameProvide`: it collects and
 suppresses the lane's own chrome by root group and binds the roles, but places
 and hides no surface -- unlike a declaration, whose unplaced surfaces are
 hidden -- and it leaves the surfaces' geometry unowned, so the provider's
-retained edits are the layout. Every container above a native widget a plugin
-moved or resized stops clipping, so the new box is seen wherever it was put;
-that release reads the merged geometry override, so it follows ANY owner's
-move under a provided frame, not only the provider's (narrowing it to the
-provider is open). A provider that is released while it still runs -- the host
+retained edits are the layout. Every container above a native widget the
+PROVIDER moved or resized stops clipping, so the new box is seen wherever it
+was put; the release reads the provider's own retained edits only
+(`UITree_FrameProvide` is handed the provider's widget-edit owner id), so
+another plugin's `set_position` on a row under a cache scroll layer the frame
+never placed leaves that layer clipping as the lane authored it. A moved widget
+inside a surface the provider moved releases nothing further: that chain is the
+moved surface's content. A provider that is released while it still runs -- the host
 took the frame back, or the provider declined the root it now finds itself
 over -- hears `active` false and must take its own furniture off the tree
 (owned children removed, role edits `reset`), because nothing else does until

@@ -4379,15 +4379,22 @@ void UITree_WidgetResetOwner(struct UITree* tree, uint64_t owner)
 }
 
 /* Bit 1: forced position, bit 2: forced dimensions, including an exact zero.
- * Modify a local layout specification; never overwrite current native inputs. */
-int UITree_WidgetPositionOverride(struct UITree const* tree, int32_t idx, struct UITreeElemPosition* out)
+ * Modify a local layout specification; never overwrite current native inputs.
+ * `owner` 0 merges every owner's retained edits, latest serial winning; a
+ * non-zero owner reads that owner's edit alone. */
+static int
+uitree_widget_position_override(struct UITree const* tree, int32_t idx, uint64_t owner,
+                                struct UITreeElemPosition* out)
 {
-    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count || !out ) return 0;
+    assert(tree);
+    assert(out);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count ) return 0;
     struct UITreeWidgetGeometry const* position = NULL;
     struct UITreeWidgetGeometry const* size = NULL;
     for( struct UITreeWidgetGeometry const* edit = tree->components[idx].widget_geometry;
          edit; edit = edit->next )
     {
+        if( owner && edit->owner != owner ) continue;
         if( edit->position_serial && (!position || edit->position_serial > position->position_serial) ) position = edit;
         if( edit->size_serial && (!size || edit->size_serial > size->size_serial) ) size = edit;
     }
@@ -4407,6 +4414,16 @@ int UITree_WidgetPositionOverride(struct UITree const* tree, int32_t idx, struct
         out->width_mode = out->height_mode = 0;
     }
     return (position ? 1 : 0) | (size ? 2 : 0);
+}
+
+int UITree_WidgetPositionOverride(struct UITree const* tree, int32_t idx, struct UITreeElemPosition* out)
+{ return uitree_widget_position_override(tree, idx, 0, out); }
+
+int UITree_WidgetPositionOverrideByOwner(struct UITree const* tree, int32_t idx, uint64_t owner,
+                                         struct UITreeElemPosition* out)
+{
+    assert(owner);
+    return uitree_widget_position_override(tree, idx, owner, out);
 }
 
 bool

@@ -93,6 +93,9 @@ struct UITreeFrameLayout
     /** The semantic binding this table describes. */
     uint32_t applied_generation;
     int root_group;
+    /** The providing plugin's widget-edit owner id, whose retained moves are
+     *  the ones that release containment (frame_stretch_moved_ancestors). */
+    uint64_t provider_owner;
     uint8_t active;
 };
 
@@ -655,9 +658,13 @@ frame_stretch_node(
  * UITree_LayerCullsChildren. That is what a script shrinking an ancestor to
  * nothing used to need the canvas-sized floor for.
  *
- * A native widget a plugin moved or resized (a retained widget edit) is the
- * moved surface, and every container above it stops clipping so the new box is
- * seen wherever the plugin put it. A moved widget inside another moved widget
+ * A native widget THE PROVIDER moved or resized (its retained widget edit) is
+ * the moved surface, and every container above it stops clipping so the new
+ * box is seen wherever the provider put it. The provider's edits only: the
+ * retained-edit list on a widget merges every owner, and reading the merged
+ * override here made any plugin's nudge on a row under a cache scroll layer
+ * the frame never touched release that layer from clipping, so the layer's
+ * rows spilled out of it. A moved widget inside another moved widget
  * releases nothing: the chain above that surface was released by its own walk,
  * and the chain between is that surface's content, which is laid out AND
  * clipped in that surface's space -- the orb pack's root sits between the
@@ -667,13 +674,13 @@ frame_stretch_node(
  * inside that box.
  */
 static int
-frame_node_moved(struct UITree const* tree, int32_t idx)
+frame_node_moved(struct UITree const* tree, int32_t idx, uint64_t provider_owner)
 {
     struct UITreeElemPosition scratch;
     if( !frame_node_alive(tree, idx) )
         return 0;
     scratch = tree->components[idx].position;
-    return UITree_WidgetPositionOverride(tree, idx, &scratch) != 0;
+    return UITree_WidgetPositionOverrideByOwner(tree, idx, provider_owner, &scratch) != 0;
 }
 
 static void
@@ -683,17 +690,19 @@ frame_stretch_moved_ancestors(
 {
     assert(tree);
     assert(fl);
+    assert(fl->provider_owner);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         int inside_moved = 0;
-        if( tree->components[i].plugin_owner || !frame_node_moved(tree, (int32_t)i) )
+        if( tree->components[i].plugin_owner ||
+            !frame_node_moved(tree, (int32_t)i, fl->provider_owner) )
             continue;
         for( int32_t p = tree->components[i].parent; p >= 0 && !inside_moved;
              p = tree->components[p].parent )
         {
             if( !frame_node_alive(tree, p) )
                 break;
-            inside_moved = frame_node_moved(tree, p);
+            inside_moved = frame_node_moved(tree, p, fl->provider_owner);
         }
         if( inside_moved )
             continue;
@@ -803,12 +812,14 @@ frame_mark_bound_nodes(
 static void
 frame_apply(
     struct UITree* tree,
-    int root_group)
+    int root_group,
+    uint64_t provider_owner)
 {
     struct UITreeFrameLayout* fl;
     struct UITreeFrameLayout next;
 
     assert(tree);
+    assert(provider_owner);
 
     /* Build the new binding off to the side. The old provision stays fully
      * effective until the diff below commits this one, so a re-provision can
@@ -820,6 +831,7 @@ frame_apply(
 
     memset(&next, 0, sizeof(next));
     next.root_group = root_group;
+    next.provider_owner = provider_owner;
     next.applied_generation = tree->generation;
     next.active = 1;
     frame_collect_slots(tree, &next);
@@ -900,10 +912,12 @@ frame_apply(
 void
 UITree_FrameProvide(
     struct UITree* tree,
-    int root_group)
+    int root_group,
+    uint64_t provider_owner)
 {
     assert(tree);
-    frame_apply(tree, root_group);
+    assert(provider_owner);
+    frame_apply(tree, root_group, provider_owner);
 }
 
 void
@@ -917,7 +931,7 @@ UITree_FrameReassert(struct UITree* tree)
         return;
 
     if( fl->applied_generation != tree->generation )
-        frame_apply(tree, fl->root_group);
+        frame_apply(tree, fl->root_group, fl->provider_owner);
 }
 
 void

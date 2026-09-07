@@ -275,9 +275,9 @@ provide_plugin_edits(struct UITree* tree, struct FrameNodes const* frame)
 static void
 provide_plugin_frame(struct UITree* tree, struct FrameNodes const* frame)
 {
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     provide_plugin_edits(tree, frame);
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
 }
 
 /* The provider drops its edits and the engine gives the frame back. */
@@ -452,7 +452,7 @@ test_frame_keeps_native_state_beneath_effective_layout(void)
     assert_plugin_emit(tree, &buf, &frame);
 
     quiet_dirty = tree->dirty_gen;
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     TEST_ASSERT(
         tree->dirty_gen == quiet_dirty && tree->components[frame.chrome].frame_hidden,
         "providing again over an unchanged binding is an atomic no-op, never a release/retake flash");
@@ -995,7 +995,7 @@ test_frame_visibility_invalidates_retention_and_hover(void)
     UITree_EmitWalk(tree, NULL, &buf, -1);
     TEST_ASSERT(emit_find(&buf, chrome) != NULL, "native chrome starts reached and visible");
 
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     buf.count = 0;
     UITree_EmitWalk(tree, NULL, &buf, -1);
     TEST_ASSERT(tree->components[chrome].frame_hidden, "frame claim hides native chrome");
@@ -1134,7 +1134,7 @@ test_release_ignores_same_id_recycled_incarnations(void)
         NATIVE_COMPASS_MASK);
     TEST_ASSERT(shell >= 0 && old_root >= 0 && old_compass >= 0, "recycle fixture");
     old_incarnation = tree->components[old_compass].incarnation;
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     {
         struct UITreeNodeRef const compass = UITree_RefAt(tree, old_compass);
         TEST_ASSERT(
@@ -1144,7 +1144,7 @@ test_release_ignores_same_id_recycled_incarnations(void)
                 UITree_WidgetSetMask(tree, compass, PLUGIN_OWNER, PLUGIN_COMPASS_MASK),
             "the provider moves and re-skins the old compass");
     }
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
 
     UITree_ReclaimInterfaceGroup(tree, FRAME_GROUP);
     new_root = UITree_TestPushXy(
@@ -1378,7 +1378,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_globe = globe;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
 
     TEST_ASSERT(g_binder_calls == 1, "a provision runs the binder before it collects");
     TEST_ASSERT(
@@ -1448,7 +1448,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_WidgetSetPosition(tree, UITree_RefAt(tree, adviser), PLUGIN_OWNER, 20, 20),
         "the provider moves the adviser");
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     UITree_EnsureLayout(tree);
     TEST_ASSERT(
         effective_box_is(tree, adviser, 516 + 20, 4 + 20, 34, 34) &&
@@ -1523,7 +1523,7 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
         "the native compass is clipped to its container");
     TEST_ASSERT(!tree->components[map_container].frame_stretched, "no frame, no release");
 
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     /* Retained edits are relative to the native parent: the world's container
      * sits at 4,4 and the compass's at 516,4. */
     TEST_ASSERT(
@@ -1540,7 +1540,7 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
                 tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, UITree_RefAt(tree, world),
                 UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
         "the provider moves the compass over the world");
-    UITree_FrameProvide(tree, FRAME_GROUP);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
     TEST_ASSERT(
         tree->components[map_container].frame_stretched &&
             tree->components[shell].frame_stretched &&

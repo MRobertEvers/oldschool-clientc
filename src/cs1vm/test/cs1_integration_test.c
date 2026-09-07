@@ -479,13 +479,13 @@ test_cs1_under_frame_ownership(void)
     UITree_LayoutResolve(tree, 0, 0, 765, 503);
     /* A plugin provides the frame: the engine takes the chrome, the provider
      * moves the chat surface over the scene with retained widget edits. */
-    UITree_FrameProvide(tree, 0);
+    UITree_FrameProvide(tree, 0, provider);
     TEST_ASSERT(UITree_WidgetSetPosition(tree, UITree_RefAt(tree, text), provider, 20, 30) &&
                     UITree_WidgetSetSize(tree, UITree_RefAt(tree, text), provider, 120, 20) &&
                     UITree_WidgetSetAnchor(tree, UITree_RefAt(tree, text), provider, UITree_RefAt(tree, world_node),
                                            UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
                 "the provider moves the chat surface over the scene");
-    UITree_FrameProvide(tree, 0);
+    UITree_FrameProvide(tree, 0, provider);
     UITree_EmitBufferInit(&buffer);
     int values[] = { 0, 7, 9 };
     for( int n = 0; n < 3; n++ )

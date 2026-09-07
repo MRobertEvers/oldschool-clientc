@@ -2167,7 +2167,14 @@ int UITree_WidgetClearGraphic(struct UITree*, int scene_id);
 bool UITree_WidgetSetTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
 bool UITree_WidgetRemove(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 
+/* The merged geometry override the layout applies: every owner's retained
+ * position/size edits, latest serial winning. Bit 1 position, bit 2 size. */
 int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);
+/* The same, read through ONE owner's retained edits only. What a question
+ * about a particular plugin's moves -- did the frame provider place this
+ * widget? -- asks, so another plugin's nudge is never mistaken for its own. */
+int UITree_WidgetPositionOverrideByOwner(struct UITree const*, int32_t, uint64_t owner,
+                                         struct UITreeElemPosition*);
 
 /** Current live focus component ID, or -1. Never transfers across node reuse. */
 int

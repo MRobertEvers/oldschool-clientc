@@ -913,9 +913,10 @@ fake_frame_activate(
 }
 
 static void
-fake_frame_provide(void* u)
+fake_frame_provide(void* u, uint64_t owner)
 {
     (void)u;
+    (void)owner;
 }
 
 static int

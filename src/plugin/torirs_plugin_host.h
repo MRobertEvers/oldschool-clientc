@@ -295,8 +295,10 @@ struct ToriRS_PluginEngine
 
     /** A frame PROVIDED through the widget API: suppress the lane's chrome and
      *  bind the roles, but place and hide nothing -- the provider's retained
-     *  widget edits are the layout. @see UITree_FrameProvide. */
-    void (*frame_provide)(void* user);
+     *  widget edits are the layout. `owner` is the provider's widget-edit
+     *  owner id (the one its set_position/set_size requests carry), so only
+     *  the provider's own moves release containment. @see UITree_FrameProvide. */
+    void (*frame_provide)(void* user, uint64_t owner);
 
     /** The selected sidebar tab, or -1. @see tab_active. */
     int (*tab_active)(void* user);

@@ -7170,7 +7170,9 @@ PluginHost_Layout(
 
         plugin_frame_engine_activate(host, build_entry);
         v2->gameframe_provided = true;
-        host->engine.frame_provide(host->engine.user);
+        /* The provider's widget-edit owner id, the same `index + 1` its own
+         * set_position requests carry (widget_request). */
+        host->engine.frame_provide(host->engine.user, (uint64_t)owner + 1);
         host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
         plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
         /* Teardown follows publication, so no frame exists where neither end

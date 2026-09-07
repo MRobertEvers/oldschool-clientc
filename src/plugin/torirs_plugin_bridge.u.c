@@ -4543,11 +4543,12 @@ app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int f
 }
 
 static void
-app_plugin_frame_provide(void* user)
+app_plugin_frame_provide(void* user, uint64_t owner)
 {
     struct App* app = (struct App*)user;
 
     assert(app);
+    assert(owner);
     if( !app->tree )
         return;
     if( !app->plugin_frame_active )
@@ -4555,7 +4556,7 @@ app_plugin_frame_provide(void* user)
         UITree_FrameRelease(app->tree);
         return;
     }
-    UITree_FrameProvide(app->tree, app_plugin_layout_root_group(app));
+    UITree_FrameProvide(app->tree, app_plugin_layout_root_group(app), owner);
     app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
     app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
     app->plugin_layout_generation = app->tree->generation;

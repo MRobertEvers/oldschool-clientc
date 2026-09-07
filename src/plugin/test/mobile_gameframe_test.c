@@ -117,9 +117,10 @@ fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
 }
 
 static void
-fake_frame_provide(void* u)
+fake_frame_provide(void* u, uint64_t owner)
 {
     (void)u;
+    (void)owner;
     g_frame.provide_calls++;
 }
 

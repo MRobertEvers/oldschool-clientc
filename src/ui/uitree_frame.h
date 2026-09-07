@@ -158,13 +158,20 @@ UITree_FrameSlotNativeSize(
  * decoration apart from the interface packs mounted inside it -- see
  * frame_is_lane_chrome.
  *
+ * `provider_owner` is the providing plugin's widget-edit owner id (the one it
+ * passes to UITree_WidgetSetPosition), never 0. Only ITS retained moves and
+ * resizes release the containers above a surface; another plugin's nudge on a
+ * native row leaves that row's cache-owned layers clipping as the lane
+ * authored them. Retained for the fence's reassert.
+ *
  * Idempotent: an unchanged binding is an atomic no-op, never a release and
  * re-take that would flash the lane's frame through.
  */
 void
 UITree_FrameProvide(
     struct UITree* tree,
-    int root_group);
+    int root_group,
+    uint64_t provider_owner);
 
 /**
  * Reconcile the standing provision with the current tree generation.

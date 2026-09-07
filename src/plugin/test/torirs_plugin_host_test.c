@@ -11,6 +11,7 @@
 
 #include "plugin/torirs_plugin_host.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -603,9 +604,10 @@ fake_screenshot(
 }
 
 static void
-fake_frame_provide(void* u)
+fake_frame_provide(void* u, uint64_t owner)
 {
     struct FakeEngine* e = u;
+    assert(owner);
     e->frame_provides++;
 }
 static int
