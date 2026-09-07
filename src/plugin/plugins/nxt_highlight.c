@@ -139,6 +139,22 @@ nxt_highlight_draw(
     }
 }
 
+/*
+ * The groups come from CS2 scripts, so a revision without CS2 has none to
+ * draw. Said once at start so a capture on that revision shows the renderer
+ * running and explicitly idle rather than silently drawing nothing.
+ */
+static void
+nxt_highlight_start(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    assert(api);
+    api->core.log(api, "cache highlights: %s",
+        api->core.capability(api, "scripts.callbacks")
+            ? "CS2 highlight groups are drawn as the cache describes them"
+            : "unavailable, this revision has no CS2 highlight groups");
+}
+
 struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_HIGHLIGHT),
     .id = "nxt-highlight",
@@ -149,6 +165,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
     .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = nxt_highlight_start,
         .on_draw_world = nxt_highlight_draw,
     },
 };

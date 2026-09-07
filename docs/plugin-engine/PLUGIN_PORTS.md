@@ -7,9 +7,10 @@ This is an implementation checklist, not a completion claim. Every row still has
 Two sessions work in this worktree. A session claims a batch here before editing and
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
-- **Claimed 2026-09-07 00:05 UTC (session resumed 23:17 UTC):** essential/hidden native
-  features batch: `src/plugin/plugins/client_settings.c`, `feature_flags.c`,
-  `nxt_highlight.c`, `nxt_bird_nest.c`, their tests, and their harness/pixel rules.
+- **Claimed 2026-09-07 00:05 UTC (session resumed 23:17 UTC), narrowed 01:10 UTC:** the
+  two essential panel plugins `src/plugin/plugins/client_settings.c` and `feature_flags.c`,
+  their tests, the plugin-window trace in `src/main.c`, and their harness/pixel rules. The
+  NXT rows of this batch are committed and released from the claim.
 
 | Consumer | Current state | Captures |
 |---|---|---|
@@ -36,9 +37,9 @@ removes the claim in the commit that closes it; the other session leaves those f
 | `src/plugin/plugins/loot_tracker.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
 | `src/plugin/plugins/minimap_orbs.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
 | `src/plugin/plugins/mobile_gameframe.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
-| `src/plugin/plugins/nxt_bird_nest.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
+| `src/plugin/plugins/nxt_bird_nest.c` | major-3 item-spawn/named-cache/notification API, no execution builder to retain; logs the setting's availability at start; OSRS239 nest dropped under the player notifies only with the setting on, rs289lc reports the setting absent and stays silent; full release gate pending | `nxt-bird-nest-osrs/m01`, `nxt-bird-nest-off-osrs-v2/m01`, `nxt-bird-nest-rs289/r01` |
 | `src/plugin/plugins/nxt_cannon_ammo.c` | major-3 native tick/cache/notification API; coordinate/null/lifecycle fixes tested; OSRS empty/pickup and rs289 unavailable captures inspected; full release gate pending | `cannon-native-empty/m01`, `cannon-native-pickup/m01`, `cannon-native-rs289/r01` |
-| `src/plugin/plugins/nxt_highlight.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
+| `src/plugin/plugins/nxt_highlight.c` | major-3 world-draw renderer of the cache's highlight groups; logs CS2 availability at start; OSRS239 mouse-over loc group drawn on the fountain after a native resolver fix, rs289lc explicitly idle; settings-panel-driven groups (hovered/current/destination tile) not yet captured | `nxt-highlight-hover-osrs-v2/m01`, `nxt-highlight-rs289/r01` |
 | `src/plugin/plugins/tileind.c` | graphics port; stationary marker checked; native walking/overlap/lifecycle acceptance pending | `tile-port-c-osrs/m01`, `tile-port-c-lc/r01` |
 | `src/plugin/plugins/xp_orbs.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
 | `src/plugin/plugins/xp_tracker.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
@@ -166,3 +167,14 @@ Captures, each with `TORIRS_SIM_PLUGIN_CONFIG` selecting the mode and a simulate
 Regressions: `test-uitree` (`test_owned_image_widgets`), `test-plugin-host` (`test_widget_images`: composed token accepted, zero/foreign/released tokens rejected, size and opacity bounds, paint context), `test-plugin-lua` (`test_widget_images` and the new `screenshot_behavior.lua`: all placement modes, report hide and release, rebind after remount, event/tick/hotkey captures, teardown releases both images). Observed negative controls: the release sweep ignoring ownership fails "releasing an image blanks only plugin-owned graphics showing it" (`/private/tmp/plugin-engine-owned-image-negative-sweep.log`); skipping token validation fails five host checks (`...-negative-token.log`); `tools/plugin_engine_negative_controls.py --suite lua` gained `screenshot_report_hide`, `screenshot_corner_margin`, `screenshot_delay`, each observed (`/private/tmp/plugin-engine-screenshot-negative`). ASan host/Lua/uitree pass.
 
 Still open for this product: the legacy Lua callbacks (`on_ui_node_draw`, `on_ui_node_action`, `on_canvas_action`, `ui_contributions`, `api.ui.*`, `api.placement.*`) remain in the runtime until their C consumers are ported and the execution API is removed; a retained right-click menu whose listener is replaced before selection has no native capture yet.
+
+## Hidden native features checkpoint: cache highlights and bird nest
+
+Both plugins already used only major-3 APIs (`on_draw_world` graphics and `on_item_spawn`/named cache/notify); neither had an execution builder to remove. Each now says once at start what this revision can do: `nxt-highlight` logs whether CS2 highlight groups exist (`core.capability("scripts.callbacks")`), `nxt-bird-nest` logs the `bird_nest` varbit id and current state or that the setting is absent. On rs289lc both report unavailable and do nothing (`nxt-highlight-rs289/r01`, `nxt-bird-nest-rs289/r01`, each on a new Lost City account; no `NATIVE_HIGHLIGHT` group, no `highlight-resolve` with a count, no `PLUGIN_NOTIFY`).
+
+Native trace additions: `NATIVE_HIGHLIGHT kind= group= colour= outline= opacity= flags= members=` per live group at the exit dump (the engine's own record of the scripts' groups, independent of the renderer) and `PLUGIN_NOTIFY text=` from the bridge's notify seam. Harness additions: `TORIRS_SIM_MOVE_AT="frame,x,y"` (move-only pointer, so hover paths can be measured without a walk or a menu), `GF_MATRIX_HIGHLIGHT_COLOR=RRGGBB[:min]` (a live group of that colour with members AND that exact colour painted).
+
+Native fix found by the capture: `app_plugin_highlight_loc_resolve_one` returned from the whole resolve at the first member naming another loc type, so once any loctype group had members (the Blast Furnace group does at every OSRS login) no loc highlight ever drew. `nxt-highlight-hover-osrs/m01` is the pre-fix negative: the engine recorded the fountain in mouse-over loc group 5 (`members=1`) and `highlight-resolve` stayed at 0 drawn, 0 painted pixels; its binary is kept beside it as `torirs_plugin_engine_perf.pre-fix.bin`. `nxt-highlight-hover-osrs-v2/m01` after the fix: pointer parked at 330,120 over the fountain, `highlight-resolve: 1 drawn (loc 1)`, 655 exact `00C0C0` pixels, the cyan two-pixel outline around the fountain at 2x, 8 chat controls and 14 sidebar buttons. `nxt-highlight-hover-osrs-probe/m01` records that a varbit write alone does not arm the hovered-tile group: clientscript 5198 runs from the settings panel row, not from a var change, so the three tile rows still need a panel-driven capture.
+
+Bird nest: `::dropobj bird_nest_egg_red 1` puts the nest under the player. With varbit 13087 written 0 (the row is inverted; 0 is on) the plugin's `PLUGIN_NOTIFY text=A bird's nest falls out of the tree.` follows the server's own "Dropped Bird nest here." line and the native ground caption shows "Bird nest (271 gp)"; with 13087 written 1 the same drop produces no notice (`nxt-bird-nest-off-osrs-v2`, forbidden-log rule). `nxt-bird-nest-off-osrs` is the same negative with two mistaken expectations (the start-time log predates the frame-450 write; the server's message is chat, not log) and is kept only as a failed run. Regressions: `test-nxt-plugins` (38 checks), `test-highlight`, both unchanged in behaviour. No unit test covers the bridge's loc resolver; the pre-fix capture is its only negative control.
+

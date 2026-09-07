@@ -619,14 +619,21 @@ app_plugin_highlight_loc_resolve_one(
         for( int i = 0; i < hl->member_count[k]; i++ )
         {
             struct RS_HighlightMember const* m = &hl->member[k][i];
+            /* CONTINUE, not return: these are per-member tests inside a walk
+             * of every member. Returning here ended the whole resolve at the
+             * first member that named some other loc type -- so once any
+             * loctype group held members (the Blast Furnace group does at
+             * every login), no loc of any other group ever resolved, and the
+             * mouse-over loc highlight recorded its subject but drew nothing.
+             * Found by the nxt-highlight native capture. */
             if( m->key != loc->loc_id )
-                return;
+                continue;
             /* The placed form pins a coord as well as a type; the type
              * form marks every instance. */
             if( k == RS_HIGHLIGHT_LOC && m->coord != coord )
-                return;
+                continue;
             if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
-                return;
+                continue;
             proto.kind = TORIRS_HIGHLIGHT_LOC;
             proto.element_id = loc->element_id;
             proto.overhead_height = app_plugin_element_height(app, loc->element_id);
@@ -1532,6 +1539,10 @@ app_plugin_notify(void* user, char const* text)
     assert(app);
     assert(text);
     RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, text);
+    /* The harness reads this beside the painted chat line: a plugin notice is
+     * a product output, and the capture rules key on the text. */
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT("PLUGIN_NOTIFY text=%s\n", text);
 }
 
 static int

@@ -2509,6 +2509,45 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_MOVE_AT="frame,x,y[;frame,x,y...]": park the pointer at a
+         * main-loop frame WITHOUT pressing anything. The hover-driven native
+         * paths (the cache's mouse-over highlight groups, tooltips, hover
+         * colours) need the pointer over a subject for many frames; a click
+         * would also walk, talk or open a menu and change what is being
+         * measured. */
+        {
+            static char const* sim_move_cursor = NULL;
+            static int sim_move_init = 0;
+            static long move_frame = -1, move_x, move_y;
+            if( !sim_move_init )
+            {
+                sim_move_init = 1;
+                sim_move_cursor = getenv("TORIRS_SIM_MOVE_AT");
+            }
+            if( move_frame < 0 && sim_move_cursor && *sim_move_cursor )
+            {
+                char* end = NULL;
+                move_frame = strtol(sim_move_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    move_x = strtol(end + 1, &end, 0);
+                    move_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                    sim_move_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    sim_move_cursor = NULL;
+                    move_frame = -1;
+                }
+            }
+            if( move_frame >= 0 && frame_count >= move_frame )
+            {
+                CmdBus_PushMouseMove(&bus, (int)move_x, (int)move_y);
+                TORIRS_REPORT("sim_move_at: frame=%ld move %ld,%ld\n", move_frame, move_x, move_y);
+                move_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH...]": inject a window
          * resize at the given main-loop frame. The only way to exercise
          * the resize path headlessly — SDL_VIDEODRIVER=dummy never
@@ -3255,6 +3294,29 @@ frame_loop_teardown(void)
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC],
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE],
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE]);
+
+        /* The cache's highlight groups as the engine recorded them: one line
+         * per live group (colour set and flags non-zero) with the members the
+         * scripts named for it. Independent of what any plugin then drew. */
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        {
+            struct RS_HighlightState const* hl = &app.host.highlight;
+            for( int kind = 0; kind < RS_HIGHLIGHT_KIND_COUNT; kind++ )
+                for( int group = 0; group < RS_HIGHLIGHT_GROUP_MAX; group++ )
+                {
+                    struct RS_HighlightStyle const* style = &hl->style[kind][group];
+                    int members = 0;
+                    if( style->colour < 0 || style->flags == 0 )
+                        continue;
+                    for( int i = 0; i < hl->member_count[kind]; i++ )
+                        members += hl->member[kind][i].group == group;
+                    for( int i = 0; i < hl->named_count; i++ )
+                        members += hl->named[i].kind == kind && hl->named[i].group == group;
+                    TORIRS_REPORT("NATIVE_HIGHLIGHT kind=%d group=%d colour=%06x outline=%d opacity=%d flags=%d members=%d\n",
+                        kind, group, style->colour & 0xffffff, style->outline_width,
+                        style->opacity, style->flags, members);
+                }
+        }
 
         if( getenv("TORIRS_DUMP_BOUNDS") && app.plugins )
         {

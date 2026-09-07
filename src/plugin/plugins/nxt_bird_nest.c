@@ -113,6 +113,25 @@ nxt_bird_nest_spawn(
     api->core.notify(api, "A bird's nest falls out of the tree.");
 }
 
+/*
+ * Say what this revision can do, once. The setting is a named varbit of the
+ * boot profile; a cache without it (rs289lc has no All Settings) makes the
+ * feature explicitly unavailable rather than silently on or off.
+ */
+static void
+nxt_bird_nest_start(struct ToriRS_Api* api, void* state)
+{
+    int id = -1;
+    (void)state;
+    assert(api);
+    if( api->cache.named_id(api, "varbit", NXT_VARBIT_BIRD_NEST, &id) )
+        api->core.log(api, "bird nest notification: setting varbit %d, currently %s",
+            id, api->cache.varbit(api, id) == 0 ? "on" : "off");
+    else
+        api->core.log(api, "bird nest notification: unavailable, this revision has no %s setting",
+            NXT_VARBIT_BIRD_NEST);
+}
+
 struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_BIRD_NEST),
     .id = "nxt-bird-nest",
@@ -123,6 +142,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST = {
     .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = nxt_bird_nest_start,
         .on_item_spawn = nxt_bird_nest_spawn,
     },
 };
