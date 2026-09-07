@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the Lua runtime, LuaLS declaration, and bundled scripts are V2 peers."""
+"""Prove the Lua runtime, LuaLS declaration, and bundled scripts are peers of the current API."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 C_SOURCE = ROOT / "src/plugin/torirs_plugin_lua.c"
-V2_SOURCE = ROOT / "src/plugin/torirs_plugin_v2.h"
+API_SOURCE = ROOT / "src/plugin/torirs_plugin_api.h"
 META_SOURCE = ROOT / "script/plugins/plugin_api.meta.lua"
 SCRIPT_DIR = ROOT / "script/plugins"
 
@@ -81,7 +81,7 @@ def strip_line_comments(source: str) -> str:
 
 def main() -> int:
     c_source = C_SOURCE.read_text(encoding="utf-8")
-    v2_source = V2_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8") + (ROOT / "src/plugin/torirs_plugin_contract.h").read_text(encoding="utf-8")
     meta_source = META_SOURCE.read_text(encoding="utf-8")
     arrays = lua_fn_arrays(c_source)
     modules = runtime_modules(c_source)
@@ -89,27 +89,35 @@ def main() -> int:
     errors: list[str] = []
 
     expected_array_names = set(modules.values()) | {
-        "LUA_DRAW_BUILDER_FNS",
+        "LUA_WIDGET_METHOD_FNS",
+        "LUA_GRAPHICS_FNS",
         "LUA_PANEL_BUILDER_FNS",
-        "LUA_FRAME_BUILDER_FNS",
     }
     errors += difference("registration arrays", set(arrays), expected_array_names)
 
     module_structs = {
-        "core": "ToriRS_CoreApiV2", "config": "ToriRS_ConfigApiV2",
-        "world": "ToriRS_WorldApiV2", "input": "ToriRS_InputApiV2",
-        "ui": "ToriRS_UiApiV2", "placement": "ToriRS_PlacementApiV2",
-        "frame": "ToriRS_FrameApiV2", "draw": "ToriRS_DrawApiV2",
-        "assets": "ToriRS_AssetsApiV2", "scene": "ToriRS_SceneApiV2",
-        "panel": "ToriRS_PanelApiV2", "cache": "ToriRS_CacheApiV2",
-        "client": "ToriRS_ClientApiV2", "game": "ToriRS_GameApiV2",
+        "widgets": "ToriRS_WidgetApi", "scripts": "ToriRS_ScriptApi",
+        "core": "ToriRS_CoreApi", "config": "ToriRS_ConfigApi",
+        "world": "ToriRS_WorldApi", "input": "ToriRS_InputApi",
+        "menu": "ToriRS_MenuApi",
+        "frame": "ToriRS_FrameApi", "draw": "ToriRS_DrawApi",
+        "assets": "ToriRS_AssetsApi", "scene": "ToriRS_SceneApi",
+        "panel": "ToriRS_PanelApi", "cache": "ToriRS_CacheApi",
+        "client": "ToriRS_ClientApi", "game": "ToriRS_GameApi",
     }
     errors += difference("canonical module set", set(modules), set(module_structs))
     for module, struct_name in module_structs.items():
+        if module == "widgets":
+            widget_calls = arrays.get("LUA_WIDGET_FNS", set()) | arrays.get("LUA_WIDGET_METHOD_FNS", set())
+            native_calls = struct_callables(api_source, struct_name)
+            native_calls = { {"get_widget":"get", "get_text":"text"}.get(name,name) for name in native_calls }
+            errors += difference("live widgets versus C API", widget_calls, native_calls)
+            errors += difference("widget methods versus metadata", arrays.get("LUA_WIDGET_METHOD_FNS",set()), callable_fields(classes.get("torirs.Widget",{})))
+            continue
         errors += difference(
             f"api.{module} versus {struct_name}",
             arrays.get(modules.get(module, ""), set()),
-            struct_callables(v2_source, struct_name),
+            struct_callables(api_source, struct_name),
         )
 
     api_fields = classes.get("torirs.Api", {})
@@ -126,9 +134,8 @@ def main() -> int:
         )
 
     for array, class_name in (
-        ("LUA_DRAW_BUILDER_FNS", "torirs.DrawBuilder"),
+        ("LUA_GRAPHICS_FNS", "torirs.Graphics"),
         ("LUA_PANEL_BUILDER_FNS", "torirs.PanelBuilder"),
-        ("LUA_FRAME_BUILDER_FNS", "torirs.FrameBuilder"),
     ):
         errors += difference(
             class_name,
@@ -136,19 +143,14 @@ def main() -> int:
             callable_fields(classes.get(class_name, {})),
         )
     errors += difference(
-        "draw builder versus V2 header",
-        arrays.get("LUA_DRAW_BUILDER_FNS", set()),
-        struct_callables(v2_source, "ToriRS_DrawBuilder"),
+        "draw builder versus API header",
+        arrays.get("LUA_GRAPHICS_FNS", set()),
+        struct_callables(api_source, "ToriRS_Graphics"),
     )
     errors += difference(
-        "panel builder versus V2 header",
+        "panel builder versus API header",
         arrays.get("LUA_PANEL_BUILDER_FNS", set()),
-        struct_callables(v2_source, "ToriRS_PanelBuilder"),
-    )
-    errors += difference(
-        "frame builder versus V2 header",
-        arrays.get("LUA_FRAME_BUILDER_FNS", set()),
-        struct_callables(v2_source, "ToriRS_FrameBuilder"),
+        struct_callables(api_source, "ToriRS_PanelBuilder"),
     )
 
     handler_match = re.search(
@@ -158,9 +160,9 @@ def main() -> int:
     )
     handlers = set(re.findall(r'"(on_[a-z_]+)"', handler_match.group(1))) if handler_match else set()
     errors += difference(
-        "callbacks versus V2 header",
+        "callbacks versus API header",
         handlers,
-        struct_callables(v2_source, "ToriRS_PluginCallbacks"),
+        struct_callables(api_source, "ToriRS_PluginCallbacks"),
     )
     errors += difference(
         "plugin callbacks", handlers,
@@ -169,9 +171,8 @@ def main() -> int:
 
     forbidden_c = {
         "ToriRS_PluginApi": "legacy API type",
-        "ToriRS_PluginDef const": "legacy plugin definition",
-        "PluginHost_Register(host": "legacy registration",
-        "->subscribe": "legacy subscription bus",
+        "ToriRS_PluginDefV2 const": "previous plugin definition",
+        "PluginHost_RegisterV2(host": "previous registration",
     }
     for token, label in forbidden_c.items():
         if token in c_source:
@@ -213,23 +214,29 @@ def main() -> int:
 
     screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
     for required in (
-        'node = "frame.chat.button.report"',
-        'mode = "replace_or_provide"',
-        "api.ui.set_enabled",
-        "api.ui.update",
-        "on_ui_node_draw",
-        "on_ui_node_action",
+        'api.widgets.watch("report_button"',
+        'api.widgets.watch("viewport"',
+        ":create_image(",
+        ":set_image(",
+        ":set_on_op(",
+        "report:set_hidden(",
+        '"report-button"',
+        'off|top-left|top-right|bottom-left|bottom-right|report-button',
+        "api.assets.screenshot(",
     ):
         if required not in screenshot:
-            errors.append(f"screenshot.lua: missing retained named-UI behavior: {required}")
+            errors.append(f"screenshot.lua: missing retained camera behavior: {required}")
+    for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
+        if forbidden in screenshot:
+            errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
 
     if errors:
         for error in errors:
-            print(f"lua v2 inventory: {error}", file=sys.stderr)
+            print(f"lua API inventory: {error}", file=sys.stderr)
         return 1
     callable_count = sum(len(arrays[name]) for name in expected_array_names)
     print(
-        f"lua v2 inventory: {len(modules)} modules, {callable_count} callables, "
+        f"lua API inventory: {len(modules)} modules, {callable_count} callables, "
         f"{len(handlers)} callbacks, and bundled scripts match"
     )
     return 0

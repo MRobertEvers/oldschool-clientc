@@ -141,7 +141,7 @@ PluginDraw_Tile(
 
 int
 PluginDraw_ImageLoad(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ImageRef* handle,
     uint32_t** px,
@@ -185,7 +185,7 @@ PluginDraw_ImageLoad(
 
 void
 PluginDraw_ImageFree(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     uint32_t** px,
     struct ToriRS_ImageRef* handle)
 {
@@ -200,7 +200,7 @@ PluginDraw_ImageFree(
 
 static int
 plugin_draw_read_ini(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct PluginDraw_Atlas* atlas,
     char const* name)
 {
@@ -249,7 +249,7 @@ plugin_draw_read_ini(
 
 int
 PluginDraw_AtlasLoad(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct PluginDraw_Atlas* atlas,
     char const* name)
 {
@@ -266,7 +266,7 @@ PluginDraw_AtlasLoad(
 
 void
 PluginDraw_AtlasFree(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct PluginDraw_Atlas* atlas)
 {
     assert(api);

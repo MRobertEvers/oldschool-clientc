@@ -23,7 +23,7 @@
  */
 
 #include "plugin/torirs_plugin_types.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdint.h>
 
@@ -125,7 +125,7 @@ void PluginDraw_Tile(
  * again", not "failed".
  */
 int PluginDraw_ImageLoad(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ImageRef* handle,
     uint32_t** px,
@@ -133,17 +133,17 @@ int PluginDraw_ImageLoad(
     int* h);
 /** Give one back. Idempotent. */
 void PluginDraw_ImageFree(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     uint32_t** px,
     struct ToriRS_ImageRef* handle);
 
 /** Load `<name>.ini` and `<name>.png` into `atlas`. Same 0/1 contract. */
 int PluginDraw_AtlasLoad(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct PluginDraw_Atlas* atlas,
     char const* name);
 void PluginDraw_AtlasFree(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct PluginDraw_Atlas* atlas);
 
 /* ---- text ---------------------------------------------------------------- */

@@ -1205,6 +1205,62 @@ test_debug_overlay_button(void)
 }
 
 /*
+ * A colour row that straddles the scroll fold paints nothing below the panel.
+ * The swatch and the field frame were always clipped to the panel; the hex
+ * text took the field's inner box as its clip and was drawn whole under the
+ * panel, over whatever the game had there.
+ */
+static void
+test_debug_overlay_colorpick_fold(void)
+{
+    int panel;
+    int pick;
+    int count;
+    struct ToriRSChromePrim const* prims;
+    struct ToriRSChromeRect rect;
+    int hex_prims = 0;
+    int full_h;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 220, "Fold");
+    for( int i = 0; i < 3; i++ )
+        (void)ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    pick = ToriRSChrome_ColorPick(&g_ui, panel, "Colour", 0x1234);
+    for( int i = 0; i < 12; i++ )
+        (void)ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    ToriRSChrome_PanelSetFixedWidth(&g_ui, panel, 220);
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    ToriRSChrome_Build(&g_ui);
+    full_h = g_ui.widgets[pick].h;
+    TEST_ASSERT(full_h > 0, "the colour row is laid out at rest");
+
+    /* Cut the panel through the middle of the colour row's box, then rebuild:
+     * the row now straddles the fold, and the layout trims its hit box to the
+     * visible part, which is how a straddling row shows in the widget table. */
+    rect = g_ui.panels[panel].last_rect;
+    g_ui.panels[panel].fixed_h = g_ui.widgets[pick].y + full_h / 2 - rect.y + full_h / 4;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    rect = g_ui.panels[panel].last_rect;
+    TEST_ASSERT(g_ui.widgets[pick].h > 0, "the colour row is still in view");
+    TEST_ASSERT(g_ui.widgets[pick].h < full_h, "the colour row straddles the fold");
+
+    prims = ToriRSChrome_Prims(&g_ui, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT )
+            continue;
+        if( prims[i].text[0] == '#' )
+            hex_prims++;
+        TEST_ASSERT(
+            prims[i].clip.y + prims[i].clip.h <= rect.y + rect.h,
+            "no text clip extends below the panel");
+    }
+    TEST_ASSERT(hex_prims == 1, "the hex text is still drawn (clipped), once");
+}
+
+/*
  * Panel scrolling: rows below the fold become reachable rather than dropped,
  * and a row scrolled out of view stops taking clicks.
  */
@@ -1387,6 +1443,7 @@ test_debug_overlay(void)
     test_debug_overlay_remove();
     test_debug_overlay_tabs();
     test_debug_overlay_button();
+    test_debug_overlay_colorpick_fold();
     test_debug_overlay_panel_scroll();
     test_debug_overlay_custom_region();
 }

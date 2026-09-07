@@ -145,6 +145,8 @@ upload_model_nodes(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
+        if( c->u.rs_model.active_model_id >= 0 )
+            (void)UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id);
         cache_id = c->u.rs_model.gamecache_model_id;
         if( getenv("TORIRS_ANIM_DEBUG") )
             TORIRS_LOG("upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
@@ -167,11 +169,9 @@ upload_model_nodes(
                      * tick driver loads it and disables gracefully if absent.
                      * Held at frame 0 — the reference poses the design composite
                      * once and only spins modelYAn after that. */
-                    if( c->u.rs_model.anim_seq_id < 0 )
-                        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
-                    c->u.rs_model.anim_frame = 0;
-                    c->u.rs_model.anim_frame_cycle = 0;
-                    c->u.rs_model.anim_hold = 1;
+                    (void)UITree_SetModelAnimationAt(tree, i,
+                        c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
+                        0, 0, 1);
                 }
             }
             continue;
@@ -310,7 +310,7 @@ arm_cache_transmit_hooks(
     if( !self->host )
         return;
     for( int i = 0; i < pack->component_count; i++ )
-        RS_CS2_RegisterCacheTransmitHooks(self->host, &pack->components[i]);
+        RS_CS2_RegisterCacheTransmitHooks(self->host, self->tree, &pack->components[i]);
 }
 
 static void
@@ -389,7 +389,7 @@ interface_group_in_tree(
  * already be sitting in the tree (hidden, and holding every dynamic child the
  * script created). Scanning all components, rather than only the root sibling
  * list, catches that copy and any stale mount at a different slot, and clearing
- * hide_unmounted un-hides exactly what the mount bookkeeping hid.
+ * mount_hidden un-hides exactly what the mount bookkeeping hid.
  */
 static void
 mount_pack_under_target(struct Task_InterfaceOpen* self)
@@ -425,10 +425,9 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
             ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
                 self->interface_id )
             continue;
-        if( c->behavior.hide_unmounted )
+        if( c->mount_hidden )
         {
-            c->behavior.hide_unmounted = 0;
-            (void)UITree_SetHideAt(self->tree, i, 0);
+            (void)UITree_SetMountHiddenAt(self->tree, i, 0);
         }
         if( c->parent == mount_idx )
             continue;
@@ -652,7 +651,7 @@ Task_InterfaceOpen_Run(
          * speculatively, and the spillover sweep hides a root nothing had
          * mounted yet; either one applied to a group that is now being opened
          * as the toplevel would render the whole gameframe blank, with nothing
-         * to point at. Clearing hide_unmounted here is the opentop half of the
+         * to point at. Clearing mount_hidden here is the opentop half of the
          * same bookkeeping. */
         struct UITreeNodeSet const* gset =
             UITree_GroupNodes(self->tree, self->interface_id);
@@ -665,10 +664,9 @@ Task_InterfaceOpen_Run(
             c = &self->tree->components[idx];
             if( c->freed || c->component_id < 0 )
                 continue;
-            if( c->behavior.hide_unmounted )
+            if( c->mount_hidden )
             {
-                c->behavior.hide_unmounted = 0;
-                (void)UITree_SetHideAt(self->tree, idx, 0);
+                (void)UITree_SetMountHiddenAt(self->tree, idx, 0);
             }
         }
     }

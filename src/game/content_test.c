@@ -178,13 +178,18 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
         int cutscene_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "cutscene_status");
         int fov_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fov_clamp");
         int visible_orbs = 0;
-        int orb_plugin = app->plugins ? PluginHost_IndexOf(app->plugins, "minimap-orbs") : -1;
-        const char* orb_names[] = { "frame.orb.hitpoints", "frame.orb.prayer", "frame.orb.run", "frame.orb.special" };
-        for( int i = 0; orb_plugin >= 0 && i < 4; ++i )
+        /* The minimap-orbs plugin owns one image control per orb, created
+         * under these keys; an orb counts when its control exists and no
+         * ancestor hides it. */
+        const char* orb_keys[] = { "orb_hitpoints", "orb_prayer", "orb_run", "orb_special" };
+        for( uint32_t i = 0; app->tree && i < app->tree->component_count; ++i )
         {
-            struct ToriRS_UiNodeRef ref = PluginHost_UiRef(app->plugins, orb_plugin, orb_names[i]);
-            struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-            if( PluginHost_UiInfo(app->plugins, ref, &info) && info.visible ) ++visible_orbs;
+            struct UITreeComponent const* c = &app->tree->components[i];
+            if( c->freed || !c->plugin_owner || !c->plugin_key )
+                continue;
+            for( int k = 0; k < 4; ++k )
+                if( strcmp(c->plugin_key, orb_keys[k]) == 0 && !UITree_NodeOrAncestorDisplayHidden(app->tree, (int32_t)i) )
+                    ++visible_orbs;
         }
         size_t camera_end = strlen(result);
         snprintf(result + camera_end - 1, sizeof(result) - camera_end + 1,

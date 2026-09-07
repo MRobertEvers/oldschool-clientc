@@ -42,7 +42,7 @@ emit_overlay_root_valid(struct UITree const* tree)
     struct UITreeComponent const* c = &tree->components[root];
     return c->parent < 0 && c->type == UIELEM_BUILTIN_ENTITY_OVERLAY &&
         !c->freed && !c->behavior.hide && !c->screen_hidden && !c->projection_hidden &&
-        !c->frame_hidden && !c->replacement_hidden && !c->replacement_paint_hidden &&
+        !c->frame_hidden && !c->widget_hidden &&
         UITree_RootIsDisplayable(tree, root) && !UITree_ContainerHasMounts(tree, c->component_id);
 }
 
@@ -153,8 +153,6 @@ UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost con
     struct UITreeEmitBuffer scratch = {0};
     scratch.cmds = out->overlay_scratch;
     scratch.cap = out->overlay_scratch_cap;
-    for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; ++slot )
-        scratch.frame_order.position[slot] = scratch.frame_order.sequence[slot] = -1;
     struct UITreeHost const* stamp_host = host;
     struct UITreeHost observed;
     if( host )
@@ -175,7 +173,7 @@ UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost con
     }
     for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
         emit_walk_node(tree, host, &scratch, child, &clip, &clip, 0, 0, *hovered,
-            0, 0, 0, 0, 0, NULL, 0);
+            0, 0, 0, 0, 0);
     out->overlay_scratch = scratch.cmds;
     out->overlay_scratch_cap = scratch.cap;
     /* Use the original host identity, not the observing shallow copy. */
@@ -200,7 +198,7 @@ UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost con
     {
         memmove(out->cmds + start + scratch.count, out->cmds + start + old,
             (size_t)(out->count - start - old) * sizeof(*out->cmds));
-        for( int source = UITREE_EMIT_OVERLAY_ENTITY; source <= UITREE_EMIT_OVERLAY_FRAME; ++source )
+        for( int source = UITREE_EMIT_OVERLAY_ENTITY; source <= UITREE_EMIT_OVERLAY_CANVAS; ++source )
             if( out->volatile_overlay_insert_at[source] >= start + old &&
                 !(source == UITREE_EMIT_OVERLAY_ENTITY && out->volatile_overlay_insert_at[source] == start) )
                 out->volatile_overlay_insert_at[source] += scratch.count - old;

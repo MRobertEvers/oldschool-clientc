@@ -50,15 +50,8 @@
 --   plugin does not keep -- api.world.item_next() already yields one snapshot per
 --   (tile, obj) pair with its own count, so a stack arrives collapsed.
 --
--- THE SCENE ORIGIN
---
--- Snapshots speak in ABSOLUTE tiles and api.draw.project() speaks in scene-local
--- fine units, so this plugin has to know where the scene starts. That is what
--- on_world_loaded carries, and every rebuild raises it -- but a plugin switched
--- on from the settings panel mid-session has missed the last one, so
--- derive_base() recovers it from a standing player instead. Without an origin
--- nothing can be projected and the plugin draws nothing at all, which is the
--- one failure worth a log line.
+-- Scene origin is read directly from the live world. Enabling while moving
+-- does not need an earlier world-load event or guessed player coordinates.
 --
 
 ---@type torirs.Plugin
@@ -89,6 +82,10 @@ local plugin = {
             default = "Vial, Ashes, Coins, Bones, Bucket, Jug, Seaweed",
             label = "Hidden items"
         },
+        { key = "highlight_exceptions", type = "text", rows = 3, default = "",
+          label = "Highlight exceptions (exact names)" },
+        { key = "hide_exceptions", type = "text", rows = 3, default = "",
+          label = "Hide exceptions (exact names)" },
         {
             key = "show_highlighted_only",
             type = "bool",
@@ -268,6 +265,12 @@ local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
 local prices = {}
+local native_captions = false
+-- What the reveal key said the last time the native captions were checked.
+-- The native rows re-run their caption script only when a row changes, so a
+-- key pressed between rows would otherwise reveal nothing until the next
+-- despawn; the change asks for the coalesced rebuild instead.
+local reveal_shown = false
 
 local function items(api)
     local cursor = -1
@@ -282,14 +285,7 @@ end
 -- than once per item per frame.
 local highlight_pats = {}
 local hidden_pats = {}
--- SW corner of the loaded scene, in absolute tiles. nil until a world load or
--- derive_base() answers; see the header.
-local base_x, base_z = nil, nil
--- Candidate origin awaiting a second identical sample -- see derive_base().
-local base_settle = nil
--- One line when there is no origin to project against, not one per frame.
-local warned_base = false
-
+local highlight_exceptions, hide_exceptions = {}, {}
 local function trim(s)
     return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
 end
@@ -316,9 +312,23 @@ local function matches(pats, name)
     return false
 end
 
+local function exact_list(csv)
+    local out = {}
+    for raw in string.gmatch(csv, "[^,]+") do out[string.lower(trim(raw))] = true end
+    return out
+end
+local function is_highlighted(name)
+    return matches(highlight_pats, name) and not highlight_exceptions[string.lower(name)]
+end
+local function is_hidden(name)
+    return matches(hidden_pats, name) and not hide_exceptions[string.lower(name)]
+end
+
 local function load_lists(api)
     highlight_pats = compile_list(api.config.highlighted_items)
     hidden_pats = compile_list(api.config.hidden_items)
+    highlight_exceptions = exact_list(api.config.highlight_exceptions)
+    hide_exceptions = exact_list(api.config.hide_exceptions)
 end
 
 -- Reference QuantityFormatter.quantityToStackSize.
@@ -369,9 +379,9 @@ end
 -- Reference GroundItemsPlugin.getHighlighted. nil means "earns no highlight",
 -- which is not the same as "is hidden" -- the caller needs both answers.
 local function highlighted_colour(api, name, price)
-    if matches(highlight_pats, name) then return api.config.highlighted_color end
+    if is_highlighted(name) then return api.config.highlighted_color end
     -- An explicit hide beats an implicit, value-earned highlight.
-    if matches(hidden_pats, name) then return nil end
+    if is_hidden(name) then return nil end
     local tier = tier_of(api, price)
     if tier > 0 then return api.config[TIER_KEY[tier]] end
     return nil
@@ -380,10 +390,10 @@ end
 -- Reference GroundItemsPlugin.getHidden, less its untradeable clause (see the
 -- header). An explicit highlight beats an implicit, value-earned hide.
 local function hidden_colour(api, name, exchange, alch)
-    if matches(hidden_pats, name) then return api.config.hidden_color end
+    if is_hidden(name) then return api.config.hidden_color end
     local under = api.config.hide_under_value
     if under > 0 and exchange < under and alch < under
-        and not matches(highlight_pats, name) then
+        and not is_highlighted(name) then
         return api.config.hidden_color
     end
     return nil
@@ -437,35 +447,6 @@ local function text_at(draw, x, y, s, colour, outline)
     draw.text(x, y, s, colour)
 end
 
---
--- Recover the scene origin from the local player when no world load has been
--- heard -- the case for a plugin enabled from the settings panel.
---
--- true_x is absolute and fine_x is scene-local, so the difference IS the
--- origin, but only while the two describe the same tile: a walking entity's
--- draw position sits between tiles and its true tile is the one the server
--- last confirmed. Both guards below are needed. Tile-centred alone is not
--- enough, because a walk passes through tile centres; the same centre on two
--- consecutive server ticks is only possible standing still.
---
-local function derive_base(api)
-    local me = api.world.local_player()
-    if not me or (me.dest_x ~= me.true_x or me.dest_z ~= me.true_z)
-        or me.fine_x % 128 ~= 64 or me.fine_z % 128 ~= 64 then
-        base_settle = nil
-        return
-    end
-
-    local bx = me.true_x - (me.fine_x - 64) // 128
-    local bz = me.true_z - (me.fine_z - 64) // 128
-    local key = bx .. ":" .. bz
-    if base_settle ~= key then
-        base_settle = key
-        return
-    end
-    base_x, base_z, warned_base = bx, bz, false
-end
-
 -- Parse `obj_id=price` lines. Anything else -- blank lines, `#` comments, a
 -- line we cannot read -- is skipped rather than failing the file: a price
 -- table is a convenience, and one bad row must not cost the plugin the other
@@ -481,11 +462,21 @@ local function parse_prices(text)
 end
 
 function plugin.on_start(api)
-    prices, base_x, base_z, base_settle, warned_base = {}, nil, nil, nil, false
+    prices = {}
+    native_captions = false
     load_lists(api)
+    -- Native CS2 keeps its buttons, timers and live state. Hide its captions
+    -- while this plugin supplies labels; host cleanup restores
+    -- their current native visibility on disable. Older clients return nil.
+    assert(api.widgets.watch_tree(function()
+        for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
+            if widget then assert(widget:set_hidden(true)) end
+        end
+    end))
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)
+    api.scripts.invalidate("groundItemCaption")
 end
 
 function plugin.on_asset(api, ev)
@@ -500,20 +491,84 @@ function plugin.on_asset(api, ev)
     -- The bytes are parsed; there is no reason to keep a copy of the file
     -- resident for the rest of the session.
     api.assets.release(PRICES_ASSET)
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
 end
 
 function plugin.on_config_changed(api, key)
-    if key == "highlighted_items" or key == "hidden_items" then
+    if key == "highlighted_items" or key == "hidden_items" or
+        key == "highlight_exceptions" or key == "hide_exceptions" then
         load_lists(api)
     end
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
 end
 
-function plugin.on_world_loaded(api, ev)
-    base_x, base_z, base_settle, warned_base = ev.base_tile_x, ev.base_tile_z, nil, false
+function plugin.on_stop(api)
+    if native_captions then api.scripts.invalidate("groundItemCaption") end
+    native_captions = false
+    reveal_shown = false
 end
 
-function plugin.on_server_tick(api, ev)
-    if not base_x then derive_base(api) end
+-- The reveal key is live on the native caption lane too: RuneLite re-renders
+-- its overlay every frame, so holding the key shows the hidden stacks at
+-- once. The native rows only re-run the caption script when a row changes,
+-- so a key transition asks for one coalesced rebuild. An event context, not
+-- the paint pass: paint may not schedule native work.
+function plugin.on_frame_start(api)
+    if not native_captions then return end
+    local reveal = reveal_held(api)
+    if reveal == reveal_shown then return end
+    reveal_shown = reveal
+    api.scripts.invalidate("groundItemCaption")
+end
+
+-- The native row will measure this result before positioning its buttons and
+-- timers. Input slots are immutable; only the caption and color are outputs.
+function plugin.on_script_callback(api, event)
+    if event.name ~= "groundItemCaption" then return end
+    local ref = event.ref
+    local ints, strings = api.scripts.counts(ref)
+    assert(ints == 11 and strings == 1, "native caption hook contract mismatch")
+    if not native_captions then
+        native_captions = true
+        assert(api.widgets.watch_tree(nil))
+        for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
+            if widget then assert(widget:reset()) end
+        end
+        api.core.log("native caption formatting active")
+    end
+    local native_ignore = api.scripts.get_int(ref, 0) == 1
+    local native_high = api.scripts.get_int(ref, 1) == 1
+    local edit = api.scripts.get_int(ref, 5) == 1
+    local count = api.scripts.get_int(ref, 8)
+    local id = api.scripts.get_int(ref, 9)
+    local coord = api.scripts.get_int(ref, 10)
+    local rows = api.scripts.get_int(ref, 3)
+    local row = api.scripts.get_int(ref, 4)
+    assert(api.scripts.set_int(ref, 2, (rows - row - 1) * api.config.line_gap))
+    if event.widget then assert(event.widget:set_text_outline(api.config.text_outline)) end
+    local parent = event.widget and event.widget:parent()
+    if parent then
+        local box = assert(parent:position())
+        assert(parent:set_size(box.width, rows * api.config.line_gap))
+        assert(parent:set_projection_height(api.config.height))
+        assert(parent:revalidate())
+    end
+    local info = api.game.item_info(id)
+    if not info or count < 1 then return end
+    local obj = {obj_id=id, name=info.name, count=count, cost=info.cost}
+    local exchange, alch = prices_of(obj)
+    local high = native_high and api.config.highlighted_color or
+        highlighted_colour(api, obj.name, value_by_mode(api, exchange, alch))
+    local hide = hidden_colour(api, obj.name, exchange, alch)
+    if native_ignore and not native_high then high=nil;hide=api.config.hidden_color end
+    local me = api.world.local_player()
+    local range = api.config.max_distance
+    local visible = me and ((coord >> 28) & 3) == me.level and
+        math.abs(((coord >> 14) & 16383) - me.true_x) <= range and
+        math.abs((coord & 16383) - me.true_z) <= range and
+        (edit or reveal_held(api) or high or (not hide and not api.config.show_highlighted_only))
+    assert(api.scripts.set_string(ref, 0, visible and label_for(api, obj, exchange, alch) or ""))
+    assert(api.scripts.set_int(ref, 6, high or hide or api.config.default_color))
 end
 
 --
@@ -523,7 +578,7 @@ end
 function plugin.on_item_spawn(api, obj)
     local exchange, alch = prices_of(obj)
 
-    if api.config.notify_highlighted and matches(highlight_pats, obj.name) then
+    if api.config.notify_highlighted and is_highlighted(obj.name) then
         api.core.log("highlighted drop: " .. label_for(api, obj, exchange, alch))
         return
     end
@@ -537,17 +592,8 @@ end
 function plugin.on_draw_world(api, draw)
     local me = api.world.local_player()
     if not me then return end
-    if not base_x then
-        -- Absolute tiles cannot be projected without the scene origin, so
-        -- there is genuinely nothing to draw. Said once: it resolves itself on
-        -- the next rebuild, or on the next tick the player stands still.
-        if not warned_base then
-            warned_base = true
-            api.core.log("no scene origin yet; nothing is drawn until a world load "
-                .. "or the player stands still for a tick")
-        end
-        return
-    end
+    local base_x, base_z = api.world.scene_origin()
+    if not base_x then return end
 
     local reveal = reveal_held(api)
     local range = api.config.max_distance
@@ -610,7 +656,7 @@ function plugin.on_draw_world(api, draw)
 
         local sx, sy = api.draw.project(
             (tile.x - base_x) * 128 + 64, (tile.z - base_z) * 128 + 64, height)
-        if sx then
+        if sx and not native_captions then
             for i, item in ipairs(tile.items) do
                 text_at(draw, sx, sy - gap * (i - 1), item.text, item.colour, outline)
             end
@@ -633,8 +679,10 @@ end
 -- menu, behind the same modifier.
 --
 
--- tag = obj_id * 2, plus 1 for the hide row.
-local function tag_of(obj_id, hide) return obj_id * 2 + (hide and 1 or 0) end
+-- Retain both the item type and the requested action while a menu is open.
+local function tag_of(obj_id, hide, enabled)
+    return obj_id * 4 + (hide and 2 or 0) + (enabled and 1 or 0)
+end
 
 local function name_of_obj(api, obj_id)
     for obj in items(api) do
@@ -656,60 +704,53 @@ function plugin.on_menu_build(api, menu)
             seen[id] = true
             local name = name_of_obj(api, id)
             if name then
-                local hl = matches(highlight_pats, name) and "Unhighlight" or "Highlight"
-                local hd = matches(hidden_pats, name) and "Unhide" or "Hide"
-                if not api.ui.menu_add(hl .. " @yel@" .. name, tag_of(id, false)) then break end
-                if not api.ui.menu_add(hd .. " @yel@" .. name, tag_of(id, true)) then break end
+                local hl = is_highlighted(name) and "Unhighlight" or "Highlight"
+                local hd = is_hidden(name) and "Unhide" or "Hide"
+                if not api.menu.add(hl .. " @yel@" .. name, tag_of(id, false, not is_highlighted(name))) then break end
+                if not api.menu.add(hd .. " @yel@" .. name, tag_of(id, true, not is_hidden(name))) then break end
             end
         end
     end
 end
 
--- Add or drop `name` from a comma-separated config list, and report which.
--- Refuses rather than truncates when the result would not fit: the store holds
--- TORIRS_PLUGIN_CONFIG_VALUE_MAX bytes and a cut list ends in half a name,
--- which is a pattern that silently matches the wrong things.
+-- Preserve wildcard entries and unrelated names. An explicit exception lets
+-- Unhide/Unhighlight affect one item without deleting a user's broad rule.
 local CONFIG_VALUE_MAX = 192
-
-local function list_toggle(api, key, name)
+local function list_set(csv, name, enabled)
     local entries = {}
     local lower = string.lower(name)
-    local removed = false
-
-    for raw in string.gmatch(api.config[key], "[^,]+") do
+    for raw in string.gmatch(csv, "[^,]+") do
         local entry = trim(raw)
-        if entry == "" then
-        elseif string.lower(entry) == lower then
-            removed = true
-        else
-            entries[#entries + 1] = entry
-        end
+        if entry ~= "" and string.lower(entry) ~= lower then entries[#entries+1] = entry end
     end
-    if not removed then entries[#entries + 1] = name end
-
+    if enabled then entries[#entries+1] = name end
     local joined = table.concat(entries, ", ")
-    if #joined >= CONFIG_VALUE_MAX then
-        api.core.log(key .. " is full (" .. CONFIG_VALUE_MAX .. " bytes); "
-            .. name .. " not added")
-        return nil
-    end
-    api.config.set(key, joined)
-    return not removed
+    if #joined >= CONFIG_VALUE_MAX then return nil end
+    return joined
 end
 
 function plugin.on_menu_select(api, sel)
     if not sel.owned then return end
-
-    local hide = (sel.tag % 2) == 1
-    local name = name_of_obj(api, sel.tag // 2)
-    if name then
-        local key = hide and "hidden_items" or "highlighted_items"
-        local added = list_toggle(api, key, name)
-        if added ~= nil then
-            api.core.log((added and "added " or "removed ") .. name
-                .. (added and " to " or " from ") .. key)
-        end
+    local id = sel.tag // 4
+    local hide, enabled = sel.tag % 4 >= 2, sel.tag % 2 == 1
+    -- Item definitions remain queryable after the clicked stack despawns.
+    local info = api.game.item_info(id)
+    local name = info and info.name or name_of_obj(api, id)
+    if not name or name == "" then return "consume" end
+    local key = hide and "hidden_items" or "highlighted_items"
+    local exceptions = hide and "hide_exceptions" or "highlight_exceptions"
+    local value = list_set(api.config[key], name, false)
+    if value and enabled and not matches(compile_list(value), name) then
+        value = list_set(value, name, true)
     end
+    local except = value and list_set(api.config[exceptions], name,
+        not enabled and matches(compile_list(value), name))
+    if not value or not except then
+        api.core.log("Item preference list is full; " .. name .. " was not changed")
+        return "consume"
+    end
+    api.config.set(key, value)
+    api.config.set(exceptions, except)
     return "consume"
 end
 

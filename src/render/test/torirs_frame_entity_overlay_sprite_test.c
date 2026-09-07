@@ -12,6 +12,7 @@
 #include "toridraw_scene.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* torirs_frame.c's world branch is deliberately not exercised here. These
@@ -20,6 +21,15 @@
 struct World;
 struct WorldEntity_NPC;
 struct WorldEntity_Scenery;
+struct UITreeModelRenderCache;
+
+struct ToriDraw_ModelHandle UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene,
+    struct UITreeModelRenderCache* cache,int model,int sequence,int frame)
+{
+    (void)scene;(void)cache;(void)model;(void)sequence;(void)frame;
+    /* This fixture contains only 2D descriptors. Fail if it enters model drawing. */
+    abort();
+}
 
 int
 World_TerrainElementAt(struct World* world, int x, int z, int level)
@@ -75,7 +85,7 @@ main(void)
     struct ToriDraw_Scene* scene;
     struct ToriRS_Frame frame;
     struct ToriRS_RenderCommand cmd;
-    struct UITreeEntityOverlay items[3];
+    struct UITreeEntityOverlay items[4];
     struct UITreeEmitDesc desc;
 
     scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
@@ -105,11 +115,14 @@ main(void)
     items[2].scene_id = 103;
     items[2].w = 80;
     items[2].h = 0;
+    items[3].kind = UITREE_ENTITY_OVERLAY_RECT;
+    items[3].x=10;items[3].y=10;items[3].w=40;items[3].h=12;
+    items[3].color=0xffff00ffu;items[3].trans=127;
 
     memset(&desc, 0, sizeof(desc));
     desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
     desc.entity_overlays = items;
-    desc.entity_overlay_count = 3;
+    desc.entity_overlay_count = 4;
     desc.clip.x = 5;
     desc.clip.y = 7;
     desc.clip.w = 200;
@@ -133,6 +146,12 @@ main(void)
     CHECK(next_sprite(&frame, &cmd), "incomplete-size overlay emitted a sprite");
     CHECK(cmd.u.sprite.scene_id == 103, "incomplete-size overlay kept its scene id");
     CHECK(cmd.u.sprite.if3 == 0, "both destination dimensions are required for scaling");
+    int rect_found=0;
+    while( ToriRS_FrameNextCommand(&frame,&cmd) )
+        if( cmd.kind==TORIRSRC_FILL_RECT ) { rect_found=1;break; }
+    CHECK(rect_found,"overlay rectangle reaches the renderer");
+    CHECK((uint32_t)cmd.u.fill_rect.argb==0x80ff00ffu,
+        "overlay rectangle opacity reaches the renderer");
 
     ToriRS_FrameEnd(&frame);
     ToriDraw_SceneFree(scene);

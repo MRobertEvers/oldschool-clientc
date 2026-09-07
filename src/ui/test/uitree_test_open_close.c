@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 #include <stdlib.h>
 
@@ -297,6 +298,66 @@ test_mounted_component_inherits_container_hidden(void)
     TEST_ASSERT(
         UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
         "pack-local hidden ancestor still hides child");
+
+    UITree_Free(tree);
+}
+
+/*
+ * A click resolves its hook UP the tree: a leaf with no onOp/onClick of its
+ * own runs the nearest ancestor's operation hook, and the row is reported
+ * under that ancestor's component id -- a dynamic child of a hooked
+ * container (an inventory cell, the compass dot's parent) fires the
+ * container's script. onOp outranks onClick on the same node; a node with no
+ * hook at all is walked through to the next ancestor that has one.
+ */
+void
+test_click_hook_inherits_nearest_parent(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t target;
+    int32_t child;
+    int hook_component = -1;
+
+    printf("TEST: a click hook resolves to the nearest hooked ancestor\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (505 << 16) | 0;
+    root = UITree_Push(tree, -1, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 1;
+    target = UITree_Push(tree, root, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 2;
+    child = UITree_Push(tree, target, &spec);
+    TEST_ASSERT(root >= 0 && target >= 0 && child >= 0, "click hook fixture");
+    UITree_HooksMut(&tree->components[root])->on_click.script_id = 610;
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 611;
+    UITree_SyncHookMembership(tree, root);
+    UITree_SyncHookMembership(tree, target);
+
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[target])->on_op &&
+            hook_component == tree->components[target].component_id,
+        "a child normally inherits its nearest parent's operation hook");
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, root, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "a node with only an onClick answers with that");
+
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 0;
+    UITree_SyncHookMembership(tree, target);
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "with the parent's hook gone the walk continues to the outer ancestor");
 
     UITree_Free(tree);
 }

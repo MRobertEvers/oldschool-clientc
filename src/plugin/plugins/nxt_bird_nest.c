@@ -1,5 +1,5 @@
 #include "plugin/plugins/nxt_activities.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -69,7 +69,7 @@ nxt_is_bird_nest(int obj_id)
 
 static int
 nxt_bird_nest_varbit(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     int absent)
 {
@@ -81,7 +81,7 @@ nxt_bird_nest_varbit(
 
 static void
 nxt_bird_nest_spawn(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
     struct ToriRS_GroundItemSnapshot const* item)
 {
@@ -113,16 +113,36 @@ nxt_bird_nest_spawn(
     api->core.notify(api, "A bird's nest falls out of the tree.");
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST = {
+/*
+ * Say what this revision can do, once. The setting is a named varbit of the
+ * boot profile; a cache without it (rs289lc has no All Settings) makes the
+ * feature explicitly unavailable rather than silently on or off.
+ */
+static void
+nxt_bird_nest_start(struct ToriRS_Api* api, void* state)
+{
+    int id = -1;
+    (void)state;
+    assert(api);
+    if( api->cache.named_id(api, "varbit", NXT_VARBIT_BIRD_NEST, &id) )
+        api->core.log(api, "bird nest notification: setting varbit %d, currently %s",
+            id, api->cache.varbit(api, id) == 0 ? "on" : "off");
+    else
+        api->core.log(api, "bird nest notification: unavailable, this revision has no %s setting",
+            NXT_VARBIT_BIRD_NEST);
+}
+
+struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_BIRD_NEST),
     .id = "nxt-bird-nest",
     .title = "Bird nest notification (All Settings)",
     .version = "1.0.0",
     .state_size = 0,
     .config = NULL,
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = nxt_bird_nest_start,
         .on_item_spawn = nxt_bird_nest_spawn,
     },
 };

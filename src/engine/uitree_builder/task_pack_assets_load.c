@@ -97,6 +97,10 @@ collect_from_pack(
             unique_id_add(&self->model_ids, &self->model_count, &self->model_cap, c->model_id);
         else if( c->model_type == 2 && c->model_id >= 0 )
             unique_id_add(&self->npc_ids, &self->npc_count, &self->npc_cap, c->model_id);
+        if( c->active_model_type == 1 && c->active_model_id >= 0 )
+            unique_id_add(&self->model_ids, &self->model_count, &self->model_cap, c->active_model_id);
+        else if( c->active_model_type == 2 && c->active_model_id >= 0 )
+            unique_id_add(&self->npc_ids, &self->npc_count, &self->npc_cap, c->active_model_id);
         /* Local-player / player-design preview widgets have no cache model id;
          * they are composited from the default appearance. */
         if( c->client_code == 327 || c->client_code == 328 )

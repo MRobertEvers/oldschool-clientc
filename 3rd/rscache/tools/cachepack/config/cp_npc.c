@@ -327,7 +327,7 @@ cp_pack_npc(
         else if( strcmp(key, "height") == 0 )
             ok = cp_parse_int(value, &entry->height);
         else if( strcmp(key, "category") == 0 )
-            ok = cp_parse_int(value, &entry->category);
+            ok = cp_resolve_category(ctx, value, &entry->category);
         else if( strcmp(key, "soundidle") == 0 )
             ok = cp_parse_int(value, &entry->sound_idle);
         else if( strcmp(key, "soundcrawl") == 0 )

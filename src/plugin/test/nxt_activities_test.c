@@ -95,7 +95,7 @@ struct FakeEngine
 static struct FakeEngine g_engine;
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -498,45 +498,12 @@ fake_frame_activate(void* u, int active, int canvas, int fixed_w, int fixed_h)
     (void)fixed_w;
     (void)fixed_h;
 }
-static void
-fake_layout_begin(void* u)
-{
-    (void)u;
-}
-static void
-fake_layout_end(void* u)
-{
-    (void)u;
-}
-/* No role table under test either: every name answers "this revision does not
- * have that", which is the contract's own reading of an unbound role. */
-static int
-fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    (void)role;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
 
-static int
-fake_role_visible(void* u, char const* role)
+static void
+fake_frame_provide(void* u, uint64_t owner)
 {
     (void)u;
-    (void)role;
-    return 0;
-}
-
-static int
-fake_role_click(void* u, char const* role, int op)
-{
-    (void)u;
-    (void)role;
-    (void)op;
-    return 0;
+    (void)owner;
 }
 
 static int
@@ -560,60 +527,6 @@ fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
 }
 
 
-static int
-fake_role_suppress_facets(void* u, char const* role, int paint, int input, int subtree)
-{
-    (void)u; (void)role; (void)paint; (void)input; (void)subtree;
-    return 1;
-}
-
-static int
-fake_ui_boundary(void* u, char const* role, int place)
-{
-    (void)place; (void)u;
-    return role ? 0 : 1;
-}
-
-static int
-fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
-{
-    (void)u;
-    (void)slot;
-    (void)member;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-static int
-fake_layout_slot_skin(void* u, int slot, int art, int mask)
-{
-    (void)u;
-    (void)slot;
-    (void)art;
-    (void)mask;
-    return 0;
-}
-static int
-fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
-{
-    (void)u;
-    (void)slot;
-    (void)image;
-    (void)x;
-    (void)y;
-    (void)trans;
-    return 0;
-}
-static int
-fake_layout_scrollbar(void* u, int const* images, int count)
-{
-    (void)u;
-    (void)images;
-    (void)count;
-    return 0;
-}
 static int
 fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
 {
@@ -812,38 +725,8 @@ fake_mouse_pos(void* u, int* x, int* y)
         *y = 0;
     return 1;
 }
-/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
- * is how the fallback chain in slot_rect's contract gets exercised. */
-static int g_slot_x[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_y[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_w[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_h[TORIRS_HOST_SURFACE_COUNT];
-
-static int
-fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
-        return 0;
-    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
-        return 0;
-    if( x )
-        *x = g_slot_x[slot];
-    if( y )
-        *y = g_slot_y[slot];
-    if( w )
-        *w = g_slot_w[slot];
-    if( h )
-        *h = g_slot_h[slot];
-    return 1;
-}
-
-/* No frame under test declares MEMBERS of a role, so the honest answer is
- * "this gameframe has no such member" -- @see
- * the host's surface-member query, where that is an answer and not a
- * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -854,21 +737,8 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 0;
 }
 
-static int
-fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    (void)slot;
-    (void)member;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -1015,29 +885,7 @@ fake_draw_image(
     (void)trans;
     return 1;
 }
-static int
-fake_hit_region(
-    void* u,
-    int plugin,
-    int x,
-    int y,
-    int w,
-    int h,
-    char const* const* ops,
-    int op_count,
-    uint32_t tag)
-{
-    (void)u;
-    (void)plugin;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    (void)ops;
-    (void)op_count;
-    (void)tag;
-    return 1;
-}
+
 static int
 fake_if_click(void* u, int component_id, int op)
 {
@@ -1083,8 +931,6 @@ fake_engine(void)
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
-    e.slot_rect = fake_slot_rect;
-    e.slot_member_rect = fake_slot_member_rect;
     e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
     e.stat = fake_stat;
@@ -1100,7 +946,6 @@ fake_engine(void)
     e.loot_source_next = fake_loot_source_next;
     e.loot_row_next = fake_loot_row_next;
     e.draw_image = fake_draw_image;
-    e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;
     e.menu_add = fake_menu_add;
     e.menu_drop = fake_menu_drop;
@@ -1111,17 +956,7 @@ fake_engine(void)
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
     e.frame_activate = fake_frame_activate;
-    e.layout_begin = fake_layout_begin;
-    e.layout_end = fake_layout_end;
-    e.role_rect = fake_role_rect;
-    e.role_visible = fake_role_visible;
-    e.role_click = fake_role_click;
-    e.role_suppress_facets = fake_role_suppress_facets;
-    e.ui_boundary = fake_ui_boundary;
-    e.layout_slot = fake_layout_slot;
-    e.layout_slot_skin = fake_layout_slot_skin;
-    e.layout_slot_overlay = fake_layout_slot_overlay;
-    e.layout_scrollbar = fake_layout_scrollbar;
+    e.frame_provide = fake_frame_provide;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
@@ -1150,9 +985,9 @@ fake_engine(void)
 
 /* ------------------------------------------------------------ the plugins */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static void
 draw_reset(void)
@@ -1179,9 +1014,9 @@ main(void)
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
 
-    p_hl = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
-    p_nest = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
-    p_cannon = PluginHost_RegisterV2(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
+    p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
+    p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
+    p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
         p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
         "all three register");
@@ -1403,6 +1238,16 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 0, "the first tick with a cannon announces nothing");
 
+        /* A new cannon coordinate can arrive between two plugin ticks,
+         * without an observed zero in between. Its starting load is not a
+         * threshold crossing from the previous cannon. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C81;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 5;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 0, "replacement cannon does not inherit the previous ammo edge");
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+
         /* Firing down towards the line, but not across it. */
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 12;
         PluginHost_ServerTick(host, ++tick);
@@ -1451,6 +1296,28 @@ main(void)
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "setting 250 off is silent at empty");
+
+        /* Enabling with an already empty cannon cannot replay a decrease
+         * observed while the owner was disabled. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_SetEnabled(host, p_cannon, false);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_SetEnabled(host, p_cannon, true);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "reenable does not replay disabled cannon ammo changes");
+
+        /* Native pickup publishes null (-1), while initial/absent adapters
+         * read zero. Neither sentinel represents an owned cannon. */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = -1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "native null coordinate has no ammo events");
 
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0;
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;

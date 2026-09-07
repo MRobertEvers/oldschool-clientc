@@ -5735,25 +5735,32 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             if( caret_px > inner.w )
                 text_x -= caret_px - inner.w;
 
-            dbg_push_text(
-                ui,
-                text_x,
-                dbg_row_text_baseline(ui, box_y, box_h),
-                w->text,
-                th->input_text,
-                ui->theme.font_row,
-                0,
-                inner);
-            if( focused && ui->caret_visible )
-                dbg_push_rect(
+            /* The field's inner box is where the hex may run, the panel's
+             * clip is where anything may paint: a colour row straddling the
+             * scroll fold had its swatch and frame cut at the fold and its
+             * hex drawn whole below the panel, over the chat. */
+            {
+                struct ToriRSChromeRect const text_clip = dbg_rect_clip(clip, inner);
+                dbg_push_text(
                     ui,
-                    text_x + caret_px,
-                    box_y + DBG_FIELD_INSET,
-                    DBG_RULE,
-                    box_h - 2 * DBG_FIELD_INSET,
+                    text_x,
+                    dbg_row_text_baseline(ui, box_y, box_h),
+                    w->text,
                     th->input_text,
-                    1,
-                    inner);
+                    ui->theme.font_row,
+                    0,
+                    text_clip);
+                if( focused && ui->caret_visible )
+                    dbg_push_rect(
+                        ui,
+                        text_x + caret_px,
+                        box_y + DBG_FIELD_INSET,
+                        DBG_RULE,
+                        box_h - 2 * DBG_FIELD_INSET,
+                        th->input_text,
+                        1,
+                        text_clip);
+            }
             break;
         }
 

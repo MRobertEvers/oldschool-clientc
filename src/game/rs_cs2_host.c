@@ -23,6 +23,7 @@
 #include "input/torirs_keymap.h"
 #include "revconfig/revconfig_refs.h"
 #include "ui/uitree.h"
+#include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
 #include "toridraw_font.h"
@@ -1285,24 +1286,26 @@ rs_cs2_call_on_resize_push(
     }
     slot = (host->call_on_resize_head + host->call_on_resize_count) %
            RS_CS2_HOST_CALL_ON_RESIZE_MAX;
-    host->call_on_resize[slot] = component_id;
+    host->call_on_resize[slot] = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
     host->call_on_resize_count++;
 }
 
 bool
-RS_CS2Host_TakeCallOnResize(
-    struct RS_CS2Host* host,
-    int* out_component_id)
+RS_CS2Host_TakeCallOnResize(struct RS_CS2Host* host, int* out_component_id)
 {
-    assert(host);
-    if( host->call_on_resize_count <= 0 )
-        return false;
-    assert(out_component_id);
-    *out_component_id = host->call_on_resize[host->call_on_resize_head];
-    host->call_on_resize_head =
-        (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
-    host->call_on_resize_count--;
-    return true;
+    assert(host && out_component_id);
+    while( host->call_on_resize_count > 0 )
+    {
+        struct UITreeNodeRef ref = host->call_on_resize[host->call_on_resize_head];
+        host->call_on_resize_head = (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
+        host->call_on_resize_count--;
+        int32_t node = UITree_ResolveRef(host->tree, ref);
+        if( node < 0 ) continue;
+        *out_component_id = host->tree->components[node].component_id;
+        return true;
+    }
+    return false;
 }
 
 /* Queue a (component, op index) pair CC_TRIGGEROP asked the App to run. */
@@ -1325,6 +1328,8 @@ rs_cs2_trigger_op_push(
     }
     slot = (host->trigger_op_head + host->trigger_op_count) % RS_CS2_HOST_TRIGGER_OP_MAX;
     host->trigger_op[slot].component_id = component_id;
+    host->trigger_op[slot].ref = UITree_RefAt(host->tree,
+        host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1);
     host->trigger_op[slot].op_index = op_index;
     host->trigger_op_count++;
 }
@@ -2005,18 +2010,19 @@ RS_CS2Host_SyncAudioVarp(
 }
 
 bool
-RS_CS2Host_TakeTriggerOp(
-    struct RS_CS2Host* host,
-    struct RS_CS2TriggerOp* out)
+RS_CS2Host_TakeTriggerOp(struct RS_CS2Host* host, struct RS_CS2TriggerOp* out)
 {
-    assert(host);
-    if( host->trigger_op_count <= 0 )
-        return false;
-    assert(out);
-    *out = host->trigger_op[host->trigger_op_head];
-    host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
-    host->trigger_op_count--;
-    return true;
+    assert(host && out);
+    while( host->trigger_op_count > 0 )
+    {
+        struct RS_CS2TriggerOp next = host->trigger_op[host->trigger_op_head];
+        host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
+        host->trigger_op_count--;
+        if( UITree_ResolveRef(host->tree, next.ref) < 0 ) continue;
+        *out = next;
+        return true;
+    }
+    return false;
 }
 
 static int
@@ -2046,24 +2052,36 @@ rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
         if( request->signature[i] != 'i' )
             snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]);
     }
+    {
+        int32_t target = host->tree ? UITree_FindByComponentId(host->tree, request->component_id) : -1;
+        if( target >= 0 && request->sub >= 0 )
+        {
+            int32_t child = UITree_FindChildBySubid(host->tree, target, request->component_id, request->sub);
+            if( child >= 0 )
+                target = child;
+        }
+        /* The node the op was raised on, by incarnation: a later remount
+         * must not deliver the op to whatever recycled the slot. */
+        out->ref = UITree_RefAt(host->tree, target);
+    }
     host->triggeroplocal_count++;
     return CS2VM_EXECNO_OK;
 }
 
 bool
-RS_CS2Host_TakeTriggerOpLocal(
-    struct RS_CS2Host* host,
-    struct RS_CS2TriggerOpLocal* out)
+RS_CS2Host_TakeTriggerOpLocal(struct RS_CS2Host* host, struct RS_CS2TriggerOpLocal* out)
 {
-    assert(host);
-    if( host->triggeroplocal_count <= 0 )
-        return false;
-    assert(out);
-    *out = host->triggeroplocal[host->triggeroplocal_head];
-    host->triggeroplocal_head =
-        (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
-    host->triggeroplocal_count--;
-    return true;
+    assert(host && out);
+    while( host->triggeroplocal_count > 0 )
+    {
+        struct RS_CS2TriggerOpLocal next = host->triggeroplocal[host->triggeroplocal_head];
+        host->triggeroplocal_head = (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+        host->triggeroplocal_count--;
+        if( UITree_ResolveRef(host->tree, next.ref) < 0 ) continue;
+        *out = next;
+        return true;
+    }
+    return false;
 }
 
 /* =========================================================================
@@ -2109,18 +2127,19 @@ rs_cs2_input_fits(
     return rs_cs2_measure_span(font, text, (int)strlen(text)) <= limit;
 }
 
-/* The focused field's node, or NULL. */
+/* The focused field when eligible for keyboard input; logical focus is separate. */
 static struct UITreeComponent*
-rs_cs2_input_focused_node(struct RS_CS2Host* host)
+rs_cs2_input_focused_node(struct RS_CS2Host* host, struct UITreeHost const* ui_host)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    int const com_id = UITree_InputFocusId(tree);
+    int const com_id = tree ? UITree_InputFocusId(tree) : -1;
     int32_t idx;
 
     if( com_id < 0 )
         return NULL;
     idx = UITree_FindByComponentId(tree, com_id);
-    if( idx < 0 )
+    if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(tree, idx) ||
+        !UITree_NodeNativeInputPresent(tree, ui_host, idx) )
         return NULL;
     return &tree->components[idx];
 }
@@ -2155,7 +2174,7 @@ int
 RS_CS2_InputFocusId(struct RS_CS2Host* host)
 {
     assert(host);
-    return UITree_InputFocusId(rs_cs2_tree(host));
+    return rs_cs2_tree(host) ? UITree_InputFocusId(rs_cs2_tree(host)) : -1;
 }
 
 void
@@ -2178,6 +2197,7 @@ int
 RS_CS2_InputKey(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
+    struct UITreeHost const* ui_host,
     int key_typed,
     int key_pressed)
 {
@@ -2186,12 +2206,13 @@ RS_CS2_InputKey(
     char const* text;
     char edited[UITREE_INPUT_TEXT_MAX];
     int caret;
+    int next_caret;
     int length;
     int com_id;
 
     assert(host);
     assert(runner);
-    node = rs_cs2_input_focused_node(host);
+    node = rs_cs2_input_focused_node(host, ui_host);
     if( !node )
         return 0;
     tree = rs_cs2_tree(host);
@@ -2201,6 +2222,7 @@ RS_CS2_InputKey(
     caret = node->u.rs_text.caret;
     if( caret < 0 || caret > length )
         caret = length;
+    next_caret = caret;
 
     /* Enter: release the caret FIRST, then submit. That order is the cache's
      * own requirement rather than a preference -- `torirs_hiscores_input_guard`
@@ -2227,14 +2249,14 @@ RS_CS2_InputKey(
     if( key_typed == TORIRS_OSRSKEY_LEFT )
     {
         if( caret > 0 )
-            node->u.rs_text.caret = caret - 1;
+            (void)UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), caret - 1);
         UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
         return 1;
     }
     if( key_typed == TORIRS_OSRSKEY_RIGHT )
     {
         if( caret < length )
-            node->u.rs_text.caret = caret + 1;
+            (void)UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), caret + 1);
         UITree_MarkNodeDirty(tree, UITree_FindByComponentId(tree, com_id));
         return 1;
     }
@@ -2247,7 +2269,7 @@ RS_CS2_InputKey(
         memcpy(edited, text, (size_t)cut);
         memcpy(edited + cut, text + cut + 1, (size_t)(length - cut - 1));
         edited[length - 1] = '\0';
-        node->u.rs_text.caret = cut;
+        next_caret = cut;
     }
     else if( key_typed < 0 && key_pressed >= 32 && key_pressed < 127 )
     {
@@ -2259,7 +2281,7 @@ RS_CS2_InputKey(
         edited[length + 1] = '\0';
         if( !rs_cs2_input_fits(host, node, edited) )
             return 1;
-        node->u.rs_text.caret = caret + 1;
+        next_caret = caret + 1;
     }
     else
     {
@@ -2269,6 +2291,7 @@ RS_CS2_InputKey(
     }
 
     UITree_SetTextAt(tree, UITree_FindByComponentId(tree, com_id), edited);
+    UITree_SetInputCaretAt(tree, UITree_FindByComponentId(tree, com_id), next_caret);
     rs_cs2_input_dispatch(
         host, runner, com_id, offsetof(struct UITreeRuntimeHooks, on_input_update));
     return 1;
@@ -4826,6 +4849,8 @@ exec_set_text_font(
     return CS2VM_EXECNO_OK;
 }
 
+static bool rs_cs2_copy_transmit_hooks(struct RS_CS2Host* host, int source_id, int target_id);
+
 /* CC_COPY clones an existing dynamic child into another slot. The bank tab
  * strip (script 505) builds tab 0 with CC_CREATE then copies it into slots
  * 1..9; without this the whole strip collapses onto the one created tab. */
@@ -4858,6 +4883,13 @@ exec_cc_copy(
     if( child_idx < 0 )
         return CS2VM_EXECNO_ERROR;
 
+    int32_t source = UITree_FindChildBySubid(tree, parent_idx, parent_id, src_sub_id);
+    if( source < 0 || !rs_cs2_copy_transmit_hooks(host, tree->components[source].component_id,
+                                               tree->components[child_idx].component_id) )
+    {
+        UITree_CcDelete(tree, child_idx);
+        return CS2VM_EXECNO_ERROR;
+    }
     rs_cs2_set_cc_target(vm, dot_operand, tree->components[child_idx].component_id);
     return CS2VM_EXECNO_OK;
 }
@@ -5510,91 +5542,54 @@ exec_widget_set_int(
     switch( field )
     {
     case CS2VM_WIDGET_INT_HFLIP:
-        if( node->type == UIELEM_RS_GRAPHIC )
-            node->u.rs_graphic.flip_h = value ? 1 : 0;
-        break;
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_HFLIP, value);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_VFLIP:
-        if( node->type == UIELEM_RS_GRAPHIC )
-            node->u.rs_graphic.flip_v = value ? 1 : 0;
-        break;
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_VFLIP, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_LINE_WIDTH:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_LINE_WIDTH, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_LINE_DIRECTION:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_LINE_DIRECTION, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_NO_CLICK_THROUGH:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_NO_CLICK_THROUGH, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_DRAG_DEAD_ZONE, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_DRAG_DEAD_TIME:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_DRAG_DEAD_TIME, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_MODEL_ORTHOG, value);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_WIDGET_INT_TRANS_BOT:
+        (void)UITree_SetNativeIntAt(rs_cs2_tree(host), idx, UITREE_NATIVE_TRANS_BOTTOM, value);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_FILL_COLOUR:
         (void)UITree_ApplyFillColour(rs_cs2_tree(host), component_id, value);
-        break;
-    case CS2VM_WIDGET_INT_LINE_WIDTH:
-        if( node->type == UIELEM_RS_LINE )
-            node->u.rs_line.line_width = value;
-        else if( node->type == UIELEM_RS_ARC )
-            node->u.rs_arc.line_width = value > 0 ? value : 1;
-        break;
-    case CS2VM_WIDGET_INT_LINE_DIRECTION:
-        if( node->type == UIELEM_RS_LINE )
-            node->u.rs_line.horizontal = value ? 1 : 0;
-        break;
-    case CS2VM_WIDGET_INT_NO_CLICK_THROUGH:
-        node->no_click_through = value ? 1 : 0;
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_CLICKMASK:
         (void)UITree_ApplyClickMask(rs_cs2_tree(host), component_id, value);
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_FORCE_LEFT_CLICK:
-        (void)UITree_ApplyForceLeftClick(
-            rs_cs2_tree(host), component_id, value == 1);
-        break;
-    case CS2VM_WIDGET_INT_DRAG_DEAD_ZONE:
-        node->drag_dead_zone = (uint8_t)value;
-        break;
-    case CS2VM_WIDGET_INT_DRAG_DEAD_TIME:
-        node->drag_dead_time = (uint8_t)value;
-        break;
+        (void)UITree_ApplyForceLeftClick(rs_cs2_tree(host), component_id, value == 1);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_MODEL_TRANSPARENT:
         (void)UITree_ApplyModelTransparent(rs_cs2_tree(host), component_id, value);
-        break;
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_MODEL_ANIM:
-        /* Sequence id for a model widget. The client tick driver loads the
-         * sequence and advances/applies frames to the model. -1 clears.
-         *
-         * Re-setting the sequence already running leaves the frame counters
-         * alone, for the same reason UITree_ApplyModelAnim does: a script that
-         * re-states an unchanged anim (an onvartransmit hook re-running, say)
-         * must not restart the animation. */
-        if( node->type == UIELEM_RS_MODEL && node->u.rs_model.anim_seq_id != value )
-        {
-            node->u.rs_model.anim_seq_id = value;
-            node->u.rs_model.anim_frame = 0;
-            node->u.rs_model.anim_frame_cycle = 0;
-        }
-        break;
-    /* IF/CC_SET2DANGLE. The only animated user is the world map's marker
-     * timer (clientscript 1758 re-states the angle every tick from
-     * clientclock), so a no-op here reads as "the You Are Here arrow is drawn
-     * but never turns". */
+        (void)UITree_ApplyModelAnim(rs_cs2_tree(host), component_id, value);
+        return CS2VM_EXECNO_OK;
     case CS2VM_WIDGET_INT_ANGLE_2D:
-        (void)UITree_ApplyGraphic2DAngle(
-            rs_cs2_tree(host), component_id, value);
-        break;
-    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
-        /* IF/CC_SETMODELORTHOG selects the reference client's orthographic
-         * widget-model path.  Treating this as a no-op leaves tall actor
-         * models crossing the perspective near-plane, so only disconnected
-         * faces render even though the model and animation are complete. */
-        if( node->type == UIELEM_RS_MODEL )
-            node->u.rs_model.orthog = value != 0;
-        break;
-    case CS2VM_WIDGET_INT_TRANS_BOT:
-        node->trans_bot = value;
-        break;
-    case CS2VM_WIDGET_INT_FILL_MODE:
-    case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:
-    case CS2VM_WIDGET_INT_PINCH:
-    case CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON:
-        /* UITree lacks these fields; accept no-op. */
-        break;
+        (void)UITree_ApplyGraphic2DAngle(rs_cs2_tree(host), component_id, value);
+        return CS2VM_EXECNO_OK;
     default:
-        break;
+        /* Unimplemented native properties remain explicit no-ops. */
+        return CS2VM_EXECNO_OK;
     }
-    if( idx >= 0 )
-        UITree_MarkNodeDirty(rs_cs2_tree(host), idx);
-    return CS2VM_EXECNO_OK;
 }
 
 /* CC/IF_SETARC. The two angles are the whole shape of a type-10 widget: with
@@ -5700,12 +5695,12 @@ rs_cs2_grow_transmit_hooks(
  * deleteall+create with fresh dynamic uids and re-registers — without compacting
  * on every grow the array climbed until MAX and only then purged. */
 static void
-rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->inv_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->inv_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
@@ -5717,10 +5712,13 @@ rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2InvTransmitHook*
 rs_cs2_acquire_inv_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2InvTransmitHook* hook;
 
     for( i = 0; i < host->inv_transmit_hook_count; i++ )
@@ -5728,9 +5726,10 @@ rs_cs2_acquire_inv_transmit_hook(
         hook = &host->inv_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -5743,7 +5742,7 @@ rs_cs2_acquire_inv_transmit_hook(
     if( !create )
         return NULL;
 
-    rs_cs2_compact_inv_transmit_hooks(host);
+    rs_cs2_compact_inv_transmit_hooks(host, tree);
 
     if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
     {
@@ -5769,17 +5768,18 @@ rs_cs2_acquire_inv_transmit_hook(
         RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX);
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
 }
 
 /* Var-transmit counterpart of rs_cs2_acquire_inv_transmit_hook. */
 static void
-rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->var_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->var_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
@@ -5791,10 +5791,13 @@ rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2VarTransmitHook*
 rs_cs2_acquire_var_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2VarTransmitHook* hook;
 
     for( i = 0; i < host->var_transmit_hook_count; i++ )
@@ -5802,9 +5805,10 @@ rs_cs2_acquire_var_transmit_hook(
         hook = &host->var_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -5817,7 +5821,7 @@ rs_cs2_acquire_var_transmit_hook(
     if( !create )
         return NULL;
 
-    rs_cs2_compact_var_transmit_hooks(host);
+    rs_cs2_compact_var_transmit_hooks(host, tree);
 
     if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
@@ -5840,6 +5844,7 @@ rs_cs2_acquire_var_transmit_hook(
         RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
 }
 
@@ -5946,6 +5951,7 @@ rs_cs2_cache_hook_triggers(
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create);
 
@@ -5973,6 +5979,7 @@ rs_cs2_acquire_stat_transmit_hook(
 void
 RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     struct ToriRS_Component const* src)
 {
     /* The three channels are one shape, so they are one loop: which cache hook
@@ -6005,16 +6012,22 @@ RS_CS2_RegisterCacheTransmitHooks(
         char (*str_args)[CS2VM_SETON_STR_ARG_LEN];
         int* component_id;
         int* script_id;
+        struct UITreeNodeRef* ref;
+        uint32_t* last_seen;
+        uint8_t* pending_unhide;
 
         if( !cache_hook || cache_hook->argc <= 0 || cache_hook->argv[0] <= 0 )
             continue;
 
         if( k_channels[i].channel == 0 )
         {
-            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id, 1);
+            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -6028,10 +6041,13 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else if( k_channels[i].channel == 1 )
         {
-            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id, 1);
+            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -6045,10 +6061,13 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else
         {
-            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id, 1);
+            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, tree, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
+            ref = &hook->ref;
+            last_seen = &hook->last_seen_serial;
+            pending_unhide = &hook->pending_unhide;
             script_id = &hook->script_id;
             int_args = hook->int_args;
             int_arg_count = &hook->int_arg_count;
@@ -6061,6 +6080,12 @@ RS_CS2_RegisterCacheTransmitHooks(
             src_trigger_count = src->stat_triggers_count;
         }
 
+        if( UITree_ResolveRef(tree, *ref) < 0 )
+        {
+            *last_seen = 0;
+            *pending_unhide = 0;
+        }
+        *ref = UITree_RefAt(tree, UITree_FindByComponentId(tree, src->id));
         *component_id = src->id;
         *script_id = cache_hook->argv[0];
         rs_cs2_cache_hook_args(
@@ -6084,7 +6109,7 @@ exec_set_on_inv_transmit(
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
-    hook = rs_cs2_acquire_inv_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_inv_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
     {
         /* Two ways to get here now, and only one is a defect: the registry is
@@ -6143,12 +6168,12 @@ exec_set_on_inv_transmit(
  * gameframe re-armed it.
  */
 static void
-rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
+rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host, struct UITree* tree)
 {
     int w = 0;
     for( int i = 0; i < host->stat_transmit_hook_count; i++ )
     {
-        if( UITree_FindByComponentId(host->tree, host->stat_transmit_hooks[i].component_id) < 0 )
+        if( UITree_ResolveRef(tree, host->stat_transmit_hooks[i].ref) < 0 )
             continue;
         if( w != i )
             host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
@@ -6160,10 +6185,13 @@ rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     int component_id,
     int create)
 {
     int i;
+    struct UITreeNodeRef ref = UITree_RefAt(tree,
+        tree ? UITree_FindByComponentId(tree, component_id) : -1);
     struct RS_CS2StatTransmitHook* hook;
 
     for( i = 0; i < host->stat_transmit_hook_count; i++ )
@@ -6171,9 +6199,10 @@ rs_cs2_acquire_stat_transmit_hook(
         hook = &host->stat_transmit_hooks[i];
         if( hook->component_id == component_id )
         {
-            uint32_t const last_seen = hook->last_seen_serial;
-            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
+            uint32_t const last_seen = UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->last_seen_serial : 0;
+            uint8_t const pending_unhide = create && UITree_ResolveRef(tree, hook->ref) >= 0 ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
+            hook->ref = ref;
             hook->last_seen_serial = last_seen;
             hook->pending_unhide = pending_unhide;
             return hook;
@@ -6188,7 +6217,7 @@ rs_cs2_acquire_stat_transmit_hook(
 
     /* Compact dead entries (closed/rebuilt interface left hooks behind) before
      * appending — same as inv/var acquire. */
-    rs_cs2_compact_stat_transmit_hooks(host);
+    rs_cs2_compact_stat_transmit_hooks(host, tree);
 
     if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
@@ -6211,7 +6240,39 @@ rs_cs2_acquire_stat_transmit_hook(
         RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX);
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];
     memset(hook, 0, sizeof(*hook));
+    hook->ref = ref;
     return hook;
+}
+
+/* The tree owns ordinary hooks; these three native channels retain trigger
+ * arrays in the host. Copy both halves of native widget behavior together. */
+static bool
+rs_cs2_copy_transmit_hooks(struct RS_CS2Host* host, int source_id, int target_id)
+{
+    struct UITree* tree = host->tree;
+    struct UITreeNodeRef target = UITree_RefAt(tree, UITree_FindByComponentId(tree, target_id));
+    if( !target.incarnation ) return false;
+#define COPY_TRANSMIT(channel, HookType) do { \
+    for( int i = 0; i < host->channel##_transmit_hook_count; ++i ) { \
+        struct HookType const* source = &host->channel##_transmit_hooks[i]; \
+        if( source->component_id != source_id || source->script_id <= 0 || \
+            UITree_ResolveRef(tree, source->ref) < 0 ) continue; \
+        struct HookType copy = *source; \
+        struct HookType* dst = rs_cs2_acquire_##channel##_transmit_hook(host, tree, target_id, 1); \
+        if( !dst ) return false; \
+        copy.component_id = target_id; \
+        copy.ref = target; \
+        copy.last_seen_serial = 0; \
+        copy.pending_unhide = 0; \
+        *dst = copy; \
+        break; \
+    } \
+} while( 0 )
+    COPY_TRANSMIT(inv, RS_CS2InvTransmitHook);
+    COPY_TRANSMIT(var, RS_CS2VarTransmitHook);
+    COPY_TRANSMIT(stat, RS_CS2StatTransmitHook);
+#undef COPY_TRANSMIT
+    return true;
 }
 
 /* True when `idx` is part of interface `group_id`: its own packed id matches,
@@ -6511,7 +6572,7 @@ exec_set_on_stat_transmit(
     struct RS_CS2StatTransmitHook* hook;
 
     assert(host);
-    hook = rs_cs2_acquire_stat_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_stat_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = component_id;
@@ -6561,7 +6622,7 @@ exec_set_on_var_transmit(
             TORIRS_LOG("%s%d", t ? "," : "", trigger_ids[t]);
         TORIRS_LOG("]\n");
     }
-    hook = rs_cs2_acquire_var_transmit_hook(host, component_id, script_id > 0);
+    hook = rs_cs2_acquire_var_transmit_hook(host, host->tree, component_id, script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = component_id;
@@ -6613,7 +6674,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT )
     {
         struct RS_CS2InvTransmitHook* hook;
-        hook = rs_cs2_acquire_inv_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_inv_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
         {
             /* Full, or a disarm of a component that had no hook — see
@@ -6651,7 +6712,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT )
     {
         struct RS_CS2VarTransmitHook* hook;
-        hook = rs_cs2_acquire_var_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_var_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
@@ -6675,7 +6736,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
     {
         struct RS_CS2StatTransmitHook* hook;
-        hook = rs_cs2_acquire_stat_transmit_hook(host, component_id, script_id > 0);
+        hook = rs_cs2_acquire_stat_transmit_hook(host, host->tree, component_id, script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
@@ -8718,12 +8779,8 @@ exec_widget_set_graphic2(
     int graphic_id)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->type == UIELEM_RS_GRAPHIC )
-    {
-        node->u.rs_graphic.scene_id_active = graphic_id;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_GRAPHIC_ACTIVE, graphic_id);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8789,18 +8846,8 @@ exec_widget_set_fill(
     int requested_filled)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    uint8_t const filled = requested_filled ? 1 : 0;
-    if( node && node->type == UIELEM_RS_RECT && node->u.rs_rect.filled != filled )
-    {
-        node->u.rs_rect.filled = filled;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
-    else if( node && node->type == UIELEM_RS_ARC )
-    {
-        node->u.rs_arc.filled = filled;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_FILL, requested_filled);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8863,14 +8910,7 @@ exec_widget_set_draggable(
                 area_uid = tree->components[child].component_id;
         }
     }
-    if( !node->draggable || node->drag_render_area_uid != area_uid ||
-        node->drag_render_area_child_index != -1 )
-    {
-        node->draggable = 1;
-        node->drag_render_area_uid = area_uid;
-        node->drag_render_area_child_index = -1;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    (void)UITree_SetDragAreaAt(tree, rs_cs2_find_node(host, component_id), 1, area_uid, -1);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8881,12 +8921,8 @@ exec_widget_set_draggable_behavior(
     int behavior)
 {
     struct UITree* tree = rs_cs2_tree(host);
-    struct UITreeComponent* node = rs_cs2_node(host, component_id);
-    if( node && node->drag_behavior != behavior )
-    {
-        node->drag_behavior = behavior;
-        UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, component_id));
-    }
+    if( tree ) (void)UITree_SetNativeIntAt(tree, rs_cs2_find_node(host, component_id),
+                                         UITREE_NATIVE_DRAG_BEHAVIOR, behavior);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9036,10 +9072,7 @@ exec_widget_drag_pickup(
     if( node->drag_render_area_uid < 0 &&
         UITree_ClickMaskDragDepth(node->behavior.click_mask) == 0 )
         return CS2VM_EXECNO_OK;
-    tree->pending_drag_pickup = 1;
-    tree->pending_drag_pickup_id = component_id;
-    tree->pending_drag_pickup_x = pickup_x;
-    tree->pending_drag_pickup_y = pickup_y;
+    (void)UITree_StageDragPickup(tree, (int32_t)(node - tree->components), pickup_x, pickup_y);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9663,17 +9696,9 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_WIDGET_INT_CASE(CC_SETPINCH);
 
     case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
-        node = rs_cs2_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id);
-        if( node )
-        {
-            uint8_t const enabled = request->u.CC_SETNOCLICKTHROUGH.enabled ? 1 : 0;
-            if( node->no_click_through != enabled )
-            {
-                node->no_click_through = enabled;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETNOCLICKTHROUGH.component_id),
+            UITREE_NATIVE_NO_CLICK_THROUGH, request->u.CC_SETNOCLICKTHROUGH.enabled);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_WIDGET_INT_CASE(CC_SETNOSCROLLTHROUGH);
@@ -9760,10 +9785,9 @@ rs_cs2_host_exec_dispatch(
      * colour/size/offset (the caret is drawn as a glyph after the text), submit
      * and accept modes, and the char filter. */
     case CS2VM_HOST_REQUEST_CC_INPUT_SETLINEWRAPPINGWIDTH:
-        node = rs_cs2_node(host, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.component_id);
-        if( node && node->type == UIELEM_RS_TEXT )
-            node->u.rs_text.input_wrap_width =
-                request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value;
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.component_id),
+            UITREE_NATIVE_INPUT_WRAP_WIDTH, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTBGCOLOUR);
@@ -9806,29 +9830,15 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_SET_DRAG_BEHAVIOR_CASE(CC_SETDRAGGABLEBEHAVIOR);
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
-        node = rs_cs2_node(host, request->u.CC_SETDRAGDEADZONE.component_id);
-        if( node )
-        {
-            if( node->drag_dead_zone != (uint8_t)request->u.CC_SETDRAGDEADZONE.zone )
-            {
-                node->drag_dead_zone = (uint8_t)request->u.CC_SETDRAGDEADZONE.zone;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETDRAGDEADZONE.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETDRAGDEADZONE.component_id),
+            UITREE_NATIVE_DRAG_DEAD_ZONE, request->u.CC_SETDRAGDEADZONE.zone);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
-        node = rs_cs2_node(host, request->u.CC_SETDRAGDEADTIME.component_id);
-        if( node )
-        {
-            if( node->drag_dead_time != (uint8_t)request->u.CC_SETDRAGDEADTIME.time )
-            {
-                node->drag_dead_time = (uint8_t)request->u.CC_SETDRAGDEADTIME.time;
-                UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.CC_SETDRAGDEADTIME.component_id));
-            }
-        }
+        if( tree ) (void)UITree_SetNativeIntAt(tree,
+            rs_cs2_find_node(host, request->u.CC_SETDRAGDEADTIME.component_id),
+            UITREE_NATIVE_DRAG_DEAD_TIME, request->u.CC_SETDRAGDEADTIME.time);
         return CS2VM_EXECNO_OK;
 
         RS_CS2_SET_OP_BASE_CASE(CC_SETOPBASE);
@@ -10957,6 +10967,20 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_MOBILE_WIFIAVAILABLE:
         (void)request->u.MOBILE_WIFIAVAILABLE._unused;
         return CS2VM2_PushInt(vm, host->network_kind == RS_CS2_NETWORK_WIFI ? 1 : 0);
+
+    case CS2VM_HOST_REQUEST_RUNELITE_CALLBACK:
+        if( host->script_callback_running ) return CS2VM_EXECNO_ERROR;
+        if( host->script_callback )
+        {
+            char const* source=request->u.RUNELITE_CALLBACK.name;
+            char name[256];
+            if( !source || strlen(source)>=sizeof(name) ) return CS2VM_EXECNO_ERROR;
+            snprintf(name,sizeof(name),"%s",source);
+            host->script_callback_running=true;
+            host->script_callback(host->script_callback_user,vm,name);
+            host->script_callback_running=false;
+        }
+        return CS2VM_EXECNO_OK;
 
         RS_CS2_VIEWPORT_CASE(VIEWPORT_SETFOV);
 

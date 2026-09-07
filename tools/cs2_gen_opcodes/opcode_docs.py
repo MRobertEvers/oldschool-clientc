@@ -20,6 +20,11 @@ class OpcodeDoc:
 
 
 OPCODE_DOCS: dict[str, OpcodeDoc] = {
+    "RUNELITE_CALLBACK": OpcodeDoc(
+        summary="Invoke a synchronous named plugin callback",
+        str_in=("event_name",),
+        notes="Remaining stack slots are live callback arguments/results. The host must not yield or recursively run scripts.",
+    ),
     # --- VM core (cs2vm.c) ---
     "PUSH_CONSTANT_INT": OpcodeDoc(
         summary="Push int constant",

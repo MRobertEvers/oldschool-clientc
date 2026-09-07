@@ -18,7 +18,7 @@
  * composed panel to.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include "engine/png_decode.h"
 
@@ -115,13 +115,14 @@ fake_inv_size(int inv)
     return inv == TORIRS_INVENTORY_WORN ? FAKE_WORN_SLOTS : 0;
 }
 
+static int g_mouse_x = 100, g_mouse_y = 100;
 static int
 fake_mouse_pos(int* out_x, int* out_y)
 {
     if( out_x )
-        *out_x = 100;
+        *out_x = g_mouse_x;
     if( out_y )
-        *out_y = 100;
+        *out_y = g_mouse_y;
     return 1;
 }
 
@@ -330,17 +331,17 @@ fake_image_release(int image)
     (void)image;
 }
 
-static struct ToriRS_ApiV2 g_api;
-static struct ToriRS_ClientApiV2 g_client_api;
-static struct ToriRS_GameApiV2 g_game_api;
+static struct ToriRS_Api g_api;
+static struct ToriRS_ClientApi g_client_api;
+static struct ToriRS_GameApi g_game_api;
 static void* g_plugin_state;
 
-static bool v2_cfg_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
+static bool v2_cfg_bool(struct ToriRS_Api* api, char const* key, bool* out)
 { (void)api; *out = fake_cfg_bool(key) != 0; return true; }
-static bool v2_cfg_color(struct ToriRS_ApiV2* api, char const* key, uint32_t* out)
+static bool v2_cfg_color(struct ToriRS_Api* api, char const* key, uint32_t* out)
 { (void)api; *out = fake_cfg_color(key); return true; }
 static bool v2_skill(
-    struct ToriRS_ApiV2* api, int skill, struct ToriRS_SkillSnapshot* out)
+    struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     (void)api;
     if( skill < 0 || skill >= FAKE_SKILLS ) return false;
@@ -352,23 +353,23 @@ static bool v2_skill(
     out->base_level = g_client.base[skill];
     return true;
 }
-static int v2_run_energy(struct ToriRS_ApiV2* api)
+static int v2_run_energy(struct ToriRS_Api* api)
 { (void)api; return g_client.run_energy; }
-static int v2_inv_size(struct ToriRS_ApiV2* api, int inv)
+static int v2_inv_size(struct ToriRS_Api* api, int inv)
 { (void)api; return fake_inv_size(inv); }
 static bool v2_inv_slot(
-    struct ToriRS_ApiV2* api, int inv, int slot, int* obj, int* count)
+    struct ToriRS_Api* api, int inv, int slot, int* obj, int* count)
 { (void)api; return fake_inv_slot(inv, slot, obj, count) != 0; }
 static bool v2_item_info(
-    struct ToriRS_ApiV2* api, int obj, struct ToriRS_ItemInfo* out)
+    struct ToriRS_Api* api, int obj, struct ToriRS_ItemInfo* out)
 { (void)api; return fake_obj_info(obj, out) != 0; }
-static bool v2_pointer(struct ToriRS_ApiV2* api, int* x, int* y)
+static bool v2_pointer(struct ToriRS_Api* api, int* x, int* y)
 { (void)api; return fake_mouse_pos(x, y) != 0; }
 static enum ToriRS_AssetState v2_asset_request(
-    struct ToriRS_ApiV2* api, char const* name)
+    struct ToriRS_Api* api, char const* name)
 { (void)api; return fake_asset_load(name) ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING; }
 static bool v2_asset_bytes(
-    struct ToriRS_ApiV2* api, char const* name, void const** data, size_t* size)
+    struct ToriRS_Api* api, char const* name, void const** data, size_t* size)
 {
     int n = 0;
     (void)api;
@@ -376,10 +377,10 @@ static bool v2_asset_bytes(
     *size = n > 0 ? (size_t)n : 0;
     return *data != NULL;
 }
-static void v2_asset_release(struct ToriRS_ApiV2* api, char const* name)
+static void v2_asset_release(struct ToriRS_Api* api, char const* name)
 { (void)api; fake_asset_release(name); }
 static enum ToriRS_AssetState v2_image(
-    struct ToriRS_ApiV2* api, char const* name, struct ToriRS_ImageRef* out)
+    struct ToriRS_Api* api, char const* name, struct ToriRS_ImageRef* out)
 {
     int const image = fake_image_load(name);
     (void)api;
@@ -387,10 +388,10 @@ static enum ToriRS_AssetState v2_image(
     return image > 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING;
 }
 static bool v2_image_size(
-    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image, int* w, int* h)
+    struct ToriRS_Api* api, struct ToriRS_ImageRef image, int* w, int* h)
 { (void)api; return fake_image_size(image.value, w, h) != 0; }
 static bool v2_image_pixels(
-    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image,
+    struct ToriRS_Api* api, struct ToriRS_ImageRef image,
     uint32_t* out, size_t capacity, size_t* count)
 {
     int const n = fake_image_pixels(image.value, out, (int)capacity);
@@ -399,23 +400,29 @@ static bool v2_image_pixels(
     return n > 0;
 }
 static enum ToriRS_AssetState v2_image_compose(
-    struct ToriRS_ApiV2* api, char const* name, int w, int h,
+    struct ToriRS_Api* api, char const* name, int w, int h,
     uint32_t const* pixels, struct ToriRS_ImageRef* out)
 {
     (void)api;
     out->value = fake_image_compose(name, w, h, pixels);
     return out->value > 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_ERROR;
 }
-static void v2_image_release(struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image)
+static void v2_image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; fake_image_release(image.value); }
-static struct ToriRS_PlacementAreaRef v2_area(struct ToriRS_ApiV2* api, int area)
-{ struct ToriRS_PlacementAreaRef out = { (uint32_t)area + 1u }; (void)api; return out; }
-static bool v2_primary(
-    struct ToriRS_ApiV2* api, struct ToriRS_PlacementAreaRef area, struct ToriRS_Rect* out)
-{ (void)api; (void)area; *out = (struct ToriRS_Rect){ 0, 0, 765, 503 }; return true; }
+/* The canvas this paint callback may draw on, as the plugin reads it from the
+ * graphics context's draw_context bounds -- the only area the API offers. */
+static struct ToriRS_Rect g_canvas_bounds = { 0, 0, 765, 503 };
+static bool v2_draw_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* out)
+{
+    (void)draw;
+    if( out->struct_size < sizeof(*out) ) return false;
+    out->bounds = g_canvas_bounds;
+    return true;
+}
+static int g_draw_x, g_draw_y;
 static void v2_draw_image(
-    struct ToriRS_DrawBuilder* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
-{ (void)draw; (void)image; (void)x; (void)y; (void)alpha; g_client.draw_count++; }
+    struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
+{ (void)draw; (void)image; (void)alpha; g_draw_x = x; g_draw_y = y; g_client.draw_count++; }
 
 static void
 api_init(void)
@@ -424,7 +431,7 @@ api_init(void)
     memset(&g_client_api, 0, sizeof(g_client_api));
     memset(&g_game_api, 0, sizeof(g_game_api));
     g_api.struct_size = sizeof(g_api);
-    g_api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
+    g_api.major_version = TORIRS_PLUGIN_API_MAJOR;
     g_api.config.get_bool = v2_cfg_bool;
     g_api.config.get_color = v2_cfg_color;
     g_api.input.pointer = v2_pointer;
@@ -436,8 +443,6 @@ api_init(void)
     g_api.assets.image_pixels = v2_image_pixels;
     g_api.assets.image_compose = v2_image_compose;
     g_api.assets.image_release = v2_image_release;
-    g_api.placement.area = v2_area;
-    g_api.placement.primary = v2_primary;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.run_energy = v2_run_energy;
@@ -449,7 +454,7 @@ api_init(void)
 
 /* ---------------------------------------------------------------- driving */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
 
 /* The plugin's own line box: four pixels of margin top and bottom, and a
  * twelve-pixel line. Restated here rather than shared, so a change to either
@@ -471,7 +476,7 @@ frame(int hovered_obj_id)
 {
     struct ToriRS_MenuBuildEvent menu;
     struct ToriRS_FrameEvent frame_ev;
-    struct ToriRS_DrawBuilder draw;
+    struct ToriRS_Graphics draw;
 
     memset(&frame_ev, 0, sizeof(frame_ev));
     TORIRS_PLUGIN_ITEM_STATS.callbacks.on_frame_start(&g_api, g_plugin_state, &frame_ev);
@@ -494,6 +499,7 @@ frame(int hovered_obj_id)
     memset(&draw, 0, sizeof(draw));
     draw.struct_size = sizeof(draw);
     draw.image = v2_draw_image;
+    draw.context = v2_draw_context;
     g_client.compose_w = 0;
     g_client.compose_h = 0;
     g_client.draw_count = 0;
@@ -576,6 +582,39 @@ test_food_heals(void)
     frame(385);
     TEST_ASSERT(g_client.draw_count == 1, "a shark gets a panel");
     TEST_ASSERT(tip_rows() == 1, "one stat changes; got %d rows", tip_rows());
+}
+
+/* The tooltip stays inside the graphics context's canvas bounds, not inside a
+ * placement area: a pointer near the canvas corner flips the panel up and left
+ * of the pointer, and a smaller canvas moves that edge. An inventory hover is
+ * outside the 3D viewport and must NOT flip: the canvas, not the viewport, is
+ * the bound. */
+static void
+test_tooltip_clamps_to_draw_canvas(void)
+{
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    g_mouse_x = 100; g_mouse_y = 100;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 116,
+        "away from the edge the panel sits right and below the pointer (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 618; g_mouse_y = 235; /* inventory slot 1 on the fixed frame */
+    frame(385);
+    TEST_ASSERT(g_draw_x == 630 && g_draw_y == 251,
+        "an inventory hover outside the 3D viewport keeps the panel beside the pointer (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 760; g_mouse_y = 495;
+    frame(385);
+    TEST_ASSERT(g_draw_x < 760 && g_draw_y < 495,
+        "at the canvas corner the panel flips up and left (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 250; g_mouse_y = 190;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 300, 200 };
+    frame(385);
+    TEST_ASSERT(g_draw_x < 250 && g_draw_y < 190,
+        "a smaller canvas moves the flip edge with it (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 100; g_mouse_y = 100;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
 }
 
 static void
@@ -883,6 +922,7 @@ main(void)
     test_no_hover();
     test_unknown_item();
     test_food_heals();
+    test_tooltip_clamps_to_draw_canvas();
     test_food_at_full_health();
     test_dose_suffix_is_stripped();
     test_combo_potion();

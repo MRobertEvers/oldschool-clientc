@@ -90,8 +90,7 @@ scrollbar_capture_live(
     if( tree->components[hit->layer_index].freed || hit->layer_incarnation == 0 ||
         tree->components[hit->layer_index].incarnation != hit->layer_incarnation )
         return 0;
-    return !tree->components[hit->layer_index].replacement_input_hidden &&
-           !UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index);
+    return !UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index);
 }
 
 void
@@ -205,11 +204,6 @@ resolve_click_hook(
     {
         struct UITreeComponent const* node = &tree->components[idx];
         struct UITreeRuntimeHooks const* hooks = UITree_Hooks(node);
-        /* ACTIONS suppression is exact-node, not inherited display:none: a
-         * child stays live, but it must not borrow the suppressed parent's
-         * onOp/onClick. Continue to an independently live outer ancestor. */
-        if( node->replacement_input_hidden )
-            continue;
         if( hooks->on_op.script_id > 0 )
         {
             *out_component_id = node->component_id;
@@ -262,8 +256,6 @@ find_wheel_scroll_layer(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
             continue;
-        if( c->replacement_input_hidden )
-            continue;
         if( UITree_NodeOrAncestorDisplayHidden(tree, i) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
@@ -314,8 +306,6 @@ find_wheel_hook_component(
         assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || c->component_id < 0 )
-            continue;
-        if( c->replacement_input_hidden )
             continue;
         if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
             continue;
@@ -626,8 +616,7 @@ touch_scroll_layer_at(
 
         assert(i >= 0 && (uint32_t)i < tree->component_count);
         c = &tree->components[i];
-        if( c->freed || c->type != UIELEM_RS_LAYER ||
-            c->replacement_input_hidden )
+        if( c->freed || c->type != UIELEM_RS_LAYER )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
@@ -662,7 +651,6 @@ touch_scroll_capture_live(
            interact->ts_incarnation != 0 &&
            tree->components[interact->ts_layer].incarnation ==
                interact->ts_incarnation &&
-           !tree->components[interact->ts_layer].replacement_input_hidden &&
            !UITree_NodeOrAncestorDisplayHidden(tree, interact->ts_layer);
 }
 
@@ -1123,7 +1111,6 @@ interact_drag_consume_pending(
     struct UITreeComponent* src;
     int mx;
     int my;
-    int pending_id;
     int pending_x;
     int pending_y;
 
@@ -1137,7 +1124,6 @@ interact_drag_consume_pending(
 
     /* Snapshot then clear only after accept — a refuse must not drop the
      * request when a live drag blocks it (next frame may be free). */
-    pending_id = tree->pending_drag_pickup_id;
     pending_x = tree->pending_drag_pickup_x;
     pending_y = tree->pending_drag_pickup_y;
 
@@ -1151,7 +1137,7 @@ interact_drag_consume_pending(
         return 0;
     }
 
-    idx = UITree_FindByComponentId(tree, pending_id);
+    idx = UITree_ResolveRef(tree, tree->pending_drag_pickup_ref);
     if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(tree, idx) )
     {
         tree->pending_drag_pickup = 0;
@@ -1264,6 +1250,7 @@ UITree_InteractConsumePendingDragPickup(
     out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
 
     left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -1360,8 +1347,7 @@ interact_hold(
         return;
     if( st->pressed < 0 || (uint32_t)st->pressed >= tree->component_count )
         return;
-    if( tree->components[st->pressed].replacement_input_hidden ||
-        UITree_NodeOrAncestorDisplayHidden(tree, st->pressed) )
+    if( UITree_NodeOrAncestorDisplayHidden(tree, st->pressed) )
         return;
 
     {
@@ -1771,6 +1757,9 @@ interact_click(
         : (ihit >= 0 && (uint32_t)ihit < tree->component_count
                ? tree->components[ihit].component_id
                : tree->components[ui_result->clicked].component_id);
+    out->clicked_node = hook_com_id >= 0 && hook_node_index >= 0 ? hook_node_index
+        : (ihit >= 0 && (uint32_t)ihit < tree->component_count ? ihit : ui_result->clicked);
+    out->clicked_incarnation = out->clicked_node >= 0 ? tree->components[out->clicked_node].incarnation : 0;
     out->clicked_x = click_x;
     out->clicked_y = click_y;
 
@@ -1999,6 +1988,7 @@ UITree_InteractFrameWithPointerOwner(
     out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
 
     /* A popup normally freezes the tree input bridge, but display:none is a

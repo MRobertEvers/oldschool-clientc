@@ -625,7 +625,7 @@ soft3d_draw_font(
             cmd->text,
             cmd->color,
             cmd->center != 0,
-            cmd->shadowed != 0,
+            cmd->shadowed,
             soft->pixels);
         return;
     }
@@ -641,7 +641,7 @@ soft3d_draw_font(
         cmd->center,
         cmd->y_align,
         cmd->line_height,
-        cmd->shadowed != 0,
+        cmd->shadowed,
         soft->pixels);
 }
 

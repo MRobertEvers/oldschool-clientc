@@ -12646,6 +12646,17 @@ CS2VM2_RunOp(
      * rev-239 dispatch: Statics.method6889 -> method5150. */
     case CS2_OP_ON_MOBILE:
         return CS2VM2_Op_OnMobile(vm, frame, operand);
+    case CS2_OP_RUNELITE_CALLBACK:
+    {
+        char* name=NULL;
+        if( CS2VM2_PopStr(vm,&name)!=CS2VM_EXECNO_OK ) return CS2VM_EXECNO_ERROR;
+        struct CS2VM_HostRequest request={.kind=CS2VM_HOST_REQUEST_RUNELITE_CALLBACK};
+        request.u.RUNELITE_CALLBACK.name=name ? name : "";
+        /* Callback decisions belong to this opcode. Yielding would replay
+         * the callback, so only synchronous completion is accepted. */
+        int result=vm->vm->host_exec(vm,&request);
+        return result==CS2VM_EXECNO_OK ? result : CS2VM_EXECNO_ERROR;
+    }
     case CS2_OP_CLIENTTYPE:
         return CS2VM2_Op_ClientType(vm, frame, operand);
     case CS2_OP_OC_PARAM:

@@ -189,7 +189,7 @@ snapshot_write_node(
     int const uid = component->component_id;
     int const group = uid >= 0 ? (uid >> 16) & 0xffff : -1;
     int const file = uid >= 0 ? uid & 0xffff : -1;
-    int const own_hidden = component->behavior.hide ? 1 : 0;
+    int const own_hidden = (component->behavior.hide || component->mount_hidden) ? 1 : 0;
     int const effective_hidden = UITree_NodeOrAncestorDisplayHidden(tree, (int32_t)node) ? 1 : 0;
     int const culled = snapshot_node_or_ancestor_culled(tree, (int32_t)node);
     int const walked = tree->emit_visited && node < tree->emit_visited_cap
@@ -255,11 +255,10 @@ snapshot_write_node(
     snapshot_write(
         writer,
         "\"visibility\":{\"own_hidden\":%s,\"frame_hidden\":%s,"
-        "\"replacement_hidden\":%s,\"effective_hidden\":%s,\"culled\":%s,"
+        "\"effective_hidden\":%s,\"culled\":%s,"
         "\"walked\":%s,\"displayable\":%s},",
         own_hidden ? "true" : "false",
         component->frame_hidden ? "true" : "false",
-        component->replacement_hidden ? "true" : "false",
         effective_hidden ? "true" : "false",
         culled ? "true" : "false",
         walked ? "true" : "false",

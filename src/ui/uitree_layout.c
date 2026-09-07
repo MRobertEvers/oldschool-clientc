@@ -223,12 +223,13 @@ resolve_relative(
     int parent_x,
     int parent_y,
     int parent_w,
-    int parent_h)
+    int parent_h,
+    bool exact_size)
 {
     int x = parent_x;
     int y = parent_y;
-    int w = spec->width > 0 ? spec->width : parent_w;
-    int h = spec->height > 0 ? spec->height : parent_h;
+    int w = exact_size || spec->width > 0 ? spec->width : parent_w;
+    int h = exact_size || spec->height > 0 ? spec->height : parent_h;
 
     if( spec->relative_flags & UITREE_RELATIVE_FLAG_LEFT )
         x = parent_x + spec->left;
@@ -377,33 +378,13 @@ layout_compute_node(
     int const old_w = pos->abs_w;
     int const old_h = pos->abs_h;
 
-    if( UITree_FramePositionOverride(tree, (int32_t)i, &override) )
-    {
-        if( UITree_FramePositionOwned(tree, (int32_t)i) )
-        {
-            /* Slot declarations are in canvas coordinates, regardless of the
-             * cache nesting used to discover the semantic node. Treat the
-             * effective slot box as absolute rather than adding parent abs_*;
-             * the latter offsets deep roles whenever a native shell moves.
-             *
-             * No safe-area shift here, and that is not an omission: a frame
-             * that owns a node's position computed this box in its frame-build
-             * callback with the platform-safe placement area in hand. Dodging
-             * the keyboard again on its behalf would move the box twice. */
-            pos->abs_x = override.x;
-            pos->abs_y = override.y;
-            pos->abs_w = override.width;
-            pos->abs_h = override.height;
-            pos->layout_resolved = 1;
-            return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
-                   pos->abs_w != old_w || pos->abs_h != old_h;
-        }
-        spec = &override;
-    }
+    override = *spec;
+    int const widget_override = UITree_WidgetPositionOverride(tree, (int32_t)i, &override);
+    if( widget_override ) spec = &override;
 
     if( spec->kind == UIPOS_RELATIVE )
     {
-        resolve_relative(spec, pos, px, py, pw, ph);
+        resolve_relative(spec, pos, px, py, pw, ph, (widget_override & 2) != 0);
         apply_safe_area(pos);
         return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
                pos->abs_w != old_w || pos->abs_h != old_h;
@@ -436,7 +417,7 @@ layout_compute_node(
         }
     }
 
-    if( c->parent < 0 && w == 0 && h == 0 )
+    if( c->parent < 0 && w == 0 && h == 0 && !(widget_override & 2) )
     {
         w = pw;
         h = ph;

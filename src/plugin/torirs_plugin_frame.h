@@ -1,14 +1,9 @@
 #ifndef TORIRS_PLUGIN_FRAME_H
 #define TORIRS_PLUGIN_FRAME_H
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #define TORIRS_PLUGIN_FRAME_OFFERS_MAX 32
-
-/** Validate a complete anchor graph in its caller's slot numbering. */
-int PluginFrameAnchorsValid(
-    struct ToriRS_FrameAnchor const* anchors, int count, uint32_t declared,
-    char* reason, size_t reason_size);
 
 enum PluginFrameCatalogResult
 {

@@ -4,6 +4,7 @@
  * player never gets OPPLAYER rows.
  */
 #include "game/rs_attack_option.h"
+#include "game/rs_ui_slots.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
 #include "engine/torirs_objtype_from_rscache.h"
@@ -200,11 +201,6 @@ test_if3_item_uses_only_scripted_ops(void)
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
-        if( child_index >= 0 )
-        {
-            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
-            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
-        }
     }
 
     UITree_LayoutResolve(tree, 0, 0, 200, 100);
@@ -270,9 +266,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
         TEST_ASSERT(child_index >= 0, "rev239 item child pushed");
         if( child_index >= 0 )
         {
-            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
-            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
-            UITree_HooksMut(&tree->components[child_index])->on_op.script_id = 123;
+            UITree_HookSet(&UITree_HooksMut(&tree->components[child_index])->on_op,
+                           123, NULL, 0, 0, NULL, 0);
         }
     }
 
@@ -1513,6 +1508,178 @@ test_deck_scenery_pick_resolves_through_view_world(void)
     World_Free(root);
 }
 
+static void test_checked_widget_native_actions(void)
+{
+    struct RS_UISlots slots;RS_UISlots_Init(&slots);
+    slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]=1;
+    slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE]=2;
+    slots.side_overlay_id[1]=123;
+    struct UITree* replacement=UITree_New(1);
+    RS_UISlots_RebindTree(&slots,replacement);
+    TEST_ASSERT(slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]==1 && slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE]==2 && slots.side_overlay_id[1]==-1,
+        "native tree remount preserves chat modes while retiring old mount identities");
+    RS_UISlots_SetChatFilter(&slots,RS_UI_CHAT_FILTER_PUBLIC,0);
+    TEST_ASSERT(slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC]==0,"later native chat mode remains authoritative after remount");
+    UITree_Free(replacement);
+    for( int if3=0;if3<2;++if3 )
+    {
+        struct UITree* tree=UITree_New(4);
+        struct UITreeBehavior behavior={.button_type=if3 ? 0 : REVCONFIG_BUTTON_TYPE_SELECT};
+        struct UITreeNodeSpec spec={.type=UIELEM_RS_TEXT,.component_id=101,.width=80,.height=20,.behavior=&behavior};
+        spec.u.rs_text.text="Control";
+        if( if3 ) snprintf(spec.menu_options.ops[1],sizeof(spec.menu_options.ops[1]),"Activate");
+        else snprintf(spec.menu_options.option,sizeof(spec.menu_options.option),"Activate");
+        int node=UITree_Push(tree,-1,&spec);
+        tree->components[node].if3=if3;
+        UITree_LayoutResolve(tree,0,0,200,100);
+        struct TestEvents events={101,1<<2};
+        struct RS_MinimenuBuildCtx ctx={.tree=tree,.events_for_component=test_events_for_component,.events_user=&events};
+        struct UIMinimenu menu;UIMinimenu_Reset(&menu);
+        TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==1,"checked widget uses native IF1/IF3 action rows");
+        if( menu.option_count )
+        {
+            struct UIMinimenuOption row=menu.options[0];
+            TEST_ASSERT(row.action_index==(if3 ? 1 : -1),"checked widget preserves numbered versus native IF1 operation");
+            TEST_ASSERT(row.action==(if3 ? REVCONFIG_MINIMENU_IF_BUTTON : REVCONFIG_MINIMENU_IF_BUTTON_SELECT),"checked widget preserves native button type");
+            TEST_ASSERT(row.pick.has_node_identity && row.pick.node_index==node && UITree_MenuPickCurrent(tree,&row.pick),"widget action carries native incarnation and operation signature");
+            uint64_t revision=RS_Minimenu_WidgetActionRevision(&row);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)==0,"current checked native action resolves");
+            UITree_SetTextAt(tree,node,"New target");
+            TEST_ASSERT(!UITree_MenuPickCurrent(tree,&row.pick),"retained widget action rejects native target changes");
+            UIMinimenu_Reset(&menu);RS_Minimenu_AddWidgetRows(&ctx,node,&menu);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)<0,"native action re-resolution rejects changed target signature");
+            revision=RS_Minimenu_WidgetActionRevision(&menu.options[0]);
+            events.mask|=1<<5;
+            UIMinimenu_Reset(&menu);RS_Minimenu_AddWidgetRows(&ctx,node,&menu);
+            TEST_ASSERT(RS_Minimenu_WidgetActionIndex(&menu,1,revision)<0,"native action re-resolution rejects changed server mask");
+        }
+        UITree_SetHideAt(tree,node,1);
+        UITree_WidgetSetHidden(tree,UITree_RefAt(tree,node),1,false);
+        UIMinimenu_Reset(&menu);
+        TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==0,"native hide blocks widget actions despite plugin show");
+        UITree_SetHideAt(tree,node,0);
+        if( if3 )
+        {
+            events.mask=0;
+            TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx,node,&menu)==0,"widget actions recheck current server event mask");
+        }
+        UITree_Free(tree);
+    }
+}
+
+/* An owned control reaches the menu only through the real hit test and only
+ * with its plugin row: no native packet op, exact node identity, and a
+ * retained row dies when the listener is replaced or the native parent hides. */
+static void
+test_owned_widget_operation_rows(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int row = -1;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 0x360000;
+    spec.width = 300;
+    spec.height = 200;
+    int root = UITree_Push(tree, -1, &spec);
+    int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "button", 0);
+    TEST_ASSERT(root >= 0 && own >= 0, "owned control fixture pushed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 300);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    int const base_rows = menu.option_count;
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0,
+        "an unarmed owned control offers no rows");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 41, "Toggle"),
+        "owner arms the control");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1,
+        "an armed owned control offers exactly one plugin row");
+    TEST_ASSERT(menu.option_count == base_rows + 1, "an owned control adds no native rows");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) row = i;
+    TEST_ASSERT(row >= 0 && strcmp(menu.options[row].text, "Toggle") == 0, "the row uses the plugin label");
+    TEST_ASSERT(row >= 0 && menu.options[row].pick.has_node_identity && menu.options[row].pick.node_index == own,
+        "the row carries the exact owned node identity");
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == row, "an owned control is the left-click default");
+    TEST_ASSERT(row >= 0 && UITree_MenuPickCurrent(tree, &menu.options[row].pick), "a fresh row is current");
+
+    struct UIMinimenuOption retained = menu.options[row >= 0 ? row : 0];
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 42, "Toggle"),
+        "owner replaces the listener");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick),
+        "replacing the listener retires the retained row");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1, "the new listener builds a current row");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) row = i;
+    retained = menu.options[row];
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 0, "");
+    TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick), "removing the operation retires the retained row");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0, "a disarmed control offers no rows");
+
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, "Toggle");
+    struct UIMinimenu widget_menu;
+    UIMinimenu_Reset(&widget_menu);
+    TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx, own, &widget_menu) == 1 &&
+        widget_menu.options[0].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET,
+        "the checked widget action query lists the owned operation");
+    UITree_SetHideAt(tree, root, 1);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0,
+        "native hiding of the parent removes the owned row");
+    UIMinimenu_Reset(&widget_menu);
+    TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx, own, &widget_menu) == 0,
+        "native hiding blocks the checked widget action query too");
+    UITree_Free(tree);
+}
+
+/* An owned control covering a native button: the control is the topmost hit,
+ * so its row is the left-click default and the native row stays available
+ * below it in the menu. */
+static void
+test_owned_widget_row_over_native_button(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct UITreeBehavior behavior = { .button_type = REVCONFIG_BUTTON_TYPE_CONTINUE };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int owned_row = -1, native_rows = 0;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 0x360000;
+    spec.width = 300;
+    spec.height = 200;
+    int root = UITree_Push(tree, -1, &spec);
+    struct UITreeNodeSpec button = { 0 };
+    button.type = UIELEM_RS_TEXT;
+    button.component_id = 0x360001;
+    button.width = 100;
+    button.height = 30;
+    button.behavior = &behavior;
+    button.u.rs_text.text = "Native";
+    snprintf(button.menu_options.option, sizeof(button.menu_options.option), "Continue");
+    int native = UITree_Push(tree, root, &button);
+    int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "cover", 0);
+    TEST_ASSERT(root >= 0 && native >= 0 && own >= 0, "cover fixture pushed");
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 51, "Owned"), "cover armed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 300);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    for( int i = 0; i < menu.option_count; i++ )
+    {
+        if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) owned_row = i;
+        else if( menu.options[i].action == REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON ) native_rows++;
+    }
+    TEST_ASSERT(owned_row >= 0 && native_rows == 1, "both the owned row and the covered native row are built");
+    TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == owned_row,
+        "the topmost owned control is the left-click default over a native button");
+    UITree_Free(tree);
+}
+
 static void
 test_hull_menu_mask_and_dedup(void)
 {
@@ -1550,6 +1717,9 @@ test_hull_menu_mask_and_dedup(void)
 int
 main(void)
 {
+    test_owned_widget_row_over_native_button();
+    test_owned_widget_operation_rows();
+    test_checked_widget_native_actions();
     test_hull_menu_mask_and_dedup();
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();

@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -74,9 +74,9 @@ nxt_hl_fill(struct ToriRS_HighlightItem const* item, int flag)
 
 static void
 nxt_highlight_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     int iter = -1;
 
@@ -139,16 +139,33 @@ nxt_highlight_draw(
     }
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
+/*
+ * The groups come from CS2 scripts, so a revision without CS2 has none to
+ * draw. Said once at start so a capture on that revision shows the renderer
+ * running and explicitly idle rather than silently drawing nothing.
+ */
+static void
+nxt_highlight_start(struct ToriRS_Api* api, void* state)
+{
+    (void)state;
+    assert(api);
+    api->core.log(api, "cache highlights: %s",
+        api->core.capability(api, "scripts.callbacks")
+            ? "CS2 highlight groups are drawn as the cache describes them"
+            : "unavailable, this revision has no CS2 highlight groups");
+}
+
+struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_HIGHLIGHT),
     .id = "nxt-highlight",
     .title = "Cache highlights (All Settings)",
     .version = "1.0.0",
     .state_size = 0,
     .config = NULL,
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = nxt_highlight_start,
         .on_draw_world = nxt_highlight_draw,
     },
 };

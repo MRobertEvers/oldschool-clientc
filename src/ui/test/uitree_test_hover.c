@@ -563,7 +563,7 @@ test_hover_input(void)
         int32_t parent =
             UITree_TestPushXy(ht, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 200, 200);
         int32_t old = UITree_CcCreate(ht, parent, parent_id, UIELEM_RS_RECT, 0);
-        uint32_t old_incarnation;
+        uint64_t old_incarnation;
         int saw_old_over = 0;
         int saw_new_over = 0;
         int saw_replacement_leave = 0;

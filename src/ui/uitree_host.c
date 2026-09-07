@@ -37,7 +37,6 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
     case UITREE_HOST_SET_INV_SOURCE_SLOT:
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_BEGIN_OVERLAYS:
-    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
     case UITREE_HOST_TITLE_ACTION:
         return 0;
 
@@ -132,8 +131,6 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
         return camera | world | overlays;
 
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
         return overlays;
 
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -285,9 +282,6 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_BEGIN_OVERLAYS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
     case UITREE_HOST_GET_CANVAS_OVERLAYS:
-    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
-    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
-    case UITREE_HOST_GET_FRAME_OVERLAYS:
     case UITREE_HOST_GET_WORLDMAP_TILES:
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
     case UITREE_HOST_GET_DEBUG_OVERLAY:
@@ -350,8 +344,8 @@ uitree_host_minimenu_drawn(struct UITreeHost const* host)
 
 struct NativeAvailability { bool paint, input; };
 
-/* One native state interpretation feeds paint, attached contributions and
- * input. Structural containers are available even when they draw no pixels. */
+/* One native state interpretation feeds paint and input. Structural
+ * containers are available even when they draw no pixels. */
 static struct NativeAvailability
 component_native_availability(struct UITreeComponent const* component, struct UITreeHost const* host)
 {
@@ -402,7 +396,7 @@ node_native_available(struct UITree const* tree, struct UITreeHost const* host,
     while( node >= 0 && (uint32_t)node < tree->component_count && guard++ < (int)tree->component_count )
     {
         struct UITreeComponent const* c = &tree->components[node];
-        if( c->freed || c->screen_hidden || c->projection_hidden ||
+        if( c->freed || c->screen_hidden || (c->projection_hidden || c->widget_hidden) ||
             !UITree_ComponentVisibleById(c, hovered) ) return false;
         struct NativeAvailability availability = component_native_availability(c, host);
         if( input && node == self ) { if( !availability.input ) return false; }

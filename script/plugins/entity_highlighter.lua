@@ -109,9 +109,11 @@ function plugin.on_menu_build(api, menu)
             local npc = api.world.npc_by_slot(slot)
             if npc then
                 local verb = tagged[npc.base_npc_id] and "Untag" or "Tag"
-                -- The tag rides as the server slot, which is all the select
-                -- handler needs to find the npc again.
-                api.ui.menu_add(verb .. " @yel@" .. npc.name, slot)
+                -- This changes a species preference, not the live NPC. Retain
+                -- that species and the requested operation: the server may
+                -- reuse this slot while the menu is open.
+                local action = npc.base_npc_id * 2 + (tagged[npc.base_npc_id] and 0 or 1)
+                api.menu.add(verb .. " @yel@" .. npc.name, action)
             end
         end
     end
@@ -120,13 +122,9 @@ end
 function plugin.on_menu_select(api, sel)
     if not sel.owned then return end
 
-    local npc = api.world.npc_by_slot(sel.tag)
-    if npc then
-        -- `or nil` rather than `= false`: leaving false behind would make the
-        -- saved list grow with every untag.
-        tagged[npc.base_npc_id] = (not tagged[npc.base_npc_id]) or nil
-        save_tags(api)
-    end
+    local id = math.floor(sel.tag / 2)
+    tagged[id] = sel.tag % 2 == 1 or nil
+    save_tags(api)
     return "consume"
 end
 

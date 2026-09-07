@@ -3,12 +3,13 @@
 
 /*
  * Host-private storage for one V2 plugin instance: its module table,
- * callback-scoped builders, and incarnation-fenced resource tokens. The
+ * callback-scoped draw and panel builders, and incarnation-fenced resource
+ * tokens. The
  * implementation is included by torirs_plugin_host.c so module calls reach
  * the host's checked primitives directly, without a compatibility ABI.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,20 +44,6 @@ struct PluginV2Runtime;
 #define TORIRS_PLUGIN_V2_MESH_TOKENS_MAX 8
 #define TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX 64
 
-/* A valid frame may retain one base plus every visual-state image for each
- * named node, two images for each of the two skinnable surfaces, one overlay
- * per surface, and all six scrollbar pieces. Keep the dependency ledger at
- * that real API/host maximum instead of imposing a smaller accidental cap. */
-#define TORIRS_PLUGIN_V2_FRAME_NAMED_NODES_MAX TORIRS_FRAME_NODES_MAX
-#define TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX 2
-#define TORIRS_PLUGIN_V2_FRAME_SKIN_REFS_PER_SURFACE 2
-#define TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX 6
-/* A descriptor can name 48 nodes, but no plugin can own more image tokens
- * than the host-wide image budget. The dependency ledger therefore follows
- * the real resource ceiling rather than multiplying mutually impossible
- * per-node maxima. */
-#define TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX
-
 struct PluginV2ResourceToken
 {
     int slot;
@@ -69,9 +56,9 @@ struct PluginV2ResourceToken
 
 struct PluginV2Runtime
 {
-    struct ToriRS_ApiV2 api;
-    struct ToriRS_ClientApiV2 client_api;
-    struct ToriRS_GameApiV2 game_api;
+    struct ToriRS_Api api;
+    struct ToriRS_ClientApi client_api;
+    struct ToriRS_GameApi game_api;
     struct PluginContext* context;
     struct PluginV2ResourceToken image_tokens[TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX];
     struct PluginV2ResourceToken model_tokens[TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX];
@@ -92,23 +79,6 @@ struct PluginV2DrawScope
     int origin_y;
     struct ToriRS_Rect local_bounds;
     struct ToriRS_Rect local_clip;
-};
-
-struct PluginV2FrameScope
-{
-    struct PluginV2Runtime* runtime;
-    bool active;
-    bool invalid;
-    uint32_t surface_mask;
-    struct
-    {
-        int surface;
-        int member;
-    } members[64];
-    int member_count;
-    struct ToriRS_ImageRef image_refs[TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX];
-    int image_ref_count;
-    char reason[TORIRS_FRAME_REASON_MAX];
 };
 
 struct PluginV2PanelScope
@@ -154,19 +124,12 @@ plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* out);
+    struct ToriRS_Graphics* out);
 
 void
 plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* builder);
-
-/** Restrict this callback-scoped builder to an already resolved semantic
- * tree clip. The setting dies with the scope. */
-void
-plugin_v2_runtime_draw_clip(
-    struct PluginV2DrawScope* scope,
-    struct ToriRS_Rect clip);
+    struct ToriRS_Graphics* builder);
 
 /** Set a callback-local drawing region; subsequent builder coordinates are
  * translated by its origin and clipped to it. */
@@ -174,25 +137,6 @@ void
 plugin_v2_runtime_draw_region(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect region);
-
-void
-plugin_v2_runtime_frame_begin(
-    struct PluginV2Runtime* runtime,
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_FrameBuilder* out);
-
-void
-plugin_v2_runtime_frame_end(
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_FrameBuilder* builder);
-
-char const*
-plugin_v2_runtime_frame_reason(struct PluginV2FrameScope const* scope);
-
-/** True when the transaction used valid, non-duplicate declarations and
- * declared the required viewport surface. */
-bool
-plugin_v2_runtime_frame_valid(struct PluginV2FrameScope const* scope);
 
 void
 plugin_v2_runtime_panel_begin(

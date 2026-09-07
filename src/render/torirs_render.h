@@ -283,7 +283,7 @@ struct ToriRS_RenderCommand_Font
     int center;
     int y_align;
     int line_height;
-    int shadowed;
+    int shadowed; /* 0=none, 1=one-pixel shadow, 2=four-sided outline */
     /** Baseline mode: `y` is the text bottom (reference PixFont.drawString does
      * `y -= height2d`), not a box top. Set for world-space overlay text like
      * hitsplats, which the reference draws with `centreString`, not a widget

@@ -18,7 +18,7 @@
 -- Nothing in this file has to know any of that.
 --
 -- The C twin of this file is src/plugin/plugins/tileind.c, which registers as
--- "tile-indicator". Both are built on the same api and draw the same thing,
+-- "tile-indicator-c". Both are built on the same api and draw the same thing,
 -- which is what keeps the contract honest about being language-agnostic
 -- rather than Lua-shaped -- so this one carries the "-lua" suffix. Two
 -- plugins cannot share a name: it is the ini section and the panel row, and
@@ -138,24 +138,15 @@ local function plugin_draw_player(api, draw)
 end
 
 function plugin.on_draw_world(api, draw)
+  -- Match the C implementation: hover below true/destination markers.
+  if api.config.show_hover then
+    local hx, hz, hlevel = api.input.hover_tile()
+    if hx then
+      draw.world_tile(hx, hz, hlevel,
+        api.config.hover_fill_color, api.config.hover_color, api.config.hover_fill_alpha)
+    end
+  end
   plugin_draw_player(api, draw)
-
-  if not api.config.show_hover then return end
-
-  -- The tile the pointer is over, which is the tile a click would act on --
-  -- so it answers the question the true-tile marker cannot: not "where does
-  -- the server think I am" but "where am I about to send myself".
-  --
-  -- Its own level, not the player's: on an upper floor the pick answers the
-  -- storey the pointer actually landed on, and drawing it at the player's
-  -- level would put the marker on the ground below. The api hands back the
-  -- WALKED level, so a bridge deck's marker sits on the deck rather than a
-  -- storey above it.
-  local hx, hz, hlevel = api.input.hover_tile()
-  if not hx then return end
-
-  draw.world_tile(hx, hz, hlevel,
-    api.config.hover_fill_color, api.config.hover_color, api.config.hover_fill_alpha)
 end
 
 return plugin

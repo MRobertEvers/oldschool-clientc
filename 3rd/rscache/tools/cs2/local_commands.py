@@ -24,6 +24,8 @@ from __future__ import annotations
 
 # id -> NAME. Names are lowercased for output.
 LOCAL_NAMES: dict[int, str] = {
+    # RuneLiteOpcodes.RUNELITE_EXECUTE; event name popped, remaining stacks live.
+    6599: "runelite_callback",
     # First seen in OldSchool 239's gameframe scripts; neither vendored table
     # names it, and its meaning is still unknown. Named so the decompiler can
     # print it — the signature below is what lets it get that far.
@@ -36,6 +38,7 @@ LOCAL_NAMES: dict[int, str] = {
 
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
+    "runelite_callback": (["STRING"], [], False),
     # Command.kt (2021) never gained these, though Opcodes.kt names them. The
     # pop/push counts are src/cs2vm2/cs2vm2_opcode_stack.gen.h's, i.e. taken
     # from a client that executes them, not from the name.

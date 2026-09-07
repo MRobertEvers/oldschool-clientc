@@ -68,7 +68,7 @@ void test_overlay_retention(void)
         state.entity_overlay_count = n&1;
         state.entity_overlay_clip_x=4; state.entity_overlay_clip_y=4;
         state.entity_overlay_clip_w=512; state.entity_overlay_clip_h=334;
-        state.frame_overlays = (n&2) ? &bar : NULL; state.frame_overlay_count = !!(n&2);
+        state.canvas_overlays = (n&2) ? &bar : NULL; state.canvas_overlay_count = !!(n&2);
         TEST_ASSERT(UITree_EmitOverlayMotionRefresh(tree,&host,&emit,&hovered,&moved), "partial motion refresh succeeds");
         motion_compare(tree,&host,&emit);
         UITree_EmitRetainGateCapture(tree,&emit,hovered,&gate);

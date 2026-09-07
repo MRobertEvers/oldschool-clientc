@@ -25,10 +25,10 @@ int PluginLua_AddScript(
 /** Closes every script state. Called from the runtime host's own shutdown. */
 void PluginLua_Shutdown(void);
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 /** The scripting runtime host is an ordinary native V2 plugin. */
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 
 /** Resolve a key name ("shift", "ctrl", ...) to a code, or -1. */
 int PluginLua_KeyCodeFromName(char const* name);

@@ -426,7 +426,6 @@ test_touch_swipe_scrolls_layer(void)
     struct UIInteractOut out;
     int32_t list;
     int32_t row;
-    int before;
 
     printf("TEST: a held finger inside a scrollable layer scrolls it\n");
 
@@ -517,61 +516,6 @@ test_touch_swipe_scrolls_layer(void)
     LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
     run_frame(&interact, tree, &host, input, &out);
 
-    /* Suppressing the scroll layer itself does not suppress its child row.
-     * The layer declines touch acquisition and the row receives the press. */
-    interact.touch_scroll = 1;
-    TEST_ASSERT(
-        UITree_SetReplacementInputHidden(
-            tree, list, tree->components[list].incarnation, 1),
-        "touch fixture suppresses the layer's own actions");
-    LibToriRS_Input_Begin(input, 1700);
-    LibToriRS_Input_PushMouseMove(input, 100, 30);
-    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
-    run_frame(&interact, tree, &host, input, &out);
-    TEST_ASSERT(
-        interact.ts_layer < 0 && out.clicked_com_id == 11,
-        "an actions-suppressed layer declines touch scroll while its child stays live");
-    LibToriRS_Input_Begin(input, 1750);
-    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
-    run_frame(&interact, tree, &host, input, &out);
-
-    /* If ownership changes while a finger is already scrolling, cancel that
-     * exact capture and keep the physical press swallowed through release. */
-    TEST_ASSERT(
-        UITree_SetReplacementInputHidden(
-            tree, list, tree->components[list].incarnation, 0),
-        "touch layer is available for a fresh capture");
-    LibToriRS_Input_Begin(input, 1800);
-    LibToriRS_Input_PushMouseMove(input, 100, 30);
-    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
-    run_frame(&interact, tree, &host, input, &out);
-    TEST_ASSERT(interact.ts_layer == list, "fresh touch press captures the live layer");
-    before = tree->components[list].scroll_y;
-    TEST_ASSERT(
-        UITree_SetReplacementInputHidden(
-            tree, list, tree->components[list].incarnation, 1),
-        "active touch layer changes actions owner");
-    LibToriRS_Input_Begin(input, 1850);
-    LibToriRS_Input_PushMouseMove(input, 100, -20);
-    run_frame(&interact, tree, &host, input, &out);
-    TEST_ASSERT(
-        interact.ts_layer < 0 && interact.ts_press_cancelled &&
-            tree->components[list].scroll_y == before && out.cancelled_pointer_click &&
-            out.intent_count == 0,
-        "mid-capture suppression stops scrolling and retires its script notification");
-    LibToriRS_Input_Begin(input, 1900);
-    run_frame(&interact, tree, &host, input, &out);
-    TEST_ASSERT(
-        interact.ts_press_cancelled && out.cancelled_pointer_click,
-        "cancelled touch capture continues owning the held press");
-    LibToriRS_Input_Begin(input, 1950);
-    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, -20);
-    run_frame(&interact, tree, &host, input, &out);
-    TEST_ASSERT(
-        !interact.ts_press_cancelled && out.cancelled_pointer_click &&
-            out.clicked_com_id < 0 && !out.left_click_miss,
-        "cancelled touch capture swallows and retires the release");
-
     UITree_Free(tree);
 }
 
@@ -637,5 +581,64 @@ test_feedback_overlay_never_takes_a_click(void)
     run_frame(&interact, tree, &host, input, &out);
     TEST_ASSERT(out.clicked_com_id == 11, "and the tap runs the button, not the marker");
 
+    UITree_Free(tree);
+}
+
+/*
+ * A plugin-owned control has no component id. Its click must still be
+ * reported -- by node -- or the app sees neither a UI click (id -1) nor a
+ * world click (the interactive hit closed the world gate) and the press is
+ * lost. Arming is the real owned-widget operation API; an unarmed owned text
+ * stays decoration and the click falls through to the world.
+ */
+void
+test_owned_control_click_reports_node(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t layer, own;
+
+    printf("TEST: a click on an armed plugin-owned control is reported by node\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    layer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 400, 300);
+    own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, layer), 7, "button", 0);
+    TEST_ASSERT(own >= 0, "owned control created");
+    UITree_WidgetSetPosition(tree, UITree_RefAt(tree, own), 7, 100, 100);
+    UITree_TestResolve(tree);
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node < 0 && out.clicked_com_id < 0 && out.left_click_miss,
+        "an unarmed owned text is decoration: the click falls through to the world");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 5, "Press"), "owner arms the control");
+    LibToriRS_Input_Begin(input, 2000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node == own && out.clicked_incarnation == tree->components[own].incarnation,
+        "the click on an armed owned control is reported by node identity");
+    TEST_ASSERT(out.clicked_com_id < 0, "an owned control still has no component id");
+    TEST_ASSERT(!out.left_click_miss, "an owned control's click is not a world click");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 0, ""), "owner disarms the control");
+    LibToriRS_Input_Begin(input, 3000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node < 0 && out.left_click_miss, "a disarmed control falls through again");
     UITree_Free(tree);
 }

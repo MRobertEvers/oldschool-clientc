@@ -11,9 +11,9 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
-#include "plugin/torirs_plugin_placement.h"
 
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
@@ -69,7 +69,7 @@
  *  authored range stops one short of them rather than letting a plugin ask for
  *  "almost gone" and get a black triangle. */
 #define TORIRS_PLUGIN_MESH_ALPHA_MAX 253
-/** Verbs one canvas hit region may offer, matching a component's op1..op5. */
+/** Verbs one entity claim may offer, matching a component's op1..op5. */
 #define TORIRS_PLUGIN_REGION_OPS_MAX 8
 
 /*
@@ -728,7 +728,7 @@ struct ToriRS_PanelDescriptor
     /**
      * There is no title here, and that absence is the point.
      *
-     * A plugin's name is `ToriRS_PluginDefV2::title` -- the one a person sees in
+     * A plugin's name is `ToriRS_PluginDef::title` -- the one a person sees in
      * the roster, beside its switch, and against its saved settings. Letting
      * `panel_request` supply a second one made the name a thing a plugin could
      * change at runtime: two plugins could claim one spelling, a row could
@@ -984,6 +984,43 @@ struct ToriRS_LaneInfo
     int epoch;
     /** Numbered in `game`'s own lineage, so it means nothing without it. */
     int revision;
+};
+
+/** The gameframe asked of a frame provider (ToriRS_PluginCallbacks.on_gameframe).
+ *  `active` true: this offer is the selected frame and is being laid out
+ *  against `width` x `height` (the pinned size for a FIXED canvas, the window
+ *  for a WINDOW canvas); the provider answers by editing widgets -- moving,
+ *  hiding, skinning and anchoring the live surfaces and its owned controls --
+ *  and returns READY, PENDING (assets still loading; native stays up) or
+ *  UNSUPPORTED (this lane cannot take the frame), writing `reason` for the
+ *  latter two. Raised again on every canvas change while the offer stands.
+ *  `active` false: the offer is being released; the return is ignored and the
+ *  provider's teardown follows.
+ *
+ *  `safe` is the canvas less what the PLATFORM is covering -- the soft
+ *  keyboard band on a phone, and nothing else so far -- in canvas pixels; it
+ *  is the whole canvas (0, 0, width, height) when no band is up. A provider
+ *  hanging a strip from the bottom edge hangs it from `safe.y + safe.height`,
+ *  and the event is raised again when that band moves, exactly as on a canvas
+ *  change. The lane's own popout strip (`lane_chrome_0`) is NOT in it: that
+ *  is a widget the provider finds and subtracts itself. */
+struct ToriRS_GameframeEvent
+{
+    char const* offer_id;
+    bool active;
+    int canvas;
+    int width;
+    int height;
+    struct ToriRS_LaneInfo lane;
+    char* reason;
+    size_t reason_capacity;
+    struct
+    {
+        int x;
+        int y;
+        int width;
+        int height;
+    } safe;
 };
 
 /* ------------------------------------------------------------------------ */

@@ -38,7 +38,6 @@ enum UITreeEmitOverlaySource
     UITREE_EMIT_OVERLAY_NONE = 0,
     UITREE_EMIT_OVERLAY_ENTITY,
     UITREE_EMIT_OVERLAY_CANVAS,
-    UITREE_EMIT_OVERLAY_FRAME,
 };
 
 struct UITreeEmitClip
@@ -117,6 +116,9 @@ struct UITreeEmitDesc
     int debug_skin_scene_id;
     int debug_skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
     int model_id;
+    int model_anim_seq;
+    int model_anim_frame;
+    struct UITreeModelRenderCache* model_render_cache;
     int model_zoom;
     int model_xan;
     int model_yan;
@@ -192,7 +194,6 @@ struct UITreeEmitBuffer
     int overlay_scratch_cap;
     int overlay_range_start, overlay_range_count;
     uint8_t overlay_range_valid;
-    struct UITreeFrameOrderHints frame_order;
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
@@ -219,9 +220,9 @@ struct UITreeEmitBuffer
     uint8_t volatile_overlay_nonempty;
     /** Fully processed descriptor shapes, including node identity and common
      *  clipping/scroll fields, retained even while a source has zero items. */
-    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_FRAME + 1];
-    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_FRAME + 1];
-    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_FRAME + 1];
+    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_CANVAS + 1];
     /** Set when at least one volatile desc cannot be re-issued from the desc
      *  alone, so the whole list must be rebuilt by the walk instead of
      *  refreshed. Today that is WORLDMAP, whose desc does not record tiles vs

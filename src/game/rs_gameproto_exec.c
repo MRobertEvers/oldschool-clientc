@@ -94,18 +94,7 @@ exec_if_clearinv_node(
     c = &tree->components[idx];
     if( c->freed )
         return;
-    c->item_id = 0;
-    c->item_count = 0;
-    c->item_scene_id = -1;
-    c->item_atlas_index = 0;
-    if( c->type == UIELEM_CC_OBJ )
-    {
-        c->u.cc_obj.obj_id = 0;
-        c->u.cc_obj.obj_count = 0;
-        c->u.cc_obj.scene_id = -1;
-        c->u.cc_obj.atlas_index = 0;
-    }
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetObjectAt(tree, idx, 0, 0, -1, 0, c->item_num_mode);
     for( int32_t child = c->first_child; child >= 0; )
     {
         int32_t next = tree->components[child].next_sibling;
@@ -840,6 +829,9 @@ RS_GameProto_Exec(
     /* ---- varps ---- */
     case PKT_NAME_VARP_SMALL:
         VarPManager_ApplySmall(ctx->varps, packet->_varp_small.variable, packet->_varp_small.value);
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
+                packet->_varp_small.variable, packet->_varp_small.value);
         break;
     case PKT_NAME_VARP_LARGE:
         VarPManager_ApplyLarge(ctx->varps, packet->_varp_large.variable, packet->_varp_large.value);
@@ -852,6 +844,10 @@ RS_GameProto_Exec(
         {
             RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
+            if( getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
+                    packet->_update_stat.stat, ctx->stats->current_level[packet->_update_stat.stat],
+                    packet->_update_stat.xp);
             /* A level-up is read from the BASE level SetXp just derived, not
              * from the boosted one on the wire: a potion raises that and a
              * drain lowers it, and neither is an advance. */
@@ -927,6 +923,9 @@ RS_GameProto_Exec(
                 packet->_if_setevents.events);
         break;
     case PKT_NAME_IF_SETHIDE:
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET IF_SETHIDE received com=%d hide=%d\n",
+                packet->_if_sethide.component_id, packet->_if_sethide.hide);
         /* Persisting setter, not a one-shot apply: IF_SETHIDE routinely lands
          * before the interface it targets has finished mounting (the mount is
          * an async task), and the reference keeps `hide` on IfType.list where
@@ -1106,6 +1105,9 @@ RS_GameProto_Exec(
             RS_UISlots_CloseModal(ctx->app);
         break;
     case PKT_NAME_IF_SETTAB:
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET IF_SETTAB received tab=%d com=%d\n",
+                packet->_if_settab.tab_id, packet->_if_settab.component_id);
         if( ctx->app )
             RS_UISlots_SetTab(ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
         break;
@@ -1699,7 +1701,7 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_MINIMAP_TOGGLE:
         if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
-            TORIRS_LOG("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
+            TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
         if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
         {
             ctx->app->minimap_state = packet->_minimap_toggle.state;

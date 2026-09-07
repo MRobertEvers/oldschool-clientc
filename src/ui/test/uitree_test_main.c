@@ -1,4 +1,19 @@
 #include "test_harness.h"
+#include <stdlib.h>
+
+void test_plugin_contract_native(void);
+void test_native_geometry_audit(void);
+void test_native_object_swap_state(void);
+void test_native_hook_slot_ownership(void);
+void test_retained_operation_state(void);
+void test_live_widget_geometry(void);
+void test_live_widget_visibility(void);
+void test_widget_sidebar_group(void);
+void test_owned_widgets(void);
+void test_owned_widget_operations(void);
+void test_owned_image_widgets(void);
+void test_owned_control_click_reports_node(void);
+void test_plugin_contract_copy(void);
 
 int g_failures;
 void test_canvas_queries(void);
@@ -7,6 +22,41 @@ void test_overlay_retention(void);
 int
 main(void)
 {
+    if( getenv("TORIRS_TEST_CONTRACT_V3") )
+    {
+        test_scripted_entity_overlay();
+        test_plugin_contract_native();
+    test_native_geometry_audit();
+    test_native_object_swap_state();
+    test_native_hook_slot_ownership();
+    test_retained_operation_state();
+    test_live_widget_geometry();
+    test_live_widget_visibility();
+    test_widget_sidebar_group();
+    test_owned_widgets();
+    test_owned_widget_operations();
+    test_owned_image_widgets();
+    test_widget_anchor_depth();
+    test_widget_skin();
+    test_frame_provide();
+        test_plugin_contract_copy();
+        return g_failures ? 1 : 0;
+    }
+    test_plugin_contract_native();
+    test_native_geometry_audit();
+    test_native_object_swap_state();
+    test_native_hook_slot_ownership();
+    test_retained_operation_state();
+    test_live_widget_geometry();
+    test_live_widget_visibility();
+    test_widget_sidebar_group();
+    test_owned_widgets();
+    test_owned_widget_operations();
+    test_owned_image_widgets();
+    test_widget_anchor_depth();
+    test_widget_skin();
+    test_frame_provide();
+    test_plugin_contract_copy();
     test_canvas_queries();
     test_overlay_retention();
     test_dirty_marking();
@@ -35,6 +85,7 @@ main(void)
     test_key_dispatch();
     test_input_field();
     test_same_frame_press_release_clicks();
+    test_owned_control_click_reports_node();
     test_touch_swipe_scrolls_layer();
     test_feedback_overlay_never_takes_a_click();
     test_minimenu();
@@ -46,6 +97,7 @@ main(void)
     test_open_close_steady();
     test_mounted_component_inherits_container_hidden();
     test_clear_hooks_preserves_sibling_on_op();
+    test_click_hook_inherits_nearest_parent();
     test_mount_slot_reclaim_no_shadow_text();
     test_live_node_sets();
     test_debug_overlay();
@@ -59,7 +111,6 @@ main(void)
     test_server_driven_viewport_widgets();
     test_frame_replacement();
     test_frame_authored_metadata();
-    test_frame_declared_depth();
     test_roles();
 
     if( g_failures )

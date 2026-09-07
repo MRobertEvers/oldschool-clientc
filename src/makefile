@@ -744,12 +744,11 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-	plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
-	plugin/plugins/tileind.c \
+	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
 	plugin/plugins/gameframe.c \
@@ -1625,12 +1624,12 @@ test-cs2-host-request-kinds: $(OBJ_DIR)
 	./$(OBJ_DIR)/cs2_host_request_kinds_test
 
 .PHONY: test-cs2-host-request-producers
-test-cs2-host-request-producers: $(OBJ_DIR)
+test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test \
 		cs2vm2/test/host_request_producers_test.c \
 		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
 		perf/torirs_perf.c $(LDFLAGS)
-	./$(OBJ_DIR)/cs2_host_request_producers_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_host_request_producers_test
 
 .PHONY: test-cs2-array-fill
 test-cs2-array-fill: $(OBJ_DIR)
@@ -2264,8 +2263,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 		plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -2276,7 +2274,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 # with plugin_api.meta.lua, so neither a missing completion nor a documented
 # nil function can ship unnoticed.
 .PHONY: test-plugin-lua-api-inventory
-test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_v2.h \
+test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_api.h \
 		plugin/test/plugin_lua_api_inventory_test.py \
 		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
@@ -2284,20 +2282,31 @@ test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_v
 # Native-V2 Lua runtime smoke test. Its fake host captures the dynamic
 # definitions, runs scoped callbacks, exercises source reload, and compiles all
 # bundled scripts inside the real sandboxed Lua VM.
-PLUGIN_LUA_TEST_ENV =
+PLUGIN_TEST_ENV =
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
-PLUGIN_LUA_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+PLUGIN_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
 endif
+.PHONY: plugin-engine-cache-hooks
+.PHONY: test-plugin-native-hooks
+test-plugin-native-hooks:
+	python3 $(REPO_ROOT)/tools/test_plugin_engine_script_hooks.py
+
+PLUGIN_HOOK_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239-curses
+PLUGIN_HOOK_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239-plugin-hooks
+plugin-engine-cache-hooks:
+	python3 $(REPO_ROOT)/tools/plugin_engine_script_hooks.py --build \
+		--base "$(PLUGIN_HOOK_CACHE_BASE)" --cache "$(PLUGIN_HOOK_CACHE_DIR)"
+
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \
-		plugin/test/torirs_plugin_lua_v2_test.c test-plugin-lua-api-inventory \
+		plugin/test/plugin_lua_test.c test-plugin-lua-api-inventory \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
-		plugin/torirs_plugin_lua.c plugin/test/torirs_plugin_lua_v2_test.c \
+		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
-	$(PLUGIN_LUA_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
 # The item-stats tooltip, against a hand-built api table rather than the host:
 # the whole plugin is "given a hovered item and a set of levels, what does the
@@ -2341,27 +2350,23 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c \
-		plugin/torirs_plugin_ui.c \
-		plugin/test/torirs_plugin_host_test.c
+		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c \
-		plugin/torirs_plugin_ui.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/plugin_host_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
 
-# Public v2 source contract. This target stays parse/type-check only so an API
+# Public major-3 source contract. This target stays parse/type-check only so an API
 # header regression is reported directly; runtime registration and behavior
 # are covered by test-plugin-host and the bundled-plugin suites.
-.PHONY: test-plugin-api-v2
-test-plugin-api-v2: plugin/torirs_plugin_v2.h plugin/test/torirs_plugin_v2_compile_test.c \
+.PHONY: test-plugin-api
+test-plugin-api: plugin/torirs_plugin_api.h plugin/test/plugin_api_compile_test.c \
 		plugin/test/plugin_api_single_version_test.py
 	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
-		-I$(SRC_DIR) plugin/test/torirs_plugin_v2_compile_test.c
+		-I$(SRC_DIR) plugin/test/plugin_api_compile_test.c
 	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_api_single_version_test.py
-	@echo "test-plugin-api-v2: ok"
+	@echo "test-plugin-api: ok"
 
 # First bundled v2 consumer. The fake modules pin the old tile indicator's
 # drawing order and colours while proving it needs neither a global API pointer
@@ -2386,27 +2391,6 @@ test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 		plugin/test/plugin_panel_route_test.c ui/torirs_chrome_rail.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_panel_route_test
 
-# Exact fragmented safe-area geometry. Pure data: no host, app, cache, or
-# renderer belongs in this link, which keeps the placement arithmetic usable
-# by both frame construction and the public plugin API.
-.PHONY: test-plugin-placement
-test-plugin-placement: $(OBJ_DIR) plugin/torirs_plugin_placement.c \
-		plugin/test/torirs_plugin_placement_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_placement_test \
-		plugin/torirs_plugin_placement.c plugin/test/torirs_plugin_placement_test.c \
-		$(LDFLAGS)
-	./$(OBJ_DIR)/plugin_placement_test
-
-# Canonical named-UI policy.  This target deliberately links no host, UITree,
-# renderer, or cache: references, retained facet resolution, and conflicts are
-# deterministic data operations shared by all eventual executors.
-.PHONY: test-plugin-ui
-test-plugin-ui: $(OBJ_DIR) plugin/torirs_plugin_ui.c \
-		plugin/test/torirs_plugin_ui_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_ui_test \
-		plugin/torirs_plugin_ui.c plugin/test/torirs_plugin_ui_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/plugin_ui_test
-
 # The client-owned Gameframe dropdown against the public legacy API. This is a
 # small adapter test: visible titles may change (or even contain the old pipe
 # delimiter), while a click must always send the canonical catalogue id.
@@ -2430,8 +2414,7 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test
@@ -2466,13 +2449,37 @@ test-gameframe-contract:
 		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
 	GF_MATRIX_SCENARIOS=1 ../tools/gameframe_matrix.sh
 
+.PHONY: test-gameframe-baseline test-gameframe-fixture
+test-gameframe-baseline:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	GF_MATRIX_BASELINE=1 ../tools/gameframe_matrix.sh
+
+test-gameframe-fixture:
+	python3 ../tools/test_gameframe_fixture.py
+
+.PHONY: test-plugin-engine-content
+test-plugin-engine-content:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
+	python3 ../tools/test_cachepack_param_assets.py
+	python3 ../tools/test_cs2_proc_headers.py
+
+.PHONY: test-plugin-contract test-plugin-contract-native
+test-plugin-contract: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_contract_test \
+		plugin/torirs_plugin_contract.c plugin/test/torirs_plugin_contract_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_contract_test
+
+# M1 red cases; uses the existing UITree harness rather than another runner.
+test-plugin-contract-native:
+	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
+
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
@@ -2493,30 +2500,28 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/mobile_gameframe_test
 
 .PHONY: test-minimap-orbs-v2
-test-minimap-orbs-v2: $(OBJ_DIR) plugin/plugins/minimap_orbs.c \
+test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
 		plugin/test/minimap_orbs_v2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
 		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/minimap_orbs_v2_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-		plugin/torirs_plugin_placement.c plugin/torirs_plugin_ui.c \
-		ui/uitree_minimenu.c revconfig/revconfig.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
-	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test
+	./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
@@ -3015,7 +3020,12 @@ test-wev-visibility: $(OBJ_DIR)
 CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
 	-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE
 
-test-uitree: $(OBJ_DIR)
+UITREE_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+UITREE_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+
+test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
@@ -3025,7 +3035,7 @@ test-uitree: $(OBJ_DIR)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_frame_depth.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -3033,7 +3043,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
-		ui/test/uitree_test_input_field.c \
+		ui/test/uitree_test_input_field.c ui/test/uitree_test_plugin_contract.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \
@@ -3048,7 +3058,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_frame.c \
 		ui/test/uitree_test_roles.c \
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
-	./$(OBJ_DIR)/uitree_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/uitree_test
 
 # The attached plugin pane's WINDOW-SIZE policy alone (grow only where the
 # display has room, never while maximised, Close gives back what was grown,
@@ -3091,12 +3101,12 @@ endif
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
 # plain buffer with the baked font. Pixel-level, but needs no cache and no
 # renderer â ToriDraw2D_DrawString writes the buffer itself.
-test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/font_markup_test \
 		ui/test/font_markup_test.c engine/torirs_debug_font_baked.c \
 		$(BMP_DIR)/bmp.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) -lm
-	./$(OBJ_DIR)/font_markup_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/font_markup_test
 
 # Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
 # with the *baked* fonts, one BMP per feature into build/. This is the only test
@@ -3737,11 +3747,11 @@ test-minimap-dots: $(OBJ_DIR) $(OBJS)
 # on the CS2 VM for two lanes. Each case sets exactly ONE flag, because with any
 # second flag set the guard opens and the bug is invisible. Needs no cache and
 # no server.
-test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS)
+test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_cs2_transmit_pump_test \
 		game/test/rs_cs2_transmit_pump_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	./$(OBJ_DIR)/rs_cs2_transmit_pump_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/rs_cs2_transmit_pump_test
 
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
 # surface) against the real dat1 cache + rs245_2lc RevConfig build.
