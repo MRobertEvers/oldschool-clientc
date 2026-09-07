@@ -796,6 +796,54 @@ frame_stretch_ancestors(
     }
 }
 
+/*
+ * The same release for a PROVIDED frame, whose placements are retained widget
+ * edits rather than slot rectangles: a native widget a plugin moved or resized
+ * is the placed surface, and every container above it stops clipping so the
+ * new box is seen wherever the plugin put it. A moved widget inside another
+ * moved widget releases nothing, for the reason frame_stretch_ancestors gives
+ * for members; a container that is itself moved keeps its own containment.
+ */
+static int
+frame_node_moved(struct UITree const* tree, int32_t idx)
+{
+    struct UITreeElemPosition scratch;
+    if( !frame_node_alive(tree, idx) )
+        return 0;
+    scratch = tree->components[idx].position;
+    return UITree_WidgetPositionOverride(tree, idx, &scratch) != 0;
+}
+
+static void
+frame_stretch_moved_ancestors(
+    struct UITree* tree,
+    struct UITreeFrameLayout* fl)
+{
+    assert(tree);
+    assert(fl);
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        int inside_moved = 0;
+        if( tree->components[i].plugin_owner || !frame_node_moved(tree, (int32_t)i) )
+            continue;
+        for( int32_t p = tree->components[i].parent; p >= 0 && !inside_moved;
+             p = tree->components[p].parent )
+        {
+            if( !frame_node_alive(tree, p) )
+                break;
+            inside_moved = frame_node_moved(tree, p);
+        }
+        if( inside_moved )
+            continue;
+        for( int32_t p = tree->components[i].parent; p >= 0; p = tree->components[p].parent )
+        {
+            if( !frame_node_alive(tree, p) )
+                break;
+            frame_stretch_node(tree, fl, p);
+        }
+    }
+}
+
 /** Authored to be exactly its parent's box (if3 size mode 1 with a zero
  *  inset, at the origin), which is how a toplevel says "the scene IS this
  *  layer". */
@@ -1105,6 +1153,8 @@ frame_apply(
     }
 
     frame_stretch_ancestors(tree, &next);
+    if( chrome_only )
+        frame_stretch_moved_ancestors(tree, &next);
     frame_collect_game_area(tree, &next);
     frame_collect_chrome(tree, &next, root_group);
 
