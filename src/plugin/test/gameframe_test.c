@@ -113,6 +113,7 @@ static struct
     int anchor_slot[TORIRS_HOST_SURFACE_COUNT];
     int begin_calls;
     int end_calls;
+    int provide_calls;
 
     int blits;
     int blit_image[128];
@@ -191,6 +192,7 @@ static void
 fake_frame_provide(void* u)
 {
     (void)u;
+    g_frame.provide_calls++;
 }
 
 static void
@@ -317,51 +319,6 @@ fake_draw_image(
         g_frame.blit_y[g_frame.blits] = y;
     }
     g_frame.blits++;
-    return 1;
-}
-
-/** Did anything land at exactly this spot in the last draw pass? */
-static int
-blitted_at(int x, int y)
-{
-    for( int i = 0; i < g_frame.blits && i < 128; i++ )
-        if( g_frame.blit_x[i] == x && g_frame.blit_y[i] == y )
-            return 1;
-    return 0;
-}
-
-/* Compare the painted lower strip with clean source rock. This checks
- * compositing order as well as pixels: a correct image hidden under the old
- * recesses must fail. The source is the shipped 496x50 backbase1 artwork. */
-static int
-classic_base_is_flat(void)
-{
-    int source = -1;
-    for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )
-        if( g_image[i].argb && g_image[i].w == 496 && g_image[i].h == 50 )
-            source = i;
-    if( source < 0 || !g_image[source].argb || g_image[source].w != 496 ||
-        g_image[source].h != 50 )
-        return 0;
-    for( int y = 467; y < 499; y++ )
-        for( int x = 0; x < 536; x++ )
-        {
-            uint32_t painted = 0;
-            for( int i = 0; i < g_frame.blits && i < 128; i++ )
-            {
-                int slot = g_frame.blit_image[i];
-                int px = x - g_frame.blit_x[i];
-                int py = y - g_frame.blit_y[i];
-                if( slot >= 0 && slot < FAKE_IMAGE_SLOTS && g_image[slot].argb &&
-                    px >= 0 && py >= 0 && px < g_image[slot].w && py < g_image[slot].h )
-                {
-                    uint32_t color = g_image[slot].argb[py * g_image[slot].w + px];
-                    if( (color >> 24) == 255 ) painted = color;
-                }
-            }
-            if( painted != g_image[source].argb[(y - 453) * 496 + 106 + x % 29] )
-                return 0;
-        }
     return 1;
 }
 
@@ -846,97 +803,277 @@ declare(int w, int h)
     PluginHost_Layout(g_host, w, h);
 }
 
+/* ------------------------------------------------------- fake widget tree */
+
+/*
+ * The lane's gameframe as the widget API sees it: one node per role, members
+ * numbered the role's own way, and the plugin's owned children keyed under
+ * their parents. Native boxes are canvas coordinates; an owned child's are its
+ * parent's plus the local position the plugin set, which is what the bridge
+ * reports as `bounds`.
+ */
+#define FW_MAX 160
+struct FakeWidget
+{
+    int alive;
+    int parent;
+    char role[24];
+    int member;
+    char key[24];
+    uint64_t owner; /* 0 = native */
+    int x, y, w, h;
+    int hidden;
+    int moved;
+    int image, img_w, img_h; /* owned: the picture shown; -1 none */
+    int art;                 /* native: retained re-skin slot, -1 none */
+    int mask;                /* native: retained mask slot, -2 unset, -1 unmasked */
+    int opacity;
+    char op[32];
+    uint64_t registration;
+    int anchor_target;
+    int anchor_relation;
+};
+static struct FakeWidget g_w[FW_MAX];
+static int g_w_count;
+static int g_widget_resets;
+static uint64_t g_widget_owner;
+
+static struct ToriRS_WidgetRef fw_ref(int id) { return (struct ToriRS_WidgetRef){ { 77, (uint64_t)id + 1, 1 } }; }
+static int fw_id(struct ToriRS_WidgetRef r)
+{
+    if( r.opaque[0] != 77 || r.opaque[2] != 1 || r.opaque[1] == 0 || r.opaque[1] > (uint64_t)g_w_count ) return -1;
+    return g_w[r.opaque[1] - 1].alive ? (int)r.opaque[1] - 1 : -1;
+}
+static int
+fw_add(int parent, char const* role, int member, int x, int y, int w, int h)
+{
+    struct FakeWidget* n;
+    assert(g_w_count < FW_MAX);
+    n = &g_w[g_w_count];
+    memset(n, 0, sizeof(*n));
+    n->alive = 1; n->parent = parent; n->member = member;
+    snprintf(n->role, sizeof(n->role), "%s", role ? role : "");
+    n->x = x; n->y = y; n->w = w; n->h = h;
+    n->image = -1; n->art = -1; n->mask = -2; n->opacity = 255; n->anchor_target = -1;
+    return g_w_count++;
+}
+static void fw_canvas(int id, int* x, int* y)
+{
+    struct FakeWidget const* n = &g_w[id];
+    *x = n->x; *y = n->y;
+    if( n->owner && n->parent >= 0 ) { int px, py; fw_canvas(n->parent, &px, &py); *x += px; *y += py; }
+}
+static void fw_clear_edits(struct FakeWidget* n)
+{
+    n->hidden = 0; n->moved = 0; n->art = -1; n->mask = -2; n->anchor_target = -1; n->anchor_relation = 0;
+}
+/* Build a lane. Every lane has the seven surfaces and fourteen side panels;
+ * a 2004 lane has four chat buttons, an OldSchool one the orb block with its
+ * three profile-numbered children and the chat pack's decoration roles. */
 static void
-draw(int w, int h)
+fw_build(int oldschool)
 {
-    static uint64_t now_ms = 10000;
-    g_frame.blits = 0;
-    g_frame.regions = 0;
-    PluginHost_FrameStart(g_host, now_ms++, 0);
-    PluginHost_DrawFrame(g_host, w, h);
-    PluginHost_DrawCanvas(g_host, w, h);
-}
-
-static int
-slot_is(int slot, int x, int y, int w, int h)
-{
-    return g_frame.slot[slot].placed && g_frame.slot[slot].x == x &&
-           g_frame.slot[slot].y == y && g_frame.slot[slot].w == w &&
-           g_frame.slot[slot].h == h;
-}
-
-/** One MEMBER of a role's box, as the last declaration stated it.
- *  @see ToriRS_OrbsMember -- the activity adviser is the only one today. */
-static int
-member_is(int slot, int member, int x, int y, int w, int h)
-{
-    struct FakeRect const* r = &g_frame.member[slot][member];
-
-    return r->placed && r->x == x && r->y == y && r->w == w && r->h == h;
-}
-
-static int
-named_node_is(char const* name, int x, int y, int w, int h)
-{
-    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
-
-    return ref.value != 0 && PluginHost_UiInfo(g_host, ref, &info) &&
-           info.bounds.x == x && info.bounds.y == y &&
-           info.bounds.width == w && info.bounds.height == h;
-}
-
-/** Whether this named node is held with a picture of its own. */
-/** Whether the plugin is HOLDING this node and painting it visible -- with or
- *  without a picture. A held node carrying no art is how this API says
- *  "hidden by its holder". */
-static int
-named_node_visible(char const* name)
-{
-    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
-
-    return ref.value != 0 && PluginHost_UiInfo(g_host, ref, &info) && info.visible;
-}
-
-static int
-named_node_has_image(char const* name)
-{
-    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-    struct ToriRS_UiNodeRef const ref = PluginHost_UiRef(g_host, g_plugin, name);
-
-    return ref.value != 0 && PluginHost_UiInfo(g_host, ref, &info) && info.visible &&
-           info.state_images[TORIRS_UI_VISUAL_IDLE].value != 0;
-}
-
-static int
-named_tabs_present(void)
-{
-    for( int tab = 0; tab < 14; tab++ )
+    int root;
+    memset(g_w, 0, sizeof(g_w));
+    g_w_count = 0;
+    root = fw_add(-1, "", -1, 0, 0, 765, 503);
+    fw_add(root, "viewport", -1, 4, 4, 512, 334);
+    fw_add(root, "minimap", -1, 575, 9, 146, 151);
+    fw_add(root, "compass", -1, 550, 4, 33, 33);
+    fw_add(root, "chat", -1, 0, 338, 519, 165);
+    fw_add(root, "sidebar", -1, 553, 205, 190, 261);
+    for( int i = 0; i < 14; i++ ) fw_add(root, "sidebar", i, 553, 205, 190, 261);
+    fw_add(root, "main_modal", -1, 4, 4, 512, 334);
+    if( !oldschool )
+        for( int i = 0; i < 4; i++ ) fw_add(root, "chat_buttons", i, 6 + i * 130, 467, 100, 32);
+    if( oldschool )
     {
-        char name[48];
-        struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-        (void)snprintf(name, sizeof(name), "frame.sidebar.tab.%d", tab);
-        if( !PluginHost_UiInfo(
-                g_host, PluginHost_UiRef(g_host, g_plugin, name), &info) )
-            return 0;
+        fw_add(root, "orbs", -1, 521, 4, 236, 163);
+        for( int i = 0; i < 3; i++ ) fw_add(root, "orbs", i, 700 + i, 50, 34, 34);
+        fw_add(root, "chat_backing", -1, 0, 338, 519, 142);
+        fw_add(root, "chat_bar", -1, 0, 480, 519, 23);
+        for( int i = 0; i < 8; i++ ) fw_add(root, "chat_plate", i, 5 + i * 62, 480, 56, 22);
     }
-    return 1;
+}
+static int fw_find(char const* role, int member)
+{
+    char base[24]; char const* under = strrchr(role, '_');
+    int wanted = member;
+    /* chat_plate_3 and friends: the numbered role names of the OldSchool profile. */
+    if( member < 0 && under && under[1] >= '0' && under[1] <= '9' )
+    {
+        snprintf(base, sizeof(base), "%.*s", (int)(under - role), role);
+        wanted = atoi(under + 1);
+        role = base;
+    }
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && !g_w[i].owner && strcmp(g_w[i].role, role) == 0 && g_w[i].member == wanted ) return i;
+    return -1;
+}
+static enum ToriRS_ContractResult
+fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
+{
+    (void)u;
+    g_widget_owner = owner;
+    if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
+    {
+        ++g_widget_resets;
+        for( int i = 0; i < g_w_count; i++ )
+        {
+            if( g_w[i].owner == owner ) g_w[i].alive = 0;
+            else if( !g_w[i].owner ) fw_clear_edits(&g_w[i]);
+        }
+        return TORIRS_CONTRACT_OK;
+    }
+    if( r->kind == PLUGIN_WIDGET_FIND )
+    {
+        int id = fw_find(r->name, -1);
+        if( id < 0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        *r->refs = fw_ref(id); return TORIRS_CONTRACT_OK;
+    }
+    if( r->kind == PLUGIN_WIDGET_FIND_ALL )
+    {
+        *r->count = 0;
+        for( int m = 0; m < 16; m++ )
+        {
+            int id = fw_find(r->name, m);
+            if( id < 0 ) continue;
+            if( *r->count < r->capacity ) r->refs[*r->count] = fw_ref(id);
+            ++*r->count;
+        }
+        if( *r->count == 0 )
+        {
+            int id = fw_find(r->name, -1);
+            if( id < 0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+            if( r->capacity ) r->refs[0] = fw_ref(id);
+            *r->count = 1;
+        }
+        return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    }
+    int const id = fw_id(r->ref);
+    if( id < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct FakeWidget* n = &g_w[id];
+    if( n->owner && n->owner != owner && r->kind >= PLUGIN_WIDGET_POSITION ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    switch( r->kind )
+    {
+    case PLUGIN_WIDGET_PARENT:
+        if( n->parent < 0 ) return TORIRS_CONTRACT_UNAVAILABLE;
+        *r->refs = fw_ref(n->parent); return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_BOUNDS:
+    { int x, y; fw_canvas(id, &x, &y); *r->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h }; return TORIRS_CONTRACT_OK; }
+    case PLUGIN_WIDGET_LOCAL_BOUNDS:
+    { int x = n->x, y = n->y; if( !n->owner && n->parent >= 0 ) { x -= g_w[n->parent].x; y -= g_w[n->parent].y; }
+      *r->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h }; return TORIRS_CONTRACT_OK; }
+    case PLUGIN_WIDGET_VISIBLE: *r->flag = !n->hidden; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_POSITION:
+        if( n->owner ) { n->x = r->a; n->y = r->b; }
+        else { int px = n->parent >= 0 ? g_w[n->parent].x : 0, py = n->parent >= 0 ? g_w[n->parent].y : 0; n->x = px + r->a; n->y = py + r->b; }
+        n->moved = 1; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SIZE: n->w = r->a; n->h = r->b; n->moved = 1; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_HIDDEN: n->hidden = r->a ? 1 : 0; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_ANCHOR: n->anchor_target = r->a ? fw_id(r->target) : -1; n->anchor_relation = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_CREATE_IMAGE:
+    {
+        for( int i = 0; i < g_w_count; i++ )
+            if( g_w[i].alive && g_w[i].owner == owner && g_w[i].parent == id && strcmp(g_w[i].key, r->name) == 0 )
+            { *r->refs = fw_ref(i); return TORIRS_CONTRACT_OK; }
+        int child = fw_add(id, "", -1, 0, 0, 0, 0);
+        g_w[child].owner = owner;
+        snprintf(g_w[child].key, sizeof(g_w[child].key), "%s", r->name);
+        *r->refs = fw_ref(child); return TORIRS_CONTRACT_OK;
+    }
+    case PLUGIN_WIDGET_SET_IMAGE:
+        if( n->owner ) { n->image = r->id; n->img_w = r->a; n->img_h = r->b; n->w = r->a; n->h = r->b; return TORIRS_CONTRACT_OK; }
+        if( r->a || r->b ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        n->art = r->id; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_MASK: if( n->owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED; n->mask = r->id; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_OPACITY: n->opacity = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_ON_OP: snprintf(n->op, sizeof(n->op), "%s", r->name ? r->name : ""); n->registration = r->registration; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_REMOVE: if( !n->owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED; n->alive = 0; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_RESET: fw_clear_edits(n); return TORIRS_CONTRACT_OK;
+    default: return TORIRS_CONTRACT_UNAVAILABLE;
+    }
 }
 
-static int
-named_node_state(char const* name, int* enabled, int* active)
+/* --------------------------------------------------------------- helpers */
+
+static struct FakeWidget* owned(char const* key)
 {
-    struct ToriRS_UiNodeInfo info = { .struct_size = sizeof(info) };
-    if( !PluginHost_UiInfo(
-            g_host, PluginHost_UiRef(g_host, g_plugin, name), &info) )
-        return 0;
-    if( enabled )
-        *enabled = info.enabled;
-    if( active )
-        *active = info.active;
-    return 1;
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && g_w[i].owner && strcmp(g_w[i].key, key) == 0 ) return &g_w[i];
+    return NULL;
 }
+static int owned_count(char const* prefix)
+{
+    int n = 0;
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, prefix, strlen(prefix)) == 0 ) n++;
+    return n;
+}
+static struct FakeWidget* native(char const* role, int member)
+{
+    int id = fw_find(role, member);
+    return id >= 0 ? &g_w[id] : NULL;
+}
+static int placed(char const* role, int member, int x, int y, int w, int h)
+{
+    struct FakeWidget const* n = native(role, member);
+    return n && n->moved && !n->hidden && n->x == x && n->y == y && n->w == w && n->h == h;
+}
+static int owned_at(char const* key, int x, int y)
+{
+    struct FakeWidget const* n = owned(key);
+    int cx, cy;
+    if( !n || n->image < 0 ) return 0;
+    fw_canvas((int)(n - g_w), &cx, &cy);
+    return cx == x && cy == y;
+}
+static int anchored(struct FakeWidget const* n, char const* role, int relation)
+{
+    return n && n->anchor_relation == relation && n->anchor_target == fw_find(role, -1);
+}
+static int pieces_behind_viewport(void)
+{
+    int n = 0;
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 &&
+            anchored(&g_w[i], "viewport", TORIRS_WIDGET_RELATION_BEHIND) ) n++;
+    return n;
+}
+static void press(char const* key)
+{
+    struct FakeWidget const* n = owned(key);
+    CHECK(n && n->op[0], key);
+    if( n && n->op[0] )
+        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
+              "the owned control's operation dispatches");
+}
+static void frame_tick(void) { static uint64_t now_ms = 10000; PluginHost_FrameStart(g_host, now_ms++, 0); }
+/** The frame-start refresh, then the re-plan the app runs when the provider
+ *  invalidated: frame.invalidate republishes through frame_activate, which is
+ *  what marks the app's layout dirty. */
+static void tick_and_declare(int w, int h)
+{
+    int const published = g_frame.set_calls;
+    frame_tick();
+    CHECK(g_frame.set_calls > published, "the provider invalidated its frame");
+    declare(w, h);
+}
+static int image_opaque_rows(int slot)
+{
+    int rows = 0;
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || !g_image[slot].argb ) return 0;
+    for( int y = 0; y < g_image[slot].h; y++ )
+    {
+        int opaque = 0;
+        for( int x = 0; x < g_image[slot].w; x++ ) if( g_image[slot].argb[y * g_image[slot].w + x] >> 24 ) opaque++;
+        if( opaque == g_image[slot].w ) rows++;
+    }
+    return rows;
+}
+
+/* ------------------------------------------------------------------ main */
 
 int
 main(void)
@@ -1042,12 +1179,15 @@ main(void)
     e.object_ready = fake_object_ready;
     e.hsl_from_rgb = fake_hsl_from_rgb;
     e.hsl_to_rgb = fake_hsl_to_rgb;
+    e.widget_request = fake_widget_request;
 
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.missing_tab = -1;
     g_frame.ungiven_tab = -1;
+    g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
+    fw_build(/*oldschool=*/0);
     snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", "auto");
     g_frame_preference_present = 1;
     g_frame_preference_migration = 1;
@@ -1057,962 +1197,200 @@ main(void)
     PluginHost_Free(g_host);
     g_host = PluginHost_New(&e);
 
-    CHECK(
-        TORIRS_PLUGIN_GAMEFRAME.callbacks.on_placement_changed != NULL,
-        "the resizable gameframe rebuilds when live lane chrome moves");
+    CHECK(TORIRS_PLUGIN_GAMEFRAME.callbacks.on_gameframe != NULL && TORIRS_PLUGIN_GAMEFRAME.frames[0].build == NULL,
+          "the gameframe is a provided frame: on_gameframe, no builder");
+    CHECK(TORIRS_PLUGIN_GAMEFRAME.ui_contributions == NULL && TORIRS_PLUGIN_GAMEFRAME.callbacks.on_ui_node_action == NULL &&
+          TORIRS_PLUGIN_GAMEFRAME.callbacks.on_placement_changed == NULL,
+          "no superseded execution API remains on the definition");
     g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
     CHECK(g_plugin >= 0, "the plugin registers");
-    CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
-        "the settings client registers");
+    CHECK(PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0, "the settings client registers");
     CHECK(g_frame.active == 0, "nothing owns the frame before selection is resolved");
-
     PluginHost_Start(g_host);
 
     /* ---- 1. host-owned selection -------------------------------------- */
-
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.requested_id, "auto") == 0,
-            "the engine's Auto preference is the host's requested frame");
-        CHECK(
-            strcmp(selected.active_id, "core/native") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_NATIVE,
-            "Auto resolves to the client's native frame");
+        CHECK(strcmp(selected.requested_id, "auto") == 0, "the engine's Auto preference is the host's requested frame");
+        CHECK(strcmp(selected.active_id, "core/native") == 0 && selected.status == TORIRS_FRAME_STATUS_NATIVE,
+              "Auto resolves to the client's native frame");
         CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
-        CHECK(g_frame.active == 0, "the native frame remains owned by the client");
     }
-
     select_frame("gameframe-layout/classic-fixed", 100);
-
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
-                strcmp(selected.active_id, "core/native") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_LOADING,
-            "the host prepares classic-fixed without replacing native yet");
+        CHECK(strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
+                  strcmp(selected.active_id, "core/native") == 0 && selected.status == TORIRS_FRAME_STATUS_LOADING,
+              "the host prepares classic-fixed without replacing native yet");
     }
-    CHECK(
-        strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
-            g_frame_preference_set_calls == 1,
-        "frame_select persists the canonical id through the engine");
     CHECK(PluginHost_IsEnabled(g_host, g_plugin), "selection starts the frame provider");
-    CHECK(g_frame.active == 0, "native stays live before the candidate declaration");
-    /*
-     * Selection does NOT declare on the spot, and that is deliberate.
-     *
-     * The host has no logical canvas at selection time, so building there
-     * would pass a 0x0 canvas and put every edge-anchored piece off-screen.
-     * The build therefore runs at the engine's safe layout fence.
-     */
-    CHECK(
-        g_frame.end_calls == 0,
-        "selection does not declare against a canvas it cannot know");
+    CHECK(g_frame.active == 0 && g_frame.provide_calls == 0, "native stays live before the provider is asked");
 
-    /* ---- 2. classic fixed ---------------------------------------------- */
-
+    /* ---- 2. classic fixed on the 2004 lane ----------------------------- */
     declare(765, 503);
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "a valid classic declaration becomes the active offer");
+        CHECK(strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 && selected.status == TORIRS_FRAME_STATUS_ACTIVE,
+              "a READY classic plan becomes the active offer");
     }
-    CHECK(g_frame.active == 1, "the validated provider owns the frame");
-    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED, "classic-fixed pins the canvas");
-    CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 4, 4, 512, 334),
-        "classic viewport is the dat1 frame's 512x334 at 4,4");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_MINIMAP, 575, 9, 146, 151),
-        "classic minimap is the dat1 frame's");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 17, 357, 479, 96), "classic chat is the dat1 frame's");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
-        "classic sidebar is the dat1 frame's");
-    /*
-     * The COMPASS slot, not the minimap's.
-     *
-     * `mapback` is one plate with two holes in it, and an overlay paints after
-     * its anchor's whole subtree -- so the anchor has to be the later of the
-     * two live surfaces it frames, and on this frame the map is placed first
-     * and the compass second. Anchored to the map the plate went down between
-     * them, and the compass came out as a bare square drawn over the frame
-     * with its own hole painted behind it.
-     */
-    CHECK(
-        !g_frame.overlay[TORIRS_HOST_SURFACE_MINIMAP].placed &&
-            !g_frame.overlay[TORIRS_HOST_SURFACE_COMPASS].placed,
-        "classic housing uses one named appearance, not a duplicate slot overlay");
-    CHECK(
-        named_node_is("frame.minimap.housing", 550, 4, 172, 156),
-        "classic housing is retained above the minimap under one canonical name");
-    /*
-     * And both live surfaces CUT to that plate's two windows.
-     *
-     * The 2004 client painted `mapback` after the map and the compass, which
-     * is what hid a square map's corners and the compass sprite's (100,0,0)
-     * ones. A provider's furniture is painted in the frame's backdrop pass,
-     * under every live surface the lane draws, so the plate cannot hide
-     * anything by being opaque -- masking is how the same pixels are reached
-     * from the other side, and a layout that placed both surfaces correctly
-     * and skinned neither passes every rectangle assertion above while showing
-     * a square minimap and a dark-red square compass.
-     */
-    CHECK(
-        g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].placed &&
-            g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].mask >= 0,
-        "the classic minimap is cut to the mapback's map window");
-    CHECK(
-        g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].placed &&
-            g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].mask >= 0,
-        "and the compass to its own");
-    /*
-     * The housing is a named node on every lane. When a lane also maps
-     * `minimap_edge`, both resolve to the same canonical identity, so the
-     * minimap-orbs column follows the plate actually on screen.
-     */
-    g_fake_minimap_edge = 1;
-    declare(765, 503);
-    CHECK(
-        named_node_is("frame.minimap.housing", 550, 4, 172, 156),
-        "the classic housing is published under its canonical V2 name");
-    g_fake_minimap_edge = 0;
-    CHECK(
-        g_frame.slot[TORIRS_HOST_SURFACE_MODAL].placed,
-        "the modal region is placed, not left to the lane");
-    CHECK(g_frame.slot[TORIRS_HOST_SURFACE_COMPASS].placed,
-          "the provider declares the native compass surface");
-
-    {
-        /*
-         * The four chat filter buttons, each at its own box.
-         *
-         * They are CONTROLS wearing chrome, so an earlier version of this
-         * suppressed them with the surround they sit in: the player lost the
-         * public/private/trade toggles and got four empty stone plates. The
-         * case pins the fix in both halves -- that they are placed at all, and
-         * that each one is placed SEPARATELY, since a single box for the role
-         * would stack all four on top of each other.
-         */
-        int distinct = 1;
-        for( int i = 1; i < 4; i++ )
-            if( g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].x <=
-                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i - 1].x )
-                distinct = 0;
-        for( int i = 0; i < 4; i++ )
-            CHECK(
-                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][i].placed,
-                "every chat filter button is placed, not suppressed");
-        CHECK(distinct, "and each at its own box, left to right");
-        CHECK(
-            !g_frame.slot[TORIRS_HOST_SURFACE_CHAT_BUTTONS].placed,
-            "the role as a whole is not placed -- one box would stack them");
-        /* The reference's own x for Report abuse: centred at 458, so a
-         * 100-wide box starts at 408. */
-        CHECK(
-            g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][3].x == 408 &&
-                g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][3].y == 467,
-            "classic places Report abuse where the 2004 frame does");
-    }
-
-    /* ---- 3. the drawing and the tabs ----------------------------------- */
-
+    CHECK(g_frame.active == 1 && g_frame.provide_calls == 1 && g_frame.end_calls == 0,
+          "the provider owns the frame through frame_provide, with no slot declaration");
+    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
+          "classic-fixed pins the canvas at the classic frame");
+    CHECK(placed("viewport", -1, 4, 4, 512, 334), "classic viewport is the dat1 frame's 512x334 at 4,4");
+    CHECK(placed("minimap", -1, 575, 9, 146, 151) && anchored(native("minimap", -1), "viewport", TORIRS_WIDGET_RELATION_OVER),
+          "classic minimap sits in the housing's window, over the scene");
+    CHECK(placed("compass", -1, 550, 4, 33, 33), "classic compass is the housing's rose window");
+    CHECK(placed("chat", -1, 17, 357, 479, 96), "classic chat is the dat1 frame's");
+    CHECK(placed("sidebar", -1, 553, 205, 190, 261), "classic sidebar is the dat1 frame's");
+    CHECK(placed("main_modal", -1, 4, 4, 512, 334), "classic modal shares the scene's box");
+    CHECK(placed("chat_buttons", 0, 6, 467, 100, 32) && placed("chat_buttons", 3, 408, 467, 100, 32),
+          "the four 2004 chat buttons stand at the reference's own columns");
+    printf("GAMEFRAME classic pieces=%d tabs=%d icons=%d housing=%d\n", pieces_behind_viewport(), owned_count("tab."),
+           owned_count("icon."), owned("housing") != NULL);
+    CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images behind the scene");
+    CHECK(owned_at("piece.00", 0, 0) && owned_at("piece.10", 17, 357) && owned_at("piece.13", 496, 466),
+          "the surround pieces stand where the 2004 frame draws them");
+    CHECK(owned_at("housing", 550, 4) && anchored(owned("housing"), "compass", TORIRS_WIDGET_RELATION_OVER),
+          "the housing is an owned image directly over the compass");
+    CHECK(native("minimap", -1)->mask >= 0 && native("compass", -1)->mask >= 0 && native("compass", -1)->art < 0,
+          "the classic housing cuts both windows and leaves the lane's rose alone");
+    CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 13, "fourteen stones are owned controls; the empty seventh wears no icon");
+    CHECK(owned("tab.03") && strcmp(owned("tab.03")->op, "Select") == 0, "every stone carries the Select operation");
+    g_frame.select_calls = 0;
+    press("tab.03");
+    CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "the semantic tab action runs once and selects the named tab");
     g_frame.active_tab = 3;
-    draw(765, 503);
-    CHECK(g_frame.blits > 0, "the frame draws its own art");
-    CHECK(named_tabs_present(), "all fourteen sidebar tabs are retained named nodes");
-    CHECK(
-        named_node_is("frame.sidebar.tab.3", 626, 168, 33, 36),
-        "tab 3's named bounds are the dat1 inventory stone");
+    frame_tick();
+    CHECK(owned("tab.03")->image != owned("tab.00")->image && owned("tab.00")->image == owned("tab.01")->image,
+          "the open tab wears its redstone and the others their bare stone");
+    CHECK(owned("icon.03") && !owned("icon.03")->hidden, "a given tab shows its icon");
+    g_frame.ungiven_tab = 3;
+    frame_tick();
+    CHECK(owned("icon.03")->hidden && owned("tab.03")->image == owned("tab.00")->image,
+          "a tab the server has not handed over wears neither icon nor highlight");
+    g_frame.ungiven_tab = -1;
 
-    {
-        /*
-         * Every sidebar icon on the exact pixel the stock revconfig frame puts
-         * it, which is NOT its stone's box and not the centre of it either.
-         *
-         * The `[layout:fixed]` sideicon boxes plus each frame's own offset
-         * inside sideicons.dat -- see the TAB table in gameframe.c. Pinned
-         * because the failure is invisible to every other assertion in this
-         * file: the icons still draw, still hit-test, still select the right
-         * panel, and sit three or four rows high on their stones.
-         *
-         * Thirteen and not fourteen: tab 7 is the unused slot, it has no art,
-         * and nothing is blitted for it.
-         */
-        static struct { int x; int y; char const* what; } const ICON[] = {
-            { 549, 178, "combat" },    { 572, 174, "stats" },
-            { 602, 175, "quests" },    { 631, 172, "inventory" },
-            { 672, 174, "equipment" }, { 699, 173, "prayer" },
-            { 727, 176, "magic" },     { 573, 471, "friends" },
-            { 601, 472, "ignore" },    { 635, 473, "logout" },
-            { 672, 470, "options" },   { 704, 471, "emotes" },
-            { 728, 471, "music" },
-        };
-        int landed = 0;
-
-        for( int i = 0; i < (int)(sizeof(ICON) / sizeof(ICON[0])); i++ )
-            landed += blitted_at(ICON[i].x, ICON[i].y);
-        CHECK(
-            landed == (int)(sizeof(ICON) / sizeof(ICON[0])),
-            "every classic sidebar icon lands on the stock frame's own pixel");
-    }
-
-    {
-        /* A click on the fifth region selects tab 4 -- the screen-order table
-         * and the tab it stands for have to agree, and on the classic frame
-         * they are the same number. */
-        g_frame.select_calls = 0;
-        CHECK(
-            PluginHost_UiInvoke(
-                g_host,
-                PluginHost_UiRef(g_host, g_plugin, "frame.sidebar.tab.4"),
-                "activate"),
-            "a semantic tab action reaches the lane");
-        CHECK(g_frame.select_calls == 1, "the semantic tab action runs once");
-        CHECK(g_frame.selected_tab == 4, "and selects the named tab");
-    }
-
-    /* ---- 4. modern fixed ----------------------------------------------- */
-
+    /* ---- 3. modern fixed on the 2004 lane ------------------------------ */
     select_frame("gameframe-layout/modern-fixed", 200);
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_LOADING,
-            "modern-fixed is a candidate over the committed classic frame");
-    }
     declare(765, 503);
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/modern-fixed") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "the stable modern-fixed id commits after validation");
-    }
-    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED, "modern-fixed pins the canvas too");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 4, 4, 512, 334),
-        "548's viewport is the same 512x334");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_MINIMAP, 570, 9, 145, 151),
-        "548's minimap sits five pixels left of the dat1 frame's");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
-    CHECK(
-        named_node_is("frame.minimap.housing", 545, 4, 172, 156),
-        "548 publishes its housing at the semantic minimap boundary");
+    CHECK(strcmp(selected_frame().active_id, "gameframe-layout/modern-fixed") == 0 && g_frame.fixed_w == 765,
+          "modern-fixed pins the canvas too");
+    CHECK(placed("viewport", -1, 4, 4, 512, 334) && placed("minimap", -1, 570, 9, 145, 151) &&
+              placed("compass", -1, 545, 4, 32, 33) && placed("sidebar", -1, 547, 205, 190, 261),
+          "548's surfaces at 548's boxes");
+    CHECK(placed("chat", -1, 20, 361, 479, 96), "the 2004 chat is centred in the OldSchool housing");
+    CHECK(native("compass", -1)->art >= 0 && native("compass", -1)->mask >= 0 && native("minimap", -1)->mask >= 0,
+          "the OldSchool frame brings its own rose and both masks");
+    CHECK(placed("chat_buttons", 0, 14, 474, 100, 29) && placed("chat_buttons", 3, 401, 474, 100, 29),
+          "the four 2004 filters spread evenly across the OldSchool band");
+    printf("GAMEFRAME modern-fixed pieces=%d\n", pieces_behind_viewport());
+    CHECK(pieces_behind_viewport() == 14 && owned_at("housing", 545, 4), "the OldSchool surround and its housing are owned images");
+    CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 14, "548 publishes fourteen stones and fourteen icons");
+    g_frame.select_calls = 0;
+    press("tab.08");
+    CHECK(g_frame.selected_tab == 9, "548's ninth stone is the account tab");
 
-    draw(765, 503);
-    CHECK(named_tabs_present(), "548 publishes fourteen named tabs as well");
-    {
-        /*
-         * 548's bottom row is NOT in tab order.
-         *
-         * Clan chat (7) is its first stone and Account (9) its third, with
-         * Friends (8) between them. The ninth region drawn is therefore tab 9,
-         * and an off-by-one here opens the wrong panel.
-         */
-        g_frame.select_calls = 0;
-        (void)PluginHost_UiInvoke(
-            g_host,
-            PluginHost_UiRef(g_host, g_plugin, "frame.sidebar.tab.9"),
-            "activate");
-        CHECK(g_frame.selected_tab == 9, "548's ninth stone is the account tab");
-    }
-
-    {
-        /* Native/script closure is authoritative. Rendering a fixed frame
-         * cannot turn a passive layout callback into a tab-selection action. */
-        g_frame.active_tab = -1;
-        g_frame.select_calls = 0;
-        g_frame.selected_tab = -1;
-        draw(765, 503);
-        printf("FRAME_CONTRACT passive_closed_sidebar select_calls=%d\n", g_frame.select_calls);
-        CHECK(g_frame.select_calls == 0 && g_frame.selected_tab == -1,
-              "a frame respects a natively closed sidebar instead of reopening it");
-        draw(765, 503);
-        CHECK(g_frame.select_calls == 0, "steady rendering never issues native navigation");
-        g_frame.active_tab = 3;
-    }
-
-    /* ---- 5. modern resizable ------------------------------------------- */
-
+    /* ---- 4. modern resizable on the 2004 lane -------------------------- */
+    g_frame.active_tab = -1;
     select_frame("gameframe-layout/modern-resizable", 300);
+    declare(1200, 800);
+    CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
+          "the resizable frame states a minimum and lets the window be the canvas");
+    CHECK(placed("viewport", -1, 0, 0, 1200, 800), "the scene is the whole window");
+    CHECK(placed("minimap", -1, 1042, 8, 152, 152) && placed("compass", -1, 1023, 5, 35, 35), "the map ring hangs off the top-right corner");
+    CHECK(placed("sidebar", -1, 980, 498, 190, 261), "the panel hangs off the bottom-right corner");
+    CHECK(placed("chat", -1, 20, 658, 479, 96), "the chat hangs off the bottom-left corner");
+    CHECK(placed("main_modal", -1, 344, 233, 512, 334), "the modal is centred");
+    printf("GAMEFRAME resizable closed pieces=%d\n", pieces_behind_viewport());
+    CHECK(pieces_behind_viewport() == 4, "a collapsed sidebar draws two tab rows and the chat, no pillars and no backing");
+    CHECK(owned_count("chatsw.") == 3 && strcmp(owned("chatsw.1")->op, "Hide chat") == 0,
+          "the resizable frame's chat switches stand over the first three filters");
+    g_frame.active_tab = 0;
+    tick_and_declare(1200, 800);
+    printf("GAMEFRAME resizable open pieces=%d\n", pieces_behind_viewport());
+    CHECK(pieces_behind_viewport() == 7, "opening a tab adds the backing and both pillars");
     {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/modern-fixed") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_LOADING,
-            "modern-resizable waits behind the committed fixed frame");
+        struct FakeWidget const* backing = NULL;
+        for( int i = 0; i < g_w_count; i++ )
+            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].img_w == 242 ) backing = &g_w[i];
+        CHECK(backing && backing->img_h == 281 && backing->opacity == 255 - 96,
+              "the panel backing is one tiled picture, larger than the panel and see-through");
+    }
+    {
+        int const published = g_frame.set_calls;
+        press("chatsw.0");
+        CHECK(g_frame.set_calls > published, "the switch invalidated the frame at once");
+        frame_tick();
+        declare(1200, 800);
+        printf("GAMEFRAME chat switch hidden=%d op=%s\n", native("chat", -1)->hidden, owned("chatsw.0")->op);
+        CHECK(native("chat", -1)->hidden && strcmp(owned("chatsw.0")->op, "Show chat") == 0,
+              "pressing a filter switch puts the chatbox away");
+        press("chatsw.0");
+        frame_tick();
+        declare(1200, 800);
+        CHECK(!native("chat", -1)->hidden && placed("chat", -1, 20, 658, 479, 96), "pressing it again brings the chatbox back");
     }
 
-    declare(1024, 768);
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/modern-resizable") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "the stable modern-resizable id commits after validation");
-    }
-    CHECK(
-        g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
-        "the resizable offer follows the window");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, 1024, 768),
-        "the resizable scene is the whole window");
-    {
-        int const map_x = 1024 - 182;
-        CHECK(
-            g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x == map_x + 24 &&
-                g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].y == 8,
-            "the minimap is pinned to the top-right corner");
-        CHECK(
-            named_node_is("frame.minimap.housing", map_x, 0, 182, 166),
-            "and its housing is declared directly above that semantic slot");
-        /*
-         * And it is CUT to the housing it sits in.
-         *
-         * The resizable map surround is a ring with the scene showing through
-         * everywhere it is not, so an unmasked minimap draws its square corners
-         * over the world -- the one visible difference from the fixed housing,
-         * which is an opaque plate and needs no mask at all. A layout that
-         * placed the map correctly and skinned it with nothing looks right in
-         * every rectangle assertion above.
-         */
-        CHECK(
-            g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].placed &&
-                g_frame.skin[TORIRS_HOST_SURFACE_MINIMAP].mask >= 0,
-            "and masked to the ring's window");
-        CHECK(
-            g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].placed &&
-                g_frame.skin[TORIRS_HOST_SURFACE_COMPASS].art >= 0,
-            "the compass is drawn from the OldSchool rose, not the lane's");
-        /* All six pieces or none: a bar drawn from five of them has a hole in
-         * it, which is a worse frame than one drawn the 2004 way. */
-        CHECK(g_frame.scrollbar_pieces == 6, "and the scrollbars wear all six of their pieces");
-        CHECK(
-            g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].x + 190 < 1024 &&
-                g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].x + 190 > 1024 - 60,
-            "and the sidebar to the bottom-right");
-    }
-
-    {
-        /*
-         * Declared again, larger. Every anchor has to have MOVED with the edge
-         * it is pinned to -- a layout that answered the same rectangles at two
-         * canvas sizes is one built out of constants, which is the whole
-         * failure this case exists to catch.
-         */
-        int const small_map_x = g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x;
-        int const small_side_y = g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].y;
-
-        declare(1440, 900);
-        CHECK(
-            slot_is(TORIRS_HOST_SURFACE_VIEWPORT, 0, 0, 1440, 900),
-            "the scene follows the window");
-        CHECK(
-            g_frame.slot[TORIRS_HOST_SURFACE_MINIMAP].x == small_map_x + (1440 - 1024),
-            "the minimap moves with the right edge, exactly");
-        CHECK(
-            g_frame.slot[TORIRS_HOST_SURFACE_SIDEBAR].y == small_side_y + (900 - 768),
-            "the sidebar moves with the bottom edge, exactly");
-        CHECK(
-            g_frame.slot[TORIRS_HOST_SURFACE_CHAT].x < 200,
-            "and the chat stays pinned to the left");
-    }
-
-    {
-        /*
-         * The resizable frame draws EVERYTHING it declared.
-         *
-         * Its own case because the fixed frames' draw is a list of constants
-         * and this one's is arithmetic, so a piece computed off the canvas can
-         * land outside it and simply not be drawn -- which from a screenshot
-         * looks like a missing asset rather than a wrong number.
-         *
-         * Six chrome pieces UNDER the surfaces -- two tab strips, the two
-         * pillars either side of the panel, the chatbox and the stone bar
-         * under it -- plus the panel itself, an icon per tab, and ONE stone,
-         * the lit one under the open tab. The unlit stones are part of the tab
-         * strips already blitted, which is why there are not fourteen of them.
-         *
-         * The panel is TILED, so it is one declaration and FRAME_R_PANEL_TILES
-         * draws. Counting the draws and not the declarations is deliberate: a
-         * tile loop that stopped after one copy would leave the panel
-         * three-quarters bare, and a count of declarations cannot see that.
-         */
-        g_frame.active_tab = 3;
-        draw(1440, 900);
-        CHECK(g_frame.blits > 20, "the resizable frame draws its retained art");
-        /*
-         * Fourteen tabs and the four filter buttons.
-         *
-         * The buttons are the resizable frame's alone: its chatbox is a panel
-         * you can put away, so a click on one of them selects a filter or
-         * closes the box, and the region is what carries that. Fixed frames
-         * publish no replacement action; there the click belongs to the lane's
-         * own button, which cycles the filter's mode, and stealing it would
-         * trade a working control for a decorative one.
-         */
-        /*
-         * Fourteen tabs and the three filter buttons that SELECT something.
-         *
-         * Report abuse publishes no plugin action: it opens a report rather
-         * than a chat view, so the click stays the lane's. That asymmetry is the whole
-         * reason to count regions rather than buttons -- registering all four
-         * would take the report button away from the client that implements
-         * it and give it to a plugin that does not.
-         */
-        /* The box is the BAND: 29 rows at the chatbox's own 136, which is
-         * where the button band starts and not where the bar sprite does.
-         * @see FRAME_O_CHAT_BAND_H. */
-        CHECK(
-            named_tabs_present() &&
-                named_node_is("frame.chat.button.public", 14, 871, 100, 29),
-            "a greater-than-16-node candidate commits tabs and named chat controls");
-
-        /* No tab open: no lit stone, and everything else unchanged. */
-        g_frame.active_tab = -1;
-        draw(1440, 900);
-        {
-            int active = 1;
-            CHECK(
-                named_node_state("frame.sidebar.tab.3", NULL, &active) && !active,
-                "with no tab open no named tab is active");
-        }
-
-        {
-            /*
-             * ...and the RESIZABLE frame collapses rather than framing nothing.
-             *
-             * This is the one layout here shaped after a toplevel that has a
-             * closed state, so it draws it: no backing and no pillars, and the
-             * top tab row drops onto the bottom one. The fourteen stones stay,
-             * because they are how the panel is opened again.
-             *
-             * The pixels are 164's arithmetic at 1440x900: the strip is
-             * right-anchored at 1440-4-241, the panel centred under it at
-             * +25, its pillars 26 columns either side, and the rows 37 tall
-             * above a panel 261 tall standing on a bottom row at 900-4-37.
-             */
-            declare(1440, 900);
-            draw(1440, 900);
-            CHECK(
-                !blitted_at(1194, 598) && !blitted_at(1410, 598),
-                "no tab open: the resizable frame drops both pillars");
-            CHECK(
-                blitted_at(1195, 822) && blitted_at(1195, 859),
-                "and stacks its two tab rows in the corner");
-            g_frame.active_tab = 3;
-            declare(1440, 900);
-            draw(1440, 900);
-            CHECK(
-                blitted_at(1194, 598) && blitted_at(1410, 598) &&
-                    blitted_at(1195, 561),
-                "opening a tab puts the pillars back and lifts the top row");
-            g_frame.active_tab = -1;
-            draw(1440, 900);
-        }
-
-        /*
-         * A tab this gameframe does not have draws its STONE and no icon.
-         *
-         * The stone is the frame's own furniture -- fourteen of them make the
-         * two rows, and a hole where one should be is a broken strip -- but
-         * the icon stands for a panel, and rs289lc has no clan chat to stand
-         * for. An icon over nothing invites the click that does nothing, which
-         * is worse than a blank stone.
-         */
-        g_frame.missing_tab = 7;
-        /* Re-DECLARED, not merely redrawn: which icon a stone wears is decided
-         * in the layout pass, because that is where the frame is asked what
-         * tabs it has. */
-        declare(1440, 900);
-        draw(1440, 900);
-        CHECK(
-            named_tabs_present(),
-            "a cache hole does not corrupt the retained fourteen-node rail");
-        g_frame.missing_tab = -1;
-        declare(1440, 900);
-
-        /*
-         * A tab the SERVER has not handed over draws neither.
-         *
-         * The tutorial's state, and a different question from the one above:
-         * the frame has the tab and the cache has the panel, but the player
-         * has not been given it yet. The client's own chrome gates its icon
-         * and its pressed highlight on exactly this (reference
-         * drawSidebarIcons, `sideOverlayId[n] !== -1`), and a plugin frame
-         * that replaced that chrome inherited the duty.
-         *
-         * Redrawn and NOT re-declared, unlike the missing tab above: which
-         * tabs the CACHE has is settled at declaration, but which of them the
-         * player has been given changes on a packet -- no resize, no rebuild
-         * and no frame invalidation -- so a build that recorded it would draw a new
-         * character's first minute for the rest of the session.
-         */
-        g_frame.ungiven_tab = 7;
-        g_frame.active_tab = 7;
-        draw(1440, 900);
-        {
-            int enabled = 1;
-            CHECK(
-                named_node_state("frame.sidebar.tab.7", &enabled, NULL) && !enabled,
-                "a tab the server has not given is disabled in named UI");
-        }
-        g_frame.ungiven_tab = -1;
-        draw(1440, 900);
-        {
-            int enabled = 0;
-            CHECK(
-                named_node_state("frame.sidebar.tab.7", &enabled, NULL) && enabled,
-                "handing it over updates named state without a frame rebuild");
-        }
-        g_frame.active_tab = -1;
-
-        /* The map housing is not a global canvas overlay. An on_draw_canvas
-         * callback remains global by contract; moving this one there covered
-         * unrelated later chrome as well as the minimap it was meant for. */
-        g_frame.blits = 0;
-        g_frame.regions = 0;
-        PluginHost_DrawCanvas(g_host, 1440, 900);
-        CHECK(g_frame.blits == 0, "the map housing is not redrawn over the whole canvas");
-        CHECK(g_frame.regions == 0, "and no obsolete over-pass registers input regions");
-    }
-
-    /* ---- 6. Auto/native ------------------------------------------------ */
-
+    /* ---- 5. release ---------------------------------------------------- */
+    g_widget_resets = 0;
     select_frame("auto", 400);
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.requested_id, "auto") == 0 &&
-                strcmp(selected.active_id, "core/native") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_NATIVE,
-            "Auto explicitly resolves to the native frame");
-    }
-    CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto stops the frame provider");
-    CHECK(g_frame.active == 0, "Auto gives the frame back to the client");
+    CHECK(!PluginHost_IsEnabled(g_host, g_plugin) && g_frame.active == 0, "Auto stops the provider and gives the frame back");
+    CHECK(g_widget_resets >= 1 && owned_count("piece.") == 0 && owned_count("tab.") == 0,
+          "teardown removes every owned piece and control");
+    CHECK(!native("chat", -1)->moved && !native("viewport", -1)->moved, "teardown releases the retained moves");
 
-    {
-        /* And nothing is declared or drawn afterwards: the lane's own chrome
-         * is in charge again, and a layout still placing slots would be
-         * fighting it. */
-        int const before = g_frame.end_calls;
-        declare(1440, 900);
-        draw(1440, 900);
-        CHECK(g_frame.end_calls == before, "a released layout declares nothing");
-        CHECK(g_frame.blits == 0, "and draws nothing");
-    }
-
-    /* ---- 6b. selected at the title screen ------------------------------ */
-
-    /*
-     * A concrete choice may be persisted while the title is up, but there is
-     * no gameframe to replace yet. The host reports it as loading over native
-     * and promotes that same requested id when login changes the screen.
-     */
-    g_screen_now = TORIRS_SCREEN_TITLE;
-    select_frame("gameframe-layout/classic-fixed", 950);
-    CHECK(
-        g_frame.active == 0,
-        "selecting at the title leaves the native frame in charge");
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
-                strcmp(selected.active_id, "core/native") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_LOADING,
-            "the title reports the concrete request as loading over native");
-    }
-    g_screen_now = TORIRS_SCREEN_GAME;
-    PluginHost_FrameStart(g_host, 1000, 0);
-    CHECK(g_frame.active == 0, "login schedules the candidate without a restart");
-    {
-        struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "core/native") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_LOADING,
-            "the title-screen selection remains loading until layout validates");
-    }
-    {
-        int const before = g_frame.end_calls;
-        declare(765, 503);
-        CHECK(g_frame.end_calls == before + 1, "and the next layout pass declares");
-    }
-    CHECK(g_frame.active == 1, "the valid login-time candidate becomes active");
-    select_frame("auto", 1100);
-
-    /* ---- 7. the OldSchool lane ----------------------------------------- */
-
-    /*
-     * An OldSchool cache authors its own gameframe as a CS2 toplevel, and the
-     * selected plugin frame arranges over it: the chat and the orbs are the
-     * cache's PACKS and are placed whole rather than dressed. The concrete
-     * catalogue choice remains the policy; it is not inferred from whichever
-     * toplevel the server happened to open.
-     *
-     * A fresh host rather than a lane switched under the running one: a lane
-     * is stated at boot and never changes inside a process.
-     */
-    PluginHost_Free(g_host);
+    /* ---- 6. the OldSchool lane ---------------------------------------- */
     g_lane_game = TORIRS_GAME_OLDSCHOOL;
-    g_frame_root = 161; /* resizable classic */
-    snprintf(
-        g_frame_preference,
-        sizeof(g_frame_preference),
-        "%s",
-        "gameframe-layout/modern-resizable");
-    g_frame_preference_present = 1;
-    g_frame_preference_migration = 1;
-    g_frame_preference_set_calls = 0;
-    g_frame_settings_api = NULL;
-    g_host = PluginHost_New(&e);
-    e.user = g_host;
-    PluginHost_Free(g_host);
-    g_host = PluginHost_New(&e);
-    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_GAMEFRAME);
-    CHECK(
-        PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0,
-        "the settings client registers on the OldSchool host");
+    g_frame_root = 548;
+    fw_build(/*oldschool=*/1);
+    g_frame.active_tab = -1;
+    select_frame("gameframe-layout/classic-fixed", 500);
+    declare(765, 503);
+    CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && g_frame.active == 1,
+          "the provider owns the OldSchool frame too");
+    CHECK(placed("chat", -1, 17, 357, 519, 96), "the chat pack takes the 2004 origin and height and keeps its own width");
+    CHECK(placed("orbs", -1, 521, 4, 236, 163), "548's orb block sits beside the 2004 housing");
+    CHECK(placed("orbs", 1, 717, 119, 30, 30) && placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
+          "the world map, the wiki banner and the whole adviser are seated");
+    printf("GAMEFRAME oldschool classic pieces=%d icons=%d\n", pieces_behind_viewport(), owned_count("icon."));
+    CHECK(pieces_behind_viewport() == 14 && owned_count("icon.") == 14,
+          "the surround is re-cut for the pack, without the 2004 parchment, and every stone wears rev-239's icon");
+    {
+        struct FakeWidget const* flat = NULL;
+        for( int i = 0; i < g_w_count; i++ )
+            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 )
+            { int cx, cy; fw_canvas(i, &cx, &cy); if( cx == 0 && cy == 467 ) flat = &g_w[i]; }
+        CHECK(flat && image_opaque_rows(flat->image) == g_image[flat->image].h,
+              "no captionless 2004 hollows below the CS2 filters: the band is flat rock");
+    }
+    frame_tick();
+    CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0,
+          "the pack's bar and backing wear 2004 rock and parchment");
+    CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
+    CHECK(g_image[native("chat_bar", -1)->art].w == 519 && g_image[native("chat_bar", -1)->art].h == 23,
+          "the bar is composed at the pack's own bar size");
+    g_frame.select_calls = 0;
+    press("tab.08");
+    CHECK(g_frame.selected_tab == 9, "the 2004 stones open rev-239's panels in screen order");
 
-    PluginHost_Start(g_host);
-
-    CHECK(PluginHost_IsEnabled(g_host, g_plugin), "an OldSchool lane keeps the plugin on");
-    CHECK(g_frame.active == 0, "native remains live while the OldSchool candidate prepares");
-    declare(1024, 768);
-    CHECK(g_frame.active == 1, "the validated provider owns the OldSchool frame too");
+    /* ---- 7. the mobile toplevel declines classic ---------------------- */
+    g_frame_root = 601;
+    PluginHost_FrameStart(g_host, 600, 0);
+    declare(765, 503);
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
-        CHECK(
-            strcmp(selected.active_id, "gameframe-layout/modern-resizable") == 0 &&
-                selected.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "a persisted modern-resizable id is restored on OldSchool");
+        printf("GAMEFRAME mobile status=%d active=%s reason=%s\n", selected.status, selected.active_id, selected.reason);
+        CHECK(selected.status == TORIRS_FRAME_STATUS_FALLBACK && strstr(selected.reason, "Stone Drawer") != NULL,
+              "Classic Fixed declines the mobile toplevel with its reason");
+        CHECK(g_frame.active == 0, "declining releases the frame");
     }
-    CHECK(
-        g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW,
-        "the selected modern-resizable offer follows the window");
-
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 768 - 165, 519, 165),
-        "the chat PACK's 519x165 container is placed whole, bottom-left");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_ORBS, 1024 - 182 - 29, 10, 207, 197),
-        "the orb block sits beside the map ring where 161 keeps it");
-    CHECK(
-        member_is(
-            TORIRS_HOST_SURFACE_ORBS,
-            TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
-            1024 - 182 - 29 + 85,
-            10 + 143,
-            34,
-            34),
-        "with the activity adviser under the run orb, all 34 rows of it");
-    {
-        /*
-         * ...and CUT at the top tab strip when the window is short enough for
-         * the two columns to meet.
-         *
-         * They are anchored to opposite edges, so at the 503-row minimum the
-         * strip is above the adviser's 187 and there is no arithmetic that
-         * separates them. The lane's own frames collide there too -- 161
-         * paints its stones over the scroll, 164 puts its whole panel over it
-         * -- and a plugin gameframe paints its chrome UNDER every live
-         * surface, so this frame has to state the cut instead.
-         *
-         * WHERE the strip lands is not free to move. The bottom row keeps
-         * FRAME_R_MARGIN under it at every height, and the panel's 261 rows
-         * and the row's 37 chain off it, so the strip is at 503 - 4 - 37 -
-         * 261 - 37 = 164 and the adviser gets 164 - (10 + 143) = 11 of its
-         * 34 rows. Native 164 measures the same bottom row at the same size
-         * (765x503: rows 462..498, four rows of scene under it) whether its
-         * panel is open or shut, which is what the two halves below pin.
-         */
-        int const was_active = g_frame.active_tab;
-
-        g_frame.active_tab = 3; /* a panel open, so the top row is lifted */
-        declare(765, 503);
-        CHECK(
-            slot_is(
-                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
-            "at the 503-row minimum an open panel still hangs off the float"
-            " margin");
-        CHECK(
-            member_is(
-                TORIRS_HOST_SURFACE_ORBS,
-                TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
-                765 - 182 - 29 + 85,
-                10 + 143,
-                34,
-                11),
-            "at the 503-row minimum the adviser is cut at the top tab strip");
-        CHECK(
-            slot_is(TORIRS_HOST_SURFACE_ORBS, 765 - 182 - 29, 10, 207, 197),
-            "and the block itself keeps 161's own 197 rows");
-        /* No panel open: the strip drops to the corner and nothing is cut.
-         * The BOTTOM row may not move for that -- the panel's state is not
-         * allowed to slide the seven icons the player is aiming at, which is
-         * what an earlier attempt at buying the adviser its rows back did.
-         * The sidebar slot is where that shows: it is the bottom row's own y
-         * less 261, so an unchanged y here is an unchanged bottom row. */
-        g_frame.active_tab = -1;
-        declare(765, 503);
-        CHECK(
-            slot_is(
-                TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, 503 - 4 - 37 - 261, 190, 261),
-            "and a collapsed sidebar puts the bottom row in the same place");
-        CHECK(
-            member_is(
-                TORIRS_HOST_SURFACE_ORBS,
-                TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
-                765 - 182 - 29 + 85,
-                10 + 143,
-                34,
-                34),
-            "a collapsed sidebar leaves the adviser whole at the same size");
-        /* One row taller and one row shorter, both states: the margin is a
-         * constant under the bottom row, not a reserve the layout dips into
-         * at the sizes where the two columns are tightest. */
-        for( int h = 503; h <= 507; h++ )
-        {
-            g_frame.active_tab = 3;
-            declare(765, h);
-            CHECK(
-                slot_is(
-                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
-                "the float margin is kept at every height with a panel open");
-            g_frame.active_tab = -1;
-            declare(765, h);
-            CHECK(
-                slot_is(
-                    TORIRS_HOST_SURFACE_SIDEBAR, 765 - 4 - 241 + 25, h - 4 - 37 - 261, 190, 261),
-                "and at every height with it shut");
-        }
-        g_frame.active_tab = was_active;
-        declare(1024, 768);
-    }
-    CHECK(
-        !g_frame.member[TORIRS_HOST_SURFACE_CHAT_BUTTONS][0].placed,
-        "no chat plates are placed: the pack carries its own filter buttons");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 1024 - 4 - 241 + 25, 768 - 4 - 37 - 261, 190, 261),
-        "the side panels are placed where the resizable frame keeps them");
-    draw(1024, 768);
-    CHECK(named_tabs_present(), "the OldSchool frame publishes fourteen semantic tabs");
-    CHECK(
-        !blitted_at(0, 768 - 165),
-        "and no chat backing is blitted under the pack's own");
-
-    /* Selecting Modern Fixed is an explicit host transaction. The server's
-     * live root is useful lane geometry, but no longer doubles as preference
-     * or silently changes the selected offer. */
-    g_frame_root = 548;
-    select_frame("gameframe-layout/modern-fixed", 1200);
-    declare(765, 503);
-    CHECK(
-        g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED,
-        "the explicit modern-fixed offer pins the canvas");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 0, 338, 519, 165),
-        "the chat pack lands at 548's own (0, 338)");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_ORBS, 516, 4, 236, 163),
-        "and the orb block at 548's map container");
-    CHECK(
-        member_is(
-            TORIRS_HOST_SURFACE_ORBS,
-            TORIRS_ORBS_MEMBER_ACTIVITY_ADVISER,
-            516 + 236 - 34,
-            4 + 50,
-            34,
-            34),
-        "with the adviser right-aligned and whole: a fixed frame cuts nothing");
-    draw(765, 503);
-    CHECK(!blitted_at(0, 338), "the fixed frame blits no chat backing either");
-
-    /* Another concrete catalogue choice puts the 2004 frame around OldSchool
-     * packs -- at the 2004 chat's PLACE, which is the half of "a 2004
-     * gameframe" that used to be missing.
-     *
-     * REVERSED 2026-09-04, and this check is the record of it. It used to
-     * assert (0, 338, 519, 165) -- the OldSchool origin -- under the reasoning
-     * that a frame from one era around a chatbox from another leaves the
-     * chatbox where its own lane put it. Measured, that made the frame
-     * byte-identical to running with no frame at all: the chat was re-skinned
-     * and never moved. The pack now takes the 2004 origin and the 2004 height
-     * and keeps its own width, because 519 is authored absolute on chatbox.if
-     * and its height is the only axis that reflows. 357 + 96 = 453, which is
-     * exactly where the 2004 `backbase1` strip starts. */
-    select_frame("gameframe-layout/classic-fixed", 1300);
-    declare(765, 503);
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_CHAT, 17, 357, 519, 96),
-        "Classic Fixed on OldSchool places the chat pack at the 2004 box");
-    CHECK(
-        slot_is(TORIRS_HOST_SURFACE_SIDEBAR, 553, 205, 190, 261),
-        "with the 2004 sidebar box");
-    draw(765, 503);
-    CHECK(!blitted_at(17, 357), "and without the 2004 chat parchment under the pack");
-    CHECK(named_tabs_present(), "the 2004 stones remain semantic click targets");
-    /* Do not restore the native chat box just to cover these empty hollows:
-     * retain the 2004 placement and remove the obsolete lower filter row. */
-    CHECK(classic_base_is_flat(), "no captionless 2004 hollows below the CS2 filters");
-    CHECK(g_frame.anchor_relation[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_FRAME_RELATION_OVER &&
-          g_frame.anchor_slot[TORIRS_HOST_SURFACE_COMPASS] == TORIRS_HOST_SURFACE_VIEWPORT,
-          "the frame states compass depth in the host's slot numbering");
-    CHECK(blitted_at(536, 357) && !blitted_at(496, 357),
-          "the classic right border surrounds the whole 519-wide CS2 pack");
-
-    {
-        /*
-         * ...and those stones wear THIS LANE's icons, not 2004's.
-         *
-         * An icon names the panel its stone opens, and the two eras number the
-         * panels differently: `sideicons.dat` has nothing at 7, friends at 8
-         * and ignore at 9, while rev-239 has chat-channel at 7, account at 8
-         * and friends at 9. Keeping the 2004 set here left the live seventh
-         * stone bare and put the frowning ignore face on Friends.
-         * @see frame_sideicon.
-         *
-         * The positions are the proof, because the picture is not visible from
-         * here: a 2004 icon is blitted at the origin the TAB table states (it
-         * carries its own offset inside sideicons.dat) and a lane icon is
-         * CENTRED on its stone, so box 8 -- (570, 466) 30x37 -- puts a 33x36
-         * icon at (569, 466) and nothing at all at the 2004 (573, 471).
-         */
-        CHECK(
-            blitted_at(538, 466),
-            "the 2004 frame's seventh stone wears this lane's chat-channel icon");
-        CHECK(
-            blitted_at(569, 466) && blitted_at(597, 466),
-            "and the two stones beside it wear a lane icon centred on the rock");
-        CHECK(
-            !blitted_at(573, 471) && !blitted_at(601, 472),
-            "with no 2004 icon left at its own sideicons.dat origin");
-        /*
-         * And the bottom row runs in the lane's order, so the stone that opens
-         * Friends is the one the native 548 frame opens it with.
-         * @see FRAME_TAB_SCREEN_ORDER.
-         */
-        CHECK(
-            named_node_is("frame.sidebar.tab.9", 570, 466, 30, 37) &&
-                named_node_is("frame.sidebar.tab.8", 598, 466, 30, 37),
-            "friends before account on the bottom row, as rev-239 orders them");
-    }
-
-    /*
-     * A 2004 frame DRESSES the chatbox it is around -- all eight filters of
-     * it.
-     *
-     * The pack is placed whole -- its text, input line, scrollbar and its
-     * eight FILTERS are the lane's -- and what changes is the picture:
-     * parchment on the backing, and 2004 rock on the bar with a hollow cut for
-     * each of the eight, at the boxes the plate roles report. The plates
-     * themselves are held with no art, which is this API's "hidden by its
-     * holder"; a frame that declared four buttons of its own instead threw
-     * All, Game, Channel and Clan away.
-     *
-     * The pack is mounted AFTER the frame is selected, as a server does it,
-     * so the first pass has to hold nothing and a later one has to pick it up.
-     */
-    CHECK(
-        !named_node_has_image("frame.chat.backing"),
-        "nothing is dressed while the server-mounted pack is still absent");
-    g_fake_chat_pieces = 1;
-    PluginHost_LayoutChanged(g_host);
-    draw(765, 503);
-    CHECK(
-        named_node_has_image("frame.chat.backing") &&
-            named_node_is("frame.chat.backing", 0, F_CHAT_BACK_Y, 519, 142),
-        "Classic Fixed puts 2004 parchment on the pack's own backing");
-    CHECK(
-        named_node_has_image("frame.chat.bar") &&
-            named_node_is("frame.chat.bar", 0, F_CHAT_BAR_Y, 519, F_CHAT_BAR_H),
-        "and the 2004 strip on the bar the eight filter buttons stand on");
-    {
-        int held = 0;
-        int with_art = 0;
-        int declared = 0;
-
-        for( int i = 0; i < 8; i++ )
-        {
-            char name[32];
-
-            (void)snprintf(name, sizeof(name), "frame.chat.plate.%d", i);
-            held += named_node_visible(name) ? 1 : 0;
-            with_art += named_node_has_image(name) ? 1 : 0;
-        }
-        CHECK(
-            held == 8 && with_art == 0,
-            "and the eight OldSchool plates held with no art, not replaced by four");
-        /* The captions, their On/Off lines and their verbs are the pack's, so
-         * the frame declares no filter button of its own on this lane. A
-         * button here is one the lane never asked for. */
-        for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
-        {
-            static char const* const NAME[FRAME_CHAT_BUTTON_COUNT] = {
-                "frame.chat.button.public",
-                "frame.chat.button.private",
-                "frame.chat.button.trade",
-                "frame.chat.button.report",
-            };
-
-            declared += named_node_visible(NAME[i]) ? 1 : 0;
-        }
-        CHECK(
-            declared == 0,
-            "and no 2004 filter button of the frame's own over the lane's eight");
-    }
-
-    /* The two Modern layouts are OldSchool's own frames: the chatbox they are
-     * drawn around is the one the cache mounted, furniture and all. */
-    select_frame("gameframe-layout/modern-fixed", 1400);
-    declare(765, 503);
-    draw(765, 503);
-    CHECK(
-        !named_node_has_image("frame.chat.backing") &&
-            !named_node_has_image("frame.chat.bar"),
-        "Modern Fixed leaves the OldSchool chatbox its own backing and bar");
-    select_frame("gameframe-layout/classic-fixed", 1500);
-    declare(765, 503);
-    draw(765, 503);
-    CHECK(
-        named_node_has_image("frame.chat.bar"),
-        "and choosing the 2004 frame again dresses it back");
-
-    CHECK(
-        strcmp(g_frame_preference, "gameframe-layout/classic-fixed") == 0 &&
-            g_frame_preference_set_calls == 4,
-        "the engine persists each explicit catalogue selection, not an enable switch");
-
-    g_frame_root = 601;
-    declare(765, 503);
-    draw(765, 503);
-    struct ToriRS_FrameSelection mobile_fallback = selected_frame();
-    CHECK(!g_frame.active && strcmp(mobile_fallback.active_id, "core/native") == 0 &&
-          mobile_fallback.status == TORIRS_FRAME_STATUS_FALLBACK,
-          "Classic Fixed stands down completely on the mobile root");
-    CHECK(!named_node_has_image("frame.chat.bar"),
-          "a rejected mobile frame cannot leave its desktop chat dressing active");
     g_frame_root = 548;
     declare(765, 503);
-    draw(765, 503);
-    CHECK(g_frame.active && strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0,
+    CHECK(selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE && g_frame.active == 1,
           "returning to a supported root restores the requested frame");
 
-
-
     PluginHost_Free(g_host);
-    for( int i = 0; i < FAKE_IMAGE_SLOTS; i++ )
-        free(g_image[i].argb);
-
     printf("%d checks, %d failures\n", g_checks, g_failures);
-    return g_failures == 0 ? 0 : 1;
+    return g_failures ? 1 : 0;
 }

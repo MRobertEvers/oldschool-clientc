@@ -66,6 +66,9 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_PANEL_DRAW,
     PLUGIN_CALLBACK_UI_NODE_ACTION,
     PLUGIN_CALLBACK_WIDGET_BINDING,
+    /* An owned control's operation: a player's click, so the input verbs
+     * (tab_select and the like) are open to it. */
+    PLUGIN_CALLBACK_WIDGET_OPERATION,
     PLUGIN_CALLBACK_COUNT
 };
 
@@ -1632,6 +1635,7 @@ api_tab_select(
     case PLUGIN_CALLBACK_CANVAS_CLICK:
     case PLUGIN_CALLBACK_PANEL_ACTION:
     case PLUGIN_CALLBACK_UI_NODE_ACTION:
+    case PLUGIN_CALLBACK_WIDGET_OPERATION:
         break;
     default:
         return false;
@@ -10421,7 +10425,7 @@ bool PluginHost_WidgetOperation(struct ToriRS_PluginHost* host,uint64_t owner,
         struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_OPERATION,.widget=widget,
             .operation=1,.native_revision=registration,.role=""};
         int previous_owner=host->dispatching,previous_event=host->dispatch_event;
-        host->dispatching=index;host->dispatch_event=PLUGIN_CALLBACK_WIDGET_BINDING;
+        host->dispatching=index;host->dispatch_event=PLUGIN_CALLBACK_WIDGET_OPERATION;
         op.listener(&ctx->v2->runtime.api,op.user,&event);
         host->dispatching=previous_owner;host->dispatch_event=previous_event;
         return true;

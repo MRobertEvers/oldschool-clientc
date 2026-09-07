@@ -4274,6 +4274,23 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     if( r->kind==PLUGIN_WIDGET_FIND_ALL )
     {
+        /* A frame role spread over MEMBERS -- the four chat filters, the
+         * fourteen side panels, the orb block's children -- answers them in
+         * the role's own numbering; a role with none answers its one node. */
+        int const slot=app_plugin_role_slot(r->name);
+        *r->count=0;
+        if( slot>=0 && slot<TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        {
+            UITree_FrameBind(tree);
+            for( int member=0; member<UITREE_FRAME_SLOT_NODES_MAX; ++member )
+            {
+                int32_t node=UITree_FrameSlotMemberNode(tree,slot,member);
+                if( node<0 ) continue;
+                if( *r->count<r->capacity ) r->refs[*r->count]=app_widget_ref(tree,node);
+                ++*r->count;
+            }
+            if( *r->count ) return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+        }
         int32_t idx=app_plugin_ui_boundary_node(app,r->name);
         if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
             idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
