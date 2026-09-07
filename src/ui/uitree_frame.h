@@ -2,21 +2,23 @@
 #define SRC_UITREE_FRAME_H
 
 /*
- * The gameframe, when a plugin is arranging it.
+ * The gameframe, when a plugin is PROVIDING it.
  *
  * A layout plugin brings its own art and cannot bring the live surfaces: the
  * 3D scene, the minimap, the chat log, the open sidebar interface and the
- * modal region are wired to the cache, the server and the world. So the frame
- * is split in two -- the plugin draws the picture and says where each of these
- * belongs inside it, and this file puts them there.
+ * modal region are wired to the cache, the server and the world. The plugin
+ * moves, hides, skins and anchors those surfaces itself through retained
+ * widget edits (UITree_WidgetSet*), and this file does the half only the
+ * engine can do:
  *
- * Two jobs, and the second is the one that is easy to underestimate:
- *
- *   1. PLACE the live surfaces at the rectangles the declaration named.
+ *   1. BIND the roles -- which nodes carry each live surface -- so the fence's
+ *      reassert and the staleness question keep working across rebuilds.
  *   2. SUPPRESS the lane's own chrome, because two frames drawn at once is two
  *      sets of stones over one inventory. This is not a nicety -- a client
  *      showing the 2004 surround and a modern one at the same time is worse
  *      than either.
+ *   3. RELEASE from clipping every container above a surface the provider
+ *      moved, so the new box is seen wherever the plugin put it.
  *
  * Everything here is addressed by ROLE and never by id, which is what lets one
  * layout serve a 2004 dat1 frame and an OldSchool toplevel: on the first the
@@ -57,123 +59,14 @@ enum UITreeFrameSlot
 /** Nodes one role may be spread across. @see UITree_FrameSlotIndex. */
 #define UITREE_FRAME_SLOT_NODES_MAX 16
 
-/**
- * One rectangle of a declaration.
- *
- * `placed` and not "w > 0", because a rect at 0x0 and a rect nobody mentioned
- * are different states and only the second one means "hide it".
- */
-struct UITreeFrameRect
-{
-    uint8_t placed;
-    int x;
-    int y;
-    int w;
-    int h;
-};
-
-/**
- * The art a live surface is drawn from, and the shape it is cut to.
- *
- * Two surfaces are neither art the frame draws nor content the world supplies:
- * the compass turns with the camera and the minimap is baked per level, so a
- * layout can only say what PICTURE they are made of. Which is a question about
- * the frame -- a 2004 compass rose inside an OldSchool map surround is the
- * same mismatch as 2004 stones around an OldSchool inventory.
- *
- * `mask` is what makes a FLOATING frame possible: the OldSchool resizable map
- * surround is a ring with the scene showing through everywhere it is not, so
- * an unmasked square of minimap draws its corners over the world. A housing
- * that is opaque around its hole needs none, and passes 0.
- *
- * Scene sprite ids, because that is what a component holds. `placed` carries
- * declaration presence: art id 0 keeps native art, while mask id 0 explicitly
- * removes the native mask (the public API's -1 image sentinel maps to 0 here).
- */
-struct UITreeFrameSkin
-{
-    uint8_t placed;
-    int art_scene_id;
-    int mask_scene_id;
-};
-
-/**
- * Paint attached to a live surface, immediately above that surface's subtree.
- *
- * This is deliberately not part of either plugin canvas display list. Those
- * lists have canvas-wide z-order: FRAME is over the world and under every
- * interface, CANVAS is over every interface. Neither can express a minimap
- * housing, which has to be above the minimap and below whichever later sibling
- * the gameframe puts over it.
- *
- * Coordinates are canvas coordinates, matching a frame declaration. The emit
- * walk supplies the target's parent clip, so art may overlap the target (a map
- * ring has to) without escaping the surface that contains it.
- */
-struct UITreeFrameOverlay
-{
-    uint8_t placed;
-    int scene_id;
-    int x;
-    int y;
-    /** 0 opaque, 255 invisible -- the renderer's ordinary sprite sense. */
-    int trans;
-};
-
-/**
- * One slot of a declaration: a box for the whole role, and a box per member.
- *
- * Most roles are one surface and use `all`. Two are not, and they differ in a
- * way that matters:
- *
- *   The SIDEBAR is fourteen mounts at ONE rectangle -- only the selected tab
- *   is on screen -- so `all` says it once and every mount gets it.
- *   The CHAT BUTTONS are four controls at four DIFFERENT rectangles, side by
- *   side, and no single box can express that.
- *
- * So a placement may address the role as a whole or one member of it, and
- * `at[]` is the second. A member with its own box uses it; one without falls
- * back to `all`; a role with neither is hidden.
- */
-enum UITreeFrameRelation
-{
-    UITREE_FRAME_RELATION_NATIVE = 0,
-    UITREE_FRAME_RELATION_OVER,
-    UITREE_FRAME_RELATION_BEHIND,
-    UITREE_FRAME_RELATION_REPLACE,
-};
-
-struct UITreeFrameSlotRect
-{
-    struct UITreeFrameRect all;
-    struct UITreeFrameRect at[UITREE_FRAME_SLOT_NODES_MAX];
-    struct UITreeFrameSkin skin;
-    struct UITreeFrameOverlay overlay;
-    struct UITreeFrameAnchor
-    {
-        int relation; /* 0 native, 1 over, 2 behind, 3 replace */
-        int slot;
-    } anchor;
-};
-
-struct UITreeFrameOrderHints
-{
-    int position[UITREE_FRAME_SLOT_COUNT];
-    int sequence[UITREE_FRAME_SLOT_COUNT];
-    int next_sequence;
-};
-
+/** 1 while a widget anchor orders paint and input across native order. */
 int UITree_FrameHasDepth(struct UITree const* tree);
 /** All frame paint and input consumers use this ordering. Records carry an
  * int32_t node-index-plus-one at node_offset; zero means unanchored paint.
- * Returns the retained count; REPLACE removes the target's records. */
+ * Returns the retained count; a presented widget REPLACE removes the target's
+ * records. */
 int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
-                       size_t stride, size_t node_offset,
-                       struct UITreeFrameOrderHints const* hints);
-int UITree_FrameNodeSlot(struct UITree const* tree, int32_t node);
-int UITree_FrameNodeReplaced(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
-/** Effective eligibility for attached contributions and retained actions. */
-int UITree_FrameNodePresented(struct UITree const* tree, struct UITreeHost const* host, int32_t node);
+                       size_t stride, size_t node_offset);
 
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no
@@ -194,13 +87,18 @@ UITree_FrameSlotIndex(
  * The node carrying `slot`'s role, or -1 when this gameframe has none.
  *
  * A linear walk, and that is affordable because of WHEN it is called: once per
- * declaration -- a committed selection, resize, or rebuild -- and never per frame. The
- * per-frame path is UITree_FrameReassert, which walks only what this found.
+ * provision -- a committed selection, resize, or rebuild -- and never per frame.
+ * The per-frame path is UITree_FrameReassert, which walks only what this found.
  */
 int32_t
 UITree_FrameSlotNode(
     struct UITree const* tree,
     int slot);
+
+/* Common native parent of a slot's numbered members. Unlike SlotNode (any
+ * representative), this identifies the actual content container. Unavailable
+ * when the bound members do not share a parent; no ancestor guessing. */
+int32_t UITree_FrameSlotGroupNode(struct UITree const* tree, int slot);
 
 /**
  * The node carrying `slot`'s role and answering to `member`, or -1.
@@ -217,7 +115,7 @@ UITree_FrameSlotMemberNode(
     int member);
 
 /**
- * The size the LANE authored for `slot`'s surface, before any declaration.
+ * The size the LANE authored for `slot`'s surface, before any plugin edit.
  *
  * The one thing a layout plugin cannot work out for itself and cannot be told
  * by its own art: the chatbox has a fixed interior -- a 463-wide message
@@ -227,12 +125,10 @@ UITree_FrameSlotMemberNode(
  * 519x165 layer. A frame that assumes either is wrong on the other lane.
  *
  * The AUTHORED numbers and not the resolved ones, because the resolved ones
- * are the declaration's own: while a plugin frame is committed, this node's effective
- * box is whatever the plugin last placed it at, and a plugin reading that to
- * decide what to place is reading its own answer back.
- * UITree_FramePositionOverride leaves `position.width/height` alone for
- * exactly this reason -- @see its comment, "the native position remains on the
- * component".
+ * are the provider's own: while a plugin frame is committed, this node's
+ * effective box is whatever the plugin last moved it to, and a plugin reading
+ * that to decide what to place is reading its own answer back. A retained
+ * widget edit leaves `position.width/height` alone for exactly this reason.
  *
  * @return 1 when the frame has the surface and its size is stated in pixels; 0
  * when it has no such surface, and 0 for a node sized as a PROPORTION of its
@@ -247,63 +143,52 @@ UITree_FrameSlotNativeSize(
     int* out_h);
 
 /**
- * Apply a whole declaration.
+ * Take the frame for a plugin PROVIDING it through the widget API.
  *
- * `slots` is UITREE_FRAME_SLOT_COUNT entries. Every role is answered: a placed
- * one receives an effective position override, an unplaced one is hidden.
- * Then the lane's own chrome is collected and hidden.
- *
- * The override never replaces the component's authored/script-owned position
- * or art. CS1/CS2 remain free to update that native state while the claim is
- * standing; layout and emit select the plugin layer, and release merely drops
- * it so the latest native state is revealed.
+ * The provider moves, hides, skins and anchors the live surfaces itself with
+ * retained widget edits, so this places nothing and hides no surface; what it
+ * does is the half only the engine can do -- collect and suppress the lane's
+ * own chrome, by root group, and release from clipping every container above a
+ * surface the provider moved -- and bind the roles so the fence's reassert and
+ * the staleness question keep working. Every surface stays native until the
+ * provider says otherwise.
  *
  * `root_group` is the interface group of the cache gameframe, or -1 on a lane
  * whose frame is revconfig builtins. It is what tells the toplevel's OWN
  * decoration apart from the interface packs mounted inside it -- see
  * frame_is_lane_chrome.
+ *
+ * `provider_owner` is the providing plugin's widget-edit owner id (the one it
+ * passes to UITree_WidgetSetPosition), never 0. Only ITS retained moves and
+ * resizes release the containers above a surface; another plugin's nudge on a
+ * native row leaves that row's cache-owned layers clipping as the lane
+ * authored them. Retained for the fence's reassert.
+ *
+ * Idempotent: an unchanged binding is an atomic no-op, never a release and
+ * re-take that would flash the lane's frame through.
  */
 void
-UITree_FrameApply(
+UITree_FrameProvide(
     struct UITree* tree,
-    struct UITreeFrameSlotRect const* slots,
-    int root_group);
+    int root_group,
+    uint64_t provider_owner);
 
 /**
- * The nodes a placed slot is spread across, for a caller that has to order
- * DRAWING against them rather than lay them out.
- *
- * The emit walk needs this and cannot have the layout struct: `struct
- * UITreeFrameLayout` is private to uitree_frame.c on purpose, so nothing
- * outside it can move a box by writing a field. Reading which nodes a slot
- * bound is a different thing from writing where they go, and depth is the one
- * question that genuinely cannot be answered from a rectangle.
- *
- * Returns how many were written (0 when the slot is not placed), never more
- * than `max`.
- */
-int
-UITree_FrameSlotNodes(
-    struct UITree const* tree,
-    int slot,
-    int32_t* out_nodes,
-    int max);
-
-/**
- * Reconcile the standing declaration with the current tree generation.
+ * Reconcile the standing provision with the current tree generation.
  *
  * Called at the publication fence. A CS2 rebuild can reclaim a matched node
- * and reuse its array index after the earlier declaration; reconciliation
- * re-resolves the semantic roles and native chrome against the exact tree that
- * will be drawn. An unchanged binding is a no-op even when unrelated topology
- * bumped the tree generation.
+ * and reuse its array index after the frame was taken; reconciliation
+ * re-resolves the semantic roles, the moved surfaces and the native chrome
+ * against the exact tree that will be drawn. An unchanged binding is a no-op
+ * even when unrelated topology bumped the tree generation.
  */
 void
 UITree_FrameReassert(struct UITree* tree);
 
 /**
  * Give the frame back to the lane: the collected chrome is shown again and
- * the effective geometry/art overrides are dropped.
+ * the released containers clip again. The provider's own retained edits are
+ * its to drop (UITree_WidgetResetOwner).
  *
  * There is deliberately no saved snapshot to restore. The cache's scripts may
  * have changed their native geometry or art while the plugin held the frame;
@@ -312,12 +197,12 @@ UITree_FrameReassert(struct UITree* tree);
 void
 UITree_FrameRelease(struct UITree* tree);
 
-/** 1 while a declaration is applied to this tree. */
+/** 1 while a plugin frame is taken on this tree. */
 int
 UITree_FrameActive(struct UITree const* tree);
 
 /**
- * How many lane-chrome nodes the standing declaration hid, and how many nodes
+ * How many lane-chrome nodes the standing provision hid, and how many nodes
  * it found for `slot`.
  *
  * Diagnostics, and they answer the one question a screenshot cannot: when both
@@ -331,55 +216,6 @@ UITree_FrameHiddenCount(struct UITree const* tree);
 
 int
 UITree_FrameSlotCount(struct UITree const* tree, int slot);
-
-/**
- * Copy the effective plugin position for `node` into `out`, or return 0 when
- * the standing declaration does not override it.
- *
- * Used only by the layout resolver. The component's own position remains the
- * native CS1/CS2 value and receives the resolved abs_* result, so every normal
- * bounds consumer automatically observes the effective box.
- */
-int
-UITree_FramePositionOverride(
-    struct UITree const* tree,
-    int32_t node,
-    struct UITreeElemPosition* out);
-
-/** 1 when a placed slot fully owns `node`'s effective box. Geometry mutators
- *  use this to update native state without dirtying an unchanged frame. */
-int
-UITree_FramePositionOwned(
-    struct UITree const* tree,
-    int32_t node);
-
-/**
- * Effective art/mask overrides for a skinned slot. Each output may be NULL.
- * Art zero keeps native art; mask zero explicitly removes the native mask.
- * Returns 1 for a currently bound skin.
- */
-int
-UITree_FrameSkinOverride(
-    struct UITree const* tree,
-    int32_t node,
-    int* out_art_scene_id,
-    int* out_mask_scene_id);
-
-/**
- * Copy the paint attached to `node`'s semantic slot, or return 0.
- *
- * A role may have several members (sidebar mounts and chat buttons), while a
- * whole-slot overlay names exactly one semantic anchor. It is attached to the
- * role's primary node -- the same deterministic first match returned by
- * UITree_FrameSlotNode -- and only while that node is placed by the standing
- * declaration. The emit walk performs the final visibility test: if the
- * primary node/subtree emits nothing, neither does its attached paint.
- */
-int
-UITree_FrameOverlayOverride(
-    struct UITree const* tree,
-    int32_t node,
-    struct UITreeFrameOverlay* out);
 
 /** Drop the frame table. Called from UITree_Free / UITree_Clear: the node
  *  indices in it name nodes that are about to stop existing. */
@@ -398,8 +234,8 @@ UITree_FrameForget(struct UITree* tree);
  * has no role table.
  *
  * So the app hands the tree a binder, and the tree calls it before every
- * collection -- UITree_FrameApply and the reassert at the emit fence -- so a
- * declaration never lands on a rebuilt gameframe whose panels have not been
+ * collection -- UITree_FrameProvide and the reassert at the emit fence -- so a
+ * provision never lands on a rebuilt gameframe whose panels have not been
  * named yet. The binder stamps `slot_tag` and `frame_member_plus1` on the
  * nodes it resolves; a lane whose profile names no frame roles pays a table
  * lookup per role and stamps nothing.
@@ -412,15 +248,15 @@ UITree_FrameSetBinder(
     void (*binder)(struct UITree* tree, void* user),
     void* user);
 
-/** Run the binder now, if one is set. What UITree_FrameApply does first; also
- *  the app's per-tick hook so a slot query that arrives with no declaration in
- *  flight still finds stamped nodes. */
+/** Run the binder now, if one is set. What UITree_FrameProvide does first;
+ *  also the app's per-tick hook so a slot query that arrives with no provision
+ *  in flight still finds stamped nodes. */
 void
 UITree_FrameBind(struct UITree* tree);
 
 /**
- * Has the set of nodes carrying the frame roles moved since the standing
- * declaration was applied? 1 when a fresh collection would bind different
+ * Has the set of nodes carrying the frame roles moved since the frame was
+ * taken? 1 when a fresh collection would bind different
  * nodes (a panel mounted, a rebuilt chat container), 0 when every role still
  * resolves to the node it did.
  *
@@ -428,12 +264,12 @@ UITree_FrameBind(struct UITree* tree);
  * schedules another frame build. Generation is a coarse signal: on an
  * OldSchool lane a cache timer script deletes and recreates its overlay nodes every logic
  * tick, so "the generation moved" is true on every frame and, read as "the
- * frame moved", re-declared the whole layout at that rate. One walk of the
+ * frame moved", rebuilt the whole layout at that rate. One walk of the
  * tree per generation change, and no chrome collection -- the emit fence's
  * reassert keeps the suppression right on its own.
  *
  * Runs the binder first, since the answer depends on its stamps. 0 for a
- * tree with no standing declaration.
+ * tree with no plugin frame taken.
  */
 int
 UITree_FrameSlotsStale(struct UITree* tree);

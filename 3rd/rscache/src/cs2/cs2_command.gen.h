@@ -963,6 +963,7 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6526] = { "mobile_wifiavailable", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
     [6527] = { "platformtype", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [6531] = { "client_version", RSCACHE_CS2_CMD_BASIC, 0, 0, 63, 2, false, 0 },
+    [6599] = { "runelite_callback", RSCACHE_CS2_CMD_BASIC, 0, 1, 0, 0, false, 0 },
 
     /* worldmap: 6600..6699 — world-map and map-element commands. rev-239 method629. */
     [6600] = { "worldmap_init", RSCACHE_CS2_CMD_BASIC, 0, 0, 0, 0, false, 0 },
@@ -1050,9 +1051,10 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [6854] = { "_6854", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
     [6857] = { "oc_getopbase", RSCACHE_CS2_CMD_BASIC, 63, 2, 0, 1, false, 0 },
     [6858] = { "oc_getop", RSCACHE_CS2_CMD_BASIC, 28, 3, 0, 1, false, 0 },
-    [6859] = { "_6859", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
-    [6860] = { "_6860", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [6861] = { "_6861", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [6859] = { "obj_find", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
+    [6860] = { "obj_despawntime", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [6861] = { "obj_visibletime", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
+    [6862] = { "obj_ispublic", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [6863] = { "obj_owner", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
 
     /* clientop-player: 6900..6999 — active player and login-state commands. rev-239 method6167. */
@@ -1125,9 +1127,9 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [7108] = { "minimenu_isopen", RSCACHE_CS2_CMD_BASIC, 0, 0, 19, 1, false, 0 },
     [7109] = { "minimenu_findcomponent", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
     [7110] = { "minimenu_numops", RSCACHE_CS2_CMD_BASIC, 0, 0, 20, 1, false, 0 },
-    [7120] = { "_7120", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
-    [7121] = { "_7121", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
-    [7122] = { "_7122", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
+    [7120] = { "objstack_count", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [7121] = { "objstack_id", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
+    [7122] = { "objstack_quantity", RSCACHE_CS2_CMD_BASIC, 63, 2, 20, 1, false, 0 },
 
     /* overlay: 7200..7499 — entity overlays, minimap and native extension commands. rev-239 method12357. */
     [7200] = { "overlay_npc_create", RSCACHE_CS2_CMD_BASIC, 214, 5, 10, 1, false, 0 },

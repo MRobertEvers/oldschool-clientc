@@ -65,6 +65,10 @@ RS_UISlots_Init(struct RS_UISlots* slots);
  * reference's unassigned sideOverlayId gate) and adopt the INI-selected boot
  * tab. Call after every full tree (re)build.
  */
+/* Replace tree-owned slot bindings while retaining the player's current chat
+ * modes. Server CHAT_FILTER_SETTINGS remains authoritative after this call. */
+void RS_UISlots_RebindTree(struct RS_UISlots*,struct UITree const*);
+
 void
 RS_UISlots_InitFromTree(
     struct RS_UISlots* slots,
@@ -102,7 +106,7 @@ RS_UISlots_TabEnabled(
  * hidden, and a frame that drew no icons at all is a worse wrong than one that
  * drew every icon.
  *
- * @see ToriRS_CacheApiV2::tab_enabled, which is this verb reaching a plugin.
+ * @see ToriRS_CacheApi::tab_enabled, which is this verb reaching a plugin.
  */
 int
 RS_UISlots_TabGiven(struct App* app, int tabno);

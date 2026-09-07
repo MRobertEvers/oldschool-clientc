@@ -63,6 +63,16 @@ CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 MAX_OPCODE = 8025
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
+    6599: (0, 1, 0, 0),  # RuneLite callback pops its name; remaining stacks are live.
+    # CS2VM2_Op_GroundObj and exec_groundobj own these exact stack effects.
+    6859: (2, 0, 1, 0),
+    6860: (0, 0, 1, 0),
+    6861: (0, 0, 1, 0),
+    6862: (0, 0, 1, 0),
+    6863: (0, 0, 1, 0),
+    7120: (1, 0, 1, 0),
+    7121: (2, 0, 1, 0),
+    7122: (2, 0, 1, 0),
     47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
     48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
     86: (1, 0, 0, 0),  # BRANCH_IF_ONE(value): branch if value == 1 (RS2-era)
@@ -700,6 +710,12 @@ def parse_meta_names() -> dict[int, str]:
 
 
 def heuristic(name: str) -> tuple[int, int, int, int] | None:
+    # These commands have no dedicated VM handler. Their established compiler
+    # signatures already populated the checked-in table as inherited (2).
+    # A later name must not turn a SET*/OC_* name guess into authoritative arity.
+    if name in {"CC_SETHTTPSPRITE", "CC_SETLOCMODEL", "IF_SETLOCMODEL",
+                "IF_SETNPCMODEL", "STOCKMARKET_VALUE", "OC_GETOPBASE", "OC_GETOP"}:
+        return None
     if name in ("POP_VAR", "POP_VARBIT"):
         return (1, 0, 0, 0)
     if name == "DEFINE_ARRAY":

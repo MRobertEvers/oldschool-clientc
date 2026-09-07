@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <math.h>
@@ -326,7 +326,15 @@ struct XpOrbState
     int tip_skill;
     int tip_xp;
     uint64_t tip_ms;
-    struct ToriRS_UiNodeRef node;
+    /* The live viewport the controls hang in, and the owned controls: one
+     * image per globe slot, per drop slot, and the tooltip. */
+    struct ToriRS_WidgetRef viewport;
+    struct ToriRS_WidgetRef globe_control[ORB_MAX_SHOWN];
+    struct ToriRS_WidgetRef drop_control[ORB_DROP_MAX];
+    struct ToriRS_WidgetRef tip_control;
+    int globe_image_set[ORB_MAX_SHOWN];
+    int globe_x[ORB_MAX_SHOWN];
+    int globe_y[ORB_MAX_SHOWN];
 };
 
 #define g_glyph (state->glyph)
@@ -356,7 +364,7 @@ struct XpOrbState
 #define g_tip_ms (state->tip_ms)
 
 static bool
-orb_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_bool(struct ToriRS_Api* api, char const* key)
 {
     bool value = false;
     (void)api->config.get_bool(api, key, &value);
@@ -364,7 +372,7 @@ orb_cfg_bool(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static int
-orb_cfg_int(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_int(struct ToriRS_Api* api, char const* key)
 {
     int value = 0;
     (void)api->config.get_int(api, key, &value);
@@ -372,7 +380,7 @@ orb_cfg_int(struct ToriRS_ApiV2* api, char const* key)
 }
 
 static uint32_t
-orb_cfg_color(struct ToriRS_ApiV2* api, char const* key)
+orb_cfg_color(struct ToriRS_Api* api, char const* key)
 {
     uint32_t value = 0;
     (void)api->config.get_color(api, key, &value);
@@ -633,7 +641,7 @@ orb_blit_scaled(
  * from the comment lines, whose second byte is never that.
  */
 static int
-orb_load_glyphs(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_load_glyphs(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     char const* at;
     size_t size = 0;
@@ -838,7 +846,7 @@ orb_virtual_level(int xp)
 /* ------------------------------------------------------------------ config */
 
 static uint32_t
-orb_cfg_argb(struct ToriRS_ApiV2* api, char const* key, int alpha)
+orb_cfg_argb(struct ToriRS_Api* api, char const* key, int alpha)
 {
     uint32_t const rgb = orb_cfg_color(api, key) & 0x00FFFFFFu;
     return ((uint32_t)orb_clampi(alpha, 0, 255) << 24) | rgb;
@@ -853,7 +861,7 @@ orb_cfg_argb(struct ToriRS_ApiV2* api, char const* key, int alpha)
  * other.
  */
 static uint32_t
-orb_skill_rgb(struct ToriRS_ApiV2* api, int skill)
+orb_skill_rgb(struct ToriRS_Api* api, int skill)
 {
     if( orb_cfg_bool(api, "custom_arc_color") )
         return orb_cfg_color(api, "arc_color") & 0x00FFFFFFu;
@@ -863,13 +871,13 @@ orb_skill_rgb(struct ToriRS_ApiV2* api, int skill)
 }
 
 static int
-orb_size(struct ToriRS_ApiV2* api)
+orb_size(struct ToriRS_Api* api)
 {
     return orb_clampi(orb_cfg_int(api, "orb_size"), 16, ORB_SIZE_MAX);
 }
 
 static int
-orb_arc_width(struct ToriRS_ApiV2* api)
+orb_arc_width(struct ToriRS_Api* api)
 {
     return orb_clampi(orb_cfg_int(api, "arc_width"), 1, 12);
 }
@@ -878,7 +886,7 @@ orb_arc_width(struct ToriRS_ApiV2* api)
  *  half of the widest of the two rings, top and bottom. The reference's own
  *  progressArcOffset. */
 static int
-orb_arc_offset(struct ToriRS_ApiV2* api)
+orb_arc_offset(struct ToriRS_Api* api)
 {
     int const widest =
         ORB_RING_WIDTH > orb_arc_width(api) ? ORB_RING_WIDTH : orb_arc_width(api);
@@ -1015,7 +1023,7 @@ orb_reset(struct XpOrbState* state)
 
 /** How many skills this client has, discovered once from api->skill_name. */
 static void
-orb_size_tables(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_size_tables(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     int count = 0;
     struct ToriRS_SkillSnapshot skill;
@@ -1026,7 +1034,11 @@ orb_size_tables(struct ToriRS_ApiV2* api, struct XpOrbState* state)
     skill.struct_size = sizeof(skill);
     while( api->game && api->game->skill(api, count, &skill) )
         count++;
-    assert(count > 0);
+    /* Before the server has stated a single stat there is no table to size:
+     * a plugin started on the title screen asks again next cycle rather than
+     * freezing an empty table for the life of the instance. */
+    if( count == 0 )
+        return;
 
     g_skill_count = count;
     g_seen_xp = malloc((size_t)count * sizeof(*g_seen_xp));
@@ -1040,7 +1052,7 @@ orb_size_tables(struct ToriRS_ApiV2* api, struct XpOrbState* state)
 
 static void
 orb_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_TickEvent const* event)
 {
@@ -1053,6 +1065,8 @@ orb_tick(
     int const virtual_level = orb_cfg_bool(api, "show_virtual_level");
 
     orb_size_tables(api, state);
+    if( !g_seen_xp )
+        return;
 
     /*
      * Logged out is a reset, and it is the honest stand-in for the
@@ -1104,6 +1118,7 @@ orb_tick(
             g_track[skill].start_ms = now;
         }
         g_track[skill].actions++;
+        api->core.log(api, "XP_ORBS_GAIN skill=%d xp=%d gained=%d", skill, xp, xp - g_seen_xp[skill]);
         /* The AMOUNT, before the seen value moves -- it is the difference
          * between the two, and there is nowhere else to read it from. */
         if( orb_cfg_bool(api, "show_xp_drops") )
@@ -1136,7 +1151,7 @@ orb_tick(
  */
 static uint64_t
 orb_key(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpGlobe const* globe,
     int progress,
     int hovered)
@@ -1176,7 +1191,7 @@ orb_key(
  */
 static int
 orb_compose(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
     struct XpGlobe const* globe,
     int slot,
@@ -1278,18 +1293,25 @@ struct OrbTipRow
  * is: eight lines of two strings is well over a hundred draw items, and the
  * whole panel is one blit this way.
  */
+/**
+ * The tooltip beside the pointer, as an owned image control in the viewport.
+ * Its picture is rebuilt on a change or on the clock; its position follows
+ * the pointer every frame. `viewport_x/y` convert canvas to viewport-local.
+ */
 static void
-orb_draw_tooltip(
-    struct ToriRS_ApiV2* api,
+orb_place_tooltip(
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
-    struct ToriRS_DrawBuilder* draw,
     struct XpGlobe const* globe,
     int goal_xp,
     int canvas_w,
     int canvas_h,
     int mouse_x,
-    int mouse_y)
+    int mouse_y,
+    int viewport_x,
+    int viewport_y)
 {
+    struct ToriRS_WidgetApi* ui = &api->widgets;
     struct OrbTipRow row[8];
     int rows = 0;
     int height;
@@ -1311,7 +1333,7 @@ orb_draw_tooltip(
         now - g_tip_ms < ORB_TIP_REFRESH_MS )
     {
         height = g_tip_h;
-        goto blit;
+        goto place;
     }
 
     {
@@ -1425,7 +1447,7 @@ orb_draw_tooltip(
     g_tip_xp = globe->xp;
     g_tip_ms = now;
 
-blit:
+place:
     /* Every frame, whatever the gate above decided: the panel follows the
      * pointer, and only its CONTENTS are on a clock. */
     x = mouse_x + 10;
@@ -1434,19 +1456,21 @@ blit:
         x = canvas_w - ORB_TIP_W;
     if( y + height > canvas_h )
         y = mouse_y - height - 5;
-    draw->image(
-        draw,
-        (struct ToriRS_ImageRef){ g_tip_image },
-        orb_clampi(x, 0, canvas_w),
-        orb_clampi(y, 0, canvas_h),
-        255);
+    x = orb_clampi(x, 0, canvas_w);
+    y = orb_clampi(y, 0, canvas_h);
+    if( !state->tip_control.opaque[2] &&
+        ui->create_image(ui->context, state->viewport, "tooltip", &state->tip_control) != TORIRS_CONTRACT_OK )
+        return;
+    (void)ui->set_image(ui->context, state->tip_control, (struct ToriRS_ImageRef){ g_tip_image }, ORB_TIP_W, height);
+    (void)ui->set_position(ui->context, state->tip_control, x - viewport_x, y - viewport_y);
+    (void)ui->revalidate(ui->context, state->tip_control);
 }
 
 /* ---------------------------------------------------------------- the draw */
 
 /** Ask for the art, and read back the pixels once they land. */
 static void
-orb_load_art(struct ToriRS_ApiV2* api, struct XpOrbState* state)
+orb_load_art(struct ToriRS_Api* api, struct XpOrbState* state)
 {
     if( g_img_skills == 0 )
     {
@@ -1502,24 +1526,24 @@ orb_load_art(struct ToriRS_ApiV2* api, struct XpOrbState* state)
     }
 }
 
+static void
+orb_remove_control(struct ToriRS_Api* api, struct ToriRS_WidgetRef* control)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    if( control->opaque[2] )
+        (void)ui->remove(ui->context, *control);
+    *control = (struct ToriRS_WidgetRef){ 0 };
+}
+
 /**
- * Every "+N" in the air, at its point along the climb.
- *
- * The travel is from just under the orb up to its centre, over `drop_duration`
- * -- and the label does not have to fade to disappear, because the orb is drawn
- * over it and swallows it. The fade is only for the tail of the climb, so a
- * label crossing a disc that is itself half transparent does not show through
- * as a smudge once it is "inside".
- *
- * A drop whose skill has no globe on screen goes with it. Its whole meaning is
- * "this much went into THAT orb", and an orb that has expired leaves the number
- * climbing towards nothing.
+ * Every "+N" in the air, at its point along the climb, as an owned image
+ * control that moves each frame and fades over the tail of the climb. A drop
+ * whose skill has no globe on screen goes with it.
  */
 static void
-orb_draw_drops(
-    struct ToriRS_ApiV2* api,
+orb_place_drops(
+    struct ToriRS_Api* api,
     struct XpOrbState* state,
-    struct ToriRS_DrawBuilder* draw,
     uint64_t now,
     int origin_x,
     int origin_y,
@@ -1527,28 +1551,22 @@ orb_draw_drops(
     int vertical,
     int gap)
 {
+    struct ToriRS_WidgetApi* ui = &api->widgets;
     int const duration = orb_clampi(orb_cfg_int(api, "drop_duration"), 100, 10000);
-
-    if( !orb_cfg_bool(api, "show_xp_drops") || !g_glyph_ready )
-        return;
+    bool const enabled = orb_cfg_bool(api, "show_xp_drops") && g_glyph_ready;
 
     for( int i = 0; i < ORB_DROP_MAX; i++ )
     {
         struct XpDrop* drop = &g_drop[i];
         int slot = -1;
         int elapsed;
-        int travel;
-        int x;
-        int y;
-        int trans;
         uint32_t rgb;
 
-        if( drop->skill < 0 )
-            continue;
-        elapsed = (int)(now - drop->at_ms);
-        if( elapsed >= duration )
+        if( !enabled || drop->skill < 0 || (elapsed = (int)(now - drop->at_ms)) >= duration )
         {
-            drop->skill = -1;
+            if( enabled && drop->skill >= 0 )
+                drop->skill = -1;
+            orb_remove_control(api, &state->drop_control[i]);
             continue;
         }
         for( int g = 0; g < g_globe_count; g++ )
@@ -1557,12 +1575,12 @@ orb_draw_drops(
         if( slot < 0 )
         {
             drop->skill = -1;
+            orb_remove_control(api, &state->drop_control[i]);
             continue;
         }
 
         rgb = orb_skill_rgb(api, drop->skill);
-        if( drop->image == 0 || drop->image_amount != drop->amount ||
-            drop->image_rgb != rgb )
+        if( drop->image == 0 || drop->image_amount != drop->amount || drop->image_rgb != rgb )
         {
             char label[24];
             char amount[20];
@@ -1572,15 +1590,8 @@ orb_draw_drops(
 
             orb_commas(amount, sizeof(amount), drop->amount);
             snprintf(label, sizeof(label), "+%s", amount);
-            /*
-             * The rasterise STRIDE is the published width, not the scratch's.
-             *
-             * They have to be the same number. image_compose reads w*h pixels
-             * straight out of the buffer, so a label laid out at one stride and
-             * published at another is not a narrower picture -- it is the
-             * buffer reinterpreted, and it arrives as a few disconnected
-             * fragments of the first row or two.
-             */
+            /* The rasterise STRIDE is the published width: a label laid out at
+             * one stride and published at another is the buffer reinterpreted. */
             w = orb_text_width(state, label) + 1;
             if( w <= 0 || w > ORB_SCRATCH_W || h > ORB_SCRATCH_H )
                 continue;
@@ -1589,8 +1600,7 @@ orb_draw_drops(
             snprintf(name, sizeof(name), "drop%d.png", i);
             {
                 struct ToriRS_ImageRef image = { 0 };
-                if( api->assets.image_compose(api, name, w, h, g_scratch, &image) ==
-                    TORIRS_ASSET_READY )
+                if( api->assets.image_compose(api, name, w, h, g_scratch, &image) == TORIRS_ASSET_READY )
                     drop->image = image.value;
             }
             drop->image_amount = drop->amount;
@@ -1604,58 +1614,50 @@ orb_draw_drops(
             int label_h = 0;
             int const disc_x = origin_x + (vertical ? 0 : slot * (size + gap));
             int const disc_y = origin_y + (vertical ? slot * (size + gap) : 0);
-
             int const drop_y = orb_clampi(orb_cfg_int(api, "drop_offset_y"), -128, 128);
-            int start_y;
-            int end_y;
+            int start_y, end_y, x, y, trans;
+            char key[16];
 
-            (void)api->assets.image_size(
-                api, (struct ToriRS_ImageRef){ drop->image }, &label_w, &label_h);
-            /*
-             * The climb: from just under the disc up to its middle, and then
-             * the whole path shifted by `drop_offset_y`.
-             *
-             * BOTH ends move together, which is the thing an earlier version of
-             * this got wrong. It made only the start adjustable, and the finish
-             * stayed pinned to the middle of the orb -- so however far down the
-             * label began, it still spent the back half of its life sitting on
-             * the artwork, and no amount of the setting could move it off.
-             * Where the label ENDS is what decides whether it reads as landing
-             * on the orb or as buried in it, so that is what has to be
-             * settable.
-             *
-             * The default puts the finish at the orb's lower edge rather than
-             * at its centre: the number is still absorbed, but it is absorbed
-             * at the rim where it can be read on the way in.
-             */
-            start_y = disc_y + size + 4 + drop_y;
-            end_y = disc_y + size / 2 - label_h / 2 + drop_y;
-            travel = start_y - end_y;
+            (void)api->assets.image_size(api, (struct ToriRS_ImageRef){ drop->image }, &label_w, &label_h);
+            /* The climb: from just under the disc up to its rim, both ends
+             * shifted together by drop_offset_y (see the note in the git
+             * history of the draw-callback version). */
+            start_y = disc_y + size + drop_y;
+            end_y = disc_y + size - label_h + drop_y;
             x = disc_x + (size - label_w) / 2;
-            y = start_y - travel * elapsed / duration;
-            /* Opaque for the first two thirds, then out. `trans` is the
-             * reference's sense: 0 is opaque, 255 invisible. */
-            trans = elapsed * 3 <= duration * 2
-                        ? 0
-                        : 255 * (elapsed * 3 - duration * 2) / duration;
-            draw->image(
-                draw,
-                (struct ToriRS_ImageRef){ drop->image },
-                x,
-                y,
-                255 - orb_clampi(trans, 0, 255));
+            y = start_y + (end_y - start_y) * elapsed / duration;
+            trans = elapsed * 3 < duration * 2 ? 0 : 255 * (elapsed * 3 - duration * 2) / duration;
+            snprintf(key, sizeof(key), "drop%d", i);
+            if( !state->drop_control[i].opaque[2] &&
+                ui->create_image(ui->context, state->viewport, key, &state->drop_control[i]) != TORIRS_CONTRACT_OK )
+                continue;
+            (void)ui->set_image(ui->context, state->drop_control[i], (struct ToriRS_ImageRef){ drop->image }, label_w, label_h);
+            (void)ui->set_position(ui->context, state->drop_control[i], x, y);
+            (void)ui->set_opacity(ui->context, state->drop_control[i], 255 - orb_clampi(trans, 0, 255));
+            (void)ui->revalidate(ui->context, state->drop_control[i]);
         }
     }
 }
 
+static void orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event);
+
+/**
+ * Each frame: expire, place and repaint the globes as owned image controls
+ * in the live viewport. Positions are viewport-local; hover is read from the
+ * pointer against each control's drawn canvas box.
+ *
+ * The column sits at the top centre of the viewport plus the two offsets.
+ * The former placement service (safe area minus other plugins' reservations)
+ * is not consulted: the controls are native children and follow the viewport.
+ */
 static void
-orb_draw(
-    struct ToriRS_ApiV2* api,
+orb_frame(
+    struct ToriRS_Api* api,
     void* plugin_state,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_FrameEvent const* event)
 {
     struct XpOrbState* state = plugin_state;
+    struct ToriRS_WidgetApi* ui = &api->widgets;
     uint64_t const now = api->core.frame_ms(api);
     int const vertical = orb_cfg_bool(api, "vertical");
     int const size = orb_size(api);
@@ -1669,66 +1671,53 @@ orb_draw(
     int hovered_slot = -1;
     int hovered_goal = 0;
     int gap = ORB_STEP;
-    struct ToriRS_Rect canvas = { 0, 0, 0, 0 };
+    struct ToriRS_WidgetBounds viewport_local = { 0 };
+    struct ToriRS_WidgetBounds viewport_canvas = { 0 };
+    (void)event;
 
-    if( node.value != state->node.value )
+    if( !state->viewport.opaque[2] )
         return;
     orb_size_tables(api, state);
     orb_load_art(api, state);
-    if( !g_skills_px )
-        return;
 
     for( int i = g_globe_count - 1; i >= 0; i-- )
         if( now - g_globe[i].at_ms > (uint64_t)duration_ms )
             orb_remove(state, i);
-    if( g_globe_count == 0 )
+    /* Slots past the count have no globe: their controls go. */
+    for( int i = g_globe_count; i < ORB_MAX_SHOWN; i++ )
+    {
+        orb_remove_control(api, &state->globe_control[i]);
+        state->globe_image_set[i] = 0;
+    }
+    if( g_globe_count > 0 && !g_skills_px )
+        api->core.log(api, "XP_ORBS_ART_PENDING skills=%d text=%d", g_img_skills, g_img_text);
+    if( g_globe_count == 0 || !g_skills_px )
+    {
+        orb_remove_control(api, &state->tip_control);
+        for( int i = 0; i < ORB_DROP_MAX; i++ )
+            orb_remove_control(api, &state->drop_control[i]);
+        return;
+    }
+    if( ui->position(ui->context, state->viewport, &viewport_local) != TORIRS_CONTRACT_OK ||
+        ui->bounds(ui->context, state->viewport, &viewport_canvas) != TORIRS_CONTRACT_OK ||
+        viewport_local.width <= 0 )
         return;
 
     if( !api->input.pointer(api, &mouse_x, &mouse_y) )
         mouse_x = -1;
 
     {
-        struct ToriRS_Rect placed;
         int run = g_globe_count * size + (g_globe_count - 1) * gap;
-        int placed_w = vertical ? size : run;
-        int placed_h = vertical ? run : size;
-
-        if( !api->placement.place(
-                api,
-                TORIRS_AREA_OVERLAY_SAFE,
-                TORIRS_ANCHOR_TOP,
-                placed_w,
-                placed_h,
-                0,
-                &placed) )
+        if( run > viewport_local.width && g_globe_count > 1 )
         {
-            if( g_globe_count <= 1 )
-                return;
             gap = 0;
             run = g_globe_count * size;
-            placed_w = vertical ? size : run;
-            placed_h = vertical ? run : size;
-            if( !api->placement.place(
-                    api,
-                    TORIRS_AREA_OVERLAY_SAFE,
-                    TORIRS_ANCHOR_TOP,
-                    placed_w,
-                    placed_h,
-                    0,
-                    &placed) )
-                return;
         }
-        origin_x = placed.x + orb_cfg_int(api, "offset_x");
-        origin_y = placed.y + offset + orb_cfg_int(api, "offset_y");
+        origin_x = (vertical ? (viewport_local.width - size) / 2 : (viewport_local.width - run) / 2) + orb_cfg_int(api, "offset_x");
+        origin_y = offset + orb_cfg_int(api, "offset_y");
     }
 
-    {
-        struct ToriRS_PlacementAreaRef const area =
-            api->placement.area(api, TORIRS_AREA_PLATFORM_SAFE);
-        (void)api->placement.primary(api, area, &canvas);
-    }
-
-    orb_draw_drops(api, state, draw, now, origin_x, origin_y, size, vertical, gap);
+    orb_place_drops(api, state, now, origin_x, origin_y, size, vertical, gap);
 
     for( int i = 0; i < g_globe_count; i++ )
     {
@@ -1741,6 +1730,7 @@ orb_draw(
         int progress;
         int hovered = 0;
         uint64_t key;
+        char name[16];
 
         memset(&skill, 0, sizeof(skill));
         skill.struct_size = sizeof(skill);
@@ -1749,19 +1739,14 @@ orb_draw(
             level_xp = skill.level_xp;
             next_xp = skill.next_level_xp;
         }
-        if( next_xp > level_xp )
-            progress = orb_clampi(
-                (int)((int64_t)(globe->xp - level_xp) * 1000 /
-                      (next_xp - level_xp)),
-                0,
-                1000);
-        else
-            progress = 1000;
+        progress = next_xp > level_xp
+            ? orb_clampi((int)((int64_t)(globe->xp - level_xp) * 1000 / (next_xp - level_xp)), 0, 1000)
+            : 1000;
 
         if( mouse_x >= 0 )
         {
-            int const dx = mouse_x - (x + size / 2);
-            int const dy = mouse_y - (y + size / 2);
+            int const dx = mouse_x - (viewport_canvas.x + x + size / 2);
+            int const dy = mouse_y - (viewport_canvas.y + y + size / 2);
             hovered = dx * dx + dy * dy <= (size / 2) * (size / 2);
         }
         if( hovered )
@@ -1776,60 +1761,79 @@ orb_draw(
         {
             globe->image = orb_compose(api, state, globe, i, progress, hovered);
             globe->key = globe->image != 0 ? key : 0;
+            state->globe_image_set[i] = 0;
         }
         if( globe->image == 0 )
             continue;
 
-        (void)draw->action_region_id(
-            draw,
-            (struct ToriRS_Rect){ x - offset, y - offset, side, side },
-            "Flip",
-            ORB_TAG_FLIP);
-        draw->image(
-            draw,
-            (struct ToriRS_ImageRef){ globe->image },
-            x - offset,
-            y - offset,
-            255);
+        snprintf(name, sizeof(name), "globe%d", i);
+        if( !state->globe_control[i].opaque[2] )
+        {
+            if( ui->create_image(ui->context, state->viewport, name, &state->globe_control[i]) != TORIRS_CONTRACT_OK )
+                continue;
+            state->globe_image_set[i] = 0;
+            state->globe_x[i] = state->globe_y[i] = -1;
+            (void)ui->set_on_op(ui->context, state->globe_control[i], "Flip", orb_operation, state);
+        }
+        if( !state->globe_image_set[i] )
+        {
+            (void)ui->set_image(ui->context, state->globe_control[i], (struct ToriRS_ImageRef){ globe->image }, side, side);
+            state->globe_image_set[i] = 1;
+        }
+        if( state->globe_x[i] != x - offset || state->globe_y[i] != y - offset )
+        {
+            (void)ui->set_position(ui->context, state->globe_control[i], x - offset, y - offset);
+            (void)ui->revalidate(ui->context, state->globe_control[i]);
+            state->globe_x[i] = x - offset;
+            state->globe_y[i] = y - offset;
+            api->core.log(api, "XP_ORBS_GLOBE slot=%d skill=%d x=%d y=%d side=%d",
+                i, globe->skill, viewport_canvas.x + x - offset, viewport_canvas.y + y - offset, side);
+        }
     }
 
     if( hovered_slot >= 0 && orb_cfg_bool(api, "enable_tooltips") && g_glyph_ready )
-        orb_draw_tooltip(
-            api,
-            state,
-            draw,
-            &g_globe[hovered_slot],
-            hovered_goal,
-            canvas.x + canvas.width,
-            canvas.y + canvas.height,
-            mouse_x,
-            mouse_y);
+        orb_place_tooltip(api, state, &g_globe[hovered_slot], hovered_goal,
+            viewport_canvas.x + viewport_canvas.width, viewport_canvas.y + viewport_canvas.height,
+            mouse_x, mouse_y, viewport_canvas.x, viewport_canvas.y);
+    else
+        orb_remove_control(api, &state->tip_control);
 }
 
-static enum ToriRS_CallbackResult
-orb_action(
-    struct ToriRS_ApiV2* api,
-    void* plugin_state,
-    uint32_t action_id,
-    int operation,
-    int x,
-    int y)
+/** Flip: the operation on every globe control. Row becomes column and back. */
+static void
+orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
-    (void)plugin_state;
-    (void)operation;
-    (void)x;
-    (void)y;
-    if( action_id != ORB_TAG_FLIP )
-        return TORIRS_CALLBACK_CONTINUE;
-    (void)api->config.set(
-        api, "vertical", orb_cfg_bool(api, "vertical") ? "0" : "1");
-    return TORIRS_CALLBACK_CONSUME;
+    struct XpOrbState* state = user;
+    (void)event;
+    (void)state;
+    (void)api->config.set(api, "vertical", orb_cfg_bool(api, "vertical") ? "0" : "1");
+    api->core.log(api, "XP_ORBS_FLIP vertical=%d", orb_cfg_bool(api, "vertical"));
 }
 
 /* --------------------------------------------------------------- lifecycle */
 
+/* The viewport is the controls' parent: unbinding takes every control with
+ * it, and a new binding starts from none. */
 static void
-orb_start(struct ToriRS_ApiV2* api, void* plugin_state)
+orb_viewport(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct XpOrbState* state = user;
+    state->viewport = event->type == TORIRS_WIDGET_BOUND ? event->widget : (struct ToriRS_WidgetRef){ 0 };
+    api->core.log(api, "XP_ORBS_VIEWPORT bound=%d", event->type == TORIRS_WIDGET_BOUND);
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+    {
+        state->globe_control[i] = (struct ToriRS_WidgetRef){ 0 };
+        state->globe_image_set[i] = 0;
+    }
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        state->drop_control[i] = (struct ToriRS_WidgetRef){ 0 };
+    state->tip_control = (struct ToriRS_WidgetRef){ 0 };
+    if( state->viewport.opaque[2] )
+        orb_frame(api, state, NULL);
+}
+
+static void
+orb_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XpOrbState* state = plugin_state;
 
@@ -1838,7 +1842,6 @@ orb_start(struct ToriRS_ApiV2* api, void* plugin_state)
     state->glyph_line_h = 12;
     state->tip_skill = -1;
     state->tip_xp = -1;
-    state->node = api->ui.ref(api, "frame.xp.drops");
     for( int i = 0; i < ORB_MAX_SHOWN; i++ )
         state->globe[i].skill = -1;
     for( int i = 0; i < ORB_DROP_MAX; i++ )
@@ -1846,10 +1849,11 @@ orb_start(struct ToriRS_ApiV2* api, void* plugin_state)
     orb_size_tables(api, state);
     orb_reset(state);
     orb_load_art(api, state);
+    (void)api->widgets.watch(api->widgets.context, "viewport", orb_viewport, state);
 }
 
 static void
-orb_stop(struct ToriRS_ApiV2* api, void* plugin_state)
+orb_stop(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XpOrbState* state = plugin_state;
 
@@ -1877,7 +1881,7 @@ orb_stop(struct ToriRS_ApiV2* api, void* plugin_state)
 
 static void
 orb_asset(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_AssetEvent const* event)
 {
@@ -1887,18 +1891,23 @@ orb_asset(
 
 static void
 orb_config_changed(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* plugin_state,
     char const* key)
 {
     struct XpOrbState* state = plugin_state;
-    (void)api;
     (void)key;
     for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+    {
         g_globe[i].key = 0;
+        state->globe_image_set[i] = 0;
+        state->globe_x[i] = state->globe_y[i] = -1;
+    }
     g_tip_skill = -1;
     g_tip_xp = -1;
     g_tip_ms = 0;
+    if( state->viewport.opaque[2] )
+        orb_frame(api, state, NULL);
 }
 
 /*
@@ -1939,42 +1948,26 @@ static struct ToriRS_ConfigItem const ORB_CONFIG[] = {
     { NULL,                TORIRS_CONFIG_BOOL,  NULL,                           NULL, 0, 0, NULL, 0 },
 };
 
-static struct ToriRS_UiContribution const XP_DROP_CONTRIBUTIONS[] = {
-    { .struct_size = sizeof(struct ToriRS_UiContribution),
-      .node = "frame.xp.drops",
-      .mode = TORIRS_UI_REPLACE_OR_PROVIDE,
-      .facets = TORIRS_UI_FACET_ALL,
-      .value = { .struct_size = sizeof(struct ToriRS_UiNode),
-                 .bounds = { 0, 0, 1, 1 },
-                 .parent = "frame.viewport",
-                 .paint_order = TORIRS_UI_PAINT_AFTER_PARENT,
-                 .clip = TORIRS_UI_CLIP_PARENT,
-                 .flags = TORIRS_UI_NODE_VISIBLE | TORIRS_UI_NODE_ENABLED } },
-    { .node = NULL },
-};
-
 static struct ToriRS_ConfigSchema const ORB_SCHEMA = {
     .struct_size = sizeof(struct ToriRS_ConfigSchema),
     .items = ORB_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "xp-drop-orbs",
     .title = "XP Drop Orbs",
-    .version = "1.0.0",
+    .version = "2.0.0",
     .state_size = sizeof(struct XpOrbState),
     .config = &ORB_SCHEMA,
-    .ui_contributions = XP_DROP_CONTRIBUTIONS,
-    .flags = TORIRS_PLUGIN_V2_DISABLED_BY_DEFAULT,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = orb_start,
         .on_stop = orb_stop,
         .on_logic_tick = orb_tick,
+        .on_frame_start = orb_frame,
         .on_config_changed = orb_config_changed,
         .on_asset = orb_asset,
-        .on_ui_node_draw = orb_draw,
-        .on_canvas_action = orb_action,
     },
 };

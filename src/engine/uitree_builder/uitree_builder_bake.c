@@ -526,11 +526,7 @@ uitree_builder_bake_pack_under_owner(
         if( inv_source_id >= 0 &&
             (build.type == UIBUILD_INV || build.type == UIBUILD_INV_TEXT) )
         {
-            struct UITreeComponent* node = &tree->components[idx];
-            if( node->type == UIELEM_RS_INV )
-                node->u.rs_inv.inv_source_id = inv_source_id;
-            else if( node->type == UIELEM_RS_INV_TEXT )
-                node->u.rs_inv_text.inv_source_id = inv_source_id;
+            (void)UITree_SetInventorySourceAt(tree, idx, inv_source_id);
         }
 
         collect_onload(builder, src);
@@ -538,7 +534,7 @@ uitree_builder_bake_pack_under_owner(
          * They must exist before the builder's initial var/inv dispatch or the
          * mount paints from the onload and then goes deaf. */
         if( builder->host )
-            RS_CS2_RegisterCacheTransmitHooks(builder->host, src);
+            RS_CS2_RegisterCacheTransmitHooks(builder->host, tree, src);
     }
 
     /* Pass 2: reparent using full pack id scan (forward layer refs). */
@@ -588,6 +584,8 @@ uitree_builder_bake_pack_under_owner(
             node = &tree->components[index_map[i]];
             if( node->type != UIELEM_RS_MODEL )
                 continue;
+            if( node->u.rs_model.active_model_id >= 0 )
+                (void)UITreeSceneBridge_EnsureModel(builder->bridge, node->u.rs_model.active_model_id);
             cache_id = node->u.rs_model.gamecache_model_id;
             if( cache_id < 0 )
             {
@@ -604,19 +602,17 @@ uitree_builder_bake_pack_under_owner(
                         /* The human ready animation. Which seq that is belongs
                          * to the profile: a preview posed at some other cache's
                          * 808 is a bind-pose snap or a wrong pose, silently. */
-                        node->u.rs_model.gamecache_model_id = scene_id;
-                        if( node->u.rs_model.anim_seq_id < 0 )
-                            node->u.rs_model.anim_seq_id = builder->bridge->player_idle_seq;
-                        node->u.rs_model.anim_frame = 0;
-                        node->u.rs_model.anim_frame_cycle = 0;
-                        node->u.rs_model.anim_hold = 1;
+                        (void)UITree_SetModelAt(tree, index_map[i], scene_id);
+                        (void)UITree_SetModelAnimationAt(tree, index_map[i],
+                            node->u.rs_model.anim_seq_id < 0 ? builder->bridge->player_idle_seq : node->u.rs_model.anim_seq_id,
+                            0, 0, 1);
                     }
                 }
                 continue;
             }
             scene_id = UITreeSceneBridge_EnsureModel(builder->bridge, cache_id);
             if( scene_id >= 0 )
-                node->u.rs_model.gamecache_model_id = scene_id;
+                (void)UITree_SetModelAt(tree, index_map[i], scene_id);
             else if( getenv("TORIRS_ANIM_DEBUG") )
                 TORIRS_LOG("bake: model widget com=0x%x cache_id=%d not loadable\n",
                     (unsigned)node->component_id,
@@ -1335,12 +1331,7 @@ uitree_builder_hide_unmounted_spillover(
                 opening_group,
                 (target_uid >> 16) & 0xffff,
                 target_uid & 0xffff);
-        if( !tree->components[root].behavior.hide )
-            tree->components[root].behavior.hide_unmounted = 1;
-        tree->components[root].behavior.hide = 1;
-        /* A hide is a change in what the walk emits just as much as an unhide;
-         * the retention gate (Opt 11) reads dirty_gen and nothing here marks. */
-        tree->dirty_gen++;
+        (void)UITree_SetMountHiddenAt(tree, root, 1);
     }
 }
 
@@ -1364,9 +1355,6 @@ uitree_builder_reassert_player_idle_anim(
             continue;
         if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
             continue;
-        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
-        c->u.rs_model.anim_frame = 0;
-        c->u.rs_model.anim_frame_cycle = 0;
-        c->u.rs_model.anim_hold = 1;
+        (void)UITree_SetModelAnimationAt(tree, i, bridge->player_idle_seq, 0, 0, 1);
     }
 }

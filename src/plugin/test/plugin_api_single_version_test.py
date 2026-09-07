@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the removed flat plugin API from growing back beside V2."""
+"""Reject removed public entry points during the coordinated major-3 migration."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ EXCLUDED = {
 
 FORBIDDEN_FILES = (
     "src/plugin/torirs_plugin.h",
+    "src/plugin/torirs_plugin_v2.h",
     "src/plugin/torirs_plugin_v2_adapter.c",
     "src/plugin/torirs_plugin_v2_adapter.h",
     "src/plugin/test/torirs_plugin_v2_adapter_test.c",
@@ -25,14 +26,14 @@ FORBIDDEN_FILES = (
 FORBIDDEN = (
     ("flat API type", r"\bToriRS_PluginApi\b"),
     ("flat API context type", r"\bToriRS_PluginCtx\b"),
-    ("flat plugin definition", r"\bToriRS_PluginDef\b"),
-    ("flat registration", r"\bPluginHost_Register\s*\("),
+    ("previous plugin definition", r"\bToriRS_PluginDefV2\b"),
+    ("previous registration", r"\bPluginHost_RegisterV2\s*\("),
+    ("previous API type", r"\bToriRS_\w*ApiV2\b"),
     ("flat API accessor", r"\bPluginHost_Api\s*\("),
     ("manual event id", r"\bTORIRS_PLUGIN_EV_[A-Z0-9_]+\b"),
     ("flat event spelling", r"\bEV_[A-Z0-9_]+\b"),
     ("manual event type", r"\bToriRS_Plugin(?:Event|Verdict)\b"),
     ("manual event verdict", r"\bTORIRS_PLUGIN_(?:PASS|CONSUME)\b"),
-    ("manual subscription", r"->\s*subscribe\s*\("),
     ("old numeric ABI", r"\bTORIRS_PLUGIN_ABI\b"),
     ("V1 adapter", r"torirs_plugin_v2_adapter"),
     ("legacy public value", r"\bToriRS_Legacy[A-Za-z0-9_]*\b"),
@@ -86,7 +87,7 @@ def main() -> int:
         for error in errors:
             print(f"  {error}", file=sys.stderr)
         return 1
-    print("single-version plugin API: V2 only")
+    print("single-version plugin entry points: major 3 (builder migration remains)")
     return 0
 
 

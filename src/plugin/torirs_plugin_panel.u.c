@@ -3776,6 +3776,101 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         }
     }
 
+    /*
+     * Headless drive, second half: pick one value in one plugin page control.
+     *
+     * `TORIRS_SIM_PANEL_PICK="<tick>,<plugin-name>,<widget-id>,<value>;..."`.
+     *
+     * Ends in app_plugin_panel_dispatch_row exactly as a dropdown pick from
+     * any executor does, so the plugin's on_ui_action, its native write and
+     * the page republish are the real ones; only the executor's own dropdown
+     * hit-test is skipped, and that is measured separately by a real click.
+     */
+    {
+        static int sim_pick_init = 0;
+        static char const* sim_pick_cursor = NULL;
+        static long sim_pick_tick = -1;
+        static char sim_pick_plugin[TORIRS_PLUGIN_NAME_MAX];
+        static char sim_pick_widget[TORIRS_PLUGIN_WIDGET_ID_MAX];
+        static char sim_pick_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
+
+        if( !sim_pick_init )
+        {
+            sim_pick_init = 1;
+            sim_pick_cursor = getenv("TORIRS_SIM_PANEL_PICK");
+        }
+        if( sim_pick_tick < 0 && sim_pick_cursor && *sim_pick_cursor )
+        {
+            char* end = NULL;
+            long const at = strtol(sim_pick_cursor, &end, 0);
+            char const* fields[3] = { sim_pick_plugin, sim_pick_widget, sim_pick_value };
+            size_t sizes[3] = { sizeof(sim_pick_plugin), sizeof(sim_pick_widget), sizeof(sim_pick_value) };
+            int ok = end && *end == ',';
+            for( int f = 0; ok && f < 3; f++ )
+            {
+                char const* start = end + 1;
+                char const* stop = strpbrk(start, f == 2 ? ";" : ",");
+                size_t len = stop ? (size_t)(stop - start) : strlen(start);
+                if( len >= sizes[f] || (f < 2 && !stop) )
+                    ok = 0;
+                else
+                {
+                    memcpy((char*)fields[f], start, len);
+                    ((char*)fields[f])[len] = '\0';
+                    end = (char*)(stop ? stop : start + len);
+                }
+            }
+            if( ok )
+            {
+                sim_pick_tick = at;
+                sim_pick_cursor = *end == ';' ? end + 1 : NULL;
+            }
+            else
+            {
+                fprintf(stderr, "chrome: sim pick: malformed TORIRS_SIM_PANEL_PICK\n");
+                sim_pick_cursor = NULL;
+            }
+        }
+        if( sim_pick_tick >= 0 && g_plugin_panel_ticks >= sim_pick_tick )
+        {
+            int dispatched = 0;
+            int found = 0;
+            sim_pick_tick = -1;
+            for( int i = 0; i < app->plugin_panel_row_count && !found; i++ )
+            {
+                struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+                struct ToriRS_PanelWidget const* model;
+                int value = -1;
+                if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET || row->plugin < 0 ||
+                    strcmp(PluginHost_Name(app->plugins, row->plugin), sim_pick_plugin) != 0 ||
+                    strcmp(row->widget_id, sim_pick_widget) != 0 )
+                    continue;
+                model = app_plugin_panel_model_for_row(app, row);
+                if( !model )
+                    continue;
+                found = 1;
+                for( int o = 0; model->structured_select && o < model->select_option_count; o++ )
+                    if( strcmp(model->select_options[o].value, sim_pick_value) == 0 )
+                        value = o;
+                /* 0 here is the host's own fence refusing the intent (a value
+                 * the row does not offer, a stale serial); the plugin never
+                 * saw it. Said as such, not as a missing row. The literal
+                 * value "!activate" presses a button or action row instead of
+                 * picking, through the same dispatch. */
+                dispatched = strcmp(sim_pick_value, "!activate") == 0
+                    ? app_plugin_panel_dispatch_row(
+                          app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
+                    : app_plugin_panel_dispatch_row(
+                          app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
+                fprintf(stderr, "chrome: sim pick '%s' %s = '%s' (option %d) -> %s (tick %d)\n",
+                    sim_pick_plugin, sim_pick_widget, sim_pick_value, value,
+                    dispatched ? "dispatched" : "refused by the host fence", g_plugin_panel_ticks);
+            }
+            if( !found )
+                fprintf(stderr, "chrome: sim pick: no row '%s' in '%s'\n", sim_pick_widget, sim_pick_plugin);
+        }
+    }
+
     /* Same suppression as every other chrome toggle: a focused chat line must
      * not flip windows.
      *

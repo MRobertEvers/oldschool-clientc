@@ -2840,10 +2840,13 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
     {
         int y = command->y - font->line_height;
         bool center = command->center != 0;
-        if( command->shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+        {
+            int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
             gles2_ui_draw_font_text(
-                renderer, slot, &clip, command->text, command->x + 1, y + 1, command->color,
+                renderer, slot, &clip, command->text, command->x + dx, y + dy, command->color,
                 true, center);
+        }
         gles2_ui_draw_font_text(
             renderer, slot, &clip, command->text, command->x, y, command->color, false, center);
         return;
@@ -2886,10 +2889,13 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
                     x += (command->w > 0 ? command->w : 1) - text_width;
             }
             y = command->y + first_baseline + line * line_height - font_ascent;
-            if( command->shadowed )
+            for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+            {
+                int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 gles2_ui_draw_font_range(
-                    renderer, slot, &clip, lines[line], lengths[line], x + 1, y + 1,
+                    renderer, slot, &clip, lines[line], lengths[line], x + dx, y + dy,
                     command->color, true);
+            }
             gles2_ui_draw_font_range(
                 renderer, slot, &clip, lines[line], lengths[line], x, y, command->color, false);
         }

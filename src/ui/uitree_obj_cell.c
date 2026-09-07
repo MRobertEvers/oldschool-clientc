@@ -298,9 +298,6 @@ UITree_ObjCellDynamicSwap(
 {
     int32_t parent_idx;
     int32_t idx_a, idx_b;
-    struct UITreeComponent* a;
-    struct UITreeComponent* b;
-    int swap;
 
     assert(tree);
     parent_idx = UITree_FindByComponentId(tree, parent_component_id);
@@ -311,33 +308,6 @@ UITree_ObjCellDynamicSwap(
     if( idx_a < 0 || idx_b < 0 )
         return false;
 
-    a = &tree->components[idx_a];
-    b = &tree->components[idx_b];
-
-#define UITREE_OBJ_CELL_SWAP(field)                                                                \
-    do                                                                                             \
-    {                                                                                              \
-        swap = a->field;                                                                           \
-        a->field = b->field;                                                                       \
-        b->field = swap;                                                                           \
-    } while( 0 )
-
-    UITREE_OBJ_CELL_SWAP(item_id);
-    UITREE_OBJ_CELL_SWAP(item_count);
-    UITREE_OBJ_CELL_SWAP(item_scene_id);
-    UITREE_OBJ_CELL_SWAP(item_atlas_index);
-#undef UITREE_OBJ_CELL_SWAP
-
-    /* An empty cell is hidden by the paint script, so a swap has to move the
-     * hide with the item or the moved item lands in an invisible slot. */
-    {
-        uint8_t const hide_a = a->behavior.hide;
-        uint8_t const hide_b = b->behavior.hide;
-        (void)UITree_SetHideAt(tree, idx_a, hide_b);
-        (void)UITree_SetHideAt(tree, idx_b, hide_a);
-    }
-
-    UITree_MarkNodeDirty(tree, idx_a);
-    UITree_MarkNodeDirty(tree, idx_b);
-    return true;
+    /* Content moves; the target cell retains its native visibility and behavior. */
+    return UITree_SwapObjectStateAt(tree, idx_a, idx_b);
 }

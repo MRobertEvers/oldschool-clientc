@@ -76,6 +76,7 @@ struct LootStore
     int source_ignored_cap;
 
     struct LootAuxList aux[LOOT_AUX_KIND_MAX];
+    uint64_t aux_revision[LOOT_AUX_KIND_MAX];
 
     int* query_ids;
     int query_count;
@@ -224,6 +225,7 @@ LootStore_AuxClear(
 
 int
 LootStore_AuxCountTotal(const struct LootStore* store);
+uint64_t LootStore_AuxRevision(const struct LootStore* store,int kind);
 
 /* --- Item ignore (7616/7617/7621) + 1-based 7619/7620 -------------------- */
 

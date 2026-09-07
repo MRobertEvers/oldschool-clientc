@@ -33,15 +33,6 @@ _Static_assert(
     TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX <= V2_RESOURCE_SLOT_MASK,
     "scene-instance tokens fit encoded slot");
 _Static_assert(V2_RESOURCE_INSTANCE <= V2_RESOURCE_KIND_MASK, "resource kinds fit token");
-_Static_assert(
-    TORIRS_PLUGIN_V2_FRAME_SKIN_SURFACES_MAX == 2,
-    "frame dependency formula matches minimap and compass skin policy");
-_Static_assert(
-    TORIRS_PLUGIN_V2_FRAME_SCROLLBAR_REFS_MAX == 6,
-    "frame dependency formula matches the six-piece engine_slot scrollbar");
-_Static_assert(
-    TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX <= TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX,
-    "one legal frame dependency set fits the runtime image-token table");
 
 static int
 v2_resource_encode(
@@ -270,7 +261,7 @@ plugin_v2_runtime_model_slot(
 
 
 static struct PluginV2Runtime*
-v2_runtime(struct ToriRS_ApiV2* api)
+v2_runtime(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime;
 
@@ -289,7 +280,7 @@ static bool v2_panel_options_valid(
 
 static void
 v2_core_log(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* format,
     ...)
 {
@@ -306,7 +297,7 @@ v2_core_log(
 
 static void
 v2_core_notify(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* text)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -316,21 +307,21 @@ v2_core_notify(
 }
 
 static int
-v2_core_screen(struct ToriRS_ApiV2* api)
+v2_core_screen(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_screen(runtime->context);
 }
 
 static uint64_t
-v2_core_frame_ms(struct ToriRS_ApiV2* api)
+v2_core_frame_ms(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_ms(runtime->context);
 }
 
 static uint64_t
-v2_core_frame_work_us(struct ToriRS_ApiV2* api)
+v2_core_frame_work_us(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_work_us(runtime->context);
@@ -338,7 +329,7 @@ v2_core_frame_work_us(struct ToriRS_ApiV2* api)
 
 static bool
 v2_core_lane(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_LaneInfo* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -349,7 +340,7 @@ v2_core_lane(
 
 static bool
 v2_core_capability(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -360,7 +351,7 @@ v2_core_capability(
 }
 
 static char const*
-v2_core_plugin_id(struct ToriRS_ApiV2* api)
+v2_core_plugin_id(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return runtime->context->name;
@@ -368,7 +359,7 @@ v2_core_plugin_id(struct ToriRS_ApiV2* api)
 
 static bool
 v2_config_has(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -379,7 +370,7 @@ v2_config_has(
 
 static bool
 v2_config_get_bool(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     bool* out)
 {
@@ -396,7 +387,7 @@ v2_config_get_bool(
 
 static bool
 v2_config_get_int(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int* out)
 {
@@ -413,7 +404,7 @@ v2_config_get_int(
 
 static bool
 v2_config_get_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     uint32_t* out)
 {
@@ -430,7 +421,7 @@ v2_config_get_color(
 
 static bool
 v2_config_get_string(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     char const** out)
 {
@@ -447,7 +438,7 @@ v2_config_get_string(
 
 static enum ToriRS_Result
 v2_config_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     char const* value)
 {
@@ -459,9 +450,16 @@ v2_config_set(
                                                      : TORIRS_RESULT_INVALID;
 }
 
+static bool v2_world_scene_origin(struct ToriRS_Api* api,int* x,int* z)
+{
+    struct ToriRS_PluginHost* host=v2_runtime(api)->context->host;
+    if( !x || !z || !host->engine.scene_origin ) return false;
+    return host->engine.scene_origin(host->engine.user,x,z);
+}
+
 static bool
 v2_world_local_player(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PlayerSnapshot* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -472,7 +470,7 @@ v2_world_local_player(
 
 static int
 v2_world_npc_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_NpcSnapshot* out)
 {
@@ -484,7 +482,7 @@ v2_world_npc_next(
 
 static bool
 v2_world_npc_by_slot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int slot,
     struct ToriRS_NpcSnapshot* out)
 {
@@ -496,7 +494,7 @@ v2_world_npc_by_slot(
 
 static int
 v2_world_player_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_PlayerSnapshot* out)
 {
@@ -508,7 +506,7 @@ v2_world_player_next(
 
 static int
 v2_world_item_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_GroundItemSnapshot* out)
 {
@@ -520,7 +518,7 @@ v2_world_item_next(
 
 static int
 v2_world_scenery_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_ScenerySnapshot* out)
 {
@@ -532,7 +530,7 @@ v2_world_scenery_next(
 
 static bool
 v2_input_key_held(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int key)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -541,7 +539,7 @@ v2_input_key_held(
 
 static bool
 v2_input_pointer(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int* out_x,
     int* out_y)
 {
@@ -554,7 +552,7 @@ v2_input_pointer(
 
 static bool
 v2_input_hover_tile(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int* out_x,
     int* out_z,
     int* out_level)
@@ -569,7 +567,7 @@ v2_input_hover_tile(
 
 static bool
 v2_input_hover_entity(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_HoverTarget* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -580,7 +578,7 @@ v2_input_hover_entity(
 
 static void
 v2_input_text_input(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool enabled)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -589,135 +587,16 @@ v2_input_text_input(
 
 static void
 v2_input_chat_focus(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool focused)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
         api_chat_focus(runtime->context, focused ? 1 : 0);
 }
 
-static struct ToriRS_UiNodeRef
-v2_ui_ref(
-    struct ToriRS_ApiV2* api,
-    char const* name)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    assert(name);
-    return plugin_v2_ui_ref(
-        runtime->context->host, runtime->context, name);
-}
-
-static bool
-v2_ui_info(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_UiNodeInfo* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(out);
-    return plugin_v2_ui_info(
-        runtime->context->host, runtime->context, node, out);
-}
-
-static bool
-v2_ui_invoke(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(action);
-    return plugin_v2_ui_invoke(
-        runtime->context->host, runtime->context, node, action);
-}
-
-static bool
-v2_ui_base_action_available(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(action);
-    return PluginHost_UiBaseActionAvailable(runtime->context->host, node, action);
-}
-
-static bool
-v2_ui_invoke_base(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    char const* action)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(action);
-    return PluginHost_UiInvokeBase(runtime->context->host, node, action);
-}
-
-static bool
-v2_ui_contribution_info(
-    struct ToriRS_ApiV2* api,
-    char const* node,
-    uint32_t facets,
-    struct ToriRS_UiContributionInfo* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(node);
-    assert(out);
-    return plugin_v2_ui_contribution_info_hook(
-        runtime->context->host, runtime->context, node, facets, out);
-}
-
-static bool
-v2_ui_node_images_valid(
-    struct PluginV2Runtime const* runtime,
-    struct ToriRS_UiNode const* value)
-{
-    size_t const size = value->struct_size ? value->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
-
-    assert(runtime);
-    assert(value);
-    if( size >= offsetof(struct ToriRS_UiNode, image) + sizeof(value->image) &&
-        value->image.value != 0 && plugin_v2_runtime_image_slot(runtime, value->image) < 0 )
-        return false;
-    if( size < offsetof(struct ToriRS_UiNode, state_image_mask) +
-                   sizeof(value->state_image_mask) ||
-        value->state_image_mask == 0 )
-        return true;
-    if( size < offsetof(struct ToriRS_UiNode, state_images) + sizeof(value->state_images) )
-        return false;
-    for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
-        if( (value->state_image_mask & (1u << state)) != 0 &&
-            value->state_images[state].value != 0 &&
-            plugin_v2_runtime_image_slot(runtime, value->state_images[state]) < 0 )
-            return false;
-    return true;
-}
-
-static enum ToriRS_Result
-v2_ui_update(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    uint32_t facets,
-    struct ToriRS_UiNode const* value)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(value);
-    if( (facets & TORIRS_UI_FACET_APPEARANCE) != 0 &&
-        !v2_ui_node_images_valid(runtime, value) )
-        return TORIRS_RESULT_INVALID;
-    return plugin_v2_ui_update_hook(
-        runtime->context->host, runtime->context, node, facets, value);
-}
-
 static bool
 v2_ui_menu_add(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MenuBuildEvent* menu,
     char const* text,
     uint32_t action_id)
@@ -730,243 +609,9 @@ v2_ui_menu_add(
                runtime->context, menu, text, action_id) != 0;
 }
 
-static enum ToriRS_Result
-v2_ui_set_enabled(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_UiNodeRef node,
-    bool enabled)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return plugin_v2_ui_set_enabled_hook(
-        runtime->context->host, runtime->context, node, enabled);
-}
-
-static bool
-v2_area_valid(int area)
-{
-    return area >= TORIRS_AREA_PLATFORM_SAFE && area <= TORIRS_AREA_RAW_VIEWPORT;
-}
-
-static bool
-v2_area_decode(
-    struct ToriRS_PlacementAreaRef ref,
-    int* out_area)
-{
-    int const area = (int)ref.value - 1;
-
-    assert(out_area);
-    if( ref.value == 0 || !v2_area_valid(area) )
-        return false;
-    *out_area = area;
-    return true;
-}
-
-static void
-v2_rect_from_internal(
-    struct ToriRS_Rect* out,
-    struct ToriRS_PlacementRect const* source)
-{
-    assert(out);
-    assert(source);
-    out->x = source->x;
-    out->y = source->y;
-    out->width = source->w;
-    out->height = source->h;
-}
-
-static void
-v2_rect_to_internal(
-    struct ToriRS_PlacementRect* out,
-    struct ToriRS_Rect const* rect)
-{
-    assert(out);
-    assert(rect);
-    out->x = rect->x;
-    out->y = rect->y;
-    out->w = rect->width;
-    out->h = rect->height;
-}
-
-static uint32_t
-v2_placement_revision(struct ToriRS_ApiV2* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return 1
-               ? api_placement_revision(runtime->context)
-               : 0;
-}
-
-static struct ToriRS_PlacementAreaRef
-v2_placement_area(
-    struct ToriRS_ApiV2* api,
-    int area)
-{
-    struct ToriRS_PlacementAreaRef ref = { 0 };
-
-    (void)v2_runtime(api);
-    if( v2_area_valid(area) )
-        ref.value = (uint32_t)area + 1u;
-    return ref;
-}
-
-static bool
-v2_placement_primary(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_PlacementAreaRef area_ref,
-    struct ToriRS_Rect* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_PlacementRect largest;
-    uint64_t largest_area = 0;
-    bool found = false;
-    int area;
-    int iterator = -1;
-
-    assert(out);
-    if( !v2_area_decode(area_ref, &area) )
-        return false;
-    for( ;; )
-    {
-        struct ToriRS_PlacementRect rect;
-        uint64_t rect_area;
-        iterator = api_placement_rect_next(runtime->context, area, iterator, &rect);
-        if( iterator < 0 )
-            break;
-        if( rect.w <= 0 || rect.h <= 0 )
-            continue;
-        rect_area = (uint64_t)rect.w * (uint64_t)rect.h;
-        if( !found || rect_area > largest_area )
-        {
-            largest = rect;
-            largest_area = rect_area;
-            found = true;
-        }
-    }
-    if( found )
-        v2_rect_from_internal(out, &largest);
-    return found;
-}
-
-static bool
-v2_placement_place(
-    struct ToriRS_ApiV2* api,
-    int area,
-    int anchor,
-    int width,
-    int height,
-    int margin,
-    struct ToriRS_Rect* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_PlacementRect placed;
-
-    assert(out);
-    if( !v2_area_valid(area) || anchor < TORIRS_ANCHOR_TOP_LEFT ||
-        anchor > TORIRS_ANCHOR_BOTTOM_RIGHT || width <= 0 || height <= 0 || margin < 0 )
-        return false;
-    if( !api_placement_place(
-            runtime->context, area, anchor, width, height, margin, &placed) )
-        return false;
-    v2_rect_from_internal(out, &placed);
-    return true;
-}
-
-static int
-v2_placement_rect_next(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_PlacementAreaRef area_ref,
-    int iterator,
-    struct ToriRS_Rect* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_PlacementRect rect;
-    int area;
-    int next;
-
-    assert(out);
-    if( !v2_area_decode(area_ref, &area) )
-        return -1;
-    next = api_placement_rect_next(runtime->context, area, iterator, &rect);
-    if( next >= 0 )
-        v2_rect_from_internal(out, &rect);
-    return next;
-}
-
-static bool
-v2_placement_contains(
-    struct ToriRS_ApiV2* api,
-    struct ToriRS_PlacementAreaRef area_ref,
-    struct ToriRS_Rect rect)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_PlacementRect internal_rect;
-    int area;
-
-    if( !v2_area_decode(area_ref, &area) || rect.width < 0 || rect.height < 0 )
-        return false;
-    v2_rect_to_internal(&internal_rect, &rect);
-    return api_placement_contains(runtime->context, area, &internal_rect) != 0;
-}
-
-static bool
-v2_reservation_name_valid(char const* name)
-{
-    size_t length;
-
-    assert(name);
-    length = strlen(name);
-    if( length == 0 || length >= TORIRS_PLACEMENT_RESERVATION_MAX )
-        return false;
-    for( size_t i = 0; i < length; i++ )
-    {
-        char const c = name[i];
-        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
-            continue;
-        return false;
-    }
-    return true;
-}
-
-static enum ToriRS_PlacementReserveResult
-v2_placement_reserve(
-    struct ToriRS_ApiV2* api,
-    char const* name,
-    int area,
-    int edge,
-    int pixels)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(name);
-    if( !v2_reservation_name_valid(name) || area != TORIRS_AREA_OVERLAY_SAFE ||
-        edge < TORIRS_EDGE_TOP || edge > TORIRS_EDGE_LEFT || pixels < 0 )
-        return TORIRS_RESERVE_INVALID;
-    return api_placement_reserve(runtime->context, name, area, edge, pixels)
-               ? TORIRS_RESERVE_OK
-               : TORIRS_RESERVE_BUDGET;
-}
-
-static bool
-v2_placement_reservation_rect(
-    struct ToriRS_ApiV2* api,
-    char const* name,
-    struct ToriRS_Rect* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_PlacementRect source;
-
-    assert(name);
-    assert(out);
-    if( !v2_reservation_name_valid(name) ||
-        !api_placement_reservation_rect(runtime->context, name, &source) )
-        return false;
-    v2_rect_from_internal(out, &source);
-    return true;
-}
-
 static int
 v2_frame_offer_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_FrameOfferInfo* out)
 {
@@ -988,7 +633,7 @@ v2_frame_offer_next(
 
 static void
 v2_frame_selection(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_FrameSelection* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1005,7 +650,7 @@ v2_frame_selection(
 
 static enum ToriRS_Result
 v2_frame_select(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1016,7 +661,7 @@ v2_frame_select(
 }
 
 static void
-v2_frame_invalidate(struct ToriRS_ApiV2* api)
+v2_frame_invalidate(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
         api_frame_invalidate(runtime->context);
@@ -1024,7 +669,7 @@ v2_frame_invalidate(struct ToriRS_ApiV2* api)
 
 static bool
 v2_frame_surface_native_size(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int surface,
     int* out_width,
     int* out_height)
@@ -1040,7 +685,7 @@ v2_frame_surface_native_size(
 
 static bool
 v2_draw_project(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int fine_x,
     int fine_z,
     int height,
@@ -1056,7 +701,7 @@ v2_draw_project(
 
 static int
 v2_draw_element_height(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int element_id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1067,7 +712,7 @@ v2_draw_element_height(
 
 static int
 v2_draw_hsl_from_rgb(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     uint32_t rgb)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1076,7 +721,7 @@ v2_draw_hsl_from_rgb(
 
 static uint32_t
 v2_draw_hsl_to_rgb(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int hsl)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1113,7 +758,7 @@ v2_asset_state_checked(enum ToriRS_AssetState state)
 
 static enum ToriRS_AssetState
 v2_assets_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1126,7 +771,7 @@ v2_assets_request(
 
 static bool
 v2_assets_bytes(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     void const** out_data,
     size_t* out_size)
@@ -1153,7 +798,7 @@ v2_assets_bytes(
 
 static enum ToriRS_Result
 v2_assets_save(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     void const* data,
     size_t size)
@@ -1171,7 +816,7 @@ v2_assets_save(
 
 static void
 v2_assets_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1182,7 +827,7 @@ v2_assets_release(
 
 static enum ToriRS_AssetState
 v2_assets_image(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ImageRef* out)
 {
@@ -1218,7 +863,7 @@ v2_assets_image(
 
 static bool
 v2_assets_image_size(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image,
     int* out_width,
     int* out_height)
@@ -1235,7 +880,7 @@ v2_assets_image_size(
 
 static void
 v2_assets_image_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1254,7 +899,7 @@ v2_assets_image_release(
 
 static enum ToriRS_AssetState
 v2_assets_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     struct ToriRS_ModelRef* out)
 {
@@ -1286,7 +931,7 @@ v2_assets_model(
 
 static void
 v2_assets_model_release(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ModelRef model)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1304,7 +949,7 @@ v2_assets_model_release(
 
 static enum ToriRS_Result
 v2_assets_screenshot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* destination,
     char const* name,
     char* out_path,
@@ -1324,7 +969,7 @@ v2_assets_screenshot(
 
 static bool
 v2_assets_image_pixels(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_ImageRef image,
     uint32_t* out_argb,
     size_t capacity,
@@ -1357,7 +1002,7 @@ v2_assets_image_pixels(
 
 static enum ToriRS_AssetState
 v2_assets_image_compose(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* name,
     int width,
     int height,
@@ -1387,7 +1032,7 @@ v2_assets_image_compose(
 
 static enum ToriRS_Result
 v2_scene_mesh_create(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1414,7 +1059,7 @@ v2_scene_mesh_create(
 
 static void
 v2_scene_mesh_destroy(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1437,7 +1082,7 @@ v2_scene_mesh_destroy(
 
 static enum ToriRS_Result
 v2_scene_mesh_vertex(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh,
     int x,
     int y,
@@ -1460,7 +1105,7 @@ v2_scene_mesh_vertex(
 
 static enum ToriRS_Result
 v2_scene_mesh_face(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_MeshRef mesh,
     int a,
     int b,
@@ -1486,7 +1131,7 @@ v2_scene_mesh_face(
 
 static enum ToriRS_Result
 v2_scene_instance_create(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef* out)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1513,7 +1158,7 @@ v2_scene_instance_create(
 
 static void
 v2_scene_instance_destroy(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1536,7 +1181,7 @@ v2_scene_instance_destroy(
 
 static enum ToriRS_Result
 v2_scene_instance_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     struct ToriRS_ModelRef model)
 {
@@ -1558,7 +1203,7 @@ v2_scene_instance_model(
 
 static enum ToriRS_Result
 v2_scene_instance_position(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int tile_x,
     int tile_z,
@@ -1583,7 +1228,7 @@ v2_scene_instance_position(
 
 static void
 v2_scene_instance_active(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     bool active)
 {
@@ -1600,7 +1245,7 @@ v2_scene_instance_active(
 
 static enum ToriRS_Result
 v2_scene_instance_mesh(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     struct ToriRS_MeshRef mesh)
 {
@@ -1621,7 +1266,7 @@ v2_scene_instance_mesh(
 
 static enum ToriRS_Result
 v2_scene_instance_cache_model(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int kind,
     int id)
@@ -1643,7 +1288,7 @@ v2_scene_instance_cache_model(
 
 static enum ToriRS_Result
 v2_scene_instance_recolor(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int from_hsl,
     int to_hsl)
@@ -1660,7 +1305,7 @@ v2_scene_instance_recolor(
 
 static void
 v2_scene_instance_clear_recolors(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1673,7 +1318,7 @@ v2_scene_instance_clear_recolors(
 
 static enum ToriRS_Result
 v2_scene_instance_animation(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int sequence_id,
     bool loop)
@@ -1691,7 +1336,7 @@ v2_scene_instance_animation(
 
 static enum ToriRS_Result
 v2_scene_instance_light(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance,
     int ambient,
     int contrast)
@@ -1709,7 +1354,7 @@ v2_scene_instance_light(
 
 static bool
 v2_scene_instance_ready(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_SceneInstanceRef instance)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1721,7 +1366,7 @@ v2_scene_instance_ready(
 
 static enum ToriRS_Result
 v2_panel_request(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ToriRS_PanelDescriptor const* description)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1732,7 +1377,7 @@ v2_panel_request(
 }
 
 static void
-v2_panel_invalidate(struct ToriRS_ApiV2* api)
+v2_panel_invalidate(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
         api_panel_clear(runtime->context);
@@ -1740,7 +1385,7 @@ v2_panel_invalidate(struct ToriRS_ApiV2* api)
 
 static void
 v2_panel_attention(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     bool wanted)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1749,7 +1394,7 @@ v2_panel_attention(
 
 static enum ToriRS_Result
 v2_panel_set_text(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     char const* text)
 {
@@ -1763,7 +1408,7 @@ v2_panel_set_text(
 
 static enum ToriRS_Result
 v2_panel_set_value(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     int value)
 {
@@ -1776,7 +1421,7 @@ v2_panel_set_value(
 
 static enum ToriRS_Result
 v2_panel_set_height(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     int preferred_height)
 {
@@ -1790,7 +1435,7 @@ v2_panel_set_height(
 
 static enum ToriRS_Result
 v2_panel_set_options(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id,
     char const* value,
     struct ToriRS_SelectOption const* options,
@@ -1812,7 +1457,7 @@ v2_panel_set_options(
 
 static void
 v2_panel_redraw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1821,7 +1466,7 @@ v2_panel_redraw(
 }
 
 static int
-v2_cache_frame_root(struct ToriRS_ApiV2* api)
+v2_cache_frame_root(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_frame_root(runtime->context);
@@ -1829,7 +1474,7 @@ v2_cache_frame_root(struct ToriRS_ApiV2* api)
 
 static int
 v2_cache_varbit(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1838,7 +1483,7 @@ v2_cache_varbit(
 
 static int
 v2_cache_varp(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -1847,7 +1492,7 @@ v2_cache_varp(
 
 static bool
 v2_cache_component_rect(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int component_id,
     struct ToriRS_Rect* out)
 {
@@ -1867,7 +1512,7 @@ v2_cache_component_rect(
 
 static bool
 v2_cache_invoke(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int component_id,
     int op)
 {
@@ -1879,7 +1524,7 @@ v2_cache_invoke(
 
 static bool
 v2_cache_named_id(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* kind,
     char const* name,
     int* out_id)
@@ -1898,7 +1543,7 @@ v2_cache_named_id(
 }
 
 static int
-v2_cache_tab_active(struct ToriRS_ApiV2* api)
+v2_cache_tab_active(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -1907,14 +1552,14 @@ v2_cache_tab_active(struct ToriRS_ApiV2* api)
 }
 
 static bool
-v2_cache_tab_enabled(struct ToriRS_ApiV2* api, int tab)
+v2_cache_tab_enabled(struct ToriRS_Api* api, int tab)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_tab_enabled(runtime->context, tab) != 0;
 }
 
 static bool
-v2_cache_tab_select(struct ToriRS_ApiV2* api, int tab)
+v2_cache_tab_select(struct ToriRS_Api* api, int tab)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return api_tab_select(runtime->context, tab);
@@ -1922,7 +1567,7 @@ v2_cache_tab_select(struct ToriRS_ApiV2* api, int tab)
 
 static bool
 v2_client_display_get(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int setting,
     int* out_value,
     int* out_min,
@@ -1935,7 +1580,7 @@ v2_client_display_get(
 
 static enum ToriRS_Result
 v2_client_display_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int setting,
     int value)
 {
@@ -1947,7 +1592,7 @@ v2_client_display_set(
 
 static int
 v2_client_feature_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_FeatureInfo* out)
 {
@@ -1960,7 +1605,7 @@ v2_client_feature_next(
 
 static bool
 v2_client_feature_get(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int* out_value)
 {
@@ -1977,7 +1622,7 @@ v2_client_feature_get(
 
 static enum ToriRS_Result
 v2_client_feature_set(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int value)
 {
@@ -1989,7 +1634,7 @@ v2_client_feature_set(
 }
 
 static int
-v2_client_world_cycle(struct ToriRS_ApiV2* api)
+v2_client_world_cycle(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -1999,7 +1644,7 @@ v2_client_world_cycle(struct ToriRS_ApiV2* api)
 
 static bool
 v2_client_datestamp(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char* out,
     size_t out_size)
 {
@@ -2013,7 +1658,7 @@ v2_client_datestamp(
 
 static uint32_t
 v2_client_setting_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int varp_id,
     uint32_t fallback)
 {
@@ -2024,7 +1669,7 @@ v2_client_setting_color(
 }
 
 static size_t
-v2_client_memory_bytes(struct ToriRS_ApiV2* api)
+v2_client_memory_bytes(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return plugin_v2_memory_bytes(
@@ -2033,7 +1678,7 @@ v2_client_memory_bytes(struct ToriRS_ApiV2* api)
 
 static void
 v2_client_disable_self(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* reason)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -2043,7 +1688,7 @@ v2_client_disable_self(
 
 static bool
 v2_game_skill(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int index,
     struct ToriRS_SkillSnapshot* out)
 {
@@ -2076,7 +1721,7 @@ v2_game_skill(
 }
 
 static int
-v2_game_run_energy(struct ToriRS_ApiV2* api)
+v2_game_run_energy(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -2085,7 +1730,7 @@ v2_game_run_energy(struct ToriRS_ApiV2* api)
 }
 
 static int
-v2_game_inventory_size(struct ToriRS_ApiV2* api, int inventory)
+v2_game_inventory_size(struct ToriRS_Api* api, int inventory)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return 1
@@ -2095,7 +1740,7 @@ v2_game_inventory_size(struct ToriRS_ApiV2* api, int inventory)
 
 static bool
 v2_game_inventory_slot(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int inventory,
     int slot,
     int* out_obj_id,
@@ -2108,7 +1753,7 @@ v2_game_inventory_slot(
 
 static bool
 v2_game_item_info(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int obj_id,
     struct ToriRS_ItemInfo* out)
 {
@@ -2119,7 +1764,7 @@ v2_game_item_info(
 
 static enum ToriRS_AssetState
 v2_game_item_image(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int obj_id,
     int count,
     int style,
@@ -2156,7 +1801,7 @@ v2_game_item_image(
 
 static int
 v2_game_highlight_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_HighlightItem* out)
 {
@@ -2169,7 +1814,7 @@ v2_game_highlight_next(
 
 static int
 v2_game_loot_source_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int iterator,
     struct ToriRS_LootSource* out)
 {
@@ -2182,7 +1827,7 @@ v2_game_loot_source_next(
 
 static int
 v2_game_loot_row_next(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int source_id,
     int iterator,
     struct ToriRS_LootRow* out)
@@ -2197,7 +1842,7 @@ v2_game_loot_row_next(
 
 static char const*
 v2_game_entity_part(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int kind,
     int a,
     int b,
@@ -2215,7 +1860,7 @@ v2_game_entity_part(
 
 static enum ToriRS_Result
 v2_game_entity_look(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* part,
     struct ToriRS_EntityAppearance const* look)
 {
@@ -2229,7 +1874,7 @@ v2_game_entity_look(
 
 static enum ToriRS_Result
 v2_game_entity_ops(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* part,
     int mode,
     char const* const* operations,
@@ -2250,7 +1895,7 @@ v2_game_entity_ops(
 }
 
 static uint64_t
-v2_game_loot_revision(struct ToriRS_ApiV2* api)
+v2_game_loot_revision(struct ToriRS_Api* api)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
     return plugin_v2_loot_revision(
@@ -2259,7 +1904,7 @@ v2_game_loot_revision(struct ToriRS_ApiV2* api)
 
 static bool
 v2_game_loot_source_clear(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     int source_id)
 {
     struct PluginV2Runtime* runtime = v2_runtime(api);
@@ -2268,7 +1913,7 @@ v2_game_loot_source_clear(
 }
 
 static struct PluginV2DrawScope*
-v2_draw_scope(struct ToriRS_DrawBuilder* draw)
+v2_draw_scope(struct ToriRS_Graphics* draw)
 {
     struct PluginV2DrawScope* scope;
 
@@ -2407,7 +2052,7 @@ v2_clip_line(
 
 static void
 v2_builder_rect(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_Rect rect,
     uint32_t rgb,
     int alpha)
@@ -2428,7 +2073,7 @@ v2_builder_rect(
 
 static void
 v2_builder_line(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x0,
     int y0,
     int x1,
@@ -2446,7 +2091,7 @@ v2_builder_line(
 
 static void
 v2_builder_text(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int x,
     int y,
     char const* text,
@@ -2471,7 +2116,7 @@ v2_builder_text(
 
 static void
 v2_builder_image(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -2504,7 +2149,7 @@ v2_builder_image(
 
 static void
 v2_builder_image_clip(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_ImageRef image,
     int x,
     int y,
@@ -2538,7 +2183,7 @@ v2_builder_image_clip(
 
 static enum ToriRS_Result
 v2_builder_world_tile(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int tile_x,
     int tile_z,
     int level,
@@ -2561,7 +2206,7 @@ v2_builder_world_tile(
 
 static enum ToriRS_Result
 v2_builder_world_hull(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     int element_id,
     uint32_t rgb,
     int alpha,
@@ -2576,80 +2221,9 @@ v2_builder_world_hull(
     return TORIRS_RESULT_OK;
 }
 
-static uint32_t
-v2_action_tag(char const* action)
-{
-    uint32_t hash = 2166136261u;
-
-    assert(action);
-    while( *action )
-    {
-        hash ^= (unsigned char)*action++;
-        hash *= 16777619u;
-    }
-    hash &= 0x7fffffffu;
-    return hash ? hash : 1;
-}
-
-static enum ToriRS_Result
-v2_builder_action_region(
-    struct ToriRS_DrawBuilder* draw,
-    struct ToriRS_Rect rect,
-    char const* action)
-{
-    struct PluginV2DrawScope* scope = v2_draw_scope(draw);
-    char const* operations[1];
-
-    assert(action);
-    if( !action[0] || strlen(action) >= TORIRS_UI_ACTION_MAX || !v2_clip_rect(scope, &rect) )
-        return TORIRS_RESULT_INVALID;
-    operations[0] = action;
-    return api_hit_region(
-               scope->runtime->context,
-               scope->surface_token,
-               rect.x,
-               rect.y,
-               rect.width,
-               rect.height,
-               operations,
-               1,
-               v2_action_tag(action))
-               ? TORIRS_RESULT_OK
-               : TORIRS_RESULT_BUDGET;
-}
-
-static enum ToriRS_Result
-v2_builder_action_region_id(
-    struct ToriRS_DrawBuilder* draw,
-    struct ToriRS_Rect rect,
-    char const* action,
-    uint32_t action_id)
-{
-    struct PluginV2DrawScope* scope = v2_draw_scope(draw);
-    char const* operations[1];
-
-    assert(action);
-    if( !action_id || (action_id & 0x80000000u) != 0 || !action[0] ||
-        strlen(action) >= TORIRS_UI_ACTION_MAX || !v2_clip_rect(scope, &rect) )
-        return TORIRS_RESULT_INVALID;
-    operations[0] = action;
-    return api_hit_region(
-               scope->runtime->context,
-               scope->surface_token,
-               rect.x,
-               rect.y,
-               rect.width,
-               rect.height,
-               operations,
-               1,
-               action_id)
-               ? TORIRS_RESULT_OK
-               : TORIRS_RESULT_BUDGET;
-}
-
 static bool
 v2_builder_context(
-    struct ToriRS_DrawBuilder* draw,
+    struct ToriRS_Graphics* draw,
     struct ToriRS_DrawContext* out)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
@@ -2672,7 +2246,7 @@ plugin_v2_runtime_draw_begin(
     struct PluginV2Runtime* runtime,
     void* surface_token,
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* out)
+    struct ToriRS_Graphics* out)
 {
     assert(runtime);
     assert(surface_token);
@@ -2682,7 +2256,7 @@ plugin_v2_runtime_draw_begin(
     scope->runtime = runtime;
     scope->surface_token = surface_token;
     scope->active = true;
-    *out = (struct ToriRS_DrawBuilder){
+    *out = (struct ToriRS_Graphics){
         .struct_size = sizeof(*out),
         .implementation = scope,
         .rect = v2_builder_rect,
@@ -2691,9 +2265,7 @@ plugin_v2_runtime_draw_begin(
         .image = v2_builder_image,
         .world_tile = v2_builder_world_tile,
         .world_hull = v2_builder_world_hull,
-        .action_region = v2_builder_action_region,
         .image_clip = v2_builder_image_clip,
-        .action_region_id = v2_builder_action_region_id,
         .context = v2_builder_context,
     };
 }
@@ -2701,7 +2273,7 @@ plugin_v2_runtime_draw_begin(
 void
 plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
-    struct ToriRS_DrawBuilder* builder)
+    struct ToriRS_Graphics* builder)
 {
     assert(scope);
     assert(builder);
@@ -2709,17 +2281,6 @@ plugin_v2_runtime_draw_end(
     assert(builder->implementation == scope);
     scope->active = false;
     builder->implementation = NULL;
-}
-
-void
-plugin_v2_runtime_draw_clip(
-    struct PluginV2DrawScope* scope,
-    struct ToriRS_Rect clip)
-{
-    assert(scope);
-    assert(scope->active);
-    scope->clip_active = clip.width > 0 && clip.height > 0;
-    scope->clip = clip;
 }
 
 void
@@ -2740,19 +2301,6 @@ plugin_v2_runtime_draw_region(
     scope->clip = region;
 }
 
-static struct PluginV2FrameScope*
-v2_frame_scope(struct ToriRS_FrameBuilder* frame)
-{
-    struct PluginV2FrameScope* scope;
-
-    assert(frame);
-    scope = frame->implementation;
-    assert(scope);
-    assert(scope->active);
-    assert(scope->runtime);
-    return scope;
-}
-
 static int
 v2_surface_slot(int surface)
 {
@@ -2770,355 +2318,6 @@ v2_surface_slot(int surface)
     if( surface < 0 || surface >= TORIRS_SURFACE_COUNT )
         return -1;
     return SURFACE[surface];
-}
-
-static bool
-v2_frame_rect_valid(struct ToriRS_Rect const* rect)
-{
-    int64_t right;
-    int64_t bottom;
-
-    assert(rect);
-    if( rect->width <= 0 || rect->height <= 0 )
-        return false;
-    right = (int64_t)rect->x + rect->width;
-    bottom = (int64_t)rect->y + rect->height;
-    return right >= INT_MIN && right <= INT_MAX && bottom >= INT_MIN && bottom <= INT_MAX;
-}
-
-static bool
-v2_frame_image(
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_ImageRef ref,
-    int* out_slot)
-{
-    int image_slot = -1;
-
-    assert(scope);
-    assert(out_slot);
-    if( ref.value != 0 )
-    {
-        image_slot = plugin_v2_runtime_image_slot(scope->runtime, ref);
-        if( image_slot < 0 )
-        {
-            scope->invalid = true;
-            return false;
-        }
-        for( int i = 0; i < scope->image_ref_count; i++ )
-            if( scope->image_refs[i].value == ref.value )
-            {
-                *out_slot = image_slot;
-                return true;
-            }
-        if( scope->image_ref_count >= TORIRS_PLUGIN_V2_FRAME_IMAGE_REFS_MAX )
-        {
-            scope->invalid = true;
-            return false;
-        }
-        scope->image_refs[scope->image_ref_count++] = ref;
-    }
-    *out_slot = image_slot;
-    return true;
-}
-
-static bool
-v2_frame_ui_node_images(
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_UiNode const* node)
-{
-    size_t const size = node->struct_size ? node->struct_size : TORIRS_UI_NODE_V2_0_SIZE;
-    int image_slot;
-
-    assert(scope);
-    assert(node);
-    if( !v2_ui_node_images_valid(scope->runtime, node) )
-        return false;
-    if( size >= offsetof(struct ToriRS_UiNode, image) + sizeof(node->image) &&
-        node->image.value != 0 && !v2_frame_image(scope, node->image, &image_slot) )
-        return false;
-    if( size >= offsetof(struct ToriRS_UiNode, state_images) + sizeof(node->state_images) )
-        for( int state = 0; state < TORIRS_UI_VISUAL_STATE_COUNT; state++ )
-            if( (node->state_image_mask & (1u << state)) != 0 &&
-                node->state_images[state].value != 0 &&
-                !v2_frame_image(scope, node->state_images[state], &image_slot) )
-                return false;
-    return true;
-}
-
-static void
-v2_builder_surface(
-    struct ToriRS_FrameBuilder* frame,
-    int surface,
-    struct ToriRS_Rect rect)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    int const surface_token = v2_surface_slot(surface);
-
-    if( surface_token < 0 || !v2_frame_rect_valid(&rect) ||
-        (scope->surface_mask & (1u << surface)) != 0 )
-    {
-        scope->invalid = true;
-        return;
-    }
-    scope->surface_mask |= 1u << surface;
-    scope->runtime->context->host->layout_candidate.anchors[surface_token] =
-        (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
-            ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
-            TORIRS_HOST_SURFACE_VIEWPORT };
-
-        (void)host_frame_surface(
-            scope->runtime->context, surface_token, rect.x, rect.y, rect.width, rect.height);
-}
-
-static void
-v2_builder_surface_anchored(
-    struct ToriRS_FrameBuilder* frame, int surface, struct ToriRS_Rect rect,
-    struct ToriRS_FrameAnchor anchor)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    int const slot = v2_surface_slot(surface);
-    int const target = anchor.relation == TORIRS_FRAME_RELATION_NATIVE
-                           ? TORIRS_HOST_SURFACE_VIEWPORT : v2_surface_slot(anchor.slot);
-    v2_builder_surface(frame, surface, rect);
-    if( scope->invalid || slot < 0 || target < 0 )
-    {
-        scope->invalid = true;
-        snprintf(scope->reason, sizeof(scope->reason), "The depth declaration has an invalid surface, rectangle or anchor.");
-        return;
-    }
-    scope->runtime->context->host->layout_candidate.anchors[slot] =
-        (struct ToriRS_FrameAnchor){ anchor.relation, target };
-}
-
-static void
-v2_builder_surface_member(
-    struct ToriRS_FrameBuilder* frame,
-    int surface,
-    int member,
-    struct ToriRS_Rect rect)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    int const surface_token = v2_surface_slot(surface);
-
-    if( surface_token < 0 || member < 0 || !v2_frame_rect_valid(&rect) ||
-        scope->member_count >= (int)(sizeof(scope->members) / sizeof(scope->members[0])) )
-    {
-        scope->invalid = true;
-        return;
-    }
-    for( int i = 0; i < scope->member_count; i++ )
-        if( scope->members[i].surface == surface && scope->members[i].member == member )
-        {
-            scope->invalid = true;
-            return;
-        }
-    scope->members[scope->member_count].surface = surface;
-    scope->members[scope->member_count].member = member;
-    scope->member_count++;
-    if( !(scope->surface_mask & (1u << surface)) )
-        scope->runtime->context->host->layout_candidate.anchors[surface_token] =
-            (struct ToriRS_FrameAnchor){ surface == TORIRS_SURFACE_VIEWPORT
-                ? TORIRS_FRAME_RELATION_NATIVE : TORIRS_FRAME_RELATION_OVER,
-                TORIRS_HOST_SURFACE_VIEWPORT };
-
-        (void)host_frame_surface_member(
-            scope->runtime->context,
-            surface_token,
-            member,
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height);
-}
-
-static void
-v2_builder_skin(
-    struct ToriRS_FrameBuilder* frame,
-    int surface,
-    struct ToriRS_FrameSkin const* skin)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    int const surface_token = v2_surface_slot(surface);
-    int image = -1;
-    int mask = -1;
-
-    if( !skin || surface_token < 0 ||
-        (skin->struct_size != 0 && skin->struct_size < sizeof(*skin)) )
-    {
-        scope->invalid = true;
-        return;
-    }
-    if( !v2_frame_image(scope, skin->image, &image) ||
-        !v2_frame_image(scope, skin->mask, &mask) )
-        return;
-        (void)host_frame_surface_skin(
-            scope->runtime->context, surface_token, image, mask);
-}
-
-static void
-v2_builder_surface_overlay(
-    struct ToriRS_FrameBuilder* frame,
-    int surface,
-    struct ToriRS_FrameSurfaceOverlay const* overlay)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    int const surface_token = v2_surface_slot(surface);
-    int image = -1;
-
-    if( !overlay || surface_token < 0 ||
-        (scope->surface_mask & (1u << surface)) == 0 ||
-        (overlay->struct_size != 0 && overlay->struct_size < sizeof(*overlay)) ||
-        overlay->image.value == 0 || overlay->alpha < 0 || overlay->alpha > 255 )
-    {
-        scope->invalid = true;
-        return;
-    }
-    if( !v2_frame_image(scope, overlay->image, &image) )
-        return;
-        (void)host_frame_surface_overlay(
-            scope->runtime->context,
-            surface_token,
-            image,
-            overlay->x,
-            overlay->y,
-            255 - overlay->alpha);
-}
-
-static void
-v2_builder_ui_node(
-    struct ToriRS_FrameBuilder* frame,
-    char const* name,
-    struct ToriRS_UiNode const* node)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-
-    assert(name);
-    assert(node);
-    if( !v2_frame_ui_node_images(scope, node) )
-    {
-        scope->invalid = true;
-        return;
-    }
-    plugin_v2_frame_ui_node(
-        scope->runtime->context->host,
-        scope->runtime->context,
-        name,
-        node);
-}
-
-static void
-v2_builder_scrollbar(
-    struct ToriRS_FrameBuilder* frame,
-    struct ToriRS_FrameScrollbar const* skin)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-    struct ToriRS_ImageRef refs[6];
-    int images[6];
-    int top;
-    int middle;
-    int bottom;
-
-    if( !skin ||
-        (skin->struct_size != 0 && skin->struct_size < TORIRS_FRAME_SCROLLBAR_V2_0_SIZE) )
-    {
-        scope->invalid = true;
-        return;
-    }
-    refs[0] = skin->track;
-    refs[1] = skin->thumb;
-    refs[2] = skin->thumb;
-    refs[3] = skin->thumb;
-    refs[4] = skin->up;
-    refs[5] = skin->down;
-    if( skin->struct_size >= sizeof(*skin) && skin->split_thumb )
-    {
-        refs[1] = skin->thumb_top;
-        refs[2] = skin->thumb_middle;
-        refs[3] = skin->thumb_bottom;
-    }
-    for( int i = 0; i < 6; i++ )
-        if( !v2_frame_image(scope, refs[i], &images[i]) )
-            return;
-    top = images[1];
-    middle = images[2];
-    bottom = images[3];
-        (void)host_frame_scrollbar(
-            scope->runtime->context,
-            images[0],
-            top,
-            middle,
-            bottom,
-            images[4],
-            images[5]);
-}
-
-static void
-v2_builder_reason(
-    struct ToriRS_FrameBuilder* frame,
-    char const* reason)
-{
-    struct PluginV2FrameScope* scope = v2_frame_scope(frame);
-
-    assert(reason);
-    (void)snprintf(scope->reason, sizeof(scope->reason), "%s", reason);
-}
-
-void
-plugin_v2_runtime_frame_begin(
-    struct PluginV2Runtime* runtime,
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_FrameBuilder* out)
-{
-    assert(runtime);
-    assert(scope);
-    assert(out);
-    memset(scope, 0, sizeof(*scope));
-    scope->runtime = runtime;
-    scope->active = true;
-    *out = (struct ToriRS_FrameBuilder){
-        .struct_size = sizeof(*out),
-        .implementation = scope,
-        .surface = v2_builder_surface,
-        .surface_anchored = v2_builder_surface_anchored,
-        .surface_member = v2_builder_surface_member,
-        .skin = v2_builder_skin,
-        .surface_overlay = v2_builder_surface_overlay,
-        .ui_node = v2_builder_ui_node,
-        .scrollbar = v2_builder_scrollbar,
-        .reason = v2_builder_reason,
-    };
-}
-
-void
-plugin_v2_runtime_frame_end(
-    struct PluginV2FrameScope* scope,
-    struct ToriRS_FrameBuilder* builder)
-{
-    assert(scope);
-    assert(builder);
-    assert(scope->active);
-    assert(builder->implementation == scope);
-    scope->active = false;
-    builder->implementation = NULL;
-}
-
-char const*
-plugin_v2_runtime_frame_reason(struct PluginV2FrameScope const* scope)
-{
-    assert(scope);
-    return scope->reason;
-}
-
-bool
-plugin_v2_runtime_frame_valid(struct PluginV2FrameScope const* scope)
-{
-    assert(scope);
-    if( scope->invalid || (scope->surface_mask & (1u << TORIRS_SURFACE_VIEWPORT)) == 0 )
-        return false;
-    for( int i = 0; i < scope->image_ref_count; i++ )
-        if( plugin_v2_runtime_image_slot(scope->runtime, scope->image_refs[i]) < 0 )
-            return false;
-    return true;
 }
 
 static struct PluginV2PanelScope*
@@ -3426,6 +2625,404 @@ plugin_v2_runtime_panel_end(
     builder->implementation = NULL;
 }
 
+static enum ToriRS_ContractResult script_access(void* user,struct ToriRS_ScriptRef ref,
+    struct PluginScriptStack const** out)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->tearing_down || ctx->host->dispatching!=ctx->index ||
+        ctx->host->dispatch_event!=PLUGIN_CALLBACK_SCRIPT_CALLBACK ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !ref.token || ref.token!=ctx->host->script_ref.token || !ctx->host->script_stack )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    *out=ctx->host->script_stack;return TORIRS_CONTRACT_OK;
+}
+static bool script_available(void* user)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct ToriRS_PluginHost* host=runtime->context->host;
+    return host->engine.capability && host->engine.capability(host->engine.user,"scripts.callbacks");
+}
+static enum ToriRS_ContractResult script_invalidate(void* user,char const* name)
+{
+    struct PluginV2Runtime* runtime=user;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !name || !*name ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return ctx->host->engine.script_invalidate && ctx->host->engine.script_invalidate(ctx->host->engine.user,name)
+        ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
+}
+static enum ToriRS_ContractResult script_counts(void* u,struct ToriRS_ScriptRef ref,size_t* ints,size_t* strings)
+{
+    if( !ints || !strings ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    *ints=stack->int_count;*strings=stack->string_count;return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_get_int(void* u,struct ToriRS_ScriptRef ref,size_t index,int32_t* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->int_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=stack->get_int(stack->user,index);return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_set_int(void* u,struct ToriRS_ScriptRef ref,size_t index,int32_t value)
+{
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->int_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( index>=64 || !(stack->writable_ints & (UINT64_C(1)<<index)) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    stack->set_int(stack->user,index,value);return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_get_string(void* u,struct ToriRS_ScriptRef ref,size_t index,
+    char* out,size_t capacity,size_t* required)
+{
+    if( !required || (capacity && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->string_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    char const* value=stack->get_string(stack->user,index);
+    if( !value ) value="";
+    *required=strlen(value)+1;
+    if( capacity ) snprintf(out,capacity,"%s",value);
+    return capacity<*required ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult script_set_string(void* u,struct ToriRS_ScriptRef ref,size_t index,char const* value)
+{
+    if( !value || strlen(value)>16384 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginScriptStack const* stack;
+    enum ToriRS_ContractResult result=script_access(u,ref,&stack);
+    if( result!=TORIRS_CONTRACT_OK ) return result;
+    if( index>=stack->string_count ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( index>=64 || !(stack->writable_strings & (UINT64_C(1)<<index)) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    return stack->set_string(stack->user,index,value) ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_FAILED;
+}
+
+static enum ToriRS_ContractResult
+plugin_widget_request(void* user, struct PluginWidgetRequest* request)
+{
+    struct PluginV2Runtime* runtime = user;
+    struct PluginContext* ctx = runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind == PLUGIN_WIDGET_INVOKE && (ctx->tearing_down ||
+        ctx->host->dispatch_event == PLUGIN_CALLBACK_SCRIPT_CALLBACK) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind == PLUGIN_WIDGET_CREATE_TEXT && ctx->tearing_down ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( request->kind >= PLUGIN_WIDGET_POSITION && plugin_ev_is_draw(ctx->host->dispatch_event) )
+        return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    return ctx->host->engine.widget_request(ctx->host->engine.user, (uint64_t)ctx->index + 1, request);
+}
+static enum ToriRS_ContractResult widget_find(void* u, char const* role, struct ToriRS_WidgetRef* out)
+{
+    if( !role || !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_FIND, .name=role, .refs=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_get(void* u, int32_t id, struct ToriRS_WidgetRef* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_GET, .id=id, .refs=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_children(void* u, struct ToriRS_WidgetRef ref,
+                                                struct ToriRS_WidgetRef* out, size_t cap, size_t* count)
+{
+    if( !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count = 0;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CHILDREN, .ref=ref, .refs=out, .capacity=cap, .count=count};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_find_all(void* u,char const* role,
+    struct ToriRS_WidgetRef* out,size_t cap,size_t* count)
+{
+    if( !role || !*role || !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count=0;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_FIND_ALL,.name=role,.refs=out,.capacity=cap,.count=count};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_hidden(void* u,struct ToriRS_WidgetRef ref,bool hidden)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_HIDDEN,.ref=ref,.a=hidden};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_text_outline(void* u,struct ToriRS_WidgetRef ref,bool outline)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_OUTLINE,.ref=ref,.a=outline};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_visible(void* u,struct ToriRS_WidgetRef ref,bool* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=false;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_VISIBLE,.ref=ref,.flag=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_actions(void* u,struct ToriRS_WidgetRef ref,
+    struct ToriRS_WidgetAction* out,size_t capacity,size_t* count)
+{
+    if( !count || (capacity && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count=0;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_ACTIONS,.ref=ref,.actions=out,.capacity=capacity,.count=count};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_invoke(void* u,struct ToriRS_WidgetActionRef action)
+{
+    if( !action.operation || !action.revision ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_INVOKE,.ref=action.widget,.action=action};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_parent(void* u,struct ToriRS_WidgetRef ref,struct ToriRS_WidgetRef* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){{0}};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_PARENT,.ref=ref,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_projection_height(void* u,struct ToriRS_WidgetRef ref,int32_t height)
+{
+    if( height<0 || height>32767 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_PROJECTION_HEIGHT,.ref=ref,.a=height};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetBounds){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_BOUNDS, .ref=ref, .bounds=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_text(void* u, struct ToriRS_WidgetRef ref, char* out, size_t cap, size_t* count)
+{
+    if( !count || (cap && !out) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *count = 0;
+    if( cap ) out[0] = 0;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_TEXT, .ref=ref, .text=out, .capacity=cap, .count=count};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_local_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out = (struct ToriRS_WidgetBounds){0};
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_LOCAL_BOUNDS, .ref=ref, .bounds=out};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_position(void* u, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_POSITION, .ref=ref, .a=x, .b=y};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_size(void* u, struct ToriRS_WidgetRef ref, int32_t w, int32_t h)
+{
+    if( w < 0 || h < 0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_SIZE, .ref=ref, .a=w, .b=h};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_revalidate(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_REVALIDATE, .ref=ref};
+    return plugin_widget_request(u, &r);
+}
+static enum ToriRS_ContractResult widget_reset(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_RESET, .ref=ref};
+    return plugin_widget_request(u, &r);
+}
+
+static enum ToriRS_ContractResult widget_create_text(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
+{
+    if( !out || !key || !*key || strlen(key)>63 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_CREATE_TEXT,.ref=parent,.name=key,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_text(void* u, struct ToriRS_WidgetRef ref, char const* text)
+{
+    if( !text ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( strlen(text)>4096 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_TEXT,.ref=ref,.name=text};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_text_color(void* u, struct ToriRS_WidgetRef ref, uint32_t rgb)
+{
+    if( rgb>0xffffff ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_COLOR,.ref=ref,.a=(int)rgb};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_text_align(void* u, struct ToriRS_WidgetRef ref, int h, int v)
+{
+    if( h<0 || h>2 || v<0 || v>2 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_ALIGN,.ref=ref,.a=h,.b=v};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetRef ref,
+    char const* label,ToriRS_WidgetListener listener,void* user)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    /* Teardown already dropped the registrations and resets the owned widgets. */
+    if( ctx->tearing_down ) return listener ? TORIRS_CONTRACT_WRONG_CONTEXT : TORIRS_CONTRACT_OK;
+    if( listener && (!label || !*label || strlen(label)>=TORIRS_WIDGET_OP_LABEL_MAX) )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( listener && ctx->host->widget_watch_serial==UINT64_MAX ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    if( !ctx->widget_ops )
+    {
+        if( !listener ) return TORIRS_CONTRACT_OK;
+        ctx->widget_ops=calloc(PLUGIN_WIDGET_OP_MAX,sizeof(*ctx->widget_ops));
+        assert(ctx->widget_ops);
+    }
+    int slot=-1;
+    for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
+    {
+        if( ctx->widget_ops[i].serial && ToriRS_WidgetRefEqual(ctx->widget_ops[i].widget,ref) ) { slot=i;break; }
+        if( slot<0 && !ctx->widget_ops[i].serial ) slot=i;
+    }
+    if( slot<0 || ctx->widget_ops[slot].serial==0 )
+    {
+        /* Removing an operation that was never armed changes nothing. */
+        if( !listener ) return TORIRS_CONTRACT_OK;
+    }
+    if( slot<0 )
+    {
+        /* Every slot is armed: reclaim one whose widget no longer exists.
+         * Live registrations are never evicted for a newcomer. */
+        for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
+        {
+            bool visible;
+            if( widget_visible(u,ctx->widget_ops[i].widget,&visible)==TORIRS_CONTRACT_STALE_REFERENCE ) { slot=i;break; }
+        }
+    }
+    if( slot<0 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    uint64_t serial=listener ? ++ctx->host->widget_watch_serial : 0;
+    struct PluginWidgetRequest request={.kind=PLUGIN_WIDGET_SET_ON_OP,.ref=ref,
+        .name=listener ? label : "",.registration=serial};
+    enum ToriRS_ContractResult result=plugin_widget_request(u,&request);
+    if( result!=TORIRS_CONTRACT_OK )
+    {
+        /* A registration whose widget vanished is dead either way. */
+        if( result==TORIRS_CONTRACT_STALE_REFERENCE && ctx->widget_ops[slot].serial )
+            ctx->widget_ops[slot]=(struct PluginWidgetOp){0};
+        return result;
+    }
+    ctx->widget_ops[slot]=listener ? (struct PluginWidgetOp){ref,serial,listener,user}
+                                   : (struct PluginWidgetOp){0};
+    return TORIRS_CONTRACT_OK;
+}
+static enum ToriRS_ContractResult widget_create_image(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
+{
+    if( !out || !key || !*key || strlen(key)>63 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    *out=(struct ToriRS_WidgetRef){0};
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_CREATE_IMAGE,.ref=parent,.name=key,.refs=out};
+    return plugin_widget_request(u,&r);
+}
+/* The image token is resolved here, against this plugin's own live resources,
+ * so the adapter only ever sees a validated slot. */
+static enum ToriRS_ContractResult widget_set_image(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image, int width, int height)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    /* Context before arguments: paint never learns anything from this call,
+     * not even whether its image token is still live. */
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( width<0 || height<0 || width>4096 || height>4096 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    int slot=plugin_v2_runtime_image_slot(runtime,image);
+    if( slot<0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_IMAGE,.ref=ref,.id=slot,.a=width,.b=height};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_mask(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image)
+{
+    struct PluginV2Runtime* runtime=u;
+    struct PluginContext* ctx=runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching!=ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    /* An empty reference is the explicit "no mask"; anything else must be a live token. */
+    int slot=-1;
+    if( image.value )
+    {
+        slot=plugin_v2_runtime_image_slot(runtime,image);
+        if( slot<0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    }
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_SET_MASK,.ref=ref,.id=slot};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_opacity(void* u, struct ToriRS_WidgetRef ref, int opacity)
+{
+    if( opacity<0 || opacity>255 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_OPACITY,.ref=ref,.a=opacity};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_set_anchor(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef target,
+                                                    enum ToriRS_WidgetRelation relation)
+{
+    if( relation<TORIRS_WIDGET_RELATION_NATIVE || relation>TORIRS_WIDGET_RELATION_REPLACE ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( relation!=TORIRS_WIDGET_RELATION_NATIVE && !ToriRS_WidgetRefValid(target) ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_ANCHOR,.ref=ref,.target=target,.a=(int)relation};
+    return plugin_widget_request(u,&r);
+}
+static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef ref)
+{
+    struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_REMOVE,.ref=ref};
+    return plugin_widget_request(u,&r);
+}
+
+static enum ToriRS_ContractResult
+widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
+{
+    struct PluginV2Runtime* runtime = user;
+    struct PluginContext* ctx = runtime ? runtime->context : NULL;
+    if( !ctx || !ctx->running || ctx->host->dispatching != ctx->index ||
+        plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
+    if( ctx->tearing_down ) return listener ? TORIRS_CONTRACT_WRONG_CONTEXT : TORIRS_CONTRACT_OK;
+    if( !role || !*role || strlen(role) >= TORIRS_UI_NAME_MAX ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
+    if( !ctx->widget_watches )
+    {
+        if( !listener ) return TORIRS_CONTRACT_OK;
+        ctx->widget_watches = calloc(PLUGIN_WIDGET_WATCH_MAX, sizeof(*ctx->widget_watches));
+        if( !ctx->widget_watches ) return TORIRS_CONTRACT_FAILED;
+    }
+    int at = -1;
+    for( int i = 0; i < PLUGIN_WIDGET_WATCH_MAX; ++i )
+    {
+        if( ctx->widget_watches[i].serial && strcmp(ctx->widget_watches[i].role, role) == 0 )
+        { at = i; break; }
+        if( at < 0 && !ctx->widget_watches[i].serial ) at = i;
+    }
+    if( at < 0 ) return listener ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    if( listener && ctx->host->widget_watch_serial == UINT64_MAX ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    struct PluginWidgetWatch* watch = &ctx->widget_watches[at];
+    memset(watch, 0, sizeof(*watch));
+    if( listener )
+    {
+        snprintf(watch->role, sizeof(watch->role), "%s", role);
+        watch->listener = listener;
+        watch->user = listener_user;
+        watch->serial = ++ctx->host->widget_watch_serial;
+        ctx->host->widget_watch_pending = true;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult widget_watch_tree(void* u,ToriRS_WidgetListener listener,void* user)
+{ return widget_subscribe(u,"@tree",listener,user); }
+static enum ToriRS_ContractResult widget_watch(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
+{
+    if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return widget_subscribe(u,role,listener,user);
+}
+
 static bool
 v2_runtime_init(
     struct PluginV2Runtime* runtime,
@@ -3454,7 +3051,7 @@ v2_runtime_init(
         return false;
     }
 
-    runtime->client_api = (struct ToriRS_ClientApiV2){
+    runtime->client_api = (struct ToriRS_ClientApi){
         .struct_size = sizeof(runtime->client_api),
         .display_get = v2_client_display_get,
         .display_set = v2_client_display_set,
@@ -3467,7 +3064,7 @@ v2_runtime_init(
         .memory_bytes = v2_client_memory_bytes,
         .disable_self = v2_client_disable_self,
     };
-    runtime->game_api = (struct ToriRS_GameApiV2){
+    runtime->game_api = (struct ToriRS_GameApi){
         .struct_size = sizeof(runtime->game_api),
         .skill = v2_game_skill,
         .run_energy = v2_game_run_energy,
@@ -3485,11 +3082,23 @@ v2_runtime_init(
         .loot_source_clear = v2_game_loot_source_clear,
     };
 
-    runtime->api = (struct ToriRS_ApiV2){
+    runtime->api = (struct ToriRS_Api){
         .struct_size = sizeof(runtime->api),
-        .major_version = TORIRS_PLUGIN_API_V2_MAJOR,
-        .minor_version = TORIRS_PLUGIN_API_V2_MINOR,
+        .major_version = TORIRS_PLUGIN_API_MAJOR,
+        .minor_version = TORIRS_PLUGIN_API_MINOR,
         .instance = runtime,
+        .scripts = {.context=runtime,.available=script_available,.invalidate=script_invalidate,.counts=script_counts,
+            .get_int=script_get_int,.set_int=script_set_int,.get_string=script_get_string,.set_string=script_set_string},
+        .widgets = {
+            .context = runtime, .find = widget_find, .get_widget = widget_get,
+            .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
+            .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.set_mask=widget_set_mask,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
+            .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
+            .position = widget_local_bounds,
+            .set_position = widget_position, .set_size = widget_size,
+            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
+            .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
+        },
         .core = {
             .struct_size = sizeof(runtime->api.core),
             .log = v2_core_log,
@@ -3512,6 +3121,7 @@ v2_runtime_init(
         },
         .world = {
             .struct_size = sizeof(runtime->api.world),
+            .scene_origin = v2_world_scene_origin,
             .local_player = v2_world_local_player,
             .npc_next = v2_world_npc_next,
             .npc_by_slot = v2_world_npc_by_slot,
@@ -3528,28 +3138,9 @@ v2_runtime_init(
             .text_input = v2_input_text_input,
             .chat_focus = v2_input_chat_focus,
         },
-        .ui = {
-            .struct_size = sizeof(runtime->api.ui),
-            .ref = v2_ui_ref,
-            .info = v2_ui_info,
-            .invoke = v2_ui_invoke,
-            .contribution_info = v2_ui_contribution_info,
-            .update = v2_ui_update,
-            .menu_add = v2_ui_menu_add,
-            .set_enabled = v2_ui_set_enabled,
-            .base_action_available = v2_ui_base_action_available,
-            .invoke_base = v2_ui_invoke_base,
-        },
-        .placement = {
-            .struct_size = sizeof(runtime->api.placement),
-            .revision = v2_placement_revision,
-            .area = v2_placement_area,
-            .primary = v2_placement_primary,
-            .place = v2_placement_place,
-            .rect_next = v2_placement_rect_next,
-            .contains = v2_placement_contains,
-            .reserve = v2_placement_reserve,
-            .reservation_rect = v2_placement_reservation_rect,
+        .menu = {
+            .struct_size = sizeof(runtime->api.menu),
+            .add = v2_ui_menu_add,
         },
         .frame = {
             .struct_size = sizeof(runtime->api.frame),

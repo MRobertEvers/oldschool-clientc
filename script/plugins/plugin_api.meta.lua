@@ -1,5 +1,5 @@
 ---@meta
--- LuaLS mirror of the native plugin API v2. The runtime/meta inventory test
+-- LuaLS mirror of the native plugin API major 3. The runtime/meta inventory test
 -- compares every module and callable in this file with torirs_plugin_lua.c.
 
 ---@deprecated Removed by the sandbox; use api.core.log.
@@ -38,10 +38,6 @@ warn = nil
 ---@alias torirs.ResultName 'ok'|'not_found'|'pending'|'unsupported'|'conflict'|'budget'|'invalid'|'error'
 ---@alias torirs.AssetState 'pending'|'ready'|'missing'|'invalid'|'budget'|'error'
 ---@alias torirs.Verdict boolean|'consume'|nil
----@alias torirs.UiFacet 'bounds'|'appearance'|'actions'|'all'
----@alias torirs.Area 'platform_safe'|'frame_build'|'overlay_safe'|'raw_viewport'|integer
----@alias torirs.Anchor 'top-left'|'top'|'top-right'|'left'|'center'|'right'|'bottom-left'|'bottom'|'bottom-right'|integer
----@alias torirs.Edge 'top'|'right'|'bottom'|'left'|integer
 ---@alias torirs.PanelView 'page'|'settings'
 ---@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
@@ -49,8 +45,6 @@ warn = nil
 ---@alias torirs.ModelRef integer
 ---@alias torirs.MeshRef integer
 ---@alias torirs.SceneInstanceRef integer
----@alias torirs.UiNodeRef integer
----@alias torirs.PlacementAreaRef integer
 
 ---@class torirs.Rect
 ---@field x integer
@@ -128,6 +122,14 @@ warn = nil
 ---@field base_tile_x integer
 ---@field base_tile_z integer
 
+---@class torirs.GameframeEvent
+---@field offer_id string This plugin's offer id.
+---@field active boolean Selected and being laid out (true) or released (false).
+---@field canvas "fixed"|"window"
+---@field width integer Logical canvas width the frame is laid out against.
+---@field height integer
+---@field safe torirs.Rect The canvas less what the platform is covering (the soft keyboard band), in canvas pixels; the whole canvas when no band is up. Hang a bottom strip from safe.y + safe.height. The event is raised again when it changes. The lane's own popout strip (lane_chrome_0) is not subtracted; find and subtract that widget yourself.
+
 ---@class torirs.ScreenChangedEvent
 ---@field screen string
 ---@field previous string
@@ -196,12 +198,6 @@ warn = nil
 ---@field game_visible boolean
 ---@field generation integer
 
----@class torirs.CanvasActionEvent
----@field id integer
----@field operation integer
----@field x integer
----@field y integer
-
 ---@class torirs.CoreApi
 ---@field log fun(...: any)
 ---@field notify fun(text: string)
@@ -227,6 +223,7 @@ warn = nil
 ---@field [string] boolean|integer|string|function Declared config keys are readable properties.
 
 ---@class torirs.WorldApi
+---@field scene_origin fun(): integer?, integer? Current southwest scene corner in absolute tiles, or nil without a world; works on mid-session enable.
 ---@field local_player fun(): torirs.PlayerSnap?
 ---@field npc_next fun(cursor?: integer): integer?, torirs.NpcSnap?
 ---@field npc_by_slot fun(server_slot: integer): torirs.NpcSnap?
@@ -249,64 +246,8 @@ warn = nil
 ---@field tile_z integer
 ---@field level integer
 
----@class torirs.UiApi
----@field ref fun(name: string): torirs.UiNodeRef?
----@field info fun(node: torirs.UiNodeRef): torirs.UiNodeInfo?
----@field invoke fun(node: torirs.UiNodeRef, action: string): boolean
----@field base_action_available fun(node: torirs.UiNodeRef, action: string): boolean True when the lane binds this semantic action beneath any plugin replacement. Since API 2.3.
----@field invoke_base fun(node: torirs.UiNodeRef, action: string): boolean Invoke the lane-owned semantic action without redispatching the plugin action provider. Since API 2.3.
----@field contribution_info fun(node: string, facets: torirs.UiFacet[]|torirs.UiFacet|integer): torirs.UiContributionInfo?
----@field update fun(node: torirs.UiNodeRef, facets: torirs.UiFacet[]|torirs.UiFacet|integer, value: torirs.UiNode): boolean, torirs.ResultName
----@field menu_add fun(text: string, action_id: integer): boolean Only during on_menu_build.
----@field set_enabled fun(node: torirs.UiNodeRef, enabled: boolean): boolean, torirs.ResultName Activate or release this plugin's static contribution.
-
----@class torirs.UiNode
----@field bounds? torirs.Rect
----@field parent? string
----@field anchor? torirs.Anchor
----@field paint_order? integer
----@field flags? integer
----@field image? torirs.ImageRef
----@field label? string
----@field action? string
----@field clip? integer
----@field label_x? integer
----@field label_y? integer
----@field hit_rect? torirs.Rect
----@field state_images? table<string, torirs.ImageRef>
----@field actions? string[]
-
----@class torirs.UiNodeInfo
----@field bounds torirs.Rect
----@field available_facets integer
----@field visible boolean
----@field enabled boolean
----@field active boolean
----@field parent torirs.UiNodeRef?
----@field anchor integer
----@field paint_order integer
----@field clip integer
----@field label string
----@field label_x integer
----@field label_y integer
----@field hit_rect torirs.Rect
----@field actions string[]
----@field state_images torirs.ImageRef[]
-
----@class torirs.UiContributionInfo
----@field state integer
----@field active_facets integer
----@field conflict_plugin string
-
----@class torirs.PlacementApi
----@field revision fun(): integer
----@field area fun(area: torirs.Area): torirs.PlacementAreaRef?
----@field primary fun(area: torirs.PlacementAreaRef): torirs.Rect?
----@field place fun(area: torirs.Area, anchor: torirs.Anchor, width: integer, height: integer, margin?: integer): torirs.Rect?
----@field rect_next fun(area: torirs.PlacementAreaRef, cursor?: integer): integer?, torirs.Rect?
----@field contains fun(area: torirs.PlacementAreaRef, rect: torirs.Rect): boolean
----@field reserve fun(name: string, area: torirs.Area, edge: torirs.Edge, pixels: integer): boolean, string
----@field reservation_rect fun(name: string): torirs.Rect?
+---@class torirs.MenuApi
+---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
 
 ---@class torirs.FrameApi
 ---@field offer_next fun(cursor?: integer): integer?, torirs.FrameOfferInfo?
@@ -334,22 +275,6 @@ warn = nil
 ---@field reason string
 ---@field revision integer
 
----@class torirs.FrameBuildContext
----@field offer_id string Local offer id.
----@field canvas 'fixed'|'window'
----@field logical_canvas torirs.Rect
----@field available torirs.PlacementAreaRef?
----@field lane torirs.Lane
-
----@class torirs.FrameBuilder
----@field surface fun(surface: torirs.Surface, rect: torirs.Rect)
----@field surface_member fun(surface: torirs.Surface, member: integer, rect: torirs.Rect)
----@field skin fun(surface: torirs.Surface, skin: table)
----@field ui_node fun(name: string, node: torirs.UiNode)
----@field scrollbar fun(skin: table)
----@field reason fun(text: string)
----@field surface_overlay fun(surface: torirs.Surface, overlay: table)
-
 ---@class torirs.FrameOffer
 ---@field id string Local stable id; the catalogue exposes `<plugin-id>/<id>`.
 ---@field title string
@@ -358,8 +283,6 @@ warn = nil
 ---@field height? integer Required for fixed canvas.
 ---@field min_width? integer Required for window canvas.
 ---@field min_height? integer Required for window canvas.
----@field build fun(api: torirs.Api, frame: torirs.FrameBuilder, context: torirs.FrameBuildContext): 'ready'|'pending'|'unsupported'|'error'
----@field draw? fun(api: torirs.Api, draw: torirs.DrawBuilder)
 
 ---@class torirs.DrawApi
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer?
@@ -512,16 +435,14 @@ warn = nil
 ---@field loot_revision fun(): integer
 ---@field loot_source_clear fun(source_id: integer): boolean
 
----@class torirs.DrawBuilder
+---@class torirs.Graphics
 ---@field rect fun(x: integer, y: integer, width: integer, height: integer, rgb: torirs.Colour, alpha?: integer)
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, rgb: torirs.Colour, alpha?: integer)
 ---@field text fun(x: integer, y: integer, text: string, rgb?: torirs.Colour)
 ---@field image fun(image: torirs.ImageRef, x: integer, y: integer, alpha?: integer)
 ---@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer): boolean, torirs.ResultName
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
----@field action_region fun(rect: torirs.Rect, action: string): boolean, torirs.ResultName
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
----@field action_region_id fun(rect: torirs.Rect, action: string, action_id: integer): boolean, torirs.ResultName
 ---@field context fun(): torirs.DrawContext?
 
 ---@class torirs.PanelBuilder
@@ -559,12 +480,6 @@ warn = nil
 ---@field icon_asset? string
 ---@field preferred_width? integer
 
----@class torirs.UiContribution
----@field node string Canonical semantic name.
----@field mode? 'modify'|'provide_if_missing'|'replace_or_provide'
----@field facets? torirs.UiFacet[]|torirs.UiFacet|integer
----@field value torirs.UiNode
-
 ---@class torirs.ConfigItem
 ---@field key string
 ---@field type? 'bool'|'int'|'color'|'colour'|'string'|'enum'|'text'
@@ -575,13 +490,80 @@ warn = nil
 ---@field choices? string
 ---@field rows? integer
 
+---@class torirs.WidgetActionRef
+
+---@class torirs.WidgetAction
+---@field label string Current native action label.
+---@field ref torirs.WidgetActionRef Checked retained action.
+
+---@class torirs.Widget
+---@field visible fun(self:torirs.Widget):boolean?
+---@field actions fun(self:torirs.Widget):torirs.WidgetAction[]?
+---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
+---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
+---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
+---@field set_text_outline fun(self:torirs.Widget,outline:boolean):boolean,string Native or owned text; false resumes native shadow style.
+---@field set_text_align fun(self:torirs.Widget,horizontal:integer,vertical:integer):boolean,string 0=start, 1=center, 2=end; owned text only.
+---@field create_image fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's keyed image child.
+---@field set_image fun(self:torirs.Widget,image:integer,width:integer,height:integer):boolean,string Owned image controls take one of this plugin's live images and a size; a native sprite, graphic or compass with size 0,0 takes the image as a retained re-skin while it shows a graphic of its own (size stays the widget's; non-zero is invalid_argument).
+---@field set_mask fun(self:torirs.Widget,image:integer?):boolean,string Native minimap, compass or sprite only: retained clip where the image is transparent; nil removes the native mask.
+---@field set_opacity fun(self:torirs.Widget,opacity:integer):boolean,string Owned widgets only; 255 opaque, 0 invisible.
+---@field set_anchor fun(self:torirs.Widget,target:torirs.Widget?,relation:"native"|"over"|"behind"|"replace"):boolean,string Retained depth relation to another widget: drawn and hit directly over it, behind it, or in its place (replace inherits the target's native visibility both ways). "native" with a nil target clears this owner's relation; self, ancestor/descendant pairs and cycles are invalid_argument.
+---@field set_on_op fun(self:torirs.Widget,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms one left-click/menu operation delivered through the native hit test and retained-menu checks; replacing the callback retires earlier menu rows; nil removes it.
+---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
+---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
+---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
+---@field children fun(self:torirs.Widget):torirs.Widget[]?
+---@field parent fun(self:torirs.Widget):torirs.Widget? Native parent; not a presentation reparent.
+---@field set_projection_height fun(self:torirs.Widget,height:integer):boolean,string World-unit lift for an anchored overlay layer; camera projection stays native.
+---@field text fun(self:torirs.Widget):string? Current native text input.
+---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
+---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
+---@field set_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string Presentation only; native hiding remains authoritative. Reset/disable reveals current native state or another owner's edit.
+---@field revalidate fun(self:torirs.Widget):boolean,string
+---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
+
+---@class torirs.WidgetBindingEvent
+---@field kind 'bound'|'unbound'|'tree_changed'
+---@field role string
+---@field native_revision integer
+
+---@class torirs.WidgetOperationEvent
+---@field kind 'operation'
+---@field operation integer Always 1 for an owned control's single operation.
+---@field native_revision integer The registration that produced this operation.
+
+---@class torirs.WidgetsApi
+---@field invoke fun(action:torirs.WidgetActionRef):boolean, string? Rechecks current native visibility, masks and widget identity.
+---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
+---@field find fun(role:string):torirs.Widget?
+---@field find_all fun(role:string):(torirs.Widget|false)[]? All current matches in the role's own numbering: t[m+1] is member m, false where this frame has no member m; count is one past the highest present. Skip false entries when iterating. ground_item_labels is unavailable without the native CS2 overlay adapter.
+---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.
+---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
+
+---@class torirs.ScriptRef
+---@class torirs.ScriptEvent
+---@field name string
+---@field script_id integer
+---@field widget? torirs.Widget The live widget at an approved hook site.
+---@field ref torirs.ScriptRef Valid only during this synchronous callback.
+---@class torirs.ScriptsApi
+---@field available fun():boolean False on CS1/revconfig adapters.
+---@field invalidate fun(callback_name:string):boolean Rebuild cached native results at the next safe point, including during shutdown.
+---@field counts fun(ref:torirs.ScriptRef):integer,integer Integer and string stack sizes.
+---@field get_int fun(ref:torirs.ScriptRef,index:integer):integer Index 0 is the top remaining slot.
+---@field set_int fun(ref:torirs.ScriptRef,index:integer,value:integer):boolean
+---@field get_string fun(ref:torirs.ScriptRef,index:integer):string
+---@field set_string fun(ref:torirs.ScriptRef,index:integer,value:string):boolean At most 16384 bytes, no embedded NUL.
+
 ---@class torirs.Api
+---@field widgets torirs.WidgetsApi
+---@field scripts torirs.ScriptsApi
 ---@field core torirs.CoreApi
 ---@field config torirs.ConfigApi
 ---@field world torirs.WorldApi
 ---@field input torirs.InputApi
----@field ui torirs.UiApi
----@field placement torirs.PlacementApi
+---@field menu torirs.MenuApi
 ---@field frame torirs.FrameApi
 ---@field draw torirs.DrawApi
 ---@field assets torirs.AssetsApi
@@ -598,13 +580,13 @@ warn = nil
 ---@field event_priority? integer Higher values receive ordinary events first.
 ---@field draw_order? integer Lower values draw first within a draw pass.
 ---@field config? torirs.ConfigItem[]
----@field ui_contributions? torirs.UiContribution[]
----@field frames? torirs.FrameOffer[] Static offers published before startup.
+---@field frames? torirs.FrameOffer[] Static offers published before startup; each is served by on_gameframe.
 ---@field on_start? fun(api: torirs.Api)
 ---@field on_stop? fun(api: torirs.Api)
 ---@field on_frame_start? fun(api: torirs.Api, ev: torirs.FrameEvent)
 ---@field on_logic_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
 ---@field on_server_tick? fun(api: torirs.Api, ev: torirs.TickEvent)
+---@field on_script_callback? fun(api:torirs.Api,event:torirs.ScriptEvent) Synchronous; cannot yield or invoke native scripts.
 ---@field on_world_loaded? fun(api: torirs.Api, ev: torirs.WorldLoadedEvent)
 ---@field on_screen_changed? fun(api: torirs.Api, ev: torirs.ScreenChangedEvent)
 ---@field on_npc_spawn? fun(api: torirs.Api, npc: torirs.NpcSnap)
@@ -618,15 +600,12 @@ warn = nil
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.ChatMessageEvent)
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.GameEvent)
 ---@field on_key? fun(api: torirs.Api, ev: torirs.KeyEvent): torirs.Verdict
+---@field on_gameframe? fun(api: torirs.Api, ev: torirs.GameframeEvent): ("ready"|"pending"|"unsupported"|boolean)?, string? Frame provision through the widget API: with ev.active the script's declared frame offer is the selected gameframe and is laid out against ev.width x ev.height by editing widgets (move, hide, skin, anchor); return nothing or "ready", or "pending"/"unsupported" with a reason. Raised again on every canvas change; ev.active=false announces the release before teardown.
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
----@field on_draw_world? fun(api: torirs.Api, draw: torirs.DrawBuilder)
----@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.DrawBuilder)
+---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Graphics)
+---@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.Graphics)
 ---@field on_ui_build? fun(api: torirs.Api, panel: torirs.PanelBuilder, view: torirs.PanelView)
 ---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)
----@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.DrawBuilder)
----@field on_placement_changed? fun(api: torirs.Api, revision: integer)
----@field on_ui_node_draw? fun(api: torirs.Api, node: torirs.UiNodeRef, draw: torirs.DrawBuilder)
----@field on_ui_node_action? fun(api: torirs.Api, node: torirs.UiNodeRef, action: string): torirs.Verdict
----@field on_canvas_action? fun(api: torirs.Api, ev: torirs.CanvasActionEvent): torirs.Verdict
+---@field on_ui_draw? fun(api: torirs.Api, node: string, draw: torirs.Graphics)
 ---@field on_ui_layout? fun(api: torirs.Api, ev: torirs.PanelLayoutEvent)

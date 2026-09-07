@@ -191,6 +191,36 @@ test_login_fragmented(void)
     printf("ok - login success, 1-byte-fragmented delivery (response 15)\n");
 }
 
+/* LostCity Packet.rsadec constructs a signed BigInteger from these bytes.
+ * Independent modular-exponentiation vector for fixed_seed/hello/testuser:
+ * pow(int.from_bytes(plain, 'big'), 65537, int(TEST_RSA_N, 16)). The magnitude
+ * begins 0x9f and therefore needs BigInteger.toByteArray's positive sign byte.
+ * Omitting it intermittently produces reply 6 despite matching revision/CRCs. */
+static void
+test_login_rsa_positive_sign(void)
+{
+    static uint8_t const expected[] = {
+        0, 0x9f, 0xc4, 0x5c, 0xba, 0xa0, 0x86, 0xe5,
+        0x8e, 0xe4, 0xaa, 0x68, 0xbf, 0xd4, 0x9c, 0xc8,
+        0x6a, 0x27, 0xcd, 0x3b, 0x45, 0x70, 0x23, 0xf1,
+        0x5d, 0xab, 0x2b, 0xad, 0x4d, 0xef, 0xdc, 0x6f, 0xbb
+    };
+    struct GameProtoRevTable const* revisions[] = { GameProtoRev_LC245_2(), GameProtoRev_LC289() };
+    for( size_t i = 0; i < sizeof(revisions) / sizeof(revisions[0]); i++ )
+    {
+        struct LoginProto* lp = NULL;
+        struct LoginBlockCapture block;
+        TEST_CHECK(run_login_rev(1, 2, revisions[i], 0, &block, &lp));
+        int const rsa_offset = 2 + (revisions[i]->client_version > 254 ? 3 : 1) + 1 + 36;
+        TEST_CHECK(block.data[rsa_offset] == sizeof(expected));
+        TEST_CHECK(block.len == rsa_offset + 1 + (int)sizeof(expected));
+        TEST_CHECK(block.data[1] == block.len - 2);
+        TEST_CHECK(memcmp(block.data + rsa_offset + 1, expected, sizeof(expected)) == 0);
+        loginproto_free(lp);
+    }
+    printf("ok - classic RSA ciphertext preserves the positive BigInteger sign\n");
+}
+
 /*
  * The reconnect opcode, and the fact that it is the ONLY thing that changes.
  *
@@ -467,6 +497,7 @@ main(void)
 {
     test_login_success();
     test_login_fragmented();
+    test_login_rsa_positive_sign();
     test_login_rejected();
     test_reconnect_opcode_creds();
     test_reconnect_opcode_none();

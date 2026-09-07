@@ -1,13 +1,6 @@
 #ifndef TORIRS_PLUGIN_HOST_H
 #define TORIRS_PLUGIN_HOST_H
 
-/** The object's own appearance: the host-only third placement. Numerically
- *  what ui/uitree_host.h calls UITREE_ROLE_PLACE_SELF; the two headers do not
- *  include each other, so the number is stated on both sides. */
-#define PLUGIN_UI_BOUNDARY_AFTER 0
-#define PLUGIN_UI_BOUNDARY_BEFORE 1
-#define PLUGIN_UI_BOUNDARY_SELF 2
-
 /*
  * The host: the bus, the api implementation, the config store, and the entry
  * points the engine calls at each seam.
@@ -21,8 +14,7 @@
 
 #include "plugin/torirs_plugin_types.h"
 #include "plugin/torirs_plugin_host_types.h"
-#include "plugin/torirs_plugin_ui.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -37,7 +29,7 @@
  * those strays.
  *
  * The schema half of that pair is PLUGIN_LUA_MAX_CONFIG (32) for a script;
- * PluginHost_RegisterV2 refuses any def, C or Lua, whose schema does not fit
+ * PluginHost_Register refuses any def, C or Lua, whose schema does not fit
  * here. Sized against the plugin this tree ports from -- RuneLite's Ground
  * Items carries 33 settings -- rather than against the plugins that exist
  * today, since it was the smaller of these two numbers that a real port hit
@@ -114,50 +106,89 @@
  * the one being scrolled towards.
  */
 #define TORIRS_PLUGIN_OBJ_ICONS_MAX 48
-/** Live named placement reservations across every plugin. */
-#define TORIRS_PLUGIN_RESERVES_MAX 32
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 
 struct ToriRS_PluginHost;
 
-/** Engine draw_select_canvas modes. FRAME is the custom-gameframe layer over
- * the scene and below native interfaces; this ordering is also the input
- * priority contract for regions created during those passes. */
+/** Engine draw_select_canvas modes. */
 #define TORIRS_PLUGIN_ENGINE_DRAW_WORLD 0
 #define TORIRS_PLUGIN_ENGINE_DRAW_CANVAS 1
-#define TORIRS_PLUGIN_ENGINE_DRAW_FRAME 2
-#define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 3
+#define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 2
 
 /* ------------------------------------------------------------------------ */
 /* The engine seam. app.c implements every one of these.                     */
 /* ------------------------------------------------------------------------ */
 
+enum PluginWidgetRequestKind
+{
+    PLUGIN_WIDGET_FIND, PLUGIN_WIDGET_FIND_ALL, PLUGIN_WIDGET_GET, PLUGIN_WIDGET_CHILDREN,
+    PLUGIN_WIDGET_BOUNDS, PLUGIN_WIDGET_LOCAL_BOUNDS, PLUGIN_WIDGET_TEXT, PLUGIN_WIDGET_PARENT, PLUGIN_WIDGET_ACTIONS, PLUGIN_WIDGET_VISIBLE,
+    PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
+    PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
+    PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
+    PLUGIN_WIDGET_HIDDEN, PLUGIN_WIDGET_PROJECTION_HEIGHT, PLUGIN_WIDGET_TEXT_OUTLINE, PLUGIN_WIDGET_INVOKE, PLUGIN_WIDGET_SET_ON_OP,
+    PLUGIN_WIDGET_CREATE_IMAGE, PLUGIN_WIDGET_SET_IMAGE, PLUGIN_WIDGET_OPACITY, PLUGIN_WIDGET_ANCHOR, PLUGIN_WIDGET_SET_MASK
+};
+struct PluginWidgetRequest
+{
+    enum PluginWidgetRequestKind kind;
+    struct ToriRS_WidgetRef ref;
+    struct ToriRS_WidgetRef target; /* ANCHOR: the widget related to */
+    char const* name;
+    int id, a, b;
+    struct ToriRS_WidgetRef* refs;
+    struct ToriRS_WidgetBounds* bounds;
+    bool* flag;
+    struct ToriRS_WidgetAction* actions;
+    struct ToriRS_WidgetActionRef action;
+    uint64_t registration;
+    char* text;
+    size_t capacity;
+    size_t* count;
+};
+
+/* Called after native frame bindings are available at the pre-input/paint
+ * publication fence. A zero instance means no ready native tree. */
+bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
+void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+
+/* Internal native adapter. No VM pointer or borrowed stack slot reaches a
+ * plugin. The adapter and its strings live only through this dispatch. */
+struct PluginScriptStack
+{
+    void* user;
+    size_t int_count,string_count;
+    uint64_t writable_ints,writable_strings;
+    struct ToriRS_WidgetRef widget;
+    int32_t (*get_int)(void*,size_t);
+    void (*set_int)(void*,size_t,int32_t);
+    char const* (*get_string)(void*,size_t);
+    bool (*set_string)(void*,size_t,char const*);
+};
+void PluginHost_ScriptCallback(struct ToriRS_PluginHost*,char const* name,int script_id,
+    struct PluginScriptStack const*);
+
 struct ToriRS_PluginEngine
 {
     /** struct App*. */
     void* user;
+    /* Checked live-widget bridge. Requests are synchronous and borrowed. */
+    enum ToriRS_ContractResult (*widget_request)(void* user, uint64_t owner,
+                                                struct PluginWidgetRequest* request);
 
     /** enum AppScreen, as a TORIRS_SCREEN_* value.
      *  @see screen. */
     int (*screen)(void* user);
 
-    /** Canvas minus what the OS is covering (the soft keyboard).
-     *  @see platform_safe_rect. */
+    /** Canvas minus what the OS is covering (the soft keyboard), in canvas
+     *  pixels. Returns 1 with the rect, or 0 when the platform reports no
+     *  band and the whole canvas is safe. Carried to every frame provider as
+     *  ToriRS_GameframeEvent.safe, and polled at the frame boundary so a band
+     *  that moves re-asks the provided frame. Optional for focused harnesses;
+     *  absent means the whole canvas, always. @see platform_safe_rect. */
     int (*platform_safe_rect)(
         void* user,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-    /**
-     * Exact platform-safe fragments. Pass -1 to start; returns the fragment
-     * index or -1 when finished. Optional: the host adapts platform_safe_rect as one
-     * fragment when absent.
-     */
-    int (*platform_safe_next)(
-        void* user,
-        int iter,
         int* out_x,
         int* out_y,
         int* out_w,
@@ -169,8 +200,10 @@ struct ToriRS_PluginEngine
     /** Named runtime/platform capability. Unknown names return zero. Optional
      * for focused harnesses; absence means no advertised capabilities. */
     int (*capability)(void* user, char const* name);
+    bool (*script_invalidate)(void* user,char const* callback_name);
     size_t (*memory_bytes)(void* user);
 
+    bool (*scene_origin)(void* user, int* tile_x, int* tile_z);
     int (*local_player)(
         void* user,
         struct ToriRS_PlayerSnapshot* out);
@@ -224,42 +257,13 @@ struct ToriRS_PluginEngine
         void* user,
         int* out_x,
         int* out_y);
-    /**
-     * One PLACEABLE region's box, plus CANVAS. @see
-     * slot_rect.
-     *
-     * Safe areas are deliberately not slots. The placement service derives
-     * OVERLAY_SAFE from these regions plus retained reservations and derives
-     * FRAME_BUILD from CANVAS minus the `lane_chrome_<n>` roles. Keeping both
-     * in the placement service gives them one exact subtraction rule.
-     */
-    int (*slot_rect)(
-        void* user,
-        int slot,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-    /**
-     * One MEMBER of a placeable region. @see
-     * slot_member_rect.
-     *
-     * The read half of layout_slot's `member`, so the two use one numbering.
-     */
-    int (*slot_member_rect)(
-        void* user,
-        int slot,
-        int member,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
+
     /**
      * The size the LANE authored for a placeable region's surface. @see
      * slot_native_size.
      *
      * The engine's to answer because it is a fact about the tree and about
-     * nothing else: no reservation, no claim and no plugin state is in it.
+     * nothing else: no claim and no plugin state is in it.
      */
     int (*slot_native_size)(
         void* user,
@@ -275,65 +279,6 @@ struct ToriRS_PluginEngine
         int* out_w,
         int* out_h);
 
-    /* The semantic roles. @see role_rect and friends.
-     *
-     * Whole verbs and not a name->id resolver the host then feeds to the id
-     * verbs, because a role may name a node that HAS no id -- and because the
-     * answer has to be taken and used in one step: a role bound to a
-     * script-built component is only true until that subtree is next rebuilt.
-     *
-     * `safe_gamechrome` and `safe_lanechrome` are the exceptions the engine
-     * cannot answer, for the same reason it cannot answer their slots: both are
-     * derived, one from the reservation table and one from the canvas, and both
-     * are derived in the host. It intercepts those two names before they get
-     * here. The `lane_chrome_<n>` roles the second is built from are ordinary
-     * profile roles and DO come here. */
-
-    /** Where a role's element is. @see role_rect. */
-    int (*role_rect)(
-        void* user,
-        char const* role,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-    /** Whether it is on screen. @see role_visible. */
-    int (*role_visible)(
-        void* user,
-        char const* role);
-    /** Whether the role's native action is currently live: 1 live, 0 present
-     * but cache/script hidden, -1 unresolved. Unlike ordinary role_visible
-     * this ignores plugin frame/replacement hiding, because a semantic
-     * replacement delegates through that presentation layer, while still
-     * respecting cache/script and screen visibility. Optional: the host falls
-     * back to role_rect for older/focused engine seams. */
-    int (*role_action_available)(
-        void* user,
-        char const* role);
-    /** Press it. @see role_click. */
-    int (*role_click)(
-        void* user,
-        char const* role,
-        int op);
-    /** Suppress a live role node's native facets. Paint/input affect only the
-     * node itself and leave its children live. `subtree` is reserved for a
-     * complete REPLACE_OR_PROVIDE winner: it replaces the semantic object as a
-     * whole, including native children. Idempotent and re-resolved across tree
-     * rebuilds. */
-    int (*role_suppress_facets)(
-        void* user,
-        char const* role,
-        int paint,
-        int input,
-        int subtree);
-    /** Select or reset the named-UI insertion boundary for the open canvas
-     * pass. NULL resets it. `place` is one of PLUGIN_UI_BOUNDARY_*; SELF is
-     * the resolved node's own appearance, between BEFORE and AFTER children. */
-    int (*ui_boundary)(
-        void* user,
-        char const* role,
-        int place);
-
     /* The resolved gameframe. The host selects one published offer; the
      * engine owns what activation does -- suppressing native chrome, pinning
      * the canvas, and moving the live surfaces. */
@@ -347,56 +292,14 @@ struct ToriRS_PluginEngine
         int canvas,
         int fixed_w,
         int fixed_h);
-    /** Empty the slot table before a selected frame's build declaration. */
-    void (*layout_begin)(void* user);
-    /** Apply what the declaration left behind, and hide every surface it did
-     *  not place. */
-    void (*layout_end)(void* user);
-    /** Retain an element-relative depth declaration in engine slot numbering. */
-    void (*layout_slot_anchor)(void* user, int slot, int relation, int anchor_slot);
-    /** Place one slot, or one MEMBER of it when `member` is not -1.
-     *  @see layout_slot_at; the return is the same "does
-     *  this frame have one" answer. */
-    int (*layout_slot)(
-        void* user,
-        int slot,
-        int member,
-        int x,
-        int y,
-        int w,
-        int h);
-    /** Pure presence query used while a replacement frame is staged. Unlike
-     * layout_slot, this must not mutate engine declaration state. Optional;
-     * the host falls back to the resolved slot rectangle queries. */
-    int (*layout_slot_exists)(
-        void* user,
-        int slot,
-        int member);
-    /** Skin one slot: the picture it draws from and the alpha cut-out it is
-     *  clipped to, as plugin image slots (art -1 keeps native; mask -1 clears).
-     *  @see layout_slot_skin. */
-    int (*layout_slot_skin)(
-        void* user,
-        int slot,
-        int art,
-        int mask);
-    /** Paint one plugin image immediately after a slot's primary subtree.
-     *  The image is a plugin slot and may still be pending; the engine maps
-     *  its stable handle to the stable scene id.
-     *  @see layout_slot_overlay. */
-    int (*layout_slot_overlay)(
-        void* user,
-        int slot,
-        int image,
-        int x,
-        int y,
-        int trans);
-    /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to
-     *  clear. @see layout_scrollbar. */
-    int (*layout_scrollbar)(
-        void* user,
-        int const* images,
-        int count);
+
+    /** A frame PROVIDED through the widget API: suppress the lane's chrome and
+     *  bind the roles, but place and hide nothing -- the provider's retained
+     *  widget edits are the layout. `owner` is the provider's widget-edit
+     *  owner id (the one its set_position/set_size requests carry), so only
+     *  the provider's own moves release containment. @see UITree_FrameProvide. */
+    void (*frame_provide)(void* user, uint64_t owner);
+
     /** The selected sidebar tab, or -1. @see tab_active. */
     int (*tab_active)(void* user);
     /** Flip to that tab. @see tab_select. */
@@ -623,20 +526,7 @@ struct ToriRS_PluginEngine
         int style,
         int* out_w,
         int* out_h);
-    /**
-     * Record a hit region for the plugin currently drawing.
-     * @see hit_region. Returns 1 when it was kept.
-     */
-    int (*hit_region)(
-        void* user,
-        int plugin,
-        int x,
-        int y,
-        int w,
-        int h,
-        char const* const* ops,
-        int op_count,
-        uint32_t tag);
+
     /** Press an interface button. @see if_click. */
     int (*if_click)(
         void* user,
@@ -861,9 +751,9 @@ PluginHost_Free(struct ToriRS_PluginHost* host);
  * before each start, and released after on_stop.
  */
 int
-PluginHost_RegisterV2(
+PluginHost_Register(
     struct ToriRS_PluginHost* host,
-    struct ToriRS_PluginDefV2 const* def);
+    struct ToriRS_PluginDef const* def);
 
 /** Calls on_start for each newly enabled plugin. Idempotent, so a dynamically
  * registered script can call this after registration. */
@@ -919,6 +809,8 @@ bool
 PluginHost_IsEnabled(
     struct ToriRS_PluginHost const* host,
     int plugin_index);
+bool PluginHost_IsRunning(struct ToriRS_PluginHost const* host, int plugin_index);
+
 int
 PluginHost_Count(struct ToriRS_PluginHost const* host);
 /** The plugin's identity: the ini section, the manifest entry, the key
@@ -970,50 +862,6 @@ int
 PluginHost_IndexOf(
     struct ToriRS_PluginHost const* host,
     char const* name);
-
-/* Canonical named UI, used by the V2 runtime and diagnostics. */
-struct ToriRS_UiNodeRef
-PluginHost_UiRef(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    char const* name);
-bool
-PluginHost_UiInfo(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    struct ToriRS_UiNodeInfo* out);
-bool
-PluginHost_UiInvoke(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action);
-/** Lane-owned semantic action beneath the composed node. The availability
- * query has no side effects; InvokeBase bypasses plugin action providers. */
-bool
-PluginHost_UiBaseActionAvailable(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action);
-bool
-PluginHost_UiInvokeBase(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiNodeRef node,
-    char const* action);
-int
-PluginHost_UiChangeNext(
-    struct ToriRS_PluginHost* host,
-    struct ToriRS_UiChange* out);
-int
-PluginHost_UiPresentationCount(struct ToriRS_PluginHost const* host);
-uint32_t
-PluginHost_UiPresentationRebuilds(struct ToriRS_PluginHost const* host);
-/** Instrumentation for retained presenter cost-model regressions. */
-uint32_t
-PluginHost_UiPresentationChangeVisits(struct ToriRS_PluginHost const* host);
-uint32_t
-PluginHost_UiPresentationRegistryVisits(struct ToriRS_PluginHost const* host);
-uint32_t
-PluginHost_UiPresentationRoleProbeVisits(struct ToriRS_PluginHost const* host);
 
 /* ------------------------------------------------------------------------ */
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
@@ -1115,19 +963,6 @@ PluginHost_DrawCanvas(
     int width,
     int height);
 
-/** Reconcile retained named-UI boundaries and facet suppressions before
- * interaction, including targets rebuilt into new component incarnations. */
-void
-PluginHost_ReconcileUi(struct ToriRS_PluginHost* host);
-
-/** The same again for FrameOffer.draw: the chrome surface under interfaces.
- * Called only for the selected provider. */
-void
-PluginHost_DrawFrame(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height);
-
 /**
  * A requested offer has finished its non-layout preparation and needs one
  * safe candidate-build attempt. This is independent of committed ownership:
@@ -1137,10 +972,12 @@ bool
 PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host);
 
 /**
- * Ask the requested candidate (or committed provider on relayout) to declare
- * against a canvas of `width` x `height`.
+ * Ask the requested candidate (or committed provider on relayout) to provide
+ * the frame against a canvas of `width` x `height`: its on_gameframe edits the
+ * live surfaces through the widget API, and a READY answer takes the lane's
+ * chrome (engine.frame_provide).
  *
- * The engine calls this at the three moments the last declaration stopped
+ * The engine calls this at the three moments the last provision stopped
  * being true: the canvas resized, the gameframe was rebuilt, and a selection
  * or explicit invalidation requested another candidate. A no-op with no
  * plugin candidate or committed frame.
@@ -1153,34 +990,6 @@ PluginHost_Layout(
     struct ToriRS_PluginHost* host,
     int width,
     int height);
-
-/**
- * Announce that a layout input may have moved.
- *
- * Called by the client when something it owns moved a region -- a resize, a
- * gameframe rebuild -- and by the host itself when a plugin reserves.
- * on_placement_changed is raised only after the canonical area
- * sets and assigned reservation boxes differ from their last complete state.
- * Callback-side changes are coalesced into a later, non-recursive transaction.
- */
-void
-PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
-
-/**
- * Deliver a canvas hit region's use, raising on_canvas_action on the plugin
- * that declared it and on no other.
- *
- * `plugin_index` is what the engine recorded beside the region, so a plugin
- * can never be handed another's click even if the two overlap.
- */
-void
-PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    uint32_t tag,
-    int op,
-    int x,
-    int y);
 
 /** Dispatches on_menu_build. `cursor` is handed to engine->menu_add. */
 void

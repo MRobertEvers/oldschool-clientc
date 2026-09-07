@@ -46,9 +46,9 @@ UITree_LayoutSetSafeBottomInset(int inset);
  * because the canvas is free to shrink after the band was reported.
  *
  * Both consumers of the band read it here: the layout, for rows whose profile
- * declared `safe_area=os:bottom`, and the placement service, for plugins
- * placing their own chrome. They cannot disagree about where the keyboard
- * starts.
+ * declared `safe_area=os:bottom`, and the plugin bridge's safe-area answer
+ * (the gameframe event's safe rect), for plugins placing their own chrome.
+ * They cannot disagree about where the keyboard starts.
  */
 static inline int
 UITree_LayoutSafeBottomEdge(void)

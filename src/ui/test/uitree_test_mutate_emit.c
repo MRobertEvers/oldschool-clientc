@@ -392,9 +392,6 @@ test_host_input_epochs(void)
         [UITREE_HOST_GET_ENTITY_OVERLAYS] = camera | world | overlays,
         [UITREE_HOST_GET_CANVAS_OVERLAYS] = overlays,
         [UITREE_HOST_BEGIN_OVERLAYS] = 0,
-        [UITREE_HOST_GET_ROLE_OVERLAY_GROUPS] = overlays,
-        [UITREE_HOST_SET_ROLE_OVERLAY_CLIP] = 0,
-        [UITREE_HOST_GET_FRAME_OVERLAYS] = overlays,
         [UITREE_HOST_GET_WORLDMAP_TILES] = camera | world | assets | overlays,
         [UITREE_HOST_GET_WORLDMAP_OVERVIEW] = camera | world | assets | overlays,
         [UITREE_HOST_GET_TAB_ENABLED] = client,
@@ -532,9 +529,9 @@ test_host_input_epochs(void)
             !UITree_EmitBufferHostInputsCurrent(&emit, &host),
             "camera change rejects retained compass emit");
 
-        /* Same pointer vocabulary, three different host producers. Retained
+        /* Same pointer vocabulary, two different host producers. Retained
          * refresh must preserve that provenance rather than replacing plugin
-         * frame/canvas output with the world entity list. */
+         * canvas output with the world entity list. */
         {
             struct UITreeEntityOverlay item = { 0 };
             struct UITreeEmitBuffer refresh;
@@ -544,17 +541,14 @@ test_host_input_epochs(void)
                 UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_WORLD, 702, 0, 0, 1, 1);
             uint8_t const all_overlay_sources =
                 (uint8_t)((1u << UITREE_EMIT_OVERLAY_ENTITY) |
-                          (1u << UITREE_EMIT_OVERLAY_CANVAS) |
-                          (1u << UITREE_EMIT_OVERLAY_FRAME));
-            int source_count[UITREE_EMIT_OVERLAY_FRAME + 1] = { 0 };
+                          (1u << UITREE_EMIT_OVERLAY_CANVAS));
+            int source_count[UITREE_EMIT_OVERLAY_CANVAS + 1] = { 0 };
 
             TEST_ASSERT(overlay >= 0 && world >= 0, "push retained overlay fixture");
             hs.entity_overlays = &item;
             hs.canvas_overlays = &item;
-            hs.frame_overlays = &item;
             hs.entity_overlay_count = 0;
             hs.canvas_overlay_count = 0;
-            hs.frame_overlay_count = 0;
             UITree_TestResolve(tree);
             UITree_EmitBufferInit(&refresh);
             UITree_EmitWalk(tree, &host, &refresh, -1);
@@ -568,7 +562,6 @@ test_host_input_epochs(void)
             memset(hs.request_count, 0, sizeof(hs.request_count));
             hs.entity_overlay_count = 1;
             hs.canvas_overlay_count = 1;
-            hs.frame_overlay_count = 1;
             TEST_ASSERT(
                 UITree_EmitRefreshVolatile(tree, &host, &refresh),
                 "standing overlay records refresh across zero-to-nonzero transitions");
@@ -578,20 +571,16 @@ test_host_input_epochs(void)
             TEST_ASSERT(
                 hs.request_count[UITREE_HOST_GET_CANVAS_OVERLAYS] == 1,
                 "canvas overlay refresh preserves canvas provenance");
-            TEST_ASSERT(
-                hs.request_count[UITREE_HOST_GET_FRAME_OVERLAYS] == 1,
-                "frame overlay refresh preserves frame provenance");
             for( int i = 0; i < refresh.count; i++ )
             {
                 int const source = refresh.cmds[i].entity_overlay_source;
                 if( source >= UITREE_EMIT_OVERLAY_ENTITY &&
-                    source <= UITREE_EMIT_OVERLAY_FRAME )
+                    source <= UITREE_EMIT_OVERLAY_CANVAS )
                     source_count[source]++;
             }
             TEST_ASSERT(
                 source_count[UITREE_EMIT_OVERLAY_ENTITY] == 1 &&
-                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1 &&
-                    source_count[UITREE_EMIT_OVERLAY_FRAME] == 1,
+                    source_count[UITREE_EMIT_OVERLAY_CANVAS] == 1,
                 "refresh inserts one command with each original overlay source");
             UITree_EmitBufferFree(&refresh);
         }
@@ -886,8 +875,8 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(tree->components[c2].item_scene_id == 12, "bank child 2 scene_id");
     }
 
-    /* Equipment slot: d1 overlay + d2 silhouette — SETOBJECT on overlay hides
-     * silhouette; clear unhides it. */
+    /* Equipment-shaped containers do not grant SETOBJECT authority over sibling
+     * visibility. Scripts own the silhouette through explicit SETHIDE. */
     {
         int32_t slot = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 200, 0, 0, 36, 32);
         int32_t overlay = UITree_CcCreate(tree, slot, 200, 2, 1);
@@ -898,18 +887,18 @@ test_apply_object_silhouette(void)
         TEST_ASSERT(
             UITree_ApplyObject(tree, tree->components[overlay].component_id, 1153, 1, 20, 0, 0),
             "setobject equipment overlay");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden while occupied");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "content does not hide silhouette");
         TEST_ASSERT(!tree->components[overlay].behavior.hide, "overlay visible");
 
         TEST_ASSERT(
             UITree_ApplyObject(tree, tree->components[overlay].component_id, -1, 0, -1, 0, 0),
             "clear equipment overlay");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "silhouette shown when cleared");
+        TEST_ASSERT(tree->components[sil].behavior.hide == 0, "content does not change silhouette hide");
 
-        /* SETOBJECT on static parent redirects to d1 overlay. */
+        /* Static targets keep their identity even when they have dynamic children. */
         TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0, 0), "setobject via static parent");
-        TEST_ASSERT(tree->components[overlay].item_id == 1725, "redirect set overlay item");
-        TEST_ASSERT(tree->components[sil].behavior.hide == 1, "silhouette hidden after redirect");
+        TEST_ASSERT(tree->components[slot].item_id == 1725, "static target owns its content");
+        TEST_ASSERT(tree->components[overlay].item_id == 0, "static content does not redirect to child");
     }
 
     /*

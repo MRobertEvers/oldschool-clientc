@@ -95,6 +95,17 @@ test_scripted_entity_overlay(void)
         return;
     }
     TEST_ASSERT(tree->components[layer].parent == overlay, "the layer hangs off the builtin");
+    struct UITreeNodeRef layer_ref=UITree_RefAt(tree,layer);
+    TEST_ASSERT(UITree_WidgetSetProjectionHeight(tree,layer_ref,1,120) &&
+        UITree_WidgetProjectionHeight(tree,layer)==120,"live overlay accepts world projection height");
+    TEST_ASSERT(UITree_WidgetSetProjectionHeight(tree,layer_ref,2,200) &&
+        UITree_WidgetProjectionHeight(tree,layer)==200,"latest projection-height setter wins");
+    UITree_WidgetResetOwner(tree,2);
+    TEST_ASSERT(UITree_WidgetProjectionHeight(tree,layer)==120,"projection reset exposes the other owner");
+    UITree_WidgetResetOwner(tree,1);
+    TEST_ASSERT(UITree_WidgetProjectionHeight(tree,layer)==0,"projection cleanup resumes native anchor height");
+    TEST_ASSERT(!UITree_WidgetSetProjectionHeight(tree,UITree_RefAt(tree,overlay),1,120),
+        "projection height is unavailable on an ordinary widget");
 
     /* ... and what the App does each frame: put it where the subject projects.
      * Relative to the builtin, which is at the world rect. */

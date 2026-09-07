@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -25,7 +25,7 @@
 
 static bool
 tileind_config_bool(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     bool fallback)
 {
@@ -39,7 +39,7 @@ tileind_config_bool(
 
 static int
 tileind_config_int(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     int fallback)
 {
@@ -53,7 +53,7 @@ tileind_config_int(
 
 static uint32_t
 tileind_config_color(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* key,
     uint32_t fallback)
 {
@@ -67,9 +67,9 @@ tileind_config_color(
 
 static void
 tileind_draw(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state,
-    struct ToriRS_DrawBuilder* draw)
+    struct ToriRS_Graphics* draw)
 {
     struct ToriRS_PlayerSnapshot me;
     int hover_x;
@@ -182,8 +182,8 @@ static struct ToriRS_ConfigSchema const TILEIND_SCHEMA = {
     .items = TILEIND_CONFIG,
 };
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND = {
-    .struct_size = sizeof(struct ToriRS_PluginDefV2),
+struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
     /* Not "tile-indicator": that name belongs to the Lua script this is the
      * twin of, and a name is what keys the settings section -- two plugins
      * sharing one would overwrite each other's saved colours. */

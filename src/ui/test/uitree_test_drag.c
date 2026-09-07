@@ -515,10 +515,7 @@ test_drag_cc_dragpickup_seeds(void)
         TEST_ASSERT(!interact.input_state.drag_active, "no drag yet before pickup");
     }
 
-    tree->pending_drag_pickup = 1;
-    tree->pending_drag_pickup_id = 902;
-    tree->pending_drag_pickup_x = 0;
-    tree->pending_drag_pickup_y = 10;
+    TEST_ASSERT(UITree_StageDragPickup(tree, thumb, 0, 10), "stage checked pickup");
 
     {
         struct UIInteractOut out;
@@ -864,7 +861,7 @@ test_frame_hidden_cancels_active_input(void)
         struct UIInteractOut out;
         int32_t source;
         int32_t target;
-        uint32_t target_incarnation;
+        uint64_t target_incarnation;
         int found_complete = 0;
 
         UITree_TestHostInit(&host, &hs);

@@ -1,5 +1,5 @@
 #include "plugin/plugins/nxt_activities.h"
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -46,12 +46,12 @@
 struct NxtCannonState
 {
     int last_ammo;
-    int had_cannon;
+    int last_coord;
 };
 
 static int
 nxt_cannon_named(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     char const* kind,
     char const* name,
     int absent)
@@ -65,7 +65,7 @@ nxt_cannon_named(
 
 static void
 nxt_cannon_tick(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_TickEvent const* event)
 {
@@ -74,8 +74,7 @@ nxt_cannon_tick(
     /* Absent on this cache reads as "no cannon", which is the state in which
      * this builtin does nothing at all -- the right answer for a revision that
      * has no cannon varps to read. */
-    int const has_cannon =
-        nxt_cannon_named(api, "varp", NXT_VARP_CANNON_COORD, 0) != 0;
+    int const coord = nxt_cannon_named(api, "varp", NXT_VARP_CANNON_COORD, 0);
     int const ammo = nxt_cannon_named(api, "varp", NXT_VARP_CANNON_AMMO, 0);
     int const threshold =
         nxt_cannon_named(api, "varbit", NXT_VARBIT_CANNON_LOW_AMOUNT, 0);
@@ -92,19 +91,20 @@ nxt_cannon_tick(
      * a new load, and comparing the new count against the old one would
      * announce a "drop" that is really a different cannon.
      */
-    if( !has_cannon )
+    if( coord <= 0 )
     {
         state->last_ammo = -1;
-        state->had_cannon = 0;
+        state->last_coord = 0;
         return;
     }
 
     state->last_ammo = ammo;
-    if( !state->had_cannon || previous < 0 )
+    if( state->last_coord != coord || previous < 0 )
     {
-        /* First tick with this cannon. Whatever it is loaded with is a state,
+        /* First tick with this coordinate, including direct replacement
+         * between ticks. Whatever it is loaded with is a state,
          * not an event. */
-        state->had_cannon = 1;
+        state->last_coord = coord;
         return;
     }
     if( ammo >= previous )
@@ -141,23 +141,23 @@ nxt_cannon_tick(
 }
 
 static void
-nxt_cannon_start(struct ToriRS_ApiV2* api, void* state_ptr)
+nxt_cannon_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct NxtCannonState* state = state_ptr;
     (void)api;
     assert(state);
     state->last_ammo = -1;
-    state->had_cannon = 0;
+    state->last_coord = 0;
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
     .struct_size = sizeof(TORIRS_PLUGIN_NXT_CANNON_AMMO),
     .id = "nxt-cannon-ammo",
     .title = "Cannon ammo notifications (All Settings)",
     .version = "1.0.0",
     .state_size = sizeof(struct NxtCannonState),
     .config = NULL,
-    .flags = TORIRS_PLUGIN_V2_HIDDEN,
+    .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_cannon_start,

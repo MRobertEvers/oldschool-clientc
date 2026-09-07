@@ -287,13 +287,17 @@ void
 LootStore_ResetAll(struct LootStore* store)
 {
     uint64_t revision;
+    uint64_t aux_revision[LOOT_AUX_KIND_MAX];
     assert(store);
     revision = store->revision + 1;
     if( revision == 0 )
         revision++;
+    for( int i=0;i<LOOT_AUX_KIND_MAX;++i )
+    { aux_revision[i]=store->aux_revision[i]+1;if( !aux_revision[i] ) ++aux_revision[i]; }
     LootStore_Free(store);
     LootStore_Init(store);
     store->revision = revision;
+    memcpy(store->aux_revision,aux_revision,sizeof(aux_revision));
 }
 
 /* ========================================================================= */
@@ -520,7 +524,10 @@ LootStore_AuxUpsert(
 
     if( !ensure_aux_capacity(aux) )
         return;
-    aux->entries[aux->count++] = strdup(str);
+    char* copy=strdup(str);
+    if( !copy ) return;
+    aux->entries[aux->count++] = copy;
+    if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
 }
 
 void
@@ -546,6 +553,7 @@ LootStore_AuxRemove(
             aux->entries[i] = aux->entries[aux->count - 1];
             aux->entries[aux->count - 1] = NULL;
             aux->count--;
+            if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
             return;
         }
     }
@@ -608,8 +616,12 @@ LootStore_AuxClear(
     assert(store);
     if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
         return;
+    if( store->aux[kind].count && !++store->aux_revision[kind] ) ++store->aux_revision[kind];
     free_aux(&store->aux[kind]);
 }
+
+uint64_t LootStore_AuxRevision(const struct LootStore* store,int kind)
+{ return store && kind>=0 && kind<LOOT_AUX_KIND_MAX ? store->aux_revision[kind] : 0; }
 
 int
 LootStore_AuxCountTotal(const struct LootStore* store)

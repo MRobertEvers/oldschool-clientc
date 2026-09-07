@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -94,7 +94,7 @@ cs_frame_row(
 
 static void
 cs_frame_choices(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ClientSettingsState* state,
     struct ToriRS_FrameSelection const* selection)
 {
@@ -118,6 +118,16 @@ cs_frame_choices(
         if( strcmp(selection->requested_id, info.id) == 0 )
             selected_present = true;
         info.struct_size = sizeof(info);
+    }
+    /* The lane's own gameframe is filtered out of the offers above because
+     * Auto already means it -- but a saved choice of exactly "core/native"
+     * (rs289lc saves it) is a real, available frame, not a missing provider.
+     * Found reading "Unavailable: core/native" in the rs289lc panel capture. */
+    if( !selected_present && strcmp(selection->requested_id, "core/native") == 0 )
+    {
+        cs_frame_row(state, "core/native", "Native gameframe", true,
+            "This lane's own gameframe");
+        selected_present = true;
     }
     if( !selected_present && selection->requested_id[0] )
     {
@@ -144,7 +154,12 @@ cs_frame_detail(
     if( selection->status == TORIRS_FRAME_STATUS_NATIVE &&
         strcmp(selection->requested_id, "auto") == 0 )
         snprintf(out, out_size, "Active: %s. Auto follows this lane.", active);
-    else if( selection->status == TORIRS_FRAME_STATUS_ACTIVE &&
+    /* NATIVE as well as ACTIVE: a lane whose saved choice IS its native
+     * gameframe (rs289lc's "core/native") reports NATIVE with the requested and
+     * active ids equal, and read "Switching to ... Active for now: ..." for a
+     * frame that was already up. Found by the rs289lc panel capture. */
+    else if( (selection->status == TORIRS_FRAME_STATUS_ACTIVE ||
+              selection->status == TORIRS_FRAME_STATUS_NATIVE) &&
              strcmp(selection->requested_id, selection->active_id) == 0 )
         snprintf(out, out_size, "Active: %s.", active);
     else if( selection->status == TORIRS_FRAME_STATUS_LOADING )
@@ -172,7 +187,7 @@ cs_remember(
  * two row mutations and the browser executor consumes only those entries. */
 static void
 cs_publish_frame(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     struct ClientSettingsState* state,
     struct ToriRS_FrameSelection const* selection)
 {
@@ -212,7 +227,7 @@ cs_static_options(
 }
 
 static void
-cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
+cs_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ClientSettingsState* state = state_ptr;
     struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
@@ -225,7 +240,7 @@ cs_on_start(struct ToriRS_ApiV2* api, void* state_ptr)
 
 static void
 cs_on_ui_build(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelBuilder* panel,
     int view)
@@ -286,7 +301,7 @@ cs_frame_known(struct ClientSettingsState const* state, char const* id)
 
 static void
 cs_on_ui_action(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_PanelActionEvent const* event)
 {
@@ -330,7 +345,7 @@ cs_on_ui_action(
 
 static void
 cs_on_frame_start(
-    struct ToriRS_ApiV2* api,
+    struct ToriRS_Api* api,
     void* state_ptr,
     struct ToriRS_FrameEvent const* event)
 {
@@ -344,13 +359,13 @@ cs_on_frame_start(
     cs_publish_frame(api, state, &selection);
 }
 
-struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS = {
+struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS = {
     .struct_size = sizeof(TORIRS_PLUGIN_CLIENT_SETTINGS),
     .id = "client-settings",
     .title = "Client Settings",
     .version = "2.0.0",
     .state_size = sizeof(struct ClientSettingsState),
-    .flags = TORIRS_PLUGIN_V2_ESSENTIAL,
+    .flags = TORIRS_PLUGIN_ESSENTIAL,
     .event_priority = 999,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),

@@ -656,5 +656,6 @@ main(int argc, char** argv)
     if( ctx.compare_open )
         tool_dat2_close(&ctx.compare);
     cp_names_free(&ctx.names);
+    free(ctx.param_types);
     return rc;
 }

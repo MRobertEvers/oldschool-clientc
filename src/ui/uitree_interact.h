@@ -40,9 +40,9 @@ struct UIInteraction
     /** Exact occupants behind the semantic hover ids. Component ids and array
      * slots are both reusable, so neither alone is an event lifetime fence. */
     int32_t hover_node_index;
-    uint32_t hover_node_incarnation;
+    uint64_t hover_node_incarnation;
     int32_t prev_hover_node_index;
-    uint32_t prev_hover_node_incarnation;
+    uint64_t prev_hover_node_incarnation;
     /*
      * onMouseRepeat is a CLIENT-CYCLE event, not a frame event: the reference
      * dispatches it from the same 20ms cycle loop that runs processWidgetTimers.
@@ -84,7 +84,7 @@ struct UIInteraction
      */
     int touch_scroll;
     int32_t ts_layer;
-    uint32_t ts_incarnation;
+    uint64_t ts_incarnation;
     int ts_press_y;
     int ts_start_scroll_y;
     /** A captured swipe target was suppressed/rebuilt mid-press. Keep owning
@@ -127,7 +127,7 @@ struct UIKeyTarget
      * hooks can delete and rebuild the same component id before this target's
      * turn; the replacement must not inherit the old event. */
     int32_t node_index;
-    uint32_t node_incarnation;
+    uint64_t node_incarnation;
     int abs_x;
     int abs_y;
     /** UI_KEY_HOOK_* bits present on the component at collection time. The
@@ -145,7 +145,7 @@ struct UIIntent
      * CC_DELETEALL and rebuild the same component id into the same slot. */
     int has_node_identity;
     int32_t node_index;
-    uint32_t node_incarnation;
+    uint64_t node_incarnation;
     struct UITreeRuntimeScriptHook const* hook;
     /** This intent is the component's primary pointer click. Kept separate
      *  from event_mouse because clicks and hover/drag hooks can both carry
@@ -158,7 +158,7 @@ struct UIIntent
     int drag_target_id;
     int has_drag_target_identity;
     int32_t drag_target_node_index;
-    uint32_t drag_target_node_incarnation;
+    uint64_t drag_target_node_incarnation;
     /** Op index (1..10) reported to the script. 0 means "unset", which the
      *  dispatcher turns into 1, the primary left-click op. Only op-key matches
      *  currently set anything else. */
@@ -172,6 +172,11 @@ struct UIInteractOut
     int need_redraw;
     int hover_com_id;
     int clicked_com_id;
+    /** The clicked node itself, -1 when nothing was clicked. A plugin-owned
+     * control has no component id (clicked_com_id stays -1) but is still a
+     * real click target; consumers that only key on the id lose it. */
+    int32_t clicked_node;
+    uint64_t clicked_incarnation;
     /** Screen position of the left click that produced clicked_com_id. */
     int clicked_x;
     int clicked_y;

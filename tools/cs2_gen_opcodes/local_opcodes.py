@@ -13,6 +13,8 @@ from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # RuneLiteOpcodes.RUNELITE_EXECUTE / RuneLiteInstructions.runelite_callback.
+    6599: "RUNELITE_CALLBACK",
     # rev239 Statics.method11128: per-priority-group world-entity draw limit.
     7900: "WORLDENTITY_SETDRAWLIMIT",
     7901: "WORLDENTITY_GETDRAWLIMIT",

@@ -3,8 +3,8 @@
 
 /*
  * Engine-facing values used by the plugin host implementation. They are not
- * part of the public plugin contract; V2 plugins address these through
- * ToriRS_Surface, named UI, frame builders, and placement areas.
+ * part of the public plugin contract; a plugin names a surface only through
+ * ToriRS_Surface, and everything else through the widget API's roles.
  */
 
 enum ToriRS_HostSurfaceSlot
@@ -20,21 +20,6 @@ enum ToriRS_HostSurfaceSlot
     TORIRS_HOST_SURFACE_PLACEABLE_COUNT,
     TORIRS_HOST_SURFACE_CANVAS = TORIRS_HOST_SURFACE_PLACEABLE_COUNT,
     TORIRS_HOST_SURFACE_COUNT
-};
-
-/*
- * Members of TORIRS_HOST_SURFACE_ORBS, spelled again from enum
- * ToriRS_OrbsMember. The tree needs the numbering -- the two kinds of member
- * mean different things by an unmentioned box -- and a headless uitree test
- * links no plugin contract to read it from. Kept true by the static asserts
- * in torirs_plugin_host.c, which sees both headers.
- */
-enum ToriRS_HostOrbsMember
-{
-    TORIRS_HOST_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
-    TORIRS_HOST_ORBS_MEMBER_WORLD_MAP,
-    TORIRS_HOST_ORBS_MEMBER_WIKI,
-    TORIRS_HOST_ORBS_MEMBER_COUNT
 };
 
 #define TORIRS_HOST_LANE_CHROME_MAX 8

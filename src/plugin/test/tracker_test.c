@@ -22,7 +22,7 @@
  *     lands two tiles from its south-west corner.
  */
 
-#include "plugin/torirs_plugin_v2.h"
+#include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -544,19 +544,19 @@ fake_obj_info(
     return 0;
 }
 
-static struct ToriRS_ApiV2 g_api;
-static struct ToriRS_GameApiV2 g_game_api;
-static struct ToriRS_PluginDefV2 const* g_plugin;
+static struct ToriRS_Api g_api;
+static struct ToriRS_GameApi g_game_api;
+static struct ToriRS_PluginDef const* g_plugin;
 static void* g_plugin_state;
 static int g_heading_id;
 
-static void v2_log(struct ToriRS_ApiV2* api, char const* format, ...)
+static void v2_log(struct ToriRS_Api* api, char const* format, ...)
 { (void)api; (void)format; }
-static void v2_notify(struct ToriRS_ApiV2* api, char const* text)
+static void v2_notify(struct ToriRS_Api* api, char const* text)
 { (void)api; fake_notify(NULL, text); }
-static uint64_t v2_frame_ms(struct ToriRS_ApiV2* api)
+static uint64_t v2_frame_ms(struct ToriRS_Api* api)
 { (void)api; return fake_frame_ms(NULL); }
-static bool v2_lane(struct ToriRS_ApiV2* api, struct ToriRS_LaneInfo* out)
+static bool v2_lane(struct ToriRS_Api* api, struct ToriRS_LaneInfo* out)
 {
     (void)api;
     memset(out, 0, sizeof(*out));
@@ -568,19 +568,19 @@ static bool v2_lane(struct ToriRS_ApiV2* api, struct ToriRS_LaneInfo* out)
     return true;
 }
 static bool v2_local_player(
-    struct ToriRS_ApiV2* api, struct ToriRS_PlayerSnapshot* out)
+    struct ToriRS_Api* api, struct ToriRS_PlayerSnapshot* out)
 { (void)api; return fake_local_player(NULL, out) != 0; }
-static bool v2_config_has(struct ToriRS_ApiV2* api, char const* key)
+static bool v2_config_has(struct ToriRS_Api* api, char const* key)
 { (void)api; return fake_config_find(key) != NULL; }
-static bool v2_config_bool(struct ToriRS_ApiV2* api, char const* key, bool* out)
+static bool v2_config_bool(struct ToriRS_Api* api, char const* key, bool* out)
 { (void)api; *out = fake_cfg_bool(NULL, key) != 0; return true; }
-static bool v2_config_int(struct ToriRS_ApiV2* api, char const* key, int* out)
+static bool v2_config_int(struct ToriRS_Api* api, char const* key, int* out)
 { (void)api; *out = fake_cfg_int(NULL, key); return true; }
 static bool v2_config_string(
-    struct ToriRS_ApiV2* api, char const* key, char const** out)
+    struct ToriRS_Api* api, char const* key, char const** out)
 { (void)api; *out = fake_cfg_str(NULL, key); return true; }
 static enum ToriRS_Result v2_config_set(
-    struct ToriRS_ApiV2* api, char const* key, char const* value)
+    struct ToriRS_Api* api, char const* key, char const* value)
 {
     (void)api;
     fake_cfg_set(NULL, key, value);
@@ -589,13 +589,13 @@ static enum ToriRS_Result v2_config_set(
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_AssetState v2_asset_request(
-    struct ToriRS_ApiV2* api, char const* name)
+    struct ToriRS_Api* api, char const* name)
 {
     (void)api;
     return fake_asset_load(NULL, name) ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
 }
 static bool v2_asset_bytes(
-    struct ToriRS_ApiV2* api, char const* name, void const** out, size_t* size)
+    struct ToriRS_Api* api, char const* name, void const** out, size_t* size)
 {
     int n = 0;
     (void)api;
@@ -604,19 +604,19 @@ static bool v2_asset_bytes(
     return *out != NULL;
 }
 static enum ToriRS_Result v2_asset_save(
-    struct ToriRS_ApiV2* api, char const* name, void const* data, size_t size)
+    struct ToriRS_Api* api, char const* name, void const* data, size_t size)
 {
     (void)api;
     return size <= INT_MAX && fake_asset_save(NULL, name, data, (int)size)
                ? TORIRS_RESULT_OK : TORIRS_RESULT_INVALID;
 }
-static void v2_asset_release(struct ToriRS_ApiV2* api, char const* name)
+static void v2_asset_release(struct ToriRS_Api* api, char const* name)
 { (void)api; fake_asset_release(NULL, name); }
 static void v2_image_release(
-    struct ToriRS_ApiV2* api, struct ToriRS_ImageRef image)
+    struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; (void)image; }
 static bool v2_skill(
-    struct ToriRS_ApiV2* api, int skill, struct ToriRS_SkillSnapshot* out)
+    struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     int xp = 0, level_xp = 0, next_xp = 0;
     (void)api;
@@ -635,10 +635,10 @@ static bool v2_skill(
     return true;
 }
 static bool v2_item_info(
-    struct ToriRS_ApiV2* api, int obj, struct ToriRS_ItemInfo* out)
+    struct ToriRS_Api* api, int obj, struct ToriRS_ItemInfo* out)
 { (void)api; return fake_obj_info(NULL, obj, out) != 0; }
 static enum ToriRS_AssetState v2_item_image(
-    struct ToriRS_ApiV2* api, int obj, int count, int style,
+    struct ToriRS_Api* api, int obj, int count, int style,
     struct ToriRS_ImageRef* out)
 {
     int const image = fake_obj_image(NULL, obj, count, style);
@@ -647,14 +647,14 @@ static enum ToriRS_AssetState v2_item_image(
     return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
 }
 static int v2_loot_source_next(
-    struct ToriRS_ApiV2* api, int iter, struct ToriRS_LootSource* out)
+    struct ToriRS_Api* api, int iter, struct ToriRS_LootSource* out)
 { (void)api; g_client.loot_source_visits++; return fake_loot_source_next(NULL, iter, out); }
 static int v2_loot_row_next(
-    struct ToriRS_ApiV2* api, int source, int iter, struct ToriRS_LootRow* out)
+    struct ToriRS_Api* api, int source, int iter, struct ToriRS_LootRow* out)
 { (void)api; return fake_loot_row_next(NULL, source, iter, out); }
-static uint64_t v2_loot_revision(struct ToriRS_ApiV2* api)
+static uint64_t v2_loot_revision(struct ToriRS_Api* api)
 { (void)api; return g_store.revision; }
-static bool v2_loot_source_clear(struct ToriRS_ApiV2* api, int source_id)
+static bool v2_loot_source_clear(struct ToriRS_Api* api, int source_id)
 {
     (void)api;
     for( int i = 0; i < g_store.count; i++ )
@@ -670,14 +670,14 @@ static bool v2_loot_source_clear(struct ToriRS_ApiV2* api, int source_id)
     return false;
 }
 static enum ToriRS_Result v2_panel_request(
-    struct ToriRS_ApiV2* api, struct ToriRS_PanelDescriptor const* desc)
+    struct ToriRS_Api* api, struct ToriRS_PanelDescriptor const* desc)
 { (void)api; return fake_panel_request(NULL, desc) ? TORIRS_RESULT_OK : TORIRS_RESULT_ERROR; }
-static void v2_panel_invalidate(struct ToriRS_ApiV2* api)
+static void v2_panel_invalidate(struct ToriRS_Api* api)
 { (void)api; fake_panel_clear(NULL); }
-static void v2_panel_attention(struct ToriRS_ApiV2* api, bool wanted)
+static void v2_panel_attention(struct ToriRS_Api* api, bool wanted)
 { (void)api; (void)fake_panel_set_attention(NULL, wanted); }
 static enum ToriRS_Result v2_panel_set_text(
-    struct ToriRS_ApiV2* api, char const* id, char const* text)
+    struct ToriRS_Api* api, char const* id, char const* text)
 {
     struct FakeWidget* widget;
     (void)api;
@@ -689,12 +689,12 @@ static enum ToriRS_Result v2_panel_set_text(
     return TORIRS_RESULT_OK;
 }
 static enum ToriRS_Result v2_panel_set_value(
-    struct ToriRS_ApiV2* api, char const* id, int value)
+    struct ToriRS_Api* api, char const* id, int value)
 { (void)api; return fake_panel_set_value(NULL, id, value) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 static enum ToriRS_Result v2_panel_set_height(
-    struct ToriRS_ApiV2* api, char const* id, int height)
+    struct ToriRS_Api* api, char const* id, int height)
 { (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
-static void v2_panel_redraw(struct ToriRS_ApiV2* api, char const* id)
+static void v2_panel_redraw(struct ToriRS_Api* api, char const* id)
 { (void)api; fake_panel_invalidate(NULL, id); }
 
 static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
@@ -746,8 +746,8 @@ api_init(void)
     memset(&g_api, 0, sizeof(g_api));
     memset(&g_game_api, 0, sizeof(g_game_api));
     g_api.struct_size = sizeof(g_api);
-    g_api.major_version = TORIRS_PLUGIN_API_V2_MAJOR;
-    g_api.minor_version = TORIRS_PLUGIN_API_V2_MINOR;
+    g_api.major_version = TORIRS_PLUGIN_API_MAJOR;
+    g_api.minor_version = TORIRS_PLUGIN_API_MINOR;
     g_api.core.log = v2_log;
     g_api.core.notify = v2_notify;
     g_api.core.frame_ms = v2_frame_ms;
@@ -783,14 +783,14 @@ api_init(void)
 
 /* ---------------------------------------------------------------- driving */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
 
 /* Opaque marker used only by the small fake-client helper functions above. */
 static void* const FAKE_CONTEXT = &g_client;
 
 static void
-plugin_prepare(struct ToriRS_PluginDefV2 const* definition)
+plugin_prepare(struct ToriRS_PluginDef const* definition)
 {
     assert(definition);
     assert(!g_plugin_state);

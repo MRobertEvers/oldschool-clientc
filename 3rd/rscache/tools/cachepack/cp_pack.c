@@ -1320,6 +1320,12 @@ pack_server_names(
     struct CP_Ctx* ctx,
     const char* server_dir)
 {
+    /* A names-only pack has no band record to create this directory first. */
+    if( ensure_dir_p(server_dir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", server_dir);
+        return 0;
+    }
     int group_count = 0;
     const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
 

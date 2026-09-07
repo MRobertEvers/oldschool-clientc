@@ -4,6 +4,8 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Statically linked plugins.
@@ -17,17 +19,18 @@
  * and registers a further V2 plugin per script it loads.
  */
 
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_CLIENT_SETTINGS;
-extern struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_TILEIND;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MINIMAP_ORBS;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_ORBS;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_GAMEFRAME;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_ITEM_STATS;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_XP_TRACKER;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LOOT_TRACKER;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_WIDGET_DEMO;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
+extern struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 
 /*
  * The BUILTINS: the Activities category of the cache's All Settings panel,
@@ -39,16 +42,16 @@ extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_LUA;
  * a builtin written against the same contract is proof the contract is wide
  * enough to write the client's own features in, rather than only the extras.
  */
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_BIRD_NEST;
-extern struct ToriRS_PluginDefV2 const TORIRS_PLUGIN_NXT_CANNON_AMMO;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
-static struct ToriRS_PluginDefV2 const* const PLUGIN_TABLE[] = {
+static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     /*
      * FIRST, and their position is load-bearing: the roster lists plugins in
      * registration order and these two are where the CLIENT's own knobs live,
      * so they belong at the top of the list rather than sorted in among the
-     * extras. Both carry TORIRS_PLUGIN_V2_ESSENTIAL, so neither has a switch.
+     * extras. Both carry TORIRS_PLUGIN_ESSENTIAL, so neither has a switch.
      *
      * Display settings first because that is the order a person reads them in:
      * how the client LOOKS, then how it BEHAVES. The order of START is settled
@@ -84,8 +87,28 @@ PluginRegistry_RegisterAll(struct ToriRS_PluginHost* host)
 {
     assert(host);
 
+    char const* only=getenv("TORIRS_PLUGIN_ONLY");
+    if( only && *only )
+    {
+        for( size_t i=0; i<sizeof(PLUGIN_TABLE)/sizeof(PLUGIN_TABLE[0]); ++i )
+            if( strcmp(only,PLUGIN_TABLE[i]->id)==0 )
+            { (void)PluginHost_Register(host,PLUGIN_TABLE[i]); return; }
+        return; /* The capture gate rejects a missing selected plugin. */
+    }
+
+    if( getenv("TORIRS_WIDGET_DEMO") && strcmp(getenv("TORIRS_WIDGET_DEMO"), "lua") == 0 )
+    {
+        (void)PluginHost_Register(host, &TORIRS_PLUGIN_LUA);
+        return;
+    }
+    if( getenv("TORIRS_WIDGET_DEMO") )
+    {
+        (void)PluginHost_Register(host, &TORIRS_PLUGIN_WIDGET_DEMO);
+        if( strcmp(getenv("TORIRS_WIDGET_DEMO"), "only") == 0 ) return;
+    }
+
     for( size_t i = 0; i < sizeof(PLUGIN_TABLE) / sizeof(PLUGIN_TABLE[0]); i++ )
     {
-        (void)PluginHost_RegisterV2(host, PLUGIN_TABLE[i]);
+        (void)PluginHost_Register(host, PLUGIN_TABLE[i]);
     }
 }

@@ -34,7 +34,7 @@ static int g_checks;
         }                                                                                          \
     } while( 0 )
 
-extern struct ToriRS_PluginDefV2 const TORIRS_FEATURE_FLAGS;
+extern struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS;
 
 /* ------------------------------------------------------------ fake engine */
 
@@ -179,7 +179,7 @@ fake_feature_set(
 /* Everything else the host asserts on, answered flatly. */
 
 /* In game: these harnesses exercise behaviour that is gated on it.
- * @see ToriRS_CoreApiV2::screen. */
+ * @see ToriRS_CoreApi::screen. */
 static int
 fake_plugin_screen(void* u)
 {
@@ -478,38 +478,8 @@ fake_mouse_pos(
     (void)y;
     return 0;
 }
-/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
- * is how the fallback chain in slot_rect's contract gets exercised. */
-static int g_slot_x[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_y[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_w[TORIRS_HOST_SURFACE_COUNT];
-static int g_slot_h[TORIRS_HOST_SURFACE_COUNT];
-
-static int
-fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_COUNT )
-        return 0;
-    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
-        return 0;
-    if( x )
-        *x = g_slot_x[slot];
-    if( y )
-        *y = g_slot_y[slot];
-    if( w )
-        *w = g_slot_w[slot];
-    if( h )
-        *h = g_slot_h[slot];
-    return 1;
-}
-
-/* No frame under test declares MEMBERS of a role, so the honest answer is
- * "this gameframe has no such member" -- @see
- * the host's surface-member query, where that is an answer and not a
- * fault. */
 /** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApiV2::surface_native_size. */
+ *  @see ToriRS_FrameApi::surface_native_size. */
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
@@ -520,21 +490,8 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 0;
 }
 
-static int
-fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    (void)slot;
-    (void)member;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-
 /* Nothing under test mounts a component tree, so every id answers "not
- * here" -- @see ToriRS_CacheApiV2::component_rect, where that is an answer. */
+ * here" -- @see ToriRS_CacheApi::component_rect, where that is an answer. */
 static int
 fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
 {
@@ -544,37 +501,6 @@ fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
     (void)y;
     (void)w;
     (void)h;
-    return 0;
-}
-
-/* No role table under test either: every name answers "this revision does not
- * have that", which is the contract's own reading of an unbound role. */
-static int
-fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    (void)role;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-
-static int
-fake_role_visible(void* u, char const* role)
-{
-    (void)u;
-    (void)role;
-    return 0;
-}
-
-static int
-fake_role_click(void* u, char const* role, int op)
-{
-    (void)u;
-    (void)role;
-    (void)op;
     return 0;
 }
 
@@ -598,20 +524,6 @@ fake_role_slot(void* user, char const* role, int* out_slot, int* out_member)
     return 0;
 }
 
-
-static int
-fake_role_suppress_facets(void* u, char const* role, int paint, int input, int subtree)
-{
-    (void)u; (void)role; (void)paint; (void)input; (void)subtree;
-    return 1;
-}
-
-static int
-fake_ui_boundary(void* u, char const* role, int place)
-{
-    (void)place; (void)u;
-    return role ? 0 : 1;
-}
 
 static int
 fake_stat(
@@ -999,77 +911,14 @@ fake_frame_activate(
     (void)w;
     (void)h;
 }
-static int
-fake_layout_scrollbar(
-    void* u,
-    int const* images,
-    int count)
-{
-    (void)u;
-    (void)images;
-    (void)count;
-    return 0;
-}
+
 static void
-fake_layout_begin(void* u)
+fake_frame_provide(void* u, uint64_t owner)
 {
     (void)u;
-}
-static void
-fake_layout_end(void* u)
-{
-    (void)u;
-}
-static int
-fake_layout_slot(
-    void* u,
-    int s,
-    int m,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    (void)u;
-    (void)s;
-    (void)m;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    return 0;
-}
-static int
-fake_layout_slot_skin(
-    void* u,
-    int s,
-    int a,
-    int m)
-{
-    (void)u;
-    (void)s;
-    (void)a;
-    (void)m;
-    return 0;
+    (void)owner;
 }
 
-static int
-fake_layout_slot_overlay(
-    void* u,
-    int slot,
-    int image,
-    int x,
-    int y,
-    int trans)
-{
-    (void)u;
-    (void)slot;
-    (void)image;
-    (void)x;
-    (void)y;
-    (void)trans;
-    return 0;
-}
 static int
 fake_tab_active(void* u)
 {
@@ -1222,29 +1071,6 @@ fake_draw_image(
     (void)t;
     return 0;
 }
-static int
-fake_hit_region(
-    void* u,
-    int p,
-    int x,
-    int y,
-    int w,
-    int h,
-    char const* const* o,
-    int c,
-    uint32_t t)
-{
-    (void)u;
-    (void)p;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)h;
-    (void)o;
-    (void)c;
-    (void)t;
-    return 0;
-}
 
 static struct ToriRS_PluginEngine
 fake_engine(void)
@@ -1280,24 +1106,12 @@ fake_engine(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.frame_activate = fake_frame_activate;
-    e.layout_begin = fake_layout_begin;
-    e.layout_end = fake_layout_end;
-    e.layout_slot = fake_layout_slot;
-    e.layout_slot_skin = fake_layout_slot_skin;
-    e.layout_slot_overlay = fake_layout_slot_overlay;
-    e.layout_scrollbar = fake_layout_scrollbar;
+    e.frame_provide = fake_frame_provide;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
-    e.slot_rect = fake_slot_rect;
-    e.slot_member_rect = fake_slot_member_rect;
     e.slot_native_size = fake_slot_native_size;
     e.component_rect = fake_component_rect;
-    e.role_rect = fake_role_rect;
-    e.role_visible = fake_role_visible;
-    e.role_click = fake_role_click;
-    e.role_suppress_facets = fake_role_suppress_facets;
-    e.ui_boundary = fake_ui_boundary;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1312,7 +1126,6 @@ fake_engine(void)
     e.loot_source_next = fake_loot_source_next;
     e.loot_row_next = fake_loot_row_next;
     e.draw_image = fake_draw_image;
-    e.hit_region = fake_hit_region;
     e.if_click = fake_if_click;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
@@ -1435,7 +1248,7 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int const p = PluginHost_RegisterV2(host, &TORIRS_FEATURE_FLAGS);
+    int const p = PluginHost_Register(host, &TORIRS_FEATURE_FLAGS);
 
     flags_reset();
 
@@ -1583,7 +1396,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e2 = fake_engine();
         struct ToriRS_PluginHost* host2 = PluginHost_New(&e2);
-        int const p2 = PluginHost_RegisterV2(host2, &TORIRS_FEATURE_FLAGS);
+        int const p2 = PluginHost_Register(host2, &TORIRS_FEATURE_FLAGS);
 
         flags_reset();
         PluginHost_ConfigApply(host2, "feature-flags", "camera_zoom", "Fixed");
@@ -1609,7 +1422,7 @@ main(void)
     {
         struct ToriRS_PluginEngine e3 = fake_engine();
         struct ToriRS_PluginHost* host3 = PluginHost_New(&e3);
-        int const p3 = PluginHost_RegisterV2(host3, &TORIRS_FEATURE_FLAGS);
+        int const p3 = PluginHost_Register(host3, &TORIRS_FEATURE_FLAGS);
         struct ToriRS_PanelWidget const* w;
 
         flags_reset();

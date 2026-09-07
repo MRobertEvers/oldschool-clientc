@@ -6,11 +6,13 @@
 #include "game/rs_entity_overlay.h"
 #include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
+#include "ui/uitree.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 struct UITree;
+struct UITreeHost;
 struct CacheProvider;
 struct InvManager;
 struct VarPManager;
@@ -309,6 +311,7 @@ struct RS_CS2SocialSend
 struct RS_CS2TriggerOp
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int op_index;
 };
 
@@ -347,6 +350,7 @@ enum RS_CS2SoundKind
 struct RS_CS2TriggerOpLocal
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int sub;
     int crc;
     int child;
@@ -387,6 +391,7 @@ struct RS_CS2TriggerOpLocal
 struct RS_CS2InvTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -409,6 +414,7 @@ struct RS_CS2InvTransmitHook
 struct RS_CS2VarTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -433,6 +439,7 @@ struct RS_CS2VarTransmitHook
 struct RS_CS2StatTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -503,6 +510,11 @@ struct RS_CS2Host
      */
     int (*events_override_for_component)(void* user, int com_id, int* out_events);
     void* events_user;
+    /** Synchronous named callback. Stack access is scoped to this invocation;
+     * it must neither yield nor recursively execute the VM. Optional. */
+    void (*script_callback)(void* user, struct CS2VM2_Thread*, char const* name);
+    void* script_callback_user;
+    bool script_callback_running;
 
     /*
      * The scene, for the two ops that ask about it: LOC_FIND (6803) and
@@ -1233,7 +1245,7 @@ struct RS_CS2Host
      *  nested run, and would be a finding rather than a tweak.
      *
      *  A listener may queue another, so the drain loops. */
-    int call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
+    struct UITreeNodeRef call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
     int call_on_resize_count;
     int call_on_resize_head;
 
@@ -1286,6 +1298,7 @@ RS_CS2Host_Init(
 void
 RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     struct ToriRS_Component const* src);
 
 /** Give the host the player's skill table. Separate from Init because the
@@ -1742,8 +1755,9 @@ RS_CS2_InputSetFocus(
  * (`key_typed` = OSRS key code with `key_pressed` 0, or `key_typed` -1 with
  * `key_pressed` carrying the character).
  *
- * Returns nonzero when the field consumed it — which is every key while a field
- * is focused, including the ones it does nothing with. A focused text box that
+ * Returns nonzero when an available focused field consumed it, including keys
+ * it does nothing with. Hidden or input-suppressed fields keep logical focus
+ * but receive no keyboard events; ui_host supplies native availability. A focused text box that
  * let an unhandled letter through to the onKey broadcast would switch a sidebar
  * tab while you typed a name.
  */
@@ -1751,6 +1765,7 @@ int
 RS_CS2_InputKey(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
+    struct UITreeHost const* ui_host,
     int key_typed,
     int key_pressed);
 

@@ -59,7 +59,7 @@
  * switch on for one widget kind.
  *
  * LOCKED is the roster's essential row: it has no second state, so it has no
- * switch at all and its name takes the column (@see ToriRS_PluginDefV2 flags
+ * switch at all and its name takes the column (@see ToriRS_PluginDef flags
  * and ToriRSChrome_ListRowLocked). LOCKED without ACTION is the distinct
  * semantic navigation-row shape; browser executors expose it as one native
  * button with `label` and `text` kept separate. Executors that never heard it drew the

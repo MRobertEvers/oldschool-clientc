@@ -204,6 +204,7 @@ UITree_FillBuildFromToriRS(
      * spellings of none survive it: dat1's type 0 and dat2's id -1. */
     dst->model_active_id = src->active_model_type == 1 ? src->active_model_id : -1;
     dst->model_seq_id = src->model_seq_id;
+    dst->model_active_seq_id = src->model_active_seq_id;
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;
     dst->model_yan = src->model_yan;

@@ -2312,18 +2312,21 @@ gl3_draw_font_box(
         int const draw_y = cmd->y + base_y0 + i * resolved_lh - font_ascent;
         if( line_lens[i] <= 0 )
             continue;
-        if( cmd->shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(cmd->shadowed);++pass )
+        {
+            int dx,dy;ToriDraw_FontShadowOffset(cmd->shadowed,pass,&dx,&dy);
             gl3_draw_font_glyphs_len(
                 renderer,
                 slot,
                 font,
                 lines[i],
                 line_lens[i],
-                line_x + 1,
-                draw_y + 1,
+                line_x + dx,
+                draw_y + dy,
                 cmd->color,
                 1.0f,
                 true);
+        }
         gl3_draw_font_glyphs_len(
             renderer,
             slot,
@@ -2866,18 +2869,21 @@ gl3_ev_font(
 
     y -= font->line_height;
 
-    if( command->u.font.shadowed )
+    for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->u.font.shadowed);++pass )
+    {
+        int dx,dy;ToriDraw_FontShadowOffset(command->u.font.shadowed,pass,&dx,&dy);
         gl3_draw_font_glyphs(
             renderer,
             slot,
             font,
             command->u.font.text,
-            x + 1,
-            y + 1,
+            x + dx,
+            y + dy,
             command->u.font.color,
             1.0f,
             true,
             center);
+    }
 
     gl3_draw_font_glyphs(
         renderer,

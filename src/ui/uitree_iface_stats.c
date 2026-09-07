@@ -122,7 +122,7 @@ UITreeIfaceStats_SampleGauges(struct UITree const* tree)
             continue;
         if( c->behavior.hide )
             hidden++;
-        if( c->behavior.hide_unmounted )
+        if( c->mount_hidden )
             unmounted++;
         if( c->runtime_hooks )
             hook_blocks++;

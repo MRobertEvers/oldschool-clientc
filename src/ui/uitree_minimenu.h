@@ -89,11 +89,11 @@ struct UIMinimenuPick
      * ids and array slots can both be reused while the menu is open. */
     int has_node_identity;
     int32_t node_index;
-    uint32_t node_incarnation;
-    /** Synthetic engine click delegated by a semantic replacement: its native
-     * source remains addressable below replacement tombstones. Cache/script
-     * hiding and other native visibility fences still invalidate it. */
-    int allow_replacement_hidden;
+    uint64_t node_incarnation;
+    /** Native operation state captured with the row; geometry/style are independent. */
+    uint64_t action_signature;
+    uint32_t native_events;
+    uint8_t has_native_events;
     /** Synthetic engine click into a subtree a gameframe PLUGIN is not
      * showing -- a sidebar panel behind a shut drawer, a stone the plugin
      * replaced. The press names a component rather than a screen position, so
@@ -227,6 +227,11 @@ UIMinimenu_SortPriorityActions(struct UIMinimenu* menu);
  * the menu closed, and nothing happened.
  */
 #define UITREE_MINIMENU_ACTION_CLIENT_BASE 500000
+/* A plugin-owned control's single operation. Its row keeps the position the
+ * hit test gave it instead of being demoted with the other client-range
+ * actions: the control is the topmost thing under the pointer, so its row is
+ * the natural left-click default even over a native button it covers. */
+#define UITREE_MINIMENU_ACTION_OWNED_WIDGET (UITREE_MINIMENU_ACTION_CLIENT_BASE + 8)
 
 /** Deprioritize bias (reference +2000): pushes a row below normal entries. */
 static inline int

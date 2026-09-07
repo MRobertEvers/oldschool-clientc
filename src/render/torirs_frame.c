@@ -1,4 +1,5 @@
 #include "render/torirs_frame.h"
+#include "engine/uitree_anim.h"
 
 #include "painters/painters.h"
 #include "render/torirs_arc.h"
@@ -62,10 +63,10 @@ frame_take_queued(
  *   - try_emit_world_draw_model assigns every field of the model arm, so it
  *     needs nothing further.  It is the one that runs 1,621 times a frame,
  *     and it is the whole reason this exists.
- *   - the single-arm helpers (fill_rect_cmd, sprite_cmd, sprite_tiled_cmd)
- *     zero THEIR ARM, 40 or 100 bytes rather than the union's 120.  The
- *     sprite pair genuinely leaves seventeen optional fields implicit and
- *     spelling them out per call site would be worse than saying so once.
+ *   - the single-arm helpers (fill_rect_cmd, sprite_cmd) zero THEIR ARM,
+ *     40 or 100 bytes rather than the union's 120.  sprite_cmd genuinely
+ *     leaves seventeen optional fields implicit and spelling them out per
+ *     call site would be worse than saying so once.
  *   - the two switch emitters (frame_translate_scene_event,
  *     translate_ui_cmd) still zero the union: they pick an arm per case and
  *     the cases disagree about which fields they set, so dropping it would
@@ -313,7 +314,7 @@ emit_color_argb(
     else if( trans > 255 )
         trans = 255;
     alpha = 255 - trans;
-    return (alpha << 24) | (color & 0xFFFFFF);
+    return (int)(((uint32_t)alpha << 24) | ((uint32_t)color & 0xFFFFFFu));
 }
 
 /* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
@@ -481,46 +482,6 @@ sprite_cmd(
     out->u.sprite.if3 = 0;
 }
 
-/*
- * A sprite TILED over a box, rather than stretched into it.
- *
- * Which is what a scrollbar's trough and dragger middle need: both are five
- * rows of texture meant to repeat down a groove of any length, and stretching
- * five rows over ninety smears them into bands. One command either way -- the
- * repeat happens in the blit.
- */
-static void
-sprite_tiled_cmd(
-    struct ToriRS_RenderCommand* out,
-    int scene_id,
-    int x,
-    int y,
-    int w,
-    int h,
-    struct UITreeEmitClip const* clip)
-{
-    /* Unlike the emitters around it this one leaves the sprite arm's
-     * optional half -- rotation, mask, flip, outline, tiling -- to the
-     * zero rather than spelling out seventeen fields per call site.  So it
-     * zeroes, but only the arm it is about to write (100 bytes), not the
-     * whole command; and it is chrome, not the per-model path. */
-    frame_command_reset(out);
-    memset(&out->u.sprite, 0, sizeof(out->u.sprite));
-    out->kind = TORIRSRC_SPRITE;
-    out->u.sprite.scene_id = scene_id;
-    out->u.sprite.atlas_index = 0;
-    out->u.sprite.x = x;
-    out->u.sprite.y = y;
-    out->u.sprite.w = w;
-    out->u.sprite.h = h;
-    out->u.sprite.tiled = 1;
-    out->u.sprite.scissor_x = clip->x;
-    out->u.sprite.scissor_y = clip->y;
-    out->u.sprite.scissor_w = clip->w;
-    out->u.sprite.scissor_h = clip->h;
-    out->u.sprite.if3 = 0;
-}
-
 static bool
 vertical_scrollbar_grip(
     struct UITreeEmitDesc const* desc,
@@ -571,139 +532,6 @@ horizontal_scrollbar_grip(
     return true;
 }
 
-/*
- * The OldSchool vertical scrollbar: six sprites, in six steps.
- *
- * A different SHAPE from the 2004 one and not a re-skin of it. The 2004 bar is
- * a filled track with a filled grip and four one-pixel bevel edges drawn over
- * it -- nine steps of rectangles. This one is a tiled groove, a three-piece
- * dragger (two caps and a tiled middle, so it can be any length) and two
- * arrows, which is why it gets its own step machine rather than a `scene_id`
- * argument threaded through the old one.
- *
- * Both are correct on the frame they belong to, so neither replaces the other:
- * the frame that declared a skin gets this and every other frame gets the one
- * above.
- */
-static bool
-translate_scrollbar_v_skin_step(
-    struct ToriRS_Frame* frame,
-    struct UITreeEmitDesc const* desc,
-    int step,
-    struct ToriRS_RenderCommand* out)
-{
-    int const* skin = frame->scrollbar_skin;
-    int const sb_x = desc->x;
-    int const ly = desc->y;
-    int const vh = desc->h;
-    int const track_y = ly + UITREE_SCROLLBAR_THICKNESS;
-    int grip_y = 0;
-    int grip_size = 0;
-    int track_h = 0;
-    int grip_y0;
-    struct UITreeEmitClip const* clip = &desc->clip;
-
-    /* The arrows are the two steps that do not depend on there being anything
-     * to scroll: a bar with no content still shows its ends, which is what the
-     * reference draws and what makes an empty chatbox look like a chatbox. */
-    if( step == UITREE_SCROLLBAR_SKIN_ARROW_UP )
-    {
-        sprite_cmd(
-            frame,
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_ARROW_UP],
-            0,
-            sb_x,
-            ly,
-            UITREE_SCROLLBAR_THICKNESS,
-            UITREE_SCROLLBAR_THICKNESS,
-            0,
-            clip);
-        return true;
-    }
-    if( step == UITREE_SCROLLBAR_SKIN_ARROW_DOWN )
-    {
-        sprite_cmd(
-            frame,
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_ARROW_DOWN],
-            0,
-            sb_x,
-            ly + vh - UITREE_SCROLLBAR_THICKNESS,
-            UITREE_SCROLLBAR_THICKNESS,
-            UITREE_SCROLLBAR_THICKNESS,
-            0,
-            clip);
-        return true;
-    }
-
-    if( !vertical_scrollbar_grip(desc, vh, &grip_y, &grip_size, &track_h) )
-        return false;
-    /* The three-piece dragger has a floor the two-colour one does not: below
-     * eleven rows the caps meet and the middle is negative. Clamped here and
-     * not in vertical_scrollbar_grip, because that answer is shared with the
-     * painted bar, whose grip is legitimately shorter. */
-    if( grip_size < UITREE_SCROLLBAR_SKIN_DRAGGER_MIN )
-        grip_size = UITREE_SCROLLBAR_SKIN_DRAGGER_MIN;
-    if( grip_size > track_h )
-        grip_size = track_h;
-    grip_y0 = track_y + grip_y;
-    if( grip_y0 + grip_size > track_y + track_h )
-        grip_y0 = track_y + track_h - grip_size;
-
-    switch( step )
-    {
-    case UITREE_SCROLLBAR_SKIN_TROUGH:
-        sprite_tiled_cmd(
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_TROUGH],
-            sb_x,
-            track_y,
-            UITREE_SCROLLBAR_THICKNESS,
-            track_h,
-            clip);
-        return true;
-    case UITREE_SCROLLBAR_SKIN_DRAGGER_TOP:
-        sprite_cmd(
-            frame,
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_TOP],
-            0,
-            sb_x,
-            grip_y0,
-            UITREE_SCROLLBAR_THICKNESS,
-            UITREE_SCROLLBAR_SKIN_CAP_H,
-            0,
-            clip);
-        return true;
-    case UITREE_SCROLLBAR_SKIN_DRAGGER_MID:
-        sprite_tiled_cmd(
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_MID],
-            sb_x,
-            grip_y0 + UITREE_SCROLLBAR_SKIN_CAP_H,
-            UITREE_SCROLLBAR_THICKNESS,
-            grip_size - 2 * UITREE_SCROLLBAR_SKIN_CAP_H,
-            clip);
-        return true;
-    case UITREE_SCROLLBAR_SKIN_DRAGGER_BOTTOM:
-        sprite_cmd(
-            frame,
-            out,
-            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_BOTTOM],
-            0,
-            sb_x,
-            grip_y0 + grip_size - UITREE_SCROLLBAR_SKIN_CAP_H,
-            UITREE_SCROLLBAR_THICKNESS,
-            UITREE_SCROLLBAR_SKIN_CAP_H,
-            0,
-            clip);
-        return true;
-    default:
-        return false;
-    }
-}
-
 static bool
 translate_scrollbar_v_step(
     struct ToriRS_Frame* frame,
@@ -719,9 +547,6 @@ translate_scrollbar_v_step(
     int track_h = 0;
     int grip_y0;
     struct UITreeEmitClip const* clip = &desc->clip;
-
-    if( frame->scrollbar_skin[0] > 0 )
-        return translate_scrollbar_v_skin_step(frame, desc, step, out);
 
     switch( step )
     {
@@ -1147,7 +972,8 @@ translate_ui_cmd(
         struct ToriDraw_ModelHandle hnd;
         if( desc->model_id < 0 )
             return false;
-        hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
+        hnd = UITreeAnim_ModelForDraw(frame->scene, desc->model_render_cache,
+            desc->model_id, desc->model_anim_seq, desc->model_anim_frame);
         if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;
@@ -1540,7 +1366,7 @@ translate_ui_cmd(
             out->u.fill_rect.y = item->y;
             out->u.fill_rect.w = item->w;
             out->u.fill_rect.h = item->h;
-            out->u.fill_rect.argb = item->color;
+            out->u.fill_rect.argb = emit_color_argb((int)item->color,item->trans);
             out->u.fill_rect.filled = 1;
             out->u.fill_rect.scissor_x = clip_x;
             out->u.fill_rect.scissor_y = clip_y;
@@ -2788,24 +2614,6 @@ ToriRS_FrameSetScene(
     assert(frame);
     assert(scene);
     frame->scene = scene;
-}
-
-void
-ToriRS_FrameSetScrollbarSkin(
-    struct ToriRS_Frame* frame,
-    int const* pieces)
-{
-    assert(frame);
-    memset(frame->scrollbar_skin, 0, sizeof(frame->scrollbar_skin));
-    if( !pieces )
-        return;
-    /* All six or none. A skin missing one piece would draw a bar with a hole
-     * in it, which reads as a broken client rather than as an unskinned one --
-     * and the caller that half-filled the array is the thing to fix. */
-    for( int i = 0; i < UITREE_SCROLLBAR_SKIN_COUNT; i++ )
-        if( pieces[i] <= 0 )
-            return;
-    memcpy(frame->scrollbar_skin, pieces, sizeof(frame->scrollbar_skin));
 }
 
 void
