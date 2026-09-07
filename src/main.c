@@ -2003,7 +2003,9 @@ frame_loop_step(void)
             {
                 int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
 
-                TORIRS_LOG("sim_opnpc: op=%ld npc=%ld slot=%d\n",
+                /* REPORT, not LOG: the harness reads this in the OPT build to
+                 * tell "the op was sent" from "no such npc was in the scene". */
+                TORIRS_REPORT("sim_opnpc: op=%ld npc=%ld slot=%d\n",
                     sim_opnpc_op,
                     sim_opnpc_npc,
                     slot);
@@ -2441,7 +2443,7 @@ frame_loop_step(void)
                     if( end == spec )
                         break;
                     CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)code);
-                    TORIRS_LOG("sim_keyhold: holding key %ld\n", code);
+                    TORIRS_REPORT("sim_keyhold: holding key %ld\n", code);
                     spec = (end && *end == ',') ? end + 1 : NULL;
                 }
             }
@@ -3354,6 +3356,7 @@ frame_loop_teardown(void)
                     true_x, true_z, level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z);
             App_PluginObjectCounts(&app, &in_use, &active, &built);
             TORIRS_REPORT("PLUGIN_SCENE_OBJECTS in_use=%d active=%d built=%d\n", in_use, active, built);
+            App_TraceWorldEntities(&app);
         }
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
             dump_tree(&app, cfg.interface_id);

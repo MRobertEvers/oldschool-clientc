@@ -15975,6 +15975,52 @@ App_LocalPlayerTiles(
 }
 
 void
+App_TraceWorldEntities(struct App* app)
+{
+    int base_x;
+    int base_z;
+
+    assert(app);
+    if( !app->world )
+        return;
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    {
+        struct World_EntityPool* pool = &app->world->entities.npc;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
+            if( !npc || npc->server_slot < 0 )
+                continue;
+            TORIRS_REPORT("NATIVE_NPC slot=%d type=%d tile=%d,%d,%d\n",
+                npc->server_slot,
+                npc->npc_id,
+                base_x + npc->grid_position.x,
+                base_z + npc->grid_position.z,
+                npc->grid_position.level);
+        }
+    }
+    {
+        struct World_EntityPool* pool = &app->world->entities.obj_stack;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
+            if( !stack )
+                continue;
+            TORIRS_REPORT("NATIVE_GROUND_STACK tile=%d,%d,%d id=%d count=%d name=%s\n",
+                base_x + stack->grid_position.x,
+                base_z + stack->grid_position.z,
+                stack->grid_position.level,
+                stack->obj_id,
+                stack->count,
+                stack->name);
+        }
+    }
+}
+
+void
 App_PluginObjectCounts(
     struct App* app,
     int* in_use,

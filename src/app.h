@@ -4206,6 +4206,15 @@ App_MinimenuRowCenter(
     char* out_text,
     size_t out_text_capacity);
 
+/**
+ * Exit-dump lines for the live world entities: one `NATIVE_NPC` per synced npc
+ * (slot, type, absolute tile) and one `NATIVE_GROUND_STACK` per ground item
+ * stack (tile, obj, count, name), so a headless run can say what stood and
+ * lay in the scene when it ended.
+ */
+void
+App_TraceWorldEntities(struct App* app);
+
 /** How many plugin world objects exist, are active, and have a live scene element. */
 void
 App_PluginObjectCounts(
