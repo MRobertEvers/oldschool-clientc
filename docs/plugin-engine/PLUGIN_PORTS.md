@@ -8,12 +8,16 @@ Two sessions work in this worktree. A session claims a batch here before editing
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
 - No batch is currently claimed by the second session (loot tracker attribution and the Lua runtime row are committed).
-- Claimed by the first session (2026-09-06): the frame products batch: `src/plugin/plugins/gameframe.c`,
-  `src/plugin/plugins/mobile_gameframe.c`, `src/plugin/test/gameframe_test.c`,
-  `src/plugin/test/mobile_gameframe_test.c`, their harness/pixel rules, and afterwards the removal of
-  the superseded execution APIs (`ui_contributions`, `on_ui_node_draw/action`, `on_canvas_action`,
-  frame builder, placement, `frame_root`, the `frame.orb.*` dump block) across the host, runtime,
-  Lua runtime, `plugin_api.meta.lua` and their tests.
+- Claimed by the first session (2026-09-06): the frame products' live acceptance:
+  `src/plugin/plugins/gameframe.c`, `src/plugin/plugins/mobile_gameframe.c`, their tests and their
+  harness/pixel rules (Stone Drawer captures on both revisions still pending).
+- Handed to session 3draster-15 (2026-09-06, after the mobile port commit): the removal of the
+  superseded execution APIs (`ui_contributions`, `on_ui_node_draw/action`, `on_canvas_action`,
+  frame builder incl. the Lua `lua_frame_offer_build` / `LUA_FRAME_BUILDER_FNS`, placement,
+  `frame_root`, `action_region*`, the `frame.orb.*` dump block in `src/main.c`) across the host,
+  runtime, Lua runtime, `plugin_api.meta.lua` and their tests, in an isolated worktree branched
+  from the mobile port commit; and the OSRS239 gameframe resize/tab/remount scenario captures
+  (evidence `gfw-*`). The panel API is not superseded and stays.
 
 | Consumer | Current state | Captures |
 |---|---|---|
@@ -39,7 +43,7 @@ removes the claim in the commit that closes it; the other session leaves those f
 | `src/plugin/plugins/item_stats.c` | ported off `api->placement` onto the graphics context's canvas bounds; hover tooltip beside an inventory item captured on both revisions and kept on the canvas; unit test pins the canvas clamp with an observed negative | `item-stats-osrs/m01`, `item-stats-rs289/r01` |
 | `src/plugin/plugins/loot_tracker.c` | page on the host panel model with a custom strip row; OSRS239 shows two client-recorded Goblin kills (count, value, item strip); rs289lc despawn-attribution lane accepted with a real kill: a Man spawned on the player's tile (`~npc man`) attacked from its right-click menu by a strength-boosted new account dies, Bones and 5 Coins land on the tile, the tracker notifies `Man x1 loot: 6 gp` and the page shows the kill row with both item icons | `loot-tracker-osrs-probe/m01`, `loot-attribution-rs289-v4/r01` |
 | `src/plugin/plugins/minimap_orbs.c` | ported off `ui_contributions`/`on_ui_node_draw`/`on_ui_node_action`: each orb is an owned image control composed from the shipped art; covers interface 160's roots on OSRS and hangs beside the minimap on rs289lc; run orb pressed natively on both revisions (checked native action on OSRS, compat component on rs289lc); hover plate not reproduced; full lifecycle/composition gate pending | `orbs-osrs-probe/m01`, `orbs-rs289-probe/r01`, `orbs-osrs-run-v2/m01`, `orbs-rs289-run-v2/r01` |
-| `src/plugin/plugins/mobile_gameframe.c` | pending product acceptance; major-3 registration alone is insufficient | Pending |
+| `src/plugin/plugins/mobile_gameframe.c` | ported to a PROVIDED frame like gameframe.c (plan + widget apply: rail plates, torn sheet and switches as owned pieces over the scene, tap blockers as owned controls, rock cells with lit stone and icon, role moves, masks, OldSchool pack sheet behind the pack); test-mobile-gameframe 65 checks; live captures pending; popout safe area open | Pending |
 | `src/plugin/plugins/nxt_bird_nest.c` | major-3 item-spawn/named-cache/notification API, no execution builder to retain; logs the setting's availability at start; OSRS239 nest dropped under the player notifies only with the setting on, rs289lc reports the setting absent and stays silent; full release gate pending | `nxt-bird-nest-osrs/m01`, `nxt-bird-nest-off-osrs-v2/m01`, `nxt-bird-nest-rs289/r01` |
 | `src/plugin/plugins/nxt_cannon_ammo.c` | major-3 native tick/cache/notification API; coordinate/null/lifecycle fixes tested; OSRS empty/pickup and rs289 unavailable captures inspected; full release gate pending | `cannon-native-empty/m01`, `cannon-native-pickup/m01`, `cannon-native-rs289/r01` |
 | `src/plugin/plugins/nxt_highlight.c` | major-3 world-draw renderer of the cache's highlight groups; logs CS2 availability at start; OSRS239 mouse-over loc group drawn on the fountain after a native resolver fix, rs289lc explicitly idle; the settings-panel-driven hovered-tile group captured too: varbit 12977 set and clientscript 5198 run headlessly arm tile group 5 (colour beba6e, opacity 70) and the plugin fills the tile under the parked pointer, while the same run without the script has no tile member and draws nothing | `nxt-highlight-hover-osrs-v2/m01`, `nxt-highlight-rs289/r01`, `nxt-highlight-hovertile-osrs/m01`, `nxt-highlight-hovertile-osrs-negative/m01` |
