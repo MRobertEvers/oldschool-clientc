@@ -834,6 +834,9 @@ struct FrameState
     int tab_icon_shown[FRAME_TAB_COUNT];
     /* Whether the OldSchool chat pack currently wears this frame's dressing. */
     int chat_dressed;
+    /* The last plan line logged, so a PENDING re-ask every fence stays quiet. */
+    int logged_layout;
+    int logged_pending;
 };
 
 /** Callback-scoped native V2 services threaded through layout helpers. */
@@ -3514,13 +3517,18 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     /*
      * One line per plan: selection, resize, explicit invalidation, or rebuild.
      * It names the concrete offer because that is the first question a
-     * wrong-looking frame raises.
+     * wrong-looking frame raises. A PENDING answer is re-asked every fence
+     * until the roles bind, so that state is said once.
      */
-    api->core.log(
-        api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s", FRAME_LAYOUT_NAME[g_plan.layout], canvas_w,
-        canvas_h, g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
-        result == TORIRS_FRAME_READY ? "" : " (pending)",
-        frame_lane_oldschool(ctx) ? " over the OldSchool toplevel" : "");
+    if( state->logged_layout != g_plan.layout || state->logged_pending != (result != TORIRS_FRAME_READY) ||
+        result == TORIRS_FRAME_READY )
+        api->core.log(
+            api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s", FRAME_LAYOUT_NAME[g_plan.layout], canvas_w,
+            canvas_h, g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
+            result == TORIRS_FRAME_READY ? "" : " (pending)",
+            frame_lane_oldschool(ctx) ? " over the OldSchool toplevel" : "");
+    state->logged_layout = g_plan.layout;
+    state->logged_pending = result != TORIRS_FRAME_READY;
     return result;
 }
 
@@ -3547,20 +3555,40 @@ frame_image_request(struct ToriRS_Api* api, struct FrameState* state, int image)
         api->core.log(api, "could not load %s", FRAME_IMAGE_FILE[image]);
 }
 
+/*
+ * A role this frame arranges came or went -- the toplevel mounted after login,
+ * a remount replaced the chat pack, the sidebar rebuilt. The retained edits
+ * on the old nodes died with them; ask the host for another plan pass, which
+ * re-applies onto whatever is bound now.
+ */
+static void
+frame_role_changed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    (void)user;
+    assert(api);
+    assert(event);
+    if( event->type == TORIRS_WIDGET_BOUND || event->type == TORIRS_WIDGET_UNBOUND )
+        api->frame.invalidate(api);
+}
+
 static void
 frame_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
     uint32_t const clear = 0;
+    static char const* const WATCHED[] = { "viewport", "chat", "sidebar", "minimap" };
 
     assert(api);
     assert(state);
     memset(state, 0, sizeof(*state));
     state->api = api;
     state->chat_open = true;
+    state->logged_layout = -1;
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
         frame_image_request(api, state, i);
     (void)api->assets.image_compose(api, "frame_blank.png", 1, 1, &clear, &state->blank);
+    for( size_t i = 0; i < sizeof(WATCHED) / sizeof(WATCHED[0]); i++ )
+        (void)api->widgets.watch(api->widgets.context, WATCHED[i], frame_role_changed, state);
 }
 
 /*

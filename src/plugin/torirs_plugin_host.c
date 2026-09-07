@@ -11375,6 +11375,12 @@ PluginHost_Layout(
          * lay this lane out must not keep the chrome suppressed under it. */
         if( provided && host->frame_active_entry == build_entry )
             plugin_frame_engine_activate(host, -1);
+        /* PENDING from a provider means "ask again": its roles have not bound
+         * yet, or its art is still crossing the IO queue. Keep the request
+         * standing so the next layout fence asks; a provider that never
+         * becomes READY costs one refused find per tick and nothing else. */
+        if( provided && v2_result == TORIRS_FRAME_PENDING )
+            host->frame_layout_requested = 1;
         plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
         return;
     }

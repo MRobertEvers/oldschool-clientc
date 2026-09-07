@@ -3599,11 +3599,24 @@ static void test_gameframe_provider(void)
     /* A canvas change asks again. */
     PluginHost_Layout(host,900,600);
     CHECK(gf_events==2 && g_engine.frame_provides==2,"every layout pass re-asks the provider");
-    /* Declining with a reason falls back to native with that reason. */
-    gf_answer=TORIRS_FRAME_UNSUPPORTED;
+    /* PENDING keeps the request standing so the next fence asks again. */
+    gf_answer=TORIRS_FRAME_PENDING;
     PluginHost_Layout(host,900,600);
     gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==4 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
+    CHECK(gf_events==4 && gf_active_last==0 && PluginHost_FrameNeedsLayout(host) &&
+          selection.status==TORIRS_FRAME_STATUS_LOADING && g_engine.frame_active==0,
+          "PENDING releases the standing provision, keeps native up and asks again next fence");
+    gf_answer=TORIRS_FRAME_READY;
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==5 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && !PluginHost_FrameNeedsLayout(host) &&
+          g_engine.frame_active==1,
+          "the next READY answer provides the frame again and the request is consumed");
+    gf_answer=TORIRS_FRAME_UNSUPPORTED;
+    /* Declining with a reason falls back to native with that reason. */
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==7 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
     CHECK(selection.status==TORIRS_FRAME_STATUS_FALLBACK && strcmp(selection.reason,"No stones cut for this lane.")==0 &&
           g_engine.frame_active==0,
           "UNSUPPORTED falls back to native carrying the provider's reason");

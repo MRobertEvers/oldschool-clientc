@@ -838,10 +838,12 @@ static int g_w_count;
 static int g_widget_resets;
 static uint64_t g_widget_owner;
 
-static struct ToriRS_WidgetRef fw_ref(int id) { return (struct ToriRS_WidgetRef){ { 77, (uint64_t)id + 1, 1 } }; }
+/* Every rebuild is a new incarnation of every node: an old reference is stale. */
+static uint64_t g_w_incarnation = 1;
+static struct ToriRS_WidgetRef fw_ref(int id) { return (struct ToriRS_WidgetRef){ { 77, (uint64_t)id + 1, g_w_incarnation } }; }
 static int fw_id(struct ToriRS_WidgetRef r)
 {
-    if( r.opaque[0] != 77 || r.opaque[2] != 1 || r.opaque[1] == 0 || r.opaque[1] > (uint64_t)g_w_count ) return -1;
+    if( r.opaque[0] != 77 || r.opaque[2] != g_w_incarnation || r.opaque[1] == 0 || r.opaque[1] > (uint64_t)g_w_count ) return -1;
     return g_w[r.opaque[1] - 1].alive ? (int)r.opaque[1] - 1 : -1;
 }
 static int
@@ -876,6 +878,7 @@ fw_build(int oldschool)
     int root;
     memset(g_w, 0, sizeof(g_w));
     g_w_count = 0;
+    ++g_w_incarnation;
     root = fw_add(-1, "", -1, 0, 0, 765, 503);
     fw_add(root, "viewport", -1, 4, 4, 512, 334);
     fw_add(root, "minimap", -1, 575, 9, 146, 151);
@@ -1217,6 +1220,7 @@ main(void)
         CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
     }
     select_frame("gameframe-layout/classic-fixed", 100);
+    PluginHost_WidgetsChanged(g_host, 77, 1);
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(strcmp(selected.requested_id, "gameframe-layout/classic-fixed") == 0 &&
@@ -1270,6 +1274,18 @@ main(void)
     CHECK(owned("icon.03")->hidden && owned("tab.03")->image == owned("tab.00")->image,
           "a tab the server has not handed over wears neither icon nor highlight");
     g_frame.ungiven_tab = -1;
+
+    /* ---- 2b. a remount: the roles come back as new nodes ---------------- */
+    {
+        int const published = g_frame.set_calls;
+        fw_build(/*oldschool=*/0);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls > published, "rebound roles make the provider ask for another plan pass");
+        declare(765, 503);
+        CHECK(placed("viewport", -1, 4, 4, 512, 334) && placed("chat", -1, 17, 357, 479, 96) &&
+                  pieces_behind_viewport() == 14 && owned_count("tab.") == 14,
+              "the plan is re-applied onto the rebuilt nodes");
+    }
 
     /* ---- 3. modern fixed on the 2004 lane ------------------------------ */
     select_frame("gameframe-layout/modern-fixed", 200);
