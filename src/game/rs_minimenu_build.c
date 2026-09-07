@@ -756,6 +756,55 @@ add_target_button_row(
 }
 
 /*
+ * `TORIRS_MINIMENU_DEBUG`: one readout per menu build. Read once and kept,
+ * because a menu is rebuilt for the hover text on every frame the cursor sits
+ * over a component and a per-frame getenv is a measured cost in this tree.
+ */
+static bool
+minimenu_debug_enabled(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_MINIMENU_DEBUG") != NULL;
+    return enabled != 0;
+}
+
+/*
+ * The six target bits of a component's EFFECTIVE events word.
+ *
+ * Deob `method12079` asks `method7577(method12093(events, widget))`, and
+ * `method12093` is explicit about where the number comes from: the server's
+ * IF_SETEVENTS entry for this widget (or for its parent's dynamic-child range)
+ * where one exists, and the widget's own decoded flags where it does not. Both
+ * arms are the SAME 3-byte events word, whose bits 11..16 are the target mask —
+ * `method7577` is literally `var0 >> 11 & 0x3F`.
+ *
+ * Reading only the decoded half is what made a script-built target button
+ * unarmable: a CC_CREATE child is memset to zero and no `cc_` opcode can write
+ * a target mask, so the sailing crew panel's "Edit navigator" — armed by
+ * `if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127,
+ * ^if_event_op_all + 16384)`, bit 14 — measured 0 here and its
+ * `cc_settargetverb("Edit-navigator")` row was never built. `add_obj_cell_rows`
+ * already tests the events word (`ev >> 11 & 0x3F`), which is why the same
+ * mechanism worked on an inventory item and not on the button.
+ *
+ * The shift is IF3-only. A dat1 component stores `targetMask` unshifted in both
+ * `click_mask` and `target_mask` (torirs_component_from_rscache.c), so shifting
+ * an IF1 events word would turn a real answer into noise — the same split
+ * `rs_cs2_target_mask` keeps for IF/CC_GETTARGETMASK.
+ */
+static int
+component_effective_target_mask(
+    struct UITreeComponent const* node,
+    int events)
+{
+    int mask = (int)node->behavior.target_mask;
+    if( node->if3 )
+        mask |= (events >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS;
+    return mask;
+}
+
+/*
  * Does this component offer an IF3 "Cast <spell>" row?
  *
  * IF3 has no `buttonType` at all — the field is IF1's, and every IF3 widget
@@ -766,10 +815,12 @@ add_target_button_row(
  * every rev-230/239 spell built a plain button row and nothing ever armed.
  */
 static bool
-component_offers_if3_target(struct UITreeComponent const* node)
+component_offers_if3_target(
+    struct UITreeComponent const* node,
+    int events)
 {
     return node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET &&
-           node->behavior.target_mask != 0 &&
+           component_effective_target_mask(node, events) != 0 &&
             UITree_MenuOptions(node)->target_verb[0] != '\0';
 }
 
@@ -802,8 +853,20 @@ add_if3_target_op_rows(
     char text[UITREE_MINIMENU_OPTION_LEN];
     /* The reference walks 32 operation slots; this tree stores 10. A priority
      * past the end still has to produce its row, so it lands on the first slot
-     * walked — the same "above every op" position it holds there. A negative
-     * priority is `cc_settargetpriority(-1)`, "no target row at all". */
+     * walked — the same "above every op" position it holds there.
+     *
+     * There is no such thing as a negative target priority. `Statics.java`'s
+     * CC_SETTARGETPRIORITY (opcode 1312) handler stores `-1` as the DEFAULT 4
+     * (`field4122 = 1431939116`, which is `4 * -1789498869`), stores `1..32` as
+     * `value - 1`, and ignores everything else; the widget constructor seeds the
+     * same 4. So `cc_settargetpriority(-1)` — what both the sailing crew panel's
+     * `torirs_sailing_edit_navigator_btn` and the native inventory's
+     * `inventory_noops_allowinteraction_bind_actions_6011` open with — is a
+     * RESET, not a suppression, and `UITree_ApplyTargetPriority` already applies
+     * that mapping. Nothing may reach this walk with a negative slot: the
+     * reference's own loop (`for (var3 = 31; var3 >= 0; var3--)`, target row at
+     * `var3 == priority`) would drop the row on the floor. */
+    assert(node->target_priority >= 0);
     int const priority = node->target_priority >= UITREE_MENU_OPTION_SLOTS
                              ? UITREE_MENU_OPTION_SLOTS - 1
                              : node->target_priority;
@@ -812,7 +875,13 @@ add_if3_target_op_rows(
     {
         if( i == priority )
         {
-            snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
+            /* Same "no opBase, no trailing space" rule the op rows below use:
+             * a script-built button (the crew panel's) carries a target verb
+             * and no opBase at all, and its row is just the verb. */
+            if( base[0] != '\0' )
+                snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
+            else
+                snprintf(text, sizeof(text), "%s", opts->target_verb);
             UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
         }
         if( !rows || rows->ops[i][0] == '\0' )
@@ -930,13 +999,24 @@ add_component_rows(
             rows = &filtered;
     }
 
+    /* The four things that decide whether a component's target verb can be
+     * armed with the mouse — the same one-line readout add_obj_cell_rows keeps
+     * for item cells, and the one that names which of them was zero. */
+    if( minimenu_debug_enabled() )
+        TORIRS_REPORT(
+            "component: com=%d|%d if3=%d events=0x%x mask=0x%x prio=%d target=\"%s\" base=\"%s\"\n",
+            (node->component_id >> 16) & 0xFFFF, node->component_id & 0xFFFF,
+            (int)node->if3, (unsigned)events,
+            (unsigned)component_effective_target_mask(node, events),
+            node->target_priority, UITree_MenuOptions(node)->target_verb, opts->option);
+
     /* An IF3 target component's verb and its ops are ONE ordered walk, not two
      * competing branches: High Alchemy carries "Animation" and "Warnings"
      * alongside "Cast High Alchemy" and the reference emits all three from the
      * same loop. Falling into the plain op path instead would emit the ops and
      * silently drop the cast; taking the classic early-return would emit the
      * cast and drop the ops. */
-    if( select_mode == RS_MINIMENU_SELECT_NONE && component_offers_if3_target(node) )
+    if( select_mode == RS_MINIMENU_SELECT_NONE && component_offers_if3_target(node, events) )
     {
         ops_added = add_if3_target_op_rows(menu, node, rows, pick);
         if( ops_added > 0 )
@@ -1085,6 +1165,22 @@ RS_Minimenu_Build(
 
     hit_count =
         UITree_CollectNodesAt(ctx->tree, ctx->ui_host, click_x, click_y, hits, RS_MINIMENU_HIT_STACK_MAX);
+
+    /* Which components the click reached at all. A row that is missing because
+     * its component never entered this stack is a DIFFERENT bug from a row that
+     * is missing because add_component_rows declined to build it, and without
+     * this line the two are indistinguishable from the menu alone. */
+    if( minimenu_debug_enabled() )
+    {
+        TORIRS_REPORT("minimenu: %d,%d hits=%d", click_x, click_y, hit_count);
+        for( int i = 0; i < hit_count; i++ )
+            TORIRS_REPORT(
+                " [%d]=%d|%d(type=%d)", i,
+                (ctx->tree->components[hits[i]].component_id >> 16) & 0xFFFF,
+                ctx->tree->components[hits[i]].component_id & 0xFFFF,
+                (int)ctx->tree->components[hits[i]].type);
+        TORIRS_REPORT("\n");
+    }
 
     /* A cell's rows are emitted for the cell, and the container it borrowed
      * its verbs from must not emit them a second time on its own account —

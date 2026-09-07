@@ -1,0 +1,500 @@
+[
+  {
+    "command": "save core_gate",
+    "result": {
+      "ok": true,
+      "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+      "runtime_ms": 1.187,
+      "elapsed_ms": 5.603
+    }
+  },
+  {
+    "command": "cheat setlevel sailing 1",
+    "result": {
+      "ok": true,
+      "runtime_ms": 3.644,
+      "elapsed_ms": 6.447
+    }
+  },
+  {
+    "command": "cheat sailhelm",
+    "result": {
+      "ok": true,
+      "runtime_ms": 3.578,
+      "elapsed_ms": 6.396
+    }
+  },
+  {
+    "command": "state",
+    "result": {
+      "ok": true,
+      "online": true,
+      "paused": true,
+      "time_ms": 11200,
+      "server_x": 6403,
+      "server_z": 67,
+      "level": 1,
+      "aboard_view": 1,
+      "logic_cycle": 509,
+      "server_tick": 16,
+      "camera_yaw": 1536,
+      "camera_pitch": 360,
+      "camera_zoom": 650,
+      "world_ready": 1,
+      "renderer": 0,
+      "x": 6403,
+      "z": 67,
+      "camera": 0,
+      "animation": 0,
+      "anim_frame": 0,
+      "chat_blocked": -1,
+      "player_yaw": 1780,
+      "rig": {
+        "vertices": 288,
+        "hash": 3984471840,
+        "min_y": -193,
+        "max_y": 8,
+        "posed_frame": 3
+      },
+      "sailing": {
+        "ok": true,
+        "aboard": true,
+        "checkpoints": 1,
+        "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "server_tick": 16,
+        "player": {
+          "x": 6403,
+          "z": 67,
+          "level": 1,
+          "navigating": 0
+        },
+        "vessel": {
+          "id": 1,
+          "serial": 1,
+          "view": 1,
+          "config": 2,
+          "instance": 1,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "heading": 0,
+          "state": 1,
+          "speed_tier": 1,
+          "sails_set": 0,
+          "reversing": 0,
+          "hp": 80,
+          "hp_max": 80,
+          "facilities": [
+            1,
+            2,
+            1
+          ]
+        },
+        "client_vessel": {
+          "present": true,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "target_fine_x": 393280,
+          "target_fine_z": 404544,
+          "target_angle": 0,
+          "queue_count": 0
+        }
+      },
+      "server_activity": {
+        "active_script": 0,
+        "action_locked": 0,
+        "delay_until": 15,
+        "waypoint": -1,
+        "kind": 0,
+        "op": 0,
+        "target": 0,
+        "x": 0,
+        "z": 0,
+        "use_on": 0,
+        "last_useitem": 317,
+        "last_useslot": 2,
+        "client_selected_obj": -1
+      },
+      "runtime_ms": 0.371,
+      "elapsed_ms": 2.816
+    }
+  },
+  {
+    "command": "cheat setlevel sailing 99",
+    "result": {
+      "ok": true,
+      "runtime_ms": 3.99,
+      "elapsed_ms": 5.46
+    }
+  },
+  {
+    "command": "cheat sailhelm",
+    "result": {
+      "ok": true,
+      "runtime_ms": 37.857,
+      "elapsed_ms": 40.141
+    }
+  },
+  {
+    "command": "state",
+    "result": {
+      "ok": true,
+      "online": true,
+      "paused": true,
+      "time_ms": 11200,
+      "server_x": 6403,
+      "server_z": 67,
+      "level": 1,
+      "aboard_view": 1,
+      "logic_cycle": 509,
+      "server_tick": 16,
+      "camera_yaw": 1536,
+      "camera_pitch": 360,
+      "camera_zoom": 650,
+      "world_ready": 1,
+      "renderer": 0,
+      "x": 6403,
+      "z": 67,
+      "camera": 0,
+      "animation": 0,
+      "anim_frame": 0,
+      "chat_blocked": -1,
+      "player_yaw": 1780,
+      "rig": {
+        "vertices": 288,
+        "hash": 3984471840,
+        "min_y": -193,
+        "max_y": 8,
+        "posed_frame": 3
+      },
+      "sailing": {
+        "ok": true,
+        "aboard": true,
+        "checkpoints": 1,
+        "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "server_tick": 16,
+        "player": {
+          "x": 6403,
+          "z": 67,
+          "level": 1,
+          "navigating": 1
+        },
+        "vessel": {
+          "id": 1,
+          "serial": 1,
+          "view": 1,
+          "config": 2,
+          "instance": 1,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "heading": 0,
+          "state": 1,
+          "speed_tier": 1,
+          "sails_set": 0,
+          "reversing": 0,
+          "hp": 80,
+          "hp_max": 80,
+          "facilities": [
+            1,
+            2,
+            1
+          ]
+        },
+        "client_vessel": {
+          "present": true,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "target_fine_x": 393280,
+          "target_fine_z": 404544,
+          "target_angle": 0,
+          "queue_count": 0
+        }
+      },
+      "server_activity": {
+        "active_script": 0,
+        "action_locked": 0,
+        "delay_until": 15,
+        "waypoint": -1,
+        "kind": 0,
+        "op": 0,
+        "target": 0,
+        "x": 0,
+        "z": 0,
+        "use_on": 0,
+        "last_useitem": 317,
+        "last_useslot": 2,
+        "client_selected_obj": -1
+      },
+      "runtime_ms": 0.447,
+      "elapsed_ms": 3.423
+    }
+  },
+  {
+    "command": "cheat setlevel sailing 1",
+    "result": {
+      "ok": true,
+      "runtime_ms": 3.816,
+      "elapsed_ms": 6.491
+    }
+  },
+  {
+    "command": "cheat sailpanel",
+    "result": {
+      "ok": true,
+      "runtime_ms": 4.654,
+      "elapsed_ms": 9.246
+    }
+  },
+  {
+    "command": "click 543 185 left",
+    "result": {
+      "ok": true,
+      "runtime_ms": 7.464,
+      "elapsed_ms": 10.872
+    }
+  },
+  {
+    "command": "widget sailing_sidepanel:facilities_content_clicklayer 0",
+    "result": {
+      "ok": true,
+      "exists": true,
+      "index": 7084,
+      "x": 561,
+      "y": 296,
+      "w": 30,
+      "h": 30,
+      "hidden": 0,
+      "trans": 255,
+      "runtime_ms": 0.399,
+      "elapsed_ms": 3.24
+    }
+  },
+  {
+    "command": "click 576 311 left",
+    "result": {
+      "ok": true,
+      "runtime_ms": 7.472,
+      "elapsed_ms": 11.575
+    }
+  },
+  {
+    "command": "state",
+    "result": {
+      "ok": true,
+      "online": true,
+      "paused": true,
+      "time_ms": 11200,
+      "server_x": 6403,
+      "server_z": 67,
+      "level": 1,
+      "aboard_view": 1,
+      "logic_cycle": 509,
+      "server_tick": 16,
+      "camera_yaw": 1536,
+      "camera_pitch": 360,
+      "camera_zoom": 650,
+      "world_ready": 1,
+      "renderer": 0,
+      "x": 6403,
+      "z": 67,
+      "camera": 0,
+      "animation": 0,
+      "anim_frame": 0,
+      "chat_blocked": -1,
+      "player_yaw": 1780,
+      "rig": {
+        "vertices": 288,
+        "hash": 3984471840,
+        "min_y": -193,
+        "max_y": 8,
+        "posed_frame": 3
+      },
+      "sailing": {
+        "ok": true,
+        "aboard": true,
+        "checkpoints": 1,
+        "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "server_tick": 16,
+        "player": {
+          "x": 6403,
+          "z": 67,
+          "level": 1,
+          "navigating": 1
+        },
+        "vessel": {
+          "id": 1,
+          "serial": 1,
+          "view": 1,
+          "config": 2,
+          "instance": 1,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "heading": 0,
+          "state": 1,
+          "speed_tier": 1,
+          "sails_set": 0,
+          "reversing": 0,
+          "hp": 80,
+          "hp_max": 80,
+          "facilities": [
+            1,
+            2,
+            1
+          ]
+        },
+        "client_vessel": {
+          "present": true,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "target_fine_x": 393280,
+          "target_fine_z": 404544,
+          "target_angle": 0,
+          "queue_count": 0
+        }
+      },
+      "server_activity": {
+        "active_script": 0,
+        "action_locked": 0,
+        "delay_until": 15,
+        "waypoint": -1,
+        "kind": 0,
+        "op": 0,
+        "target": 0,
+        "x": 0,
+        "z": 0,
+        "use_on": 0,
+        "last_useitem": 317,
+        "last_useslot": 2,
+        "client_selected_obj": -1
+      },
+      "runtime_ms": 0.557,
+      "elapsed_ms": 3.422
+    }
+  },
+  {
+    "command": "cheat setlevel sailing 99",
+    "result": {
+      "ok": true,
+      "runtime_ms": 4.229,
+      "elapsed_ms": 6.141
+    }
+  },
+  {
+    "command": "click 576 311 left",
+    "result": {
+      "ok": true,
+      "runtime_ms": 38.968,
+      "elapsed_ms": 42.892
+    }
+  },
+  {
+    "command": "state",
+    "result": {
+      "ok": true,
+      "online": true,
+      "paused": true,
+      "time_ms": 11200,
+      "server_x": 6403,
+      "server_z": 67,
+      "level": 1,
+      "aboard_view": 1,
+      "logic_cycle": 509,
+      "server_tick": 16,
+      "camera_yaw": 1536,
+      "camera_pitch": 360,
+      "camera_zoom": 650,
+      "world_ready": 1,
+      "renderer": 0,
+      "x": 6403,
+      "z": 67,
+      "camera": 0,
+      "animation": 0,
+      "anim_frame": 0,
+      "chat_blocked": -1,
+      "player_yaw": 1780,
+      "rig": {
+        "vertices": 288,
+        "hash": 3984471840,
+        "min_y": -193,
+        "max_y": 8,
+        "posed_frame": 3
+      },
+      "sailing": {
+        "ok": true,
+        "aboard": true,
+        "checkpoints": 1,
+        "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "server_tick": 16,
+        "player": {
+          "x": 6403,
+          "z": 67,
+          "level": 1,
+          "navigating": 1
+        },
+        "vessel": {
+          "id": 1,
+          "serial": 1,
+          "view": 1,
+          "config": 2,
+          "instance": 1,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "heading": 0,
+          "state": 1,
+          "speed_tier": 1,
+          "sails_set": 1,
+          "reversing": 0,
+          "hp": 80,
+          "hp_max": 80,
+          "facilities": [
+            1,
+            2,
+            1
+          ]
+        },
+        "client_vessel": {
+          "present": true,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "angle": 0,
+          "target_fine_x": 393280,
+          "target_fine_z": 404544,
+          "target_angle": 0,
+          "queue_count": 0
+        }
+      },
+      "server_activity": {
+        "active_script": 0,
+        "action_locked": 0,
+        "delay_until": 15,
+        "waypoint": -1,
+        "kind": 0,
+        "op": 0,
+        "target": 0,
+        "x": 0,
+        "z": 0,
+        "use_on": 0,
+        "last_useitem": 317,
+        "last_useslot": 2,
+        "client_selected_obj": -1
+      },
+      "runtime_ms": 0.465,
+      "elapsed_ms": 4.589
+    }
+  },
+  {
+    "command": "restore core_gate",
+    "result": {
+      "ok": true,
+      "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+      "runtime_ms": 7.041,
+      "elapsed_ms": 12.048
+    }
+  }
+]

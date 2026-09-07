@@ -245,6 +245,64 @@ net_out_if_button(
 }
 
 int
+net_out_if_script_trigger(struct GameProtoRevTable const* rev,
+    struct Isaac* random_out, uint8_t* buf, int cap, int crc, int component_id,
+    int child, int object_id, const char* signature, const int* values,
+    const char* const* strings)
+{
+    assert(rev);
+    assert(random_out);
+    assert(buf);
+    assert(signature);
+    assert(values);
+    assert(strings);
+    int payload = 12;
+    int count = (int)strlen(signature);
+    if( count > 16 ) return -1;
+    /* Check capacity before spending an ISAAC word. */
+    for( int i = 0; i < count; ++i )
+    {
+        if( signature[i] == 'i' )
+        {
+            uint32_t value = ((uint32_t)values[i] << 1) ^ (uint32_t)-(values[i] < 0);
+            do { payload++; value >>= 7; } while( value );
+        }
+        else
+        {
+            assert(strings[i]);
+            size_t length = strlen(strings[i]);
+            if( length > 65535 ) return -1;
+            payload += (int)length + 1;
+        }
+    }
+    if( payload > 65535 || cap < payload + 3 ) return -1;
+    struct RSCache_Buffer out;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_SCRIPT_TRIGGER,
+                  payload + 2, &out) < 0 ) return -1;
+    p2(&out, payload);
+    p2_le_add128(&out, child);
+    p2(&out, object_id);
+    p4_le(&out, component_id);
+    p4_le(&out, crc);
+    for( int i = 0; i < count; ++i )
+    {
+        if( signature[i] == 'i' )
+        {
+            uint32_t value = ((uint32_t)values[i] << 1) ^ (uint32_t)-(values[i] < 0);
+            while( value >= 128 ) { p1(&out, (value & 127) | 128); value >>= 7; }
+            p1(&out, value);
+        }
+        else
+        {
+            for( const unsigned char* p = (const unsigned char*)strings[i]; *p; ++p )
+                p1(&out, *p);
+            p1(&out, 0);
+        }
+    }
+    return 1 + (int)out.position;
+}
+
+int
 net_out_if_button_op(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
@@ -464,6 +522,25 @@ out_move(
         }
         return 1 + (int)b.position;
     }
+}
+
+int
+net_out_set_heading(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int heading)
+{
+    struct RSCache_Buffer b;
+
+    assert(heading >= 0);
+    assert(heading < 16);
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_SET_HEADING, 1, &b) < 0 )
+        return -1;
+    /* RSProt SetHeadingDecoder v4, used by revision 239: no byte transform. */
+    p1(&b, heading);
+    return 1 + (int)b.position;
 }
 
 int

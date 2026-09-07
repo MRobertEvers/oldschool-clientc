@@ -37,6 +37,8 @@
 #include "world/world.h"
 #include "world/entity_scenery.h"
 #include "world/world_pickset.h"
+#include "world/worldview.h"
+#include "world/wev.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -87,9 +89,67 @@ terrain_hit_survives(
            pickset.items[0].tile_x == x && pickset.items[0].tile_z == z;
 }
 
+static void test_boat_click_modes(void)
+{
+    puts("TEST: native boat click modes and visibility");
+    struct World* root = World_New();
+    struct World* deck = World_New();
+    World_ResetScene(root,50,50,64); World_SetLoadComplete(root,true);
+    World_ResetScene(deck,480,800,8); World_SetLoadComplete(deck,true);
+    char ops[5][32] = {"Steer"};
+    World_SceneryRegister(deck,777,4242,3,4,1,1,1,10,0,0,"Helm",
+                          (const char(*)[32])ops,1);
+    struct WorldviewRegistry views = {0};
+    views.views[1].live = true; views.views[1].world = deck;
+    struct WevConfig cfg = {.click_mode=2};
+    struct Wevs boats; Wevs_Init(&boats);
+    struct Wev* boat=Wevs_Spawn(&boats,1,0,&cfg,1,3072*128,3160*128,0,0,31);
+    struct ToriRS_PickHits hits;
+    struct World_PickSet picks;
+    struct ToriRS_PickResult result;
+    ToriRS_PickHitsReset(&hits);
+    ToriRS_PickHitsAdd(&hits,20,true,5,5,0,0);
+    ToriRS_PickHitsAdd(&hits,888,false,-1,-1,-1,1); /* inert hull */
+    ToriRS_PickHitsAdd(&hits,777,false,-1,-1,-1,1); /* native helm */
+#define CLASSIFY(aboard) ToriRS_PickHitsClassifyViews(root,&views,&boats,aboard,&hits,0,&picks,&result)
+    cfg.click_mode=0; CLASSIFY(0);
+    CHECK(picks.count==2 && picks.items[1].type==WORLD_PICK_WEV,
+          "mode0 replaces interactive and inert hits with one hull target");
+    cfg.click_mode=1; CLASSIFY(0);
+    CHECK(picks.count==2 && picks.items[1].type==WORLD_PICK_SCENERY,
+          "mode1 keeps native contents and drops inert hull");
+    cfg.click_mode=2; CLASSIFY(0);
+    CHECK(picks.count==3 && picks.items[1].type==WORLD_PICK_WEV &&
+          picks.items[2].type==WORLD_PICK_SCENERY,
+          "mode2 falls back to boat only for noninteractive geometry");
+    cfg.click_mode=3; CLASSIFY(0);
+    CHECK(picks.count==0 && !result.hover_tile_valid,
+          "mode3 swallows underlying root picks and hover");
+    ToriRS_PickHitsAdd(&hits,21,true,6,5,0,0); CLASSIFY(0);
+    CHECK(picks.count==1 && result.hover_tile_x==6,
+          "a root surface nearer than blocker remains clickable");
+    hits.count=3; CLASSIFY(1);
+    CHECK(picks.count==2 && picks.items[1].type==WORLD_PICK_SCENERY,
+          "aboard forces contents-only even for blocker configuration");
+    boat->flattened=true; CLASSIFY(1);
+    CHECK(picks.count==1 && picks.items[0].view_id==0,
+          "flattened views contribute no actor, hull or scenery picks");
+    boat->flattened=false; boat->render_visible=false; CLASSIFY(1);
+    CHECK(picks.count==1,"budget-skipped views contribute no picks");
+    boat->render_visible=true; cfg.click_mode=1;
+    ToriRS_PickHitsReset(&hits);
+    ToriRS_PickHitsAdd(&hits,55,true,3,4,1,1); CLASSIFY(1);
+    CHECK(picks.count==1 && result.hover_view_valid && result.hover_view==1 &&
+          result.hover_view_x==3 && result.hover_view_z==4,
+          "aboard terrain remains in its deck coordinate frame");
+#undef CLASSIFY
+    World_Free(deck); World_Free(root);
+}
+
 int
 main(void)
 {
+    test_boat_click_modes();
     struct World* world = World_New();
 
     int const bridge_x = 20; /* LinkBelow column: deck geometry on cache 1 */

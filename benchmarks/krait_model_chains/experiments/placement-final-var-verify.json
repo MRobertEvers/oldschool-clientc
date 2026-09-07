@@ -1,0 +1,8 @@
+{
+  "corpus": "benchmarks/krait_model_chains/placement-varrock-pipeline.chain.gz",
+  "sha256": "59055bf71025ca6f0ca124b89ff4887055f2dbe69981c99b1a64e9e972184b4a",
+  "binary_sha256": "cf9e9cad0b8dd4da4e6b728448a1aa26fd806442498d679c7e7c579e5ad1bed1",
+  "events": {},
+  "graph": "graph: 42335 elements, 1 batches, 104 pages; descriptor bytes=1354720",
+  "verified": "verified: 1940 real placement queries, 4974 ordered records, both arms"
+}

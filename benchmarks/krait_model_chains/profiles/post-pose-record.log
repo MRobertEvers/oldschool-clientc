@@ -1,0 +1,2 @@
+simpleperf I cmd_record.cpp:809] Recorded for 15.0413 seconds. Start post processing.
+simpleperf I cmd_record.cpp:903] Samples recorded: 136,296. Samples lost: 0.

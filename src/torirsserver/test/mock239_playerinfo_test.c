@@ -299,6 +299,118 @@ decode_tick(struct RSAreaBuf* buf, struct Decoded* out, int expect_extended)
         decode_extended(buf, out);
 }
 
+struct GpiClientProbe
+{
+    int present[SLOTS];
+    int x[SLOTS], z[SLOTS], level[SLOTS], speed[SLOTS], jump[SLOTS];
+    int appearance[SLOTS];
+};
+
+static int32_t gpi_coord(int level, int x, int z)
+{ return (int32_t)(((level & 3) << 28) | ((x & 16383) << 14) | (z & 16383)); }
+
+static void
+check_gpi_tick(struct Mock239PlayerInfoState* server, struct Mock239PlayerUpdate* updates,
+               int count, struct GpiClientProbe* client)
+{
+    uint8_t bytes[8192];
+    struct RSAreaBuf buf;
+    struct PktPlayerInfoOp ops[128];
+    int target = -1;
+    rsab_wrap(&buf,bytes,sizeof(bytes));
+    mock239_playerinfo_write_world(&buf,server,updates,count);
+    CHECK(rsab_ok(&buf),"multi-player packet stays within its buffer");
+    int n = osrs239_player_info_read(bytes,(int)rsab_len(&buf),ops,128);
+    for( int i=0; i<n; ++i )
+    {
+        struct PktPlayerInfoOp* op=&ops[i];
+        if( op->kind==PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER ) target=server->local_index;
+        else if( op->kind==PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID )
+        { target=(int)op->_bitvalue; client->present[target]=1; }
+        else if( op->kind==PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID ) client->present[op->_bitvalue]=0;
+        else if( op->kind==PKT_PLAYER_INFO_OP_ABS_XZLEVEL && target>=0 )
+        {
+            client->x[target]=op->_local_xz_level.x;
+            client->z[target]=op->_local_xz_level.z;
+            client->level[target]=op->_local_xz_level.level;
+            client->speed[target]=op->_local_xz_level.move_speed;
+            client->jump[target]=op->_local_xz_level.jump;
+        }
+        else if( op->kind==PKT_PLAYER_INFO_OP_APPEARANCE )
+        {
+            if( target>=0 ) client->appearance[target]=op->_appearance.appearance[0];
+            free(op->_appearance.appearance);
+        }
+    }
+}
+
+static void
+check_multiplayer_actual_decoder(void)
+{
+    struct Mock239PlayerInfoState server;
+    struct GpiClientProbe client={0};
+    struct Mock239PlayerExt run={.has_temp_move_speed=1,.temp_move_speed=2};
+    uint8_t bytes[8192], look[]={11,22,33};
+    struct RSAreaBuf buf;
+    struct Mock239PlayerUpdate updates[3]={
+        {.index=LOCAL_INDEX,.visible=1,.coord=gpi_coord(0,3200,3200),.appearance=look,.appearance_len=1},
+        {.index=7,.visible=1,.coord=gpi_coord(2,9001,9305),.appearance=look+1,.appearance_len=1},
+        {.index=1900,.visible=1,.coord=gpi_coord(0,3203,3202),.appearance=look+2,.appearance_len=1}
+    };
+    rsab_wrap(&buf,bytes,sizeof(bytes));
+    mock239_playerinfo_write_init(&buf,LOCAL_INDEX,updates[0].coord);
+    osrs239_playerinfo_set_local(LOCAL_INDEX);
+    osrs239_playerinfo_init(bytes,(int)rsab_len(&buf));
+    mock239_playerinfo_state_init(&server,LOCAL_INDEX,updates[0].coord);
+    client.present[LOCAL_INDEX]=1;
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(client.present[7] && client.present[1900],"actual client admits both sparse remote player indices");
+    CHECK(client.x[7]==9001 && client.z[7]==9305 && client.level[7]==2,
+          "promotion applies nested coarse-region change before fine coordinates");
+    CHECK(client.appearance[7]==22 && client.appearance[1900]==33 && client.appearance[LOCAL_INDEX]==11,
+          "extended appearance order follows all four bit sections");
+    for( int i=0; i<3; ++i ) { updates[i].appearance=NULL; updates[i].appearance_len=0; }
+    updates[1].coord=gpi_coord(2,9002,9305); updates[1].movement=MOCK239_PLAYER_WALK; updates[1].movement_value=4;
+    updates[2].coord=gpi_coord(0,3203,3200); updates[2].movement=MOCK239_PLAYER_RUN; updates[2].movement_value=2; updates[2].ext=&run;
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(client.x[7]==9002 && client.z[1900]==3200 && client.speed[1900]==2,
+          "remote WALK and two-tile RUN decode with explicit run traversal");
+    updates[1].movement=MOCK239_PLAYER_NOMOVE;
+    updates[2].coord=gpi_coord(0,3203,3197);
+    updates[2].movement=MOCK239_PLAYER_TELEPORT;
+    updates[2].movement_value=gpi_coord(0,0,-3);
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(client.z[1900]==3197 && client.speed[1900]==2 && !client.jump[1900],
+          "large coordinate displacement with explicit RUN queues locomotion");
+    updates[0].coord=gpi_coord(0,3200,3199); updates[0].movement=MOCK239_PLAYER_WALK; updates[0].movement_value=1;
+    updates[1].movement=MOCK239_PLAYER_NOMOVE;
+    updates[2].visible=0; updates[2].coord=gpi_coord(1,14000,14300); updates[2].ext=NULL;
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(!client.present[1900] && client.present[7] && client.z[LOCAL_INDEX]==3199,
+          "removal does not reprocess the slot in this packet's low-resolution pass");
+    updates[0].movement=MOCK239_PLAYER_NOMOVE;
+    updates[1].visible=0;
+    updates[2].visible=1; updates[2].coord=gpi_coord(1,14004,14301); updates[2].movement=MOCK239_PLAYER_NOMOVE;
+    updates[2].appearance=look+2; updates[2].appearance_len=1;
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(!client.present[7] && client.present[1900] && client.x[1900]==14004 &&
+          client.z[1900]==14301 && client.level[1900]==1,
+          "same tick removal/re-entry across regions keeps each client's GPI coherent");
+    updates[1].coord=gpi_coord(0,100,100);
+    updates[2].appearance=NULL; updates[2].appearance_len=0;
+    check_gpi_tick(&server,updates,3,&client);
+    updates[1].visible=1; updates[1].coord=gpi_coord(0,104,102);
+    updates[1].appearance=look+1; updates[1].appearance_len=1;
+    check_gpi_tick(&server,updates,3,&client);
+    CHECK(client.present[7] && client.x[7]==104 && client.z[7]==102 && client.level[7]==0,
+          "offscreen coarse updates survive until a later promotion");
+    check_gpi_tick(&server,updates,1,&client);
+    CHECK(!client.present[7] && !client.present[1900],"absent world players are demoted without ghost entries");
+    for( int tick=0; tick<20; ++tick ) check_gpi_tick(&server,updates,1,&client);
+    CHECK(client.present[LOCAL_INDEX] && client.x[LOCAL_INDEX]==3200 && client.z[LOCAL_INDEX]==3199,
+          "stationary multi-player cycle flags stay synchronized over repeated packets");
+}
+
 int
 main(void)
 {
@@ -852,6 +964,8 @@ main(void)
               got.low_res_skipped);
         CHECK(got.ext_flag == 0x20, "appearance still follows the bit sections");
     }
+
+    check_multiplayer_actual_decoder();
 
     if( g_failures )
         fprintf(stderr, "mock239-playerinfo: %d failure(s)\n", g_failures);

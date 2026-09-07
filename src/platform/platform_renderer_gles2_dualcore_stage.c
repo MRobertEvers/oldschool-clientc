@@ -8,6 +8,7 @@
 
 #include "toridraw.h"
 #include "toridraw_model.h"
+#include "toridraw_raster_kernel.h"
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
 
@@ -23,12 +24,99 @@
 struct GLES2DualCoreStageCrumb g_gles2_dualcore_stage_crumb;
 #define CRUMB(s) (g_gles2_dualcore_stage_crumb.step = (s))
 
+static atomic_int direct_order_policy = ATOMIC_VAR_INIT(-1);
+void GLES2DualCoreStage_SetDirectOrder(int enabled)
+{
+    atomic_store_explicit(&direct_order_policy, enabled, memory_order_relaxed);
+}
+static bool
+stage_direct_order_enabled(void)
+{
+    int enabled = atomic_load_explicit(&direct_order_policy, memory_order_relaxed);
+    if( enabled < 0 )
+    {
+        const char* value = getenv("TORIDRAW_GPU_ORDER_DIRECT");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        enabled = !value || value[0] != '0';
+#else
+        enabled = value && value[0] == '1';
+#endif
+        atomic_store_explicit(&direct_order_policy, enabled, memory_order_relaxed);
+    }
+    return enabled != 0;
+}
+
+static atomic_int stage_feed_batch = ATOMIC_VAR_INIT(-1);
+void GLES2DualCoreStage_SetFeedBatch(int enabled)
+{
+    atomic_store_explicit(&stage_feed_batch, enabled, memory_order_relaxed);
+}
+static bool stage_feed_batch_enabled(void)
+{
+    int enabled = atomic_load_explicit(&stage_feed_batch, memory_order_relaxed);
+    if( enabled < 0 )
+    {
+        const char* value = getenv("TORIRS_GLES2_FEED_BATCH");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        enabled = !value || value[0] != '0';
+#else
+        enabled = value && value[0] == '1';
+#endif
+        atomic_store_explicit(&stage_feed_batch, enabled, memory_order_relaxed);
+    }
+    return enabled != 0;
+}
+
+static atomic_int stage_acquire_policy = ATOMIC_VAR_INIT(-1);
+
+void
+GLES2DualCoreStage_SetAcquireCache(int enabled)
+{
+    /* Test/diagnostic control: change only between joined frames. */
+    atomic_store_explicit(&stage_acquire_policy, enabled, memory_order_relaxed);
+}
+
+static bool
+stage_acquire_cache_enabled(void)
+{
+    int enabled = atomic_load_explicit(&stage_acquire_policy, memory_order_relaxed);
+    if( enabled < 0 )
+    {
+        const char* value = getenv("TORIRS_GLES2_ACQUIRE_CACHE");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        enabled = !value || value[0] != '0';
+#else
+        enabled = value && value[0] == '1';
+#endif
+        atomic_store_explicit(&stage_acquire_policy, enabled, memory_order_relaxed);
+    }
+    return enabled != 0;
+}
+
+const struct GLES2DualCoreStageResult*
+GLES2DualCoreStageArena_TryAcquireResult(
+    const struct GLES2DualCoreStageArena* arena, uint32_t index, uint32_t* acquired_ready)
+{
+    /* A release of ready=N publishes every immutable result/order below N.
+     * One acquire therefore covers the entire prefix, until the joined
+     * frame boundary resets this consumer-private frontier to zero. */
+    if( index >= *acquired_ready )
+    {
+        unsigned ready = atomic_load_explicit(&arena->ready, memory_order_relaxed);
+        if( index >= ready ) return NULL;
+        atomic_thread_fence(memory_order_acquire);
+        *acquired_ready = ready;
+    }
+    return &arena->results[index];
+}
+
 void
 GLES2DualCoreStageArena_Init(struct GLES2DualCoreStageArena* arena)
 {
     assert(arena);
     memset(arena, 0, sizeof(*arena));
     atomic_init(&arena->ready, 0u);
+    atomic_init(&arena->consumer_index, 0u);
     atomic_init(&arena->finished, GLES2_DUALCORE_STAGE_DONE);
     atomic_init(&arena->feed_published, 0u);
     atomic_init(&arena->feed_state, GLES2_DUALCORE_FEED_CLOSED);
@@ -96,6 +184,8 @@ GLES2DualCoreStageArena_BeginFrame(
     memset(arena->claims, 0, (size_t)arena->result_capacity * sizeof(*arena->claims));
     arena->result_count = 0u;
     arena->order_count = 0u;
+    arena->feed_acquired = 0u;
+    arena->cache_acquires = stage_acquire_cache_enabled();
     atomic_store_explicit(&arena->ready, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->consumer_index, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->finished, GLES2_DUALCORE_STAGE_RUNNING, memory_order_relaxed);
@@ -121,6 +211,8 @@ GLES2DualCoreStageArena_BeginFrame(
         }
     }
     arena->feed_count = 0u;
+    arena->feed_flushed = 0u;
+    arena->feed_batch_mask = stage_feed_batch_enabled() ? 7u : 0u;
     atomic_store_explicit(&arena->feed_published, 0u, memory_order_relaxed);
     atomic_store_explicit(&arena->feed_state, GLES2_DUALCORE_FEED_OPEN, memory_order_relaxed);
 }
@@ -135,6 +227,7 @@ GLES2DualCoreStageArena_FeedReserve(struct GLES2DualCoreStageArena* arena)
            GLES2_DUALCORE_FEED_OPEN);
     if( arena->feed_count >= arena->feed_capacity )
     {
+        GLES2DualCoreStageArena_FeedFlush(arena);
         atomic_store_explicit(
             &arena->feed_state, GLES2_DUALCORE_FEED_OVERFLOWED, memory_order_release);
         GLES2DualCore_SpinSignal();
@@ -149,8 +242,27 @@ GLES2DualCoreStageArena_FeedPublish(struct GLES2DualCoreStageArena* arena)
     assert(arena);
     assert(arena->feed_count < arena->feed_capacity);
     arena->feed_count++;
+    arena->feed_flushed = arena->feed_count;
     atomic_store_explicit(&arena->feed_published, arena->feed_count, memory_order_release);
     GLES2DualCore_SpinSignal();
+}
+
+void
+GLES2DualCoreStageArena_FeedFlush(struct GLES2DualCoreStageArena* arena)
+{
+    if( arena->feed_flushed == arena->feed_count ) return;
+    arena->feed_flushed = arena->feed_count;
+    atomic_store_explicit(&arena->feed_published, arena->feed_count, memory_order_release);
+    GLES2DualCore_SpinSignal();
+}
+
+void
+GLES2DualCoreStageArena_FeedCommitBatched(struct GLES2DualCoreStageArena* arena)
+{
+    assert(arena->feed_count < arena->feed_capacity);
+    arena->feed_count++;
+    if( !(arena->feed_count & arena->feed_batch_mask) )
+        GLES2DualCoreStageArena_FeedFlush(arena);
 }
 
 bool
@@ -174,6 +286,7 @@ GLES2DualCoreStageArena_FeedClose(struct GLES2DualCoreStageArena* arena)
 {
     unsigned expected = GLES2_DUALCORE_FEED_OPEN;
     assert(arena);
+    GLES2DualCoreStageArena_FeedFlush(arena);
     /* Only an open feed closes; an overflowed one keeps its verdict. */
     (void)atomic_compare_exchange_strong_explicit(
         &arena->feed_state,
@@ -190,15 +303,22 @@ GLES2DualCoreStageArena_FeedTake(
     uint32_t index,
     const struct ToriRS_RenderCommand** entry)
 {
-    unsigned state;
+    unsigned state, published;
 
     assert(arena);
     assert(entry);
+    if( arena->cache_acquires && index < arena->feed_acquired )
+    {
+        *entry = &arena->feed[index];
+        return GLES2_DUALCORE_FEED_READY;
+    }
     /* Relaxed polls, one acquire fence once a word has moved: this is a
      * spin loop's body, and an acquire load is a barrier per poll on ARMv7. */
-    if( index < atomic_load_explicit(&arena->feed_published, memory_order_relaxed) )
+    published = atomic_load_explicit(&arena->feed_published, memory_order_relaxed);
+    if( index < published )
     {
         atomic_thread_fence(memory_order_acquire);
+        if( arena->cache_acquires ) arena->feed_acquired = published;
         *entry = &arena->feed[index];
         return GLES2_DUALCORE_FEED_READY;
     }
@@ -209,8 +329,10 @@ GLES2DualCoreStageArena_FeedTake(
     /* The state changed after the count was read: an entry may have landed
      * between the two loads. It was published before the close (the close
      * is a release, the fence above an acquire), so it is visible now. */
-    if( index < atomic_load_explicit(&arena->feed_published, memory_order_relaxed) )
+    published = atomic_load_explicit(&arena->feed_published, memory_order_relaxed);
+    if( index < published )
     {
+        if( arena->cache_acquires ) arena->feed_acquired = published;
         *entry = &arena->feed[index];
         return GLES2_DUALCORE_FEED_READY;
     }
@@ -300,6 +422,7 @@ GLES2DualCoreStage_BeginPass(
     assert(context->scene);
     context->view_port = command->view_port;
     context->camera = command->camera;
+    context->direct_order = !context->zbuffer && !context->kernel->raster && stage_direct_order_enabled();
     context->in_pass = true;
     ToriDraw_ScenePrepareProjectionCamera(context->scene, &context->camera);
 }
@@ -410,7 +533,7 @@ GLES2DualCoreStage_ComputeModel(
     }
 
     CRUMB(GLES2_DUALCORE_STEP_POSE);
-    if( command->animation && command->element_id >= 0 )
+    if( !context->poses_prepared && command->animation && command->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             scene, command->element_id, command->anim_index == 0, command->anim_frame);
     CRUMB(GLES2_DUALCORE_STEP_PROJECT);
@@ -431,8 +554,17 @@ GLES2DualCoreStage_ComputeModel(
      * must be blended, and tells the emit so with `sorted`. */
     if( !context->zbuffer || GLES2DualCoreStage_ModelHasBlendedFaces(command->model) )
     {
+        int* const scratch_order = scene->tmp_face_order;
+        /* Reserve the full scratch capacity, including speculative stores.
+         * A tight arena still uses scratch + copy so it can fit the actual
+         * accepted count. The sorter owns this thread's private scene/view
+         * for the call; restore the allocated pointer before any exit. */
+        bool const direct = context->direct_order && arena->order_count <= arena->order_capacity &&
+            (uint32_t)scene->max_faces <= arena->order_capacity - arena->order_count;
+        if( direct ) scene->tmp_face_order = arena->orders + arena->order_count;
         int const count =
             ToriDraw_RenderModel2SortFacesWithTable(command->model, scene, context->kernel);
+        scene->tmp_face_order = scratch_order;
         result.sorted = 1u;
         result.sorted_face_count = count;
         if( count > 0 )
@@ -443,11 +575,12 @@ GLES2DualCoreStage_ComputeModel(
                 return false;
             }
             result.order_offset = arena->order_count;
-            CRUMB(GLES2_DUALCORE_STEP_COPY);
-            memcpy(
-                arena->orders + arena->order_count,
-                ToriDraw_FaceOrder(scene),
-                (size_t)count * sizeof(*arena->orders));
+            if( !direct )
+            {
+                CRUMB(GLES2_DUALCORE_STEP_COPY);
+                memcpy(arena->orders + arena->order_count, ToriDraw_FaceOrder(scene),
+                    (size_t)count * sizeof(*arena->orders));
+            }
             arena->order_count += (uint32_t)count;
         }
     }

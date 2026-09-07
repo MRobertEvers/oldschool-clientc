@@ -1,6 +1,8 @@
 #include "mock239_playerinfo.h"
 
 #include <rsareabuf.h>
+#include <assert.h>
+#include <string.h>
 
 /*
  * Transcribed against RSProt's own reference DECODER
@@ -116,16 +118,9 @@ mock239_playerinfo_write_init(
  */
 #define ext_psmart1or2 rsab_psmart
 
-void
-mock239_playerinfo_write(
-    struct RSAreaBuf* buf,
-    int local_index,
-    enum Mock239PlayerMovement movement,
-    int32_t movement_value,
-    int low_res_inactive,
-    const uint8_t* appearance,
-    int appearance_len,
-    const struct Mock239PlayerExt* ext)
+static void
+write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
+                      int appearance_len, const struct Mock239PlayerExt* ext)
 {
     int const has_appearance = appearance && appearance_len > 0;
     int const has_hit = ext && ext->has_hit;
@@ -139,121 +134,6 @@ mock239_playerinfo_write(
     int const has_extended =
         has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
         has_temp_move_speed || has_exact_move || has_headbar;
-
-    /*
-     * Unused while the local player is the only high-resolution entry: the
-     * section-1 loop is one iteration and does not need to name whose. It stays
-     * in the signature because the moment a second player is tracked, every
-     * write in that section becomes index-ordered and the caller must already
-     * be passing it.
-     */
-    (void)local_index;
-
-    /*
-     * Section 1 — high resolution, active this cycle.
-     *
-     * The local player is the only high-resolution entry this server tracks, so
-     * this section is exactly one update.
-     */
-    rsab_bits(buf);
-    /*
-     * A player who has not moved and has nothing to say is SKIPPED, not
-     * written.
-     *
-     * This is the shape the client is built around: `active = 0` plus a
-     * zero-length stationary run says "nothing about this one this tick". The
-     * obvious alternative -- writing a teleport whose delta happens to be zero
-     * -- is well-formed and decodes cleanly, and it still breaks the client,
-     * because a teleport means the player JUMPED and the client re-centres its
-     * scene on one. Sending that every tick re-centres every tick: the world
-     * builds, draws once, and then goes black.
-     *
-     * (NOMOVE, opcode 0, is the other way to say "still here", but only with
-     * the extended-info bit set -- without it the client throws outright for
-     * the local index. Skipping needs no such care.)
-     */
-    if( movement == MOCK239_PLAYER_NOMOVE && !has_extended )
-    {
-        rsab_pbit(buf, 1, 0);
-        write_stationary(buf, 0);
-        rsab_bytes(buf);
-    }
-    else
-    {
-        rsab_pbit(buf, 1, 1); /* not skipped */
-        rsab_pbit(buf, 1, has_extended ? 1 : 0);
-        switch( movement )
-        {
-        case MOCK239_PLAYER_NOMOVE:
-            /* NOMOVE is legal for the local index only when extended info
-             * follows.  The no-extended case took the skip branch above. */
-            rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
-            break;
-        case MOCK239_PLAYER_WALK:
-            rsab_pbit(buf, 2, HIRES_OP_WALK);
-            rsab_pbit(buf, 3, movement_value & 0x7);
-            break;
-        case MOCK239_PLAYER_RUN:
-            rsab_pbit(buf, 2, HIRES_OP_RUN);
-            rsab_pbit(buf, 4, movement_value & 0xf);
-            break;
-        case MOCK239_PLAYER_TELEPORT:
-        default:
-            /* Far form. `movement_value` is a delta against the coordinate
-             * seeded by REBUILD_LOGIN / the preceding PLAYER_INFO. */
-            rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
-            rsab_pbit(buf, 1, 1);
-            rsab_pbit(buf, 30, movement_value);
-            break;
-        }
-        rsab_bytes(buf);
-    }
-
-    /*
-     * Section 2 — high resolution, inactive this cycle. Always empty: the only
-     * high-resolution player is written above and is never skipped, so its
-     * cycle bit never sets.
-     *
-     * Note that an empty bit section emits ZERO bytes — entering bit mode and
-     * leaving it round the same byte cursor to itself. The four sections are
-     * not four markers on the wire, which is worth knowing before hunting for
-     * separators that do not exist.
-     */
-    rsab_bits(buf);
-    rsab_bytes(buf);
-
-    /*
-     * Sections 3 and 4 — low resolution, inactive then active.
-     *
-     * The untracked crowd goes in exactly one of them, and which one changes
-     * after the first tick. See `low_res_inactive` in the header: the client
-     * sets a cycle bit on every player it skips and shifts it down each tick,
-     * reading section 3 for players whose bit is set. So the run starts in
-     * section 4 and moves to section 3 from the second tick onward.
-     *
-     * The list is indices 1..2047 (2047 of them) minus the local player, so
-     * 2046 entries. One skip bit covers the first; the run then covers the
-     * other 2045, because a run counts the players AFTER the one it follows.
-     */
-    {
-        int const low_res_count = MOCK239_PLAYER_SLOTS - 1 - 1;
-
-        rsab_bits(buf);
-        if( low_res_inactive )
-        {
-            rsab_pbit(buf, 1, 0);
-            write_stationary(buf, low_res_count - 1);
-        }
-        rsab_bytes(buf);
-
-        rsab_bits(buf);
-        if( !low_res_inactive )
-        {
-            rsab_pbit(buf, 1, 0);
-            write_stationary(buf, low_res_count - 1);
-        }
-        rsab_bytes(buf);
-    }
 
     /*
      * Extended info, byte-aligned, in the order the indices were flagged.
@@ -445,6 +325,148 @@ mock239_playerinfo_write(
 }
 
 void
+mock239_playerinfo_write(
+    struct RSAreaBuf* buf,
+    int local_index,
+    enum Mock239PlayerMovement movement,
+    int32_t movement_value,
+    int low_res_inactive,
+    const uint8_t* appearance,
+    int appearance_len,
+    const struct Mock239PlayerExt* ext)
+{
+    int const has_appearance = appearance && appearance_len > 0;
+    int const has_hit = ext && ext->has_hit;
+    int const has_headbar = ext && ext->has_headbar;
+    int const has_face = ext && ext->has_face;
+    int const has_seq = ext && ext->has_seq;
+    int const has_chat = ext && ext->has_chat;
+    int const has_spotanim = ext && ext->has_spotanim;
+    int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_exact_move = ext && ext->has_exact_move;
+    int const has_extended =
+        has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
+        has_temp_move_speed || has_exact_move || has_headbar;
+
+    /*
+     * Unused while the local player is the only high-resolution entry: the
+     * section-1 loop is one iteration and does not need to name whose. It stays
+     * in the signature because the moment a second player is tracked, every
+     * write in that section becomes index-ordered and the caller must already
+     * be passing it.
+     */
+    (void)local_index;
+
+    /*
+     * Section 1 — high resolution, active this cycle.
+     *
+     * The local player is the only high-resolution entry this server tracks, so
+     * this section is exactly one update.
+     */
+    rsab_bits(buf);
+    /*
+     * A player who has not moved and has nothing to say is SKIPPED, not
+     * written.
+     *
+     * This is the shape the client is built around: `active = 0` plus a
+     * zero-length stationary run says "nothing about this one this tick". The
+     * obvious alternative -- writing a teleport whose delta happens to be zero
+     * -- is well-formed and decodes cleanly, and it still breaks the client,
+     * because a teleport means the player JUMPED and the client re-centres its
+     * scene on one. Sending that every tick re-centres every tick: the world
+     * builds, draws once, and then goes black.
+     *
+     * (NOMOVE, opcode 0, is the other way to say "still here", but only with
+     * the extended-info bit set -- without it the client throws outright for
+     * the local index. Skipping needs no such care.)
+     */
+    if( movement == MOCK239_PLAYER_NOMOVE && !has_extended )
+    {
+        rsab_pbit(buf, 1, 0);
+        write_stationary(buf, 0);
+        rsab_bytes(buf);
+    }
+    else
+    {
+        rsab_pbit(buf, 1, 1); /* not skipped */
+        rsab_pbit(buf, 1, has_extended ? 1 : 0);
+        switch( movement )
+        {
+        case MOCK239_PLAYER_NOMOVE:
+            /* NOMOVE is legal for the local index only when extended info
+             * follows.  The no-extended case took the skip branch above. */
+            rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
+            break;
+        case MOCK239_PLAYER_WALK:
+            rsab_pbit(buf, 2, HIRES_OP_WALK);
+            rsab_pbit(buf, 3, movement_value & 0x7);
+            break;
+        case MOCK239_PLAYER_RUN:
+            rsab_pbit(buf, 2, HIRES_OP_RUN);
+            rsab_pbit(buf, 4, movement_value & 0xf);
+            break;
+        case MOCK239_PLAYER_TELEPORT:
+        default:
+            /* Far form. `movement_value` is a delta against the coordinate
+             * seeded by REBUILD_LOGIN / the preceding PLAYER_INFO. */
+            rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
+            rsab_pbit(buf, 1, 1);
+            rsab_pbit(buf, 30, movement_value);
+            break;
+        }
+        rsab_bytes(buf);
+    }
+
+    /*
+     * Section 2 — high resolution, inactive this cycle. Always empty: the only
+     * high-resolution player is written above and is never skipped, so its
+     * cycle bit never sets.
+     *
+     * Note that an empty bit section emits ZERO bytes — entering bit mode and
+     * leaving it round the same byte cursor to itself. The four sections are
+     * not four markers on the wire, which is worth knowing before hunting for
+     * separators that do not exist.
+     */
+    rsab_bits(buf);
+    rsab_bytes(buf);
+
+    /*
+     * Sections 3 and 4 — low resolution, inactive then active.
+     *
+     * The untracked crowd goes in exactly one of them, and which one changes
+     * after the first tick. See `low_res_inactive` in the header: the client
+     * sets a cycle bit on every player it skips and shifts it down each tick,
+     * reading section 3 for players whose bit is set. So the run starts in
+     * section 4 and moves to section 3 from the second tick onward.
+     *
+     * The list is indices 1..2047 (2047 of them) minus the local player, so
+     * 2046 entries. One skip bit covers the first; the run then covers the
+     * other 2045, because a run counts the players AFTER the one it follows.
+     */
+    {
+        int const low_res_count = MOCK239_PLAYER_SLOTS - 1 - 1;
+
+        rsab_bits(buf);
+        if( low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
+
+        rsab_bits(buf);
+        if( !low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
+    }
+
+    write_player_extended(buf, appearance, appearance_len, ext);
+}
+
+void
 mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
 {
     rsab_bits(buf);
@@ -477,4 +499,179 @@ mock239_npcinfo_tail_needs_sentinel(
     size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
 
     return padding_bits + extended_bytes * 8u >= 28u;
+}
+
+static uint32_t
+player_region(int32_t coord)
+{
+    uint32_t value = (uint32_t)coord;
+    return ((value >> 28) & 3u) << 16 | ((value >> 27) & 1u) << 8 |
+           ((value >> 13) & 1u);
+}
+
+void
+mock239_playerinfo_state_init(struct Mock239PlayerInfoState* state,
+                             int local_index, int32_t coord)
+{
+    assert(state);
+    assert(local_index > 0);
+    assert(local_index < MOCK239_PLAYER_SLOTS);
+    memset(state, 0, sizeof(*state));
+    state->initialized = 1;
+    state->local_index = local_index;
+    state->high[local_index] = 1;
+    state->coord[local_index] = coord;
+}
+
+static int
+player_update_extended(const struct Mock239PlayerUpdate* update)
+{
+    if( !update ) return 0;
+    if( update->appearance && update->appearance_len > 0 ) return 1;
+    const struct Mock239PlayerExt* e = update->ext;
+    return e && (e->has_face || e->has_hit || e->has_headbar || e->has_seq ||
+                 e->has_chat || e->has_spotanim || e->has_temp_move_speed ||
+                 e->has_exact_move);
+}
+
+static int
+player_update_needed(const struct Mock239PlayerInfoState* state, int index,
+                     const struct Mock239PlayerUpdate* update)
+{
+    assert(state);
+    if( state->high[index] )
+        return !update || !update->visible ||
+               update->movement != MOCK239_PLAYER_NOMOVE || player_update_extended(update);
+    return update && (update->visible || player_region(update->coord) != state->region[index]);
+}
+
+static void
+write_region_delta(struct RSAreaBuf* buf, uint32_t old_region, uint32_t new_region)
+{
+    assert(buf);
+    uint32_t level = ((new_region >> 16) - (old_region >> 16)) & 3;
+    uint32_t x = ((new_region >> 8) - (old_region >> 8)) & 255;
+    uint32_t z = (new_region - old_region) & 255;
+    rsab_pbit(buf, 2, 3);
+    rsab_pbit(buf, 18, (int32_t)((level << 16) | (x << 8) | z));
+}
+
+void
+mock239_playerinfo_write_world(struct RSAreaBuf* buf,
+                              struct Mock239PlayerInfoState* state,
+                              const struct Mock239PlayerUpdate* updates, int count)
+{
+    const struct Mock239PlayerUpdate* slots[MOCK239_PLAYER_SLOTS] = {0};
+    const struct Mock239PlayerUpdate* extended[MOCK239_PLAYER_SLOTS];
+    uint8_t old_high[MOCK239_PLAYER_SLOTS];
+    uint8_t next_inactive[MOCK239_PLAYER_SLOTS] = {0};
+    int extended_count = 0;
+    assert(buf);
+    assert(state);
+    assert(state->initialized);
+    assert(updates);
+    assert(count > 0);
+    assert(count < MOCK239_PLAYER_SLOTS);
+    for( int i = 0; i < count; ++i )
+    {
+        int index = updates[i].index;
+        assert(index > 0);
+        assert(index < MOCK239_PLAYER_SLOTS);
+        assert(!slots[index]);
+        slots[index] = &updates[i];
+    }
+    assert(slots[state->local_index]);
+    assert(slots[state->local_index]->visible);
+    memcpy(old_high, state->high, sizeof(old_high));
+
+    /* RSProt239 PlayerInfoClient keeps its index lists until all four passes
+     * finish. A removal must not be emitted again in this packet's low pass. */
+    for( int pass = 0; pass < 4; ++pass )
+    {
+        int high = pass < 2;
+        int inactive = pass == 1 || pass == 2;
+        rsab_bits(buf);
+        for( int index = 1; index < MOCK239_PLAYER_SLOTS; ++index )
+        {
+            if( old_high[index] != high || state->inactive[index] != inactive ) continue;
+            const struct Mock239PlayerUpdate* update = slots[index];
+            if( !player_update_needed(state, index, update) )
+            {
+                int further = 0, last = index;
+                next_inactive[index] = 1;
+                for( int next = index + 1; next < MOCK239_PLAYER_SLOTS; ++next )
+                {
+                    if( old_high[next] != high || state->inactive[next] != inactive ) continue;
+                    if( player_update_needed(state, next, slots[next]) ) break;
+                    next_inactive[next] = 1;
+                    further++;
+                    last = next;
+                }
+                rsab_pbit(buf, 1, 0);
+                write_stationary(buf, further);
+                index = last;
+                continue;
+            }
+            rsab_pbit(buf, 1, 1);
+            if( high && (!update || !update->visible) )
+            {
+                assert(index != state->local_index);
+                uint32_t region = player_region(state->coord[index]);
+                uint32_t wanted = update ? player_region(update->coord) : region;
+                rsab_pbit(buf, 1, 0);
+                rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
+                rsab_pbit(buf, 1, region != wanted);
+                if( region != wanted ) write_region_delta(buf, region, wanted);
+                state->high[index] = 0;
+                state->region[index] = wanted;
+                continue;
+            }
+            assert(update);
+            int has_extended = player_update_extended(update);
+            if( !high )
+            {
+                uint32_t wanted = player_region(update->coord);
+                if( !update->visible )
+                {
+                    write_region_delta(buf, state->region[index], wanted);
+                    state->region[index] = wanted;
+                    continue;
+                }
+                rsab_pbit(buf, 2, 0); /* low-to-high promotion */
+                rsab_pbit(buf, 1, wanted != state->region[index]);
+                if( wanted != state->region[index] )
+                    write_region_delta(buf, state->region[index], wanted);
+                rsab_pbit(buf, 13, ((uint32_t)update->coord >> 14) & 8191);
+                rsab_pbit(buf, 13, (uint32_t)update->coord & 8191);
+                rsab_pbit(buf, 1, has_extended);
+                state->high[index] = 1;
+                state->region[index] = wanted;
+                next_inactive[index] = 1;
+            }
+            else
+            {
+                rsab_pbit(buf, 1, has_extended);
+                rsab_pbit(buf, 2, update->movement);
+                switch( update->movement )
+                {
+                case MOCK239_PLAYER_NOMOVE: assert(has_extended); break;
+                case MOCK239_PLAYER_WALK: rsab_pbit(buf, 3, update->movement_value & 7); break;
+                case MOCK239_PLAYER_RUN: rsab_pbit(buf, 4, update->movement_value & 15); break;
+                case MOCK239_PLAYER_TELEPORT:
+                    rsab_pbit(buf, 1, 1);
+                    rsab_pbit(buf, 30, update->movement_value);
+                    break;
+                }
+            }
+            state->coord[index] = update->coord;
+            if( has_extended ) extended[extended_count++] = update;
+        }
+        rsab_bytes(buf);
+    }
+    memcpy(state->inactive, next_inactive, sizeof(next_inactive));
+    for( int i = 0; i < extended_count; ++i )
+    {
+        const struct Mock239PlayerUpdate* update = extended[i];
+        write_player_extended(buf, update->appearance, update->appearance_len, update->ext);
+    }
 }

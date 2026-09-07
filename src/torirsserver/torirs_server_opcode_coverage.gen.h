@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    320  host commands
+ *    332  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      5  host commands (player)
  *     11  host commands (poh)
- *    449  total, of 507 declared opcodes
+ *    461  total, of 518 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 449
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 507
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 461
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 518
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11103
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11114
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -328,6 +328,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     4327, /* SS_OP_INV_TOTAL (host commands) */
     4328, /* SS_OP_INV_TOTALCAT (host commands) */
     4331, /* SS_OP_INV_TRANSMIT (host commands) */
+    4332, /* SS_OP_INVOTHER_TRANSMIT (host commands) */
     4400, /* SS_OP_ENUM (host commands) */
     4401, /* SS_OP_ENUM_GETOUTPUTCOUNT (host commands) */
     4500, /* SS_OP_APPEND_NUM (VM core) */
@@ -490,6 +491,17 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11100, /* SS_OP_VESSEL_HP (host commands) */
     11101, /* SS_OP_VESSEL_DAMAGE (host commands) */
     11102, /* SS_OP_VESSEL_FACILITY (host commands) */
+    11103, /* SS_OP_VESSEL_CONTROL (host commands) */
+    11104, /* SS_OP_VESSEL_CARGO (host commands) */
+    11105, /* SS_OP_VESSEL_CARGO_TRANSFER (host commands) */
+    11106, /* SS_OP_VESSEL_FURNISH (host commands) */
+    11107, /* SS_OP_VESSEL_INFO (host commands) */
+    11108, /* SS_OP_VESSEL_GETFACILITY (host commands) */
+    11109, /* SS_OP_VESSEL_STAT (host commands) */
+    11110, /* SS_OP_VESSEL_OWNED (host commands) */
+    11111, /* SS_OP_VESSEL_RECOVER (host commands) */
+    11112, /* SS_OP_VESSEL_SLOT (host commands) */
+    11113, /* SS_OP_VESSEL_PROJECT (host commands) */
 };
 
 #endif

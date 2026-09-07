@@ -16,6 +16,7 @@ void test_owned_control_click_reports_node(void);
 void test_plugin_contract_copy(void);
 
 int g_failures;
+void test_canvas_queries(void);
 
 int
 main(void)
@@ -55,6 +56,7 @@ main(void)
     test_widget_skin();
     test_frame_provide();
     test_plugin_contract_copy();
+    test_canvas_queries();
     test_dirty_marking();
     test_walk_topology();
     test_mounted_world_resize();

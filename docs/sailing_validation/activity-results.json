@@ -1,0 +1,9157 @@
+{
+  "ok": true,
+  "session": "/private/tmp/sailing-fin3-facility",
+  "events": [
+    {
+      "command": "pause",
+      "response": {
+        "ok": true,
+        "runtime_ms": 1.206,
+        "elapsed_ms": 2.924
+      }
+    },
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 2200,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 59,
+        "server_tick": 1,
+        "camera_yaw": 256,
+        "camera_pitch": 256,
+        "camera_zoom": 1000,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 256,
+          "render_pitch": 256,
+          "render_x": 826577,
+          "render_y": -1652,
+          "render_z": 13296,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
+        "rig": {
+          "vertices": 288,
+          "hash": 2307440308,
+          "min_y": -194,
+          "max_y": 8,
+          "posed_frame": 2,
+          "yaw": 0
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 0,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 1,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 393280,
+            "fine_z": 404544,
+            "angle": 0,
+            "heading": 0,
+            "state": 1,
+            "speed_tier": 1,
+            "sails_set": 0,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 393280,
+            "fine_z": 404544,
+            "angle": 0,
+            "target_fine_x": 393280,
+            "target_fine_z": 404544,
+            "target_angle": 0,
+            "queue_count": 0
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.555,
+        "elapsed_ms": 2.891
+      }
+    },
+    {
+      "command": "camera 1152 300 1600",
+      "response": {
+        "ok": true,
+        "runtime_ms": 1.221,
+        "elapsed_ms": 5.501
+      }
+    },
+    {
+      "command": "cheat sailcrewduty 0 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.638,
+        "elapsed_ms": 5.55
+      }
+    },
+    {
+      "command": "cheat sailcrewduty 1 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.619,
+        "elapsed_ms": 5.46
+      }
+    },
+    {
+      "command": "cheat sailcrewduty 2 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.495,
+        "elapsed_ms": 5.301
+      }
+    },
+    {
+      "command": "cheat sailcrewduty 3 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.596,
+        "elapsed_ms": 5.374
+      }
+    },
+    {
+      "command": "cheat sailcrewduty 4 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.507,
+        "elapsed_ms": 5.347
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 37.118,
+        "elapsed_ms": 40.249
+      }
+    },
+    {
+      "command": "cheat setlevel fishing 99",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.754,
+        "elapsed_ms": 7.415
+      }
+    },
+    {
+      "command": "cheat setlevel ranged 99",
+      "response": {
+        "ok": true,
+        "runtime_ms": 45.661,
+        "elapsed_ms": 47.788
+      }
+    },
+    {
+      "command": "cheat sailactivitycleanup",
+      "response": {
+        "ok": true,
+        "runtime_ms": 46.029,
+        "elapsed_ms": 48.408
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.371,
+        "elapsed_ms": 18.148
+      }
+    },
+    {
+      "command": "save activity_ocean",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 1.289,
+        "elapsed_ms": 5.489
+      }
+    },
+    {
+      "command": "varbit sailing_sidepanel_boat_basespeed",
+      "response": {
+        "ok": true,
+        "client": 192,
+        "server": 192,
+        "runtime_ms": 0.422,
+        "elapsed_ms": 2.873
+      }
+    },
+    {
+      "command": "varbit sailing_sidepanel_boat_speedcap",
+      "response": {
+        "ok": true,
+        "client": 384,
+        "server": 384,
+        "runtime_ms": 0.421,
+        "elapsed_ms": 2.525
+      }
+    },
+    {
+      "command": "cheat sailwindfixture 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.692,
+        "elapsed_ms": 7.736
+      }
+    },
+    {
+      "command": "cheat sailwind 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.927,
+        "elapsed_ms": 7.892
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.19,
+        "elapsed_ms": 2.853
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 42.709,
+        "elapsed_ms": 44.881
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.236,
+        "elapsed_ms": 18.03
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          48,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.199,
+        "elapsed_ms": 2.921
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.596,
+        "elapsed_ms": 7.921
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.965,
+        "elapsed_ms": 18.022
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          47,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.211,
+        "elapsed_ms": 2.869
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.615,
+        "elapsed_ms": 7.905
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.87,
+        "elapsed_ms": 17.949
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          46,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.184,
+        "elapsed_ms": 5.363
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.507,
+        "elapsed_ms": 7.875
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.921,
+        "elapsed_ms": 17.832
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          45,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.174,
+        "elapsed_ms": 5.358
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.537,
+        "elapsed_ms": 7.864
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.984,
+        "elapsed_ms": 17.778
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          44,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.17,
+        "elapsed_ms": 4.993
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.528,
+        "elapsed_ms": 6.947
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.706,
+        "elapsed_ms": 17.297
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          43,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.185,
+        "elapsed_ms": 2.84
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.539,
+        "elapsed_ms": 8.307
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.071,
+        "elapsed_ms": 18.004
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          42,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.219,
+        "elapsed_ms": 2.861
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.604,
+        "elapsed_ms": 7.829
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.8,
+        "elapsed_ms": 17.301
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          41,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.18,
+        "elapsed_ms": 5.378
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.532,
+        "elapsed_ms": 7.877
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.821,
+        "elapsed_ms": 17.927
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          40,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.201,
+        "elapsed_ms": 5.364
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.624,
+        "elapsed_ms": 7.954
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.945,
+        "elapsed_ms": 17.682
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          39,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.193,
+        "elapsed_ms": 5.428
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.657,
+        "elapsed_ms": 7.917
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.652,
+        "elapsed_ms": 17.999
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          38,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.315,
+        "elapsed_ms": 2.911
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.819,
+        "elapsed_ms": 7.913
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.245,
+        "elapsed_ms": 18.089
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          37,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.189,
+        "elapsed_ms": 2.892
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.76,
+        "elapsed_ms": 7.19
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.9,
+        "elapsed_ms": 17.902
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          36,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.226,
+        "elapsed_ms": 2.815
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.568,
+        "elapsed_ms": 7.478
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.814,
+        "elapsed_ms": 18.009
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          35,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.174,
+        "elapsed_ms": 5.027
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.545,
+        "elapsed_ms": 7.868
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.745,
+        "elapsed_ms": 17.949
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          34,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.178,
+        "elapsed_ms": 2.855
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.517,
+        "elapsed_ms": 7.841
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.747,
+        "elapsed_ms": 17.985
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          33,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.235,
+        "elapsed_ms": 5.076
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.729,
+        "elapsed_ms": 7.995
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.788,
+        "elapsed_ms": 17.92
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          32,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.19,
+        "elapsed_ms": 5.333
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.599,
+        "elapsed_ms": 7.824
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.844,
+        "elapsed_ms": 17.403
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          31,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.172,
+        "elapsed_ms": 2.828
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.524,
+        "elapsed_ms": 7.425
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.95,
+        "elapsed_ms": 19.14
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          30,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.191,
+        "elapsed_ms": 2.903
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.577,
+        "elapsed_ms": 7.466
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.962,
+        "elapsed_ms": 17.954
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          29,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.226,
+        "elapsed_ms": 5.436
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.677,
+        "elapsed_ms": 7.907
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.074,
+        "elapsed_ms": 18.001
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          28,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.184,
+        "elapsed_ms": 5.444
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.588,
+        "elapsed_ms": 7.512
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.905,
+        "elapsed_ms": 17.98
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          27,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.229,
+        "elapsed_ms": 5.426
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.643,
+        "elapsed_ms": 7.92
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.066,
+        "elapsed_ms": 18.484
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          26,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.193,
+        "elapsed_ms": 5.082
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.595,
+        "elapsed_ms": 7.897
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.489,
+        "elapsed_ms": 18.063
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          25,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.311,
+        "elapsed_ms": 2.984
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.782,
+        "elapsed_ms": 7.967
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.314,
+        "elapsed_ms": 18.013
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          24,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.264,
+        "elapsed_ms": 5.462
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.913,
+        "elapsed_ms": 7.577
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.626,
+        "elapsed_ms": 17.39
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          23,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.235,
+        "elapsed_ms": 2.898
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.832,
+        "elapsed_ms": 7.956
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.384,
+        "elapsed_ms": 18.057
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          22,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.292,
+        "elapsed_ms": 2.881
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.794,
+        "elapsed_ms": 7.886
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.182,
+        "elapsed_ms": 17.467
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          21,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.197,
+        "elapsed_ms": 2.843
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.643,
+        "elapsed_ms": 7.877
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.082,
+        "elapsed_ms": 17.56
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.22,
+        "elapsed_ms": 2.88
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.738,
+        "elapsed_ms": 7.837
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.911,
+        "elapsed_ms": 17.955
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          19,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.187,
+        "elapsed_ms": 5.35
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.847,
+        "elapsed_ms": 7.853
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.375,
+        "elapsed_ms": 17.549
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          18,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.203,
+        "elapsed_ms": 2.853
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.709,
+        "elapsed_ms": 7.867
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.824,
+        "elapsed_ms": 17.802
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          17,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.178,
+        "elapsed_ms": 5.351
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.59,
+        "elapsed_ms": 7.766
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.025,
+        "elapsed_ms": 17.374
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          16,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.224,
+        "elapsed_ms": 2.916
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.658,
+        "elapsed_ms": 7.926
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.314,
+        "elapsed_ms": 17.73
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          15,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.219,
+        "elapsed_ms": 2.915
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.71,
+        "elapsed_ms": 7.929
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.059,
+        "elapsed_ms": 17.962
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          14,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.227,
+        "elapsed_ms": 5.361
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.598,
+        "elapsed_ms": 7.85
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.984,
+        "elapsed_ms": 17.932
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          13,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.186,
+        "elapsed_ms": 5.397
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.608,
+        "elapsed_ms": 7.893
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.841,
+        "elapsed_ms": 17.897
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          12,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.19,
+        "elapsed_ms": 2.833
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.585,
+        "elapsed_ms": 7.877
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.125,
+        "elapsed_ms": 17.895
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          11,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.203,
+        "elapsed_ms": 2.923
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.753,
+        "elapsed_ms": 7.931
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.093,
+        "elapsed_ms": 16.693
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          10,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.207,
+        "elapsed_ms": 5.391
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.768,
+        "elapsed_ms": 7.855
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.906,
+        "elapsed_ms": 17.904
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          9,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.192,
+        "elapsed_ms": 5.147
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.747,
+        "elapsed_ms": 7.645
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.957,
+        "elapsed_ms": 17.837
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          8,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.184,
+        "elapsed_ms": 2.831
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.638,
+        "elapsed_ms": 7.857
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.786,
+        "elapsed_ms": 17.967
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          7,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.186,
+        "elapsed_ms": 2.838
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.676,
+        "elapsed_ms": 8.339
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.93,
+        "elapsed_ms": 17.968
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          6,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.197,
+        "elapsed_ms": 5.363
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.635,
+        "elapsed_ms": 7.85
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.888,
+        "elapsed_ms": 17.909
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.229,
+        "elapsed_ms": 5.361
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.662,
+        "elapsed_ms": 7.872
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.871,
+        "elapsed_ms": 16.705
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.179,
+        "elapsed_ms": 3.602
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.749,
+        "elapsed_ms": 7.58
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.027,
+        "elapsed_ms": 17.699
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.188,
+        "elapsed_ms": 2.85
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.743,
+        "elapsed_ms": 7.846
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.795,
+        "elapsed_ms": 17.524
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.232,
+        "elapsed_ms": 5.581
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.854,
+        "elapsed_ms": 7.978
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.045,
+        "elapsed_ms": 18.018
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.239,
+        "elapsed_ms": 5.406
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.885,
+        "elapsed_ms": 7.933
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.049,
+        "elapsed_ms": 17.985
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          15,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.187,
+        "elapsed_ms": 2.837
+      }
+    },
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 32800,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 1589,
+        "server_tick": 52,
+        "camera_yaw": 1152,
+        "camera_pitch": 300,
+        "camera_zoom": 1600,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 1152,
+          "render_pitch": 300,
+          "render_x": 824745,
+          "render_y": -2576,
+          "render_z": 16110,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
+        "rig": {
+          "vertices": 288,
+          "hash": 1766022512,
+          "min_y": -194,
+          "max_y": 8,
+          "posed_frame": 5,
+          "yaw": 0
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 1,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 52,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 393280,
+            "fine_z": 404480,
+            "angle": 0,
+            "heading": 0,
+            "state": 1,
+            "speed_tier": 1,
+            "sails_set": 1,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 393280,
+            "fine_z": 404483,
+            "angle": 2043,
+            "target_fine_x": 393280,
+            "target_fine_z": 404480,
+            "target_angle": 0,
+            "queue_count": 1
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.409,
+        "elapsed_ms": 2.505
+      }
+    },
+    {
+      "command": "cheat sailtrim",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.591,
+        "elapsed_ms": 7.881
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.227,
+        "elapsed_ms": 2.811
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 3.816,
+        "elapsed_ms": 5.304
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.026,
+        "elapsed_ms": 17.897
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          48,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.211,
+        "elapsed_ms": 2.825
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.755,
+        "elapsed_ms": 7.845
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.136,
+        "elapsed_ms": 17.89
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          47,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.233,
+        "elapsed_ms": 2.823
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.768,
+        "elapsed_ms": 7.82
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.993,
+        "elapsed_ms": 17.883
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          46,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.283,
+        "elapsed_ms": 5.493
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.938,
+        "elapsed_ms": 7.693
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.015,
+        "elapsed_ms": 17.939
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          45,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.193,
+        "elapsed_ms": 3.423
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.847,
+        "elapsed_ms": 7.975
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.172,
+        "elapsed_ms": 17.992
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          44,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.223,
+        "elapsed_ms": 2.875
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.809,
+        "elapsed_ms": 7.873
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.226,
+        "elapsed_ms": 17.965
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          43,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.216,
+        "elapsed_ms": 2.847
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.855,
+        "elapsed_ms": 7.871
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.165,
+        "elapsed_ms": 17.936
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          42,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.199,
+        "elapsed_ms": 2.832
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.721,
+        "elapsed_ms": 7.838
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.982,
+        "elapsed_ms": 17.985
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          41,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.189,
+        "elapsed_ms": 5.419
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.74,
+        "elapsed_ms": 7.954
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.135,
+        "elapsed_ms": 17.512
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          40,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.208,
+        "elapsed_ms": 2.691
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.812,
+        "elapsed_ms": 7.921
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.892,
+        "elapsed_ms": 17.78
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          39,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.186,
+        "elapsed_ms": 2.831
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.687,
+        "elapsed_ms": 7.651
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.911,
+        "elapsed_ms": 17.913
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          38,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.183,
+        "elapsed_ms": 2.826
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.751,
+        "elapsed_ms": 7.749
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.149,
+        "elapsed_ms": 17.603
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          37,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.235,
+        "elapsed_ms": 2.948
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.807,
+        "elapsed_ms": 7.867
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.804,
+        "elapsed_ms": 17.928
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          36,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.191,
+        "elapsed_ms": 2.463
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.704,
+        "elapsed_ms": 7.897
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.189,
+        "elapsed_ms": 17.795
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          35,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.185,
+        "elapsed_ms": 2.88
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.675,
+        "elapsed_ms": 7.88
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.792,
+        "elapsed_ms": 17.924
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          34,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.243,
+        "elapsed_ms": 2.829
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.672,
+        "elapsed_ms": 7.834
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.901,
+        "elapsed_ms": 17.923
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          33,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.192,
+        "elapsed_ms": 2.834
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.693,
+        "elapsed_ms": 7.04
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.766,
+        "elapsed_ms": 17.958
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          32,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.187,
+        "elapsed_ms": 5.199
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.719,
+        "elapsed_ms": 7.885
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.216,
+        "elapsed_ms": 17.967
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          31,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.198,
+        "elapsed_ms": 2.831
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.745,
+        "elapsed_ms": 7.851
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.225,
+        "elapsed_ms": 17.998
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          30,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.208,
+        "elapsed_ms": 2.871
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.891,
+        "elapsed_ms": 7.319
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.046,
+        "elapsed_ms": 17.545
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          29,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.183,
+        "elapsed_ms": 2.85
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.783,
+        "elapsed_ms": 7.889
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.897,
+        "elapsed_ms": 17.917
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          28,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.204,
+        "elapsed_ms": 5.34
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.846,
+        "elapsed_ms": 7.864
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.895,
+        "elapsed_ms": 17.658
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          27,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.19,
+        "elapsed_ms": 2.532
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.796,
+        "elapsed_ms": 8.134
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.547,
+        "elapsed_ms": 20.256
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          26,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.27,
+        "elapsed_ms": 2.923
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.118,
+        "elapsed_ms": 7.968
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.451,
+        "elapsed_ms": 18.033
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          25,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.216,
+        "elapsed_ms": 5.424
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.854,
+        "elapsed_ms": 8.019
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.53,
+        "elapsed_ms": 18.06
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          24,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.366,
+        "elapsed_ms": 2.882
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.832,
+        "elapsed_ms": 7.904
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.149,
+        "elapsed_ms": 17.273
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          23,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.199,
+        "elapsed_ms": 2.867
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.809,
+        "elapsed_ms": 7.847
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.938,
+        "elapsed_ms": 17.897
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          22,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.206,
+        "elapsed_ms": 2.818
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.9,
+        "elapsed_ms": 7.867
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.155,
+        "elapsed_ms": 17.738
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          21,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.204,
+        "elapsed_ms": 5.442
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.791,
+        "elapsed_ms": 7.876
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.097,
+        "elapsed_ms": 17.906
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.2,
+        "elapsed_ms": 3.269
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.823,
+        "elapsed_ms": 7.973
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.125,
+        "elapsed_ms": 17.922
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          19,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.221,
+        "elapsed_ms": 2.839
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.814,
+        "elapsed_ms": 7.85
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.915,
+        "elapsed_ms": 17.672
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          18,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.187,
+        "elapsed_ms": 2.838
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.82,
+        "elapsed_ms": 7.862
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.974,
+        "elapsed_ms": 17.966
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          17,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.216,
+        "elapsed_ms": 2.854
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.852,
+        "elapsed_ms": 7.926
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.44,
+        "elapsed_ms": 17.972
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          16,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.203,
+        "elapsed_ms": 2.555
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.693,
+        "elapsed_ms": 7.848
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.013,
+        "elapsed_ms": 17.925
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          15,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.187,
+        "elapsed_ms": 5.371
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.72,
+        "elapsed_ms": 7.838
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.969,
+        "elapsed_ms": 17.892
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          14,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.211,
+        "elapsed_ms": 5.336
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.747,
+        "elapsed_ms": 7.76
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.392,
+        "elapsed_ms": 17.939
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          13,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.214,
+        "elapsed_ms": 2.889
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.784,
+        "elapsed_ms": 7.89
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.149,
+        "elapsed_ms": 17.637
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          12,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.206,
+        "elapsed_ms": 2.88
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.751,
+        "elapsed_ms": 7.509
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.067,
+        "elapsed_ms": 17.982
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          11,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.196,
+        "elapsed_ms": 2.858
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.666,
+        "elapsed_ms": 7.85
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.969,
+        "elapsed_ms": 17.926
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          10,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.272,
+        "elapsed_ms": 5.367
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.702,
+        "elapsed_ms": 7.371
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.326,
+        "elapsed_ms": 17.417
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          9,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.207,
+        "elapsed_ms": 2.882
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.969,
+        "elapsed_ms": 7.919
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.393,
+        "elapsed_ms": 17.243
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          8,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.204,
+        "elapsed_ms": 2.877
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.006,
+        "elapsed_ms": 7.948
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.311,
+        "elapsed_ms": 17.996
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          7,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.22,
+        "elapsed_ms": 5.412
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.79,
+        "elapsed_ms": 7.738
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.425,
+        "elapsed_ms": 19.446
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          6,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.206,
+        "elapsed_ms": 2.85
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.777,
+        "elapsed_ms": 7.84
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.285,
+        "elapsed_ms": 17.911
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.192,
+        "elapsed_ms": 2.828
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.745,
+        "elapsed_ms": 7.526
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.99,
+        "elapsed_ms": 19.46
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.213,
+        "elapsed_ms": 2.876
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.738,
+        "elapsed_ms": 7.718
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.029,
+        "elapsed_ms": 17.972
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.195,
+        "elapsed_ms": 5.362
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.047,
+        "elapsed_ms": 7.896
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.213,
+        "elapsed_ms": 19.685
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.221,
+        "elapsed_ms": 2.87
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.724,
+        "elapsed_ms": 7.836
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.329,
+        "elapsed_ms": 17.388
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.207,
+        "elapsed_ms": 2.85
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.666,
+        "elapsed_ms": 7.841
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.03,
+        "elapsed_ms": 17.918
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          15,
+          0
+        ],
+        "sailing_xp_tenths": 130344362,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.2,
+        "elapsed_ms": 5.111
+      }
+    },
+    {
+      "command": "cheat sailtrim",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.401,
+        "elapsed_ms": 7.364
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          2,
+          1,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344414,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.205,
+        "elapsed_ms": 2.819
+      }
+    },
+    {
+      "command": "cheat sailwind 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 26.493,
+        "elapsed_ms": 29.758
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          1,
+          1,
+          20,
+          0,
+          0,
+          40,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130345914,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.301,
+        "elapsed_ms": 5.418
+      }
+    },
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 62200,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 3059,
+        "server_tick": 101,
+        "camera_yaw": 1152,
+        "camera_pitch": 300,
+        "camera_zoom": 1600,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 1152,
+          "render_pitch": 300,
+          "render_x": 824714,
+          "render_y": -2576,
+          "render_z": 16002,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
+        "rig": {
+          "vertices": 288,
+          "hash": 3984471840,
+          "min_y": -193,
+          "max_y": 8,
+          "posed_frame": 3,
+          "yaw": 0
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 1,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 101,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 393248,
+            "fine_z": 404416,
+            "angle": 128,
+            "heading": 1,
+            "state": 1,
+            "speed_tier": 4,
+            "sails_set": 1,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 393250,
+            "fine_z": 404419,
+            "angle": 123,
+            "target_fine_x": 393248,
+            "target_fine_z": 404416,
+            "target_angle": 128,
+            "queue_count": 1
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.428,
+        "elapsed_ms": 2.846
+      }
+    },
+    {
+      "command": "cheat sailwind 0",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.816,
+        "elapsed_ms": 7.901
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          20,
+          0,
+          0,
+          40,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130347414,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.231,
+        "elapsed_ms": 2.841
+      }
+    },
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 62200,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 3059,
+        "server_tick": 101,
+        "camera_yaw": 1152,
+        "camera_pitch": 300,
+        "camera_zoom": 1600,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 1152,
+          "render_pitch": 300,
+          "render_x": 824713,
+          "render_y": -2576,
+          "render_z": 16000,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
+        "rig": {
+          "vertices": 288,
+          "hash": 3984471840,
+          "min_y": -193,
+          "max_y": 8,
+          "posed_frame": 3,
+          "yaw": 0
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 1,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 101,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 393248,
+            "fine_z": 404416,
+            "angle": 128,
+            "heading": 1,
+            "state": 1,
+            "speed_tier": 5,
+            "sails_set": 1,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 393250,
+            "fine_z": 404419,
+            "angle": 123,
+            "target_fine_x": 393248,
+            "target_fine_z": 404416,
+            "target_angle": 128,
+            "queue_count": 1
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.42,
+        "elapsed_ms": 2.811
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 3.955,
+        "elapsed_ms": 5.407
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 16.362,
+        "elapsed_ms": 17.558
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.677,
+        "elapsed_ms": 7.879
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 23.395,
+        "elapsed_ms": 27.586
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.706,
+        "elapsed_ms": 7.516
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.081,
+        "elapsed_ms": 17.57
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.758,
+        "elapsed_ms": 7.92
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.969,
+        "elapsed_ms": 18.02
+      }
+    },
+    {
+      "command": "cheat vesselsail 6 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.77,
+        "elapsed_ms": 8.059
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.557,
+        "elapsed_ms": 18.123
+      }
+    },
+    {
+      "command": "cheat vesselsail 7 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.726,
+        "elapsed_ms": 7.962
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.5,
+        "elapsed_ms": 17.968
+      }
+    },
+    {
+      "command": "cheat vesselsail 8 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.847,
+        "elapsed_ms": 7.887
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.386,
+        "elapsed_ms": 17.777
+      }
+    },
+    {
+      "command": "cheat vesselsail 9 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.692,
+        "elapsed_ms": 7.908
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.997,
+        "elapsed_ms": 17.771
+      }
+    },
+    {
+      "command": "cheat vesselsail 10 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.692,
+        "elapsed_ms": 7.873
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.109,
+        "elapsed_ms": 17.731
+      }
+    },
+    {
+      "command": "cheat vesselsail 11 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.659,
+        "elapsed_ms": 7.892
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.979,
+        "elapsed_ms": 17.947
+      }
+    },
+    {
+      "command": "cheat vesselsail 12 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.653,
+        "elapsed_ms": 7.829
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.38,
+        "elapsed_ms": 17.367
+      }
+    },
+    {
+      "command": "cheat vesselsail 13 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.111,
+        "elapsed_ms": 7.895
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.797,
+        "elapsed_ms": 19.776
+      }
+    },
+    {
+      "command": "cheat vesselsail 14 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.911,
+        "elapsed_ms": 8.006
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.831,
+        "elapsed_ms": 20.576
+      }
+    },
+    {
+      "command": "cheat vesselsail 15 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.862,
+        "elapsed_ms": 7.973
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.447,
+        "elapsed_ms": 17.879
+      }
+    },
+    {
+      "command": "cheat vesselsail 0 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.815,
+        "elapsed_ms": 7.919
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.144,
+        "elapsed_ms": 17.875
+      }
+    },
+    {
+      "command": "cheat vesselsail 1 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.629,
+        "elapsed_ms": 7.886
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.099,
+        "elapsed_ms": 17.72
+      }
+    },
+    {
+      "command": "cheat vesselsail 2 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.789,
+        "elapsed_ms": 7.967
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.281,
+        "elapsed_ms": 17.884
+      }
+    },
+    {
+      "command": "cheat vesselsail 3 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.815,
+        "elapsed_ms": 7.913
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.09,
+        "elapsed_ms": 17.921
+      }
+    },
+    {
+      "command": "cheat vesselsail 4 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.69,
+        "elapsed_ms": 7.587
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 15.084,
+        "elapsed_ms": 17.775
+      }
+    },
+    {
+      "command": "cheat vesselsail 5 2",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.698,
+        "elapsed_ms": 7.902
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.904,
+        "elapsed_ms": 17.927
+      }
+    },
+    {
+      "command": "activity 0",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130347414,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.215,
+        "elapsed_ms": 5.393
+      }
+    },
+    {
+      "command": "state",
+      "response": {
+        "ok": true,
+        "online": true,
+        "paused": true,
+        "time_ms": 74200,
+        "server_x": 6404,
+        "server_z": 67,
+        "level": 1,
+        "aboard_view": 1,
+        "logic_cycle": 3659,
+        "server_tick": 121,
+        "camera_yaw": 1152,
+        "camera_pitch": 300,
+        "camera_zoom": 1600,
+        "world_ready": 1,
+        "renderer": 0,
+        "x": 6404,
+        "z": 67,
+        "camera": 0,
+        "animation": 0,
+        "anim_frame": 0,
+        "chat_blocked": -1,
+        "player_yaw": 0,
+        "cinematic": {
+          "eye_x": 6400,
+          "eye_z": 64,
+          "eye_height": 0,
+          "look_x": 6400,
+          "look_z": 64,
+          "look_height": 0,
+          "render_yaw": 1152,
+          "render_pitch": 300,
+          "render_x": 824141,
+          "render_y": -2576,
+          "render_z": 15845,
+          "hide_panels": 0,
+          "fov_mode": 0,
+          "visible_orbs": 4
+        },
+        "rig": {
+          "vertices": 288,
+          "hash": 1522931678,
+          "min_y": -194,
+          "max_y": 8,
+          "posed_frame": 0,
+          "yaw": 0
+        },
+        "sailing": {
+          "ok": true,
+          "aboard": true,
+          "checkpoints": 1,
+          "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+          "server_tick": 121,
+          "player": {
+            "x": 6404,
+            "z": 67,
+            "level": 1,
+            "navigating": 1
+          },
+          "vessel": {
+            "id": 1,
+            "serial": 1,
+            "view": 1,
+            "config": 2,
+            "instance": 1,
+            "fine_x": 392704,
+            "fine_z": 404320,
+            "angle": 640,
+            "heading": 5,
+            "state": 1,
+            "speed_tier": 3,
+            "sails_set": 1,
+            "reversing": 0,
+            "hp": 80,
+            "hp_max": 80,
+            "owner_uid": 1,
+            "cargo_slot": 1,
+            "navigator_mask": 0,
+            "facilities": [
+              1,
+              1,
+              1
+            ]
+          },
+          "client_vessel": {
+            "present": true,
+            "fine_x": 392711,
+            "fine_z": 404317,
+            "angle": 635,
+            "target_fine_x": 392704,
+            "target_fine_z": 404320,
+            "target_angle": 640,
+            "queue_count": 1
+          }
+        },
+        "server_activity": {
+          "active_script": 0,
+          "action_locked": 0,
+          "delay_until": 0,
+          "waypoint": -1,
+          "kind": 0,
+          "op": 0,
+          "target": 0,
+          "x": 0,
+          "z": 0,
+          "use_on": 0,
+          "last_useitem": -1,
+          "last_useslot": -1,
+          "client_selected_obj": -1
+        },
+        "runtime_ms": 0.429,
+        "elapsed_ms": 2.88
+      }
+    },
+    {
+      "command": "restore activity_ocean",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 7.39,
+        "elapsed_ms": 10.308
+      }
+    },
+    {
+      "command": "cheat sailsalvagefixture 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 6.308,
+        "elapsed_ms": 10.111
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.236,
+        "elapsed_ms": 2.465
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.211,
+        "elapsed_ms": 5.138
+      }
+    },
+    {
+      "command": "inventory 963",
+      "response": {
+        "ok": true,
+        "id": 963,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 240,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.199,
+        "elapsed_ms": 2.89
+      }
+    },
+    {
+      "command": "cheat sailsalvage 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.423,
+        "elapsed_ms": 7.977
+      }
+    },
+    {
+      "command": "step 90",
+      "response": {
+        "ok": true,
+        "runtime_ms": 46.799,
+        "elapsed_ms": 50.053
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          1,
+          0,
+          50400344,
+          60464,
+          100,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.223,
+        "elapsed_ms": 2.937
+      }
+    },
+    {
+      "command": "step 1500",
+      "response": {
+        "ok": true,
+        "runtime_ms": 676.745,
+        "elapsed_ms": 679.842
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          1,
+          0,
+          50400344,
+          60464,
+          50,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344710,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.223,
+        "elapsed_ms": 2.935
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.21,
+        "elapsed_ms": 2.867
+      }
+    },
+    {
+      "command": "inventory 963",
+      "response": {
+        "ok": true,
+        "id": 963,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 240,
+        "client": [],
+        "other": [],
+        "server": [
+          [
+            0,
+            32847,
+            1
+          ],
+          [
+            1,
+            32847,
+            1
+          ],
+          [
+            2,
+            32847,
+            1
+          ],
+          [
+            3,
+            32847,
+            1
+          ]
+        ],
+        "runtime_ms": 1.215,
+        "elapsed_ms": 5.552
+      }
+    },
+    {
+      "command": "cheat sailsalvage 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.229,
+        "elapsed_ms": 7.905
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          0,
+          0,
+          50400344,
+          60464,
+          50,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344710,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.207,
+        "elapsed_ms": 2.845
+      }
+    },
+    {
+      "command": "step 240",
+      "response": {
+        "ok": true,
+        "runtime_ms": 112.553,
+        "elapsed_ms": 116.134
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          0,
+          0,
+          50400344,
+          60464,
+          50,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344710,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.258,
+        "elapsed_ms": 5.16
+      }
+    },
+    {
+      "command": "restore activity_ocean",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 7.692,
+        "elapsed_ms": 10.138
+      }
+    },
+    {
+      "command": "cheat sailnetfixture 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.946,
+        "elapsed_ms": 7.589
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.208,
+        "elapsed_ms": 2.858
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.248,
+        "elapsed_ms": 2.823
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.245,
+        "elapsed_ms": 4.532
+      }
+    },
+    {
+      "command": "cheat sailnet 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.234,
+        "elapsed_ms": 7.512
+      }
+    },
+    {
+      "command": "step 360",
+      "response": {
+        "ok": true,
+        "runtime_ms": 163.588,
+        "elapsed_ms": 165.108
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.221,
+        "elapsed_ms": 2.879
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.229,
+        "elapsed_ms": 2.917
+      }
+    },
+    {
+      "command": "cheat sailshoal",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.88,
+        "elapsed_ms": 7.914
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 36.1,
+        "elapsed_ms": 39.927
+      }
+    },
+    {
+      "command": "npc sailing_shoal_ripples",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "slot": 0,
+            "generation": 1,
+            "x": 393728,
+            "z": 404864,
+            "yaw": 0,
+            "render_x": 6656,
+            "render_y": 0,
+            "render_z": 6528,
+            "render_yaw": 0,
+            "size": 6,
+            "server_x": 3073,
+            "server_z": 3160,
+            "mode": 0,
+            "waypoint": -1,
+            "rig": {
+              "vertices": 40,
+              "hash": 3232032715,
+              "min_y": -4,
+              "max_y": -3,
+              "posed_frame": 0,
+              "yaw": 0
+            }
+          }
+        ],
+        "count": 1,
+        "x": 6656,
+        "z": 6528,
+        "server_count": 1,
+        "server_x": 3073,
+        "server_z": 3160,
+        "runtime_ms": 0.499,
+        "elapsed_ms": 2.872
+      }
+    },
+    {
+      "command": "step 1080",
+      "response": {
+        "ok": true,
+        "runtime_ms": 497.559,
+        "elapsed_ms": 501.746
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130345030,
+        "fishing_xp_tenths": 130356685,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.211,
+        "elapsed_ms": 2.917
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [
+          [
+            0,
+            32309,
+            1
+          ],
+          [
+            1,
+            32309,
+            1
+          ],
+          [
+            2,
+            32309,
+            1
+          ],
+          [
+            3,
+            32309,
+            1
+          ],
+          [
+            4,
+            32309,
+            1
+          ],
+          [
+            5,
+            32309,
+            1
+          ],
+          [
+            6,
+            32309,
+            1
+          ],
+          [
+            7,
+            32309,
+            1
+          ],
+          [
+            8,
+            32309,
+            1
+          ],
+          [
+            9,
+            32309,
+            1
+          ],
+          [
+            10,
+            32309,
+            1
+          ]
+        ],
+        "runtime_ms": 1.215,
+        "elapsed_ms": 2.847
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [
+          [
+            0,
+            32309,
+            1
+          ],
+          [
+            1,
+            32309,
+            1
+          ],
+          [
+            2,
+            32309,
+            1
+          ],
+          [
+            3,
+            32309,
+            1
+          ],
+          [
+            4,
+            32309,
+            1
+          ],
+          [
+            5,
+            32309,
+            1
+          ],
+          [
+            6,
+            32309,
+            1
+          ],
+          [
+            7,
+            32309,
+            1
+          ],
+          [
+            8,
+            32309,
+            1
+          ],
+          [
+            9,
+            32309,
+            1
+          ],
+          [
+            10,
+            32309,
+            1
+          ]
+        ],
+        "runtime_ms": 1.222,
+        "elapsed_ms": 2.813
+      }
+    },
+    {
+      "command": "cheat sailnetraise 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 4.487,
+        "elapsed_ms": 7.56
+      }
+    },
+    {
+      "command": "activity 4",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 4,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130345030,
+        "fishing_xp_tenths": 130356685,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.255,
+        "elapsed_ms": 2.906
+      }
+    },
+    {
+      "command": "step 180",
+      "response": {
+        "ok": true,
+        "runtime_ms": 83.397,
+        "elapsed_ms": 84.698
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [
+          [
+            0,
+            32309,
+            1
+          ],
+          [
+            1,
+            32309,
+            1
+          ],
+          [
+            2,
+            32309,
+            1
+          ],
+          [
+            3,
+            32309,
+            1
+          ],
+          [
+            4,
+            32309,
+            1
+          ],
+          [
+            5,
+            32309,
+            1
+          ],
+          [
+            6,
+            32309,
+            1
+          ],
+          [
+            7,
+            32309,
+            1
+          ],
+          [
+            8,
+            32309,
+            1
+          ],
+          [
+            9,
+            32309,
+            1
+          ],
+          [
+            10,
+            32309,
+            1
+          ]
+        ],
+        "runtime_ms": 1.251,
+        "elapsed_ms": 2.973
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.22,
+        "elapsed_ms": 2.862
+      }
+    },
+    {
+      "command": "inventory 963",
+      "response": {
+        "ok": true,
+        "id": 963,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 240,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.203,
+        "elapsed_ms": 2.805
+      }
+    },
+    {
+      "command": "cheat sailnetcollect 4",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.21,
+        "elapsed_ms": 7.848
+      }
+    },
+    {
+      "command": "inventory 968",
+      "response": {
+        "ok": true,
+        "id": 968,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 250,
+        "client": [],
+        "other": [],
+        "server": [],
+        "runtime_ms": 1.206,
+        "elapsed_ms": 2.797
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.227,
+        "elapsed_ms": 2.797
+      }
+    },
+    {
+      "command": "inventory 963",
+      "response": {
+        "ok": true,
+        "id": 963,
+        "client_slots": 0,
+        "other_slots": 0,
+        "server_slots": 240,
+        "client": [],
+        "other": [],
+        "server": [
+          [
+            0,
+            32309,
+            1
+          ],
+          [
+            1,
+            32309,
+            1
+          ],
+          [
+            2,
+            32309,
+            1
+          ],
+          [
+            3,
+            32309,
+            1
+          ],
+          [
+            4,
+            32309,
+            1
+          ],
+          [
+            5,
+            32309,
+            1
+          ],
+          [
+            6,
+            32309,
+            1
+          ],
+          [
+            7,
+            32309,
+            1
+          ],
+          [
+            8,
+            32309,
+            1
+          ],
+          [
+            9,
+            32309,
+            1
+          ],
+          [
+            10,
+            32309,
+            1
+          ]
+        ],
+        "runtime_ms": 1.205,
+        "elapsed_ms": 2.802
+      }
+    },
+    {
+      "command": "restore activity_ocean",
+      "response": {
+        "ok": true,
+        "scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+        "runtime_ms": 7.91,
+        "elapsed_ms": 10.51
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.229,
+        "elapsed_ms": 5.474
+      }
+    },
+    {
+      "command": "cheat sailcannonfixture 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.748,
+        "elapsed_ms": 7.81
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 20.834,
+        "elapsed_ms": 22.625
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ],
+          [
+            14,
+            31906,
+            12
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ],
+          [
+            14,
+            31906,
+            12
+          ]
+        ],
+        "runtime_ms": 1.284,
+        "elapsed_ms": 2.922
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.288,
+        "elapsed_ms": 2.901
+      }
+    },
+    {
+      "command": "cheat sailcannon 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 7.247,
+        "elapsed_ms": 10.482
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 18.811,
+        "elapsed_ms": 22.65
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          1,
+          11,
+          1,
+          6,
+          66939,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344310,
+        "construction_xp_tenths": 130344310,
+        "target_hp": 10,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.264,
+        "elapsed_ms": 5.421
+      }
+    },
+    {
+      "command": "step 8",
+      "response": {
+        "ok": true,
+        "runtime_ms": 5.745,
+        "elapsed_ms": 7.752
+      }
+    },
+    {
+      "command": "npc sailing_bull_shark",
+      "response": {
+        "ok": true,
+        "items": [
+          {
+            "slot": 1,
+            "generation": 1,
+            "x": 393792,
+            "z": 404672,
+            "yaw": 224,
+            "render_x": 6720,
+            "render_y": 0,
+            "render_z": 6336,
+            "render_yaw": 224,
+            "size": 3,
+            "server_x": 3075,
+            "server_z": 3160,
+            "mode": 0,
+            "waypoint": -1,
+            "rig": {
+              "vertices": 405,
+              "hash": 1379570568,
+              "min_y": -175,
+              "max_y": 33,
+              "posed_frame": 0,
+              "yaw": 224
+            }
+          }
+        ],
+        "count": 1,
+        "x": 6720,
+        "z": 6336,
+        "server_count": 1,
+        "server_x": 3075,
+        "server_z": 3160,
+        "runtime_ms": 0.427,
+        "elapsed_ms": 2.851
+      }
+    },
+    {
+      "command": "step 1200",
+      "response": {
+        "ok": true,
+        "runtime_ms": 594.316,
+        "elapsed_ms": 598.158
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          1,
+          10,
+          1,
+          0,
+          66939,
+          1,
+          2
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344510,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.217,
+        "elapsed_ms": 2.919
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ]
+        ],
+        "runtime_ms": 1.222,
+        "elapsed_ms": 2.841
+      }
+    },
+    {
+      "command": "cheat sailcannonunload 1",
+      "response": {
+        "ok": true,
+        "runtime_ms": 6.061,
+        "elapsed_ms": 7.881
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          66939,
+          1,
+          3
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344510,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.238,
+        "elapsed_ms": 2.821
+      }
+    },
+    {
+      "command": "inventory 93",
+      "response": {
+        "ok": true,
+        "id": 93,
+        "client_slots": 28,
+        "other_slots": 0,
+        "server_slots": 28,
+        "client": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ],
+          [
+            14,
+            31906,
+            10
+          ]
+        ],
+        "other": [],
+        "server": [
+          [
+            0,
+            1155,
+            1
+          ],
+          [
+            1,
+            1117,
+            1
+          ],
+          [
+            2,
+            1075,
+            1
+          ],
+          [
+            3,
+            1189,
+            1
+          ],
+          [
+            4,
+            1321,
+            1
+          ],
+          [
+            5,
+            841,
+            1
+          ],
+          [
+            6,
+            1731,
+            1
+          ],
+          [
+            7,
+            1021,
+            1
+          ],
+          [
+            8,
+            1059,
+            1
+          ],
+          [
+            9,
+            1061,
+            1
+          ],
+          [
+            10,
+            1635,
+            1
+          ],
+          [
+            11,
+            4151,
+            1
+          ],
+          [
+            12,
+            995,
+            15000
+          ],
+          [
+            13,
+            882,
+            50
+          ],
+          [
+            14,
+            31906,
+            10
+          ]
+        ],
+        "runtime_ms": 1.215,
+        "elapsed_ms": 2.814
+      }
+    },
+    {
+      "command": "step 150",
+      "response": {
+        "ok": true,
+        "runtime_ms": 69.521,
+        "elapsed_ms": 72.798
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          66939,
+          1,
+          3
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344510,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.233,
+        "elapsed_ms": 5.479
+      }
+    },
+    {
+      "command": "step 240",
+      "response": {
+        "ok": true,
+        "runtime_ms": 110.137,
+        "elapsed_ms": 113.031
+      }
+    },
+    {
+      "command": "activity 1",
+      "response": {
+        "ok": true,
+        "vessel": 1,
+        "slot": 1,
+        "registers": [
+          0,
+          0,
+          0,
+          0,
+          66939,
+          1,
+          3
+        ],
+        "wind": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          49,
+          0,
+          0
+        ],
+        "sailing_xp_tenths": 130344310,
+        "fishing_xp_tenths": 130344310,
+        "ranged_xp_tenths": 130344510,
+        "construction_xp_tenths": 130344310,
+        "target_hp": -1,
+        "target_frozen": 0,
+        "target_slow_token": 0,
+        "target_burn_token": 0,
+        "runtime_ms": 1.219,
+        "elapsed_ms": 5.407
+      }
+    },
+    {
+      "command": "cheat sailactivitycleanup",
+      "response": {
+        "ok": true,
+        "runtime_ms": 2.738,
+        "elapsed_ms": 5.073
+      }
+    },
+    {
+      "command": "step 30",
+      "response": {
+        "ok": true,
+        "runtime_ms": 14.973,
+        "elapsed_ms": 18.048
+      }
+    }
+  ],
+  "captures": [
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-baseline.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.789,
+      "elapsed_ms": 50.889,
+      "bytes": 228966,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-wind-gust.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.168,
+      "elapsed_ms": 50.863,
+      "bytes": 230380,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-wind-released.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.287,
+      "elapsed_ms": 50.357,
+      "bytes": 230209,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-hook-deployed.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.664,
+      "elapsed_ms": 49.516,
+      "bytes": 230602,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-hook-stopped.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.06,
+      "elapsed_ms": 50.742,
+      "bytes": 230709,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-net-shoal.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 47.713,
+      "elapsed_ms": 50.545,
+      "bytes": 232148,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-net-collected.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 46.576,
+      "elapsed_ms": 50.264,
+      "bytes": 231501,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-cannon-firing.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 46.566,
+      "elapsed_ms": 50.548,
+      "bytes": 232194,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/activity-cannon-stopped.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 46.881,
+      "elapsed_ms": 50.34,
+      "bytes": 232266,
+      "world_order_mode": 0
+    }
+  ],
+  "visual_review_required": true,
+  "elapsed_ms": 6971.493,
+  "loaded_script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+  "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+  "script_pack_on_disk_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59"
+}

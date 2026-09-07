@@ -1,0 +1,111 @@
+{
+  "scene": "grand-exchange-ground",
+  "serial": "T062809L3Z",
+  "aa": true,
+  "parity": {
+    "width": 1196,
+    "height": 720,
+    "different_pixels": 0,
+    "draw_items": 11
+  },
+  "scope": "Real frozen painter draw-list replay; device-wide shader hardware counts. No time/occupancy/FPS inference.",
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126411964,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126413920,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126430375,
+      "sp_fragment_alu_instructions": 366422712
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126413526,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126408410,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126413314,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126412902,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126414030,
+      "sp_fragment_alu_instructions": 366360512
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126406774,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126411340,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 126408344,
+      "sp_fragment_alu_instructions": 366356480
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 126410288,
+      "sp_fragment_alu_instructions": 366356480
+    }
+  ],
+  "library_sha256": "1a5e79d125d7fa864dec61af0088b36ad7da8f2571ebeecc01e8d5b6ee50cc49",
+  "summary": {
+    "sp_alu_cycles": {
+      "reference": 15801390.75,
+      "candidate": 15801638.5,
+      "percent": 0.0015678999647494862
+    },
+    "sp_fragment_alu_instructions": {
+      "reference": 45794560.0,
+      "candidate": 45794560.0,
+      "percent": 0.0
+    }
+  }
+}

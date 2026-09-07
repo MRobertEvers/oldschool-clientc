@@ -22,8 +22,15 @@
  *      then clears the boat's static pool the way App_WevDespawn does and
  *      asserts only the boat's elements go.
  *
+ *   5. The ROOT half of the same drain rule: an EntityRemoved queued on the
+ *      root world (a despawn that arrived in the same packet pump as the
+ *      rebuild) is drained — elements freed, not dropped — before
+ *      WorldBuilder_RebuildCenterzoneBegin resets the scene allocation. Needs
+ *      no cache; never skips.
+ *
  *   make -C src test-wev-rebuild    (runs from src/, cache at ../cache.osrs239)
  */
+#include "app.h"
 #include "asyncio.h"
 #include "task_runner.h"
 #include "engine/cache_provider.h"
@@ -508,6 +515,110 @@ run_task(
     TaskRunner_Drain(&runner);
 }
 
+/*
+ * The ROOT world's EntityRemoved queue is drained before its rebuild resets
+ * the scene allocation — the mainland half of the C2 drain rule the boat
+ * branch above already obeys.
+ *
+ * The bug this pins: a despawn that lands in the same packet pump as a
+ * REBUILD_NORMAL (a boat sinking one packet before the teleport that follows
+ * it) queues an EntityRemoved on the root world that no tick has drained yet,
+ * because the per-tick drain sits behind the world gate a rebuild has already
+ * closed. The rebuild then reached World_ResetSceneAlloc with a full queue and
+ * a debug client aborted on the spot; a release client silently dropped the
+ * queue instead, orphaning the DYNAMIC scene elements it named.
+ *
+ * WorldBuilder_RebuildCenterzoneBegin is the exact frame the abort came from
+ * (world_builder.c -> World_ResetScene -> World_ResetSceneAlloc), and it reads
+ * nothing out of the provider, so this needs no cache and never skips. The
+ * drain is the production one, App_WorldDrainEntityRemovedFor: what makes it a
+ * drain rather than a queue wipe is that it hands the element to the plugins
+ * and frees it (ToriDraw_SceneElementRemove) before the reset makes its id
+ * unreachable, and that release is asserted here.
+ */
+static void
+test_root_rebuild_drains_entity_removed(void)
+{
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct ToriDraw_Scene* scene;
+    struct VarPManager varp;
+    struct World* world;
+    struct WorldBuilder* builder;
+    struct App* app;
+    struct WorldEntityFacet_IdleAnimations idle;
+    struct World_Event const* removed;
+    int element;
+    int npc_index;
+
+    memset(&idle, 0, sizeof(idle));
+    ToriDraw_Init();
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    TEST_WEVR_ASSERT(scene != NULL, "scene allocates");
+    VarPManager_Init(&varp);
+    world = World_New();
+    World_SetScene(world, scene);
+    builder = WorldBuilder_New(world, provider, scene, &varp);
+    TEST_WEVR_ASSERT(builder != NULL, "root builder allocates");
+
+    /* The scene the player was standing in when the despawn arrived. */
+    WorldBuilder_RebuildCenterzoneBegin(builder, 50, 50, 64);
+    TEST_WEVR_ASSERT(world->heightmap != NULL, "the first root rebuild allocated the scene");
+
+    /* An npc with a live DYNAMIC element, despawned the way a wire despawn
+     * despawns it: the pool slot goes immediately, the render-side removal is
+     * queued with an immutable copy of the npc for the drain to hand on. */
+    element = ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    TEST_WEVR_ASSERT(element >= 0, "the root's dynamic pool allocates");
+    npc_index = World_NpcSpawn(world, element, 123, 0, 10, 10, 1, idle);
+    TEST_WEVR_ASSERT(npc_index >= 0, "npc spawns into the root world");
+    World_NpcDespawn(world, npc_index);
+
+    /* The precondition that used to reach the reset. */
+    TEST_WEVR_ASSERT(
+        World_EventsCount(world) == 1, "the despawn queued one EntityRemoved on the root world");
+    removed = World_EventsPeek(world, 0);
+    TEST_WEVR_ASSERT(removed != NULL, "the queued event is readable");
+    TEST_WEVR_ASSERT(
+        removed->kind == WorldEventKind_EntityRemoved, "the queued event is an EntityRemoved");
+    TEST_WEVR_ASSERT(removed->element_id == element, "the event names the npc's scene element");
+    TEST_WEVR_ASSERT(
+        removed->removed_npc != NULL, "the event carries the despawned npc for delivery");
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, element),
+        "the element is still live before the drain");
+
+    /* Heap, not stack: struct App is large (same reason rs_gameproto_exec_test
+     * calloc's it). Only the scene is wired — a NULL plugin host is the
+     * no-plugins client, and the drain's own guard covers it. */
+    app = calloc(1, sizeof(*app));
+    TEST_WEVR_ASSERT(app != NULL, "App stub allocates");
+    app->scene = scene;
+    App_WorldDrainEntityRemovedFor(app, world);
+
+    TEST_WEVR_ASSERT(World_EventsCount(world) == 0, "the drain emptied the root queue");
+    TEST_WEVR_ASSERT(
+        !ToriDraw_SceneElementIsLive(scene, element),
+        "the drain freed the removed entity's scene element rather than orphaning it");
+
+    /* The rebuild the teleport triggers. Before the fix this line aborted on
+     * `world->event_count == 0` in World_ResetSceneAlloc. */
+    WorldBuilder_RebuildCenterzoneBegin(builder, 51, 51, 64);
+    TEST_WEVR_ASSERT(
+        world->heightmap != NULL, "the root rebuild reallocated the scene after the drain");
+    TEST_WEVR_ASSERT(World_EventsCount(world) == 0, "the rebuild left the queue empty");
+    TEST_WEVR_ASSERT(
+        !ToriDraw_SceneElementIsLive(scene, element),
+        "the removed element did not come back through the rebuild");
+
+    free(app);
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+    printf("ok - the root rebuild drains EntityRemoved before World_ResetSceneAlloc\n");
+}
+
 static void
 test_raft_deck_rebuild(char const* cache_dir)
 {
@@ -756,13 +867,76 @@ test_raft_deck_rebuild(char const* cache_dir)
         ToriDraw_SceneElementIsLive(scene, root_entity_element),
         "despawning the boat leaves the mainland's entity element alone");
 
+    /* OQ4: a loaded104-tile root plus all15 real-cache small decks must fit
+     * simultaneously. Castle template zones are denser than the sailing hull
+     * templates, and retain both real terrain and real scenery in every view. */
+    {
+        struct WorldviewRegistry registry;
+        struct PoolSnapshot decks[WORLDVIEW_MAX];
+        memset(decks,0,sizeof(decks));
+        WorldviewRegistry_Init(&registry);
+        WorldviewRegistry_RegisterRoot(&registry,root_world,root_builder);
+        int total=root_static.count;
+        for(int id=1;id<WORLDVIEW_MAX;++id)
+        {
+            struct World* world=id==1 ? boat_world:World_New();
+            struct WorldBuilder* builder=id==1 ? boat_builder:WorldBuilder_New(world,provider,scene,&varp);
+            WorldBuilder_SetSceneView(builder,id);
+            int base=RAFT_BASE_TILE+id*16;
+            WorldviewRegistry_Register(&registry,id,world,builder,base,RAFT_BASE_TILE,8,8,0);
+            run_task(queue,io,px,CreateTask_WorldLoad(provider,builder,queue,chunks,1,
+                base/8,RAFT_BASE_TILE/8,8,zones,NULL,NULL));
+            TEST_WEVR_ASSERT(world->load_complete && world->entities.terrain.active_count>0 &&
+                world->entities.scenery.active_count>0,"each of15 actual-cache decks finished terrain and loc loading");
+            pool_snapshot_take(&decks[id],scene,TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
+            TEST_WEVR_ASSERT(decks[id].count>0,"all15 static deck pools contain real geometry");
+            total+=decks[id].count;
+            pool_snapshot_assert_intact(&root_static,scene,"maximum deck loading preserves the full root scene");
+            for(int prior=1;prior<id;++prior)
+                pool_snapshot_assert_intact(&decks[prior],scene,"later deck allocation cannot overwrite an earlier view");
+        }
+        for(int id=0;id<WORLDVIEW_MAX;++id)
+            TEST_WEVR_ASSERT(WorldviewRegistry_IsLive(&registry,id),"all16 registry slots coexist");
+        TEST_WEVR_ASSERT(total<TORIDRAW_SCENE_MAX_ELEMENTS,"root plus15 decks leaves element capacity for dynamics");
+        int actor=ToriDraw_SceneElementAddPool(scene,TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(1));
+        TEST_WEVR_ASSERT(actor>=0,"dynamic actor still allocates at maximum view count");
+        int highwater=ToriDraw_SceneElementSlotCount(scene);
+        for(int id=2;id<WORLDVIEW_MAX;++id)
+        {
+            ToriDraw_SceneElementSetPool(scene,actor,TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
+            ToriDraw_SceneClearPool(scene,TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id-1));
+            TEST_WEVR_ASSERT(ToriDraw_SceneElementIsLive(scene,actor) &&
+                ToriDraw_SceneElementPool(scene,actor)==TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id),
+                "one actor retains its ID while transferring through every deck pool");
+            TEST_WEVR_ASSERT(ToriDraw_SceneElementSlotCount(scene)==highwater,
+                "actor pool migration allocates no duplicate elements");
+        }
+        ToriDraw_SceneElementSetPool(scene,actor,TORIDRAW_SCENE_POOL_DYNAMIC);
+        for(int id=WORLDVIEW_MAX-1;id>0;--id)
+        {
+            ToriDraw_SceneClearPool(scene,TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
+            ToriDraw_SceneClearPool(scene,TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
+            pool_snapshot_assert_gone(&decks[id],scene,"despawn frees only that deck at maximum occupancy");
+            for(int other=1;other<id;++other)
+                pool_snapshot_assert_intact(&decks[other],scene,"despawn keeps every remaining deck intact");
+            pool_snapshot_assert_intact(&root_static,scene,"maximum occupancy despawn keeps root geometry intact");
+            TEST_WEVR_ASSERT(ToriDraw_SceneElementIsLive(scene,actor),"actor evicted to root survives all15 deck despawns");
+            WorldviewRegistry_Release(&registry,id);
+            pool_snapshot_free(&decks[id]);
+        }
+        ToriDraw_SceneElementRemove(scene,actor);
+        WorldviewRegistry_Free(&registry); /* root is borrowed */
+        boat_builder=NULL;boat_world=NULL;
+        printf("ok - maximum16 views: root +15 actual-cache decks hold %d static elements; one actor migrated all15 pools; isolated despawn PASS\n",total);
+    }
+
     pool_snapshot_free(&boat_deck);
     pool_snapshot_free(&boat_deck_rebuilt);
     pool_snapshot_free(&root_static);
 
     gameproto_free(&p);
-    WorldBuilder_Free(boat_builder);
-    World_Free(boat_world);
+    if(boat_builder)WorldBuilder_Free(boat_builder);
+    if(boat_world)World_Free(boat_world);
     WorldBuilder_Free(root_builder);
     World_Free(root_world);
     VarPManager_Free(&varp);
@@ -783,6 +957,7 @@ main(int argc, char** argv)
     test_parse_and_decode();
     test_pool_view_tags();
     test_actor_pool_handoff();
+    test_root_rebuild_drains_entity_removed();
     test_raft_deck_rebuild(cache_dir);
 
     printf("wev_rebuild_test: all passed\n");

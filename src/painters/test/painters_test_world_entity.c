@@ -233,9 +233,9 @@ markers_balanced(
  * ---------------------------------------------------------------------- */
 
 static void
-test_descent_emits_deck_between_markers(void)
+test_descent_emits_deck_between_markers(int depth_renderer)
 {
-    printf("test_descent_emits_deck_between_markers\n");
+    printf("test_descent_emits_deck_between_markers (depth=%d)\n",depth_renderer);
 
     struct Painter* root = make_painter();
     struct Painter* deck = make_painter();
@@ -253,7 +253,8 @@ test_descent_emits_deck_between_markers(void)
     painter_clear_world_entity_views(root);
     painter_set_world_entity_view(root, 1, deck, /*cam_sx=*/0, /*cam_sz=*/0, 0);
 
-    painter_paint_bucket(root, buf, 0, 0, 0);
+    if( depth_renderer ) painter_collect_visible_depth(root,buf,0,0,0);
+    else painter_paint_bucket(root, buf, 0, 0, 0);
 
     int begin = index_of(buf, PNTR_CMD_BEGIN_WORLD, 1);
     int end = index_of(buf, PNTR_CMD_END_WORLD, 1);
@@ -454,6 +455,41 @@ test_cycle_is_refused_not_re_entered(void)
     painter_free(root);
 }
 
+static void
+test_distinct_view_alias_is_refused(void)
+{
+    printf("test_distinct_view_alias_is_refused\n");
+    struct Painter* root = make_painter();
+    struct Painter* a = make_painter();
+    struct Painter* b = make_painter();
+    struct PaintersBuffer* buf = make_buffer();
+    painter_add_world_entity(root, 0, 7, 7, 1, 0, 1, 1);
+    painter_add_normal_scenery(a, 6, 6, 0, LOC_DECK_A, 1, 1, 0);
+    painter_add_world_entity(a, 0, 3, 3, 2, 0, 1, 1);
+    painter_add_normal_scenery(b, 6, 6, 0, LOC_DECK_B, 1, 1, 0);
+    painter_add_world_entity(b, 0, 3, 3, 3, 0, 1, 1);
+    painter_clear_world_entity_views(root);
+    painter_clear_world_entity_views(a);
+    painter_clear_world_entity_views(b);
+    painter_set_world_entity_view(root, 1, a, 0, 0, 0);
+    painter_set_world_entity_view(a, 2, b, 0, 0, 0);
+    /* ID 3 is new, but its painter is already active as view 1. */
+    painter_set_world_entity_view(b, 3, a, 0, 0, 0);
+    painter_paint_bucket(root, buf, 0, 0, 0);
+    int begin = index_of(buf, PNTR_CMD_BEGIN_WORLD, 3);
+    expect(begin >= 0, "alias emits refused BEGIN");
+    expect(index_of(buf, PNTR_CMD_END_WORLD, 3) == begin + 1,
+           "distinct view ID cannot re-enter an active painter; refused pair is empty");
+    expect(markers_balanced(buf, NULL), "alias refusal balances the stream");
+    expect(count_kind(buf, PNTR_CMD_BEGIN_WORLD) == 3, "alias does not descend again");
+    expect(count_of(buf, PNTR_CMD_ELEMENT, LOC_DECK_A) == 1, "aliased painter emits once");
+    expect(count_of(buf, PNTR_CMD_ELEMENT, LOC_DECK_B) == 1, "parent of alias emits once");
+    free_buffer(buf);
+    painter_free(b);
+    painter_free(a);
+    painter_free(root);
+}
+
 /* -------------------------------------------------------------------------
  * 3. Nesting to the registry bound, on the explicit stack.
  * ---------------------------------------------------------------------- */
@@ -508,6 +544,18 @@ test_nesting_to_the_registry_bound(void)
         outer_begin < inner_begin && inner_begin < inner_end && inner_end < outer_end,
         "the innermost view is strictly inside the outermost");
 
+    struct PaintersBuffer* refused = make_buffer();
+    painter_add_world_entity(p[15],0,7,7,1,0,1,1);
+    painter_set_world_entity_view(p[15],1,p[1],0,0,0);
+    painter_paint_bucket(p[0],refused,0,0,0);
+    expect(markers_balanced(refused,&max_depth), "capacity refusal is balanced");
+    expect(max_depth==PAINTER_MAX_WORLD_VIEWS, "the refused empty pair can sit at capacity");
+    expect(count_kind(refused,PNTR_CMD_BEGIN_WORLD)==PAINTER_MAX_WORLD_VIEWS,
+           "capacity guard adds one refused pair, never another descent");
+    for( int i=0;i<PAINTER_MAX_WORLD_VIEWS;++i )
+        expect(count_of(refused,PNTR_CMD_ELEMENT,800+i)==1,
+               "no duplicate models after capacity refusal");
+    free_buffer(refused);
     free_buffer(buf);
     for( int i = 0; i < PAINTER_MAX_WORLD_VIEWS; i++ )
         painter_free(p[i]);
@@ -809,10 +857,12 @@ main(void)
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
 
-    test_descent_emits_deck_between_markers();
+    test_descent_emits_deck_between_markers(0);
+    test_descent_emits_deck_between_markers(1);
     test_descent_resumes_the_rest_of_the_tile();
     test_unbound_view_emits_an_empty_pair();
     test_cycle_is_refused_not_re_entered();
+    test_distinct_view_alias_is_refused();
     test_nesting_to_the_registry_bound();
     test_no_world_entity_emits_no_markers();
     test_actor_aboard_emits_inside_the_markers();

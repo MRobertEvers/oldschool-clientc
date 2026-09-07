@@ -117,7 +117,8 @@ exec_update_inv_full(
     /* Containers arrive long after the interface that paints them was built,
      * so the CS2 paint script has to be told to run again. */
     if( ctx->app )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
     if( getenv("TORIRS_INV_DEBUG") )
     {
         TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
@@ -168,7 +169,8 @@ exec_update_inv_partial(
                 slot.obj_count);
     }
     if( ctx->app && p->count > 0 )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
 }
 
 /* The local player's plane is the fallback for classic zone headers which do
@@ -1585,10 +1587,31 @@ RS_GameProto_Exec(
     case PKT_NAME_CHAT_FILTER_SETTINGS:
         if( ctx->app )
         {
+            /*
+             * Only the modes the packet actually carried.
+             *
+             * The classic wire sends three bytes and the private mode is one of
+             * them. Revision 239 sends TWO -- public and trade -- because the
+             * private-chat filter moved to a packet of its own: the deob's
+             * packet table has `field3058 = new class243(124, 2)`, whose handler
+             * writes only the public and trade fields (client.java:2820), beside
+             * `field2939 = new class243(5, 1)`, whose handler is the ONLY thing
+             * that writes the private filter the CS2 side reads back through
+             * chat_getfilter_private (Statics.field5072, opcode 5005).
+             *
+             * So a revision whose CHAT_FILTER_SETTINGS has no private byte marks
+             * the field absent with a negative value -- the same convention the
+             * zone headers use for a plane a revision does not send -- and the
+             * client's own copy stands. Writing the missing field through was
+             * what put "Private On" back under the player the instant after they
+             * chose Show friends, and then fed that stale 0 back to the server
+             * on their next filter change.
+             */
             ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
                 packet->_chat_filter_settings.chat_public_mode;
-            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
-                packet->_chat_filter_settings.chat_private_mode;
+            if( packet->_chat_filter_settings.chat_private_mode >= 0 )
+                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
+                    packet->_chat_filter_settings.chat_private_mode;
             ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
                 packet->_chat_filter_settings.chat_trade_mode;
             /* Script 681 reads these back through chat_getfilter_private before

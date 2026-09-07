@@ -12,6 +12,10 @@
 #include <stdint.h>
 
 struct App;
+
+/** Origin shared by all root NPC deltas, including when the local player is
+ * aboard. The explicit packet origin takes precedence over the player route. */
+void RS_EntityInfo_NpcOrigin(struct App* app, int* out_x, int* out_z, int* out_level);
 struct ToriRS_Task;
 
 struct ToriRS_Task*

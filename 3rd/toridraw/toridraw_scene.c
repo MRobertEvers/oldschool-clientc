@@ -396,10 +396,11 @@ td_scene_element_pose_matches(
     int frame,
     int frame2,
     const void* track,
-    const void* track2)
+    const void* track2,
+    bool reuse)
 {
     assert(element);
-    if( !td_anim_skip_same_enabled() )
+    if( !reuse )
         return false;
     return element->posed_primary == (int8_t)(primary ? 1 : 0) &&
            element->posed_frame == frame && element->posed_frame2 == frame2 &&
@@ -1961,22 +1962,13 @@ ToriDraw_SceneElementSetAnimFrames(
     element->anim2_frame = secondary_frame;
 }
 
-void
-ToriDraw_SceneElementApplyAnimation(
-    struct ToriDraw_Scene* scene,
-    int element_id,
-    bool primary,
-    int frame)
+static void
+td_scene_element_apply_animation(
+    struct ToriDraw_SceneElement* element, int element_id,
+    bool primary, int frame, bool reuse)
 {
-    struct ToriDraw_SceneElement* element;
     struct ToriDraw_Model* model;
-
-    assert(scene);
-    assert(td_scene_element_valid(scene, element_id));
-
-    element = td_scene_element_ptr(scene, element_id);
     assert(element);
-
     if( element->model.kind != TORIDRAWMK_MODEL )
         return;
     model = element->model.u.model.model;
@@ -1995,7 +1987,7 @@ ToriDraw_SceneElementApplyAnimation(
             return;
         if( frame < 0 || frame >= skeletal->frame_count )
             frame = 0;
-        if( td_scene_element_pose_matches(element, primary, frame, 0, skeletal, NULL) )
+        if( td_scene_element_pose_matches(element, primary, frame, 0, skeletal, NULL, reuse) )
             return;
         ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
         td_scene_element_pose_record(element, primary, frame, 0, skeletal, NULL);
@@ -2039,7 +2031,7 @@ ToriDraw_SceneElementApplyAnimation(
                     frame2 = 0;
                 }
             }
-            if( td_scene_element_pose_matches(element, primary, frame, frame2, animation, second) )
+            if( td_scene_element_pose_matches(element, primary, frame, frame2, animation, second, reuse) )
                 return;
             /* Remembered before the pose is applied: every path below leaves
              * the model at exactly this (track, frame) pair. */
@@ -2230,6 +2222,67 @@ ToriDraw_SceneElementApplyAnimation(
                 model->bounds_cylinder.max_y);
     }
 }
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+#include "../../tools/perf/anim_chain_capture.u.c"
+#endif
+
+void
+ToriDraw_SceneElementApplyAnimationResolved(
+    struct ToriDraw_SceneElement* element, int element_id,
+    bool primary, int frame, bool reuse)
+{
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    bool captured=anim_chain_before(element,element_id,primary,frame);
+#endif
+#if defined(TORIRS_POSE_VERIFY)
+    static int verify_enabled=-1;
+    static unsigned verified=0;
+    if( verify_enabled<0 ) verify_enabled=getenv("TORIRS_POSE_VERIFY")!=NULL;
+    struct ToriDraw_Model* reference=NULL;
+    struct ToriDraw_SceneElement reference_element;
+    if( verify_enabled && reuse && element->model.kind==TORIDRAWMK_MODEL && element->model.u.model.model )
+    {
+        reference=ToriDraw_ModelCopy(element->model.u.model.model);
+        reference_element=*element;
+        reference_element.model.u.model.model=reference;
+    }
+#endif
+    td_scene_element_apply_animation(element,element_id,primary,frame,reuse);
+#if defined(TORIRS_POSE_VERIFY)
+    if( reference )
+    {
+        td_scene_element_apply_animation(&reference_element,element_id,primary,frame,false);
+        const struct ToriDraw_Model* actual=element->model.u.model.model;
+        size_t n=(size_t)actual->vertex_count*sizeof(vertexint_t);
+        if( memcmp(actual->vertices_x,reference->vertices_x,n) ||
+            memcmp(actual->vertices_y,reference->vertices_y,n) ||
+            memcmp(actual->vertices_z,reference->vertices_z,n) ||
+            (actual->face_alphas && memcmp(actual->face_alphas,reference->face_alphas,(size_t)actual->face_count)) ||
+            actual->has_bounds_cylinder!=reference->has_bounds_cylinder ||
+            memcmp(&actual->bounds_cylinder,&reference->bounds_cylinder,sizeof(actual->bounds_cylinder)) )
+        {
+            fprintf(stderr,"pose verification FAILED: element %d frame %d\n",element_id,frame);
+            abort();
+        }
+        ToriDraw_ModelFree(reference);
+        if( (++verified % 500u)==0 ) fprintf(stderr,"pose verification: %u real prepared poses matched reference\n",verified);
+    }
+#endif
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    if( captured ) anim_chain_after(element);
+#endif
+}
+
+void
+ToriDraw_SceneElementApplyAnimation(struct ToriDraw_Scene* scene,
+    int element_id, bool primary, int frame)
+{
+    assert(scene);
+    assert(td_scene_element_valid(scene,element_id));
+    ToriDraw_SceneElementApplyAnimationResolved(td_scene_element_ptr(scene,element_id),
+        element_id,primary,frame,td_anim_skip_same_enabled()!=0);
+}
+
 
 void
 ToriDraw_SceneElementSetPosition(

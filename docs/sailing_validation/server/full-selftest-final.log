@@ -1,0 +1,2635 @@
+torirsserver: features era=osrs approach=rect op_nearest=10 ground_nearest=box10_rect unbounded=0 under_routes_out=1 run_energy=osrs2025
+torirsserver: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
+torirsserver: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+torirsserver: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+torirsserver: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
+torirsserver: 2872 varp(s) carry varbits (highest basevar 5704)
+torirsserver: varbit table loaded (19008 records from cache.osrs239)
+torirsserver: client varp capacity 5705 from cache.osrs239
+torirsserver: 1117 param types from configs/all.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
+torirsserver: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+torirsserver: 22 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mortton/configs/quest_mortton.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
+torirsserver: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
+torirsserver: 48 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
+torirsserver: 13 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
+torirsserver: 10 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_fishing/configs/fishing.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/mining.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/pickaxes.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_runecraft/configs/runecraft.param
+torirsserver: 5862 enums from configs/all.enum
+torirsserver: 307 idk body parts from configs/all.idk
+torirsserver: 288 shop definitions from server/scripts/**/*.inv
+torirsserver: content loaded (239463 symbols, 12929 constants, 9438 npc defs, 4144 loc defs, 2241 varp defs, 1513 equip reqs (675 from the cache), 23159 npc spawns, 2256 obj spawns)
+torirsserver: 218 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `attack` is 3 in the band but 2 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `defence` is 3 in the band but 2 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `hitpoints` is 8 in the band but 5 from the text overlays
+torirsserver: server band: npc.blockwalk stays text-loaded on 14 record(s) — the band has no wire for it
+torirsserver: server band: npc.retaliate stays text-loaded on 158 record(s) — the band has no wire for it
+torirsserver: server band: npc.healthbar stays text-loaded on 14 record(s) — the band has no wire for it
+torirsserver: server band: npc.hitsplat stays text-loaded on 3 record(s) — the band has no wire for it
+torirsserver: server band: npc.attack_sound stays text-loaded on 18 record(s) — the band has no wire for it
+torirsserver: server band: npc.defend_sound stays text-loaded on 15 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_sound stays text-loaded on 19 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntrange stays text-loaded on 4 record(s) — the band has no wire for it
+torirsserver: server band: npc.respawnrate stays text-loaded on 1 record(s) — the band has no wire for it
+torirsserver: server band: npc.moverestrict stays text-loaded on 1454 record(s) — the band has no wire for it
+torirsserver: server band: npc.nomove stays text-loaded on 228 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntmode stays text-loaded on 840 record(s) — the band has no wire for it
+torirsserver: server band: npc.givechase stays text-loaded on 12 record(s) — the band has no wire for it
+torirsserver: server band: loc.next_loc_stage stays text-loaded on 5 record(s) — the band has no wire for it
+torirsserver: server band is STALE (0 unreadable, 3 mismatched archive(s)) — text overlays kept; re-run `make -C src torirsserver-servpack`
+torirsserver: db schemas loaded (246 schema(s) installed from cache.osrs239; 246 archive table(s))
+torirsserver: db tables loaded (328 tables, 21937 rows from cache.osrs239; 15418 row(s) filled; 16711 archive row(s))
+torirsserver: bank tables loaded (19008 varbits, bank=1410 slots)
+ToriRSServer selftest: wire osrs239
+torirsserver: shop inv 2069 has a definition but no cache size; not seeded
+torirsserver: shop inv 2070 has a definition but no cache size; not seeded
+torirsserver: seeded 273 shared shop(s) from baseline stock
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+torirsserver: scene built at zone 426,408 (base 3360,3216 — 5581 locs)
+torirsserver: npc roster 23159 spawn(s), 721 standing, slot_max=721
+ToriRSServer selftest: ids resolve out of the content tree
+ToriRSServer selftest: packet capture
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: osrs239 has no AMBIENTSOUND_START -- dropping it (reported once)
+torirsserver: osrs239 has no OBJ_ADD -- dropping it (reported once)
+ToriRSServer selftest: region music tab label
+ToriRSServer selftest: instanced music resolves the source square
+ToriRSServer selftest: rev239 interface writer bytes
+ToriRSServer selftest: world-map close resume
+ToriRSServer selftest: script-driven triggers
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: osrs239 has no AMBIENTSOUND_STOP -- dropping it (reported once)
+ToriRSServer selftest: coordinate projectile and spotanim host opcodes
+torirsserver: osrs239 has no OBJ_DEL -- dropping it (reported once)
+ToriRSServer selftest: npc-targeted projectile homing index
+torirsserver: osrs239 has no MAP_PROJANIM -- dropping it (reported once)
+ToriRSServer selftest: per-npc runtime variables
+ToriRSServer selftest: player action lock
+ToriRSServer selftest: player stun
+ToriRSServer selftest: map_canstep
+ToriRSServer selftest: cosmetic player hitmark
+ToriRSServer selftest: rev239 interface host VM/content
+ToriRSServer selftest: script-driven trigger basics
+ToriRSServer selftest: clicking away ends a conversation
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: script suspension
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: npc chat dialogue
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: sanfew p_choice junk does not refuse
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: a talking npc holds still until you walk away
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 401,404 (base 3160,3184 — 8622 locs)
+ToriRSServer selftest: joe prequest dialogue arms ACTIVE_NPC
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: [opnpc1,joe] refused — no live npc (slot=-1 script=[opnpc1,joe])
+ToriRSServer selftest: emotes
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: skill guide
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+PROBE skill_guide_login ran=1 active=0xcf9400000 packets=27
+PROBE after end packets=27 first_op=108
+ToriRSServer selftest: quest journal
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: cheat 'complete quest_cooksassistant' -> debugproc ran
+torirsserver: cheat 'complete quest_cooksassistant' -> debugproc ran
+torirsserver: cheat 'complete quest_no_such_quest' -> debugproc ran
+torirsserver: cheat 'complete quest_animalmagnetism' -> debugproc ran
+torirsserver: cheat 'complete quest_animalmagnetism' -> debugproc ran
+torirsserver: cheat 'complete quest_anothersliceofham' -> debugproc ran
+torirsserver: cheat 'complete quest_anothersliceofham' -> debugproc ran
+torirsserver: cheat 'complete quest_ascentofarceuus' -> debugproc ran
+torirsserver: cheat 'complete quest_ascentofarceuus' -> debugproc ran
+torirsserver: cheat 'complete miniquest_barcrawl' -> debugproc ran
+torirsserver: cheat 'complete miniquest_barcrawl' -> debugproc ran
+torirsserver: cheat 'complete miniquest_bearyoursoul' -> debugproc ran
+torirsserver: cheat 'complete miniquest_bearyoursoul' -> debugproc ran
+torirsserver: cheat 'complete quest_belowicemountain' -> debugproc ran
+torirsserver: cheat 'complete quest_belowicemountain' -> debugproc ran
+torirsserver: cheat 'complete quest_betweenarock' -> debugproc ran
+torirsserver: cheat 'complete quest_betweenarock' -> debugproc ran
+torirsserver: cheat 'complete quest_bigchompybirdhunting' -> debugproc ran
+torirsserver: cheat 'complete quest_bigchompybirdhunting' -> debugproc ran
+torirsserver: cheat 'complete quest_biohazard' -> debugproc ran
+torirsserver: cheat 'complete quest_biohazard' -> debugproc ran
+torirsserver: cheat 'complete quest_blackknightsfortress' -> debugproc ran
+torirsserver: cheat 'complete quest_blackknightsfortress' -> debugproc ran
+torirsserver: cheat 'complete quest_bonevoyage' -> debugproc ran
+torirsserver: cheat 'complete quest_bonevoyage' -> debugproc ran
+torirsserver: cheat 'complete quest_cabinfever' -> debugproc ran
+torirsserver: cheat 'complete quest_cabinfever' -> debugproc ran
+torirsserver: cheat 'complete quest_clientofkourend' -> debugproc ran
+torirsserver: cheat 'complete quest_clientofkourend' -> debugproc ran
+torirsserver: cheat 'complete quest_clocktower' -> debugproc ran
+torirsserver: cheat 'complete quest_clocktower' -> debugproc ran
+torirsserver: cheat 'complete quest_coldwar' -> debugproc ran
+torirsserver: cheat 'complete quest_coldwar' -> debugproc ran
+torirsserver: cheat 'complete quest_contact' -> debugproc ran
+torirsserver: cheat 'complete quest_contact' -> debugproc ran
+torirsserver: cheat 'complete quest_cooksassistant' -> debugproc ran
+torirsserver: cheat 'complete quest_cooksassistant' -> debugproc ran
+torirsserver: cheat 'complete quest_corsaircurse' -> debugproc ran
+torirsserver: cheat 'complete quest_corsaircurse' -> debugproc ran
+torirsserver: cheat 'complete quest_creatureoffenkenstrain' -> debugproc ran
+torirsserver: cheat 'complete quest_creatureoffenkenstrain' -> debugproc ran
+torirsserver: cheat 'complete miniquest_curseoftheemptylord' -> debugproc ran
+torirsserver: cheat 'complete miniquest_curseoftheemptylord' -> debugproc ran
+torirsserver: cheat 'complete miniquest_daddyshome' -> debugproc ran
+torirsserver: cheat 'complete miniquest_daddyshome' -> debugproc ran
+torirsserver: cheat 'complete quest_darknessofhallowvale' -> debugproc ran
+torirsserver: cheat 'complete quest_darknessofhallowvale' -> debugproc ran
+torirsserver: cheat 'complete quest_deathplateau' -> debugproc ran
+torirsserver: cheat 'complete quest_deathplateau' -> debugproc ran
+torirsserver: cheat 'complete quest_deathtothedorgeshuun' -> debugproc ran
+torirsserver: cheat 'complete quest_deathtothedorgeshuun' -> debugproc ran
+torirsserver: cheat 'complete quest_demonslayer' -> debugproc ran
+torirsserver: cheat 'complete quest_demonslayer' -> debugproc ran
+torirsserver: cheat 'complete quest_depthsofdespair' -> debugproc ran
+torirsserver: cheat 'complete quest_depthsofdespair' -> debugproc ran
+torirsserver: cheat 'complete quest_deserttreasure' -> debugproc ran
+torirsserver: cheat 'complete quest_deserttreasure' -> debugproc ran
+torirsserver: cheat 'complete quest_deviousminds' -> debugproc ran
+torirsserver: cheat 'complete quest_deviousminds' -> debugproc ran
+torirsserver: cheat 'complete quest_digsite' -> debugproc ran
+torirsserver: cheat 'complete quest_digsite' -> debugproc ran
+torirsserver: cheat 'complete quest_dorics' -> debugproc ran
+torirsserver: cheat 'complete quest_dorics' -> debugproc ran
+torirsserver: cheat 'complete quest_dragonslayer1' -> debugproc ran
+torirsserver: cheat 'complete quest_dragonslayer1' -> debugproc ran
+torirsserver: cheat 'complete quest_dragonslayer2' -> debugproc ran
+torirsserver: cheat 'complete quest_dragonslayer2' -> debugproc ran
+torirsserver: cheat 'complete quest_dreammentor' -> debugproc ran
+torirsserver: cheat 'complete quest_dreammentor' -> debugproc ran
+torirsserver: cheat 'complete quest_druidicritual' -> debugproc ran
+torirsserver: cheat 'complete quest_druidicritual' -> debugproc ran
+torirsserver: cheat 'complete quest_dwarfcannon' -> debugproc ran
+torirsserver: cheat 'complete quest_dwarfcannon' -> debugproc ran
+torirsserver: cheat 'complete quest_eadgarsruse' -> debugproc ran
+torirsserver: cheat 'complete quest_eadgarsruse' -> debugproc ran
+torirsserver: cheat 'complete quest_eaglespeak' -> debugproc ran
+torirsserver: cheat 'complete quest_eaglespeak' -> debugproc ran
+torirsserver: cheat 'complete quest_elementalworkshop1' -> debugproc ran
+torirsserver: cheat 'complete quest_elementalworkshop1' -> debugproc ran
+torirsserver: cheat 'complete quest_elementalworkshop2' -> debugproc ran
+torirsserver: cheat 'complete quest_elementalworkshop2' -> debugproc ran
+torirsserver: cheat 'complete quest_enakhraslament' -> debugproc ran
+torirsserver: cheat 'complete quest_enakhraslament' -> debugproc ran
+torirsserver: cheat 'complete miniquest_enchantedkey' -> debugproc ran
+torirsserver: cheat 'complete miniquest_enchantedkey' -> debugproc ran
+torirsserver: cheat 'complete quest_enlightenedjourney' -> debugproc ran
+torirsserver: cheat 'complete quest_enlightenedjourney' -> debugproc ran
+torirsserver: cheat 'complete miniquest_entertheabyss' -> debugproc ran
+torirsserver: cheat 'complete miniquest_entertheabyss' -> debugproc ran
+torirsserver: cheat 'complete quest_ernestthechicken' -> debugproc ran
+torirsserver: cheat 'complete quest_ernestthechicken' -> debugproc ran
+torirsserver: cheat 'complete quest_eyesofglouphrie' -> debugproc ran
+torirsserver: cheat 'complete quest_eyesofglouphrie' -> debugproc ran
+torirsserver: cheat 'complete quest_fairytale1' -> debugproc ran
+torirsserver: cheat 'complete quest_fairytale1' -> debugproc ran
+torirsserver: cheat 'complete quest_fairytale2' -> debugproc ran
+torirsserver: cheat 'complete quest_fairytale2' -> debugproc ran
+torirsserver: cheat 'complete quest_familycrest' -> debugproc ran
+torirsserver: cheat 'complete quest_familycrest' -> debugproc ran
+torirsserver: cheat 'complete miniquest_familypest' -> debugproc ran
+torirsserver: cheat 'complete miniquest_familypest' -> debugproc ran
+torirsserver: cheat 'complete quest_feud' -> debugproc ran
+torirsserver: cheat 'complete quest_feud' -> debugproc ran
+torirsserver: cheat 'complete quest_fightarena' -> debugproc ran
+torirsserver: cheat 'complete quest_fightarena' -> debugproc ran
+torirsserver: cheat 'complete quest_fishingcontest' -> debugproc ran
+torirsserver: cheat 'complete quest_fishingcontest' -> debugproc ran
+torirsserver: cheat 'complete quest_forgettabletale' -> debugproc ran
+torirsserver: cheat 'complete quest_forgettabletale' -> debugproc ran
+torirsserver: cheat 'complete quest_forsakentower' -> debugproc ran
+torirsserver: cheat 'complete quest_forsakentower' -> debugproc ran
+torirsserver: cheat 'complete quest_fremennikexiles' -> debugproc ran
+torirsserver: cheat 'complete quest_fremennikexiles' -> debugproc ran
+torirsserver: cheat 'complete quest_fremennikisles' -> debugproc ran
+torirsserver: cheat 'complete quest_fremennikisles' -> debugproc ran
+torirsserver: cheat 'complete quest_fremenniktrials' -> debugproc ran
+torirsserver: cheat 'complete quest_fremenniktrials' -> debugproc ran
+torirsserver: cheat 'complete quest_gardenoftranquillity' -> debugproc ran
+torirsserver: cheat 'complete quest_gardenoftranquillity' -> debugproc ran
+torirsserver: cheat 'complete miniquest_generalsshadow' -> debugproc ran
+torirsserver: cheat 'complete miniquest_generalsshadow' -> debugproc ran
+torirsserver: cheat 'complete quest_gertrudescat' -> debugproc ran
+torirsserver: cheat 'complete quest_gertrudescat' -> debugproc ran
+torirsserver: cheat 'complete quest_gettingahead' -> debugproc ran
+torirsserver: cheat 'complete quest_gettingahead' -> debugproc ran
+torirsserver: cheat 'complete quest_ghostsahoy' -> debugproc ran
+torirsserver: cheat 'complete quest_ghostsahoy' -> debugproc ran
+torirsserver: cheat 'complete quest_giantdwarf' -> debugproc ran
+torirsserver: cheat 'complete quest_giantdwarf' -> debugproc ran
+torirsserver: cheat 'complete quest_goblindiplomacy' -> debugproc ran
+torirsserver: cheat 'complete quest_goblindiplomacy' -> debugproc ran
+torirsserver: cheat 'complete quest_golem' -> debugproc ran
+torirsserver: cheat 'complete quest_golem' -> debugproc ran
+torirsserver: cheat 'complete quest_grandtree' -> debugproc ran
+torirsserver: cheat 'complete quest_grandtree' -> debugproc ran
+torirsserver: cheat 'complete quest_greatbrainrobbery' -> debugproc ran
+torirsserver: cheat 'complete quest_greatbrainrobbery' -> debugproc ran
+torirsserver: cheat 'complete quest_grimtales' -> debugproc ran
+torirsserver: cheat 'complete quest_grimtales' -> debugproc ran
+torirsserver: cheat 'complete quest_handinthesand' -> debugproc ran
+torirsserver: cheat 'complete quest_handinthesand' -> debugproc ran
+torirsserver: cheat 'complete quest_hauntedmine' -> debugproc ran
+torirsserver: cheat 'complete quest_hauntedmine' -> debugproc ran
+torirsserver: cheat 'complete quest_hazeelcult' -> debugproc ran
+torirsserver: cheat 'complete quest_hazeelcult' -> debugproc ran
+torirsserver: cheat 'complete quest_heroes' -> debugproc ran
+torirsserver: cheat 'complete quest_heroes' -> debugproc ran
+torirsserver: cheat 'complete quest_holygrail' -> debugproc ran
+torirsserver: cheat 'complete quest_holygrail' -> debugproc ran
+torirsserver: cheat 'complete quest_horrorfromthedeep' -> debugproc ran
+torirsserver: cheat 'complete quest_horrorfromthedeep' -> debugproc ran
+torirsserver: cheat 'complete quest_icthlarinslittlehelper' -> debugproc ran
+torirsserver: cheat 'complete quest_icthlarinslittlehelper' -> debugproc ran
+torirsserver: cheat 'complete quest_impcatcher' -> debugproc ran
+torirsserver: cheat 'complete quest_impcatcher' -> debugproc ran
+torirsserver: cheat 'complete quest_inaidofthemyreque' -> debugproc ran
+torirsserver: cheat 'complete quest_inaidofthemyreque' -> debugproc ran
+torirsserver: cheat 'complete miniquest_insearchofknowledge' -> debugproc ran
+torirsserver: cheat 'complete miniquest_insearchofknowledge' -> debugproc ran
+torirsserver: cheat 'complete quest_insearchofthemyreque' -> debugproc ran
+torirsserver: cheat 'complete quest_insearchofthemyreque' -> debugproc ran
+torirsserver: cheat 'complete quest_junglepotion' -> debugproc ran
+torirsserver: cheat 'complete quest_junglepotion' -> debugproc ran
+torirsserver: cheat 'complete quest_kingdomdivided' -> debugproc ran
+torirsserver: cheat 'complete quest_kingdomdivided' -> debugproc ran
+torirsserver: cheat 'complete quest_kingsransom' -> debugproc ran
+torirsserver: cheat 'complete quest_kingsransom' -> debugproc ran
+torirsserver: cheat 'complete quest_knightssword' -> debugproc ran
+torirsserver: cheat 'complete quest_knightssword' -> debugproc ran
+torirsserver: cheat 'complete miniquest_lairoftarnrazorlor' -> debugproc ran
+torirsserver: cheat 'complete miniquest_lairoftarnrazorlor' -> debugproc ran
+torirsserver: cheat 'complete quest_legends' -> debugproc ran
+torirsserver: cheat 'complete quest_legends' -> debugproc ran
+torirsserver: cheat 'complete quest_lostcity' -> debugproc ran
+torirsserver: cheat 'complete quest_lostcity' -> debugproc ran
+torirsserver: cheat 'complete quest_losttribe' -> debugproc ran
+torirsserver: cheat 'complete quest_losttribe' -> debugproc ran
+torirsserver: cheat 'complete quest_lunardiplomacy' -> debugproc ran
+torirsserver: cheat 'complete quest_lunardiplomacy' -> debugproc ran
+torirsserver: cheat 'complete miniquest_magearena1' -> debugproc ran
+torirsserver: cheat 'complete miniquest_magearena1' -> debugproc ran
+torirsserver: cheat 'complete miniquest_magearena2' -> debugproc ran
+torirsserver: cheat 'complete miniquest_magearena2' -> debugproc ran
+torirsserver: cheat 'complete quest_makingfriendswithmyarm' -> debugproc ran
+torirsserver: cheat 'complete quest_makingfriendswithmyarm' -> debugproc ran
+torirsserver: cheat 'complete quest_makinghistory' -> debugproc ran
+torirsserver: cheat 'complete quest_makinghistory' -> debugproc ran
+torirsserver: cheat 'complete quest_merlinscrystal' -> debugproc ran
+torirsserver: cheat 'complete quest_merlinscrystal' -> debugproc ran
+torirsserver: cheat 'complete quest_misthalinmystery' -> debugproc ran
+torirsserver: cheat 'complete quest_misthalinmystery' -> debugproc ran
+torirsserver: cheat 'complete quest_monkeymadness1' -> debugproc ran
+torirsserver: cheat 'complete quest_monkeymadness1' -> debugproc ran
+torirsserver: cheat 'complete quest_monkeymadness2' -> debugproc ran
+torirsserver: cheat 'complete quest_monkeymadness2' -> debugproc ran
+torirsserver: cheat 'complete quest_monksfriend' -> debugproc ran
+torirsserver: cheat 'complete quest_monksfriend' -> debugproc ran
+torirsserver: cheat 'complete quest_mountaindaughter' -> debugproc ran
+torirsserver: cheat 'complete quest_mountaindaughter' -> debugproc ran
+torirsserver: cheat 'complete quest_mourningsendpart1' -> debugproc ran
+torirsserver: cheat 'complete quest_mourningsendpart1' -> debugproc ran
+torirsserver: cheat 'complete quest_mourningsendpart2' -> debugproc ran
+torirsserver: cheat 'complete quest_mourningsendpart2' -> debugproc ran
+torirsserver: cheat 'complete quest_murdermystery' -> debugproc ran
+torirsserver: cheat 'complete quest_murdermystery' -> debugproc ran
+torirsserver: cheat 'complete quest_myarmsbigadventure' -> debugproc ran
+torirsserver: cheat 'complete quest_myarmsbigadventure' -> debugproc ran
+torirsserver: cheat 'complete quest_naturespirit' -> debugproc ran
+torirsserver: cheat 'complete quest_naturespirit' -> debugproc ran
+torirsserver: cheat 'complete quest_nightatthetheatre' -> debugproc ran
+torirsserver: cheat 'complete quest_nightatthetheatre' -> debugproc ran
+torirsserver: cheat 'complete quest_observatory' -> debugproc ran
+torirsserver: cheat 'complete quest_observatory' -> debugproc ran
+torirsserver: cheat 'complete quest_olafs' -> debugproc ran
+torirsserver: cheat 'complete quest_olafs' -> debugproc ran
+torirsserver: cheat 'complete quest_onesmallfavour' -> debugproc ran
+torirsserver: cheat 'complete quest_onesmallfavour' -> debugproc ran
+torirsserver: cheat 'complete quest_piratestreasure' -> debugproc ran
+torirsserver: cheat 'complete quest_piratestreasure' -> debugproc ran
+torirsserver: cheat 'complete quest_plaguecity' -> debugproc ran
+torirsserver: cheat 'complete quest_plaguecity' -> debugproc ran
+torirsserver: cheat 'complete quest_porcineofinterest' -> debugproc ran
+torirsserver: cheat 'complete quest_porcineofinterest' -> debugproc ran
+torirsserver: cheat 'complete quest_priestinperil' -> debugproc ran
+torirsserver: cheat 'complete quest_priestinperil' -> debugproc ran
+torirsserver: cheat 'complete quest_princealirescue' -> debugproc ran
+torirsserver: cheat 'complete quest_princealirescue' -> debugproc ran
+torirsserver: cheat 'complete quest_queenofthieves' -> debugproc ran
+torirsserver: cheat 'complete quest_queenofthieves' -> debugproc ran
+torirsserver: cheat 'complete quest_ragandboneman1' -> debugproc ran
+torirsserver: cheat 'complete quest_ragandboneman1' -> debugproc ran
+torirsserver: cheat 'complete quest_ragandboneman2' -> debugproc ran
+torirsserver: cheat 'complete quest_ragandboneman2' -> debugproc ran
+torirsserver: cheat 'complete quest_ratcatchers' -> debugproc ran
+torirsserver: cheat 'complete quest_ratcatchers' -> debugproc ran
+torirsserver: cheat 'complete quest_recipefordisaster' -> debugproc ran
+torirsserver: cheat 'complete quest_recipefordisaster' -> debugproc ran
+torirsserver: cheat 'complete quest_recruitmentdrive' -> debugproc ran
+torirsserver: cheat 'complete quest_recruitmentdrive' -> debugproc ran
+torirsserver: cheat 'complete quest_regicide' -> debugproc ran
+torirsserver: cheat 'complete quest_regicide' -> debugproc ran
+torirsserver: cheat 'complete quest_restlessghost' -> debugproc ran
+torirsserver: cheat 'complete quest_restlessghost' -> debugproc ran
+torirsserver: cheat 'complete quest_romeoandjuliet' -> debugproc ran
+torirsserver: cheat 'complete quest_romeoandjuliet' -> debugproc ran
+torirsserver: cheat 'complete quest_rovingelves' -> debugproc ran
+torirsserver: cheat 'complete quest_rovingelves' -> debugproc ran
+torirsserver: cheat 'complete quest_royaltrouble' -> debugproc ran
+torirsserver: cheat 'complete quest_royaltrouble' -> debugproc ran
+torirsserver: cheat 'complete quest_rumdeal' -> debugproc ran
+torirsserver: cheat 'complete quest_rumdeal' -> debugproc ran
+torirsserver: cheat 'complete quest_runemysteries' -> debugproc ran
+torirsserver: cheat 'complete quest_runemysteries' -> debugproc ran
+torirsserver: cheat 'complete quest_scorpioncatcher' -> debugproc ran
+torirsserver: cheat 'complete quest_scorpioncatcher' -> debugproc ran
+torirsserver: cheat 'complete quest_seaslug' -> debugproc ran
+torirsserver: cheat 'complete quest_seaslug' -> debugproc ran
+torirsserver: cheat 'complete quest_shadesofmortton' -> debugproc ran
+torirsserver: cheat 'complete quest_shadesofmortton' -> debugproc ran
+torirsserver: cheat 'complete quest_shadowofthestorm' -> debugproc ran
+torirsserver: cheat 'complete quest_shadowofthestorm' -> debugproc ran
+torirsserver: cheat 'complete quest_sheepherder' -> debugproc ran
+torirsserver: cheat 'complete quest_sheepherder' -> debugproc ran
+torirsserver: cheat 'complete quest_sheepshearer' -> debugproc ran
+torirsserver: cheat 'complete quest_sheepshearer' -> debugproc ran
+torirsserver: cheat 'complete quest_shieldofarrav' -> debugproc ran
+torirsserver: cheat 'complete quest_shieldofarrav' -> debugproc ran
+torirsserver: cheat 'complete quest_shilovillage' -> debugproc ran
+torirsserver: cheat 'complete quest_shilovillage' -> debugproc ran
+torirsserver: cheat 'complete quest_sinsofthefather' -> debugproc ran
+torirsserver: cheat 'complete quest_sinsofthefather' -> debugproc ran
+torirsserver: cheat 'complete miniquest_skippyandthemogres' -> debugproc ran
+torirsserver: cheat 'complete miniquest_skippyandthemogres' -> debugproc ran
+torirsserver: cheat 'complete quest_slugmenace' -> debugproc ran
+torirsserver: cheat 'complete quest_slugmenace' -> debugproc ran
+torirsserver: cheat 'complete quest_songoftheelves' -> debugproc ran
+torirsserver: cheat 'complete quest_songoftheelves' -> debugproc ran
+torirsserver: cheat 'complete quest_soulsbane' -> debugproc ran
+torirsserver: cheat 'complete quest_soulsbane' -> debugproc ran
+torirsserver: cheat 'complete quest_spiritsoftheelid' -> debugproc ran
+torirsserver: cheat 'complete quest_spiritsoftheelid' -> debugproc ran
+torirsserver: cheat 'complete quest_swansong' -> debugproc ran
+torirsserver: cheat 'complete quest_swansong' -> debugproc ran
+torirsserver: cheat 'complete quest_taibwowannaitrio' -> debugproc ran
+torirsserver: cheat 'complete quest_taibwowannaitrio' -> debugproc ran
+torirsserver: cheat 'complete quest_tailoftwocats' -> debugproc ran
+torirsserver: cheat 'complete quest_tailoftwocats' -> debugproc ran
+torirsserver: cheat 'complete quest_taleoftherighteous' -> debugproc ran
+torirsserver: cheat 'complete quest_taleoftherighteous' -> debugproc ran
+torirsserver: cheat 'complete quest_tasteofhope' -> debugproc ran
+torirsserver: cheat 'complete quest_tasteofhope' -> debugproc ran
+torirsserver: cheat 'complete quest_tearsofguthix' -> debugproc ran
+torirsserver: cheat 'complete quest_tearsofguthix' -> debugproc ran
+torirsserver: cheat 'complete quest_templeofikov' -> debugproc ran
+torirsserver: cheat 'complete quest_templeofikov' -> debugproc ran
+torirsserver: cheat 'complete quest_throneofmiscellania' -> debugproc ran
+torirsserver: cheat 'complete quest_throneofmiscellania' -> debugproc ran
+torirsserver: cheat 'complete quest_touristtrap' -> debugproc ran
+torirsserver: cheat 'complete quest_touristtrap' -> debugproc ran
+torirsserver: cheat 'complete quest_toweroflife' -> debugproc ran
+torirsserver: cheat 'complete quest_toweroflife' -> debugproc ran
+torirsserver: cheat 'complete quest_treegnomevillage' -> debugproc ran
+torirsserver: cheat 'complete quest_treegnomevillage' -> debugproc ran
+torirsserver: cheat 'complete quest_tribaltotem' -> debugproc ran
+torirsserver: cheat 'complete quest_tribaltotem' -> debugproc ran
+torirsserver: cheat 'complete quest_trollromance' -> debugproc ran
+torirsserver: cheat 'complete quest_trollromance' -> debugproc ran
+torirsserver: cheat 'complete quest_trollstronghold' -> debugproc ran
+torirsserver: cheat 'complete quest_trollstronghold' -> debugproc ran
+torirsserver: cheat 'complete quest_undergroundpass' -> debugproc ran
+torirsserver: cheat 'complete quest_undergroundpass' -> debugproc ran
+torirsserver: cheat 'complete quest_vampyreslayer' -> debugproc ran
+torirsserver: cheat 'complete quest_vampyreslayer' -> debugproc ran
+torirsserver: cheat 'complete quest_wanted' -> debugproc ran
+torirsserver: cheat 'complete quest_wanted' -> debugproc ran
+torirsserver: cheat 'complete quest_watchtower' -> debugproc ran
+torirsserver: cheat 'complete quest_watchtower' -> debugproc ran
+torirsserver: cheat 'complete quest_waterfall' -> debugproc ran
+torirsserver: cheat 'complete quest_waterfall' -> debugproc ran
+torirsserver: cheat 'complete quest_whatliesbelow' -> debugproc ran
+torirsserver: cheat 'complete quest_whatliesbelow' -> debugproc ran
+torirsserver: cheat 'complete quest_witchshouse' -> debugproc ran
+torirsserver: cheat 'complete quest_witchshouse' -> debugproc ran
+torirsserver: cheat 'complete quest_witchspotion' -> debugproc ran
+torirsserver: cheat 'complete quest_witchspotion' -> debugproc ran
+torirsserver: cheat 'complete quest_xmarksthespot' -> debugproc ran
+torirsserver: cheat 'complete quest_xmarksthespot' -> debugproc ran
+torirsserver: cheat 'complete quest_zogreflesheaters' -> debugproc ran
+torirsserver: cheat 'complete quest_zogreflesheaters' -> debugproc ran
+torirsserver: cheat 'complete miniquest_frozendoor' -> debugproc ran
+torirsserver: cheat 'complete miniquest_frozendoor' -> debugproc ran
+torirsserver: cheat 'complete quest_landofthegoblins' -> debugproc ran
+torirsserver: cheat 'complete quest_landofthegoblins' -> debugproc ran
+torirsserver: cheat 'complete miniquest_hopespearswill' -> debugproc ran
+torirsserver: cheat 'complete miniquest_hopespearswill' -> debugproc ran
+torirsserver: cheat 'complete quest_templeoftheeye' -> debugproc ran
+torirsserver: cheat 'complete quest_templeoftheeye' -> debugproc ran
+torirsserver: cheat 'complete quest_beneathcursedsands' -> debugproc ran
+torirsserver: cheat 'complete quest_beneathcursedsands' -> debugproc ran
+torirsserver: cheat 'complete quest_sleepinggiants' -> debugproc ran
+torirsserver: cheat 'complete quest_sleepinggiants' -> debugproc ran
+torirsserver: cheat 'complete quest_gardenofdeath' -> debugproc ran
+torirsserver: cheat 'complete quest_gardenofdeath' -> debugproc ran
+torirsserver: cheat 'complete miniquest_intothetombs' -> debugproc ran
+torirsserver: cheat 'complete miniquest_intothetombs' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_intro' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_intro' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_dwarf' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_dwarf' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_goblins' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_goblins' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_pirate' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_pirate' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_lumbridgeguide' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_lumbridgeguide' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_evildave' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_evildave' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_ogre' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_ogre' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_amikvarze' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_amikvarze' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_monkey' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_monkey' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_finale' -> debugproc ran
+torirsserver: cheat 'complete subquest_rfd_finale' -> debugproc ran
+torirsserver: cheat 'complete quest_secretsofthenorth' -> debugproc ran
+torirsserver: cheat 'complete quest_secretsofthenorth' -> debugproc ran
+torirsserver: cheat 'complete quest_deserttreasure2' -> debugproc ran
+torirsserver: cheat 'complete quest_deserttreasure2' -> debugproc ran
+torirsserver: cheat 'complete miniquest_hisfaithfulservants' -> debugproc ran
+torirsserver: cheat 'complete miniquest_hisfaithfulservants' -> debugproc ran
+torirsserver: cheat 'complete quest_pathofglouphrie' -> debugproc ran
+torirsserver: cheat 'complete quest_pathofglouphrie' -> debugproc ran
+torirsserver: cheat 'complete quest_childrenofthesun' -> debugproc ran
+torirsserver: cheat 'complete quest_childrenofthesun' -> debugproc ran
+torirsserver: cheat 'complete miniquest_barbariantraining' -> debugproc ran
+torirsserver: cheat 'complete miniquest_barbariantraining' -> debugproc ran
+torirsserver: cheat 'complete quest_defenderofvarrock' -> debugproc ran
+torirsserver: cheat 'complete quest_defenderofvarrock' -> debugproc ran
+torirsserver: cheat 'complete quest_whileguthixsleeps' -> debugproc ran
+torirsserver: cheat 'complete quest_whileguthixsleeps' -> debugproc ran
+torirsserver: cheat 'complete quest_twilightspromise' -> debugproc ran
+torirsserver: cheat 'complete quest_twilightspromise' -> debugproc ran
+torirsserver: cheat 'complete quest_atfirstlight' -> debugproc ran
+torirsserver: cheat 'complete quest_atfirstlight' -> debugproc ran
+torirsserver: cheat 'complete quest_perilousmoons' -> debugproc ran
+torirsserver: cheat 'complete quest_perilousmoons' -> debugproc ran
+torirsserver: cheat 'complete quest_ribbitingtale' -> debugproc ran
+torirsserver: cheat 'complete quest_ribbitingtale' -> debugproc ran
+torirsserver: cheat 'complete quest_heartofdarkness' -> debugproc ran
+torirsserver: cheat 'complete quest_heartofdarkness' -> debugproc ran
+torirsserver: cheat 'complete quest_deathontheisle' -> debugproc ran
+torirsserver: cheat 'complete quest_deathontheisle' -> debugproc ran
+torirsserver: cheat 'complete quest_meatandgreet' -> debugproc ran
+torirsserver: cheat 'complete quest_meatandgreet' -> debugproc ran
+torirsserver: cheat 'complete quest_ethicallyacquiredantiquities' -> debugproc ran
+torirsserver: cheat 'complete quest_ethicallyacquiredantiquities' -> debugproc ran
+torirsserver: cheat 'complete quest_curseofarrav' -> debugproc ran
+torirsserver: cheat 'complete quest_curseofarrav' -> debugproc ran
+torirsserver: cheat 'complete quest_finaldawn' -> debugproc ran
+torirsserver: cheat 'complete quest_finaldawn' -> debugproc ran
+torirsserver: cheat 'complete quest_shadowsofcustodia' -> debugproc ran
+torirsserver: cheat 'complete quest_shadowsofcustodia' -> debugproc ran
+torirsserver: cheat 'complete quest_scrambled' -> debugproc ran
+torirsserver: cheat 'complete quest_scrambled' -> debugproc ran
+torirsserver: cheat 'complete quest_existentialcrisis' -> debugproc ran
+torirsserver: cheat 'complete quest_existentialcrisis' -> debugproc ran
+torirsserver: cheat 'complete quest_impendingchaos' -> debugproc ran
+torirsserver: cheat 'complete quest_impendingchaos' -> debugproc ran
+torirsserver: cheat 'complete miniquest_valetotems' -> debugproc ran
+torirsserver: cheat 'complete miniquest_valetotems' -> debugproc ran
+torirsserver: cheat 'complete quest_pandemonium' -> debugproc ran
+torirsserver: cheat 'complete quest_pandemonium' -> debugproc ran
+torirsserver: cheat 'complete quest_pryingtimes' -> debugproc ran
+torirsserver: cheat 'complete quest_pryingtimes' -> debugproc ran
+torirsserver: cheat 'complete quest_currentaffairs' -> debugproc ran
+torirsserver: cheat 'complete quest_currentaffairs' -> debugproc ran
+torirsserver: cheat 'complete quest_troubledtortugans' -> debugproc ran
+torirsserver: cheat 'complete quest_troubledtortugans' -> debugproc ran
+torirsserver: cheat 'complete quest_redreef' -> debugproc ran
+torirsserver: cheat 'complete quest_redreef' -> debugproc ran
+torirsserver: cheat 'complete quest_burialatsea' -> debugproc ran
+torirsserver: cheat 'complete quest_burialatsea' -> debugproc ran
+torirsserver: cheat 'complete quest_learningtheropes' -> debugproc ran
+torirsserver: cheat 'complete quest_learningtheropes' -> debugproc ran
+torirsserver: cheat 'complete quest_idesofmilk' -> debugproc ran
+torirsserver: cheat 'complete quest_idesofmilk' -> debugproc ran
+torirsserver: cheat 'complete quest_bloodmoonrises' -> debugproc ran
+torirsserver: cheat 'complete quest_bloodmoonrises' -> debugproc ran
+ToriRSServer selftest: character summary
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: the tool leprechaun's store
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: slayer rewards
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: held-item content
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: combat
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: a large npc reaches the player it is fighting
+ToriRSServer selftest: death releases an npc's aggression
+ToriRSServer selftest: a death is spread over the reference's ticks
+ToriRSServer selftest: ::god absorbs damage at the funnel
+ToriRSServer selftest: several hits in one tick are several hitsplats
+ToriRSServer selftest: the player dies and the script revives them
+ToriRSServer selftest: facing clears
+ToriRSServer selftest: login burst
+torirsserver: osrs239 has no UPDATE_PID -- dropping it (reported once)
+torirsserver: scene built at zone 311,639 (base 2440,5064 — 15635 locs)
+torirsserver: scene built at zone 403,402 (base 3176,3168 — 8350 locs)
+ToriRSServer selftest: client layout persistence
+ToriRSServer selftest: durable POH persistence
+ToriRSServer selftest: gameframe HUD role alias under Fixed
+ToriRSServer selftest: a layout switch keeps a server-driven HUD
+ToriRSServer selftest: ranged reach and the shot across it
+ToriRSServer selftest: a charged staff casts a projectile
+ToriRSServer selftest: combat arithmetic
+ToriRSServer selftest: the combat stat block is content's
+ToriRSServer selftest: experience and levels
+ToriRSServer selftest: collision and routing
+ToriRSServer selftest: ground objs
+ToriRSServer selftest: taking an obj is content's
+ToriRSServer selftest: the death drop is content's
+ToriRSServer selftest: interactions walk before they act
+  T0 pos=3222,3218 wpi=0 dest=3230,3218 steps_taken=0 kind=3 exact=0 adj=0
+  T1 pos=3223,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T2 pos=3224,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T3 pos=3225,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T4 pos=3226,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T5 pos=3227,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T6 pos=3228,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=0
+  T7 pos=3229,3218 wpi=0 dest=3230,3218 steps_taken=1 kind=3 exact=0 adj=1
+  T8 pos=3230,3218 wpi=-1 dest=-1,-1 steps_taken=1 kind=3 exact=1 adj=0
+  T9 pos=3230,3218 wpi=-1 dest=-1,-1 steps_taken=0 kind=0 exact=1 adj=0
+ToriRSServer selftest: doors
+ToriRSServer selftest: a double door moves both leaves
+ToriRSServer selftest: a door with no opened record still swings
+torirsserver: scene built at zone 393,396 (base 3096,3120 — 5094 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: a long fence gate swings both leaves one way
+torirsserver: scene built at zone 352,444 (base 2768,3504 — 6145 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: a ladder changes the level
+ToriRSServer selftest: a staircase answers the op, not the tile
+ToriRSServer selftest: a bank booth is content's
+ToriRSServer selftest: the loc category rung
+ToriRSServer selftest: a chop announces the action, not each swing
+ToriRSServer selftest: a canoe is chopped, shaped, floated and paddled
+torirsserver: scene built at zone 227,564 (base 1768,4464 — 230 locs)
+torirsserver: scene built at zone 399,418 (base 3144,3296 — 10618 locs)
+torirsserver: scene built at zone 405,404 (base 3192,3184 — 7699 locs)
+ToriRSServer selftest: db_listall walks ascending row ids
+ToriRSServer selftest: a charter ship takes a fare and sails
+torirsserver: scene built at zone 379,399 (base 2984,3144 — 6452 locs)
+torirsserver: scene built at zone 349,427 (base 2744,3368 — 5442 locs)
+torirsserver: scene built at zone 405,404 (base 3192,3184 — 7699 locs)
+ToriRSServer selftest: authored loc ops
+ToriRSServer selftest: extended info masks
+  SKIP  extended-info mask bytes are the classic model; revision osrs239 carries them behind the v5 codec's four bit sections
+ToriRSServer selftest: movement
+ToriRSServer selftest: QBD per-step movement gate
+  SKIP  content lane `rs2012_qbd_td` is not in this build (`[proc,rs2012_qbd_coord]` is not in the pack) — build with TORIRSSERVER_SCRIPT_LANES="rs2012_qbd_td" to run these
+torirsserver: scene built at zone 399,398 (base 3144,3136 — 7640 locs)
+torirsserver: scene built at zone 404,402 (base 3184,3168 — 8271 locs)
+ToriRSServer selftest: prayer
+ToriRSServer selftest: Family Crest Witchaven lever puzzle
+torirsserver: scene built at zone 340,1211 (base 2672,9640 — 5288 locs)
+  CRESTRUN PASS: reset crestquest=0
+  CRESTRUN PASS: 3 of 4 elemental blast bits set via ~chronozon_spell, not yet all-cast
+  CRESTRUN PASS: all four elemental blast hits register via the real ~chronozon_spell proc
+  CRESTRUN PASS: goldrock2's own mining_table row outputs perfect_gold_ore
+  CRESTRUN PASS: the three crest pieces combine into family_crest
+  CRESTRUN PASS: crest handed in -- consumed, steel_gauntlets granted, quest points awarded
+  CRESTRUN PASS: choosing an imbue consumes steel_gauntlets and grants the chosen pair
+  CRESTRUN OK - all checks passed.
+  TREERUN PASS: reset treequest=tree_not_started, inventory cleared
+  TREERUN PASS: tree_journal ran at tree_not_started
+  TREERUN PASS: accepted, treequest=tree_started, tree_journal ran
+  TREERUN PASS: treequest=tree_spoken_montai, tree_journal ran
+  TREERUN PASS: partial logs (3) leave treequest=tree_spoken_montai
+  TREERUN PASS: 6 logs consumed, treequest=tree_given_logs_montai, tree_journal ran
+  TREERUN PASS: treequest=tree_finding_trackers, tree_journal ran
+  TREERUN PASS: treequest=tree_ballista_fired, tree_journal ran
+  TREERUN PASS: treequest=tree_retrieved_orb, orb_of_protection in inv, tree_journal ran
+  TREERUN PASS: treequest=tree_returned_first_orb, first orb handed in, tree_journal ran
+  TREERUN PASS: treequest=tree_defeated_warlord, orbs_of_protection in inv, tree_journal ran
+  TREERUN PASS: treequest=tree_complete after completion
+  TREERUN PASS: qp increased (1 -> 3)
+  TREERUN PASS: attack xp increased
+  TREERUN PASS: gnome_amulet granted
+  TREERUN PASS: treequest=tree_complete, tree_journal ran
+  TREERUN PASS: spirit tree gate open (treequest=tree_complete)
+  TREERUN PASS: khazard_warlord hitpoints=170 attack=75 strength=78 defence=80
+  TREERUN COMPLETE: all checks passed
+  SHEEPHERDERRUN PASS: reset to not_started, sheepherdervar=0, inventory cleared
+  SHEEPHERDERRUN PASS: sheepherder_journal ran with quest=not_started
+  SHEEPHERDERRUN PASS: accepted, quest=tasked_with_talking_to_dr_orbon, 1 poisoned_feed granted
+  SHEEPHERDERRUN PASS: sheepherder_journal ran with quest=tasked_with_talking_to_dr_orbon
+  SHEEPHERDERRUN PASS: bought plague gear, quest=tasked_with_disposing_of_sheep, 100 coins spent
+  SHEEPHERDERRUN PASS: sheepherder_journal ran with quest=tasked_with_disposing_of_sheep, no sheep done yet
+  SHEEPHERDERRUN PASS: all four sheep_table rows resolved start bits 1/4/7/10, and each was walked prod(1)->poison(2)->incinerate(6) through the real bit lane its own row named
+  SHEEPHERDERRUN PASS: sheepherder_sheep_a..d all read sheepherder_sheep_incinerated (6) through the packed varbit view, matching the raw carrier writes
+  SHEEPHERDERRUN PASS: sheepherder_journal ran with quest=tasked_with_disposing_of_sheep, all four sheep incinerated
+  SHEEPHERDERRUN PASS: sheepherder_in_pen zone check returns both true and false (not vacuous)
+  SHEEPHERDERRUN PASS: quest points +4 and 3100 coins awarded exactly once, quest=sheepherder_complete
+  SHEEPHERDERRUN PASS: sheepherder_journal ran with quest=sheepherder_complete
+  SHEEPHERDERRUN OK: sheepherderquest=3 qp=7 coins=3100
+ToriRSServer selftest: Clock Tower rat-cage levers
+torirsserver: scene built at zone 324,1207 (base 2544,9608 — 5058 locs)
+ToriRSServer selftest: Fight Arena combat chain
+torirsserver: scene built at zone 324,395 (base 2544,3112 — 7684 locs)
+  ARENARUN PASS: reset arenaquest=0
+  ARENARUN PASS: arena_journal ran with arenaquest=arena_not_started
+  ARENARUN PASS: armour/brew/keys ladder mirrored to arena_given_khali_brew
+  ARENARUN PASS: completion handoff advances arenaquest and awards quest points via the real ~quest_complete_rewards
+  ARENARUN PASS: arena_journal ran with arenaquest=arena_complete
+  ARENARUN OK - all checks passed.
+ToriRSServer selftest: Hazeel Cult combat chain
+torirsserver: scene built at zone 326,1208 (base 2560,9616 — 6301 locs)
+  HAZEELCULTRUN PASS: reset hazeelcultquest=0
+  HAZEELCULTRUN PASS: hazeelcult_journal ran with hazeelcultquest=hazeelcult_not_started
+  HAZEELCULTRUN PASS: the real hazeelcult_fake_complete queue advances state and pays out for real (coins checked in C)
+  HAZEELCULTRUN PASS: the real hazeelcult_quest_complete queue advances state, consumes the scroll and pays out for real via the real ~quest_complete_rewards
+  HAZEELCULTRUN PASS: hazeelcult_journal ran with hazeelcultquest=hazeelcult_complete
+  HAZEELCULTRUN PASS: the evil (Hazeel) side reaches the same real completion queue
+  HAZEELCULTRUN OK - all checks passed.
+ToriRSServer selftest: Chambers of Xeric
+torirsserver: cheat 'crystal_set' -> debugproc ran
+torirsserver: cheat 'maxmelee' -> debugproc ran
+torirsserver: cheat 'maxrange' -> debugproc ran
+torirsserver: cheat 'maxmage' -> debugproc ran
+torirsserver: cheat 'give scythe_of_vitur' -> debugproc not found
+torirsserver: cheat 'give coins 100' -> debugproc not found
+torirsserver: cheat 'give coins 50' -> debugproc not found
+torirsserver: cheat 'give bronze_sword 3' -> debugproc not found
+torirsserver: cheat 'give 995 7' -> debugproc not found
+torirsserver: cheat 'give nosuchitemname 1' -> debugproc not found
+torirsserver: cheat 'give of_vitur 1' -> debugproc not found
+torirsserver: cheat 'maxstats' -> debugproc ran
+torirsserver: cheat 'jas' -> debugproc ran
+torirsserver: cheat 'runes 500' -> debugproc ran
+ToriRSServer selftest: run energy
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: rebuild on scene edge
+torirsserver: scene built at zone 396,402 (base 3120,3168 — 7386 locs)
+ToriRSServer selftest: the wield refusal is content's, words and all
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: equipping is content's rule
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  zulrahrun OK - 8 checks passed.
+torirsserver: scene built at zone 280,376 (base 2192,2960 — 2281 locs)
+torirsserver: npc roster 23159 spawn(s), 274 standing, slot_max=274
+torirsserver: instanced scene built at zone 803,11 (base 6376,40 — 64 source zones, 154 locs)
+torirsserver: instanced scene built at zone 803,11 (base 6376,40 — 64 source zones, 154 locs)
+  tobrun OK - 53 checks passed.
+  toarun OK - 59 checks passed.
+  tobmaze OK - the generated maze is contiguous.
+  tobmazerate: turns with no lateral move 206 permille of 7000 (want 178..222) [M11]
+  tobmazerate OK - the no-lateral-move rate matches the measured corpus.
+  tobhit OK - p_overhit honours its verdict.
+    tobrooms: found The Maiden of Sugadinti at 6426
+    tobrooms: found Pestilent Bloat at 6435
+    tobrooms: found Sotetseg at 6413
+    tobrooms: found Xarpus at 6433
+    tobrooms: found Someone at 6430
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6425
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6425
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6425
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6437
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6437
+    tobrooms: found <col=00ffff>Supporting Pillar</col> at 6437
+  tobrooms OK - every room holds exactly what it should.
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+  tobexit room=The Maiden of Sugadinti want x=6440 z=70 plane=0
+  tobexit OK - the passage is where the raid says it is
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+  tobexit arrive The Pestilent Bloat runs 13 tiles
+  tobexit room=The Pestilent Bloat want x=6405 z=159 plane=0
+  tobexit OK - the passage is where the raid says it is
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+  tobexit arrive The Nylocas runs 19 tiles
+  tobexit room=The Nylocas want x=6439 z=115 plane=0
+  tobexit OK - the passage is where the raid says it is
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+  tobexit room=Sotetseg want x=6415 z=133 plane=0
+  tobexit OK - the passage is where the raid says it is
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+  tobexit arrive Xarpus runs 5 tiles
+  tobexit room=Xarpus want x=6433 z=112 plane=1
+  tobexit OK - the passage is where the raid says it is
+torirsserver: scene built at zone 459,402 (base 3624,3168 — 8818 locs)
+torirsserver: scene built at zone 459,402 (base 3624,3168 — 8818 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+  tobwalk room 1: 38 ticks from the arena to its exit passage at 6440,70
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+  tobwalk room 1 -> tobwhere room=2 cleared=0 active=1
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 801,11 (base 6360,40 — 256 source zones, 1483 locs)
+  tobwalk room 2: 18 ticks from the arena to its exit passage at 6405,95
+torirsserver: instanced scene built at zone 803,22 (base 6376,128 — 256 source zones, 635 locs)
+torirsserver: instanced scene built at zone 803,22 (base 6376,128 — 256 source zones, 635 locs)
+  tobwalk room 2 -> tobwhere room=3 cleared=0 active=1
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+  tobwalk room 3: 25 ticks from the arena to its exit passage at 6439,115
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+  tobwalk room 3 -> tobwhere room=4 cleared=0 active=1
+torirsserver: instanced scene built at zone 801,10 (base 6360,32 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 801,10 (base 6360,32 — 256 source zones, 907 locs)
+  tobwalk room 4: 14 ticks from the arena to its exit passage at 6415,69
+torirsserver: instanced scene built at zone 804,18 (base 6384,96 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,18 (base 6384,96 — 256 source zones, 1664 locs)
+  tobwalk room 4 -> tobwhere room=5 cleared=0 active=1
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+  tobwalk room 5: 4 ticks from the arena to its exit passage at 6433,112
+torirsserver: instanced scene built at zone 804,17 (base 6384,88 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,17 (base 6384,88 — 256 source zones, 1214 locs)
+  tobwalk room 5 -> tobwhere room=6 cleared=0 active=1
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+  tobwalkin: standing in the passage -> room 2
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 416 source zones, 1592 locs)
+  tobcard room 1: name=1 (The Maiden of Sugadinti)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 256 source zones, 1483 locs)
+  tobcard room 2: name=1 (The Pestilent Bloat)
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+torirsserver: instanced scene built at zone 803,14 (base 6376,64 — 256 source zones, 635 locs)
+  tobcard room 3: name=1 (The Nylocas)
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 801,18 (base 6360,96 — 256 source zones, 907 locs)
+  tobcard room 4: name=1 (Sotetseg)
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+  tobcard room 5: name=1 (Xarpus)
+torirsserver: instanced scene built at zone 804,17 (base 6384,88 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,17 (base 6384,88 — 256 source zones, 1214 locs)
+  tobcard room 6: name=1 (The Final Challenge)
+torirsserver: instanced scene built at zone 804,9 (base 6384,24 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,9 (base 6384,24 — 256 source zones, 1214 locs)
+  tobverzik: landed z=78 walked to z=84 (6 tiles)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+  Verzik P2: became_p2=1 turnspeed=32 latched on 40 tick(s)
+torirsserver: npc type 11730 is size 9, above TORIRSSERVER_NPC_SIZE_MAX (8) — it can leave view early on its east/north sides; raise the constant
+  toarooms OK - every room builds on its own plane.
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 352 source zones, 4510 locs)
+torirsserver: instanced scene built at zone 806,19 (base 6400,104 — 352 source zones, 4510 locs)
+  toacrondis: standing in the Path of Crondis.
+  toacrondis OK - every fixture the traps drive is reachable.
+  toaleak OK - no chamber stranded, and a logout holds the raid for a comeback.
+  tobresume OK - a dropped session resumes and the room restarts.
+torirsserver: npc type 11730 is size 9, above TORIRSSERVER_NPC_SIZE_MAX (8) — it can leave view early on its east/north sides; raise the constant
+  toaresume OK - a dropped session resumes and the chamber restarts.
+  coxresume OK - a dropped session resumes with its layout intact.
+torirsserver: npc type 11730 is size 9, above TORIRSSERVER_NPC_SIZE_MAX (8) — it can leave view early on its east/north sides; raise the constant
+  Zebak: npc 11730 at 6414,156, 27 tile(s) away
+  Zebak: 1 stray npc(s) in range, e.g. type 11744 (a freed instance does not delete its npcs)
+torirsserver: instanced scene built at zone 804,20 (base 6384,112 — 320 source zones, 2416 locs)
+torirsserver: instanced scene built at zone 804,20 (base 6384,112 — 320 source zones, 2416 locs)
+  toazdbg 3 started=1 clock=454 now=452 attacks=5 phase=0 wave=0 shield=0 done=0 bosshp=580 bosstype=11730
+  Zebak: 5 attack(s), 27 damage taken (99 -> 72 hp)
+  Kephri: npc 11719 at 6429,222, 7 tile(s) away
+torirsserver: instanced scene built at zone 803,28 (base 6376,176 — 256 source zones, 3071 locs)
+torirsserver: instanced scene built at zone 803,28 (base 6376,176 — 256 source zones, 3071 locs)
+  toazdbg 5 started=1 clock=495 now=492 attacks=5 phase=0 wave=0 shield=0 done=0 bosshp=150 bosstype=11719
+  Kephri: 5 attack(s), 45 damage taken (72 -> 27 hp)
+  Akkha: npc 11790 at 6425,159, 17 tile(s) away
+torirsserver: instanced scene built at zone 805,20 (base 6392,112 — 320 source zones, 5147 locs)
+torirsserver: instanced scene built at zone 805,20 (base 6392,112 — 320 source zones, 5147 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+  toazdbg 7 started=1 clock=534 now=532 attacks=6 phase=0 wave=0 shield=0 done=0 bosshp=10491 bosstype=11791
+  Akkha: 6 attack(s), 63 damage taken (27 -> 12 hp)
+  Ba-Ba: npc 11778 at 6439,222, 17 tile(s) away
+torirsserver: instanced scene built at zone 803,28 (base 6376,176 — 256 source zones, 3165 locs)
+torirsserver: instanced scene built at zone 803,28 (base 6376,176 — 256 source zones, 3165 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+  toazdbg 9 started=1 clock=574 now=572 attacks=6 phase=0 wave=0 shield=0 done=0 bosshp=380 bosstype=11778
+  Ba-Ba: 6 attack(s), 12 damage taken (12 -> 99 hp)
+  Wardens P1: npc 11751 at 6431,161, 14 tile(s) away
+torirsserver: instanced scene built at zone 804,21 (base 6384,120 — 288 source zones, 9752 locs)
+torirsserver: instanced scene built at zone 804,21 (base 6384,120 — 288 source zones, 9752 locs)
+  toazdbg 10 started=1 clock=620 now=612 attacks=3 phase=1 wave=0 shield=0 done=0 bosshp=260 bosstype=11751
+  Wardens P1: 3 attack(s), 24 damage taken (99 -> 75 hp)
+torirsserver: instanced scene built at zone 803,20 (base 6376,112 — 320 source zones, 4095 locs)
+torirsserver: instanced scene built at zone 803,20 (base 6376,112 — 320 source zones, 4095 locs)
+  Kephri shield 1 broken: phase=1 wave=1 shield=52 hp=1 type=11719
+  Kephri intermission 1 over: phase=0 shield=0 hp=150 type=11719
+  Kephri shield 2 broken: phase=1 wave=2 shield=52 hp=1 type=11719
+  Kephri intermission 2 over: phase=0 shield=0 hp=150 type=11719
+  Kephri shield 3 broken: phase=2 wave=3 shield=0 hp=80 type=11721
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 4056 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 4056 locs)
+  Kephri killed: died as type=11722 hp=1, room now -1
+  toaloot OK - the chest paid 25 slot(s).
+  toapanel level=5 m0=2 m1=0 m2=0
+  toaparty OK - the raid outlives a leaver and ends with the last one out.
+  toasupply OK - three bundles, and they are not the same bundle.
+torirsserver: npc type 11730 is size 9, above TORIRSSERVER_NPC_SIZE_MAX (8) — it can leave view early on its east/north sides; raise the constant
+  toagate OK - the gate is there and passing it starts the fight.
+torirsserver: npc type 11730 is size 9, above TORIRSSERVER_NPC_SIZE_MAX (8) — it can leave view early on its east/north sides; raise the constant
+  toabosses OK - every boss stands on its own tile.
+  toapyramid OK - into the chamber, and the challenge is running.
+  toapoison: 0 poison tile(s) in the whole square
+ToriRSServer selftest: Theatre of Blood harness
+  Maiden: tobstand 1 (boss at 6426,92 size 6; player 6433,92)
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 352 source zones, 1566 locs)
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 352 source zones, 1566 locs)
+  Maiden: clock deadline 812, now 804 (ahead by 8)
+  Maiden: tobgates loop=505
+  Maiden: tobgates attackproc=752 huntfound=802
+  Maiden: tobgates started=1 active=1
+  Maiden: tobgates orbslot=1 partyindex=0 n=1
+  Maiden: tobgates orbs=27/0/0/0/0
+  Maiden: tobgates pools=0 stood=1 bloodhere=0 leaks=0
+  Maiden: tobgates bloodtiles=0 slugs=0
+  Sotetseg: tobstand 1 (boss at 6413,104 size 5; player 6419,104)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+  Sotetseg: clock deadline 869, now 865 (ahead by 4)
+  Sotetseg: tobgates loop=505
+  Sotetseg: tobgates attackproc=809 huntfound=864
+  Sotetseg: tobgates started=1 active=1
+  Sotetseg: tobgates orbslot=1 partyindex=0 n=1
+  Sotetseg: tobgates orbs=27/0/0/0/0
+  Xarpus: tobstand 1 (boss at 6433,98 size 3; player 6437,98)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1664 locs)
+  Xarpus: clock deadline 1029, now 1026 (ahead by 3)
+  Xarpus: tobgates loop=505
+  Xarpus: tobgates attackproc=973 huntfound=1025
+  Xarpus: tobgates started=1 active=1
+  Xarpus: tobgates orbslot=1 partyindex=0 n=1
+  Xarpus: tobgates orbs=27/0/0/0/0
+  Xarpus: tobgates bar type=1 val=375 max=375
+  Xarpus: tobgates hp=3750/5000 hudvar=1432951
+  Xarpus: tobgates acidtiles=19
+  Xarpus: tobgates phase=1 tospawn=14 open=0 absorbed=7
+  Verzik: tobstand 1 (boss at 6430,99 size 5; player 6436,99)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+  Verzik: clock deadline 1128, now 1117 (ahead by 11)
+  Verzik: tobgates loop=505
+  Verzik: tobgates attackproc=1044 huntfound=1114
+  Verzik: tobgates started=1 active=1
+  Verzik: tobgates orbslot=1 partyindex=0 n=1
+  Verzik: tobgates orbs=27/0/0/0/0
+ToriRSServer selftest: Sotetseg's shadow maze
+torirsserver: instanced scene built at zone 803,18 (base 6376,96 — 384 source zones, 596 locs)
+torirsserver: instanced scene built at zone 803,18 (base 6376,96 — 384 source zones, 596 locs)
+  Sotetseg: tobmazestate active=1 under=2 mine=2 mirror=64 plane=3 col=1 row=0 seed0=1
+torirsserver: instanced scene built at zone 801,10 (base 6360,32 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 801,10 (base 6360,32 — 256 source zones, 907 locs)
+  Sotetseg: tobmazestate active=0 under=0 mine=0 mirror=-1 plane=0 col=-1 row=-1 seed0=-1
+  Sotetseg: tobsotestate form=combat def=200 of 200 hud=1356076
+ToriRSServer selftest: Maiden crabs
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 352 source zones, 1566 locs)
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 352 source zones, 1566 locs)
+  Maiden HUD: 1 VARP packets while her health moved (type varp 1745 at -1, value varp 1737 at 0)
+  Maiden death: dying_a on 1 ticks, dying_b (the fade) on 4
+  Maiden crabs: seen 59 crab-ticks, gap 6 -> 1 (min 1), leaks 3, blood-on-platform 0, pool-under-player 11, pool-tiles-anywhere 33, hud 1138951
+  Maiden crab killed short: death_seq 8097, reached corpse 1, visible for 5 ticks after the blow
+ToriRSServer selftest: Xarpus transforms
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 256 source zones, 1664 locs)
+  Xarpus stand-up: centre 51476,796 -> 51476,796 (eighths of a tile)
+  Xarpus death: xarpus_death on 2 tick(s), removed 1
+ToriRSServer selftest: Xarpus Dawnbringer
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,10 (base 6384,32 — 256 source zones, 1664 locs)
+  Dawnbringer: held 0 -> 1 -> 1 over two searches
+ToriRSServer selftest: ToB player techniques (scan lead)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 800,8 (base 6352,16 — 196 source zones, 907 locs)
+  scan lead over 10 trials each: leaving early -> 661 hp total after 10 attacks; leaving late -> 785 hp total after 10 attacks
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1214 locs)
+  melee predicate: adjacent=1 under=0 far=0
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 802,13 (base 6368,56 — 256 source zones, 907 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 256 source zones, 1664 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 803,12 (base 6376,48 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 803,12 (base 6376,48 — 256 source zones, 1483 locs)
+ToriRSServer selftest: the Nylocas room
+torirsserver: instanced scene built at zone 803,19 (base 6376,104 — 352 source zones, 1004 locs)
+torirsserver: instanced scene built at zone 803,19 (base 6376,104 — 352 source zones, 1004 locs)
+  Nylocas: a big died at (31, 16) on t=21 and left 0 smalls on its own six tiles
+  Nylocas: a big died at (31, 16) on t=22 and left 2 smalls on its own six tiles
+  Nylocas: a support with 3 chewers collapsed on t=100, 3 left standing, 2 changed sides
+  Nylocas: wave 1 on room tick 4 (3 spawns, 3 on a lane tile), pillars 1320 -> 197, boss 17 ticks later, 7 colour changes (first 9, then 9..10)
+ToriRSServer selftest: a dead boss does not end its room
+torirsserver: instanced scene built at zone 805,11 (base 6392,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 805,11 (base 6392,40 — 256 source zones, 1483 locs)
+ToriRSServer selftest: no Theatre npc runs on engine aggression
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: instanced scene built at zone 806,11 (base 6400,40 — 256 source zones, 1483 locs)
+torirsserver: scene built at zone 396,402 (base 3120,3168 — 7386 locs)
+ToriRSServer selftest: inventory drag
+ToriRSServer selftest: the container registry
+torirsserver: scene built at zone 396,402 (base 3120,3168 — 7386 locs)
+ToriRSServer selftest: npcs roam inside their radius
+ToriRSServer selftest: a teleported npc is re-added, not left behind
+ToriRSServer selftest: an ordinary npc does not block a player
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: an npc pursues the player
+ToriRSServer selftest: a script-spawned npc does not come back
+ToriRSServer selftest: ::spawn
+torirsserver: cheat 'spawn goblin' -> debugproc not found
+torirsserver: cheat 'spawn nosuchnpcname' -> debugproc not found
+ToriRSServer selftest: a one-blow kill still ships the turn
+ToriRSServer selftest: an npc changing type mid-fight keeps the fight
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: a timed npc_changetype changes back
+ToriRSServer selftest: selling to a shop
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: bank varbit packing
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: rev239 Zuk HP carrier packets
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: no whole-varp write to a carrier
+ToriRSServer selftest: bank deposit and withdraw
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: open bank deposit/withdraw UPDATE_INV_FULL
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: bank content withdraw ladder
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: bank worn view (equip / unequip / mask)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: bank placeholders
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+  HTPROBE before-stanza  tick=0 shut_slot=4241 open_slot=-1 px=3222 pz=3218
+ToriRSServer selftest: home teleport channel, cooldown and abort
+  HTPROBE enter          tick=0 shut_slot=4241 open_slot=-1 px=3222 pz=3218
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 400,406 (base 3152,3200 — 9064 locs)
+  HTPROBE after-channel  tick=17 shut_slot=4540 open_slot=-1 px=3221 pz=3216
+  HTPROBE after-cooldown tick=47 shut_slot=4540 open_slot=-1 px=3200 pz=3250
+  HTPROBE exit           tick=80 shut_slot=4540 open_slot=-1 px=3205 pz=3250
+ToriRSServer selftest: bank open sends both halves
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: the bank PIN
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: playerfollow keeps station with a moving player
+torirsserver: scene built at zone 396,401 (base 3120,3160 — 7076 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: npc modes
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: the world roster follows the scene window
+torirsserver: scene built at zone 332,413 (base 2608,3256 — 10904 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: NPC_INFO tracks only the player's own zones
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: two far-apart players each hold their own window
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 386,405 (base 3040,3192 — 7108 locs)
+ToriRSServer selftest: a vessel spawns and its deck projection round-trips
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+ToriRSServer selftest: native heading requires the current helm
+ToriRSServer selftest: a rider reaches across the gunwale from the projected tile
+ToriRSServer selftest: the mover turns under the cap and steps on the quantum
+ToriRSServer selftest: a targeted sail arrives at speed and parks
+ToriRSServer selftest: a vessel refuses to drive onto land
+ToriRSServer selftest: melee closes deck distance to the rail
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 0 source zones, 0 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 2 source zones, 72 locs)
+torirsserver: scene built at zone 385,395 (base 3032,3112 — 3571 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 385,395 (base 3032,3112 — 3571 locs)
+ToriRSServer selftest: the two notions of aboard
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 2 source zones, 72 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 2 source zones, 72 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: production sailing multiplayer/client decoder
+torirsserver: scene built at zone 385,395 (base 3032,3112 — 3571 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 2 source zones, 72 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 383,394 (base 3016,3104 — 4081 locs)
+torirsserver: scene built at zone 383,394 (base 3016,3104 — 4081 locs)
+torirsserver: scene built at zone 383,394 (base 3016,3104 — 4081 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 3 source zones, 108 locs)
+torirsserver: instanced scene built at zone 804,20 (base 6384,112 — 1 source zones, 36 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 385,395 (base 3032,3112 — 3571 locs)
+torirsserver: scene built at zone 384,394 (base 3024,3104 — 4062 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 383,394 (base 3016,3104 — 4081 locs)
+torirsserver: scene built at zone 383,394 (base 3016,3104 — 4081 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: sailing save, reconnect and safe teardown
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 4 source zones, 1 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 4 source zones, 1 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 383,395 (base 3016,3112 — 3838 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 383,395 (base 3016,3112 — 3838 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 4 source zones, 1 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 4 source zones, 1 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 384,395 (base 3024,3112 — 3665 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: instanced scene built at zone 804,12 (base 6384,48 — 4 source zones, 1 locs)
+torirsserver: scene built at zone 382,372 (base 3008,2928 — 2224 locs)
+torirsserver: scene built at zone 383,373 (base 3016,2936 — 2506 locs)
+torirsserver: scene built at zone 383,373 (base 3016,2936 — 2506 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: NPC_INFO measures view range to the footprint
+ToriRSServer selftest: an npc nothing describes still wanders
+ToriRSServer selftest: a mode owns an npc's movement, a waypoint does not
+torirsserver: scene built at zone 407,408 (base 3208,3216 — 5592 locs)
+ToriRSServer selftest: npc_setmovespeed takes a second tile
+ToriRSServer selftest: clicking an npc lands on the npc that was clicked
+torirsserver: scene built at zone 407,407 (base 3208,3208 — 5893 locs)
+ToriRSServer selftest: a one-tile move by a running player is a WALK
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: npc queues and timers
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: player queues, timers, name-keyed dispatch
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: use-on, the *u family
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: the zone family, and its two latches
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 408,402 (base 3216,3168 — 6843 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: uid, gender, session_log
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: find-all iterators
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: npc addressing
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: loc mutation
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: oc_param
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: treasure trails read the cache's clue database
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: multicannon, Tears of Guthix, Shooting Stars, diaries
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: nc_param
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: cook's assistant
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 395,406 (base 3112,3200 — 8360 locs)
+ToriRSServer selftest: the equipment screen is content's
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: bank equipment bonus texts are content's
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: the inverted fallback
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: a bound script failed; the `opnpc` engine fallback is NOT running in its place
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: [if_close] does not suppress the unmount
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+ToriRSServer selftest: revision-239 Zuk seal hands off to delayed flank collapse
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: scene built at zone 300,636 (base 2352,5040 — 15197 locs)
+torirsserver: npc roster 23159 spawn(s), 392 standing, slot_max=392
+torirsserver: instanced scene built at zone 805,15 (base 6392,72 — 224 source zones, 4943 locs)
+torirsserver: instanced scene built at zone 805,15 (base 6392,72 — 224 source zones, 4943 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: the Zuk fight row has six tiles blind to Zuk
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+ToriRSServer selftest: Inferno death drains Zuk and releases its instance
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: instanced scene built at zone 803,13 (base 6376,56 — 256 source zones, 2850 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: the friend service
+ToriRSServer selftest: charged item vars survive container moves
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: a zero count empties a cell rather than wedging it
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: worn-item opheld dispatch
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: date_runeday
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::chargesrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::gauntletrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::hunterrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::cookrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::gobdiprun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG GOBDIPRUN PASS: reset to not_started, crates unsearched, inventory clear
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=not_started
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=started
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=will_bring_armour
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=gave_orange
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=gave_blue
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=gave_brown
+  DBG GOBDIPRUN PASS: gobdip_journal ran with gobdip_main=complete
+  DBG You find some goblin armour.
+  DBG GOBDIPRUN PASS: crate 1 first search grants goblin_armour, sets gobdip_crate1_searched
+  DBG You search the crate but find nothing.
+  DBG GOBDIPRUN PASS: re-searching crate 1 grants nothing further (one-shot)
+  DBG You find some goblin armour.
+  DBG GOBDIPRUN PASS: crate 2 first search grants goblin_armour, sets gobdip_crate2_searched
+  DBG You find some goblin armour.
+  DBG GOBDIPRUN PASS: crate 3 first search grants goblin_armour, sets gobdip_crate3_searched -- 3 sets of goblin mail obtained, matching the wiki's items list
+  DBG You dye the goblin armour orange.
+  DBG GOBDIPRUN PASS: orange dye converts 1 goblin_armour to goblin_armour_orange, 2 plain remain
+  DBG You dye the goblin armour dark blue.
+  DBG GOBDIPRUN PASS: blue dye converts 1 goblin_armour to goblin_armour_darkblue, 1 plain remains -- orange+blue+plain, matches the wiki
+  DBG GOBDIPRUN PASS: quest_goblindiplomacy dbrow questpoints matches gobdip_questpoints (5)
+  DBG GOBDIPRUN OK: gobdip_main=0
+ToriRSServer selftest: ::doricrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::druidrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG DRUIDRUN PASS: reset druidquest=0, quest items cleared
+  DBG DRUIDRUN PASS: druid_journal ran with druidquest=0 (not started)
+  DBG You need to complete the Druidic Ritual quest before you can use the Herblore skill.
+  DBG DRUIDRUN PASS: Herblore locked pre-quest -- cleaning a grimy herb refused
+  DBG You need to complete the Druidic Ritual quest before you can use the Herblore skill.
+  DBG DRUIDRUN PASS: Herblore locked pre-quest -- brewing a potion refused
+  DBG You need to complete the Druidic Ritual quest before you can use the Herblore skill.
+  DBG DRUIDRUN PASS: Herblore locked pre-quest -- grinding an ingredient refused
+  DBG DRUIDRUN PASS: accepted quest, druidquest=druid_started
+  DBG DRUIDRUN PASS: druid_journal ran with druidquest=druid_started (in progress)
+  DBG DRUIDRUN PASS: spoke to Sanfew, druidquest=druid_spoken_sanfew
+  DBG DRUIDRUN PASS: druid_journal ran with druidquest=druid_spoken_sanfew (gathering ingredients)
+  DBG DRUIDRUN PASS: cauldron refuses outside druid_spoken_sanfew (gate mirror)
+  DBG DRUIDRUN PASS: all four meats dip to their enchanted form at druid_spoken_sanfew
+  DBG DRUIDRUN PASS: handed in all four enchanted meats, druidquest=druid_given_ingredients
+  DBG DRUIDRUN PASS: druid_journal ran with druidquest=druid_given_ingredients (return to Kaqemeex)
+  DBG DRUIDRUN PASS: lesson runs before druidquest flips to complete
+  DBG DRUIDRUN PASS: quest completes, druidquest=druid_complete, +4 QP, +250 Herblore XP
+  DBG DRUIDRUN PASS: druid_journal ran with druidquest=druid_complete (finished)
+  DBG This herb is a Guam Leaf.
+  DBG DRUIDRUN PASS: Herblore unlocked post-quest -- cleaning a grimy herb succeeds
+  DBG DRUIDRUN OK: druidquest=4
+ToriRSServer selftest: ::blackknightrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::demonrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::grandtreerun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 310,433 (base 2432,3416 — 8008 locs)
+torirsserver: scene built at zone 308,1237 (base 2416,9848 — 8399 locs)
+torirsserver: scene built at zone 308,437 (base 2416,3448 — 6884 locs)
+ToriRSServer selftest: ::upassrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 306,1225 (base 2400,9752 — 9960 locs)
+torirsserver: scene built at zone 303,1215 (base 2376,9672 — 10727 locs)
+ToriRSServer selftest: ::fishingcomporun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::drunkmonkrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG DRUNKMONKRUN PASS: reset drunkmonkquest=0, quest items cleared
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=not_started
+  DBG DRUNKMONKRUN PASS: accepted the quest, drunkmonkquest=spoken_to_omad
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=retrieved_blanket, blanket consumed
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=retrieved_blanket
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=looking_cedric
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=finding_water
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=finding_water
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=given_water, jug consumed
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=fixing_cart
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=fixing_cart
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=fixed_cart via logs
+  DBG DRUNKMONKRUN PASS: drunkmonkquest=fixed_cart via a plank (this audit's fix)
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=fixed_cart
+  DBG DRUNKMONKRUN PASS: quest complete, +2000 Woodcutting XP, +1 QP, 8 Law runes, drunkmonkquest=complete
+  DBG DRUNKMONKRUN PASS: drunkmonk_journal ran with drunkmonkquest=complete
+  DBG DRUNKMONKRUN OK: drunkmonkquest=80 qp=19
+ToriRSServer selftest: ::romeojulietrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::blackarmgangrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::hauntedrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::imprun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::princerun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG PRINCERUN PASS: reset princequest=0 keystatus=0, quest items cleared
+  DBG PRINCERUN PASS: princequest=prince_spoken_osman
+  DBG PRINCERUN PASS: key print obtained
+  DBG PRINCERUN PASS: prince_make_key rejects with no bronze bar (mirrors its own guard)
+  DBG PRINCERUN PASS: prince_make_key smelts the key print + bronze bar into a bronze key, keystatus=keyclaimed -- the wiki's 14 Jan 2026 change (furnace, not Osman)
+  DBG PRINCERUN PASS: prince_make_key rejects a second attempt (mirrors its own already-made guard)
+  DBG PRINCERUN PASS: princequest=prince_prep_finished, all basic equipment held
+  DBG PRINCERUN PASS: Joe drunk on 3 beers, princequest=prince_guard_drunk
+  DBG PRINCERUN PASS: Keli tied up, princequest=prince_tied_keli
+  DBG PRINCERUN PASS: prince escapes, princequest=prince_saved, disguise items consumed
+  DBG PRINCERUN PASS: quest complete, +700 coins, +3 QP, princequest=prince_complete
+  DBG PRINCERUN OK: princequest=110 qp=34
+ToriRSServer selftest: ::hettyrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG HETTYRUN PASS: reset hetty=0, quest items cleared
+  DBG HETTYRUN PASS: hetty_journal ran with hetty=hetty_not_started
+  DBG HETTYRUN PASS: accepted the quest, hetty=hetty_started
+  DBG HETTYRUN PASS: hetty_journal ran with hetty=hetty_started, no ingredients
+  DBG HETTYRUN PASS: hetty=hetty_objects_given, all 4 ingredients consumed
+  DBG HETTYRUN PASS: hetty_journal ran with hetty=hetty_objects_given
+  DBG HETTYRUN PASS: quest complete, +325 Magic XP, +1 QP, hetty=hetty_complete
+  DBG HETTYRUN PASS: hetty_journal ran with hetty=hetty_complete
+  DBG HETTYRUN OK: hetty=3 qp=35
+ToriRSServer selftest: ::arthurrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG ARTHURRUN PASS: reset arthur=0, quest items cleared
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_not_started
+  DBG ARTHURRUN PASS: arthur=arthur_started
+  DBG ARTHURRUN PASS: arthur=arthur_spoken_gawain
+  DBG ARTHURRUN PASS: arthur=arthur_spoken_lancelot
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_spoken_lancelot
+  DBG ARTHURRUN PASS: arthur=arthur_spoken_morgan_lefaye
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_spoken_morgan_lefaye
+  DBG You light the black candle.
+  DBG ARTHURRUN PASS: light_black_candle (real proc call) lit the black candle
+  DBG ARTHURRUN PASS: chaos altar words learned
+  DBG ARTHURRUN PASS: arthur=arthur_excalibur_bound, Thrantax bound
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_excalibur_bound
+  DBG ARTHURRUN PASS: arthur=arthur_freed_merlin, crystal shattered
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_freed_merlin
+  DBG ARTHURRUN PASS: quest complete, +6 QP, arthur=arthur_complete
+  DBG ARTHURRUN PASS: arthur_journal ran with arthur=arthur_complete
+  DBG ARTHURRUN OK: arthur=7 qp=41
+ToriRSServer selftest: ::scorpcatcherrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG SCORPCATCHERRUN PASS: reset scorpcatcher=0, cages cleared
+  DBG SCORPCATCHERRUN PASS: scorpcatcher_journal ran with scorpcatcher=scorpcatcher_not_started
+  DBG SCORPCATCHERRUN PASS: scorpcatcher=scorpcatcher_started, holding an empty scorpion cage
+  DBG SCORPCATCHERRUN PASS: scorpcatcher_journal ran with scorpcatcher=scorpcatcher_started
+  DBG SCORPCATCHERRUN PASS: scorpcatcher=scorpcatcher_first_hint
+  DBG SCORPCATCHERRUN PASS: next_cage rejects a non-cage held item
+  DBG SCORPCATCHERRUN PASS: caught scorpion A, cage=scorpioncagea
+  DBG SCORPCATCHERRUN PASS: next_cage refuses to re-catch scorpion A
+  DBG SCORPCATCHERRUN PASS: caught scorpion B, cage=scorpioncageab
+  DBG SCORPCATCHERRUN PASS: scorpcatcher=scorpcatcher_second_hint
+  DBG SCORPCATCHERRUN PASS: scorpcatcher_journal ran with scorpcatcher=scorpcatcher_second_hint
+  DBG SCORPCATCHERRUN PASS: caught scorpion C, cage=scorpioncagefull
+  DBG SCORPCATCHERRUN PASS: scorpcatcher_journal ran with scorpcatcher=scorpcatcher_second_hint, cage full
+  DBG SCORPCATCHERRUN PASS: quest complete, +1 QP, scorpcatcher=scorpcatcher_complete
+  DBG SCORPCATCHERRUN PASS: scorpcatcher_journal ran with scorpcatcher=scorpcatcher_complete
+  DBG SCORPCATCHERRUN OK: scorpcatcher=6 qp=42
+ToriRSServer selftest: ::totemrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG TOTEMRUN PASS: reset totemquest=0
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_not_started
+  DBG TOTEMRUN PASS: totemquest=totem_started
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_started
+  DBG You find an address label.
+  DBG TOTEMRUN PASS: found the address label (real trigger dispatch)
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_started, label held
+  DBG TOTEMRUN PASS: totemquest=totem_crate_delivered
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_crate_delivered
+  DBG TOTEMRUN PASS: totemquest=totem_teleported
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_teleported, door locked
+  DBG You find the tribal totem inside the chest.
+  DBG TOTEMRUN PASS: found the tribal totem (real chest search dispatch)
+  DBG TOTEMRUN PASS: quest complete, +1 QP, 5 swordfish, totemquest=totem_complete
+  DBG TOTEMRUN PASS: totem_journal ran with totemquest=totem_complete
+  DBG TOTEMRUN OK: totemquest=5 qp=43
+ToriRSServer selftest: ::ikovrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG IKOVRUN PASS: reset ikov=0
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_not_started
+  DBG IKOVRUN PASS: ikov=ikov_started, holding the pendant
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_started
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You find 5 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 5 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You find 4 ice arrows!
+  DBG You find 3 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You find 4 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 4 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 5 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You find 4 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You find 4 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You find 5 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You find 4 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 5 ice arrows!
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 3 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 4 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 4 ice arrows!
+  DBG You find 5 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 2 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You find 1 ice arrows!
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG You search the chest but find nothing.
+  DBG IKOVRUN PASS: 200 real ~ikov_search_chest calls found 105 ice arrows
+  DBG IKOVRUN PASS: ikov=ikov_disabled_trap
+  DBG IKOVRUN PASS: ikov=ikov_pulled_lever
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_pulled_lever
+  DBG IKOVRUN PASS: ikov=ikov_defeated_fire_warrior
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_defeated_fire_warrior
+  DBG IKOVRUN PASS: ikov=ikov_spoken_winelda
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_spoken_winelda
+  DBG Your inventory is full.
+  DBG IKOVRUN PASS: ikov=ikov_paid_winelda
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_paid_winelda
+  DBG IKOVRUN PASS: ikov=ikov_helping_armadyl, wearing the Armadyl pendant
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_helping_armadyl
+  DBG IKOVRUN PASS: Armadyl path complete, +1 QP, ikov=ikov_completed_armadyl
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_completed_armadyl
+  DBG IKOVRUN PASS: holding the Staff of Armadyl
+  DBG IKOVRUN PASS: Lucien path complete, +1 QP, ikov=ikov_completed_lucien
+  DBG IKOVRUN PASS: ikov_journal ran with ikov=ikov_completed_lucien
+  DBG IKOVRUN OK: ikov=90 qp=45
+ToriRSServer selftest: ::grailrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 388,419 (base 3056,3304 — 8843 locs)
+torirsserver: scene built at zone 331,585 (base 2600,4632 — 2449 locs)
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+torirsserver: scene built at zone 337,587 (base 2648,4648 — 874 locs)
+torirsserver: scene built at zone 345,586 (base 2712,4640 — 1675 locs)
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+ToriRSServer selftest: ::itgronigenrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG ITGRONIGENRUN PASS: 30 rolls all landed in 0..11
+  DBG ITGRONIGENRUN PASS: non-combat sign never reports protected
+  DBG ITGRONIGENRUN PASS: slot-need split matches xp-only vs item-reward signs
+  DBG ITGRONIGENRUN PASS: Pisces grants 2250 crafting xp + sapphire + 3 tuna
+  DBG ITGRONIGENRUN OK
+ToriRSServer selftest: ::elenarun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 320,416 (base 2512,3280 — 10365 locs)
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+torirsserver: dropping [proc,mesbox], which suspended while [proc,mesbox] waits
+torirsserver: scene built at zone 316,1212 (base 2480,9648 — 4141 locs)
+torirsserver: scene built at zone 314,1217 (base 2464,9688 — 5203 locs)
+torirsserver: int stack underflow
+  at [proc,forcewalk2] - agility.rs2:162 (pc 4, op POP_INT_DISCARD)
+  from [label,elena_climb_through_sewerpipe] - sewerpipe.rs2:65
+torirsserver: abort context host_tag=0 pointers=0x45 active_npc=0
+torirsserver: scene built at zone 316,408 (base 2480,3216 — 8913 locs)
+torirsserver: scene built at zone 321,416 (base 2520,3280 — 10976 locs)
+torirsserver: dropping [proc,chatplayer_anim], which suspended while [proc,mesbox] waits
+torirsserver: dropping [proc,chatplayer_anim], which suspended while [proc,mesbox] waits
+ToriRSServer selftest: ::biohazardrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 326,415 (base 2560,3272 — 12521 locs)
+torirsserver: scene built at zone 320,412 (base 2512,3248 — 11138 locs)
+torirsserver: scene built at zone 314,409 (base 2464,3224 — 8379 locs)
+torirsserver: scene built at zone 318,415 (base 2496,3272 — 10163 locs)
+torirsserver: scene built at zone 324,417 (base 2544,3288 — 10980 locs)
+torirsserver: scene built at zone 366,401 (base 2880,3160 — 6848 locs)
+torirsserver: scene built at zone 408,423 (base 3216,3336 — 13894 locs)
+torirsserver: scene built at zone 324,417 (base 2544,3288 — 10980 locs)
+torirsserver: scene built at zone 322,411 (base 2528,3240 — 11523 locs)
+ToriRSServer selftest: ::seaslugrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 347,409 (base 2728,3224 — 3034 locs)
+ToriRSServer selftest: ::junglepotionrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 345,380 (base 2712,2992 — 3940 locs)
+torirsserver: scene built at zone 351,385 (base 2760,3032 — 7332 locs)
+torirsserver: dropping [proc,chatnpc_anim], which suspended while [proc,mesbox] waits
+ToriRSServer selftest: ::shilovillagerun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 360,368 (base 2832,2896 — 8818 locs)
+torirsserver: scene built at zone 351,385 (base 2760,3032 — 7332 locs)
+torirsserver: scene built at zone 365,375 (base 2872,2952 — 6317 locs)
+torirsserver: scene built at zone 361,1171 (base 2840,9320 — 4600 locs)
+torirsserver: scene built at zone 360,1164 (base 2832,9264 — 4906 locs)
+torirsserver: scene built at zone 367,1160 (base 2888,9232 — 3974 locs)
+torirsserver: scene built at zone 366,1165 (base 2880,9272 — 5322 locs)
+torirsserver: scene built at zone 362,1172 (base 2848,9328 — 3791 locs)
+torirsserver: scene built at zone 351,385 (base 2760,3032 — 7332 locs)
+torirsserver: scene built at zone 345,373 (base 2712,2936 — 2832 locs)
+torirsserver: scene built at zone 345,1170 (base 2712,9312 — 4336 locs)
+torirsserver: scene built at zone 364,386 (base 2864,3040 — 4409 locs)
+torirsserver: scene built at zone 361,1185 (base 2840,9432 — 7504 locs)
+ToriRSServer selftest: ::waterfallrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 325,1239 (base 2552,9864 — 5769 locs)
+torirsserver: scene built at zone 315,436 (base 2472,3440 — 5442 locs)
+ToriRSServer selftest: ::squirerun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG SQUIRERUN PASS: reset squire=0, quest items cleared
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_not_started
+  DBG SQUIRERUN PASS: accepted the quest, squire=squire_started
+  DBG SQUIRERUN PASS: squire=squire_spoken_reldo
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_spoken_reldo
+  DBG SQUIRERUN PASS: gave Thurgo the redberry pie, squire=squire_given_pie
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_given_pie
+  DBG SQUIRERUN PASS: squire=squire_spoken_thurgo
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_spoken_thurgo
+  DBG SQUIRERUN PASS: squire=squire_looking_portrait
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_looking_portrait
+  DBG SQUIRERUN PASS: vyvin_distracted (real proc call) confirms the cupboard is safe to search
+  DBG SQUIRERUN PASS: took the portrait from the cupboard
+  DBG SQUIRERUN PASS: gave Thurgo the portrait, squire=squire_looking_blurite
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_looking_blurite
+  DBG SQUIRERUN PASS: Thurgo smithed the blurite sword from 1 ore + 2 iron bars
+  DBG SQUIRERUN PASS: quest complete, +12725 Smithing XP, +1 QP, squire=squire_complete
+  DBG SQUIRERUN PASS: squire_journal ran with squire=squire_complete
+  DBG SQUIRERUN PASS: Giant Dwarf incomplete (giantdwarf_quest=gdwarf_axe_done) does not shortcut Reldo
+  DBG SQUIRERUN PASS: Giant Dwarf complete shortcuts straight to squire_spoken_reldo, matching the wiki's own walkthrough note
+  DBG SQUIRERUN OK: squire=2 qp=55
+ToriRSServer selftest: ::huntrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG HUNTRUN PASS: reset hunt=0, quest items cleared
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_not_started
+  DBG HUNTRUN PASS: hunt=hunt_fetch_rum
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_fetch_rum, no rum yet
+  DBG HUNTRUN PASS: bought a Karamjan rum from Zembo
+  DBG HUNTRUN PASS: employed by Luthas
+  DBG HUNTRUN PASS: stashed the rum in the banana crate
+  DBG HUNTRUN PASS: packed 10 bananas into the crate
+  DBG HUNTRUN PASS: Luthas paid 30 coins and shipped the crate, crate_rum=2
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_fetch_rum, crate shipped
+  DBG HUNTRUN PASS: employed by Wydin (white apron worn)
+  DBG HUNTRUN PASS: found the rum in the grocery crate
+  DBG HUNTRUN PASS: gave Redbeard Frank the rum, got the chest key, hunt=hunt_received_key
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_received_key
+  DBG HUNTRUN PASS: opened Hector's chest, found the pirate message
+  DBG HUNTRUN PASS: read the pirate message, hunt=hunt_read_note
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_read_note
+  DBG HUNTRUN PASS: quest complete on dig, +2 QP, casket granted (not the loot directly)
+  DBG HUNTRUN PASS: opened the casket for +450 coins, a gold ring, and an emerald
+  DBG HUNTRUN PASS: hunt_journal ran with hunt=hunt_complete
+  DBG HUNTRUN OK: hunt=4 qp=57
+ToriRSServer selftest: ::dragonrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG DRAGONRUN PASS: reset dragonquest=0, quest items cleared
+  DBG DRAGONRUN PASS: dragonquest=quest_dragon_spoken_to_guildmaster
+  DBG DRAGONRUN PASS: dragonquest=quest_dragon_spoken_to_oziach, maze key + all three leads obtained
+  DBG DRAGONRUN PASS: quest_dragon_getting_map_parts (real proc call) confirms the gate is open
+  DBG DRAGONRUN PASS: all three map pieces combined into the Crandor map
+  DBG DRAGONRUN PASS: obtained the anti-dragon shield
+  DBG DRAGONRUN PASS: dragonquest=quest_dragon_bought_ship
+  DBG DRAGONRUN PASS: 29 nails correctly rejected by the repair guard (mirrors its own 30-nail check)
+  DBG DRAGONRUN PASS: hull fully repaired with exactly 90 steel nails + 3 planks (the wiki's own item list), dragonquest=quest_dragon_repaired_ship
+  DBG DRAGONRUN PASS: dragonquest=quest_dragon_ned_given_map, Ned hired as captain
+  DBG DRAGONRUN PASS: dragonquest=quest_dragon_sailed_to_crandor, ship wrecked on Crandor
+  DBG DRAGONRUN PASS: quest complete, +2 QP, +18650 Strength XP, +18650 Defence XP, dragonquest=dragon_complete
+  DBG DRAGONRUN OK: dragonquest=10 qp=59
+ToriRSServer selftest: ::zanarisrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG ZANARISRUN PASS: reset zanaris=0, quest items cleared
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_not_started
+  DBG ZANARISRUN PASS: zanaris=zanaris_started
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_started
+  DBG ZANARISRUN PASS: zanaris=zanaris_spoken_shamus, the leprechaun tree + Shamus dialogue mirrored clean
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_spoken_shamus
+  DBG ZANARISRUN PASS: zanaris=zanaris_spirit_defeated
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_spirit_defeated
+  DBG ZANARISRUN PASS: zanaris=zanaris_tree_chopped, cut a Dramen branch
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_tree_chopped
+  DBG You carve the branch into a Dramen staff.
+  DBG ZANARISRUN PASS: craft_dramen_staff (real proc call) made the Dramen staff, zanaris=zanaris_staff_made
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_staff_made
+  DBG ZANARISRUN PASS: entered Zanaris with the staff equipped, +3 QP, zanaris=zanaris_complete
+  DBG ZANARISRUN PASS: zanaris_journal ran with zanaris=zanaris_complete
+  DBG ZANARISRUN OK: zanaris=6 qp=62
+ToriRSServer selftest: ::priestrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG PRIESTRUN PASS: reset prieststart=0, items cleared
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=not_started
+  DBG PRIESTRUN PASS: Aereck start, prieststart=started
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=started
+  DBG PRIESTRUN PASS: Urhney grant, amulet in inventory, prieststart=spoken_urhney
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=spoken_urhney
+  DBG PRIESTRUN PASS: ghost explains the task, prieststart=spoken_ghost
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=spoken_ghost
+  DBG Out of nowhere a skeleton appears!
+  DBG PRIESTRUN PASS: altar search grants the skull, prieststart=obtained_skull, altar_var=1
+  DBG PRIESTRUN PASS: skeleton loc retired, skeleton_var=1
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=obtained_skull
+  DBG PRIESTRUN PASS: prieststart=complete
+  DBG PRIESTRUN PASS: prayer xp +11250 (1125.0 xp) awarded exactly once
+  DBG PRIESTRUN PASS: quest points +1 awarded exactly once
+  DBG PRIESTRUN PASS: amulet of ghostspeak present after completion
+  DBG PRIESTRUN PASS: priest_journal ran with prieststart=complete
+  DBG PRIESTRUN OK: prieststart=5
+ToriRSServer selftest: ::vampirerun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG VAMPIRERUN PASS: reset, quest items cleared
+  DBG VAMPIRERUN PASS: vampire_journal ran with quest_vampire_not_started
+  DBG VAMPIRERUN PASS: accepted the quest, vampire=quest_vampire_started
+  DBG VAMPIRERUN PASS: vampire_journal ran with quest_vampire_started
+  DBG VAMPIRERUN PASS: gave Dr Harlow a beer, received a stake, vampire=quest_vampire_spoke_to_harlow
+  DBG VAMPIRERUN PASS: vampire_journal ran with quest_vampire_spoke_to_harlow
+  DBG VAMPIRERUN PASS: took garlic from Morgan's cupboard
+  DBG VAMPIRERUN PASS: Count Draynor spawns with hitpoints=35 attack=30 strength=25 defence=30 (wiki level 34, not the generated defaults)
+  DBG VAMPIRERUN PASS: garlic weakens Count Draynor -- hitpoints 35->25, attack 30->20, strength 25->15, defence 30->0
+  DBG VAMPIRERUN PASS: vampire=vampire_complete
+  DBG VAMPIRERUN PASS: attack xp +48250 (4825.0 xp) awarded exactly once
+  DBG VAMPIRERUN PASS: quest points +3 awarded exactly once
+  DBG VAMPIRERUN PASS: vampire_journal ran with vampire=vampire_complete
+  DBG VAMPIRERUN OK: vampire=3
+ToriRSServer selftest: ::sheeprun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG SHEEPRUN PASS: reset sheep=not_started, wool/balls cleared, sheep_wool_spun=0
+  DBG SHEEPRUN PASS: sheep_journal ran with sheep=not_started
+  DBG SHEEPRUN PASS: accepted, sheep=sheep_started, in-progress journal ran
+  DBG SHEEPRUN PASS: 20 wool in backpack
+  DBG SHEEPRUN PASS: 20/20 self-spun, sheep_wool_spun=20
+  DBG SHEEPRUN PASS: sheep_wool_spun stays capped at 20 on a 21st spin
+  DBG SHEEPRUN PASS: 19 balls handed in by one ~fred_take_wool, sheep=sheep_last_wool, 1 ball left
+  DBG SHEEPRUN PASS: at sheep_last_wool ~fred_take_wool takes nothing and leaves spares alone
+  DBG SHEEPRUN PASS: sheep=sheep_complete, all 20 balls of wool consumed
+  DBG SHEEPRUN PASS: 1 quest point awarded
+  DBG SHEEPRUN PASS: 60 coins awarded
+  DBG SHEEPRUN PASS: 200 Crafting XP awarded (150 base + 50 self-spun bonus)
+  DBG SHEEPRUN PASS: complete journal ran with sheep=sheep_complete
+  DBG SHEEPRUN OK: sheep=22
+ToriRSServer selftest: ::sheeprunbought
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG SHEEPRUNBOUGHT PASS: 20 bought balls of wool, sheep_wool_spun stayed 0
+  DBG SHEEPRUNBOUGHT PASS: 150 Crafting XP awarded (no bonus -- wool was bought, not self-spun)
+  DBG SHEEPRUNBOUGHT OK: sheep=22
+ToriRSServer selftest: stile Climb-over
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 399,409 (base 3144,3224 — 7979 locs)
+ToriRSServer selftest: ::agilityrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::wintrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::trekrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::fishingrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::runecraftrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::miningrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: diary hook reached by a real kill
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::blackjackrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::fletchingrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::smithingrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: ::ballrun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG BALLRUN PASS: reset ballquest=0, quest items cleared
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_not_started
+  DBG BALLRUN PASS: accepted the quest, ballquest=ball_started
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_started
+  DBG BALLRUN PASS: found the door key under the pot
+  DBG BALLRUN PASS: found the magnet in the cupboard, ballquest=ball_found_magnet
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_found_magnet
+  DBG BALLRUN PASS: magnet fitted to the mouse, door unlocked, magnet consumed
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_unlocked_mousedoor
+  DBG BALLRUN PASS: diary re-read after the door, ballquest=ball_read_diary_after_door
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_read_diary_after_door
+  DBG BALLRUN PASS: found the shed key hidden in the fountain
+  DBG BALLRUN PASS: shapeshifter defeated, ballquest=ball_defeated_experiment
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_defeated_experiment
+  DBG BALLRUN PASS: picked up the boy's ball
+  DBG BALLRUN PASS: quest complete, +6325 Hitpoints XP, +4 QP, ballquest=ball_complete
+  DBG BALLRUN PASS: ball_journal ran with ballquest=ball_complete
+  DBG BALLRUN OK: ballquest=7 qp=72
+ToriRSServer selftest: heroquest mansion geometry probe
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  symbols: garvdoor=2627 pete_sidedoor=2622 pete_treasuredoor=2621 gripcbshut=2635 gripcbopen=2636 herokitchendoor=2628 herokitchenpanel=2629
+torirsserver: scene built at zone 347,398 (base 2728,3136 — 5913 locs)
+  player now at 2776,3186,0
+  GEOM loc_id=2621 x=2764 z=3197 level=0 angle=0 shape=0 size_x=1 size_z=1
+  GEOM loc_id=2622 x=2781 z=3197 level=0 angle=3 shape=0 size_x=1 size_z=1
+  GEOM loc_id=2627 x=2774 z=3187 level=0 angle=1 shape=0 size_x=1 size_z=1
+  GEOM loc_id=2628 x=2788 z=3189 level=0 angle=1 shape=0 size_x=1 size_z=1
+  GEOM loc_id=2629 x=2787 z=3190 level=0 angle=0 shape=0 size_x=1 size_z=1
+  GEOM loc_id=2635 x=2775 z=3196 level=0 angle=3 shape=10 size_x=2 size_z=1
+  SANITY herokitchendoor scene slot=4620
+  SANITY msg: 
+  SANITY herokitchendoor: player now at 2787,3189
+  pete_sidedoor scene slot=4617
+  OPLOC1 pete_sidedoor (unqualified) from north (2781,3196): player now at 2781,3196 (stayed put / locked)
+  OPLOC1 pete_sidedoor (qualified Phoenix) from north (2781,3196): player now at 2781,3197 (WALKED THROUGH)
+torirsserver: scene built at zone 399,409 (base 3144,3224 — 7979 locs)
+ToriRSServer selftest: ::herorun
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  DBG HERORUN PASS: reset heroquest=hero_not_started
+  DBG HERORUN PASS: has_hero_quest_requirements=false before any prerequisite is met
+  DBG HERORUN PASS: has_hero_quest_requirements=false with qp/zanaris/dragon/arthur met but no gang complete (the OR clause holds)
+  DBG HERORUN PASS: has_hero_quest_requirements=true with all prerequisites met (phoenix side)
+  DBG HERORUN PASS: hero_journal ran with heroquest=hero_not_started (qualifies, not yet started)
+  DBG HERORUN PASS: accepted quest, heroquest=hero_started
+  DBG HERORUN PASS: hero_in_progress=true at hero_started
+  DBG HERORUN PASS: Straven route, heroquest=hero_phoenix_gangmember_spoken
+  DBG HERORUN PASS: hero_phoenix_in_progress=true at hero_phoenix_gangmember_spoken
+  DBG HERORUN PASS: Alfonse route, heroquest=hero_phoenix_talked_alfonse
+  DBG HERORUN PASS: Charlie route, heroquest=hero_phoenix_talked_charlie
+  DBG HERORUN PASS: hero_journal ran with heroquest=hero_phoenix_talked_charlie (mid-phoenix-route)
+  DBG HERORUN PASS: Grip killed (mirrors drop_tables/scripts/grip.rs2's real ai_queue3 write), heroquest=hero_phoenix_killed_grip
+  DBG HERORUN PASS: Straven hand-in complete, heroquest=hero_phoenix_obtained_armband, armband granted
+  DBG HERORUN PASS: hero_journal ran with heroquest=hero_phoenix_obtained_armband (phoenix armband done)
+  DBG HERORUN PASS: all three final items held (feather, eel, armband)
+  DBG HERORUN PASS: hero_journal ran with all three items held (should prompt hand-in to Achietties)
+  DBG HERORUN PASS: completion hand-in, heroquest=hero_complete, +1 QP, +3075 Attack XP, +2575 Mining XP, all 3 items consumed exactly once
+  DBG HERORUN PASS: hero_journal ran with heroquest=hero_complete (finished)
+  DBG HERORUN PASS: hero_in_progress=false at hero_complete
+  DBG HERORUN OK: heroquest=15
+ToriRSServer selftest: the make-menu answers with a product and a count
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: farming rake / compost / plant / water
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 381,413 (base 3000,3256 — 10127 locs)
+torirsserver: scene built at zone 350,433 (base 2752,3416 — 7237 locs)
+ToriRSServer selftest: windmill hopper -> levers -> flour bin
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 395,413 (base 3112,3256 — 7674 locs)
+ToriRSServer selftest: lighting a fire steps off it, twice
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: pid 1 has no free npc name for world slot 589
+torirsserver: pid 1 has no free npc name for world slot 586
+torirsserver: pid 1 has no free npc name for world slot 619
+torirsserver: pid 1 has no free npc name for world slot 564
+torirsserver: pid 1 has no free npc name for world slot 584
+torirsserver: pid 1 has no free npc name for world slot 615
+torirsserver: pid 1 has no free npc name for world slot 610
+torirsserver: pid 1 has no free npc name for world slot 620
+torirsserver: pid 1 has no free npc name for world slot 626
+torirsserver: pid 1 has no free npc name for world slot 559
+torirsserver: pid 1 has no free npc name for world slot 604
+torirsserver: pid 1 has no free npc name for world slot 621
+torirsserver: pid 1 has no free npc name for world slot 583
+torirsserver: pid 1 has no free npc name for world slot 601
+torirsserver: pid 1 has no free npc name for world slot 629
+torirsserver: pid 1 has no free npc name for world slot 630
+torirsserver: pid 1 has no free npc name for world slot 565
+torirsserver: pid 1 has no free npc name for world slot 609
+torirsserver: pid 1 has no free npc name for world slot 627
+torirsserver: pid 1 has no free npc name for world slot 631
+torirsserver: pid 1 has no free npc name for world slot 557
+torirsserver: pid 1 has no free npc name for world slot 561
+torirsserver: pid 1 has no free npc name for world slot 560
+torirsserver: pid 1 has no free npc name for world slot 566
+torirsserver: pid 1 has no free npc name for world slot 553
+torirsserver: pid 1 has no free npc name for world slot 596
+torirsserver: pid 1 has no free npc name for world slot 636
+torirsserver: pid 1 has no free npc name for world slot 637
+torirsserver: pid 1 has no free npc name for world slot 638
+torirsserver: pid 1 has no free npc name for world slot 642
+  SKIP  the watcher's step is read out of the classic PLAYER_INFO bit section; revision osrs239 uses the v5 codec
+ToriRSServer selftest: the Cook op opens the make-menu for what you carry
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+ToriRSServer selftest: QBD adds die on the ordinary hitpoint scale
+torirsserver: 30076 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+  SKIP  content lane `rs2012_qbd_td` is not in this build (`[proc,rs2012_qbd_coord]` is not in the pack) — build with TORIRSSERVER_SCRIPT_LANES="rs2012_qbd_td" to run these
+ToriRSServer selftest: QBD departure preserves reward and reuses its instance
+  SKIP  content lane `rs2012_qbd_td` is not in this build (`[proc,rs2012_qbd_coord]` is not in the pack) — build with TORIRSSERVER_SCRIPT_LANES="rs2012_qbd_td" to run these
+ToriRSServer selftest: the world's Pick locs give the right obj
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23159 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+ToriRSServer selftest: TD exit, departure, death and logout release its instance
+  SKIP  content lane `rs2012_qbd_td` is not in this build (`[proc,rs2012_td_init]` is not in the pack) — build with TORIRSSERVER_SCRIPT_LANES="rs2012_qbd_td" to run these
+ToriRSServer selftest: all checks passed
+Failed to load map terrain 27, 69 (archive_id: -1)
+Failed to load map terrain 27, 70 (archive_id: -1)
+Failed to load map terrain 27, 71 (archive_id: -1)
+Failed to load map terrain 28, 69 (archive_id: -1)
+Failed to load map terrain 28, 71 (archive_id: -1)
+Failed to load map terrain 29, 69 (archive_id: -1)
+Failed to load map terrain 29, 71 (archive_id: -1)
+Failed to load map 27, 69 (archive_id)
+Failed to load map 27, 70 (archive_id)
+Failed to load map 27, 71 (archive_id)
+Failed to load map 28, 69 (archive_id)
+Failed to load map 28, 71 (archive_id)
+Failed to load map 29, 69 (archive_id)
+Failed to load map 29, 71 (archive_id)
+Failed to load map terrain 43, 152 (archive_id: -1)
+Failed to load map 43, 152 (archive_id)
+Failed to load map terrain 36, 80 (archive_id: -1)
+Failed to load map 36, 80 (archive_id)
+Failed to load map terrain 37, 155 (archive_id: -1)
+Failed to load map 37, 155 (archive_id)
+Failed to load map terrain 44, 147 (archive_id: -1)
+Failed to load map terrain 45, 147 (archive_id: -1)
+Failed to load map 44, 147 (archive_id)
+Failed to load map 45, 147 (archive_id)
+Failed to load map terrain 45, 144 (archive_id: -1)
+Failed to load map 45, 144 (archive_id)
+Failed to load map terrain 45, 144 (archive_id: -1)
+Failed to load map terrain 46, 145 (archive_id: -1)
+Failed to load map 45, 144 (archive_id)
+Failed to load map 46, 145 (archive_id)
+Failed to load map terrain 45, 144 (archive_id: -1)
+Failed to load map terrain 46, 145 (archive_id: -1)
+Failed to load map terrain 46, 146 (archive_id: -1)
+Failed to load map 45, 144 (archive_id)
+Failed to load map 46, 145 (archive_id)
+Failed to load map 46, 146 (archive_id)
+Failed to load map terrain 44, 147 (archive_id: -1)
+Failed to load map terrain 45, 147 (archive_id: -1)
+Failed to load map terrain 46, 145 (archive_id: -1)
+Failed to load map terrain 46, 146 (archive_id: -1)
+Failed to load map terrain 46, 147 (archive_id: -1)
+Failed to load map 44, 147 (archive_id)
+Failed to load map 45, 147 (archive_id)
+Failed to load map 46, 145 (archive_id)
+Failed to load map 46, 146 (archive_id)
+Failed to load map 46, 147 (archive_id)
+Failed to load map terrain 42, 145 (archive_id: -1)
+Failed to load map terrain 42, 146 (archive_id: -1)
+Failed to load map terrain 43, 147 (archive_id: -1)
+Failed to load map 42, 145 (archive_id)
+Failed to load map 42, 146 (archive_id)
+Failed to load map 43, 147 (archive_id)
+Failed to load map terrain 44, 147 (archive_id: -1)
+Failed to load map terrain 45, 147 (archive_id: -1)
+Failed to load map 44, 147 (archive_id)
+Failed to load map 45, 147 (archive_id)
+Failed to load map terrain 40, 155 (archive_id: -1)
+Failed to load map terrain 41, 155 (archive_id: -1)
+Failed to load map 40, 155 (archive_id)
+Failed to load map 41, 155 (archive_id)

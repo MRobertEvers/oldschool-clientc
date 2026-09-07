@@ -23,6 +23,7 @@ struct FakeWidget { int parent; int x, y, w, h; int alive; char key[32]; int ima
 static struct FakeWidget widgets[64];
 static int next_owned = W_FIRST_OWNED;
 static int native_orbs;        /* the lane has interface 160 */
+static int cutscene_status;    /* varbit cutscene_status */
 static int button_available[3]; /* prayer, run, spec */
 static int run_mode;
 static int invoked_component = -1, invoked_operation = -1, invoked_actions;
@@ -116,7 +117,9 @@ static bool cfg_int(struct ToriRS_Api* api, char const* key, int* out)
 static bool cfg_string(struct ToriRS_Api* api, char const* key, char const** out) { (void)api; (void)key; *out = ""; return true; }
 static bool named_id(struct ToriRS_Api* api, char const* kind, char const* name, int* out)
 { (void)api; if( !strcmp(kind, "varp") ) { *out = !strcmp(name, "run_mode") ? 173 : 300; return true; }
+  if( !strcmp(kind, "varbit") && !strcmp(name, "cutscene_status") ) { *out = 4606; return true; }
   if( !strcmp(kind, "iface") && !native_orbs && !strcmp(name, "orb_run_on") ) { *out = 153; return true; } return false; }
+static int cache_varbit(struct ToriRS_Api* api, int id) { (void)api; return id == 4606 ? cutscene_status : 0; }
 static int cache_varp(struct ToriRS_Api* api, int id) { (void)api; return id == 300 ? 500 : id == 173 ? run_mode : 0; }
 static bool cache_invoke(struct ToriRS_Api* api, int component, int operation) { (void)api; invoked_component = component; invoked_operation = operation; return true; }
 static bool skill(struct ToriRS_Api* api, int index, struct ToriRS_SkillSnapshot* out) { (void)api; if( index != 3 && index != 5 ) return false; out->current_level = index == 3 ? 42 : 30; out->base_level = index == 3 ? 50 : 40; return true; }
@@ -149,7 +152,7 @@ int main(void)
     api.widgets.bounds = f_bounds; api.widgets.remove = f_remove; api.widgets.watch = f_watch;
     api.assets.image = a_image; api.assets.image_size = a_image_size; api.assets.image_pixels = a_image_pixels;
     api.assets.image_compose = a_compose; api.assets.image_release = a_release; api.assets.request = a_request; api.assets.bytes = a_bytes; api.assets.release = a_asset_release;
-    api.cache.named_id = named_id; api.cache.varp = cache_varp; api.cache.invoke = cache_invoke;
+    api.cache.named_id = named_id; api.cache.varp = cache_varp; api.cache.varbit = cache_varbit; api.cache.invoke = cache_invoke;
     game.skill = skill; game.run_energy = run_energy; api.game = &game;
 
     /* The minimap (parent-local 600,20 146x151 inside a 765x503 layer). */
@@ -191,6 +194,16 @@ int main(void)
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
         CHECK(next_owned == alive && widgets[hp].x <= 500 + 6 - 57 && !orb_covers_map(&widgets[W_MINIMAP], &widgets[hp]));
     }
+    /* A cutscene hides the cache's orbs: the covers go with them and come
+     * back, on the same frame path, when it ends. */
+    cutscene_status = 1;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(alive_owned() == 0);
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(alive_owned() == 0);
+    cutscene_status = 0;
+    TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(alive_owned() == 4);
     /* The minimap unbinds: the beside-map controls are gone with their parent. */
     bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "minimap", W_MINIMAP, 0);
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_stop(&api, state);

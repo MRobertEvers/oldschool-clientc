@@ -735,6 +735,94 @@ UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot)
 }
 
 int
+UITreeSceneBridge_LocModelIds(struct ToriRS_Location const* loc, int const** ids)
+{
+    assert(loc);
+    assert(ids);
+    *ids = NULL;
+    if( !loc->models || !loc->lengths || loc->shapes_and_model_count <= 0 )
+        return 0;
+    for( int group = 0; group < loc->shapes_and_model_count; group++ )
+    {
+        if( loc->shapes && loc->shapes[group] != 10 )
+            continue;
+        *ids = loc->models[group];
+        return loc->lengths[group];
+    }
+    return 0;
+}
+
+int
+UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id)
+{
+    struct ToriRS_Location* loc;
+    struct ToriDraw_Model** parts;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle handle;
+    int const* ids;
+    int count;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
+    if( loc_id < 0 )
+        return -1;
+    scene_id = UITREE_SCENE_LOC_MODEL_BASE | loc_id;
+    if( ToriDraw_SceneModelHas(bridge->scene, scene_id) )
+        return scene_id;
+    if( !CacheProvider_LocationHas(bridge->provider, loc_id) )
+        return -1;
+    loc = CacheProvider_LocationGet(bridge->provider, loc_id);
+    count = UITreeSceneBridge_LocModelIds(loc, &ids);
+    if( count <= 0 )
+        return -1;
+    for( int i = 0; i < count; i++ )
+        if( !CacheProvider_ModelHas(bridge->provider, ids[i]) )
+            return -1;
+    parts = calloc((size_t)count, sizeof(*parts));
+    assert(parts);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_Model* source = CacheProvider_ModelGet(bridge->provider, ids[i]);
+        assert(source);
+        parts[i] = ToriDraw_ModelFromToriRS(source);
+        assert(parts[i]);
+    }
+    model = count == 1 ? parts[0] : ToriDraw_ModelMerge(parts, count);
+    assert(model);
+    if( count > 1 )
+        for( int i = 0; i < count; i++ )
+            ToriDraw_ModelFree(parts[i]);
+    free(parts);
+
+    /* rev239 class37.method607 -> LocType.getModel(10, 0, null terrain).
+     * Unlike a placed multiloc, this uses the supplied config directly: CS2
+     * chooses the preview override. No terrain contour or world translation. */
+    if( loc->mirrored )
+        ToriDraw_ModelMirror(model);
+    for( int i = 0; i < loc->recolor_count; i++ )
+        ToriDraw_ModelRecolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+    for( int i = 0; i < loc->retexture_count; i++ )
+        ToriDraw_ModelRetexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+    if( loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128 )
+        ToriDraw_ModelScale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+    if( loc->offset_x || loc->offset_y || loc->offset_z )
+        ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
+    ToriDraw_ModelNoteTextureWants(model);
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = model;
+    ToriDraw_LightModelScene(handle, loc->contrast, loc->ambient);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, handle);
+    bridge_assets_changed(bridge);
+    return scene_id;
+}
+
+int
 UITreeSceneBridge_EnsureModel(
     struct UITreeSceneBridge* bridge,
     int cache_model_id)

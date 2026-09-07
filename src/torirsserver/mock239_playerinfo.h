@@ -48,15 +48,10 @@
  * 11 bits is what makes section 4 cheap: 2047 untracked players cost one bit,
  * two bits and eleven bits, not 2047 bits.
  *
- * ## What this file does and does not do
- *
- * It puts THE LOCAL PLAYER in high resolution with an appearance block, and
- * holds every other index in low resolution. That is the milestone that makes a
- * client render itself and its scene.
- *
- * It does not yet add, move or remove other players.  The local player's
- * high-resolution walk, run and teleport forms are implemented; the
- * low-to-high transition for other slots is not.
+ * The world writer retains each observer's high/low membership and cycle bits,
+ * promotes visible players, writes walk/run/teleport and extended updates, and
+ * retires players that leave view. The local-only writer remains available for
+ * focused codec fixtures.
  */
 
 #include <stddef.h>
@@ -206,6 +201,36 @@ mock239_playerinfo_write(
     const uint8_t* appearance,
     int appearance_len,
     const struct Mock239PlayerExt* ext);
+
+/** Per-observer GPI state. Membership and cycle flags describe the last
+ * packet, not the current world; reset only with the login/reconnect init. */
+struct Mock239PlayerInfoState
+{
+    int initialized;
+    int local_index;
+    uint8_t high[MOCK239_PLAYER_SLOTS];
+    uint8_t inactive[MOCK239_PLAYER_SLOTS];
+    int32_t coord[MOCK239_PLAYER_SLOTS];
+    uint32_t region[MOCK239_PLAYER_SLOTS];
+};
+
+struct Mock239PlayerUpdate
+{
+    int index;
+    int visible;
+    int32_t coord;
+    enum Mock239PlayerMovement movement;
+    int32_t movement_value;
+    const uint8_t* appearance;
+    int appearance_len;
+    const struct Mock239PlayerExt* ext;
+};
+
+void mock239_playerinfo_state_init(struct Mock239PlayerInfoState* state,
+                                 int local_index, int32_t coord);
+void mock239_playerinfo_write_world(struct RSAreaBuf* buf,
+                                   struct Mock239PlayerInfoState* state,
+                                   const struct Mock239PlayerUpdate* updates, int count);
 
 /**
  * One tick of NPC_INFO v5 carrying no npcs.

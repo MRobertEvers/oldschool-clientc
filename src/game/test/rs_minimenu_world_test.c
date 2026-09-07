@@ -13,6 +13,7 @@
 #include "ui/uitree_layout.h"
 #include "ui/uitree_minimenu.h"
 #include "world.h"
+#include "world/wev.h"
 #include "world_pickset.h"
 
 #include <stdio.h>
@@ -299,6 +300,219 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     CacheProvider_FreeEngineCaches(&provider);
 }
 
+/*
+ * A SCRIPT-BUILT target button — the sailing crew panel's "Edit navigator".
+ *
+ * `torirs_sailing_edit_navigator_btn` (clientscript 8779) ends a CC_CREATE
+ * chain with `cc_settargetverb("Edit-navigator")`, and content arms the layer
+ * that owns those children with
+ * `if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127,
+ * ^if_event_op_all + 16384)` — 2046 op bits plus bit 14, which is
+ * `TORIRS_TARGET_MASK_PLAYER` once shifted down by 11.
+ *
+ * A CC_CREATE node is memset to zero and NO `cc_` opcode can write a target
+ * mask, so the widget's own decoded mask is 0 forever. Reading only that half
+ * (rather than deob `method12093`'s "server events where declared, decoded
+ * flags where not") built no target row at all: right-clicking the button
+ * offered nothing but Cancel, and the [opplayert] navigator grant was
+ * unreachable with a mouse.
+ */
+static void
+test_if3_script_button_target_row_uses_declared_events(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec parent = { 0 };
+    struct UITreeNodeSpec child = { 0 };
+    /* ^if_event_op_all (2046) + 16384, exactly what boat_sidepanel.rs2 sends. */
+    struct TestEvents events = { .component_id = 2, .mask = 2046 + 16384 };
+    struct RS_MinimenuBuildCtx ctx = {
+        .tree = tree,
+        .events_for_component = test_events_for_component,
+        .events_user = &events,
+    };
+    struct UIMinimenu menu;
+    int32_t parent_index;
+    int32_t child_index;
+
+    parent.type = UIELEM_RS_LAYER;
+    parent.component_id = 1;
+    parent.width = 200;
+    parent.height = 200;
+    parent_index = UITree_Push(tree, -1, &parent);
+    TEST_ASSERT(parent_index >= 0, "crew clicklayer fixture pushed");
+
+    /* The proc's last CC_CREATE is a transparent rectangle; the target verb
+     * lands on it, and it carries no ops and no opBase of its own. */
+    child.type = UIELEM_RS_RECT;
+    child.component_id = events.component_id;
+    child.dynamic = 1;
+    child.dynamic_child_index = 0;
+    child.width = 120;
+    child.height = 30;
+    snprintf(
+        child.menu_options.target_verb,
+        sizeof(child.menu_options.target_verb),
+        "Edit-navigator");
+    child_index = UITree_Push(tree, parent_index, &child);
+    TEST_ASSERT(child_index >= 0, "Edit navigator fixture pushed");
+    if( child_index < 0 )
+    {
+        UITree_Free(tree);
+        return;
+    }
+    tree->components[child_index].if3 = 1;
+    /* What keeps a script-built node out of `rs_node_is_decorative_passthrough`
+     * so the click collects it at all. A target verb ALONE should be enough —
+     * the reference collects every widget under the cursor and lets
+     * method12079 decide — and that predicate is the separate defect recorded
+     * in editnav-arming-results.json. This fixture is about the row, so it
+     * gives the node the op hook that gets it into the hit stack today. */
+    UITree_HooksMut(&tree->components[child_index])->on_op.script_id = 88;
+    TEST_ASSERT(
+        tree->components[child_index].behavior.target_mask == 0,
+        "a CC_CREATE child has no decoded target mask of its own");
+
+    UITree_LayoutResolve(tree, 0, 0, 400, 400);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_TGT_BUTTON) == 1,
+        "IF_SETEVENTS bit 14 arms the script-built target verb");
+    {
+        int const row = menu_index_of(&menu, "Edit-navigator");
+        TEST_ASSERT(row >= 0, "the Edit-navigator row is built");
+        if( row >= 0 )
+            TEST_ASSERT(
+                strcmp(menu.options[row].text, "Edit-navigator") == 0,
+                "a target row with no opBase is the verb alone");
+    }
+
+    /* The control: the SAME node with the op bits but no target bits. */
+    events.mask = 2046;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_TGT_BUTTON) == 0,
+        "without a declared target bit the verb stays unarmable");
+
+    UITree_Free(tree);
+}
+
+/*
+ * `cc_settargetpriority(-1)` is a RESET, not a suppression.
+ *
+ * Statics.java opcode 1312 stores -1 as `field4122 = 1431939116`, and
+ * 1431939116 is `4 * -1789498869` — the same 4 the widget constructor seeds.
+ * 1..32 store `value - 1`; every other value is ignored outright. Both the
+ * sailing button and the native inventory painter
+ * (`inventory_noops_allowinteraction_bind_actions_6011`) open with -1, so
+ * reading it as "no target row" would have cost the inventory its Use row too.
+ */
+static void
+test_cc_settargetpriority_minus_one_is_the_default(void)
+{
+    struct UITree* tree = UITree_New(2);
+    struct UITreeNodeSpec spec = { 0 };
+    int32_t index;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 7;
+    spec.width = 10;
+    spec.height = 10;
+    index = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(index >= 0, "target-priority fixture pushed");
+    if( index < 0 )
+    {
+        UITree_Free(tree);
+        return;
+    }
+
+    TEST_ASSERT(
+        UITree_ApplyTargetPriority(tree, spec.component_id, 7) &&
+            tree->components[index].target_priority == 6,
+        "1..32 stores value - 1");
+    TEST_ASSERT(
+        UITree_ApplyTargetPriority(tree, spec.component_id, -1) &&
+            tree->components[index].target_priority == 4,
+        "-1 resets the priority to the rev239 default of 4");
+    TEST_ASSERT(
+        !UITree_ApplyTargetPriority(tree, spec.component_id, 0) &&
+            tree->components[index].target_priority == 4,
+        "0 is ignored and leaves the stored priority alone");
+    TEST_ASSERT(
+        !UITree_ApplyTargetPriority(tree, spec.component_id, 33) &&
+            tree->components[index].target_priority == 4,
+        "a priority past 32 is ignored and leaves the stored priority alone");
+    UITree_Free(tree);
+}
+
+/*
+ * The placement half of the reset: after `cc_settargetpriority(-1)` the target
+ * row must sit where slot 4 sits in the high-to-low walk — under the ops the
+ * reference deprioritizes (5..9) and above the ones it does not (0..3).
+ */
+static void
+test_if3_target_row_after_reset_sits_at_slot_four(void)
+{
+    struct UITree* tree = UITree_New(2);
+    struct UITreeNodeSpec spec = { 0 };
+    struct TestEvents events = { .component_id = 3, .mask = 2046 + 16384 };
+    struct RS_MinimenuBuildCtx ctx = {
+        .tree = tree,
+        .events_for_component = test_events_for_component,
+        .events_user = &events,
+    };
+    struct UIMinimenu menu;
+    int32_t index;
+
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = events.component_id;
+    spec.width = 120;
+    spec.height = 30;
+    snprintf(
+        spec.menu_options.target_verb, sizeof(spec.menu_options.target_verb), "Grant");
+    snprintf(spec.menu_options.option, sizeof(spec.menu_options.option), "Helm");
+    snprintf(spec.menu_options.ops[3], sizeof(spec.menu_options.ops[3]), "Below");
+    snprintf(spec.menu_options.ops[5], sizeof(spec.menu_options.ops[5]), "Above");
+    index = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(index >= 0, "reset-placement fixture pushed");
+    if( index < 0 )
+    {
+        UITree_Free(tree);
+        return;
+    }
+    tree->components[index].if3 = 1;
+    UITree_HooksMut(&tree->components[index])->on_op.script_id = 77;
+    TEST_ASSERT(
+        UITree_ApplyTargetPriority(tree, spec.component_id, -1),
+        "the reset applies to the fixture");
+
+    UITree_LayoutResolve(tree, 0, 0, 400, 400);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    {
+        /* Options draw in reverse insertion order: the walk emits 9 -> 0, so a
+         * later index is a higher row. */
+        int const above = menu_index_of(&menu, "Above Helm");
+        int const target = menu_index_of(&menu, "Grant Helm");
+        int const below = menu_index_of(&menu, "Below Helm");
+        TEST_ASSERT(
+            above >= 0 && target >= 0 && below >= 0,
+            "the reset priority still builds its target row beside the ops");
+        if( above >= 0 && target >= 0 && below >= 0 )
+        {
+            TEST_ASSERT(
+                above < target && target < below,
+                "the reset target row lands between op 5 and op 3");
+            TEST_ASSERT(
+                menu.options[above].action > 1000,
+                "the op above priority 4 is deprioritized");
+            TEST_ASSERT(
+                menu.options[below].action < 1000,
+                "the op below priority 4 keeps its normal action");
+        }
+    }
+    UITree_Free(tree);
+}
+
 static void
 test_dat2_stacking_behaviour_is_not_boolean(void)
 {
@@ -477,6 +691,128 @@ test_other_player_stack_rows(void)
             continue;
         TEST_ASSERT(
             menu.options[i].pick.secondary_id == 8, "player pick pid is Bob (8), not local");
+    }
+
+    World_Free(world);
+}
+
+/*
+ * The armed half of "Edit-navigator": what a target selection's mask decides
+ * about a world player row.
+ *
+ * `App::targetsel.mask` is copied straight onto `RS_MinimenuSelection::
+ * target_mask` (app.c), so this is the exact gate an armed click passes
+ * through. It used to be filled from `node->behavior.target_mask`, which is 0
+ * for a `cc_create`d child — no `cc_` opcode can write a target mask — and the
+ * measured symptom was this test's first half: target mode armed, the guest
+ * under the cursor, and a menu with NOTHING in it, because the ordinary
+ * Follow/Trade rows are suppressed while a selection is armed and the target
+ * row was refused.
+ *
+ * The mask the arm must use instead is the server's IF_SETEVENTS declaration,
+ * shifted the way deob `method7577(method12093(...))` shifts it — pinned below
+ * against sailing's own `if_setevents(..., ^if_event_op_all + 16384)`.
+ *
+ * There is no unit test of `App`'s arm itself: every seam of it
+ * (`app_component_target_mask`, `app_targetsel_wire_component`, and the
+ * `REVCONFIG_MINIMENU_TGT_BUTTON` arm inside `app_minimenu_run_option`) is
+ * static in app.c, reached only through a live `struct App` with a UI tree, a
+ * world and a net, and a prototype for them would have to go in app.h. What is
+ * testable is the contract they must satisfy, which is this file's subject.
+ */
+static void
+test_target_mask_gates_the_armed_player_row(void)
+{
+    printf("TEST: an armed target selection needs the declared mask to offer a player\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World* world = World_TestMakeReady(104);
+    char player_ops[5][40];
+    int player_ops_primary[5] = { 1, 1, 0, 0, 0 };
+    struct World_PickSet picks;
+    struct UIMinimenu menu;
+    int op;
+    struct WorldEntity_Player* other;
+
+    /* sailing's own arming word, and the mask it must yield. */
+    TEST_ASSERT(
+        ((2046 + 16384) >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS,
+        "^if_event_op_all + 16384 carries target bits at all");
+    TEST_ASSERT(
+        (((2046 + 16384) >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS) ==
+            TORIRS_TARGET_MASK_PLAYER,
+        "boat_sidepanel's if_setevents declares a PLAYER target");
+
+    world->local_pid = 1;
+    World_PlayerSpawn(world, 200, 0, 30, 30, idle);
+    op = World_PlayerSpawn(world, 201, 0, 31, 30, idle);
+    other = World_EntityPoolGet(&world->entities.player, op);
+    other->server_pid = 2;
+    other->combat_level = 1;
+    snprintf(other->name, sizeof(other->name), "Deckhand");
+
+    memset(player_ops, 0, sizeof(player_ops));
+    snprintf(player_ops[0], sizeof(player_ops[0]), "Follow");
+    snprintf(player_ops[1], sizeof(player_ops[1]), "Trade with");
+
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 201, WORLD_PICK_PLAYER, 31, 30, 0, 0);
+
+    {
+        /* The defect: armed with the decoded mask of a cc_create'd child. */
+        struct RS_MinimenuBuildCtx ctx = {
+            .selection = { .mode = RS_MINIMENU_SELECT_TARGET,
+                           .target_op = "Edit-navigator ->",
+                           .target_mask = 0 },
+            .player_ops = (char const(*)[40])player_ops,
+            .player_ops_primary = player_ops_primary,
+            .world = world,
+            .world_pickset = &picks,
+            .click_in_world = true,
+        };
+        UIMinimenu_Reset(&menu);
+        RS_Minimenu_AddWorldRows(&ctx, &menu);
+        TEST_ASSERT(
+            menu_player_row_count(&menu) == 0,
+            "mask 0 offers no target row (the measured symptom)");
+        TEST_ASSERT(
+            !menu_has_substr(&menu, "Follow"),
+            "an armed selection suppresses the plain ops, so mask 0 leaves nothing at all");
+    }
+
+    {
+        /* The fix: armed with the effective mask the server declared. */
+        struct RS_MinimenuBuildCtx ctx = {
+            .selection = { .mode = RS_MINIMENU_SELECT_TARGET,
+                           .target_op = "Edit-navigator ->",
+                           .target_mask = TORIRS_TARGET_MASK_PLAYER },
+            .player_ops = (char const(*)[40])player_ops,
+            .player_ops_primary = player_ops_primary,
+            .world = world,
+            .world_pickset = &picks,
+            .click_in_world = true,
+        };
+        UIMinimenu_Reset(&menu);
+        RS_Minimenu_AddWorldRows(&ctx, &menu);
+        TEST_ASSERT(
+            menu_player_row_count(&menu) == 1, "the declared mask offers exactly one row");
+        TEST_ASSERT(
+            menu_has_substr(&menu, "Edit-navigator -> @whi@Deckhand"),
+            "the row is the armed verb joined to the target's name");
+        for( int i = 0; i < menu.option_count; i++ )
+        {
+            if( menu.options[i].pick.kind != UI_MINIMENU_PICK_PLAYER )
+                continue;
+            TEST_ASSERT(
+                menu.options[i].action == REVCONFIG_MINIMENU_TGT_PLAYER,
+                "the row is a target row, not an OPPLAYER op");
+            /* The number the click puts in OPPLAYERT. It is the GPI index the
+             * server published in PLAYER_INFO (pool pid + 1), not the server's
+             * own pool index — see the open issue on handle_opplayert. */
+            TEST_ASSERT(
+                menu.options[i].pick.secondary_id == 2,
+                "the row carries the target's published player index");
+        }
     }
 
     World_Free(world);
@@ -719,6 +1055,26 @@ test_walk_here_ground_fallback(void)
     walk = menu_walk_row(&menu);
     TEST_ASSERT(walk && walk->pick.secondary_id == 51, "picked tile beats the fallback (x)");
     TEST_ASSERT(walk && walk->pick.tertiary_id == 52, "picked tile beats the fallback (z)");
+
+    /* Navigation is a bearing even when the pointer is over a deck tile.
+     * A 0 heading is due south, and must not be mistaken for absent input. */
+    ctx.sailing_navigating = true;
+    ctx.sailing_heading_valid = true;
+    ctx.sailing_heading = 0;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    int heading_row = menu_index_of(&menu, "Set heading");
+    TEST_ASSERT(heading_row >= 0, "helm offers the native Set heading row");
+    TEST_ASSERT(menu_index_of(&menu, "Walk here") < 0, "helm does not offer player walking");
+    TEST_ASSERT(heading_row >= 0 && menu.options[heading_row].pick.kind == UI_MINIMENU_PICK_HEADING,
+                "heading row carries a bearing rather than staging tile coordinates");
+    TEST_ASSERT(heading_row >= 0 && menu.options[heading_row].pick.id == 0,
+                "due south survives as a valid compass choice");
+    ctx.sailing_heading_valid = false;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    TEST_ASSERT(menu_index_of(&menu, "Set heading") < 0,
+                "a ray above the horizon does not invent a bearing");
 
     World_Free(world);
 }
@@ -1324,21 +1680,60 @@ test_owned_widget_row_over_native_button(void)
     UITree_Free(tree);
 }
 
+static void
+test_hull_menu_mask_and_dedup(void)
+{
+    puts("TEST: native hull menus use only hull hits and the five-bit mask");
+    struct World* root=World_TestMakeReady(64);
+    struct WevConfig cfg={.name="Test boat",.ops={"Board","Inspect","Anchor","Follow","Examine"}};
+    struct Wevs boats; Wevs_Init(&boats);
+    Wevs_Spawn(&boats,1,0,&cfg,1,0,0,0,0,31);
+    struct Wev* b=Wevs_Spawn(&boats,2,0,&cfg,1,1024,0,0,0,0x15);
+    struct World_PickSet picks; World_PickSetReset(&picks);
+    World_PickSetAdd(&picks,111,WORLD_PICK_WEV,-1,-1,-1,1);
+    World_PickSetAdd(&picks,112,WORLD_PICK_WEV,-1,-1,-1,2);
+    World_PickSetAdd(&picks,113,WORLD_PICK_WEV,-1,-1,-1,2);
+    struct RS_MinimenuBuildCtx ctx={.world=root,.world_pickset=&picks,.wevs=&boats,.click_in_world=true};
+    struct UIMinimenu menu; UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx,&menu);
+    int count=0;
+    for( int i=0;i<menu.option_count;++i ) if(menu.options[i].pick.kind==UI_MINIMENU_PICK_WEV)
+    {
+        ++count;
+        TEST_ASSERT(menu.options[i].pick.id==2,"only nearest boat receives rows");
+        TEST_ASSERT((0x15 & (1u<<menu.options[i].pick.secondary_id))!=0,"only wire-enabled ops are offered");
+    }
+    TEST_ASSERT(count==3,"overlapping hull geometry produces three enabled rows once");
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks,114,WORLD_PICK_TERRAIN,3,4,1,2);
+    UIMinimenu_Reset(&menu); RS_Minimenu_AddWorldRows(&ctx,&menu);
+    TEST_ASSERT(!menu_has_substr(&menu,"Test boat"),"contents-only terrain cannot invent a hull menu");
+    picks.items[0].type=WORLD_PICK_WEV; b->flattened=true;
+    UIMinimenu_Reset(&menu); RS_Minimenu_AddWorldRows(&ctx,&menu);
+    TEST_ASSERT(!menu_has_substr(&menu,"Test boat"),"flat boat never offers hull operations");
+    World_Free(root);
+}
+
 int
 main(void)
 {
     test_owned_widget_row_over_native_button();
     test_owned_widget_operation_rows();
     test_checked_widget_native_actions();
+    test_hull_menu_mask_and_dedup();
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();
     test_dat1_continue_is_not_a_numbered_op();
     test_if3_item_uses_only_scripted_ops();
     test_if3_item_onop_and_target_rows_match_rev239();
+    test_if3_script_button_target_row_uses_declared_events();
+    test_cc_settargetpriority_minus_one_is_the_default();
+    test_if3_target_row_after_reset_sits_at_slot_four();
     test_player_get_by_element_id();
     test_local_player_pick_expands_stacked_npcs();
     test_other_player_stack_rows();
+    test_target_mask_gates_the_armed_player_row();
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();
     test_obj_stack_beyond_old_cap();

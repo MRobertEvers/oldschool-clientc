@@ -47,7 +47,17 @@ android {
              *   make -C src PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 all
              *   make -C src PLATFORM=android ANDROID_ABI=arm64-v8a  OPT=1 all
              */
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            // Device iteration: avoid transferring the other architecture's
+            // library on every install. The default remains the universal APK.
+            def requestedAbi = project.findProperty('torirsAbi')
+            if (requestedAbi) {
+                if (!(requestedAbi in ['armeabi-v7a', 'arm64-v8a'])) {
+                    throw new GradleException("Unsupported torirsAbi: ${requestedAbi}")
+                }
+                abiFilters requestedAbi
+            } else {
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
+            }
         }
     }
 

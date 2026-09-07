@@ -222,7 +222,19 @@ struct ToriRS_GLES2DualCore
     uint32_t ab_lead_arms[2];
     struct GLES2DualCore_KernelKnob kernel_knobs[GLES2_DUALCORE_KERNEL_KNOBS];
     unsigned ab_arm;
+
+    /* Draw-private acquired result prefix; never written by the worker. */
+    _Alignas(64) uint32_t acquired_ready;
+    bool cache_acquires;
 };
+
+#if defined(TORIRS_PIPELINE_PMU)
+#include "../../tools/perf/gles2_pipeline_pmu.u.h"
+#endif
+
+#if defined(TORIRS_GPU_COUNTERS)
+#include "../../tools/perf/gles2_gpu_counters.u.h"
+#endif
 
 /* ---- crash breadcrumbs (TORIRS_GLES2_DUALCORE_DEBUG) --------------------------
  *
@@ -499,7 +511,13 @@ dualcore_worker_main(void* argument)
         dualcore_worker_pin(lane);
 
         began = dualcore_now_ns();
+#if defined(TORIRS_PIPELINE_PMU)
+        pipeline_pmu_begin_thread(&pipeline_pmu.worker);
+#endif
         dualcore_worker_pass(lane);
+#if defined(TORIRS_PIPELINE_PMU)
+        pipeline_pmu_end_thread(&pipeline_pmu.worker);
+#endif
         lane->worker_ns_window += dualcore_now_ns() - began;
 
         pthread_mutex_lock(&lane->lock);
@@ -588,6 +606,12 @@ dualcore_source_take(
         lane->desyncs++;
         lane->models_inline++;
         return false;
+    }
+
+    if( lane->cache_acquires )
+    {
+        result = GLES2DualCoreStageArena_TryAcquireResult(arena, index, &lane->acquired_ready);
+        if( result ) goto acquired_result;
     }
 
     /* A slot the worker handed to this thread, or one it claimed earlier,
@@ -685,9 +709,10 @@ dualcore_source_take(
         lane->stalls_by_class[class]++;
         lane->stall_spins_by_class[class] += spins;
     }
-    lane->models_taken++;
-
+    if( lane->cache_acquires ) lane->acquired_ready = ready;
     result = &arena->results[index];
+acquired_result:
+    lane->models_taken++;
     /* The worker can hand the slot over BETWEEN the claim-word read above and
      * the ready check: then what was published is its placeholder, and the
      * model is this thread's to stage. Not a fault, a race the protocol
@@ -764,6 +789,8 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
      * takes over), only a slower frame. */
     GLES2DualCoreStageArena_BeginFrame(&lane->arena, (uint32_t)frame->painters->command_count + 64u);
     lane->arena.lead = lane->lead;
+    lane->acquired_ready = 0u;
+    lane->cache_acquires = lane->arena.cache_acquires;
 
     memset(&lane->context, 0, sizeof(lane->context));
     lane->context.scene = lane->view;
@@ -772,6 +799,9 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
     lane->context.pick_mouse_x = renderer->pick_mouse_x;
     lane->context.pick_mouse_y = renderer->pick_mouse_y;
     lane->context.zbuffer = renderer->zbuffer != NULL;
+    frame->prepare_gpu_poses=renderer->pose_reuse_enabled;
+    renderer->poses_prepared=frame->prepare_gpu_poses;
+    lane->context.poses_prepared=frame->prepare_gpu_poses;
 
     lane->dispatched = 0u;
     lane->bus_done = false;
@@ -813,7 +843,7 @@ dualcore_translate_ahead(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame*
             lane->bus_done = true;
             break;
         }
-        GLES2DualCoreStageArena_FeedPublish(arena);
+        GLES2DualCoreStageArena_FeedCommitBatched(arena);
         if( slot->kind == TORIRSRC_END_3D )
         {
             lane->in_pass = false;
@@ -827,6 +857,9 @@ dualcore_translate_ahead(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame*
                 GLES2DualCoreStageArena_FeedClose(arena);
         }
     }
+    /* The draw must never wait for a model whose command is still private.
+     * Also flush short lookahead windows and an unterminated/truncated pass. */
+    GLES2DualCoreStageArena_FeedFlush(arena);
 }
 
 /*
@@ -1108,11 +1141,18 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     assert(lane);
     assert(frame);
     renderer = lane->renderer;
+    renderer->poses_prepared=false;
     lane->armed = false;
     lane->kicked = false;
 
     if( !gles2_render_frame_begin(renderer) )
         return;
+#if defined(TORIRS_PIPELINE_PMU)
+    pipeline_pmu_frame_begin(renderer);
+#endif
+#if defined(TORIRS_GPU_COUNTERS)
+    gpu_counter_frame_begin();
+#endif
     ToriRS_FrameBegin(frame);
     if( dualcore_arm(lane, frame) )
     {
@@ -1136,8 +1176,15 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
         renderer->model_stage_source = NULL;
         lane->armed = false;
     }
+    renderer->poses_prepared=false;
     ToriRS_FrameEnd(frame);
     gles2_render_frame_end(renderer);
+#if defined(TORIRS_PIPELINE_PMU)
+    pipeline_pmu_frame_end(lane);
+#endif
+#if defined(TORIRS_GPU_COUNTERS)
+    gpu_counter_frame_end();
+#endif
     lane->frames++;
     dualcore_debug_line(lane);
 }
@@ -1151,8 +1198,10 @@ ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
     long warmup;
 
     assert(renderer);
-    lane = (struct ToriRS_GLES2DualCore*)calloc(1, sizeof(*lane));
-    assert(lane);
+    /* calloc need not honor the arena's extended 64-byte alignment. */
+    if( posix_memalign((void**)&lane, _Alignof(struct ToriRS_GLES2DualCore), sizeof(*lane)) )
+        return NULL;
+    memset(lane, 0, sizeof(*lane));
     lane->renderer = renderer;
     GLES2DualCoreStageArena_Init(&lane->arena);
     lane->source.user = lane;

@@ -1,0 +1,17 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/bake_chain_replay: unused DT entry: type 0x6ffffef5 arg 0x468
+WARNING: linker: /data/local/tmp/bake_chain_replay: unused DT entry: type 0x6ffffffe arg 0x428
+WARNING: linker: /data/local/tmp/bake_chain_replay: unused DT entry: type 0x6fffffff arg 0x2
+verified: 128 real model bakes, 50375 ordered faces, 0 textured, both arms
+pmu,cpu-cycles,bake,1,768,65391819,85145.598,arm=0
+pmu,cpu-cycles,bake,2,768,62742501,81695.965,arm=1
+pmu,cpu-cycles,bake,3,768,63237990,82341.133,arm=1
+pmu,cpu-cycles,bake,4,768,65523146,85316.596,arm=0
+pmu,cpu-cycles,bake,5,768,65122291,84794.650,arm=0
+pmu,cpu-cycles,bake,6,768,62651339,81577.264,arm=1
+pmu,cpu-cycles,bake,7,768,62603430,81514.883,arm=1
+pmu,cpu-cycles,bake,8,768,65274242,84992.503,arm=0
+pmu,cpu-cycles,bake,9,768,65291196,85014.578,arm=0
+pmu,cpu-cycles,bake,10,768,62373958,81216.091,arm=1
+pmu,cpu-cycles,bake,11,768,62553099,81449.348,arm=1
+pmu,cpu-cycles,bake,12,768,65378934,85128.820,arm=0

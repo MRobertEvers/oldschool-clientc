@@ -1,0 +1,141 @@
+{
+  "source": {
+    "repository": "https://github.com/rsmod/rsmod",
+    "commit": "c38dff049fe1d1f4f68ec03737602849938c1399",
+    "path": "content/travel/canoe/src/main/kotlin/org/rsmod/content/travel/canoe/scripts/CanoeTravelling.kt",
+    "status": "Independent implementation reference; not a captured Jagex client trace."
+  },
+  "actor_yaw": 512,
+  "npc_yaw": 0,
+  "direction_z": 1,
+  "river": {
+    "seat": [
+      1817,
+      4515
+    ],
+    "hull": [
+      1817,
+      4514
+    ],
+    "eye": [
+      1812,
+      4515,
+      255
+    ],
+    "look": [
+      1817,
+      4515,
+      255
+    ],
+    "duration": 22,
+    "spawns": [
+      [
+        "canoeing_bullrush",
+        1820,
+        4516,
+        0,
+        7
+      ],
+      [
+        "canoeing_bullrush_leaf",
+        1819,
+        4516,
+        0,
+        7
+      ],
+      [
+        "canoeing_scenery_1",
+        1822,
+        4516,
+        0,
+        7
+      ],
+      [
+        "canoeing_scenery_2",
+        1821,
+        4503,
+        0,
+        21
+      ],
+      [
+        "canoeing_scenery_1",
+        1821,
+        4499,
+        7,
+        25
+      ],
+      [
+        "canoeing_bullrush_leaf",
+        1819,
+        4504,
+        10,
+        25
+      ],
+      [
+        "canoeing_bullrush",
+        1820,
+        4500,
+        10,
+        25
+      ]
+    ]
+  },
+  "cave": {
+    "seat": [
+      1845,
+      4492
+    ],
+    "hull": [
+      1845,
+      4491
+    ],
+    "eye": [
+      1838,
+      4492,
+      275
+    ],
+    "look": [
+      1845,
+      4492,
+      100
+    ],
+    "duration": 12,
+    "spawns": [
+      [
+        "canoeing_cave_scenery_1",
+        1842,
+        4489,
+        0,
+        14
+      ],
+      [
+        "canoeing_cave_scenery_2",
+        1846,
+        4488,
+        1,
+        14
+      ],
+      [
+        "canoeing_cave_scenery_1",
+        1842,
+        4482,
+        2,
+        14
+      ],
+      [
+        "canoeing_cave_scenery_2",
+        1846,
+        4484,
+        3,
+        14
+      ],
+      [
+        "canoeing_cave_scenery_3",
+        1846,
+        4480,
+        5,
+        14
+      ]
+    ]
+  }
+}

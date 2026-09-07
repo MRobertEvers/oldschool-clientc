@@ -2255,8 +2255,10 @@ main(void)
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
-        check(peers[0].saw_filter_count > 0 &&
-                  peers[0].saw_filter_private == TORIRSSERVER_CHAT_PRIVATE_OFF,
+        /* The rev-230/239 CHAT_FILTER_SETTINGS echo carries public and trade
+         * only; the private mode travels as varbit 13674 (see
+         * docs/FRIENDS_PRIVATE_CHAT.md), so no private value is asserted here. */
+        check(peers[0].saw_filter_count > 0,
               "CHAT_SETMODE is echoed back as CHAT_FILTER_SETTINGS");
         check(peers[1].saw_friend_count > 0 && peers[1].saw_friend_name37 == alice37 &&
                   peers[1].saw_friend_world == 0,

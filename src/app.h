@@ -866,6 +866,18 @@ struct App
      * (wev.h). An entity's id doubles as its view id in `worldviews`.
      */
     struct Wevs wevs;
+    /** Native bearing-marker models. Scene-owned elements are claimed across
+     * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
+    int sailing_at_helm_varbit;
+    int sailing_captain_role_varbit;
+    int sailing_crew_duty_varbit[5];
+    int sailing_crew_roster_varbit[5];
+    int sailing_crew_category;
+    int sailing_arrow_model[2];
+    int sailing_arrow_element[2];
+    int sailing_arrow_loading[2];
+    int sailing_selected_heading;
+    uint64_t sailing_selected_until;
     /** WorldEntityConfig table (config archive 72), loaded once at boot by
      * CreateTask_Dat2WevConfigLoad. Empty on a pre-sailing cache. */
     struct WevConfigTable wev_configs;
@@ -3365,14 +3377,6 @@ App_WevDespawn(
  * REBUILD_WORLDENTITY yet) never match; the per-tick routing pass re-tests, so
  * an absolute op that raced the deck rebuild heals a tick later.
  */
-/** Drop view_id's flatten bake (C4): its deck geometry changed, so the merged
- * flat-colour stand-in no longer matches. Rebuilt lazily the next time the
- * hull flattens. No-op for a view with no live entity. */
-void
-App_WevFlatInvalidate(
-    struct App* app,
-    int view_id);
-
 int
 App_WevHomeViewForAbsTile(
     struct App* app,

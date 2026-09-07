@@ -29,6 +29,46 @@ trspk_toridraw_texture_is_animated(
     return tex_obj && tex_obj->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
 }
 
+static inline uint32_t trspk_hsl_to_gles2(hsl16_t hsl,uint32_t alpha)
+{
+    uint32_t rgb=(uint32_t)ToriDraw_Hsl16ToRgb(hsl);
+    return alpha | ((rgb&0xffu)<<16) | (rgb&0xff00u) | ((rgb>>16)&0xffu);
+}
+void trspk_toridraw_gles2_untextured(
+    const struct ToriDraw_Model* model,const int* order,uint32_t count,
+    const float* world_xyz,struct TRSPK_VertexGLES2* out)
+{
+    assert(!model->face_textures);
+    for(uint32_t i=0;i<count;i++,out+=3) {
+        uint32_t f=(uint32_t)order[i];
+        if(f>=(uint32_t)model->face_count) {
+            for(unsigned k=0;k<3;k++) {
+                out[k].position[0]=out[k].position[1]=out[k].position[2]=0.0f;
+                out[k].rgba=0;out[k].texcoord[0]=out[k].texcoord[1]=0.5f;
+                out[k].tile_col=out[k].tile_row=0;out[k].anim_u=out[k].anim_v=128;
+            }
+            continue;
+        }
+        uint32_t alpha=model->face_alphas ? 255u-model->face_alphas[f] : 255u;
+        hsl16_t c=model->face_colors_c[f];
+        if(alpha<=1u || c==TORIDRAWHSL16_HIDDEN)alpha=0;
+        alpha<<=24;
+        uint32_t colors[3];colors[0]=trspk_hsl_to_gles2(model->face_colors_a[f],alpha);
+        if(c==TORIDRAWHSL16_FLAT || c==TORIDRAWHSL16_HIDDEN)colors[1]=colors[2]=colors[0];
+        else {
+            colors[1]=trspk_hsl_to_gles2(model->face_colors_b[f],alpha);
+            colors[2]=trspk_hsl_to_gles2(c,alpha);
+        }
+        uint32_t indices[3]={(uint32_t)model->face_indices_a[f],(uint32_t)model->face_indices_b[f],(uint32_t)model->face_indices_c[f]};
+        for(unsigned k=0;k<3;k++) {
+            const float* xyz=world_xyz+indices[k]*3u;
+            out[k].position[0]=xyz[0];out[k].position[1]=xyz[1];out[k].position[2]=xyz[2];
+            out[k].rgba=colors[k];out[k].texcoord[0]=out[k].texcoord[1]=0.5f;
+            out[k].tile_col=out[k].tile_row=0;out[k].anim_u=out[k].anim_v=128;
+        }
+    }
+}
+
 void
 trspk_toridraw_hsl16_to_rgba(
     uint16_t hsl16,
@@ -246,15 +286,16 @@ trspk_toridraw_face_colors(
     trspk_toridraw_hsl16_to_rgba(color_c_hsl16, alpha, out->color_c);
 }
 
-void
-trspk_toridraw_bake_face(
+static void
+trspk_toridraw_bake_face_impl(
     struct ToriDraw_Model* model,
     uint32_t face_index,
     const struct TRSPK_WorldPlacement* placement,
     struct ToriDraw_Scene* ctx,
     bool invert_face_alpha,
     enum TRSPK_BakeColorForm color_form,
-    struct TRSPK_ToriDrawBakeFaceVerts* out)
+    struct TRSPK_ToriDrawBakeFaceVerts* out,
+    const float* world_xyz)
 {
     const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
     const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
@@ -313,6 +354,13 @@ trspk_toridraw_bake_face(
     else
         memset(&out->uv, 0, sizeof(out->uv));
 
+    if( world_xyz )
+    {
+        out->wx_a=world_xyz[face_a*3];out->wy_a=world_xyz[face_a*3+1];out->wz_a=world_xyz[face_a*3+2];
+        out->wx_b=world_xyz[face_b*3];out->wy_b=world_xyz[face_b*3+1];out->wz_b=world_xyz[face_b*3+2];
+        out->wx_c=world_xyz[face_c*3];out->wy_c=world_xyz[face_c*3+1];out->wz_c=world_xyz[face_c*3+2];
+        return;
+    }
     trspk_toridraw_world_vertex(
         placement,
         model->vertices_x[face_a],
@@ -337,6 +385,27 @@ trspk_toridraw_bake_face(
         &out->wx_c,
         &out->wy_c,
         &out->wz_c);
+}
+
+void trspk_toridraw_bake_face(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,struct TRSPK_ToriDrawBakeFaceVerts* out)
+{
+    trspk_toridraw_bake_face_impl(model,face_index,placement,ctx,invert_face_alpha,color_form,out,NULL);
+}
+void trspk_toridraw_bake_face_cached(struct ToriDraw_Model* model,uint32_t face_index,
+    const struct TRSPK_WorldPlacement* placement,struct ToriDraw_Scene* ctx,
+    bool invert_face_alpha,enum TRSPK_BakeColorForm color_form,const float* world_xyz,
+    struct TRSPK_ToriDrawBakeFaceVerts* out)
+{
+    trspk_toridraw_bake_face_impl(model,face_index,placement,ctx,invert_face_alpha,color_form,out,world_xyz);
+}
+void trspk_toridraw_world_vertices(const struct ToriDraw_Model* model,
+    const struct TRSPK_WorldPlacement* placement,float* xyz)
+{
+    for(int i=0;i<model->vertex_count;i++)
+        trspk_toridraw_world_vertex(placement,model->vertices_x[i],model->vertices_y[i],model->vertices_z[i],
+            xyz+i*3,xyz+i*3+1,xyz+i*3+2);
 }
 
 static void

@@ -410,6 +410,8 @@ struct World
     /** Optional; NULL when nothing sails here. @see World_WorldEntityRegisterFn. */
     World_WorldEntityRegisterFn world_entity_register_fn;
     void* world_entity_register_userdata;
+    /** Flat/skipped views retain scenery but register no dynamic population. */
+    bool suppress_dynamic_population;
 
     /** Optional; NULL when no actor can be aboard. @see World_ForeignActorRegisterFn. */
     World_ForeignActorRegisterFn foreign_actor_register_fn;
@@ -966,6 +968,10 @@ World_PluginObjectClear(struct World* world);
 /** Drop the per-build loc-id memo. @see World_SceneryInfoTable::memo_loc_ids. */
 void
 World_SceneryInfoMemoClear(struct World* world);
+
+/** A runtime replacement may resolve the same base loc to different menu text. */
+void
+World_SceneryInfoMemoInvalidate(struct World* world, int loc_id);
 
 struct WorldEntity_SceneryInfo const*
 World_SceneryInfoIntern(

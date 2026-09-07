@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 649,
+    HOST_REQUEST_PRODUCER_COUNT == 656,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -84,6 +84,16 @@ capture_input_set_exec(
         host->component_ids[call] =
             request->u.IF_INPUT_SETCURSORWIDTH.component_id;
         host->values[call] = request->u.IF_INPUT_SETCURSORWIDTH.value;
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETLOCMODEL:
+        host->component_ids[call] = request->u.CC_SETLOCMODEL.component_id;
+        host->values[call] = request->u.CC_SETLOCMODEL.model_id;
+        host->bad_kind |= request->u.CC_SETLOCMODEL.model_kind != CS2VM_MODEL_KIND_LOC;
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETLOCMODEL:
+        host->component_ids[call] = request->u.IF_SETLOCMODEL.component_id;
+        host->values[call] = request->u.IF_SETLOCMODEL.model_id;
+        host->bad_kind |= request->u.IF_SETLOCMODEL.model_kind != CS2VM_MODEL_KIND_LOC;
         break;
     default:
         host->bad_kind = 1;
@@ -180,7 +190,8 @@ static int
 exercise_input_set_producer(
     enum CS2VM_HostRequestKind kind,
     int component_id,
-    int value)
+    int value,
+    int dot_operand)
 {
     struct CS2VM2 vm;
     struct InputSetCaptureHost host;
@@ -190,7 +201,7 @@ exercise_input_set_producer(
     enum CS2VM2_ThreadStatus first_status;
     enum CS2VM2_ThreadStatus retry_status;
     uint16_t opcode = (uint16_t)kind;
-    int int_operand = 0;
+    int int_operand = dot_operand;
     char* string_operand = NULL;
     int expected_initial_stack_top;
     int failed = 0;
@@ -217,9 +228,11 @@ exercise_input_set_producer(
         return 1;
     }
 
-    if( kind == CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH )
+    if( kind == CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH ||
+        kind == CS2VM_HOST_REQUEST_CC_SETLOCMODEL )
     {
-        thread->active_component_id = component_id;
+        thread->active_component_id = dot_operand ? -1 : component_id;
+        thread->dot_component_id = dot_operand ? component_id : -1;
         thread->ints_stack[0] = value;
         expected_initial_stack_top = 1;
     }
@@ -337,11 +350,17 @@ main(void)
     failures += exercise_input_set_producer(
         CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH,
         0x13579,
-        -0x2468);
+        -0x2468, 0);
     failures += exercise_input_set_producer(
         CS2VM_HOST_REQUEST_IF_INPUT_SETCURSORWIDTH,
         0x24680,
-        -0x1357);
+        -0x1357, 0);
+    failures += exercise_input_set_producer(
+        CS2VM_HOST_REQUEST_CC_SETLOCMODEL, 0x03ab0012, 60577, 0);
+    failures += exercise_input_set_producer(
+        CS2VM_HOST_REQUEST_CC_SETLOCMODEL, 0x03ab0012, -1, 1);
+    failures += exercise_input_set_producer(
+        CS2VM_HOST_REQUEST_IF_SETLOCMODEL, 0x03ab0012, 60577, 0);
 
     if( failures )
     {

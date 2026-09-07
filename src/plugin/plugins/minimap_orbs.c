@@ -240,6 +240,7 @@ struct OrbsState
     /* The minimap's parent-local box as last laid out against. */
     struct ToriRS_WidgetBounds map_local;
     bool map_valid;
+    bool cutscene; /* the native orbs are hidden for a cutscene; the covers follow */
     uint32_t composed_buffer[ORB_W * ORB_H];
 };
 
@@ -938,6 +939,20 @@ orbs_log_control(struct ToriRS_Api* api, struct OrbsState* state, int i)
         ORB_PART[i].key, orb->native, orb->armed, box.x, box.y, box.width, box.height);
 }
 
+/** A cutscene hides the cache's own orbs (varbit cutscene_status); the
+ * plugin's covers must not outlive them. Caches without the varbit never
+ * report one. */
+static bool
+orbs_cutscene_active(struct ToriRS_Api* api)
+{
+    int id = 0;
+    if( !api->cache.named_id || !api->cache.varbit )
+        return false;
+    if( !api->cache.named_id(api, "varbit", "cutscene_status", &id) )
+        return false;
+    return api->cache.varbit(api, id) != 0;
+}
+
 /**
  * Place (or remove) every orb control for the current bindings and settings.
  * Idempotent: create_image returns the existing child, and the setters are
@@ -955,6 +970,7 @@ orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
         state->map_local.width > 0 && state->map_local.height > 0 &&
         ui->parent(ui->context, state->minimap, &beside_parent) == TORIRS_CONTRACT_OK )
         state->map_valid = true;
+    state->cutscene = orbs_cutscene_active(api);
 
     for( int i = 0; i < ORB_COUNT; i++ )
     {
@@ -962,7 +978,7 @@ orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
         struct ToriRS_WidgetRef parent = { 0 };
         int x = 0, y = 0;
         bool native = replace_native && orb->native_root.opaque[2];
-        if( !orbs_cfg_bool(api, ORB_PART[i].show_key) )
+        if( state->cutscene || !orbs_cfg_bool(api, ORB_PART[i].show_key) )
         {
             orbs_remove_control(api, orb);
             continue;
@@ -1180,6 +1196,8 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
     for( int i = 0; i < ORB_COUNT && !relayout; i++ )
         if( state->orb[i].control.opaque[2] && orbs_has_action(api, i) != state->orb[i].action_available )
             relayout = true;
+    if( orbs_cutscene_active(api) != state->cutscene )
+        relayout = true;
     if( relayout )
         orbs_layout(api, state);
     for( int i = 0; i < ORB_COUNT; i++ )

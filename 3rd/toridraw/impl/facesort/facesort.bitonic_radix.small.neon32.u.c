@@ -1062,8 +1062,22 @@ compact:
      */
     {
         int written = 0;
-        int i;
-        for( i = 0; i < n; i++ )
+        int i = 0;
+        if( g_toridraw_sort_compact4 )
+        {
+            for( ; i + 4 <= n; i += 4 )
+            {
+                /* Read the entire source block before overlapping stores.
+                 * Independent key loads hide load-use latency on Krait;
+                 * the stable output cursor still advances in face order. */
+                uint32_t k0=keys[i], k1=keys[i+1], k2=keys[i+2], k3=keys[i+3];
+                keys[written]=k0; written+=(k0!=UINT32_MAX);
+                keys[written]=k1; written+=(k1!=UINT32_MAX);
+                keys[written]=k2; written+=(k2!=UINT32_MAX);
+                keys[written]=k3; written+=(k3!=UINT32_MAX);
+            }
+        }
+        for( ; i < n; i++ )
         {
             uint32_t const k = keys[i];
             keys[written] = k;

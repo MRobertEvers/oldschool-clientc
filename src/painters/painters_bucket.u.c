@@ -1896,6 +1896,14 @@ painter_collect_visible_depth(
     assert(painter);
     assert(buffer);
 
+    /* A depth renderer still needs the world-view descent markers: deck
+     * elements live in their own coordinate system. Reuse the bounded,
+     * cycle-safe traversal when a child view is registered; GPU depth testing
+     * still decides pixel visibility for the resulting model stream. */
+    for( int view=1; view<PAINTER_MAX_WORLD_VIEWS; ++view )
+        if( painter->world_entity_views[view].active )
+            return painter_paint_bucket(painter,buffer,camera_sx,camera_sz,camera_slevel);
+
     width = painter->width;
     levels = painter->levels;
     level_stride = painter->width * painter->height;

@@ -1,0 +1,207 @@
+{
+  "ok": true,
+  "provenance": {
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "allow_stale_scripts": false
+  },
+  "checks": [
+    "native whitelist highlights only permitted unnoted items and retrievable tools",
+    "forged item buttons cannot deposit coins or noted repair kits",
+    "Deposit inventory leaves prohibited items and quest-locked tools untouched",
+    "shared tool storage consumes no hold capacity and native Tools retrieves it",
+    "native inventory namespace matches captain inventory",
+    "dismissal transmits and removes the blocking warning",
+    "native All button and item click withdraw all thirteen bronze cannonballs",
+    "native 10 button and inventory click deposit exactly ten bronze cannonballs",
+    "inventory and hold conserve the total item count",
+    "all interactions finish while server time remains paused"
+  ],
+  "timings": [
+    {
+      "command": "close",
+      "elapsed_ms": 5.508
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.85
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 5.477
+    },
+    {
+      "command": "save cargo_acceptance",
+      "elapsed_ms": 2.919
+    },
+    {
+      "command": "cheat sailverify",
+      "elapsed_ms": 7.986
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.93
+    },
+    {
+      "command": "cheat sailcargo",
+      "elapsed_ms": 10.568
+    },
+    {
+      "command": "varp 5204",
+      "elapsed_ms": 2.908
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 5.382
+    },
+    {
+      "command": "varbit sailing_boat_cargohold_warning_dismissed",
+      "elapsed_ms": 2.875
+    },
+    {
+      "command": "widget sailing_boat_cargohold_side:dismiss -1",
+      "elapsed_ms": 2.852
+    },
+    {
+      "command": "click 643 385 left",
+      "elapsed_ms": 12.898
+    },
+    {
+      "command": "varbit sailing_boat_cargohold_warning_dismissed",
+      "elapsed_ms": 2.696
+    },
+    {
+      "command": "widget sailing_boat_cargohold:all -1",
+      "elapsed_ms": 2.951
+    },
+    {
+      "command": "click 481 300 left",
+      "elapsed_ms": 13.047
+    },
+    {
+      "command": "widget sailing_boat_cargohold:items 0",
+      "elapsed_ms": 2.619
+    },
+    {
+      "command": "click 64 105 left",
+      "elapsed_ms": 14.967
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 2.861
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 5.366
+    },
+    {
+      "command": "widget sailing_boat_cargohold:quantity_10 -1",
+      "elapsed_ms": 2.812
+    },
+    {
+      "command": "click 387 300 left",
+      "elapsed_ms": 10.412
+    },
+    {
+      "command": "widget sailing_boat_cargohold_side:items 0",
+      "elapsed_ms": 2.833
+    },
+    {
+      "command": "click 583 229 left",
+      "elapsed_ms": 12.87
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 2.831
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 5.011
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.868
+    },
+    {
+      "command": "close",
+      "elapsed_ms": 7.842
+    },
+    {
+      "command": "cheat sailcargopolicy",
+      "elapsed_ms": 10.295
+    },
+    {
+      "command": "varp 5205",
+      "elapsed_ms": 2.854
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.828
+    },
+    {
+      "command": "button sailing_boat_cargohold_side:items 0 6",
+      "elapsed_ms": 10.346
+    },
+    {
+      "command": "button sailing_boat_cargohold_side:items 2 6",
+      "elapsed_ms": 7.912
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.873
+    },
+    {
+      "command": "widget sailing_boat_cargohold:depositall_inventory -1",
+      "elapsed_ms": 2.803
+    },
+    {
+      "command": "click 480 233 left",
+      "elapsed_ms": 15.403
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.833
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 2.805
+    },
+    {
+      "command": "varp 5205",
+      "elapsed_ms": 2.794
+    },
+    {
+      "command": "widget sailing_boat_cargohold:tools 0",
+      "elapsed_ms": 2.782
+    },
+    {
+      "command": "click 76 300 left",
+      "elapsed_ms": 12.908
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 4.951
+    },
+    {
+      "command": "inventory 963",
+      "elapsed_ms": 5.042
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.899
+    },
+    {
+      "command": "close",
+      "elapsed_ms": 7.897
+    },
+    {
+      "command": "restore cargo_acceptance",
+      "elapsed_ms": 7.597
+    },
+    {
+      "command": "inventory 93",
+      "elapsed_ms": 2.837
+    }
+  ]
+}

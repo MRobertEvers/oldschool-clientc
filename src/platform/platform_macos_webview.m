@@ -477,9 +477,13 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform)
             platform, MAC_BROWSER_RAIL_POINTS, "Plugins") )
         return false;
 
-    NSURL* root = mac_stage_bundle();
+    /* SDL's dummy driver has no native window. Check before staging files:
+     * a headless acceptance run polls this every frame. */
     NSWindow* window = (__bridge NSWindow*)PlatformWindow_NativeWindowHandle(platform);
-    if( !root || !window.contentView )
+    if( !window.contentView )
+        return false;
+    NSURL* root = mac_stage_bundle();
+    if( !root )
         return false;
 
     ToriRSMacPluginBrowser* state = [[ToriRSMacPluginBrowser alloc] init];

@@ -335,6 +335,7 @@ ToriRSServer_Send(
             struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
             int kept = len > TORIRSSERVER_CAPTURE_BYTES ? TORIRSSERVER_CAPTURE_BYTES : len;
 
+            packet->recipient_pid = player->pid;
             packet->opcode = opcode;
             packet->name = pkt_name;
             packet->len = kept;
@@ -779,6 +780,8 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
      */
     player->player_tracked[player->pid] = 1;
     player->v5_playerinfo_sent = 0;
+    mock239_playerinfo_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+    memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
     player->v5_last_x = player->x;
     player->v5_last_z = player->z;
     player->v5_last_level = player->level;
@@ -844,6 +847,8 @@ send_rebuild_normal_at(
          * PLAYER_INFO must place the crowd in section 4 again — and it stated
          * the absolute position, so the next delta is measured from there. */
         player->v5_playerinfo_sent = 0;
+        mock239_playerinfo_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+        memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
         player->v5_last_x = player->x;
         player->v5_last_z = player->z;
         player->v5_last_level = player->level;
@@ -1315,6 +1320,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
     int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_teleport_stamps[TORIRSSERVER_WEV_VIEW_MAX];
     int kept_count = 0;
     const struct ToriRSServerWirePayload* pl;
 
@@ -1386,7 +1392,8 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
             if( vessel->seq_id >= 0 &&
                 player->wev_seq_stamps[i] != vessel->seq_stamp )
                 flags |= 0x1;
-        if( dx == 0 && dz == 0 && dangle == 0 )
+        int teleport = player->wev_teleport_stamps[i] != vessel->teleport_stamp;
+        if( dx == 0 && dz == 0 && dangle == 0 && !teleport )
         {
             /* Op 1 is the flags-only record: the slot has to be described
              * (the count addresses it positionally) and there is nothing to
@@ -1396,21 +1403,10 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         }
         else
         {
-            /*
-             * Op 2 = enqueue: the client interpolates over its 30-cycle
-             * window, which is what a hull under way wants.
-             *
-             * Op 3 (snap) is decoded by the client and deliberately has no
-             * producer here. It is the answer to a hull whose transform jumped
-             * — and the vessel module offers no way to make one jump: every
-             * mutation of `fine_x`/`fine_z`/`angle` after spawn goes through
-             * the mover, which is speed- and turn-rate-capped by construction.
-             * The one discontinuity that IS reachable, a view id changing
-             * hulls, needs a respawn rather than a snap (the config and deck
-             * size change with it), and is handled as one above. When S3 adds
-             * a vessel teleport this is the branch it turns on.
-             */
-            rsab_p1(&buf, 2);
+            /* Ordinary sailing interpolates. Recovery/checkpoint relocation
+             * explicitly snaps once per observer, including a zero-distance
+             * discontinuity used to reset interpolation coherently. */
+            rsab_p1(&buf, teleport ? 3 : 2);
             wev_put_transform(&buf, dx, 0, dz, dangle);
             rsab_p1(&buf, flags);
         }
@@ -1428,6 +1424,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         kept_z[kept_count] = vessel->fine_z;
         kept_angle[kept_count] = vessel->angle;
         kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
         kept_count++;
     }
 
@@ -1468,6 +1465,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         /* Recorded unsent: a client that just learned of the hull has no
          * business replaying a sink already in progress. */
         kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
         kept_count++;
     }
 
@@ -1481,6 +1479,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         player->wev_last_fine_z[i] = kept_z[i];
         player->wev_last_angle[i] = kept_angle[i];
         player->wev_seq_stamps[i] = kept_seq_stamps[i];
+        player->wev_teleport_stamps[i] = kept_teleport_stamps[i];
     }
     player->wev_tracked_count = kept_count;
 
@@ -4384,6 +4383,267 @@ ToriRSServer_PlayerObservable(
  * the end, because a player removed in section 2 must not be counted into the
  * order section 3 and the extended blocks index against.
  */
+static void
+player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
+                   struct ToriRSServerPlayer* subject, enum Mock239PlayerMovement movement,
+                   int movement_value, int appearance_len, int entering,
+                   struct Mock239PlayerExt* output)
+{
+            struct Mock239PlayerExt ext;
+
+            memset(&ext, 0, sizeof(ext));
+            if( subject->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
+            {
+                /*
+                 * Promoted to the wrapper that carries THIS viewer's settings.
+                 *
+                 * Content names a family (`hitsplat_damage`); the cache carries
+                 * a me/other pair and a max-hit wrapper over it, both keyed on
+                 * All Settings varbits the client resolves at draw time. Sending
+                 * the family leaf answers settings 5 and 279 "off" for every
+                 * player, silently -- see ToriRSServer_HitsplatForViewer.
+                 *
+                 * The viewer here is the player being hit, which is the common
+                 * case where the two differ: another player's damage on you is
+                 * damage you did not deal, and that is exactly what setting 5
+                 * tints.
+                 */
+                ext.has_hit = 1;
+                ext.hit_type = ToriRSServer_HitsplatForViewer(
+                    srv, viewer, subject->damage_type, subject->damage,
+                    subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1);
+                ext.hit_value = subject->damage;
+                /* Splats two and onward of the same tick. The mirrors above are
+                 * hitmarks[0]; everything the player took alongside it goes in
+                 * the list rather than being dropped (struct ToriRSServerHitmark). */
+                for( int i = 1; i < subject->hitmark_count && i <= 3; i++ )
+                {
+                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
+                        srv, viewer, subject->hitmarks[i].type, subject->hitmarks[i].damage,
+                        subject->hitmarks[i].dealer_slot);
+                    ext.hit_extra[ext.hit_extra_count].value = subject->hitmarks[i].damage;
+                    ext.hit_extra_count++;
+                }
+                /* The standard bar's configuration and width are content
+                 * symbols, not an engine-side numeric convention. Start from
+                 * full and advance to the current fill so the v239 client can
+                 * retain the config width independently of hitpoints. */
+                if( subject->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
+                {
+                    /* Players are size 1, so the standard bar is the whole of
+                     * the size ladder for them -- but the WIDTH still comes
+                     * from the record rather than from a constant, so the two
+                     * halves of this block cannot drift apart the way the npc
+                     * one did. */
+                    int const width =
+                        ToriRSServer_HealthbarWidth(ToriRSServer_Ids()->healthbar_standard);
+
+                    ext.has_headbar = 1;
+                    ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
+                    ext.headbar_duration = 1;
+                    ext.headbar_start_delay = 0;
+                    ext.headbar_start_fill = width;
+                    ext.headbar_end_fill =
+                        (subject->hitpoints * width) / subject->max_hitpoints;
+                }
+            }
+            if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
+            {
+                ext.has_seq = 1;
+                ext.seq_id = subject->anim_id;
+                ext.seq_delay = subject->anim_delay;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_CHAT )
+            {
+                /* Straight across: the block holds the packed bytes the client
+                 * sent, and the v5 writer's only difference from the classic
+                 * one is that it emits them back to front. */
+                ext.has_chat = 1;
+                ext.chat_colour_effect = subject->chat_colour_effect;
+                ext.chat_type = subject->chat_type;
+                ext.chat_data = subject->chat_data;
+                ext.chat_len = subject->chat_len;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_SPOTANIM )
+            {
+                /* The classic script/runtime surface has one attached-graphic
+                 * field. Revision 239 carries the same graphic in its indexed
+                 * spotanim block; slot zero is the direct equivalent. Keeping
+                 * this bridge here matters when ANIM and SPOTANIM_PL are set in
+                 * the same tick: both masks must survive into one extended-info
+                 * packet. */
+                ext.has_spotanim = 1;
+                ext.spotanim_slot = 0;
+                ext.spotanim_id = subject->spotanim_id;
+                ext.spotanim_height_delay = subject->spotanim_height_delay;
+            }
+            ext.has_face = v5_face_from_classic(
+                &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
+                TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
+                subject->face_z, 0);
+            if( subject->running && subject->move_count > 1 &&
+                movement != MOCK239_PLAYER_TELEPORT )
+            {
+                /*
+                 * The movement opcode states geometry, not traversal: a two-step
+                 * turn that ends one diagonal tile away is WALK geometry, and
+                 * TEMP_MOVE_SPEED=2 (class174.field2474) is what tells the
+                 * client the tiles were RUN -- it is also what makes RuneLite
+                 * method3189 invoke method2600 and locally retain the corner.
+                 *
+                 * `move_count > 1`, not `> 0`. Both reference servers stamp RUN
+                 * only when a SECOND tile was actually taken this tick --
+                 * Zenyte's TemporaryMovementMask is `runDirection != -1 ? 2 :
+                 * 1`, Kronos sets movementModeUpdate 2 only when its second
+                 * `step()` succeeded. A running player who only had one tile
+                 * to take (a follower behind a walking npc is the everyday
+                 * case: it closes one tile a tick because that is all the
+                 * target opens up) is a WALK step on the wire.
+                 *
+                 * Sending 2 there is not cosmetic. The client moves a RUN step
+                 * at speed 8, so a one-tile step arriving every 30 cycles is
+                 * covered in 15 and the model stands still for the other 15 --
+                 * a hard stop-and-go, every tick, for the whole chase. That was
+                 * "the player stutters following a moving npc", and it was
+                 * invisible with run off (speed 4 covers 120 of the 128, so a
+                 * walker only lags, it never halts).
+                 */
+                ext.has_temp_move_speed = 1;
+                ext.temp_move_speed = 2;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_EXACT_MOVE )
+            {
+                ext.has_exact_move = 1;
+                ext.exact_start_x = subject->exact_start_x - subject->x;
+                ext.exact_start_z = subject->exact_start_z - subject->z;
+                ext.exact_end_x = subject->exact_end_x - subject->x;
+                ext.exact_end_z = subject->exact_end_z - subject->z;
+                ext.exact_start_cycle = subject->exact_start_cycle;
+                ext.exact_end_cycle = subject->exact_end_cycle;
+                ext.exact_facing = exact_move_yaw(subject->exact_direction);
+            }
+            /* The player's half of TORIRSSERVER_EXT_DEBUG. The npc writer has had
+             * one since it was written; without the pair, "the animation did
+             * not play" cannot be split into "the server never set the mask"
+             * and "the client dropped the block". */
+            static int ext_debug = -1;
+            if( ext_debug < 0 )
+                ext_debug = getenv("TORIRSSERVER_EXT_DEBUG") != NULL;
+            if( ext_debug )
+                fprintf(stderr,
+                        "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
+                        "seq=%d/%d spotanim=%d/%d face=%d appearance=%d exactmove=%d "
+                        "(%d,%d)->(%d,%d) %d..%d yaw=%d\n",
+                        subject->masks, movement, movement_value,
+                        ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
+                        ext.hit_value, ext.seq_id, ext.seq_delay,
+                        ext.has_spotanim ? ext.spotanim_id : -1,
+                        ext.has_spotanim ? ext.spotanim_slot : -1, ext.has_face,
+                        appearance_len, ext.has_exact_move, ext.exact_start_x,
+                        ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
+                        ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);
+    *output = ext;
+}
+
+static int32_t
+player_coord_v5(int level, int x, int z)
+{
+    return (int32_t)(((level & 3) << 28) | ((x & 16383) << 14) | (z & 16383));
+}
+
+static void
+player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
+                struct RSAreaBuf* buf, enum Mock239PlayerMovement local_movement,
+                int local_value, const uint8_t* local_appearance, int local_appearance_len,
+                const struct Mock239PlayerExt* local_ext)
+{
+    struct Mock239PlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
+    struct Mock239PlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
+    uint8_t appearances[TORIRSSERVER_PLAYER_MAX][512];
+    int count = 0;
+    int local_index = ToriRSServer_WirePlayerIndex(viewer->pid);
+    if( !viewer->v5_gpi.initialized )
+    {
+        mock239_playerinfo_state_init(&viewer->v5_gpi, local_index,
+            player_coord_v5(viewer->v5_last_level, viewer->v5_last_x, viewer->v5_last_z));
+        /* Direct encoder tests may start after a previously seeded local-only
+         * stream. Real logins initialize this state alongside the wire init. */
+        if( viewer->v5_playerinfo_sent )
+            for( int i = 1; i < MOCK239_PLAYER_SLOTS; ++i )
+                if( i != local_index ) viewer->v5_gpi.inactive[i] = 1;
+    }
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+    {
+        struct ToriRSServerPlayer* subject = pid == viewer->pid ? viewer : &srv->players[pid];
+        if( !subject->active || subject->world != srv ) continue;
+        int index = ToriRSServer_WirePlayerIndex(pid);
+        struct Mock239PlayerUpdate* update = &updates[count];
+        memset(update, 0, sizeof(*update));
+        update->index = index;
+        update->visible = subject == viewer || player_in_view(viewer, subject);
+        /* Visibility and unseen coarse positions use the common root frame.
+         * A visible actor retains its authoritative coordinate space: deck
+         * staging coordinates let every client home the passenger to the
+         * published view, exactly as it already does for its local player. */
+        update->coord = update->visible ? player_coord_v5(subject->level,subject->x,subject->z)
+            : player_coord_v5(subject->obs_level,subject->obs_x,subject->obs_z);
+        if( subject == viewer )
+        {
+            update->movement = local_movement;
+            update->movement_value = local_value;
+            update->appearance = local_appearance;
+            update->appearance_len = local_appearance_len;
+            update->ext = local_ext;
+        }
+        else if( update->visible )
+        {
+            int entering = !viewer->v5_gpi.high[index] ||
+                viewer->v5_player_generation[pid] != subject->login_generation;
+            struct RSAreaBuf ap;
+            rsab_wrap(&ap, appearances[count], sizeof(appearances[count]));
+            if( entering || (subject->masks & TORIRSSERVER_PMASK_APPEARANCE) )
+                put_appearance_v5(&ap, subject);
+            update->appearance = appearances[count];
+            update->appearance_len = (int)rsab_len(&ap);
+            uint32_t old = (uint32_t)viewer->v5_gpi.coord[index];
+            int dx = subject->x - (int)((old >> 14) & 16383);
+            int dz = subject->z - (int)(old & 16383);
+            int dl = subject->level - (int)((old >> 28) & 3);
+            int glide = subject->tele_glide && dl == 0 && dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2;
+            if( !entering && !dl && (!subject->place_dirty || glide) &&
+                dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 )
+            {
+                if( dx || dz )
+                {
+                    update->movement = MOCK239_PLAYER_WALK;
+                    update->movement_value = ToriRSServer_StepDirection(dx, -dz);
+                }
+            }
+            else if( !entering && !dl && (!subject->place_dirty || glide) &&
+                     dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 )
+            {
+                static const int run[5][5] = {{0,1,2,3,4},{5,-1,-1,-1,6},
+                    {7,-1,-1,-1,8},{9,-1,-1,-1,10},{11,12,13,14,15}};
+                update->movement = MOCK239_PLAYER_RUN;
+                update->movement_value = run[dz + 2][dx + 2];
+            }
+            else
+            {
+                update->movement = MOCK239_PLAYER_TELEPORT;
+                update->movement_value = player_coord_v5(dl, dx, dz);
+            }
+            player_extended_v5(srv, viewer, subject, update->movement, update->movement_value,
+                               update->appearance_len, entering, &extensions[count]);
+            update->ext = &extensions[count];
+            viewer->v5_player_generation[pid] = subject->login_generation;
+        }
+        count++;
+    }
+    mock239_playerinfo_write_world(buf, &viewer->v5_gpi, updates, count);
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+        viewer->player_tracked[pid] = viewer->v5_gpi.high[ToriRSServer_WirePlayerIndex(pid)];
+}
+
 void
 ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 {
@@ -4411,12 +4671,10 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
      * Revision 239 is a different CODEC here, not a different field order, so
      * it forks before a single bit is written rather than branching per field.
      *
-     * What it sends is the local player only: high resolution with an
-     * appearance block, every other slot held in low resolution. Other players
-     * are not in it yet — see mock239_playerinfo.h — which is why this does not
-     * fall through into the loop below afterwards. Sending the classic stream's
-     * other-player records after a v5 header would frame cleanly and decode as
-     * noise.
+     * Its per-observer GPI state handles all visible players in four sections.
+     * Local coordinates remain deck-relative when aboard; other players use
+     * their root projections so shore and deck observers share a view test.
+     * This cannot fall through to the incompatible classic stream below.
      */
     if( wire_is_v5(player) )
     {
@@ -4520,158 +4778,10 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
          */
         {
             struct Mock239PlayerExt ext;
-
-            memset(&ext, 0, sizeof(ext));
-            if( player->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
-            {
-                /*
-                 * Promoted to the wrapper that carries THIS viewer's settings.
-                 *
-                 * Content names a family (`hitsplat_damage`); the cache carries
-                 * a me/other pair and a max-hit wrapper over it, both keyed on
-                 * All Settings varbits the client resolves at draw time. Sending
-                 * the family leaf answers settings 5 and 279 "off" for every
-                 * player, silently -- see ToriRSServer_HitsplatForViewer.
-                 *
-                 * The viewer here is the player being hit, which is the common
-                 * case where the two differ: another player's damage on you is
-                 * damage you did not deal, and that is exactly what setting 5
-                 * tints.
-                 */
-                ext.has_hit = 1;
-                ext.hit_type = ToriRSServer_HitsplatForViewer(
-                    srv, player, player->damage_type, player->damage,
-                    player->hitmark_count > 0 ? player->hitmarks[0].dealer_slot : -1);
-                ext.hit_value = player->damage;
-                /* Splats two and onward of the same tick. The mirrors above are
-                 * hitmarks[0]; everything the player took alongside it goes in
-                 * the list rather than being dropped (struct ToriRSServerHitmark). */
-                for( int i = 1; i < player->hitmark_count && i <= 3; i++ )
-                {
-                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
-                        srv, player, player->hitmarks[i].type, player->hitmarks[i].damage,
-                        player->hitmarks[i].dealer_slot);
-                    ext.hit_extra[ext.hit_extra_count].value = player->hitmarks[i].damage;
-                    ext.hit_extra_count++;
-                }
-                /* The standard bar's configuration and width are content
-                 * symbols, not an engine-side numeric convention. Start from
-                 * full and advance to the current fill so the v239 client can
-                 * retain the config width independently of hitpoints. */
-                if( player->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
-                {
-                    /* Players are size 1, so the standard bar is the whole of
-                     * the size ladder for them -- but the WIDTH still comes
-                     * from the record rather than from a constant, so the two
-                     * halves of this block cannot drift apart the way the npc
-                     * one did. */
-                    int const width =
-                        ToriRSServer_HealthbarWidth(ToriRSServer_Ids()->healthbar_standard);
-
-                    ext.has_headbar = 1;
-                    ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
-                    ext.headbar_duration = 1;
-                    ext.headbar_start_delay = 0;
-                    ext.headbar_start_fill = width;
-                    ext.headbar_end_fill =
-                        (player->hitpoints * width) / player->max_hitpoints;
-                }
-            }
-            if( player->masks & TORIRSSERVER_PMASK_SEQUENCE )
-            {
-                ext.has_seq = 1;
-                ext.seq_id = player->anim_id;
-                ext.seq_delay = player->anim_delay;
-            }
-            if( player->masks & TORIRSSERVER_PMASK_CHAT )
-            {
-                /* Straight across: the block holds the packed bytes the client
-                 * sent, and the v5 writer's only difference from the classic
-                 * one is that it emits them back to front. */
-                ext.has_chat = 1;
-                ext.chat_colour_effect = player->chat_colour_effect;
-                ext.chat_type = player->chat_type;
-                ext.chat_data = player->chat_data;
-                ext.chat_len = player->chat_len;
-            }
-            if( player->masks & TORIRSSERVER_PMASK_SPOTANIM )
-            {
-                /* The classic script/runtime surface has one attached-graphic
-                 * field. Revision 239 carries the same graphic in its indexed
-                 * spotanim block; slot zero is the direct equivalent. Keeping
-                 * this bridge here matters when ANIM and SPOTANIM_PL are set in
-                 * the same tick: both masks must survive into one extended-info
-                 * packet. */
-                ext.has_spotanim = 1;
-                ext.spotanim_slot = 0;
-                ext.spotanim_id = player->spotanim_id;
-                ext.spotanim_height_delay = player->spotanim_height_delay;
-            }
-            ext.has_face = v5_face_from_classic(
-                &ext.face, player, player->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
-                TORIRSSERVER_PMASK_FACE_COORD, player->face_entity, player->face_x,
-                player->face_z, 0);
-            if( player->running && player->move_count > 1 &&
-                movement != MOCK239_PLAYER_TELEPORT )
-            {
-                /*
-                 * The movement opcode states geometry, not traversal: a two-step
-                 * turn that ends one diagonal tile away is WALK geometry, and
-                 * TEMP_MOVE_SPEED=2 (class174.field2474) is what tells the
-                 * client the tiles were RUN -- it is also what makes RuneLite
-                 * method3189 invoke method2600 and locally retain the corner.
-                 *
-                 * `move_count > 1`, not `> 0`. Both reference servers stamp RUN
-                 * only when a SECOND tile was actually taken this tick --
-                 * Zenyte's TemporaryMovementMask is `runDirection != -1 ? 2 :
-                 * 1`, Kronos sets movementModeUpdate 2 only when its second
-                 * `step()` succeeded. A running player who only had one tile
-                 * to take (a follower behind a walking npc is the everyday
-                 * case: it closes one tile a tick because that is all the
-                 * target opens up) is a WALK step on the wire.
-                 *
-                 * Sending 2 there is not cosmetic. The client moves a RUN step
-                 * at speed 8, so a one-tile step arriving every 30 cycles is
-                 * covered in 15 and the model stands still for the other 15 --
-                 * a hard stop-and-go, every tick, for the whole chase. That was
-                 * "the player stutters following a moving npc", and it was
-                 * invisible with run off (speed 4 covers 120 of the 128, so a
-                 * walker only lags, it never halts).
-                 */
-                ext.has_temp_move_speed = 1;
-                ext.temp_move_speed = 2;
-            }
-            if( player->masks & TORIRSSERVER_PMASK_EXACT_MOVE )
-            {
-                ext.has_exact_move = 1;
-                ext.exact_start_x = player->exact_start_x - player->x;
-                ext.exact_start_z = player->exact_start_z - player->z;
-                ext.exact_end_x = player->exact_end_x - player->x;
-                ext.exact_end_z = player->exact_end_z - player->z;
-                ext.exact_start_cycle = player->exact_start_cycle;
-                ext.exact_end_cycle = player->exact_end_cycle;
-                ext.exact_facing = exact_move_yaw(player->exact_direction);
-            }
-            /* The player's half of TORIRSSERVER_EXT_DEBUG. The npc writer has had
-             * one since it was written; without the pair, "the animation did
-             * not play" cannot be split into "the server never set the mask"
-             * and "the client dropped the block". */
-            if( getenv("TORIRSSERVER_EXT_DEBUG") )
-                fprintf(stderr,
-                        "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
-                        "seq=%d/%d spotanim=%d/%d face=%d appearance=%d exactmove=%d "
-                        "(%d,%d)->(%d,%d) %d..%d yaw=%d\n",
-                        player->masks, movement, movement_value,
-                        ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
-                        ext.hit_value, ext.seq_id, ext.seq_delay,
-                        ext.has_spotanim ? ext.spotanim_id : -1,
-                        ext.has_spotanim ? ext.spotanim_slot : -1, ext.has_face,
-                        (int)rsab_len(&ap), ext.has_exact_move, ext.exact_start_x,
-                        ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
-                        ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);
-            mock239_playerinfo_write(&buf, ToriRSServer_WirePlayerIndex(player->pid), movement,
-                                     movement_value, player->v5_playerinfo_sent, appearance,
-                                     (int)rsab_len(&ap), &ext);
+            player_extended_v5(srv, player, player, movement, movement_value,
+                               (int)rsab_len(&ap), !player->v5_playerinfo_sent, &ext);
+            player_world_v5(srv, player, &buf, movement, movement_value, appearance,
+                            (int)rsab_len(&ap), &ext);
         }
         player->v5_playerinfo_sent = 1;
         player->v5_last_x = player->x;

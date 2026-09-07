@@ -109,6 +109,28 @@ static const char* const gles2_world_cutout_fragment_shader =
     "    gl_FragColor = c;\n"
     "}\n";
 
+/* Slot zero is an opaque white tile. All three vertices of a face carry
+ * the same tile, so untextured faces can return their interpolated colour. */
+#define GLES2_WORLD_FRAGMENT_FAST_SAMPLE \
+    "    vec4 c;\n" \
+    "    if (v_tile.x == 0.0 && v_tile.y == 0.0) { c = v_color; }\n" \
+    "    else {\n" \
+    "        vec2 local = mix(v_texcoord, fract(v_texcoord), v_wrap);\n" \
+    "        local.x = clamp(local.x, 0.008, 0.992);\n" \
+    "        local.y = clamp(fract(local.y), 0.008, 0.992);\n" \
+    "        c = v_color * texture2D(s_texture, v_tile + local * " GLES2_SHADER_ATLAS_CELL ");\n" \
+    "    }\n"
+static const char* const gles2_world_fast_plain_fragment_shader =
+    GLES2_FRAGMENT_PRECISION_PREAMBLE
+    "uniform sampler2D s_texture;\nvarying vec4 v_color;\nvarying vec2 v_texcoord;\nvarying vec2 v_tile;\nvarying vec2 v_wrap;\nvoid main() {\n"
+    GLES2_WORLD_FRAGMENT_FAST_SAMPLE
+    "    gl_FragColor = c;\n}\n";
+static const char* const gles2_world_fast_cutout_fragment_shader =
+    GLES2_FRAGMENT_PRECISION_PREAMBLE
+    "uniform sampler2D s_texture;\nvarying vec4 v_color;\nvarying vec2 v_texcoord;\nvarying vec2 v_tile;\nvarying vec2 v_wrap;\nvoid main() {\n"
+    GLES2_WORLD_FRAGMENT_FAST_SAMPLE
+    "    if (c.a < 0.002) discard;\n    gl_FragColor = c;\n}\n";
+
 /*
  * a_texinfo is the per-vertex sampler select (struct GLES2VertexUI.sel): 0 the
  * sprite atlas (s_texture, unit 0), 1 the batch's texture (s_mask, unit 1 --

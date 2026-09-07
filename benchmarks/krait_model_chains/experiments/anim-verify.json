@@ -1,0 +1,7 @@
+{
+  "corpus": "benchmarks/krait_model_chains/live-animation.chain.gz",
+  "sha256": "4d6fb5c717a2548c9e8440747afa69aec70c517581b4dbf05f4753448739a2a5",
+  "binary_sha256": "9ce492c74026647d8604506db08182aada888fae3d32be1da2aba3abce3ebd36",
+  "events": {},
+  "workload": "verified: 795 real pose calls, 0 skeletal, 449 matching prior poses, both arms"
+}

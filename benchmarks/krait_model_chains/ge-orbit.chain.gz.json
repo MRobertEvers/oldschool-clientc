@@ -1,0 +1,17 @@
+{
+  "scene": "grand-exchange-ground",
+  "serial": "T062809L3Z",
+  "environment": {
+    "TORIRS_PLUGINS": "0",
+    "TORIRS_PERF": "0",
+    "TORIRS_GLES2_DUALCORE": "0",
+    "TORIRS_WORLD_MAP": "49,54;50,54;49,55;50,55",
+    "TORIRS_WEDGE_CAM": "3648,-900,3904,200,0",
+    "TORIRS_MODEL_CHAIN_CAPTURE": "/sdcard/Android/data/com.torirs.client/files/model-chain.bin",
+    "TORIRS_MODEL_CHAIN_FIRST_PASS": "120",
+    "TORIRS_MODEL_CHAIN_PASSES": "12",
+    "TORIRS_WEDGE_CAM_PATH": "spline,300,loop;3648,-900,5184,200,1025;4553,-900,4809,200,767;4928,-900,3904,200,511;4553,-900,2999,200,255;3648,-900,2624,200,0;2743,-900,2999,200,1793;2368,-900,3904,200,1537;2743,-900,4809,200,1281"
+  },
+  "bytes": 34700732,
+  "sha256": "15c75d6dd6a6ab284f8a45c5f7cfdfba86087c5ce866fe20ac7089786e14c88f"
+}

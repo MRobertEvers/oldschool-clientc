@@ -1,0 +1,232 @@
+{
+ "worker": "lifecycle",
+ "recorded_utc": "2026-09-07T14:00:00Z",
+ "what": "Reconnect / resume-save proof AND the root-cause diagnosis of 'osrs239 login: rejected reply=195'. Supersedes the 2026-09-06T21:21 file, which recorded a resume on binary 8d16856e / pack 9a8b44bb. SUPERSEDED IN PART 2026-09-07 09:50: read `final_pair_verification` at the end of this file first. The `provenance` block below names the 08:08 pair 4854e303 / 214b43d7, which is now the CONTROL for LIFE-1, not the current binaries.",
+ "provenance": {
+  "shared_client": "src/torirs",
+  "shared_client_sha256": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
+  "shared_server": "src/build_opt/torirsserver",
+  "shared_server_sha256": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
+  "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+  "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+  "script_count": 30076,
+  "hashes_verified_before_the_run": true,
+  "private_fixed_client": "src/torirs_lifecycle_opt",
+  "private_fixed_client_sha256": "99890ea180dab7fe1d008661c934a5b174011742c139dbf7a2f4a461e242ab98",
+  "private_fixed_server": "src/build_lifecycle_opt/torirsserver",
+  "private_fixed_server_sha256": "18d07dd0788b4aac6d48e96d351084fe87b54d282d59bc1f30e704cca5e5ad2e",
+  "private_build_command": "mkdir -p src/build_lifecycle && make -C src -j4 OPT=1 EMBED_SERVER=1 PLATFORM_TARGET=torirs_lifecycle_opt PLATFORM_OBJ_BASE=build_lifecycle torirs_lifecycle_opt ; make -C src -j4 OPT=1 PLATFORM_OBJ_BASE=build_lifecycle torirsserver",
+  "note": "The private client differs from the shared one by exactly one guard in ToriRSServer_WorldMarkVarp (src/torirsserver/torirs_server_world.c). No shared binary and no shared pack was rebuilt by this worker.",
+  "role": "control and private-build proof, 08:08 pair. The current shared pair is 5e34b81f / 6a0e7f04; see final_pair_verification."
+ },
+ "resume_save_proof": {
+  "aboard_resume": {
+   "sessions": [
+    "/tmp/sailing-fin-lifecycle-dock (pid 32314, fresh fixture)",
+    "/tmp/sailing-fin-lifecycle-login (pid 41510, --resume-save)"
+   ],
+   "logout_save": "[sailing] aboard = 1 4 3 / boat1 = 2 393408 382400 128 78 1 6 0 0 (hull angle 128, HP 78/80)",
+   "resumed": "startup 3491.69 ms; player reconstructed on the deck at 6404,67 level 1; hull rebuilt at fine 393408,382400 angle 128 HP 78/80, sails down, state 0 (stopped); Facilities panel reads 'Not steering' — the resume does NOT take the helm.",
+   "image": "docs/sailing_validation/lifecycle-login-disembark-menu.png",
+   "result": "pass"
+  },
+  "ashore_resume": {
+   "sessions": [
+    "/tmp/sailing-fin-lifecycle-sail2 (pid 49423)",
+    "/tmp/sailing-fin-lifecycle-after (pid 50981)"
+   ],
+   "logout_save": "[sailing] shore = 3069 2988 0 / aboard = 0 4 3 / boat1 = 2 393504 381952 128 78 1 6 0 0",
+   "resumed": "startup 2173.91 ms; ashore at 3069,2988 level 0, aboard_view 0, no boat reconstructed, inventory intact (15000 coins and twelve items).",
+   "image": "docs/sailing_validation/lifecycle-after-login.png",
+   "result": "pass"
+  }
+ },
+ "defect_LIFE_1": {
+  "title": "The client's automatic reconnect after a production logout is rejected whenever the character's save reconstructs a boat",
+  "symptom": "osrs239 login: rejected reply=<n>, followed by the 'Connection lost / Please wait - attempting to reestablish' overlay that never clears.",
+  "why_it_looked_intermittent": "<n> is not a login response code at all. Observed today on the shared binary: 16, 195, 209 (x4), 239. 195 is the value the handoff recorded. The value is a byte of ISAAC keystream, so it differs per session and reads like a flaky server.",
+  "what_195_means": {
+   "answer": "Nothing. It is not a LoginResponse.",
+   "evidence": "src/net/rev/osrs239/loginblock.h defines the whole set: SUCCESSFUL 0, OK 2, INVALID_USER_OR_PASS 3, CLIENT_OUT_OF_DATE 6, BAD_SESSION_ID 10, RECONNECT_OK 15, INVALID_LOGIN_PACKET 22, LOGIN_FAIL_1 65, PROOF_OF_WORK 69. The server only ever writes OK (torirs_server_session.c:767) and RECONNECT_OK (torirs_server_encode.c:790). 195/209/239/16 are none of these.",
+   "what_the_client_actually_read": "src/net/loginproto_osrs239.c:425 `int reply = h->in[0]` while the handle is in OSRS239_AWAIT_REPLY. The byte it read was the first byte of an ISAAC-scrambled GAME packet that the server had already written to the same stream."
+  },
+  "root_cause": {
+   "one_line": "A reconnect's LoginResponse.ReconnectOk is deferred until after the save is read, but reading the save SENDS — a boat save runs the deck reconstruction, whose varbit writes reach the wire four or more packets ahead of the login response.",
+   "chain": [
+    "torirs_server_session.c:712 — a GAMERECONNECT handshake sends NOTHING and only arms the ciphers; the response is deliberately deferred, because RECONNECT_OK carries the player-info init block and the block states where the save put the player.",
+    "torirs_server_world.c ToriRSServer_WorldLogin step -1 — ToriRSServer_LoadPlayer, then ToriRSServer_VesselLogin reconstructs the at-sea owned boat BEFORE the login scene/GPI coordinate is emitted (it has to: the player's coordinate is the deck tile).",
+    "That reconstruction runs vessel_deck_built -> ToriRSServer_VarbitSet -> ToriRSServer_WorldSetVarpOn -> ToriRSServer_WorldMarkVarp -> ToriRSServer_SendVarpSmall. Those are ordinary ISAAC-scrambled game packets.",
+    "torirs_server_world.c step 0b — only NOW is ToriRSServer_SendReconnectOk called. It is already behind the varps on the wire.",
+    "The client is still in OSRS239_AWAIT_REPLY, reads the first scrambled byte as the verdict, and dies."
+   ],
+   "measured_with_TORIRSSERVER_VERBOSE_1": "/tmp/sailing-fin-195a/client.log — 'reconnect user=f195a session=ok' at line 716, four '-> VARP_SMALL op=97 payload=3' sends at lines 737/738/754/771 (interleaved with the deck's LOC_ADD_CHANGE zone events and 'sailing_deck_built ran=1 handle=1 config=2'), then 'RECONNECT_OK, 4608 byte player-info init at 6404,67' at line 777, then 'osrs239 login: rejected reply=16' at line 781.",
+   "the_control_that_names_it": "An ASHORE save writes no varps in that window. /tmp/sailing-fin-lifecycle-login and /tmp/sailing-fin-lifecycle-sail2 both logged out ashore, both reconnected ('reconnect user=finlife session=ok'), and NEITHER produced a rejection line. Every aboard logout produced one."
+  },
+  "user_visible_shape": "This is not a --resume-save failure: a fresh --resume-save process always logs in cleanly (GAMELOGIN, LOGINRES_OK sent during the handshake, before any game packet). It is the LOGGED-OUT client's own auto-reconnect that dies, which is why the line lands at the tail of the previous session's log and looked as if it belonged to the next one. docs/sailing_validation/lifecycle-chat-after-logout.png is what a player sees.",
+  "fix": {
+   "file": "src/torirsserver/torirs_server_world.c",
+   "function": "ToriRSServer_WorldMarkVarp",
+   "change": "return early while `player->session && player->session->reconnect`. That flag is set by the GAMERECONNECT handshake and cleared in ToriRSServer_WorldLogin the instant ToriRSServer_SendReconnectOk returns, so it is exactly 'this client has not been told the login verdict yet'.",
+   "why_nothing_is_lost": "Step 4b of ToriRSServer_WorldLoginFinish already restates EVERY non-zero transmitted varp in full, precisely because the loader writes player->varps[] directly and marks nothing. The values held back are re-sent a few lines later by code that exists for this reason.",
+   "scope_honestly_stated": "This guard covers the varp writer, which is the only emitter measured in that window. The GENERAL guard belongs at the top of ToriRSServer_Send (src/torirsserver/torirs_server_encode.c) so that no future login-time writer can re-open the same hole. That file is NOT this worker's ownership and was not touched; it is reported as an open issue.",
+   "residual_edge_case": "A varp written back to 0 inside the window would be held and then skipped by 4b's `if (value == 0) continue;`. Harmless here — the player struct is memset at WorldPlayerInit and the loader writes varps directly, so an in-window write to 0 is already a no-op in ToriRSServer_WorldSetVarpOn. Recorded, not observed."
+  },
+  "proof": {
+   "matrix": "Five consecutive fresh-fixture-then-resume cycles, driven by /tmp/sailing-fin-cycles.py: start (aboard the berth fixture at 3073,2987), `raw logout`, `step 150` to let the client's auto-reconnect run, then grep the log; the resulting save is copied into the next cycle's directory and started with --resume-save. Identical script for both binaries.",
+   "control_shared_binary_4854e303": [
+    {
+     "cycle": 0,
+     "resume": false,
+     "startup_ms": 4123.188,
+     "reconnects": 1,
+     "rejected": "osrs239 login: rejected reply=16"
+    },
+    {
+     "cycle": 1,
+     "resume": true,
+     "startup_ms": 2734.529,
+     "reconnects": 1,
+     "rejected": "osrs239 login: rejected reply=209"
+    },
+    {
+     "cycle": 2,
+     "resume": true,
+     "startup_ms": 2683.272,
+     "reconnects": 1,
+     "rejected": "osrs239 login: rejected reply=209"
+    },
+    {
+     "cycle": 3,
+     "resume": true,
+     "startup_ms": 2612.371,
+     "reconnects": 1,
+     "rejected": "osrs239 login: rejected reply=209"
+    },
+    {
+     "cycle": 4,
+     "resume": true,
+     "startup_ms": 2805.138,
+     "reconnects": 1,
+     "rejected": "osrs239 login: rejected reply=209"
+    }
+   ],
+   "control_result": "5 of 5 rejected. Sessions /tmp/sailing-fin-cyc-control-0..4.",
+   "fixed_private_binary": [
+    {
+     "cycle": 0,
+     "resume": false,
+     "startup_ms": 3473.013,
+     "reconnects": 1,
+     "rejected": null
+    },
+    {
+     "cycle": 1,
+     "resume": true,
+     "startup_ms": 2636.901,
+     "reconnects": 1,
+     "rejected": null
+    },
+    {
+     "cycle": 2,
+     "resume": true,
+     "startup_ms": 2604.07,
+     "reconnects": 1,
+     "rejected": null
+    },
+    {
+     "cycle": 3,
+     "resume": true,
+     "startup_ms": 2612.945,
+     "reconnects": 1,
+     "rejected": null
+    },
+    {
+     "cycle": 4,
+     "resume": true,
+     "startup_ms": 3082.683,
+     "reconnects": 1,
+     "rejected": null
+    }
+   ],
+   "fixed_result": "5 of 5 clean. Every cycle logged out ABOARD ([sailing] aboard = 1 4 3) and every cycle produced a 'reconnect user=fincyc session=ok' line, so the reconnect really happened and really succeeded. Sessions /tmp/sailing-fin-cyc-fixed-0..4.",
+   "wire_order_verified": "/tmp/sailing-fin-fixverify/client.log with TORIRSSERVER_VERBOSE=1: 'reconnect user=finfix session=ok' at line 716 and 'RECONNECT_OK, 4608 byte player-info init at 6404,67' at line 773, with ZERO '-> ' packet sends between them. No rejection line anywhere in the file.",
+   "visual": {
+    "fixed": "docs/sailing_validation/lifecycle-reconnect-fixed.png — after the same `raw logout` the client is back in the world: no overlay, the player is on the deck of 'Adamant Bane' at the Pandemonium berth, hull 80/80, minimap populated, Facilities reads 'Not steering'.",
+    "control": "docs/sailing_validation/lifecycle-chat-after-logout.png — shared binary, same gesture: 'Connection lost / Please wait - attempting to reestablish', avatar gone from the deck, minimap blanked. Its log line is `osrs239 login: rejected reply=239`."
+   },
+   "no_regression": "TORIRSSERVER_SELFTEST_SAILING_ONLY=1 --selftest gives 563 checks / 0 failures on BOTH src/build_opt/torirsserver (shared, 214b43d7) and src/build_lifecycle_opt/torirsserver (private, fixed). Evidence /tmp/sailing-fin-lifecycle-selftest.log and .tsv."
+  },
+  "harness_change": "None. The harness needed no wait: the failure is not a race between the logout's save and the next login, and no amount of waiting in the controller would have fixed it. tools/sailing_harness.py is unmodified.",
+  "needs_shared_rebuild": true,
+  "status": "CLOSED on the final shared pair 5e34b81f / 6a0e7f04 (rebuilt 2026-09-07 09:35). The blocks below that name 4854e303 / 214b43d7 are the CONTROL and the private-build proof that came before the rebuild; they are retained, not current."
+ },
+ "final_pair_verification": {
+  "recorded_utc": "2026-09-07T14:50:00Z",
+  "recorded_by": "root",
+  "what": "LIFE-1 re-proven on the SHARED binaries after root rebuilt them from the current tree at 09:35, which is what the earlier 'CLOSES ON: a shared rebuild' asked for.",
+  "provenance": {
+   "shared_client": "src/torirs",
+   "shared_client_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+   "shared_server": "src/build_opt/torirsserver",
+   "shared_server_sha256": "6a0e7f0441c25f1249bc8342a5103744a4dbd991d721b67eaea1846db7d910d4",
+   "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+   "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+   "script_count": 30076,
+   "script_pack_rebuilt": false,
+   "hashes_log": "/tmp/sailing-fin3/hashes.txt",
+   "build_logs": [
+    "/tmp/sailing-fin3/server-build.log",
+    "/tmp/sailing-fin3/client-build.log"
+   ],
+   "note": "No private build is involved. The guard the private client 99890ea1 carried is now in the shared binaries."
+  },
+  "fix_in_shared_binaries": {
+   "file": "src/torirsserver/torirs_server_world.c",
+   "function": "ToriRSServer_WorldMarkVarp",
+   "line": 11260,
+   "change": "return early while player->session && player->session->reconnect"
+  },
+  "five_cycle_run": {
+   "session": "/tmp/sailing-fin3-life",
+   "log": "/tmp/sailing-fin3-life/client.log",
+   "account": "fin3life",
+   "gesture": "five consecutive aboard 'raw logout' cycles",
+   "reconnect_ok_lines": 5,
+   "reconnect_ok_text": "torirsserver: reconnect user='fin3life' session=ok",
+   "login_rejected_lines": 0,
+   "connection_lost_lines": 0,
+   "result": "pass - 5 of 5 clean on the SHARED binaries",
+   "per_cycle_logs": [
+    "/tmp/sailing-fin3/accept/life-logout-1.log",
+    "/tmp/sailing-fin3/accept/life-logout-2.log",
+    "/tmp/sailing-fin3/accept/life-logout-3.log",
+    "/tmp/sailing-fin3/accept/life-logout-4.log",
+    "/tmp/sailing-fin3/accept/life-logout-5.log"
+   ],
+   "per_cycle_state": [
+    "/tmp/sailing-fin3/accept/life-state-1.json",
+    "/tmp/sailing-fin3/accept/life-state-2.json",
+    "/tmp/sailing-fin3/accept/life-state-3.json",
+    "/tmp/sailing-fin3/accept/life-state-4.json",
+    "/tmp/sailing-fin3/accept/life-state-5.json"
+   ]
+  },
+  "capture": {
+   "path": "docs/sailing_validation/lifecycle-reconnect-fixed.png",
+   "re_taken_on_final_pair": true,
+   "shows": "after the same `raw logout` the client is back in the world: no overlay, the player on the deck at the Pandemonium berth, minimap populated."
+  },
+  "no_regression": {
+   "sailing_only_suite": "563 checks, 0 failures on 6a0e7f04",
+   "log": "/tmp/sailing-fin3/sailing-selftest.log",
+   "tsv": "/tmp/sailing-fin3/sailing-selftest.tsv",
+   "unit_gates": "twelve targets, all exit 0 (/tmp/sailing-fin3/status.txt)",
+   "full_server_suite_not_re_run": "250,071/0 stands from 214b43d7 (server/full-selftest-final.log). Not repeated on 6a0e7f04; the only server-side source differences are SRV-1's initialiser, a cached getenv, and asserts OPT=1 compiles out."
+  },
+  "still_recorded_not_fixed": [
+   "The general guard arguably belongs one line into ToriRSServer_Send (src/torirsserver/torirs_server_encode.c), so no future login-time writer can reopen the hole. The current guard covers the only emitter ever measured in that window.",
+   "A varp written back to 0 inside the reconnect window would be held and then skipped by WorldLoginFinish step 4b's `if (value == 0) continue;`. Harmless in practice, never observed, recorded rather than hidden.",
+   "No unit gate drives a reconnect, so a revert of the guard would not fail a test."
+  ]
+ }
+}

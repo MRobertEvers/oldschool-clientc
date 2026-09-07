@@ -1,0 +1,84 @@
+{
+  "serial": "T062809L3Z",
+  "target": "sub10-actor",
+  "scene": "live-lumbridge",
+  "uncapped": true,
+  "frames_per_window": 180,
+  "warmup": 600,
+  "scope": "Whole main-loop work through EGL swap and audio, before artificial pacing; cadence is time between completed EGL swaps. GPU queue waits are retained. This is not display scanout latency.",
+  "comparison": "Existing optimized renderer enabled in both arms; vary only the named sub10 mechanism.",
+  "instrumentation": "Buffered timestamps only; detailed profiler and hardware counter ioctls disabled; no forced glFinish.",
+  "requested_egl_swap_interval": 0,
+  "summary": {
+    "work_us": {
+      "before": {
+        "frames": 1080,
+        "mean_ms": 13.153912037037037,
+        "median_ms": 12.071,
+        "p95_ms": 21.7,
+        "p99_ms": 26.547830000000005,
+        "max_ms": 34.153,
+        "over_20ms_percent": 8.055555555555555,
+        "over_33_33ms_percent": 0.09259259259259259
+      },
+      "after": {
+        "frames": 1080,
+        "mean_ms": 12.841985185185186,
+        "median_ms": 11.72,
+        "p95_ms": 21.187099999999994,
+        "p99_ms": 25.759,
+        "max_ms": 129.681,
+        "over_20ms_percent": 7.685185185185185,
+        "over_33_33ms_percent": 0.18518518518518517
+      },
+      "median_change_percent": -2.9077955430370284
+    },
+    "cadence_us": {
+      "before": {
+        "frames": 1080,
+        "mean_ms": 13.159225925925925,
+        "median_ms": 12.086,
+        "p95_ms": 21.7,
+        "p99_ms": 26.572110000000002,
+        "max_ms": 34.153,
+        "over_20ms_percent": 8.055555555555555,
+        "over_33_33ms_percent": 0.09259259259259259
+      },
+      "after": {
+        "frames": 1080,
+        "mean_ms": 12.846871296296296,
+        "median_ms": 11.75,
+        "p95_ms": 21.2745,
+        "p99_ms": 25.37807000000001,
+        "max_ms": 129.681,
+        "over_20ms_percent": 7.777777777777778,
+        "over_33_33ms_percent": 0.18518518518518517
+      },
+      "median_change_percent": -2.7800761211318914
+    },
+    "swap_us": {
+      "before": {
+        "frames": 1080,
+        "mean_ms": 1.1566666666666667,
+        "median_ms": 0.977,
+        "p95_ms": 2.2270499999999998,
+        "p99_ms": 3.125810000000002,
+        "max_ms": 9.37,
+        "over_20ms_percent": 0.0,
+        "over_33_33ms_percent": 0.0
+      },
+      "after": {
+        "frames": 1080,
+        "mean_ms": 1.1339009259259258,
+        "median_ms": 0.977,
+        "p95_ms": 2.1684999999999985,
+        "p99_ms": 3.32621,
+        "max_ms": 6.532,
+        "over_20ms_percent": 0.0,
+        "over_33_33ms_percent": 0.0
+      },
+      "median_change_percent": 0.0
+    }
+  },
+  "library_sha256": "1ea6d0322a788ad78dbce249510feb3ed459841c8c4b111afd52fe474ef0c578"
+}

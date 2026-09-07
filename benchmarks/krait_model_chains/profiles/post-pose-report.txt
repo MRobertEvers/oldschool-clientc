@@ -1,0 +1,33 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e cpu-cycles:u -c 150000 -p 31062 --duration 15 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: cpu-cycles:u (type 0, config 0)
+Samples: 136296
+Event count: 20444400000
+
+Overhead  Sample  Command      Symbol
+5.54%     7551    Thread-3064  trspk_toridraw_bake_face
+5.31%     7239    Thread-3064  emit_walk_node
+5.19%     7074    gles2-stage  toridraw_compute_projected_face_order_small_general
+4.69%     6396    Thread-3064  __memcpy_base
+3.96%     5402    Thread-3064  bucket_paint_world
+3.89%     5304    Thread-3064  ToriDraw_AnimApplyTransform
+3.60%     4908    Thread-3064  ToriRS_FrameNextCommand
+3.56%     4846    Thread-3064  gles2_bake_pose_vertices
+3.15%     4298    Thread-3064  App_MeasureLaneFrameCoreWidth
+2.67%     3645    Thread-3064  App_MeasureRightChromeStripWidth
+2.12%     2890    Thread-3064  World_CycleRegisterPainterDynamics
+2.12%     2885    gles2-stage  ToriDraw_ProjectWithVTable
+1.71%     2332    gles2-stage  GLES2DualCoreStage_ComputeModel
+1.38%     1877    Thread-3064  @plt
+1.21%     1647    Thread-3064  app_entity_overlay_layout
+1.18%     1609    Thread-3064  unknown[+c0718358]
+1.17%     1588    Thread-3064  trspk_toridraw_face_colors
+1.08%     1466    gles2-stage  toridraw_projection_prepared_neon32_notex_noyaw_noclip
+1.01%     1383    Thread-3064  gles2_prefetch_ahead_ids
+0.99%     1351    AudioTrack   advance
+0.99%     1346    Thread-3064  gles2_dispatch
+0.93%     1271    Thread-3064  ToriRS_GLES2DualCore_RenderFrame
+0.93%     1270    gles2-stage  dualcore_worker_main
+0.88%     1193    Thread-3064  toridraw_compute_projected_face_order_small_general
+0.75%     1029    Thread-3064  App_RunOnce
+0.73%     993     AudioTrack   ToriRS_PcmVoice_Mix

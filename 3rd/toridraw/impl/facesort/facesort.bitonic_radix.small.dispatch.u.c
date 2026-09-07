@@ -96,6 +96,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Changed only between joined frames/runs. Init reads the rollback env;
+ * there is no getenv or lazy initialization in the per-model hot loop. */
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+int g_toridraw_sort_compact4 = 1;
+#else
+int g_toridraw_sort_compact4 = 0;
+#endif
+void ToriDraw_FaceSortSetCompact4(int enabled)
+{
+    g_toridraw_sort_compact4 = enabled != 0;
+}
+
 /*
  * Above this many accepted keys the radix sorts; at or below it, the lane's
  * bitonic network does.

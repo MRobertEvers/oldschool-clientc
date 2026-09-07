@@ -1,15 +1,64 @@
 # Sailing implementation plan
 
+Visual acceptance evidence is in
+[sailing_validation/README.md](sailing_validation/README.md). The
+[completion audit](sailing_validation/plan-audit.md) tracks every requirement
+against current source and executable evidence; historical PASS rows alone
+do not establish completion.
+
 Companion to `docs/SAILING.md` (the research doc — read it first; §5 has the
 deob ground truth this plan is built on). Work happens on the
-`worktree-sailing` branch.
+**`gameframe-2004-osrs239`** branch; the old `worktree-sailing` statement is
+historical.
+
+## Completion status — 2026-09-07
+
+Every phase below is **implemented and verified**. The audit ledger carries the
+per-requirement evidence pointer; this table is its summary, and nothing here is
+a claim the ledger does not back.
+
+| Phase | Status | What closes it |
+|---|---|---|
+| **C0** multi-world substrate | **Done**, one residual | C0.1/C0.2 verified; **C0.3** verified on the positive path but the five wire-refusal diagnostics are source-reviewed only, with no test pinning them |
+| **C1** Wev core | **Done** | `test-wev` against real `cache.osrs239` — config, delta decoder, interpolator, bounded queue |
+| **C2** boat world build | **Done** | `test-wev-rebuild`; the drain rule now covers the **root** rebuild too, with a negative-controlled test |
+| **C3** painter descent | **Done** | `test-painters-world-entity`, `test-sailing-paint-order`, `test-frame-flat`; the emit prefetch no longer reads across a view marker |
+| **C4** flatten, overlap, budget | **Done** | `test-wev-visibility`, `test-cs2-worldentity-limit`, `test-frame-flat`; four reviewed captures |
+| **C5** actors, clicks, camera | **Done** | `test-wev-population`, `test-pick-level`, `test-minimenu-world`; native peer aboard a neighbouring deck |
+| **S0** per-player scene window | **Done** | 15 PASS rows in the sailing suite on the shared server; the plan's "genuine multiplayer limit" is deleted |
+| **S1** vessel entity + mover | **Done** | registry bound, 16-heading projection round trips, quarter-tile quantum, separate boat collision map |
+| **S2** protocol | **Done** | spawn/delta/despawn per observer, the rev-230 refusal, the deck rebuild encoding, the zone sandwich, cross-world PLAYER_INFO/NPC_INFO |
+| **S3** content | **Done** | full dock→helm→steer→disembark→relogin walked natively; **LIFE-1**, a logged-out client's auto-reconnect, is fixed **and in the shared binaries** as of the 09:35 pair `5e34b81f` / `6a0e7f04` — five clean aboard-logout cycles, `/tmp/sailing-fin3-life/client.log` |
+| **Checkpoint A** | **Done** | client offline build + server mover |
+| **Checkpoint B** | **Done** | the native sailing arc, re-captured and reviewed |
+| **Checkpoint C** | **Done** | overlapping full/flat boats, on both the software and the GPU lane |
+| **Checkpoint D** | **Done** | board at a dock, take the helm, steer, turn through 360°, disembark, relog |
+| **Constraints** | **Held** | no `3rd/toridraw` or `painters*.c` change; `test-scanline` parity; rev-239-only wire, with the rev-230 refusal pinned |
+| **R1** PLAYER_INFO regression risk | **Retired** | the two-coordinate contract, proven on the wire and on screen |
+| **R2** zero-boat render neutrality | **Neutral** | 12 scenes × 6 runs, identical pixels and work counts, median render Δ +0.32 % |
+
+Four items remain **Open** and are named in the ledger: **C0.3** (untested wire
+refusals), **GPU-1/2/3** (three `gl3-zbuffer` findings, pre-existing),
+**HARN-1** (`::vesselspawnat` ignores the 16-heading berth clearance) and
+**EMB-1** (the `test-torirsserver-embed` decode break). None of them is a
+sailing requirement that went untested.
+
+**LIFE-1** (the logged-out client's auto-reconnect) and **SRV-1**
+(`ToriRSServer_SceneOpNearestOpts` never writing `unbounded`) were the other two
+and are now **closed**: root rebuilt the shared pair at 09:35 on 2026-09-07 with
+both fixes, and re-ran twelve unit gates, the 563/0 sailing suite and all nine
+acceptance tools on it. Two residuals are recorded rather than hidden — no gate
+drives a reconnect, and no gate exercises the two server callers of
+`ToriRSServer_SceneOpNearestOpts`. See `docs/SAILING_HANDOFF.md` and
+`docs/sailing_validation/plan-audit.md`.
 
 ## Scope
 
 Client: world entities — each boat is its own world (own `struct World`, own
 `struct Painter`), inserted into the main painter's grid as a regular loc, with
-the painter descending into boat worlds via an **explicit stack** (no
-recursion), flattened "billboard" rendering for overlapped/over-budget boats,
+the painter descending into boat worlds via **bounded nested calls checked
+against an explicit painter stack**, flattened rendering for overlapping
+yield-group entities and a per-group placement budget,
 actors aboard, clicks, camera.
 
 Server: boats as small instances (the existing map-instance system) plus a new
@@ -77,12 +126,82 @@ Known blockers, found in the surveys:
    resets it to root. Thread the cursor through the zone applicators
    (`rs_gameproto_exec.c:302-334, 433-600`) so zone updates land in the right
    view's world/builder.
-3. Rebuild routing: the deob prefixes the rebuild with a world-entity id +
-   plane; wire the same into our REBUILD handling (`rs_gameproto_exec.c:1142`),
-   erroring loudly (assert) on an unknown id.
+3. Rebuild routing. **Corrected 2026-09-06 against the shipped wire and the
+   vendored codec — the old "the rebuild is prefixed with a world-entity id +
+   plane, assert on an unknown id" wording was wrong on both halves.** What
+   the three rebuild packets actually carry at rev 239:
+
+   - `REBUILD_NORMAL` (`RebuildNormalV2`) *does* carry a world-entity prefix:
+     `world_area` (0 = root), read in `src/net/rev/osrs239/osrs239_parse.c:630`
+     into `PktMapRebuild.world_area`. No plane.
+   - `REBUILD_REGION` (`RebuildRegionV2`) carries **no** id at all — the arm
+     at `osrs239_parse.c:1672` memsets the packet, so `world_area` reads 0
+     (root) by construction.
+   - `REBUILD_WORLDENTITY_V4` (op 109) carries **neither an id nor a plane**.
+     The vendored codec is exactly two fields —
+     `3rd/rsprot/packets/rebuild_worldentity_v4.c`:
+     `RSPROT_U2(base_x); RSPROT_U2(base_z);` — followed by the same
+     `encodeRegionV2` zone-descriptor grid `REBUILD_REGION` uses. V3+ dropped
+     the wire-carried view id (deob `field5861`).
+
+   So routing is:
+
+   - **Target view.** For `REBUILD_NORMAL`/`REBUILD_REGION` it is the packet's
+     own `world_area`; for `REBUILD_WORLDENTITY` it is the **`SET_ACTIVE_WORLD`
+     cursor**, captured into the exec task (`Task_GameProtoExec.wev_view_id`,
+     `src/game/task_gameproto_exec.c:280`) *before the first await*, because
+     `SERVER_TICK_END` resets the cursor and execs behind this task on the same
+     serial queue.
+   - **Base coordinates.** `base_x`/`base_z` are the view's SW corner in
+     absolute root-world tiles (deob `field1405`/`field1395`); exec writes them
+     onto `view->base_x/base_z` and derives the boat scene's zone centre
+     (`base/8 + scene_size/16`) so `World_ResetScene` lands `_base_tile_*` on
+     the wire base.
+   - **Plane.** It comes from the *`SET_ACTIVE_WORLD` that aimed this rebuild*,
+     not from the rebuild: `rs_gameproto_exec.c:1870` clamps the wire byte to
+     0..3 into `app->active_world_level`, and the `REBUILD_WORLDENTITY` arm
+     copies it onto `view->parent_level` and mirrors it onto the `Wev`
+     (`Wevs_Get(...)->parent_level`) for terrain-height sampling.
+
+   **Unknown-id contract — assert *internally*, refuse on the *wire*.** The
+   old "assert on an unknown id" is right only for the registry lookup and
+   wrong for wire data; an assert-only check is an abort in debug and an
+   out-of-bounds registry/heightmap index under `NDEBUG`.
+
+   - `WorldviewRegistry_Get` (`src/world/worldview.c:138`) asserts `reg`,
+     `id >= 0`, `id < WORLDVIEW_MAX` and `views[id].live` — the loud stop for
+     an internal caller, matching the deob's unknown-world-entity throw.
+   - Every wire-driven bad state is a **guard that diagnoses and drops**, at
+     the frame that caused it:
+     `SET_ACTIVE_WORLD` with an out-of-range or dead id is refused
+     (`exec: SET_ACTIVE_WORLD refused, view %d not live`);
+     `REBUILD_NORMAL`/`REBUILD_REGION` addressed to a non-root `world_area` is
+     dropped (`REBUILD addressed world_area %d, not root`);
+     `REBUILD_WORLDENTITY` whose captured cursor is the root or a view that
+     died between the `SET_ACTIVE_WORLD` and this exec is dropped
+     (`REBUILD_WORLDENTITY with cursor on the root/a dead view %d`);
+     a grid that does not decode against the view's spawn-time size is dropped
+     (`grid does not match view %d's size`); and a base that is not
+     zone-aligned is dropped (`base %d,%d not zone-aligned`).
+   - Before the deck load resets the scene allocation, the boat world's own
+     `EntityRemoved` queue is drained (`App_WorldDrainEntityRemovedFor`);
+     `World_ResetSceneAlloc` asserts that emptiness.
 
 Test: existing selftests still pass with the registry in place and only the
-root view live; add a decode test for SET_ACTIVE_WORLD.
+root view live; `test-net-exec` decodes `SET_ACTIVE_WORLD` (id then plane),
+arms the cursor and proves `SERVER_TICK_END` resets id *and* level
+(`src/game/test/rs_gameproto_exec_test.c:340-406`); `test-wev-rebuild` proves
+V4 carries `base_x`/`base_z`, that the grid is carried raw and decoded against
+the view's zone counts onto the 13-stride array, and that a short, long or
+wrong-sized grid is rejected as a whole stream
+(`src/world/test/wev_rebuild_test.c:136`).
+**Still untested (audit row C0.3, the one client requirement left Open):** no
+check pins the five refusal diagnostics above (root cursor, dead cursor,
+non-root `world_area`, size-mismatched grid, unaligned base) nor
+`SET_ACTIVE_WORLD`'s not-live refusal. All six are implemented and were read in
+source; none is exercised, so a regression that silently *accepted* one of them
+would not be caught. The positive path is fully proven and was re-run on the
+final binaries.
 
 ### C1 — Wev core: config, packet, interpolation
 
@@ -118,19 +237,36 @@ archive 72 of `cache.osrs239`.
    namespace).
 2. Feed `REBUILD_WORLDENTITY_V4` through the existing
    `WorldBuilder_RebuildInstance` zone-template path into the boat's world.
-3. Drain rule: boats must drain their entity-removed queue before rebuilds
-   (`World_ResetSceneAlloc` asserts `event_count == 0`).
+3. Drain rule: **every** rebuild path must drain its world's entity-removed
+   queue before resetting the scene (`World_ResetSceneAlloc` asserts
+   `event_count == 0`). **Corrected 2026-09-06: this said "boats", and the root
+   rebuild was the one path that did not obey it.** A despawn arriving in the
+   same packet pump as a teleport-driven rebuild reached
+   `World_ResetSceneAlloc` with `event_count == 1` — an abort under an `OPT=0`
+   client (`world.c:515`), and under a release client a silently dropped
+   removal that orphans the DYNAMIC scene elements it names. The per-tick drain
+   cannot cover the gap: it sits behind `app->world_active &&
+   app->world_view_valid`, which a rebuild has already closed. The
+   REBUILD_NORMAL / REBUILD_REGION branch of `src/game/task_gameproto_exec.c`
+   now drains the root world immediately before its world-load await, exactly
+   where the boat branch drains its own view. *Draining*, not clearing, is the
+   point — `App_WorldDrainEntityRemovedFor` is what hands each removal to the
+   plugin host and calls `ToriDraw_SceneElementRemove`.
 
 Test: offline harness that hand-feeds a rebuild for a 1-zone raft deck and
-asserts tile heights/locs land in the boat world, not the root.
+asserts tile heights/locs land in the boat world, not the root; plus
+`test_root_rebuild_drains_entity_removed()` in
+`src/world/test/wev_rebuild_test.c`, which reproduces the exact aborting frame
+and was negative-controlled (removing the drain call makes it abort).
+Write-up: `sailing_validation/client/world-drain.md`.
 
 ### C3 — painter descent with an explicit stack
 
 The heart of the feature. Design:
 
 1. **Pseudo-loc insertion, per frame**: after interpolation, insert each
-   entity into its *parent* painter as a temporary 1×1 loc at
-   `(x>>7, z>>7)` via the existing dynamic-registration pass
+   entity into its *parent* painter with the native radius-60 temporary loc
+   footprint (1×1 at tile centre, up to 2×2 at tile boundaries), via the existing dynamic-registration pass
    (`World_CycleRegisterPainterDynamics`), with a reserved element-id range
    (or a flag bit) marking "world entity N". Height = parent terrain under
    the boat. This gives painter-correct ordering against real locs, actors
@@ -163,6 +299,19 @@ The heart of the feature. Design:
    `ToriDraw_Position.yaw`; the rasterizer itself is untouched (and stays free
    of 64-bit arithmetic — all wide values live in the game layer).
 
+   **The emit loop's prefetch must not read across a view marker
+   (found and fixed 2026-09-06).** `try_emit_world_draw_model` runs a four-deep
+   prefetch pipeline that resolves element ids ahead of the cursor, while the
+   `BEGIN_WORLD`/`END_WORLD` markers that switch views are consumed *below* it.
+   Its reach walk tested commands `cur + 1 .. cur + depth` and never `cur`
+   itself, so when the current command *was* a marker the walk saw three
+   ordinary commands after it and resolved them against the view the marker had
+   not yet opened — aborting an asserts-live client in
+   `frame_lookahead_element_id`. The fix starts the marker test at `cur`: a
+   marker command now prefetches nothing past itself. It changes only which ids
+   the pipeline resolves early, never the emitted set.
+   Write-up: `sailing_validation/client/frame-assert.md`.
+
 Deferred from this phase: the animation-driven bob/roll matrix (deob drives it
 from bone 0 of the config's default seq). First cut renders boats level;
 the transform slot for it is reserved.
@@ -180,10 +329,13 @@ Mirror the deob exactly (SAILING.md §5.3 — there is no bake):
    −1200, flat HSL from config at strength 127, **skip actor population
    entirely**, skip from picking.
 2. Draw order per frame: aboard-entity first (never flattened), then priority
-   groups 2, 0, 1; full-detail budget (server-configured count, CS2-readable);
+   groups 2, 0, 1; placement budget (CS2 opcodes 7900/7901, default 30,
+   nonnegative and counted separately per group); entities past the group's
+   limit are omitted;
    group-1 entities additionally flatten when a player/opted-in NPC/
-   already-drawn entity overlaps them (16-bucket oriented-box test +
-   per-frame scene stamp — first placed wins, i.e. "topmost renders full").
+   already-drawn entity overlaps them (native actor/16-heading-footprint test
+   and entity/entity fine-coordinate enclosing rectangles, plus a per-frame
+   scene stamp — first placed wins, i.e. "topmost renders full").
 3. Flat-colour override: a per-view HSL override honoured by the emit path
    (model-level recolour at emit; the toridraw HSL pipeline already exists).
 
@@ -192,9 +344,29 @@ boat with `ToriDraw_ModelNewMerge`, invalidated on deck loc change, drawn
 instead of the flattened sub-scene. Deob-faithful flatten ships first; the
 bake is an optimization with a compare mode against the flatten render.
 
-Test: three-boat scene — assert budget forces flatten; assert overlap
+**Status (2026-09-06): the optional bake was written and has since been
+removed.** It shipped ahead of the deob-faithful path and became the *only*
+path, which is the inversion this step forbids. `app_wev_flat_ensure`,
+`app_wev_flat_free`, `App_WevFlatInvalidate` and the `TORIRS_WEV_BUDGET`
+environment override are deleted from `src/app.c`/`src/app.h`, and
+`task_gameproto_exec.c` no longer invalidates a bake on REBUILD. Flattening is
+now live per-frame view state — `frame->views[id].flatten_scale = 0.01f`,
+`flatten_y_offset = -1200`, `flat_hsl` — substituted per draw in
+`src/render/torirs_frame_flat.u.h`. If the bake is ever revived it must come
+back as the compare-mode optimization described above, behind the live path.
+
+Test: three-boat scene — assert budget omits excess entities; assert overlap
 frame-stamp picks the first-placed; assert flattened boat contributes no
 actor commands and no pick hashes.
+
+Research correction (2026-09-06): revision-239 `Statics.method2832` initializes
+the count for each group call and calls `method1449` only below the cap.
+Flattening over-budget entities was an error in the original research notes;
+overlap flattening remains required separately. `Statics.method11128` implements
+7900/7901. This follows the plan's instruction to mirror the deob exactly.
+The same reinspection separates actor overlap (`method5535`, oriented footprint)
+from entity overlap (`method8755` / `class521.method11500`, fine-unit enclosing
+rectangles), correcting the earlier description of both as oriented-box tests.
 
 ### C5 — actors aboard, clicks, camera
 
@@ -289,8 +461,70 @@ opcodes in the engine band: `vessel_spawn`, `vessel_move`, `vessel_heading`,
 `vessel_speed`, `vessel_free`, mirroring the `map_instance_*` family
 (`ss_opcode.h`).
 
-Note: the OSRS-Content submodule is not checked out in this worktree — S3
-needs it initialized (`git submodule update --init OSRS-Content`).
+The OSRS-Content submodule is initialized. Native facilities and interface
+content are included; the completion audit separately verifies persistence and
+the complete dock-to-ocean flow.
+
+#### Social, permission and interface facts corrected from the cache (2026-09-07)
+
+Four claims that earlier drafts of this plan and the handoff got wrong. Each was
+settled from the shipped cache or from source, not from a summary.
+
+- **Passenger role is 3, not 2.** The sidepanel role varbit is **19233**
+  (`sailing_sidepanel_player_role`). The crew NPC shells — npc 15255 and nine
+  siblings — carry `multivarbit=sailing_sidepanel_player_role` and state a real
+  npc only at rungs **0, 3, 6 and 10**; both this client's
+  `VarPManager_ResolveTransform` and the reference's `class393` index
+  `configs[value]`, so rung **2 is −1** and a passenger saw a deck with no crew
+  on it at all. CS2 8732 tests 10 and 6, the captain-only affordances test 10
+  alone, 0 is the not-aboard default, and 3 is the only remaining rendered rung
+  (3/6/10 are `0b0011`/`0b0110`/`0b1010` — one shared aboard bit plus one role
+  bit). Published from the sailing varbit sync in
+  `ToriRSServer_WorldRefreshObservation`. Evidence:
+  `sailing_validation/social/roles-results.json`.
+- **Private chat reaches the client through varbit 13674, not through a new
+  login opcode.** There is no need to implement chat opcode 5. Varbit **13674**
+  = `chat_filter_private` = bits **13..15 of varp 1054** (`chat_filter_clan`).
+  Proc 113 `torirs_chatbox_layout` reads it — `if (chat_getfilter_private !
+  %varbit13674) { ~chat_set_filter_184(3, %varbit13674); }` then
+  `~redraw_chat_buttons` — and that proc is `interface_162:0`'s
+  `if_setonvartransmit` hook with `var1054` first in its list, so the varp
+  transmit *is* the repaint trigger. Values are the chat button's own: op 3/4/5
+  → 0 *Show all* / 1 *Show friends* / 2 *Show none*. The server writes it in
+  `ToriRSServer_WorldSocialLogin` (hydrating the saved `[chat]` section) and
+  `handle_chat_setmode`. **Content dependency:** varp 1054 must be declared
+  `transmit=yes` (and `scope=temp` — the `[chat]` save section is the one
+  persistent carrier) or the write never leaves the server. Detail:
+  `docs/FRIENDS_PRIVATE_CHAT.md` §11.3–11.5.
+- **A targeted send must carry the WIRE component identity and the published
+  player index, never the runtime tree id.** `app->targetsel.component_id` was
+  put straight on the wire, and for a `CC_CREATE` child that is a
+  runtime-allocated id (measured **937|49210**) the server has never heard of,
+  so `[opplayert,sailing_sidepanel:crew_content_clicklayer]` could not fire.
+  All five targeted sends (`OPPLAYERT`/`OPNPCT`/`OPLOCT`/`OPOBJT`/`OPHELDT`)
+  now resolve the wire identity through `app_if_button_target` — the same
+  helper `IF_BUTTON` already used — so the packet names **937:10**. The player
+  is named by the **GPI index the server published**
+  (`ToriRSServer_WirePlayerIndex`); `handle_opplayert` reads only
+  `(index, component)`. `net_out.c` is deliberately **unchanged**: rev-239
+  `OPPLAYERT` does carry a selected-sub field (`g2Alt2`), but
+  `mock239_inbound.c` reads `sub == 0xffff && obj == 0xffff` as the sentinel
+  meaning "a target or spell rather than an item", so writing the child index
+  there would route the grant to `OPPLAYERU`. Evidence:
+  `sailing_validation/social/editnav-arming-results.json`.
+- **IF3 target priority and the row gate.** `UITree_ApplyTargetPriority`
+  (`src/ui/uitree.c:4819`) follows the reference exactly: **−1 resets to the
+  default 4**, 1..32 stores *value − 1*, and any other value is ignored. The
+  default matters — `Widget.field4122` starts at 4 in the rev-239 gamepack and
+  `method5229` uses it as the boundary between ordinary component operations
+  and `CC_OP_LOW_PRIORITY`, so leaving `calloc`'s zero there demoted ops 2..4 on
+  every script-created cell. Separately, the **effective** target mask of an
+  IF3 node is the decoded `behavior.target_mask` OR'd with
+  **`IF_SETEVENTS` bits 11..16** — `(App_IfEventsGetEffective(app, com) >>
+  TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS`, shift 11, mask
+  `0x3F` (`src/engine/torirs_types.h:1012-1013`). Reading only the cache mask
+  refused the "Edit-navigator" row outright, because a `CC_CREATE` child's
+  decoded mask is 0.
 
 ---
 
@@ -311,6 +545,31 @@ Checkpoint C (after C4): two overlapping boats — topmost full, other
 flattened flat-colour.
 Checkpoint D (after C5 + S3): board at a dock, take the helm, steer, disembark.
 
+**All four are met (2026-09-07).** Evidence, in the same order:
+
+- **A — met.** Client: `test-wev` and `test-wev-rebuild` build a real
+  `cache.osrs239` deck offline into the boat world, no skips. Server: the mover
+  rows in the sailing suite on the shared server — "tick *n* turns to exactly
+  *d*" and "tick *n* lands on the quarter-tile quantum", eight each, plus "the
+  blocked sail parks short of the land tile".
+- **B — met.** Ordering by `test-sailing-paint-order` and
+  `test-painters-world-entity`; the arc itself re-captured on the final client
+  and reviewed — `collision-underway.png`, `deck-sailing.png`,
+  `lifecycle-native-steering.png`, and shore ordering in
+  `client/client-raised-coast.png`.
+- **C — met.** `client/client-results.json` with `three-overlap`,
+  `priority-two`, `budget-one`, `budget-zero` all reviewed, and confirmed on the
+  GPU lane (`gpu/gl3-three-overlap.png` vs `gpu/soft3d-three-overlap.png`
+  flatten the same vessel with identical `wev` counters).
+- **D — met.** The whole flow walked natively on the final client: shore
+  gangplank → native selector 934 → Board → **physical** helm loc ("Navigate
+  Helm") → Set sails → voyage out and back → disembark ("You walk down the
+  gangplank.", combat tab restored) → raw logout → fresh `--resume-save`.
+  Turning at a berth is proven with four headings covering a full 360° at a
+  fixed fine position with no grounding. The former residual **LIFE-1** — the
+  logged-out client's own auto-reconnect — is fixed and re-proven on the 09:35
+  shared pair.
+
 ## Constraints that bind this work
 
 - CLAUDE.md conventions: `assert()` contract violations (one per condition),
@@ -324,6 +583,27 @@ Checkpoint D (after C5 + S3): board at a dock, take the helm, steer, disembark.
   rendering.
 - rev-239 lane only for the new packets; the osrs230 wire vtable refuses them
   rather than mis-encoding.
+
+**All four constraints hold, checked rather than assumed (2026-09-07):**
+
+- *Conventions.* Read-only review of every sailing hunk and every new sailing
+  file. Each allocation is asserted at the allocation
+  (`torirs_frame.c`, `torirs_frame_flat.u.h:71`, five separate asserts in
+  `sailing_paint_order.u.h`); pointer parameters are asserted one condition per
+  assert; the only NULL-tolerant guard is inside a deallocator, which the
+  convention exempts. The one forbidden pattern the audit found — an allocation
+  failure handled as an `if`, with a `SELFTEST_CHECK` pinning the silent-failure
+  behaviour, in `sailing_lifecycle_selftest.u.h` — has been deleted and is now a
+  plain `assert`.
+- *No 64-bit arithmetic in `3rd/toridraw`.* `git diff --stat` shows **no**
+  change under `3rd/toridraw` at all.
+- *4-pixel palette blocking.* No change to any `src/painters/painters*.c` or
+  `.u.c`; the only `src/painters` entry in the tree is the new test.
+  `test-scanline` passes every variant-parity check, and the zero-boat A/B
+  produced **one unique image hash per scene across 72 runs**.
+- *rev-239 only.* Pinned by an explicit negative case, run on the shared server:
+  "revision230 refuses vessel packets and does not mutate v239 observer
+  tracking".
 
 ## Open questions / risks
 
@@ -342,6 +622,40 @@ Checkpoint D (after C5 + S3): board at a dock, take the helm, steer, disembark.
 - **R1**: S2's cross-world visibility touches PLAYER_INFO encoding — the
   highest-regression-risk area; the v5 delta state per player
   (`torirs_server.h:2861`) must be kept coherent across world switches.
-- **R2**: C3 converts the hot paint loop into a resumable state machine —
+- **R2**: C3 adds nested world traversal to the hot paint loop —
   benchmark `render` p50 on the bench scenes before/after; the restructure
   must be performance-neutral when zero boats are live.
+
+**All four open questions are answered and both risks are discharged
+(2026-09-07):**
+
+- **OQ1 — yes.** `test-wev` and `test-wev-rebuild` load archive 72 and the deck
+  map squares out of the real `cache.osrs239` with no skips: 14 records, four
+  pinned, rotated footprints agreeing at all 16 headings.
+- **OQ2 — a side table, and it works.** `test-pick-level` proves the
+  side-channel view id across all four click modes plus the aboard override and
+  the deck-local terrain frame; `test-minimenu-world` proves the row it produces
+  cannot invent hull operations.
+- **OQ3 — structurally supported, content validation still deferred.**
+  `test_nesting_to_the_registry_bound` nests to the bound with one BEGIN per
+  view, every level painted exactly once and the innermost strictly inside the
+  outermost, and refuses at the 16-context boundary. Native *nested content* is
+  still deferred by the plan and is not claimed.
+- **OQ4 — yes, with headroom measured.** Root plus 15 real-cache decks hold
+  **19,977 static elements** in one shared scene, with one actor migrated
+  through all 15 pools and an isolated reverse despawn, no SKIP.
+- **R1 — retired.** The final contract is projected root coordinates for
+  visibility and coarse presence, and *raw* coordinates for high-resolution
+  PLAYER_INFO. A standing passenger gets no fake walk when the hull moves, and a
+  rider is never removed and re-added. Proven on the wire by the server suite
+  and on screen by the multiplayer captures.
+- **R2 — neutral.** 12 scenes × 6 runs: identical pixels and identical work
+  counts everywhere, median render Δ +0.32 %. The two scenes that exceeded noise
+  did not reproduce when re-measured alone. The largest reproducible per-scene
+  render difference is under 0.07 ms on stages of 0.9–3.6 ms.
+
+The detailed C3.2 design was revised in commit `6e77bd128` to preserve the
+straight-line painter body and use bounded nested calls. Its checked stack
+guards cycles, painter aliases and the 16-view bound. The older scope sentence
+claiming no recursion and this risk's resumable-state-machine wording did not
+describe that revision.

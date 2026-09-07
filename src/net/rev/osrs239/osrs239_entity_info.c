@@ -214,6 +214,7 @@ static const int8_t k_run_dz[16] = { -2, -2, -2, -2, -2, -1, -1, 0, 0, 1, 1, 2, 
 
 struct V5PlayerReader
 {
+    uint8_t cycle_high[V5_PLAYER_SLOTS];
     struct PktPlayerInfoOp* ops;
     int cap;
     int count;
@@ -293,12 +294,13 @@ player_set_move_speed(
     if( op_index < 0 || op_index >= r->count )
         return;
 
-    /* The temporary value 127 is class174.field2477 in the official client:
-     * it applies the coordinate immediately instead of queuing locomotion. */
+    /* Temporary traversal is authoritative even for position opcode3:
+     * class174.field2477 (127) snaps, while explicit crawl/walk/run queues
+     * locomotion. Opcode3 describes the coordinate width, not a forced jump. */
     r->ops[op_index]._local_xz_level.has_move_speed = true;
     r->ops[op_index]._local_xz_level.move_speed = (int8_t)speed;
-    if( speed == PKT_PLAYER_TRAVERSAL_SNAP )
-        r->ops[op_index]._local_xz_level.jump = true;
+    if( !persistent || speed == PKT_PLAYER_TRAVERSAL_SNAP )
+        r->ops[op_index]._local_xz_level.jump = speed == PKT_PLAYER_TRAVERSAL_SNAP;
 }
 
 static void
@@ -323,13 +325,14 @@ player_low_res(
         int fine_x;
         int fine_z;
         int extended;
-        int32_t rough = g_player.low_res_pos[idx];
+        int32_t rough;
         int level;
 
         /* The recursion is the wire's, not a convenience: a promotion may be
          * preceded by one more low-resolution update for the same slot. */
         if( Net_BitBufferGbits(buf, 1) != 0 )
             player_low_res(r, buf, idx);
+        rough = g_player.low_res_pos[idx];
         fine_x = Net_BitBufferGbits(buf, 13);
         fine_z = Net_BitBufferGbits(buf, 13);
         extended = Net_BitBufferGbits(buf, 1);
@@ -512,7 +515,7 @@ player_section(
     Net_BitBufferInit(&buf, data + *byte_pos, len - *byte_pos);
     for( int idx = 1; idx < V5_PLAYER_SLOTS; idx++ )
     {
-        int is_high = g_player.high_res[idx] != 0;
+        int is_high = r->cycle_high[idx] != 0;
         int inactive = (g_player.flags[idx] & V5_CUR_CYCLE_INACTIVE) != 0;
 
         if( low_res == is_high )
@@ -1213,6 +1216,7 @@ osrs239_player_info_read(
     }
 
     memset(&r, 0, sizeof(r));
+    memcpy(r.cycle_high, g_player.high_res, sizeof(r.cycle_high));
     for( int idx = 0; idx < V5_PLAYER_SLOTS; idx++ )
         r.movement_op[idx] = -1;
     r.ops = ops;

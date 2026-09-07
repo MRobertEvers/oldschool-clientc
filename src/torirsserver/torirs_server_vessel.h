@@ -20,7 +20,7 @@
  *   - angles: 2048 units per full turn (& 0x7FF)
  *   - headings: 16 compass points, i.e. multiples of 128 in angle space
  *   - movement quantum: 32 fine units (a quarter tile) per axis per tick
- *   - speed tiers 1..4: 64/128/192/256 fine units per tick (0.5..2 tiles)
+ *   - speed tiers 1..7: 64-unit increments, capped by native boat stats
  *
  * Movement convention matches rsprot's WorldEntityAvatar precedent:
  * dx = -sin(angle), dz = -cos(angle) — angle 0 sails south, 512 sails west.
@@ -33,6 +33,7 @@
 
 struct ToriRSServer;
 struct ToriRSServerPlayer;
+struct ToriRSServerVessel;
 
 /** Concurrent vessels. Same order of magnitude as the map-instance pool that
  *  feeds their decks (each vessel owns one reservation of the 8). */
@@ -43,8 +44,8 @@ struct ToriRSServerPlayer;
  *
  * WORLDENTITY_INFO's id IS the client's world-view id (src/world/worldview.h
  * has 16 views and view 0 is the root), so the wire cannot name more than 15
- * live entities however many hulls the server pool holds. Vessels beyond that
- * exist server-side and simply have no view — `view_id == 0`.
+ * live entities however many hull slots the server pool holds. A spawn beyond
+ * that bound is rejected before acquiring any private map or collision window.
  */
 #define TORIRSSERVER_WEV_VIEW_MAX 15
 
@@ -67,26 +68,69 @@ struct ToriRSServerPlayer;
 /** Angle units between adjacent 16-point compass headings. */
 #define TORIRSSERVER_VESSEL_HEADING_STEP 128
 
-/** Facility slots a hull tracks, indexed by TORIRSSERVER_VESSEL_FACILITY_*.
- *  The cache's boat rows carry more (keel, flag, brazier); these three are
- *  the ones the sidepanel's Facilities tab reads. */
-#define TORIRSSERVER_VESSEL_FACILITY_SLOTS 3
+/** Core parts, thirteen facility hotspots, keel and cosmetic slots. Values
+ *  are one-based selections in the native boat row's option columns. */
+#define TORIRSSERVER_VESSEL_FACILITY_SLOTS 21
+#define TORIRSSERVER_VESSEL_FACILITY_KEEL 16
+#define TORIRSSERVER_VESSEL_FACILITY_FLAG 17
+#define TORIRSSERVER_VESSEL_FACILITY_BRAZIER 18
+#define TORIRSSERVER_VESSEL_FACILITY_TRIM 19
+#define TORIRSSERVER_VESSEL_FACILITY_PATTERN 20
+#define TORIRSSERVER_VESSEL_FACILITY_HOTSPOT_BASE 3
 #define TORIRSSERVER_VESSEL_FACILITY_SAIL 0
 #define TORIRSSERVER_VESSEL_FACILITY_HELM 1
 #define TORIRSSERVER_VESSEL_FACILITY_HULL 2
+
+/** Durable boat state contains no instance, player, NPC or wire identities.
+ * Selected parts remain in the native permanent owned-boat varps; cargo uses
+ * the ordinary persistent containers. Only stored resources survive logout,
+ * never a running facility job or a lease on an operator. */
+struct ToriRSServerSavedBoat
+{
+    int config_id;
+    int fine_x, fine_z, angle;
+    int hp, name_descriptor, name_noun, anchored;
+    int motes;
+    int resources[13][2];
+};
+
+struct ToriRSServerSailingSave
+{
+    int shore_x, shore_z, shore_level;
+    int aboard_slot, deck_x, deck_z;
+    struct ToriRSServerSavedBoat boats[5];
+};
+
+/** Navigator grants name login generations, never bare reusable pids. */
+#define TORIRSSERVER_VESSEL_NAVIGATOR_MAX 8
+uint32_t ToriRSServer_VesselNavigatorMask(struct ToriRSServer* srv,
+                                        const struct ToriRSServerVessel* vessel);
+int ToriRSServer_VesselSetNavigators(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* captain, struct ToriRSServerVessel* vessel, uint32_t mask);
+int ToriRSServer_VesselCanNavigate(struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player, const struct ToriRSServerVessel* vessel);
+int ToriRSServer_VesselCargoAllowed(struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player, const struct ToriRSServerVessel* vessel);
+
+void ToriRSServer_VesselCapturePlayer(const struct ToriRSServerPlayer* player,
+                                   struct ToriRSServerSailingSave* out);
+void ToriRSServer_VesselLogout(struct ToriRSServer* srv, struct ToriRSServerPlayer* player);
+void ToriRSServer_VesselLogin(struct ToriRSServer* srv, struct ToriRSServerPlayer* player);
+void ToriRSServer_VesselRestoreOwned(struct ToriRSServer* srv,
+                                   struct ToriRSServerVessel* vessel);
 
 /** How far a gangplank looks for ground when putting a rider ashore. Wide
  *  enough to clear the longest hull's footprint from its centre, short enough
  *  that "there is no shore here" still means it. */
 #define TORIRSSERVER_VESSEL_DISEMBARK_RANGE 12
 
-/** Default turn rate: 128 angle units per tick = 90 degrees in 4 ticks, the
- *  mid ship class (docs/SAILING.md §2 cites 2/4/6-tick quarter turns). */
+/** Current server turn cap: 128 angle units per tick = 90 degrees in 4 ticks.
+ *  Rotation, including anchored turns, always sweeps the native hull bounds. */
 #define TORIRSSERVER_VESSEL_TURN_RATE_DEFAULT 128
 
 /** Speed tiers, 1-based; tier * 64 fine units per tick. */
 #define TORIRSSERVER_VESSEL_SPEED_TIER_MIN 1
-#define TORIRSSERVER_VESSEL_SPEED_TIER_MAX 4
+#define TORIRSSERVER_VESSEL_SPEED_TIER_MAX 7
 
 enum ToriRSServerVesselState
 {
@@ -108,8 +152,7 @@ struct ToriRSServerVessel
     int index;
 
     /**
-     * The client world-view id this hull is published under, 1..15, or 0 when
-     * every view was taken at spawn time.
+     * The client world-view id this live hull is published under, 1..15.
      *
      * Distinct from `index` on purpose: the vessel pool is 32 deep and the
      * wire's registry is 15, so a 1:1 mapping would put ids on the wire the
@@ -132,18 +175,18 @@ struct ToriRSServerVessel
      */
     int serial;
 
-    /** Content's vessel kind (the config-72 id this hull was spawned as). The
-     *  server does not read config 72 in S1; the id is carried for S2's wire
-     *  encoding and for content queries. */
+    /** Archive-72 hull id, decoded by the same implementation as the client.
+     *  Native bounds, offsets, pivot and deck plane drive movement/projection. */
     int config_id;
 
-    /** Hull footprint in tiles along the deck's own (unrotated) axes. */
+    /** Deck reservation extents. Native archive-72 hull bounds and signed
+     *  offsets determine collision; these dimensions are the fallback for a
+     *  config with no authored hull bounds (the Zenith or synthetic tests). */
     int size_x_tiles;
     int size_z_tiles;
 
-    /** Hull integrity, the sailing sidepanel's HP bar (varbits
-     *  `sailing_sidepanel_boat_hp[_max]`). Spawned full; nothing damages a
-     *  hull yet, but the state is the vessel's so content can when it does. */
+    /** Hull integrity, published to the native sidepanel. Grounding damage
+     *  and real repair-kit consumption are handled by sailing content. */
     int hp;
     int hp_max;
 
@@ -191,6 +234,9 @@ struct ToriRSServerVessel
     int priority;
     /** Owning player uid, or 0 for a world-owned vessel. */
     int owner_uid;
+    uint32_t navigator_generation[TORIRSSERVER_VESSEL_NAVIGATOR_MAX];
+    /** 1..5 indexes the captain's native cargo containers; 0 until claimed. */
+    int cargo_slot;
 
     /**
      * One-shot wire seq (WORLDENTITY_INFO updateFlags 0x1) — the cache's
@@ -202,6 +248,8 @@ struct ToriRSServerVessel
     int seq_id;
     int seq_delay;
     int seq_stamp;
+    /** Monotonic discontinuity stamp; each observer receives one op-3 snap. */
+    int teleport_stamp;
 
     /** Root-world transform: plane, fine-unit position of the hull's CENTER,
      *  and the yaw in 2048-space. */
@@ -211,10 +259,18 @@ struct ToriRSServerVessel
     int angle;
 
     /** Movement command. `heading` is a 16-point index (0..15) whose meaning
-     *  is heading * 128 in angle space; `speed_tier` is 1..4. */
+     *  is heading * 128 in angle space; `speed_tier` is 1..7, bounded by the boat's speed cap. */
     enum ToriRSServerVesselState state;
     int heading;
     int speed_tier;
+    /** Native boat/facility stats, populated by content from sailing dbrows.
+     *  Speeds use fine units per server tick; a zero cap in a synthetic fixture
+     *  preserves the historical 256-unit limit. */
+    int base_speed_fine;
+    int speed_cap_fine;
+    int acceleration_fine;
+    int boost_duration;
+    int armour;
     /**
      * The launch-model controls (docs/SAILING.md §7, OSRS wiki "Sailing"):
      * `sails_set` is the instant go/stop gate — a HEADING command turns the
@@ -226,6 +282,7 @@ struct ToriRSServerVessel
      */
     int sails_set;
     int reversing;
+    int anchored; /* Stops translation while retaining the chosen heading/sails. */
     /** Max angle units turned per tick (shortest arc, clamped to this). */
     int turn_rate;
     /** TARGET state's destination, fine units (already quantum-aligned). */
@@ -239,21 +296,8 @@ struct ToriRSServerVessel
     int residual_z;
 
     /**
-     * Debug-water radius in tiles, 0 = none. Set by `::vesselspawn`, whose
-     * water patch used to be a one-shot write into whichever collision window
-     * happened to be bound — the first window re-centre (a rider boarding is
-     * enough) rebuilt that window from the cache and the hull parked on dry
-     * flags. A non-zero radius here is re-stamped around the hull's CURRENT
-     * tile into every window build that covers it
-     * (ToriRSServer_SceneVesselWaterRestamp), so the patch follows the hull
-     * for as long as it sails.
-     */
-    int water_stamp;
-
-    /**
-     * Scene-window pool index holding this vessel's DECK collision, or 0 for
-     * none (the pool ran out — the hull still sails, but a rider whose own
-     * window has followed the hull away from the pool cannot walk the deck).
+     * Scene-window pool index holding this live vessel's DECK collision.
+     * A spawn reserves this window together with its view and map identity.
      *
      * A rider needs two collision domains at once — deck tiles under their
      * feet, water under the hull — and their own per-player window can only
@@ -275,10 +319,8 @@ struct ToriRSServerVessel
  * `tile_x`/`tile_z` are the absolute root-world tile the hull centers on;
  * `angle` is initial yaw in 2048-space. The hull spawns IDLE at speed tier 1.
  *
- * Returns the 1-based vessel handle, or 0 when the map-instance pool is
- * exhausted (a legitimate runtime state content checks, exactly as it does for
- * `map_instance_alloc`). Exhausting the VESSEL pool itself is asserted — 32
- * concurrent hulls is a capacity decision, not a load content can reach.
+ * Returns the 1-based vessel handle, or 0 when the vessel, view, collision
+ * window or map-instance pool is exhausted. Refusal leaves every pool unchanged.
  *
  * The deck instance is opted out of the engine's linger teardown
  * (`ToriRSServer_MapInstanceSetLinger(h, 0)`) because the vessel owns its
@@ -433,31 +475,14 @@ ToriRSServer_VesselHeadingToward(
 void
 ToriRSServer_VesselTickAll(struct ToriRSServer* srv);
 
-/**
- * Is this absolute tile sailable — water the hull may occupy?
- *
- * The test is `collision_can_move(COLL_TYPE_BLOCKED, flags,
- * COLL_FLAG_WALK_BLOCKED)` over `ToriRSServer_SceneTileFlags`: the tile must
- * carry COLL_FLAG_FLOOR (the water/lava "blocked" surface — the same rule a
- * moverestrict=blocked fishing-spot npc moves under) and none of the loc /
- * antimacro bits. Outside every built scene window SceneTileFlags reads 0, so
- * unknown map is NOT sailable — the same safe direction
- * ToriRSServer_SceneWalkBlocked chose.
- */
+/** Is this tile open on the independent boat map? Unknown terrain blocks. */
 int
-ToriRSServer_VesselTileSailable(
-    int level,
-    int tile_x,
-    int tile_z);
+ToriRSServer_VesselTileSailable(int level, int tile_x, int tile_z);
 
-/**
- * Re-apply every live vessel's debug-water patch (`water_stamp`) into the
- * BOUND scene window, around each hull's CURRENT tile, skipping map-instance
- * reservations. Called from every window build so the patch survives window
- * re-centres and follows the hull — see the field's comment.
- */
-void
-ToriRSServer_VesselWaterRestampBound(struct ToriRSServer* srv);
+/** Full rotated hull occupancy, including partial-tile edge overlaps. */
+int
+ToriRSServer_VesselCanOccupy(const struct ToriRSServerVessel* vessel,
+                           int fine_x, int fine_z, int angle);
 
 /* ------------------------------------------------------------------ */
 /* Deck <-> root projection                                            */
@@ -498,6 +523,11 @@ ToriRSServer_VesselDeckToRoot(
  *  whose collision is solid. */
 int
 ToriRSServer_VesselDeckPlane(const struct ToriRSServerVessel* vessel);
+
+/** Absolute half-open walkable hull bounds, excluding navigation-only bow space. */
+int ToriRSServer_VesselDeckWalkBounds(
+    const struct ToriRSServerVessel* vessel,
+    int* min_x, int* min_z, int* max_x, int* max_z);
 
 void
 ToriRSServer_VesselRootToDeck(

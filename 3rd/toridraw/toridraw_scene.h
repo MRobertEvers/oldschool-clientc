@@ -665,6 +665,15 @@ ToriDraw_SceneElementPoseInvalidate(
  * (TORIDRAW_ANIM_SKIP_SAME=0 re-poses every time) -- see the posed_* fields
  * on ToriDraw_SceneElement for what "identical" means.
  */
+/** Resolved element owner only; reuse follows the existing pose invalidation
+ * contract. The caller must not publish/read the model until this returns. */
+void ToriDraw_SceneElementApplyAnimationResolved(struct ToriDraw_SceneElement* element,
+    int element_id, bool primary, int frame, bool reuse);
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+void ToriDraw_AnimCaptureBeginPass(void);
+void ToriDraw_AnimCaptureEndPass(void);
+#endif
+
 void
 ToriDraw_SceneElementApplyAnimation(
     struct ToriDraw_Scene* scene,

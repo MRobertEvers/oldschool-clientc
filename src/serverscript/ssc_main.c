@@ -38,6 +38,10 @@
 #include "ssc_lane.h"
 
 #include <stdio.h>
+#include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <string.h>
 #include <sys/stat.h>
 
@@ -56,7 +60,7 @@ usage(void)
     fprintf(stderr,
             "usage: sscompile --src DIR --out DIR [--pack DIR]... "
             "[--component-root DIR]... [--constants DIR] [--content-root DIR] "
-            "[--seams DIR]... [--lane NAME]... [--no-lane NAME]... [--list-lanes]\n");
+            "[--seams DIR]... [--lane NAME]... [--no-lane NAME]... [--list-lanes] [--serve DIR]\n");
 }
 
 static int
@@ -98,6 +102,7 @@ main(int argc, char** argv)
     char seam_default[1024];
     struct SSC_Symbols symbols;
     struct SSC_Compiler* compiler;
+    const char* serve = NULL;
     struct SSC_Diag diag;
     int symbol_count = 0;
     int component_count = 0;
@@ -109,7 +114,9 @@ main(int argc, char** argv)
 
     for( i = 1; i < argc; i++ )
     {
-        if( strcmp(argv[i], "--src") == 0 && i + 1 < argc )
+        if( strcmp(argv[i], "--serve") == 0 && i + 1 < argc )
+            serve = argv[++i];
+        else if( strcmp(argv[i], "--src") == 0 && i + 1 < argc )
             src = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out = argv[++i];
@@ -540,6 +547,43 @@ main(int argc, char** argv)
     else
     {
         printf("compiled %d scripts to %s/script.dat\n", SSC_ScriptCount(compiler), out);
+    }
+
+    if( !status && serve )
+    {
+        char request[1024], response[1024], temporary[1024], file[1024];
+        snprintf(request, sizeof(request), "%s/compile.request", serve);
+        snprintf(response, sizeof(response), "%s/compile.response", serve);
+        snprintf(temporary, sizeof(temporary), "%s/compile.response.tmp", serve);
+        FILE* ready = fopen(response, "w");
+        if( ready ) { fputs("READY\n", ready); fclose(ready); }
+        for( ;; )
+        {
+            FILE* input = fopen(request, "r");
+            if( !input )
+            {
+#ifdef _WIN32
+                Sleep(10);
+#else
+                struct timespec pause = {0, 10000000};
+                nanosleep(&pause, NULL);
+#endif
+                continue;
+            }
+            if( !fgets(file, sizeof(file), input) ) file[0] = 0;
+            fclose(input); remove(request);
+            file[strcspn(file, "\r\n")] = 0;
+            if( !strcmp(file, "quit") ) break;
+            memset(&diag, 0, sizeof(diag));
+            int ok = SSC_RecompileFile(compiler, file, &diag) && SSC_Write(compiler, out, &diag);
+            FILE* reply = fopen(temporary, "w");
+            if( reply )
+            {
+                fprintf(reply, "%s %s:%d %s\n", ok ? "OK" : "FAIL", diag.file, diag.line, diag.message);
+                fclose(reply);
+                rename(temporary, response);
+            }
+        }
     }
 
     SSC_Free(compiler);

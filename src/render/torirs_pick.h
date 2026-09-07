@@ -6,6 +6,7 @@
 struct World;
 struct World_PickSet;
 struct WorldviewRegistry;
+struct Wevs;
 
 /**
  * Render-time world hittest: the pickset is expensive to build standalone, so
@@ -86,6 +87,19 @@ void
 ToriRS_PickHitsClassify(
     struct World* world,
     struct WorldviewRegistry* views,
+    struct ToriRS_PickHits const* hits,
+    int player_level,
+    struct World_PickSet* out_pickset,
+    struct ToriRS_PickResult* out_result);
+
+/** Native boat click modes, visibility and aboard override. The legacy entry
+ * point above preserves callers with no world-entity policy. */
+void
+ToriRS_PickHitsClassifyViews(
+    struct World* world,
+    struct WorldviewRegistry* views,
+    const struct Wevs* wevs,
+    int aboard_view,
     struct ToriRS_PickHits const* hits,
     int player_level,
     struct World_PickSet* out_pickset,

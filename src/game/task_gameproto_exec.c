@@ -261,6 +261,20 @@ Task_GameProtoExec_Run(
             app->world_active && app->world && rebuild_view(self)->world->load_complete;
         self->prev_base_x = self->had_world ? rebuild_view(self)->world->_base_tile_x : 0;
         self->prev_base_z = self->had_world ? rebuild_view(self)->world->_base_tile_z : 0;
+        /* The same C2 drain rule the boat branch below obeys, for the ROOT
+         * world: World_ResetSceneAlloc asserts the queue is empty, and the
+         * rebuild reaches it from inside the load task.
+         *
+         * The per-tick drain (app_world_frame) cannot cover this. A despawn
+         * that arrives in the same packet pump as the rebuild — a boat sinking
+         * one packet before the teleport that follows it — queues an
+         * EntityRemoved that no tick has seen yet, and the rebuild execs
+         * behind it on the same serial queue. Draining rather than clearing is
+         * the point: the queue names DYNAMIC scene elements, and this is the
+         * call that hands them to the plugins and frees them
+         * (ToriDraw_SceneElementRemove) before the reset makes their ids
+         * unreachable. */
+        App_WorldDrainEntityRemovedFor(app, rebuild_view(self)->world);
         /* on_done is NULL: we await the load and run the tail ourselves
          * below, so the entity shift can land between the scene swap and
          * App_WorldLoadFinish (which the shift must precede). */
@@ -410,9 +424,6 @@ Task_GameProtoExec_Run(
                 wev_view(self)->world->_base_tile_x,
                 wev_view(self)->world->_base_tile_z,
                 wev_view(self)->world->load_complete);
-        /* The deck's static geometry just changed; the C4 flat bake merged
-         * the old one. */
-        App_WevFlatInvalidate(app, self->wev_view_id);
         app->need_redraw = 1;
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||

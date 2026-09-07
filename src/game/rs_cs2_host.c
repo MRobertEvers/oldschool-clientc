@@ -7,6 +7,7 @@
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
+#include "game/sailing_settings.h"
 
 #include "cs2vm2/cs2vm2.h"
 #include "engine/cache_provider.h"
@@ -275,6 +276,25 @@ rs_cs2_model_ready(
     if( model_id < 0 )
         return true;
     return provider && CacheProvider_ModelHas(provider, model_id);
+}
+
+static bool
+rs_cs2_loc_model_ready(struct RS_CS2Host* host, int loc_id)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Location* loc;
+    int const* ids;
+    int count;
+    if( loc_id < 0 )
+        return true;
+    if( !provider || !CacheProvider_LocationHas(provider, loc_id) )
+        return false;
+    loc = CacheProvider_LocationGet(provider, loc_id);
+    count = UITreeSceneBridge_LocModelIds(loc, &ids);
+    for( int i = 0; i < count; i++ )
+        if( !CacheProvider_ModelHas(provider, ids[i]) )
+            return false;
+    return true;
 }
 
 /* Resolve a resident multiNpc chain under this client's vars. false means a
@@ -882,6 +902,7 @@ RS_CS2Host_Init(
     assert(invs);
 
     memset(host, 0, sizeof(*host));
+    host->world_entity_draw_limit = 30;
     /* The answer a machine with no battery gives, which is what the three
      * device opcodes were literals for before the platform could answer.
      * @see RS_CS2Host_SetDeviceStatus. */
@@ -2004,35 +2025,47 @@ RS_CS2Host_TakeTriggerOp(struct RS_CS2Host* host, struct RS_CS2TriggerOp* out)
     return false;
 }
 
-static void
-rs_cs2_triggeroplocal_push(
-    struct RS_CS2Host* host,
-    int component_id,
-    int sub)
+static int
+rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
+    const struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL* request)
 {
-    int slot;
-
     assert(host);
+    assert(request);
     if( host->triggeroplocal_count >= RS_CS2_HOST_TRIGGEROPLOCAL_MAX )
+        return CS2VM_EXECNO_ERROR;
+    if( request->count < 0 || request->count > 16 ) return CS2VM_EXECNO_ERROR;
+    for( int i=0; i<request->count; ++i )
+        if( request->signature[i] != 'i' &&
+            (!request->strings[i] || strlen(request->strings[i]) >= 256) )
+            return CS2VM_EXECNO_ERROR;
+    int slot=(host->triggeroplocal_head+host->triggeroplocal_count) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+    struct RS_CS2TriggerOpLocal* out=&host->triggeroplocal[slot];
+    memset(out,0,sizeof(*out));
+    out->component_id=request->component_id;
+    out->sub=request->sub;
+    out->child=request->child;
+    out->crc=request->crc;
+    for( int i=0; i<request->count; ++i )
     {
-        TORIRS_LOG("cs2: if_triggeroplocal queue full (%d), dropped component 0x%08x sub %d\n",
-            RS_CS2_HOST_TRIGGEROPLOCAL_MAX,
-            (unsigned)component_id,
-            sub);
-        return;
+        out->signature[i]=request->signature[i];
+        out->values[i]=request->values[i];
+        if( request->signature[i] != 'i' )
+            snprintf(out->strings[i],sizeof(out->strings[i]),"%s",request->strings[i]);
     }
-    slot = (host->triggeroplocal_head + host->triggeroplocal_count) %
-           RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
-    int32_t target = host->tree ? UITree_FindByComponentId(host->tree, component_id) : -1;
-    if( target >= 0 && sub >= 0 )
     {
-        int32_t child = UITree_FindChildBySubid(host->tree, target, component_id, sub);
-        if( child >= 0 ) target = child;
+        int32_t target = host->tree ? UITree_FindByComponentId(host->tree, request->component_id) : -1;
+        if( target >= 0 && request->sub >= 0 )
+        {
+            int32_t child = UITree_FindChildBySubid(host->tree, target, request->component_id, request->sub);
+            if( child >= 0 )
+                target = child;
+        }
+        /* The node the op was raised on, by incarnation: a later remount
+         * must not deliver the op to whatever recycled the slot. */
+        out->ref = UITree_RefAt(host->tree, target);
     }
-    host->triggeroplocal[slot].component_id = component_id;
-    host->triggeroplocal[slot].ref = UITree_RefAt(host->tree, target);
-    host->triggeroplocal[slot].sub = sub;
     host->triggeroplocal_count++;
+    return CS2VM_EXECNO_OK;
 }
 
 bool
@@ -3630,6 +3663,20 @@ rs_cs2_settings_record_mirror(
     assert(host);
     root = rs_cs2_root_script_id(vm);
 
+    /* This native dropdown has its own apply script instead of announcing
+     * itself through settings_last_changed. Mirror only its own enum; other
+     * scripts' varbit writes remain outside this additional path. */
+    if( varbit_id == SAILING_CARGO_PRIVACY_VARBIT && vm && vm->frame_sp > 0 )
+    {
+        struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
+        if( frame && frame->script && frame->script->script_id == SAILING_CARGO_PRIVACY_SCRIPT )
+        {
+            if( SailingCargoPrivacy_Valid(value) )
+                RS_CS2Host_QueueSettingsMirror(host, varbit_id, value);
+            return;
+        }
+    }
+
     if( host->varbit_settings_last_changed > 0 &&
         varbit_id == host->varbit_settings_last_changed )
     {
@@ -3777,6 +3824,105 @@ rs_cs2_settings_apply_client_layout(
     }
     host->client_layout_mode = layout;
     host->client_layout_dirty = true;
+}
+
+/* The shipped cache's dropdown hub can update its label without invoking
+ * the server-applied cargo callback. Complete that one named setting from
+ * the hub's actual (setting, choice, secondary) arguments. If a cache also
+ * invokes8830, the existing mirror coalesces the identical choice. */
+static void
+rs_cs2_settings_apply_cargo_privacy(
+    struct RS_CS2Host* host, struct CS2VM2_Thread* vm, int varbit_id, int setting)
+{
+    assert(host);
+    if( varbit_id != host->varbit_settings_last_changed ||
+        setting != SAILING_CARGO_PRIVACY_SETTING || !vm || vm->frame_sp <= 0 ) return;
+    struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script || frame->script->script_id != host->script_settings_client_apply ||
+        frame->script->int_argument_count < 2 ) return;
+    int value = frame->int_locals[1];
+    if( !SailingCargoPrivacy_Valid(value) ) return;
+    RS_CS2Host_ScriptWriteVarbit(host, SAILING_CARGO_PRIVACY_VARBIT, value);
+    RS_CS2Host_QueueSettingsMirror(host, SAILING_CARGO_PRIVACY_VARBIT, value);
+}
+
+/*
+ * Read one integer local without assuming the buffer reaches that far.
+ *
+ * A frame's locals are grown to what its occupant has actually written, and
+ * everything at or above `int_locals_dirty` is zero by that buffer's own
+ * invariant -- including the slots the allocation does not even cover. One
+ * compare answers both, which is what makes reading local13 of a frame safe
+ * to attempt before knowing the frame is the one being looked for.
+ */
+static int
+rs_cs2_frame_int_local(struct CS2VM2_Frame const* frame, int index)
+{
+    assert(frame);
+    assert(index >= 0);
+    return index < frame->int_locals_dirty ? frame->int_locals[index] : 0;
+}
+
+/*
+ * Finish the cargo-privacy row from the dropdown ENTRY script, script3852.
+ *
+ * This is the path the shipped cache actually takes. 3852 rewrites the row's
+ * label with `cc_settext` and then calls `~settings_set_dropdown` (3967) only
+ * when `$int12 == 0`; struct6372 carries `param1085=1`, so for cargo privacy
+ * the apply hub is never entered, neither8830 nor3967 runs, and every mirror
+ * that hangs off those two scripts stays silent. The label moved and the
+ * varbit did not -- client and server both read0 whichever choice was clicked.
+ *
+ * The seam is the label write itself rather than "some host request happened
+ * under3852": the text application is the point at which the choice has
+ * demonstrably landed on a real component, and it is one boundary rather than
+ * every opcode the script issues. See sailing_settings.h for why each of the
+ * five locals is checked; the identification has to be this narrow because a
+ * settings dropdown row is a shared script and every other row in the panel
+ * runs the same code.
+ *
+ * Deliberately not a general varp/varbit bridge. It applies one named varbit
+ * for one named row and queues the mirror that already exists -- the
+ * CLIENT_CHEAT `setting VARBIT VALUE` the App flushes at the settled CS2
+ * boundary, which the server validates against0..2 before storing.
+ */
+static void
+rs_cs2_settings_apply_cargo_privacy_dropdown(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm)
+{
+    struct CS2VM2_Frame* frame;
+    int choice;
+
+    assert(host);
+    if( !vm || vm->frame_sp <= 0 )
+        return;
+    frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script )
+        return;
+    if( frame->script->script_id != SAILING_CARGO_PRIVACY_DROPDOWN_SCRIPT )
+        return;
+    /* Arity before locals: a different cache's3852 with a shorter signature
+     * would have different parameters in these positions, not missing ones. */
+    if( frame->script->int_argument_count < SAILING_CARGO_PRIVACY_DROPDOWN_ARG_COUNT )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_KIND) !=
+        SAILING_CARGO_PRIVACY_DROPDOWN_KIND )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_SETTING) !=
+        SAILING_CARGO_PRIVACY_SETTING )
+        return;
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_STRUCT) !=
+        SAILING_CARGO_PRIVACY_STRUCT )
+        return;
+    /* The other branch DOES call the apply hub; leave that one to the hub. */
+    if( rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_SERVER_APPLIED) == 0 )
+        return;
+    choice = rs_cs2_frame_int_local(frame, SAILING_CARGO_PRIVACY_LOCAL_CHOICE);
+    if( !SailingCargoPrivacy_Valid(choice) )
+        return;
+    RS_CS2Host_ScriptWriteVarbit(host, SAILING_CARGO_PRIVACY_VARBIT, choice);
+    RS_CS2Host_QueueSettingsMirror(host, SAILING_CARGO_PRIVACY_VARBIT, choice);
 }
 
 /* Safe-area bounds (6220..6223, 6231). Desktop client, no notch/home indicator:
@@ -5301,6 +5447,18 @@ exec_widget_set_model_kind(
         if( host->bridge && scene_model >= 0 )
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
         (void)UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
+    }
+    else if( model_kind == CS2VM_MODEL_KIND_LOC && host->bridge && rs_cs2_tree(host) )
+    {
+        if( !rs_cs2_loc_model_ready(host, model_id) )
+        {
+            if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
+                return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
+            return CS2VM_EXECNO_OK;
+        }
+        (void)UITree_ApplyModel(
+            rs_cs2_tree(host), component_id,
+            UITreeSceneBridge_EnsureLocModel(host->bridge, model_id));
     }
     /* NPC head (kind 2): model_id is the npc id. Composite the chathead
      * (reference IfType.getModel type 2 / NpcType.getHead / deob method3601).
@@ -8629,6 +8787,7 @@ exec_widget_set_graphic2(
 static int
 exec_widget_set_text(
     struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
     int component_id,
     char const* text)
 {
@@ -8637,8 +8796,13 @@ exec_widget_set_text(
         component_id,
         text ? text : "");
 #endif
-    if( rs_cs2_tree(host) )
-        (void)UITree_ApplyText(rs_cs2_tree(host), component_id, text);
+    /* The applied-text boundary is where the settings dropdown's one
+     * server-applied row is finished; see the function below the mirror queue
+     * for why that row cannot finish itself. UITree_ApplyText answers true for
+     * text that was already the same string, which is the right answer here:
+     * re-picking the choice already showing is still a choice. */
+    if( rs_cs2_tree(host) && UITree_ApplyText(rs_cs2_tree(host), component_id, text) )
+        rs_cs2_settings_apply_cargo_privacy_dropdown(host, vm);
     return CS2VM_EXECNO_OK;
 }
 
@@ -9157,7 +9321,7 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_graphic2(host, request->u.opname.component_id, request->u.opname.graphic_id)
 #define RS_CS2_SET_TEXT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_text(host, request->u.opname.component_id, request->u.opname.text)
+        return exec_widget_set_text(host, vm, request->u.opname.component_id, request->u.opname.text)
 #define RS_CS2_SET_TILING_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_tiling(host, request->u.opname.component_id, request->u.opname.tiling)
@@ -9391,6 +9555,9 @@ rs_cs2_host_exec_dispatch(
             host, vm, request->u.POP_VARBIT.varbit_id,
             request->u.POP_VARBIT.value);
         rs_cs2_settings_apply_client_layout(
+            host, vm, request->u.POP_VARBIT.varbit_id,
+            request->u.POP_VARBIT.value);
+        rs_cs2_settings_apply_cargo_privacy(
             host, vm, request->u.POP_VARBIT.varbit_id,
             request->u.POP_VARBIT.value);
         RS_CS2Host_ScriptWriteVarbit(
@@ -9644,6 +9811,7 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETLOCMODEL);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
 
@@ -10030,6 +10198,7 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETLOCMODEL);
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
 
@@ -10328,12 +10497,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:
-        /* Queued so the App can turn it into IF_BUTTON1 on the wire. */
-        rs_cs2_triggeroplocal_push(
-            host,
-            request->u.IF_TRIGGEROPLOCAL.component_id,
-            request->u.IF_TRIGGEROPLOCAL.sub);
-        return CS2VM_EXECNO_OK;
+        return rs_cs2_triggeroplocal_push(host, &request->u.IF_TRIGGEROPLOCAL);
 
         RS_CS2_CHAT_CASE(MES);
 
@@ -10456,6 +10620,18 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_get_obj(host, request->u.INV_GETOBJ.inv_id, request->u.INV_GETOBJ.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_GETOBJ:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_obj(host,
+            (int)((uint32_t)request->u.INVOTHER_GETOBJ.inv_id + 32768u),
+            request->u.INVOTHER_GETOBJ.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_GETNUM:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_get_num(host,
+            (int)((uint32_t)request->u.INVOTHER_GETNUM.inv_id + 32768u),
+            request->u.INVOTHER_GETNUM.slot));
+    case CS2VM_HOST_REQUEST_INVOTHER_TOTAL:
+        return CS2VM2_PushInt(vm, rs_cs2_inv_total(host,
+            (int)((uint32_t)request->u.INVOTHER_TOTAL.inv_id + 32768u),
+            request->u.INVOTHER_TOTAL.item_id));
 
     case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(
@@ -11276,6 +11452,13 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_HISCORES_CASE(HISCORES_STATUS);
 
         RS_CS2_HISCORES_CASE(HISCORES_ERROR);
+
+    case CS2VM_HOST_REQUEST_WORLDENTITY_SETDRAWLIMIT:
+        host->world_entity_draw_limit = request->u.WORLDENTITY_SETDRAWLIMIT.limit < 0
+            ? 0 : request->u.WORLDENTITY_SETDRAWLIMIT.limit;
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_WORLDENTITY_GETDRAWLIMIT:
+        return CS2VM2_PushInt(vm, host->world_entity_draw_limit);
 
 #undef RS_CS2_KEY_CASE
 #undef RS_CS2_VARC_STRING_READ_CASE

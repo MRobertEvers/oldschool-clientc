@@ -19,6 +19,7 @@
 #include "torirs_server.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
+#include "game/sailing_settings.h"
 
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
@@ -2792,11 +2793,17 @@ world_window_scene_build(
      * loc change. The durable record is the ZoneMap's; replay it onto the
      * window just built — the other windows still carry theirs. */
     world_locs_reapply_window(srv, window);
-    /* And every live hull's debug-water patch, which the cache also does not
-     * carry — without this the first window re-centre near a sailing hull
-     * rebuilds dry flags under it and the mover parks it (SAILING SAIL-33's
-     * boarding regression). */
-    ToriRSServer_VesselWaterRestampBound(srv);
+    /* A window may cover several retained deck reservations. Apply every
+     * live hull's padding rule so overlapping collision windows agree. */
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+    {
+        const struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int bx, bz, width, height, x0, z0, x1, z1;
+        if( !vessel->in_use ||
+            !ToriRSServer_MapInstanceBounds(vessel->instance, &bx, &bz, &width, &height) ||
+            !ToriRSServer_VesselDeckWalkBounds(vessel, &x0, &z0, &x1, &z1) ) continue;
+        ToriRSServer_SceneRestrictDeckWalk(bx, bz, width, height, x0, z0, x1, z1);
+    }
     ToriRSServer_SceneBindWindow(bound);
 
     /* The entities' own collision, which the rebuilt map does not carry.
@@ -2995,6 +3002,10 @@ ToriRSServer_WorldMapInstanceBuilt(
     struct ToriRSServer* srv,
     int handle)
 {
+    int vessel_instance = 0;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+        if( srv->vessels[i].in_use && srv->vessels[i].instance == handle )
+            vessel_instance = 1;
     /*
      * A vessel's deck gets its collision pinned in the vessel's own window.
      *
@@ -3012,7 +3023,10 @@ ToriRSServer_WorldMapInstanceBuilt(
         int width = 0;
         int height = 0;
 
-        if( !vessel->in_use || vessel->instance != handle || vessel->deck_window == 0 )
+        /* Adjacent pool reservations share scene windows. Rebuild every deck
+         * window when a boat is assembled so its new template and walk mask
+         * cannot disagree with an older overlapping window. */
+        if( !vessel_instance || !vessel->in_use || vessel->deck_window == 0 )
             continue;
         if( !ToriRSServer_MapInstanceBounds(vessel->instance, &base_x, &base_z, &width,
                                             &height) )
@@ -3050,6 +3064,11 @@ ToriRSServer_WorldMapInstanceFree(
     struct ToriRSServer* srv,
     int handle)
 {
+    /* A deck has a stronger owner than the generic pool. Every release path
+     * must remove that hull and evacuate its riders before giving tiles back. */
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+        if( srv->vessels[i].in_use && srv->vessels[i].instance == handle )
+            return ToriRSServer_VesselFree(srv, srv->vessels[i].index);
     int x;
     int z;
     int width;
@@ -3934,6 +3953,60 @@ ToriRSServer_WorldNpcSetOwner(
  * PathingEntity.takeStep against the current waypoint. Returns 1 when the npc
  * moved. Never uses ToriRSServer_SceneRoute — occupancy gates every attempt.
  */
+/* Crew must reach work stations around deck furniture and other occupants.
+ * Ordinary NPCs retain the reference's direct/naive movement. Use the existing
+ * tile router on a private occupancy-aware snapshot so this does not change
+ * player collision, scenery flags, or another NPC's movement policy. */
+static int
+npc_crew_route_step(struct ToriRSServerNpc* npc, int target_x, int target_z,
+                   int extra, int coll_type, int* step_x, int* step_z)
+{
+    assert(npc);
+    assert(step_x);
+    assert(step_z);
+    if( !npc->owner_gen || npc->size > 1 || coll_type != COLL_TYPE_NORMAL ) return 0;
+    int category = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "sailing_crew");
+    if( category < 0 || ToriRSServer_NpcCategory(npc->type) != category ) return 0;
+    int instance = ToriRSServer_MapInstanceFind(npc->x, npc->z);
+    if( !instance || ToriRSServer_MapInstanceFind(target_x, target_z) != instance ) return 0;
+    struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(npc->x, npc->z);
+    if( !window || !ToriRSServer_SceneWindowContains(window, target_x, target_z) ) return 0;
+    struct ToriRSServerSceneWindow* previous = ToriRSServer_SceneBoundWindow();
+    ToriRSServer_SceneBindWindow(window);
+    struct CollisionMap* source = ToriRSServer_SceneCollision(npc->level);
+    int base_x = ToriRSServer_SceneBaseX();
+    int base_z = ToriRSServer_SceneBaseZ();
+    struct CollisionMap* route = NULL;
+    if( source )
+    {
+        route = collision_map_new(source->size_x, source->size_z);
+        assert(route);
+        route->route_window = source->route_window;
+        for( int i = 0; i < source->size_x * source->size_z; ++i )
+        {
+            int flags = source->flags[i];
+            route->flags[i] = flags | ((flags & extra) ? COLL_FLAG_LOC : 0);
+        }
+    }
+    ToriRSServer_SceneBindWindow(previous);
+    if( !route ) return 0;
+    struct CollisionNearestOpts nearest;
+    ToriRSServer_SceneOpNearestOpts(&nearest);
+    int path_x[1], path_z[1];
+    int count = collision_map_route_tiles(
+        route, npc->x - base_x, npc->z - base_z, target_x - base_x, target_z - base_z,
+        NULL, &nearest, path_x, path_z, 1, NULL, NULL, NULL);
+    collision_map_free(route);
+    if( count <= 0 ) return 0;
+    int dx = path_x[0] + base_x - npc->x;
+    int dz = path_z[0] + base_z - npc->z;
+    if( !ToriRSServer_SceneCanTravelTyped(
+            npc->level, npc->x, npc->z, dx, dz, 1, extra, coll_type) ) return 0;
+    *step_x = dx;
+    *step_z = dz;
+    return 1;
+}
+
 static int
 npc_take_step(struct ToriRSServerNpc* npc)
 {
@@ -3985,6 +4058,15 @@ npc_take_step(struct ToriRSServerNpc* npc)
     /* The npc's own move restriction, not everyone's: a swimmer walks where the
      * map blocks, an indoors npc will not leave the roof. */
     coll_type = npc_collision_type(npc);
+    if( npc->owner_gen && ToriRSServer_FamiliarDebug() )
+        fprintf(stderr,
+            "crew_path type=%d level=%d size=%d collision=%d category=%d expected=%d extra=%x "
+            "from=%d,%d to=%d,%d source=%x next=%x\n",
+            npc->type, npc->level, size, coll_type, ToriRSServer_NpcCategory(npc->type),
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "sailing_crew"), extra,
+            npc->x, npc->z, wp_x, wp_z,
+            ToriRSServer_SceneTileFlags(npc->level,npc->x,npc->z),
+            ToriRSServer_SceneTileFlags(npc->level,npc->x+dx,npc->z+dz));
     try_dx = 0;
     try_dz = 0;
 
@@ -4006,7 +4088,11 @@ npc_take_step(struct ToriRSServerNpc* npc)
      * along the rows the other crabs are queued on instead of away from them.
      * "The nylocas do not path correctly towards Maiden" is this line.
      */
-    if( dx != 0 && dz != 0 &&
+    if( npc_crew_route_step(npc, wp_x, wp_z, extra, coll_type, &try_dx, &try_dz) )
+    {
+        /* The first tile of the route is already checked with NPC blockers. */
+    }
+    else if( dx != 0 && dz != 0 &&
         ToriRSServer_SceneCanTravelTyped(npc->level, npc->x, npc->z, dx, dz, size, extra,
                                        coll_type) )
     {
@@ -5330,12 +5416,61 @@ player_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     if( player->navigating_vessel == 0 )
         return NULL;
     vessel = ToriRSServer_VesselGet(srv, player->navigating_vessel);
-    if( !vessel || vessel->serial != player->navigating_vessel_serial )
+    if( !vessel || vessel->serial != player->navigating_vessel_serial ||
+        !ToriRSServer_VesselCanNavigate(srv, player, vessel) )
     {
         player->navigating_vessel = 0;
         return NULL;
     }
     return vessel;
+}
+
+/* A captain can give bearings while an assigned crewmate handles the helm.
+ * The roster alone is insufficient: validate the retained actor generation
+ * and its actual deck membership, so dead/despawned crew grants no control. */
+int
+ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player, struct ToriRSServerVessel* vessel, int sails)
+{
+    assert(srv);
+    assert(player);
+    assert(vessel);
+    if( ToriRSServer_VesselAtTile(srv,player->x,player->z)!=vessel ||
+        ToriRSServer_MapInstanceVarGet(vessel->instance,110) ) return 0;
+    if( !ToriRSServer_VesselCanNavigate(srv, player, vessel) ) return 0;
+    /* All three player-boat DB rows in revision239 declare combined navigation. */
+    int combined=vessel->config_id>=1 && vessel->config_id<=3;
+    if( player_helm_vessel(srv,player)==vessel && (!sails || combined) ) return 1;
+    if( vessel->owner_uid!=player->pid+1 ) return 0;
+    for( int slot=0; slot<5; ++slot )
+    {
+        char key[64];
+        snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d_position",slot+1);
+        int duty=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        int position=duty>=0 ? ToriRSServer_VarbitGet(player,duty) : 0;
+        if( sails ? (position!=2 && !(combined && (position==3 || position==4))) :
+                    (position!=3 && !(combined && position==4)) ) continue;
+        snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d",slot+1);
+        int roster=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        if( roster<0 || ToriRSServer_VarbitGet(player,roster)==0 ) continue;
+        uint32_t retained=(uint32_t)ToriRSServer_MapInstanceVarGet(vessel->instance,112+slot);
+        if( !retained ) continue;
+        uint32_t uid=retained-1;
+        unsigned npc_slot=uid&0xffffu;
+        unsigned generation=uid>>16;
+        if( npc_slot>=TORIRSSERVER_NPC_MAX || !generation ) continue;
+        struct ToriRSServerNpc* npc=&srv->npcs[npc_slot];
+        if( npc->active && npc->generation==generation && npc->hitpoints>0 &&
+            ToriRSServer_VesselAtTile(srv,npc->x,npc->z)==vessel ) return 1;
+    }
+    return 0;
+}
+
+static struct ToriRSServerVessel*
+player_crew_helm_vessel(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerVessel* vessel=ToriRSServer_VesselAtTile(srv,player->x,player->z);
+    return vessel && ToriRSServer_VesselPlayerControlAllowed(srv,player,vessel,0) ? vessel : NULL;
 }
 
 /*
@@ -5392,9 +5527,10 @@ handle_move(
      * At the helm, a click is a STEERING order, not a walk (docs/SAILING.md
      * §7 — the launch model's heading selector: the white arrow follows the
      * cursor and a click sets the boat's direction; the boat turns toward it
-     * and translates only once the sails are set). The clicked tile arrives
-     * in ABSOLUTE root coordinates, so its bearing from the hull is exactly
-     * the direction the navigator pointed at.
+     * and translates only once the sails are set). Root clicks name ocean
+     * tiles; a picked deck names its off-map staging instance. Transform a
+     * deck destination through the vessel that owns it before taking its
+     * bearing, including when another vessel's deck was clicked.
      */
     if( player->navigating_vessel != 0 )
     {
@@ -5402,22 +5538,30 @@ handle_move(
 
         if( vessel )
         {
-            int hull_x = vessel->fine_x >> 7;
-            int hull_z = vessel->fine_z >> 7;
+            int target_fine_x = start_x * 128 + 64;
+            int target_fine_z = start_z * 128 + 64;
+            struct ToriRSServerVessel* target_deck =
+                ToriRSServer_VesselAtTile(srv, start_x, start_z);
             int heading;
 
-            /* A click ON the hull's own tile has no bearing to quantize. */
-            if( start_x == hull_x && start_z == hull_z )
+            if( target_deck )
+                ToriRSServer_VesselDeckTileToRoot(
+                    target_deck, start_x, start_z, &target_fine_x, &target_fine_z);
+            /* An exact click on the rotation pivot has no bearing. Preserve
+             * fine units: boats move in quarter tiles, so rounding the hull
+             * to a whole tile here changes the heading near sector edges. */
+            if( target_fine_x == vessel->fine_x && target_fine_z == vessel->fine_z )
                 return;
             heading =
-                ToriRSServer_VesselHeadingToward(start_x - hull_x, start_z - hull_z);
+                ToriRSServer_VesselHeadingToward(
+                    target_fine_x - vessel->fine_x, target_fine_z - vessel->fine_z);
             ToriRSServer_VesselSetHeading(vessel, heading);
             if( srv->verbose )
                 fprintf(
                     stderr,
-                    "torirsserver: <- MOVE as steering: click %d,%d hull %d,%d "
+                    "torirsserver: <- MOVE as steering: click %d,%d hull fine %d,%d "
                     "-> heading %d/16\n",
-                    start_x, start_z, hull_x, hull_z, heading);
+                    start_x, start_z, vessel->fine_x, vessel->fine_z, heading);
             return;
         }
         /* The hull is gone (helm_vessel cleared the handle); fall through to
@@ -6132,6 +6276,19 @@ handle_opnpc(
     ToriRSServer_WorldClearPendingAction(srv);
 
     info = ToriRSServer_NpcInfo(npc->type);
+    /* An operated ship weapon or a following crewmate consumes the same
+     * visible Attack intent. Content decides whether that order is naval;
+     * otherwise the ordinary player combat interaction below remains intact. */
+    if( op_num>=1 && op_num<=5 && info->ops[op_num-1] &&
+        strcmp(info->ops[op_num-1],"Attack")==0 && srv->scripts_ok &&
+        ToriRSServer_VesselAtTile(srv,srv->active_player->x,srv->active_player->z) )
+    {
+        const struct SSVM_Script* hook=SSVM_ProviderGetByName(srv->scripts,"[proc,sailing_attack_target]");
+        int32_t target=(int32_t)(((uint32_t)npc->generation<<16)|(uint32_t)slot);
+        int32_t handled=0;
+        if( hook && ToriRSServer_ScriptsRunHookInt(srv,hook,&target,1,&handled) && handled )
+            return;
+    }
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, op_num, slot, npc->type, npc->x,
                                   npc->z, npc->level, info->size, info->size);
     {
@@ -6323,15 +6480,20 @@ handle_oploc(
 
     ToriRSServer_WorldClearPendingAction(srv);
 
+    /* A deck rider stands on the native deck plane, while a clicked dock is
+     * in the root ocean view. The packet has no plane field; resolve it from
+     * the same view relationship that interaction reach already uses. */
+    int target_level = ToriRSServer_PlayerReachLevel(srv, srv->active_player, tile_x, tile_z);
+
     /* The footprint decides what counts as "beside it": a two-tile gate is
      * reachable from tiles a one-tile door is not. The slot is also what the op
      * is validated against below, so it has to be found first. */
     scene_bind_covering(tile_x, tile_z);
-    slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, srv->active_player->level, loc_id);
+    slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, target_level, loc_id);
     loc = ToriRSServer_SceneLoc(slot);
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPLOC%d %d at %d,%d lvl=%d slot=%d\n", op_num,
-                loc_id, tile_x, tile_z, srv->active_player->level, slot);
+                loc_id, tile_x, tile_z, target_level, slot);
 
     /*
      * LostCity OpLocHandler: validate ops against the multiloc-resolved child
@@ -6357,8 +6519,23 @@ handle_oploc(
         size_z = loc->size_z > 0 ? loc->size_z : 1;
     }
 
+    struct ToriRSServerPlayer* actor=srv->active_player;
+    struct ToriRSServerVessel* helmed=player_helm_vessel(srv,actor);
+    if( helmed && ToriRSServer_VesselAtTile(srv,tile_x,tile_z)==helmed )
+    {
+        int category=ToriRSServer_LocCategory(loc_id);
+        /* A deck work order must release the physical helm before routing;
+         * the reached OPLOC script cannot free a player who never gets there.
+         * Mast/cloth and steering retain their combined navigation controls. */
+        int remote_fathom=category==2338 && (op_num==1 || op_num==3);
+        if( category!=2322 && category!=2323 && !remote_fathom )
+        {
+            actor->navigating_vessel=0;
+            actor->navigating_vessel_serial=0;
+        }
+    }
     ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_LOC, op_num, -1, loc_id, tile_x,
-                                  tile_z, srv->active_player->level, size_x, size_z);
+                                  tile_z, target_level, size_x, size_z);
     {
         struct CollisionApproach approach;
         ToriRSServer_SceneLocApproach(slot, &approach);
@@ -6548,7 +6725,7 @@ useon_interact(
     }
     else
     {
-        int loc_slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, level, target_id);
+        int loc_slot = find_interaction_loc(tile_x, tile_z, level, target_id);
         struct CollisionApproach approach;
         ToriRSServer_SceneLocApproach(loc_slot, &approach);
         ToriRSServer_WorldWalkToApproach(srv, tile_x, tile_z, &approach);
@@ -6777,9 +6954,13 @@ handle_opplayert(
     if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
         return;
 
+    /* The packet names the player by the GPI index the server published in
+     * PLAYER_INFO and the login response (pool pid + 1), never by the pool
+     * slot: see ToriRSServer_WirePlayerIndex. Comparing against the pool pid
+     * silently dropped every player-targeted click from a real client. */
     for( int i = 0; i < srv->player_count; i++ )
     {
-        if( srv->players[i].active && srv->players[i].pid == pid )
+        if( srv->players[i].active && ToriRSServer_WirePlayerIndex(srv->players[i].pid) == pid )
         {
             slot = i;
             break;
@@ -6878,6 +7059,7 @@ handle_oplocu(
                 tile_z, use_obj, use_slot);
 
     /* The footprint decides what counts as "beside it", exactly as OPLOC<n>. */
+    scene_bind_covering(tile_x, tile_z);
     slot = ToriRSServer_SceneFindLoc(tile_x, tile_z, srv->active_player->level, loc_id);
     loc = ToriRSServer_SceneLoc(slot);
     if( loc )
@@ -6888,6 +7070,13 @@ handle_oplocu(
         size_z = loc->size_z > 0 ? loc->size_z : 1;
     }
 
+    struct ToriRSServerPlayer* actor = srv->active_player;
+    struct ToriRSServerVessel* boat = ToriRSServer_VesselAtTile(srv, actor->x, actor->z);
+    if( boat && ToriRSServer_VesselAtTile(srv, tile_x, tile_z) == boat )
+    {
+        actor->navigating_vessel = 0;
+        actor->navigating_vessel_serial = 0;
+    }
     useon_interact(srv, TORIRSSERVER_INTERACT_LOC, -1, loc_id, tile_x, tile_z,
                    srv->active_player->level, size_x, size_z, use_obj, use_slot);
 }
@@ -7266,6 +7455,133 @@ vessel_deck_fill_from(
                     0);
 }
 
+
+/* Both spawn commands build exactly the same furnished deck. The absolute
+ * ocean fixture must not skip the content proc that equips normal boats. */
+static void
+vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
+                  int src_x, int src_z)
+{
+    int base_x = 0, base_z = 0;
+    assert(srv);
+    assert(vessel);
+    if( vessel->config_id >= 1 && vessel->config_id <= 3 && srv->active_player )
+        vessel->owner_uid = srv->active_player->pid + 1;
+    if( vessel->owner_uid && !vessel->cargo_slot )
+    {
+        unsigned used = 0;
+        for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
+            if( srv->vessels[i].in_use && srv->vessels[i].owner_uid==vessel->owner_uid &&
+                srv->vessels[i].cargo_slot>0 && srv->vessels[i].cargo_slot<=5 )
+                used |= 1u << srv->vessels[i].cargo_slot;
+        for( int slot=1; slot<=5; ++slot )
+            if( !(used & (1u<<slot)) ) { vessel->cargo_slot=slot; break; }
+    }
+    int newly_owned=0;
+    if( vessel->cargo_slot>0 && srv->active_player )
+    {
+        char key[80];
+        snprintf(key,sizeof(key),"sailing_boat_%d_owned",vessel->cargo_slot);
+        int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        newly_owned=id>=0 && !ToriRSServer_VarbitGet(srv->active_player,id);
+    }
+    vessel_deck_fill_from(vessel, src_x, src_z);
+    ToriRSServer_MapInstanceBuild(vessel->instance);
+    ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+    ToriRSServer_MapInstanceBase(vessel->instance, &base_x, &base_z);
+    int32_t args[4] = { vessel->index, vessel->config_id,
+        coord_pack_deck(base_x, base_z), coord_pack_deck(src_x, src_z) };
+    int ran = ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_deck_built]", args, 4);
+    if( newly_owned && vessel->cargo_slot>0 && srv->active_player )
+    {
+        const char* keys[] = {"owned","type","name_1","name_2","name_3","stored_hp","stored_maxhp"};
+        const int values[] = {1,vessel->config_id-1,0,vessel->name_descriptor,
+                              vessel->name_noun,vessel->hp,vessel->hp_max};
+        for( int i=0; i<7; ++i )
+        {
+            char key[80];
+            snprintf(key,sizeof(key),"sailing_boat_%d_%s",vessel->cargo_slot,keys[i]);
+            int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+            if( id>=0 ) ToriRSServer_VarbitSet(srv,id,values[i]);
+        }
+    }
+
+    if( newly_owned )
+    {
+        int32_t owned_args[2]={vessel->index,vessel->cargo_slot};
+        ToriRSServer_ScriptsRunProc(srv,"[proc,sailing_custom_sync_slot]",owned_args,2);
+    }
+    else if( vessel->cargo_slot > 0 && srv->active_player )
+    {
+        /* Furnishing a reconstructed owned hull must not overwrite its saved
+         * name, HP or selected parts with the template's defaults. */
+        int32_t owned_args[2] = { vessel->index, vessel->cargo_slot };
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_facilities_load_owned]", owned_args, 2);
+        ToriRSServer_VesselRestoreOwned(srv, vessel);
+    }
+
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: sailing_deck_built ran=%d handle=%d config=%d\n",
+                ran, vessel->index, vessel->config_id);
+}
+
+int
+ToriRSServer_VesselBuildPlayerDeck(struct ToriRSServer* srv, int handle)
+{
+    assert(srv);
+    struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
+    static const int sources[3][2] = {{3840,6456},{3840,6448},{3840,6432}};
+    if( !vessel || vessel->config_id < 1 || vessel->config_id > 3 )
+        return 0;
+    if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
+        return 0;
+    int type = vessel->config_id - 1;
+    vessel_deck_build(srv, vessel, sources[type][0], sources[type][1]);
+    return 1;
+}
+
+/* A shipwright retrieves an unoccupied owned hull to the nearest clear ocean
+ * footprint. This scans actual boat geometry; it never alters collision. */
+int
+ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
+                           int level, int near_x, int near_z)
+{
+    assert(srv);
+    struct ToriRSServerVessel* vessel=ToriRSServer_VesselGet(srv,handle);
+    if( !vessel || !srv->active_player || level!=0 ||
+        vessel->owner_uid!=srv->active_player->pid+1 ) return 0;
+    for( int i=0; i<srv->player_count; ++i )
+    {
+        struct ToriRSServerPlayer* rider=&srv->players[i];
+        if( rider->active && ToriRSServer_VesselAtTile(srv,rider->x,rider->z)==vessel ) return 0;
+    }
+    for( int radius=0; radius<=24; ++radius )
+        for( int dz=-radius; dz<=radius; ++dz )
+            for( int dx=-radius; dx<=radius; ++dx )
+            {
+                if( radius && abs(dx)!=radius && abs(dz)!=radius ) continue;
+                int x=(near_x+dx)*128+64, z=(near_z+dz)*128+64;
+                if( !ToriRSServer_VesselCanOccupy(vessel,x,z,0) ) continue;
+                /* A barely fitting berth can trap a retrieved boat beside a
+                 * pier on its very first turn. Check every native heading
+                 * against the real boat map before selecting this berth. */
+                int turn_clear = 1;
+                for( int heading = 1; heading < 16; ++heading )
+                    if( !ToriRSServer_VesselCanOccupy(vessel, x, z, heading * 128) )
+                    { turn_clear = 0; break; }
+                if( !turn_clear ) continue;
+                ToriRSServer_VesselStop(vessel);
+                vessel->teleport_stamp++;
+                vessel->fine_x=x; vessel->fine_z=z; vessel->level=level;
+                vessel->angle=0; vessel->heading=0;
+                vessel->residual_x=vessel->residual_z=0;
+                vessel->sails_set=vessel->reversing=0;
+                vessel->hp=vessel->hp_max;
+                return 1;
+            }
+    return 0;
+}
+
 /*
  * Server commands, so a session can be steered without a UI.
  *
@@ -7440,6 +7756,8 @@ handle_cheat(
             say(srv, "setting: expected ::setting <varbit> <value>.");
             return;
         }
+        if( varbit_id == SAILING_CARGO_PRIVACY_VARBIT && !SailingCargoPrivacy_Valid(value) )
+            return;
         if( ToriRSServer_VarbitSet(srv, varbit_id, value) < 0 )
         {
             say(srv, "setting: varbit %d is not in this cache.", varbit_id);
@@ -7976,7 +8294,7 @@ handle_cheat(
      *
      * These exist to be driven from `[net:boot] cheat=` on a cold login with
      * nothing else set up, so each one finds what it needs rather than being
-     * handed it: `::vesselspawn` picks the tile, stamps the water, sources the
+     * handed it: `::vesselspawn` picks a real ocean tile, sources the
      * deck and builds the instance; `::vesselsail` and `::vesselboard` find the
      * hull by taking the lowest live handle when no argument names one.
      *
@@ -8073,17 +8391,10 @@ handle_cheat(
     if( strncmp(text, "vesselspawnat", 13) == 0 )
     {
         /*
-         * `::vesselspawnat <x> <z> [size_x] [size_z] [config]` — the same hull
-         * as `::vesselspawn`, at an absolute tile, and with NO water stamp.
-         *
-         * That omission is the whole point. `::vesselspawn` makes its own
-         * water, so the hull it places is sailable by construction and sits on
-         * whatever the map happens to draw there — grass, in Lumbridge. A
-         * capture of a boat at SEA has to put the hull over tiles the cache
-         * already calls water, and stamping any of them would make the picture
-         * unfalsifiable. `::vesselwater` finds those tiles; this puts a hull on
-         * them and reports what the collision map says about the result, so
-         * the log records whether the water under a screenshot was real.
+         * `::vesselspawnat <x> <z> [size_x] [size_z] [config]` builds
+         * the same furnished boat as vesselspawn at a chosen ocean position.
+         * Both commands validate the complete hull against the boat map;
+         * neither changes terrain or player collision flags.
          */
         int at_x = -1;
         int at_z = -1;
@@ -8168,6 +8479,13 @@ handle_cheat(
             return;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
+        {
+            ToriRSServer_VesselFree(srv, handle);
+            say(srv, "The entire hull must fit in clear ocean water.");
+            return;
+        }
+
         vessel->priority = prio;
         if( vessel->view_id == 0 )
         {
@@ -8179,9 +8497,7 @@ handle_cheat(
 
         ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
         ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z);
-        vessel_deck_fill_from(vessel, src_x, src_z);
-        ToriRSServer_MapInstanceBuild(vessel->instance);
-        ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+        vessel_deck_build(srv, vessel, src_x, src_z);
 
         fprintf(
             stderr,
@@ -8202,7 +8518,7 @@ handle_cheat(
     {
         /*
          * `::vesselspawn [tier]` — one of the three PLAYER boats beside the
-         * player, on stamped water, with a real deck under it. Tier 1 is the
+         * player, in real ocean, with a furnished deck. Tier 1 is the
          * raft (config 1, 1x3), 2 the skiff (config 2, 2x5), 3 the sloop
          * (config 3, 3x10) — the archive-72 records whose bounds match the
          * wiki's Raft/Skiff/Sloop deck sizes exactly, each with its own
@@ -8229,9 +8545,9 @@ handle_cheat(
             int src_x;
             int src_z;
         } k_tiers[] = {
-            { 1, 1, 3, 3872, 6456 },  /* raft */
+            { 1, 1, 3, 3840, 6456 },  /* raft */
             { 2, 2, 5, 3840, 6448 },  /* skiff */
-            { 3, 3, 10, 3880, 6432 }, /* sloop */
+            { 3, 3, 10, 3840, 6432 }, /* sloop */
         };
         int size_x = -1;
         int size_z = -1;
@@ -8290,6 +8606,14 @@ handle_cheat(
 
         tile_x = player->x + 3;
         tile_z = player->z + 3;
+        if( !ToriRSServer_VesselTileSailable(player->level, tile_x, tile_z) )
+        {
+            /* A cold-login sailing fixture starts in the actual Port Sarim
+             * ocean. Moving the fixture never rewrites terrain/collision. */
+            ToriRSServer_WorldTeleport(srv, 0, 3072, 3160);
+            tile_x = 3072;
+            tile_z = 3160;
+        }
 
         handle = ToriRSServer_VesselSpawn(
             srv, config_id, size_x, size_z, player->level, tile_x, tile_z, 0);
@@ -8299,53 +8623,14 @@ handle_cheat(
             return;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
-
-        /*
-         * Water, stamped — and DURABLY. In this cache only rivers and
-         * harbours carry the BLOCK setting that becomes COLL_FLAG_FLOOR —
-         * open ground reads a flag word of zero, which
-         * `ToriRSServer_VesselTileSailable` correctly refuses. Without a
-         * patch under the hull the mover's very first step is blocked and
-         * `::vesselsail` produces no deltas at all, which is the failure this
-         * command exists to avoid.
-         *
-         * The patch REPLACES the tile's collision rather than adding floor to
-         * it. Lumbridge is fences, walls and hedges: OR-ing FLOOR onto a tile
-         * that already carries COLL_FLAG_LOC leaves it blocked for every
-         * mover, so the hull turned on the spot and parked on its second tick
-         * against a loc bit it had supposedly just flooded.
-         *
-         * `water_stamp` on the vessel is what makes it durable: a one-shot
-         * write died with the first window re-centre (boarding is enough) and
-         * the hull parked on freshly rebuilt dry flags. Every window build now
-         * re-stamps this radius around the hull's CURRENT tile
-         * (ToriRSServer_VesselWaterRestampBound), and since a rider's window
-         * re-centres by chasing the hull, the patch follows it for as long as
-         * it sails. The radius outruns the ~36 tiles a hull can travel
-         * between one window re-centre and the next.
-         */
-        /*
-         * How much water to fake. At SEA — the centre tile already sailable
-         * before any stamp — keep the wide pad the capture harnesses sail
-         * across (it must outrun the ~36 tiles between window re-centres).
-         * On LAND the boat is a parked prop: the old radius-48 stamp flooded
-         * a 97x97 patch of the town with water collision — walkers refuse
-         * water — so "something is weird with the collision map" was half of
-         * Lumbridge turning unwalkable. A parked hull stamps only its own
-         * zone box (plus a tile), the ground the boat physically occupies,
-         * and the town paths around it like around any other obstacle.
-         */
+        if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
         {
-            int zones_x = 0;
-            int zones_z = 0;
-
-            ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
-            vessel->water_stamp =
-                ToriRSServer_VesselTileSailable(player->level, tile_x, tile_z)
-                    ? 48
-                    : (zones_x > zones_z ? zones_x : zones_z) * 4 + 1;
+            ToriRSServer_VesselFree(srv, handle);
+            say(srv, "The entire hull must fit in clear ocean water.");
+            return;
         }
-        ToriRSServer_VesselWaterRestampBound(srv);
+
+
         if( vessel->view_id == 0 )
         {
             say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
@@ -8360,25 +8645,7 @@ handle_cheat(
          * template's far edge past the ship's stern. */
         ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
         ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z);
-        vessel_deck_fill_from(vessel, src_x, src_z);
-        ToriRSServer_MapInstanceBuild(vessel->instance);
-        ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
-        /* The deck exists; content furnishes it. The facility dbrows state
-         * their placements as TEMPLATE-absolute coords, so the proc gets the
-         * instance base and the template base and rebases. Optional by
-         * construction — a pack without the proc pays one failed lookup and
-         * spawns a bare deck, exactly as before. */
-        {
-            int32_t args[4] = { (int32_t)handle, (int32_t)config_id,
-                                (int32_t)coord_pack_deck(base_tile_x, base_tile_z),
-                                (int32_t)coord_pack_deck(src_x, src_z) };
-
-            int ran = ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_deck_built]", args, 4);
-
-            if( srv->verbose )
-                fprintf(stderr, "torirsserver: sailing_deck_built ran=%d handle=%d config=%d\n",
-                        ran, handle, config_id);
-        }
+        vessel_deck_build(srv, vessel, src_x, src_z);
 
         say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
             config_id, vessel->view_id, tile_x, tile_z, base_tile_x, base_tile_z);
@@ -8408,12 +8675,20 @@ handle_cheat(
             say(srv, "No such vessel. ::vesselspawn first.");
             return;
         }
+        int old_sail_mode = vessel->sails_set && !vessel->reversing
+            ? (vessel->speed_tier > 1 ? 2 : 1) : 0;
         ToriRSServer_VesselSetHeading(vessel, heading & 15);
-        ToriRSServer_VesselSetSpeed(vessel, tier < 1 ? 1 : (tier > 4 ? 4 : tier));
+        ToriRSServer_VesselSetSpeed(vessel, tier < 1 ? 1 :
+            (tier > TORIRSSERVER_VESSEL_SPEED_TIER_MAX ? TORIRSSERVER_VESSEL_SPEED_TIER_MAX : tier));
         /* "Under way" includes the sails: this cheat predates the launch-model
          * sail gate and every harness that calls it expects motion. */
         vessel->sails_set = 1;
         vessel->reversing = 0;
+        if( old_sail_mode != (vessel->speed_tier > 1 ? 2 : 1) )
+        {
+            int32_t visual_handle = vessel->index;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
+        }
         say(srv, "Vessel %d sailing heading %d at tier %d.", vessel->index,
             heading & 15, tier);
         return;
@@ -8462,7 +8737,14 @@ handle_cheat(
          * is solid: a rider boarded there could not walk one tile, which is
          * exactly "pathing on the boat does not work". */
         if( !level_given )
-            level = ToriRSServer_VesselDeckPlane(vessel);
+        {
+            if( !ToriRSServer_VesselBoardPlayer(srv, player, vessel) )
+                say(srv, "Vessel %d has no clear deck tile to board.", vessel->index);
+            else
+                say(srv, "Boarded vessel %d at %d,%d level %d.", vessel->index,
+                    player->x, player->z, player->level);
+            return;
+        }
         if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
         {
             say(srv, "Vessel %d has no deck instance.", vessel->index);
@@ -8619,6 +8901,8 @@ handle_cheat(
         vessel->sails_set = !vessel->sails_set;
         if( vessel->sails_set )
             vessel->reversing = 0;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Sails %s.", vessel->sails_set ? "set" : "un-set");
         return;
     }
@@ -8635,10 +8919,12 @@ handle_cheat(
             say(srv, "You are not at a helm. ::helm first.");
             return;
         }
-        if( up && vessel->speed_tier < TORIRSSERVER_VESSEL_SPEED_TIER_MAX )
+        if( up && vessel->speed_tier * 64 < vessel->base_speed_fine )
             vessel->speed_tier++;
         else if( !up && vessel->speed_tier > TORIRSSERVER_VESSEL_SPEED_TIER_MIN )
             vessel->speed_tier--;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Speed %d.%d tiles per tick.", vessel->speed_tier / 2,
             (vessel->speed_tier % 2) ? 5 : 0);
         return;
@@ -8660,6 +8946,8 @@ handle_cheat(
             return;
         }
         vessel->reversing = !vessel->reversing;
+        int32_t visual_handle = vessel->index;
+        ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "%s.", vessel->reversing ? "Reversing" : "Holding");
         return;
     }
@@ -8730,11 +9018,22 @@ ToriRSServer_WorldTeleport(
 {
     struct ToriRSServerPlayer* player = srv->active_player;
 
+    struct ToriRSServerVessel* old_boat = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    if( old_boat && ToriRSServer_MapInstanceFind(abs_x, abs_z) != old_boat->instance )
+    {
+        old_boat->navigator_generation[player->pid] = 0;
+        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+        if( varp >= 0 && player->varps[varp] == old_boat->instance )
+            ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
+        player->sailing.aboard_slot = 0;
+    }
+
     steps_clear(player);
     /* A teleport is how every path leaves a deck; whoever held the helm has
      * left it. Harmless when the destination is the same deck — ::helm
      * re-takes it in one command. */
     player->navigating_vessel = 0;
+    player->navigating_vessel_serial = 0;
     player->level = level;
     player->x = abs_x;
     player->z = abs_z;
@@ -8765,6 +9064,26 @@ ToriRSServer_WorldTeleport(
  * op index from it — one entry per opcode in the table, one handler for the
  * family.
  */
+
+static void
+handle_set_heading(
+    struct ToriRSServer* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    /* Untrusted packets can name any byte and arrive after leaving a helm.
+     * Neither malformed input nor a stale helm may redirect somebody's boat. */
+    if( len != 1 || payload[0] >= 16 )
+        return;
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerVessel* vessel = player_helm_vessel(srv, player);
+    if( !vessel ) vessel=player_crew_helm_vessel(srv,player);
+    if( !vessel || ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
+        return;
+    ToriRSServer_VesselSetHeading(vessel, payload[0]);
+}
 
 static void
 handle_move_gameclick(
@@ -9330,6 +9649,26 @@ handle_if_script_trigger(
                 trigger.child,
                 trigger.object_id,
                 trigger.typed_len);
+
+    /* Native sailing customisation (CS2 8834): the clicked UI row and the
+     * selected facility DBROW are different values. Preserve both. */
+    int custom_trigger = ToriRSServer_ContentSymbol(
+        TORIRSSERVER_PACK_COMPONENT, "sailing_customisation:facility_click_layer");
+    if( custom_trigger >= 0 && trigger.component_id == custom_trigger &&
+        trigger.crc == INT32_C(-852562543) )
+    {
+        if( !mock239_if_script_trigger_decode(payload, len, "ii", &trigger) )
+            return;
+        uint8_t component_op[6];
+        struct RSAreaBuf out;
+        srv->active_player->last_item = trigger.values[0].as.integer;
+        srv->active_player->last_subop = trigger.values[1].as.integer;
+        rsab_wrap(&out, component_op, sizeof(component_op));
+        rsab_p4(&out, trigger.component_id);
+        rsab_p2(&out, trigger.child);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)rsab_len(&out));
+        return;
+    }
 
     {
         uint8_t component_op[6];
@@ -9925,6 +10264,56 @@ social_notify_followers(
 }
 
 /*
+ * Cache varbit `chat_filter_private` — bits 13..15 of varp 1054
+ * `chat_filter_clan`. The private chat filter's SECOND carrier, and on this
+ * lane the only one that reaches the client.
+ *
+ * Revision 239's CHAT_FILTER_SETTINGS (opcode 124) is two bytes, public and
+ * trade; the private filter has a packet of its own, opcode 5
+ * CHAT_FILTER_SETTINGS_PRIVATECHAT, which this lane does not speak. It does not
+ * have to, because the shipped cache already carries the private mode a second
+ * way and repaints off it — `torirs_chatbox_layout`, proc 113, line 86:
+ *
+ *     if (chat_getfilter_private ! %varbit13674) {
+ *         ~chat_set_filter_184(3, %varbit13674);
+ *     }
+ *     ~redraw_chat_buttons;
+ *
+ * and `chatbox_init` registers that proc as interface_162:0's onvartransmit
+ * hook with **var1054 first in its list**. So the write IS the repaint trigger:
+ * the varp transmit wakes the hook, the hook re-reads the varbit, applies it
+ * through chat_setfilter (which is also what tells the CS2 side, so
+ * chat_getfilter_private answers correctly for script 681) and redraws the
+ * filter captions. No mid-session opcode 5 is needed.
+ *
+ * Nothing in this tree wrote varbit 13674 before, which is exactly why that
+ * line pinned Private to "On" at every relayout.
+ *
+ * The value space is the one the chat button's own ops use — chat_button_onop
+ * case 3 maps op 3/4/5 to 0/1/2, "Show all"/"Show friends"/"Show none" — and it
+ * is the same space TORIRSSERVER_CHAT_PRIVATE_ON/FRIENDS/OFF numbers.
+ *
+ * `ToriRSServer_VarbitSetOn` answers -1 for a cache with no such record, which
+ * every caller must tolerate: a cache without it is a cache this content does
+ * not fit, not a crash.
+ */
+#define TORIRSSERVER_CHAT_PRIVATE_FILTER_VARBIT 13674
+
+static void
+chat_publish_private_filter_varbit(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int private_mode)
+{
+    assert(srv);
+    assert(player);
+    assert(private_mode >= TORIRSSERVER_CHAT_PRIVATE_ON);
+    assert(private_mode <= TORIRSSERVER_CHAT_PRIVATE_OFF);
+
+    ToriRSServer_VarbitSetOn(srv, player, TORIRSSERVER_CHAT_PRIVATE_FILTER_VARBIT, private_mode);
+}
+
+/*
  * The login dump — `sendFriendsListToPlayer` + `sendIgnoreListToPlayer` +
  * `FriendlistLoaded(2)`, then the follower broadcast.
  *
@@ -9981,6 +10370,12 @@ ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player)
 
         ToriRSServer_FriendsChatModes(me, &public_mode, &private_mode, &trade_mode);
         ToriRSServer_SendChatFilterSettings(player, public_mode, private_mode, trade_mode);
+        /* The private mode does not fit in that packet at this revision — it is
+         * two bytes wide — so it goes the way the cache's own chatbox layout
+         * reads it. Without this the [chat] section the save restored reached
+         * the friends service and stopped there, and the filter bar came back
+         * from a relogin reading "Private On" whatever the player had chosen. */
+        chat_publish_private_filter_varbit(srv, player, private_mode);
     }
 
     social_broadcast_to_followers(srv, me);
@@ -10125,6 +10520,15 @@ handle_chat_setmode(
      * other way to learn that happened. */
     ToriRSServer_FriendsChatModes(player->name37, &public_mode, &private_mode, &trade_mode);
     ToriRSServer_SendChatFilterSettings(player, public_mode, private_mode, trade_mode);
+    /* And the private mode again through its own carrier, because the echo
+     * above cannot say it. The client has already applied its own choice
+     * locally by the time this packet arrives, so this is not what repaints the
+     * caption — it is what keeps the varbit the next relayout reads, and the
+     * value the save is written from, in step with the choice. A trade-only or
+     * public-only change leaves the mode alone, and
+     * `ToriRSServer_WorldSetVarpOn` declines the unchanged write, so no varp
+     * goes out and no relayout is provoked. */
+    chat_publish_private_filter_varbit(srv, player, private_mode);
     /* A mode change is a visibility change for every follower. */
     social_broadcast_to_followers(srv, player->name37);
 
@@ -10385,6 +10789,7 @@ player_action_packet(int name)
     case PKTOUT_NAME_MOVE_OPCLICK:
     case PKTOUT_NAME_MOVE_MINIMAPCLICK:
     case PKTOUT_NAME_MOVE_GAMECLICK:
+    case PKTOUT_NAME_SET_HEADING:
     case PKTOUT_NAME_CLIENT_CHEAT:
         return 1;
     default:
@@ -10421,6 +10826,7 @@ player_stun_blocks_packet(int name)
     case PKTOUT_NAME_MOVE_OPCLICK:
     case PKTOUT_NAME_MOVE_MINIMAPCLICK:
     case PKTOUT_NAME_MOVE_GAMECLICK:
+    case PKTOUT_NAME_SET_HEADING:
     case PKTOUT_NAME_CLICK_WORLD_MAP:
         return 1;
     default:
@@ -10433,6 +10839,7 @@ player_stun_blocks_packet(int name)
  * else in the file has to change, which is the whole point of it being a table.
  */
 static const struct ToriRSServerPacketRoute k_packet_routes[] = {
+    { PKTOUT_NAME_SET_HEADING, handle_set_heading },
     { PKTOUT_NAME_MOVE_GAMECLICK, handle_move_gameclick },
     { PKTOUT_NAME_MOVE_MINIMAPCLICK, handle_move_minimapclick },
 
@@ -10822,6 +11229,35 @@ ToriRSServer_WorldMarkVarp(
         return;
     def = ToriRSServer_ContentVarp(varp);
     if( !def || !def->transmit )
+        return;
+    /*
+     * A reconnecting session has not been told the login verdict yet.
+     *
+     * `session->reconnect` is set by the GAMERECONNECT handshake and cleared in
+     * ToriRSServer_WorldLogin the instant ToriRSServer_SendReconnectOk returns,
+     * so while it is true this client is still reading the LOGIN stream and has
+     * not started framing game packets. RECONNECT_OK is deferred that far on
+     * purpose: it carries the player-info init block, and the block states
+     * where the player is, which is not known until the save has been read.
+     *
+     * What was not accounted for is that the read itself SENDS. A save that
+     * puts the player on a boat runs the deck reconstruction
+     * (ToriRSServer_VesselLogin -> vessel_deck_built -> ToriRSServer_VarbitSet),
+     * and each of those varbits lands here, four or more packets ahead of the
+     * response. The client is in OSRS239_AWAIT_REPLY, so it reads the first
+     * ISAAC-scrambled byte of the first one as the login verdict and dies with
+     * "osrs239 login: rejected reply=<n>" -- n being whatever the keystream
+     * produced, which is why the same failure was reported as 195, 239 and 16
+     * on three different runs and looked intermittent. Measured: an ASHORE save
+     * writes no varps in this window and reconnects cleanly every time.
+     *
+     * Holding them costs nothing. Step 4b of ToriRSServer_WorldLoginFinish
+     * restates every non-zero transmitted varp in full precisely because the
+     * loader writes player->varps[] directly and marks nothing, so the values
+     * dropped here are sent a few lines later by the code that already exists
+     * for exactly this reason.
+     */
+    if( player->session && player->session->reconnect )
         return;
     /*
      * VARP_SMALL's value is a single signed byte. Special attack energy is in
@@ -11319,6 +11755,10 @@ ToriRSServer_WorldRemovePlayer(
     /* A logout script may itself touch encounter state; the disconnected slot
      * still leaves unlocked regardless. */
     player->action_locked = 0;
+
+    /* A vessel owns its pinned deck and all riders. Handle that lifecycle
+     * before generic instance teardown and before the reusable pid is freed. */
+    ToriRSServer_VesselLogout(srv, player);
 
     /*
      * The instance this session was standing in, released by default.
@@ -12172,6 +12612,10 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      */
     if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->display_name)) )
         ToriRSServer_WorldPlaceNewCharacter(player);
+    /* Reconstruct an at-sea owned boat before the login scene/GPI coordinate
+     * is emitted. The save holds a safe root fallback and relative deck tile,
+     * so a process restart never treats a recycled pool square as a location. */
+    ToriRSServer_VesselLogin(srv, player);
     /* The save restores boosted HP into the stat array; the DAMAGE mask and
      * death check read player->hitpoints. LostCity's PlayerLoading writes both
      * together (`levels[i] = sav.g1()`); hydrate here so a returning character
@@ -12220,13 +12664,22 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * wire is unwritten: `alice adds bob` has to work whether or not anything
      * is told about it.
      *
-     * Chat modes come in at the reference's own defaults (Player.ts:307-309 —
+     * Chat modes come off the save. `ToriRSServer_LoadPlayer` above has already
+     * filled `saved_chat_*_mode`, and these three reads are the only ones: the
+     * service is the live copy from here on (torirs_server_friends.h), and
+     * CHAT_SETMODE writes it there.
+     *
+     * A character with no [chat] section -- a new one, or a save written before
+     * the key existed -- carries the reference's own defaults (Player.ts:307-309:
      * public, private and trade all ON, which is 0 in each of the three
-     * encodings) rather than off a save, because nothing persists them; see
-     * torirs_server_friends.h.
+     * encodings), so the previous unconditional constants are what an old save
+     * still gets. Resetting Private Chat to ON on every login was the bug: a
+     * player who set it to Friends or Off found it on again next session, and
+     * Board-friend reads exactly that mode.
      */
-    ToriRSServer_FriendsLogin(player->name37, /* public */ 0, TORIRSSERVER_CHAT_PRIVATE_ON,
-                          /* trade */ 0, /* staff level */ 0);
+    ToriRSServer_FriendsLogin(player->name37, player->saved_chat_public_mode,
+                          player->saved_chat_private_mode,
+                          player->saved_chat_trade_mode, /* staff level */ 0);
 
     /*
      * 1. The scene.
@@ -13801,6 +14254,39 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
          *     (19181/19177, from the vessel's own integrity). */
         {
             const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+            int was_aboard = ids->varbit_sailing_on_boat >= 0
+                ? ToriRSServer_VarbitGet(player, ids->varbit_sailing_on_boat) : 0;
+            int was_move_mode = ids->varbit_sailing_move_mode >= 0
+                ? ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode) : 0;
+            int at_helm = vessel && player->navigating_vessel == vessel->index &&
+                player->navigating_vessel_serial == vessel->serial;
+            int combined=vessel && vessel->config_id>=1 && vessel->config_id<=3;
+            int at_sails=at_helm && combined;
+            int operating_hotspot=-1;
+            if( vessel && !at_helm )
+                for( int slot=0; slot<13; ++slot )
+                    if( ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7) &&
+                        ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7+5)==player->pid+1 )
+                    { operating_hotspot=slot; break; }
+            int hotspot_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"sailing_facility_hotspot_number");
+            if( hotspot_bit>=0 && ToriRSServer_VarbitGet(player,hotspot_bit)!=operating_hotspot+1 )
+                ToriRSServer_VarbitSetOn(srv,player,hotspot_bit,operating_hotspot+1);
+            int combat_data=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,"sailing_combat_facility_data");
+            int at_cannon=operating_hotspot>=0 && combat_data>=0 && player->varps[combat_data]>0;
+            for( int slot=0; slot<13; ++slot )
+            {
+                char key[80];
+                snprintf(key,sizeof(key),"sailing_sidepanel_player_at_facility_%d",slot);
+                int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+                int value=operating_hotspot==slot;
+                if( id>=0 && ToriRSServer_VarbitGet(player,id)!=value )
+                    ToriRSServer_VarbitSetOn(srv,player,id,value);
+            }
+            int aboard_count = 0;
+            if( vessel )
+                for( int p = 0; p < TORIRSSERVER_PLAYER_MAX; ++p )
+                    if( srv->players[p].active && ToriRSServer_VesselAtTile(
+                        srv, srv->players[p].x, srv->players[p].z) == vessel ) aboard_count++;
             struct
             {
                 int varbit;
@@ -13808,7 +14294,58 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
             } sync[] = {
                 { ids->varbit_sailing_switch, vessel != NULL },
                 { ids->varbit_sailing_on_boat, vessel != NULL },
-                { ids->varbit_sailing_boat_type, vessel ? vessel->config_id : 0 },
+                { ids->varbit_sailing_boat_type, vessel ? vessel->config_id - 1 : 0 },
+                { ids->varbit_sailing_locked_in, at_helm ? (combined ? 3 : 1) : at_sails ? 2 : at_cannon ? 4 : 0 },
+                { ids->varbit_sailing_move_mode, vessel ?
+                    (vessel->reversing ? 3 : vessel->sails_set ?
+                        (vessel->speed_tier > 1 ? 2 : 1) : 0) : 0 },
+                { ids->varbit_sailing_sail_toggle, vessel ? vessel->sails_set : 0 },
+                { ids->varbit_sailing_helm_status, vessel ? (at_helm ? 2 : 1) : 0 },
+                { ids->varbit_sailing_player_at_helm, at_helm },
+                { ids->varbit_sailing_player_at_sails, at_sails },
+                /* Role (19233, four bits) has exactly four values the cache
+                 * gives a meaning to, and a passenger's is 3, not 2.
+                 *
+                 * The rendering side is the constraint: every crew NPC aboard
+                 * a hull is a `multivarbit=sailing_sidepanel_player_role`
+                 * shell (npc 15255 sailing_crew_generic_1_ship and its nine
+                 * siblings), and both this client's resolver
+                 * (`VarPManager_ResolveTransform`) and the reference's
+                 * (deob class393, `configs[value]` while
+                 * `value < length - 1`) index the transform table BY THE
+                 * VALUE. The shells state multinpc1/4/7 = *_ship_no_op and
+                 * multinpc11 = *_ship_op with every other slot -1, i.e. a
+                 * drawn crew member only at 0, 3, 6 and 10; 2 resolved to -1
+                 * and a passenger saw an empty deck.
+                 *
+                 * Which value is which comes from the cache's own consumers:
+                 * cs2 8732 torirs_sailing_facility_row_state tests = 10 and
+                 * = 6, and the captain-only affordances (8732's build/assign
+                 * gate, torirs_sailing_facility_row_draw's Assign button and
+                 * torirs_sailing_edit_navigator_btn) test = 10 alone. So 10 is
+                 * the captain, 6 the granted navigator, 0 the not-aboard
+                 * default this table already writes when `vessel` is NULL, and
+                 * 3 is the only remaining rendered value — the aboard guest.
+                 * The bit layout says the same thing: 3, 6 and 10 are
+                 * 0b0011/0b0110/0b1010, one shared "aboard" bit plus one role
+                 * bit, and 2 is that aboard bit with no role at all. */
+                { ids->varbit_sailing_player_role, vessel ?
+                    (vessel->owner_uid == 0 || vessel->owner_uid == player->pid + 1 ? 10 :
+                     ToriRSServer_VesselCanNavigate(srv, player, vessel) ? 6 : 3) : 0 },
+                { ids->varbit_sailing_players_aboard, aboard_count },
+                { ids->varbit_sailing_hotspot0, vessel ? vessel->facility[3] : 0 },
+                { ids->varbit_sailing_hotspot1, vessel ? vessel->facility[4] : 0 },
+                { ids->varbit_sailing_hotspot2, vessel ? vessel->facility[5] : 0 },
+                { ids->varbit_sailing_hotspot3, vessel ? vessel->facility[6] : 0 },
+                { ids->varbit_sailing_hotspot4, vessel ? vessel->facility[7] : 0 },
+                { ids->varbit_sailing_hotspot5, vessel ? vessel->facility[8] : 0 },
+                { ids->varbit_sailing_hotspot6, vessel ? vessel->facility[9] : 0 },
+                { ids->varbit_sailing_hotspot7, vessel ? vessel->facility[10] : 0 },
+                { ids->varbit_sailing_hotspot8, vessel ? vessel->facility[11] : 0 },
+                { ids->varbit_sailing_hotspot9, vessel ? vessel->facility[12] : 0 },
+                { ids->varbit_sailing_hotspot10, vessel ? vessel->facility[13] : 0 },
+                { ids->varbit_sailing_hotspot11, vessel ? vessel->facility[14] : 0 },
+                { ids->varbit_sailing_hotspot12, vessel ? vessel->facility[15] : 0 },
                 { ids->varbit_sailing_hull_hp_max, vessel ? vessel->hp_max : 0 },
                 { ids->varbit_sailing_hull_hp, vessel ? vessel->hp : 0 },
                 { ids->varbit_sailing_name_descriptor,
@@ -13830,9 +14367,9 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                  * Live: ::speedup/::speeddown change the tier and the next
                  * tick's sync moves the readout. */
                 { ids->varbit_sailing_base_speed,
-                  vessel ? vessel->speed_tier * 64 : 0 },
+                  vessel ? vessel->base_speed_fine : 0 },
                 { ids->varbit_sailing_speed_cap,
-                  vessel ? TORIRSSERVER_VESSEL_SPEED_TIER_MAX * 64 : 0 },
+                  vessel ? vessel->speed_cap_fine : 0 },
             };
             /* The boat's own sailing_boat DBROW rides a whole varp (5117):
              * the panel indexes every facility option column through it.
@@ -13862,6 +14399,22 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 if( srv->verbose )
                     fprintf(stderr, "torirsserver: sailing varbit %d -> %d\n",
                             sync[i].varbit, sync[i].want);
+            }
+            if( vessel && ids->varbit_sailing_move_mode >= 0 && srv->scripts_ok &&
+                (was_aboard == 0 || was_move_mode != ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode)) )
+            {
+                struct ToriRSServerPlayer* previous_active = srv->active_player;
+                ToriRSServer_WorldSetActive(srv, player);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual]", NULL, 0);
+                ToriRSServer_WorldSetActive(srv, previous_active);
+            }
+            if( was_aboard != (vessel != NULL) && srv->scripts_ok )
+            {
+                struct ToriRSServerPlayer* previous_active = srv->active_player;
+                ToriRSServer_WorldSetActive(srv, player);
+                ToriRSServer_ScriptsRunProc(srv, vessel ? "[proc,sailing_sidepanel_open]"
+                    : "[proc,sailing_sidepanel_close]", NULL, 0);
+                ToriRSServer_WorldSetActive(srv, previous_active);
             }
         }
     }
@@ -14523,6 +15076,23 @@ phase_cleanup_player(struct ToriRSServerPlayer* player)
      */
 }
 
+void
+ToriRSServer_WorldPublish(struct ToriRSServer* srv)
+{
+    assert(srv);
+    struct ToriRSServerPlayer* caller = srv->active_player;
+    struct ToriRSServerPlayer* player;
+    phase_info(srv);
+    phase_clients_out(srv);
+    /* No actor movement, scripts, respawn/death timers or world tick. Only
+     * clear the player masks that have just been sent. NPC cleanup belongs
+     * to the next actual tick; it also advances death timers. */
+    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
+        if( !player->login_scene_pending && !player->rebuild_scene_pending )
+            phase_cleanup_player(player);
+    ToriRSServer_WorldSetActive(srv, caller);
+}
+
 static void
 phase_cleanup(struct ToriRSServer* srv)
 {
@@ -14717,6 +15287,8 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
     TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
     {
         struct ToriRSServerVessel* helmed = player_helm_vessel(srv, player);
+
+        if( !helmed ) helmed=player_crew_helm_vessel(srv,player);
 
         if( !helmed || !ToriRSServer_VesselTakeBlocked(helmed) )
             continue;

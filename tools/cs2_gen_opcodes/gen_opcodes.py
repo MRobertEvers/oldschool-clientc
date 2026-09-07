@@ -68,6 +68,7 @@ VM_OPCODES = {
     4101, 4103, 4106, 4107, 4111, 4117, 4118, 4119, 4121,  # pure strings
     6518, 6519,  # deterministic client platform constants
     8003,  # ARRAY_LENGTH (VM-owned array handle)
+    8010, 8011,  # ARRAY_FILL, ARRAY_FILL_SEQUENCE (VM-owned arrays)
     3408,  # ENUM - complex, host for now
 }
 

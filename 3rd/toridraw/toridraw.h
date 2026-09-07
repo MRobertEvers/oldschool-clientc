@@ -379,6 +379,11 @@ extern int g_toridraw_kernel_ab_arm;
  * it between debug periods. -1 means the environment has not been read yet;
  * a harness writing 0 or 1 before the first sort takes precedence.
  */
+/** Stable four-key ARM compaction; change only between joined frames.
+ * Defaults on for ARM32 NEON. TORIDRAW_SORT_COMPACT4=0 at Init restores
+ * the scalar reference loop. Neither setting changes accepted face order. */
+void ToriDraw_FaceSortSetCompact4(int enabled);
+
 extern int g_toridraw_sort_pld;
 
 #endif

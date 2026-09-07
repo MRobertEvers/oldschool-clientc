@@ -1,0 +1,10 @@
+{
+  "launch_files_restored": {
+    "env.txt": true,
+    "extra_args.txt": true
+  },
+  "normal_apk_unchanged": true,
+  "task_server_stopped": true,
+  "test_save_removed": true,
+  "task_tunnel_removed": true
+}
