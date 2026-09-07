@@ -10,6 +10,12 @@ removes the claim in the commit that closes it; the other session leaves those f
 - **Claimed 2026-09-07 02:05 UTC (session resumed 23:17 UTC):** panels and data views
   batch: `src/plugin/plugins/item_stats.c`, `xp_tracker.c`, `loot_tracker.c`,
   `script/plugins/_paneldemo.lua`, their tests, and their harness/pixel rules.
+- **Claimed 2026-09-07 02:10 UTC (first session):** orbs and overlays batch:
+  `src/plugin/plugins/xp_orbs.c`, `tileind.c`, `widget_demo.c`,
+  `script/plugins/_widgetprobe.lua`, `_roleprobe.lua`, their tests
+  (`xp_orbs_test.c`, `tileind_v2_test.c`), and the `orbs_*`/`owned_*` pixel rules;
+  plus the widget/owned-control runtime (`torirs_plugin_runtime.inc` widget section,
+  `uitree.c` owned-widget functions, `rs_minimenu_build.c` owned rows).
 
 | Consumer | Current state | Captures |
 |---|---|---|

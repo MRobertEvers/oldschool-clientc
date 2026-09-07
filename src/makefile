@@ -2496,11 +2496,11 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 	./$(OBJ_DIR)/mobile_gameframe_test
 
 .PHONY: test-minimap-orbs-v2
-test-minimap-orbs-v2: $(OBJ_DIR) plugin/plugins/minimap_orbs.c \
+test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
 		plugin/test/minimap_orbs_v2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
 		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/minimap_orbs_v2_test
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/xp_orbs.c \
