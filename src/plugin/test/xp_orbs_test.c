@@ -1127,10 +1127,14 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     default: return TORIRS_CONTRACT_UNAVAILABLE;
     }
 }
-/* Live globe controls, in slot order (their keys are "globe%d"). */
+/* Live globe controls, in slot order (their keys are "globe%d"). Every entry
+ * past the count points at an inert control, so a case that expected more
+ * globes than exist fails its CHECK instead of dereferencing garbage. */
+static struct FakeControl const g_no_control;
 static int globes(struct FakeControl const** out)
 {
     int n = 0;
+    for( int i = 0; i < 8; i++ ) out[i] = &g_no_control;
     for( int slot = 0; slot < 8; slot++ )
     {
         char key[16]; snprintf(key, sizeof(key), "globe%d", slot);
@@ -1145,7 +1149,7 @@ static struct FakeControl const* control_named(char const* prefix)
         if( g_control[i].alive && g_control[i].image && strncmp(g_control[i].key, prefix, strlen(prefix)) == 0 ) return &g_control[i];
     return NULL;
 }
-static int control_index(struct FakeControl const* c) { return (int)(c - g_control) + FAKE_FIRST_OWNED; }
+static int control_index(struct FakeControl const* c) { return c == &g_no_control ? -1 : (int)(c - g_control) + FAKE_FIRST_OWNED; }
 
 /* One client cycle, and ONLY that -- the 2004-era lanes have no server tick
  * fence, so the poll must live on the logic tick. */
@@ -1291,6 +1295,9 @@ main(void)
     index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");
     PluginHost_SetEnabled(g_host, index, true);
+    /* Started on the title screen: no stat has been stated yet, so the table
+     * cannot be sized in on_start and must not be frozen empty. */
+    g_stats_ready = 0;
     PluginHost_Start(g_host);
     PluginHost_WidgetsChanged(g_host, 77, 1);
     PluginHost_ConfigSet(g_host, index, "show_xp_drops", "0");
@@ -1300,9 +1307,6 @@ main(void)
     g_xp[3] = 1154;
     g_now_ms = 100000;
 
-    /* Started on the title screen: no stat has been stated yet. The table
-     * must not be sized empty for good. */
-    g_stats_ready = 0;
     tick();
     frame();
     g_stats_ready = 1;
