@@ -188,6 +188,12 @@ UITree_EmitFill(
 
 struct UITreeEmitBuffer
 {
+    /* Stable commands stay in cmds; only scripted entity children are rebuilt
+     * in this reusable scratch, then replace their contiguous published range. */
+    struct UITreeEmitDesc* overlay_scratch;
+    int overlay_scratch_cap;
+    int overlay_range_start, overlay_range_count;
+    uint8_t overlay_range_valid;
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
@@ -258,6 +264,14 @@ struct UITreeEmitRetainGate
     int hovered_component_id;
     uint8_t primed;
 };
+
+void UITree_EmitSetOverlayRetain(int enabled);
+bool UITree_EmitOverlayMotionBegin(struct UITree* tree, struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf, int hovered, struct UITreeEmitRetainGate const* gate);
+bool UITree_EmitOverlayMotionEnd(struct UITree* tree, struct UITreeEmitRetainGate const* gate,
+    struct UITreeEmitRetainGate* moved_gate);
+bool UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf, int const* hovered, struct UITreeEmitRetainGate const* gate);
 
 void
 UITree_EmitBufferInit(struct UITreeEmitBuffer* buf);

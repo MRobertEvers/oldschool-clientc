@@ -4,6 +4,7 @@
  * between joined frames. Worker state is read only after the join. */
 #include "platform/platform_renderer_gles2_placement.h"
 #include "ui/uitree_canvas_measure.h"
+#include "ui/uitree_emit.h"
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
@@ -146,8 +147,21 @@ static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
     }
     if( sub10 ) {
         bool actor=!strcmp(pipeline_pmu.target,"sub10-actor");
-        UITree_CanvasQuerySetCompact(actor || (strcmp(pipeline_pmu.target,"sub10-aa") && pipeline_pmu.arm));
-        renderer->actor_direct_encode= ((actor || !strcmp(pipeline_pmu.target,"sub10")) && pipeline_pmu.arm);
+        bool words=!strcmp(pipeline_pmu.target,"sub10-words") || !strcmp(pipeline_pmu.target,"sub10-words-aa");
+        bool ui=words || !strcmp(pipeline_pmu.target,"sub10-ui") || !strcmp(pipeline_pmu.target,"sub10-ui-aa");
+        UITree_CanvasQuerySetCompact(actor || ui || (strcmp(pipeline_pmu.target,"sub10-aa") && pipeline_pmu.arm));
+        renderer->actor_direct_encode=ui || ((actor || !strcmp(pipeline_pmu.target,"sub10")) && pipeline_pmu.arm);
+        renderer->actor_word_encode=(!strcmp(pipeline_pmu.target,"sub10-words") || !strcmp(pipeline_pmu.target,"sub10")) && pipeline_pmu.arm;
+        UITree_EmitSetOverlayRetain(words || ((!strcmp(pipeline_pmu.target,"sub10-ui") ||
+            !strcmp(pipeline_pmu.target,"sub10")) && pipeline_pmu.arm));
+    }
+    else {
+        /* Older targets predate this bundle. Pin its mechanisms off so
+         * changing production defaults cannot change their comparison. */
+        UITree_CanvasQuerySetCompact(0);
+        renderer->actor_direct_encode=false;
+        renderer->actor_word_encode=false;
+        UITree_EmitSetOverlayRetain(0);
     }
     pipeline_pmu.measuring=!pipeline_pmu.warmup && pipeline_pmu.block>=6;
 #if defined(TORIRS_FRAME_TIMES)

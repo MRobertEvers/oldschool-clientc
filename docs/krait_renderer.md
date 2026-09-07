@@ -2,6 +2,23 @@
 
 ## Incremental sub-10 work
 
+Actor RGB reversal and metadata word stores also default on for ARM32 NEON.
+`TORIRS_GLES2_ACTOR_WORDS=0` selects the prior direct encoder. Use
+`--target sub10-words` for the incremental comparison, or `sub10-words-aa`
+for its unchanged control. [Packing evidence and limitations](../benchmarks/krait_model_chains/ENCODER_WORD_STORES.md).
+
+The Krait ARM32 NEON build enables compact canvas width queries, direct packed
+untextured actor encoding, and stable UI retention during projected overlay
+motion by default. `TORIRS_UI_OVERLAY_RETAIN=0` restores full UI emission; see
+[P3 evidence](../benchmarks/krait_model_chains/P3_OVERLAY_RETENTION.md). `TORIRS_UI_CANVAS_COMPACT=0` and `TORIRS_GLES2_ACTOR_DIRECT=0`
+independently restore their reference paths. Other architectures retain their
+previous defaults. The earlier direct ordering, cached acquisition, batched
+publication, four-key compaction, static lookup and pose/world-coordinate reuse
+already default on; the fast white-tile shader is selected on Adreno 320.
+Retired experiments remain excluded. Production defaults do not change the
+historical diagnostic baselines: older targets explicitly disable the new
+bundle, while `sub10-*` targets set their full comparison matrix each frame.
+
 See [implementation progress](../benchmarks/krait_model_chains/SUB10_PROGRESS.md)
 and [the active plan](../KRAIT_SUB10_IMPLEMENTATION_PLAN.md). The target remains
 unachieved. `--target sub10` compares the new canvas/actor bundle with the

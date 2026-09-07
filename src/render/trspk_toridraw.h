@@ -15,6 +15,10 @@ struct ToriDraw_Scene;
 void trspk_toridraw_gles2_untextured(
     const struct ToriDraw_Model* model,const int* order,uint32_t count,
     const float* world_xyz,struct TRSPK_VertexGLES2* destination);
+/* Equivalent RGB byte reversal and metadata word stores; layout remains identical. */
+void trspk_toridraw_gles2_untextured_words(
+    const struct ToriDraw_Model* model,const int* order,uint32_t count,
+    const float* world_xyz,struct TRSPK_VertexGLES2* destination);
 
 bool
 trspk_toridraw_texture_is_animated(

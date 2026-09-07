@@ -1,0 +1,200 @@
+{
+  "serial": "T062809L3Z",
+  "event": "L1-dcache-load-misses",
+  "scope": "Real main-thread projected overlay positioning, layout, host-input publication and command emission. Excludes draw submission, worker and GPU. Hardware events only, no time conversion.",
+  "protocol": "600 warmup frames; 12 ABBA windows x 180 frames; six settling frames per window; pinned nonmultiplexed userspace event; no detailed software profiling.",
+  "settings": {
+    "TORIRS_PLUGINS": "0",
+    "TORIRS_PERF": "0",
+    "TORIRS_GLES2_DUALCORE": "1",
+    "TORIRS_GLES2_DUALCORE_DEBUG": "0",
+    "TORIRS_UI_EMIT_PMU": "L1-dcache-load-misses",
+    "TORIRS_UI_CANVAS_COMPACT": "1",
+    "TORIRS_GLES2_ACTOR_DIRECT": "1"
+  },
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "frames": 180,
+      "events": 3491486,
+      "reused": 0,
+      "commands": 20340
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "frames": 180,
+      "events": 1118163,
+      "reused": 167,
+      "commands": 20340
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "frames": 180,
+      "events": 1150869,
+      "reused": 167,
+      "commands": 20340
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "frames": 180,
+      "events": 3475799,
+      "reused": 0,
+      "commands": 20340
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "frames": 180,
+      "events": 3524688,
+      "reused": 0,
+      "commands": 20340
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "frames": 180,
+      "events": 1111931,
+      "reused": 171,
+      "commands": 20340
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "frames": 180,
+      "events": 1141731,
+      "reused": 169,
+      "commands": 20340
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "frames": 180,
+      "events": 3515903,
+      "reused": 0,
+      "commands": 20340
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "frames": 180,
+      "events": 3519677,
+      "reused": 0,
+      "commands": 20340
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "frames": 180,
+      "events": 1250950,
+      "reused": 164,
+      "commands": 20340
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "frames": 180,
+      "events": 1164151,
+      "reused": 166,
+      "commands": 20340
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "frames": 180,
+      "events": 3507560,
+      "reused": 0,
+      "commands": 20340
+    }
+  ],
+  "summary": {
+    "before_events_per_frame": 19476.95648148148,
+    "after_events_per_frame": 6423.884259259259,
+    "change_percent": -67.0180283795005
+  },
+  "device_before": {
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "interactive",
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "918000",
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": null,
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "1728000",
+    "/sys/class/power_supply/battery/temp": "340",
+    "/sys/class/power_supply/battery/capacity": "100",
+    "/sys/class/power_supply/battery/status": "Full"
+  },
+  "device_after": {
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "interactive",
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "1728000",
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": null,
+    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "1728000",
+    "/sys/class/power_supply/battery/temp": "353",
+    "/sys/class/power_supply/battery/capacity": "100",
+    "/sys/class/power_supply/battery/status": "Full"
+  },
+  "build": {
+    "probe": "ui-emit-pmu",
+    "source": {
+      "commit": "152dc6469e3c784ddd05dd76d15ae5dfbe02efd0",
+      "changed_source_sha256": {
+        "src/app.c": "76bd46e3a39534ae7ac18e755a0b43ca993852f1495152505ad862eaa1ad6055",
+        "src/main.c": "ef70e0aa1708199db6530695ed46fb83519b5f22e765813090a42c30dee77614",
+        "src/makefile": "fa92d96dee3d0397e94280fad94642d227a995cf44570f711b131755c622ff35",
+        "src/platform/platform_renderer_gles2_core.c": "40b82037b61606ef8a36dcf2a27e3c8ce993edd14da54aa2f607806db7a00ab5",
+        "src/platform/platform_renderer_gles2_core.h": "e33ed1c9e9ec40d669730a1ae4dc6fe9a31175d211b3b4464d0416635290f583",
+        "src/render/trspk_toridraw.c": "67bdafb09cb1650d27fc758374398b6294ca199a41982e7af40b578630fb46fd",
+        "src/render/trspk_toridraw.h": "254490a3e5e68a4f436e8b26d55e589cdc51d3ff15c8ba4625e7f60bdb5848f5",
+        "src/ui/test/uitree_test_canvas.c": "f41901ecf6a735e548262b0c58f9460b7ea4d5795487d2c7c2edad4d784b9527",
+        "src/ui/test/uitree_test_main.c": "014b847657d83930809b34caa6f75fc699c946b8175ae82f71c7a5cf947b4ac0",
+        "src/ui/test/uitree_test_overlay_retain.c": "c7f7c6dd896272b1a1652f83561bc081fd6da403df744201e427b4394821b215",
+        "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5",
+        "src/ui/uitree.h": "cbfba75e00260616d0cc5d5f2da460f7c3b602c6f546ada05fe06df0ffaf31fd",
+        "src/ui/uitree_canvas_measure.h": "8b1d87d5bc68ec69d393ded7f200cbf5e7f93f4f81ef0cf003bbf22fcce92d64",
+        "src/ui/uitree_emit.c": "bb2a3e0dddad64410c917fbc66818b85098264f7b71e641d355fb4b4f368b873",
+        "src/ui/uitree_emit.h": "83a4db367816137935145268ae61db48e0554f45de73503977669782303b0fd2",
+        "src/ui/uitree_emit_overlay.u.h": "7ce600d1fa243975a57a6d83496bc99e4885d0c7820dc27d03fe1d960c2193cd",
+        "tools/perf/bake_chain_replay.c": "4f004064e3895ea5f05688f8d8647ea4dbe2907e77517d8515b29288bae9870e",
+        "tools/perf/bake_chain_test.c": "7d1559ff1c7ca4013f39f81faf95798ba36ccd0198220962aa52d70be36ad399",
+        "tools/perf/build_android_renderer.py": "0591d84a53a78ca10b02d28c219634af17985712ba43088a320fe771d2186481",
+        "tools/perf/canvas_chain_capture.u.h": "0f30dcd396eef27ae0533c80d85766138eb4521ccdd60ace98ffedf8d3396657",
+        "tools/perf/canvas_chain_format.h": "4f570c35b2b6fbecf8500fdc3db5a7e7c8f6c2cd6161300adf9167b3b04299bb",
+        "tools/perf/canvas_chain_replay.c": "52d7c451008a7dd9bebd0f66e409881449d46f17ea84221910ead7df2aeba11d",
+        "tools/perf/gles2_frame_times.h": "7ffbf99399c7d84305b98aad67ba809987b34353dda88190fb9319fe88dd2ea8",
+        "tools/perf/gles2_frame_times.py": "0c0e1cdc7cee8189749afe1c469b6082b4575e50e218260334c096ae8184384e",
+        "tools/perf/gles2_frame_times.u.h": "77712f60d6dbfbb5498cbb73f48730d3fa3f44d623dea2dfeb3d5962eb4fb030",
+        "tools/perf/gles2_pipeline_pmu.u.h": "78656340ddc4b761d4b006e2e8096c61f3d1d51e700ea5c15b8f36ff099e43fd",
+        "tools/perf/model_chain.mk": "2e5f408661a5064c313803d5ef43b601130141851831fa8add713712077b03d9",
+        "tools/perf/renderer_provenance.py": "56715061414929fadeba7b36d2141c14820fec92f3213ad4523ca8e529b14f0d",
+        "tools/perf/ui_emit_pmu.u.h": "6671552b2af0855745bb9086bb1ff4724c4ec11d65ef05b32d223845e4267829"
+      },
+      "tracked_diff_sha256": "0ff1e69246245085e4919d8e34120863ab0e59c103d22e9abc3639881302c448"
+    },
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/krait-sub10/worktree/src",
+      "-j8",
+      "PLATFORM=android",
+      "ANDROID_ABI=armeabi-v7a",
+      "OPT=1",
+      "TORIDRAW_PROBE_CFLAGS=-DTORIRS_UI_EMIT_PMU=1",
+      "-W",
+      "/private/tmp/krait-sub10/worktree/3rd/toridraw/toridraw_unity.c",
+      "-W",
+      "platform/platform_renderer_gles2_core.c",
+      "-W",
+      "platform/platform_renderer_gles2_dualcore.c",
+      "-W",
+      "main.c",
+      "-W",
+      "app.c",
+      "-W",
+      "ui/uitree.c",
+      "all"
+    ],
+    "library_sha256": "e1f8dd77a3f947ed48f68f4e7683cbee4d017dc962344c584c228d2e7ef0e03e",
+    "apk_sha256": "fb1c571149c6e3fec78817533e55feb7e4a752a09325ceb0daf8040bc99f41ab"
+  },
+  "launch_args_sha256": "e9820319e7a1a1789845f8a0a6b900f85bb29d0346c1e4a43923985d1423dc82"
+}

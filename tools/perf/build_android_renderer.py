@@ -8,6 +8,8 @@ from model_chain import REPO
 from renderer_provenance import source_state, sha256
 PROBES={
     'normal':'',
+    'overlay-retain-verify':'-DTORIRS_OVERLAY_RETAIN_VERIFY=1',
+    'ui-emit-pmu':'-DTORIRS_UI_EMIT_PMU=1',
     'ui-retain-trace':'-DTORIRS_UI_RETAIN_TRACE=1',
     'shader':'-DTORIRS_SHADER_PROBE=1',
     'gpu-counters':'-DTORIRS_GPU_COUNTERS=1',

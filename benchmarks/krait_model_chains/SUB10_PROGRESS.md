@@ -1,17 +1,24 @@
 # Sub-10 ms implementation progress
 
+**Latest:** [P3 overlay retention](P3_OVERLAY_RETENTION.md) and a subsequent
+[actor-packing refinement](ENCODER_WORD_STORES.md) are implemented. The newest
+uncapped medians are 10.956 and 10.744 ms; sub-10 remains unachieved. Both join
+the positive ARM32 NEON defaults. The paired width-summary experiment was
+retired after an app regression. The historical results below remain evidence of
+the earlier pass; P3 is no longer merely a proposed next step.
+
 The target is **not met**. Work is isolated in `/tmp/krait-sub10/worktree` at
 `152dc6469e3c784ddd05dd76d15ae5dfbe02efd0` to preserve simultaneous application
 feature work. The original normal APK/library and their hashes are frozen in
-`/tmp/krait-sub10/baseline.{apk,so,json}`. Candidate defaults remain off pending
-acceptance. Scene painter traversal/order and depth settings are unchanged.
+`/tmp/krait-sub10/baseline.{apk,so,json}`. The measured compact-canvas and direct-actor improvements now default on for
+ARM32 NEON at the user's request. Sub-10 acceptance remains incomplete. Scene painter traversal/order and depth settings are unchanged.
 
 ## Candidate evidence
 
 | Mechanism | Original live median A → B | Decision |
 |---|---:|---|
-| Compact canvas candidate IDs | 13.368 → 12.681 ms | Promising; retaining for combined validation |
-| Direct 28-byte untextured actor encoding, canvas on in both arms | 12.071 → 11.720 ms | Promising; retaining for combined validation |
+| Compact canvas candidate IDs | 13.368 → 12.681 ms | Enabled by default on ARM32 NEON after combined validation |
+| Direct 28-byte untextured actor encoding, canvas on in both arms | 12.071 → 11.720 ms | Enabled by default on ARM32 NEON after combined validation |
 | Ancestor visibility memo | 12.208 → 12.086 ms | Retired; inside control variation, worse mean/tails |
 | Compact 16-byte actor stream | 12.025 → 12.376 ms | Retired; slower |
 | Compact stream with cached attribute setup | 12.559 → 12.575 ms | Retired; no gain |
@@ -92,6 +99,20 @@ final cleanup are still outstanding.
 The original normal APK was reinstalled and its APK hash verified. Launch
 settings match the frozen backups. The task server, tunnel, device manifest
 and test save were removed; the private test account and timing candidate
-artifacts are archived under `/tmp/krait-sub10/` for resumption. Candidate
-defaults remain off. This restores the normal pre-sub10 app; it is not P6
+artifacts were archived under `/tmp/krait-sub10/` for resumption. At that
+cleanup checkpoint, candidate defaults were still off; the subsequent default
+promotion described above supersedes that production configuration. This restores the normal pre-sub10 app; it is not P6
 acceptance of a sub-10 candidate. See `experiments/sub10-continuation-cleanup.json`.
+
+## Default promotion
+
+At the user's request, compact canvas queries and direct packed actor encoding
+now default on for ARM32 NEON, alongside the earlier positive Krait changes.
+The normal APK from the isolated performance checkout was built and installed
+on XT1060. A native smoke check loaded its installed library and confirmed
+both new defaults enabled, both explicit `=0` rollbacks disabled, and earlier
+pose/world-coordinate/static-lookup defaults still enabled. The installed APK
+hash matches its build manifest and diagnostic markers are absent. Evidence:
+`experiments/sub10-defaults-smoke.json`. The main-workspace UITree suite passes;
+the ARM32 frame-time/PMU diagnostic also compiles with the explicit historical
+controls. This is a default change, not a new frame-time result.
