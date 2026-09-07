@@ -4172,7 +4172,21 @@ mobile_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamef
     memset(&g_frame, 0, sizeof(g_frame));
     g_frame.canvas_w = event->width;
     g_frame.canvas_h = event->height;
-    mobile_layout(ctx, event->width, event->height);
+    /* Less the lane's own popout strip on a desktop toplevel, the profile
+     * role `lane_chrome_0`, right-docked at full height: the drawer must not
+     * open under it. The mobile toplevel has none. */
+    {
+        struct ToriRS_WidgetApi* ui = &api->widgets;
+        struct ToriRS_WidgetRef strip;
+        struct ToriRS_WidgetBounds box;
+        bool visible = false;
+        if( ui->find(ui->context, "lane_chrome_0", &strip) == TORIRS_CONTRACT_OK &&
+            ui->visible(ui->context, strip, &visible) == TORIRS_CONTRACT_OK && visible &&
+            ui->bounds(ui->context, strip, &box) == TORIRS_CONTRACT_OK && box.width > 0 && box.height > 0 &&
+            box.x > 0 && box.x < g_frame.canvas_w && box.x + box.width >= g_frame.canvas_w )
+            g_frame.canvas_w = box.x;
+    }
+    mobile_layout(ctx, g_frame.canvas_w, g_frame.canvas_h);
     /*
      * The sheet and the drawer stop a tap reaching the world behind them.
      *

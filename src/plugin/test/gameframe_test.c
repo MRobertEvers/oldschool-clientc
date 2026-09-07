@@ -1471,6 +1471,22 @@ main(void)
     CHECK(selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE && g_frame.active == 1,
           "returning to a supported root restores the requested frame");
 
+    /* ---- 8. the popout strip: the lane grows the canvas to 807 at a 765
+     *         window and docks interface 728's strip on the right --------- */
+    {
+        int const strip = fw_add(fw_find("", -1), "lane_chrome", 0, 765, 0, 42, 503);
+        select_frame("gameframe-layout/modern-resizable", 700);
+        declare(807, 503);
+        CHECK(placed("compass", -1, 588, 5, 35, 35) && placed("minimap", -1, 607, 8, 152, 152) &&
+                  placed("viewport", -1, 0, 0, 765, 503),
+              "the resizable frame lays out beside the popout strip, where the lane's own frame stands");
+        g_w[strip].hidden = 1;
+        declare(807, 503);
+        CHECK(placed("compass", -1, 630, 5, 35, 35) && placed("viewport", -1, 0, 0, 807, 503),
+              "a strip that is not shown gives the columns back");
+        g_w[strip].hidden = 0;
+    }
+
     PluginHost_Free(g_host);
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

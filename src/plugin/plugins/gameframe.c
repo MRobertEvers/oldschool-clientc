@@ -3570,6 +3570,46 @@ frame_call_init(struct FrameCall* call, struct ToriRS_Api* api, struct FrameStat
 }
 
 /*
+ * The canvas less the lane's own popout strip, for a frame laid out against
+ * the WINDOW.
+ *
+ * OldSchool docks interface 728's strip on the canvas's right edge at full
+ * height, and at a 765 window grows the canvas to 807 to keep its own frame
+ * whole beside it; the strip is mounted, painted and swallows clicks whatever
+ * frame is selected. A frame that took the whole canvas slid its map ring under
+ * the strip (gf-review-matrix40-v1/m07). The strip is the profile role
+ * `lane_chrome_0`, which is how the builder's FRAME_BUILD area subtracted it;
+ * a strip on either edge moves that edge in, and one across neither is
+ * ignored. The role is watched, so a strip mounting after login re-plans.
+ */
+static void
+frame_usable_canvas(struct FrameCall* ctx, int canvas, int* width, int* height)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef strip;
+    struct ToriRS_WidgetBounds box;
+    bool visible = false;
+
+    assert(ctx);
+    assert(width);
+    assert(height);
+    if( canvas != TORIRS_FRAME_CANVAS_WINDOW )
+        return;
+    if( ui->find(ui->context, "lane_chrome_0", &strip) != TORIRS_CONTRACT_OK ||
+        ui->visible(ui->context, strip, &visible) != TORIRS_CONTRACT_OK || !visible ||
+        ui->bounds(ui->context, strip, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 ||
+        box.width >= *width )
+        return;
+    if( box.x > 0 && box.x + box.width >= *width )
+        *width = box.x;
+    else if( box.x <= 0 && box.x + box.width < *width )
+    {
+        ctx->origin_x = box.x + box.width;
+        *width -= ctx->origin_x;
+    }
+}
+
+/*
  * The frame is asked for, or given back.
  *
  * Nothing before the gameframe exists: on the title screen there is no frame
@@ -3616,6 +3656,7 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     }
     canvas_w = event->width;
     canvas_h = event->height;
+    frame_usable_canvas(ctx, event->canvas, &canvas_w, &canvas_h);
 
     frame_build_redstones(ctx);
     frame_build_classic_masks(ctx);
@@ -3701,7 +3742,7 @@ frame_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
     uint32_t const clear = 0;
-    static char const* const WATCHED[] = { "viewport", "chat", "sidebar", "minimap" };
+    static char const* const WATCHED[] = { "viewport", "chat", "sidebar", "minimap", "lane_chrome_0" };
 
     assert(api);
     assert(state);
