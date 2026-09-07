@@ -3591,7 +3591,7 @@ frame_call_init(struct FrameCall* call, struct ToriRS_Api* api, struct FrameStat
  * ignored. The role is watched, so a strip mounting after login re-plans.
  */
 static void
-frame_usable_canvas(struct FrameCall* ctx, int canvas, int* width, int* height)
+frame_usable_canvas(struct FrameCall* ctx, struct ToriRS_GameframeEvent const* event, int* width, int* height)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct ToriRS_WidgetRef strip;
@@ -3599,21 +3599,33 @@ frame_usable_canvas(struct FrameCall* ctx, int canvas, int* width, int* height)
     bool visible = false;
 
     assert(ctx);
+    assert(event);
     assert(width);
     assert(height);
-    if( canvas != TORIRS_FRAME_CANVAS_WINDOW )
+    if( event->canvas != TORIRS_FRAME_CANVAS_WINDOW )
         return;
+    /* First what the PLATFORM covers -- the phone's keyboard band -- which
+     * the host states as the safe rect and re-asks this frame about when it
+     * moves. The whole canvas when nothing is up. */
+    if( event->safe.width > 0 && event->safe.height > 0 && event->safe.x >= 0 && event->safe.y >= 0 &&
+        event->safe.x + event->safe.width <= *width && event->safe.y + event->safe.height <= *height )
+    {
+        ctx->origin_x = event->safe.x;
+        ctx->origin_y = event->safe.y;
+        *width = event->safe.width;
+        *height = event->safe.height;
+    }
     if( ui->find(ui->context, "lane_chrome_0", &strip) != TORIRS_CONTRACT_OK ||
         ui->visible(ui->context, strip, &visible) != TORIRS_CONTRACT_OK || !visible ||
         ui->bounds(ui->context, strip, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 ||
         box.width >= *width )
         return;
-    if( box.x > 0 && box.x + box.width >= *width )
-        *width = box.x;
-    else if( box.x <= 0 && box.x + box.width < *width )
+    if( box.x > ctx->origin_x && box.x + box.width >= ctx->origin_x + *width )
+        *width = box.x - ctx->origin_x;
+    else if( box.x <= ctx->origin_x && box.x + box.width < ctx->origin_x + *width )
     {
+        *width -= box.x + box.width - ctx->origin_x;
         ctx->origin_x = box.x + box.width;
-        *width -= ctx->origin_x;
     }
 }
 
@@ -3664,7 +3676,7 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     }
     canvas_w = event->width;
     canvas_h = event->height;
-    frame_usable_canvas(ctx, event->canvas, &canvas_w, &canvas_h);
+    frame_usable_canvas(ctx, event, &canvas_w, &canvas_h);
 
     frame_build_redstones(ctx);
     frame_build_classic_masks(ctx);

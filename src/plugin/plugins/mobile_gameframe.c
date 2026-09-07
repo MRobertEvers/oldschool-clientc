@@ -4124,6 +4124,11 @@ mobile_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamef
     memset(&g_frame, 0, sizeof(g_frame));
     g_frame.canvas_w = event->width;
     g_frame.canvas_h = event->height;
+    /* The block hangs from the SAFE bottom: what the platform covers -- the
+     * soft keyboard -- is stated by the host as the safe rect, the whole
+     * canvas when nothing is up, and the frame is re-asked when it moves. */
+    if( event->safe.height > 0 && event->safe.y >= 0 && event->safe.y + event->safe.height < g_frame.canvas_h )
+        g_frame.canvas_h = event->safe.y + event->safe.height;
     /* Less the lane's own popout strip on a desktop toplevel, the profile
      * role `lane_chrome_0`, right-docked at full height: the drawer must not
      * open under it. The mobile toplevel has none. */
@@ -4155,7 +4160,7 @@ mobile_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamef
         mobile_blocker(
             ctx,
             (struct ToriRS_Rect){ g_frame.chat_pack ? 0 : MOBILE_PAPER_FRINGE_L, g_frame.chat_y, g_frame.chat_w,
-                                  event->height - g_frame.chat_y },
+                                  g_frame.canvas_h - g_frame.chat_y },
             "Type");
     if( g_drawer_open )
         mobile_blocker(

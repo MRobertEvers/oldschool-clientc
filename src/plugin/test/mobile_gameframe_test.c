@@ -124,6 +124,17 @@ fake_frame_provide(void* u, uint64_t owner)
     g_frame.provide_calls++;
 }
 
+/* The platform band: what platform_safe_rect answers, when present. */
+static struct { int present; int x; int y; int w; int h; } g_safe;
+static int
+fake_platform_safe_rect(void* u, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    (void)u;
+    if( !g_safe.present ) return 0;
+    *out_x = g_safe.x; *out_y = g_safe.y; *out_w = g_safe.w; *out_h = g_safe.h;
+    return 1;
+}
+
 static int
 fake_tab_enabled(void* u, int tabno)
 {
@@ -850,6 +861,7 @@ main(void)
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;
+    e.platform_safe_rect = fake_platform_safe_rect;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
@@ -939,6 +951,15 @@ main(void)
     CHECK(placed("main_modal", -1, 256, 133, 512, 334), "the modal is centred");
     CHECK(placed("chat_buttons", 0, 26, 566, 100, 32) && placed("chat_buttons", 3, 383, 566, 100, 32),
           "the four filters spread across the strip");
+    /* The platform band: the keyboard covers the bottom 200 rows; the block
+     * hangs from the safe bottom instead of the canvas floor. */
+    g_safe.present = 1; g_safe.x = 0; g_safe.y = 0; g_safe.w = M_W; g_safe.h = M_H - 200;
+    declare(M_W, M_H);
+    CHECK(placed("chat", -1, 17, 256, 479, 96) && placed("chat_buttons", 0, 26, 366, 100, 32),
+          "the sheet and its strip hang from the safe bottom above the keyboard");
+    g_safe.present = 0;
+    declare(M_W, M_H);
+    CHECK(placed("chat", -1, 17, 456, 479, 96), "and drop back to the floor when the band goes");
     printf("MOBILE pieces=%d tabs=%d icons=%d plates=%d\n", pieces_behind_viewport(), owned_count("tab."), owned_count("icon."), owned_count("plate."));
     CHECK(pieces_behind_viewport() >= 7, "the rail plates, the sheet, the two switches and the blockers are owned pieces over the scene");
     CHECK(owned_at("piece.02", 0, 439) || owned_at("piece.01", 0, 439) || owned_at("piece.00", 0, 439) || owned_at("piece.03", 0, 439),

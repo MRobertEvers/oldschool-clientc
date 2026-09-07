@@ -324,7 +324,14 @@ and `gameframe.c` watches the role so a strip mounting after login re-plans. Pin
 frame at 807x503 seats the compass at 588,5 beside the strip and at 630,5 without it (red under a
 stub, `gameframe-review-negative-strip.log`); recaptured as `gf-review-strip-osrs-v1` (m07 and m17
 resizable at 765x503, m08 resizable at 1200x800, m10 Stone Drawer on 548). What remains of item
-(1) is the phone keyboard band, the platform-safe rect 3draster-15 adds to the event.
+(1) was the phone keyboard band, the platform-safe rect 3draster-15 added to the event
+(`a1a4bf9ff`): both frame plugins now read `event->safe` -- `frame_usable_canvas` intersects the
+usable canvas with it before subtracting the strip, the Stone Drawer hangs its block from
+`safe.y + safe.height` -- pinned with a fake band (the resizable chat and panel at the safe bottom,
+the sheet and its strip above the keyboard; one pin red per plugin under a stub,
+`gameframe-review-negative-safe.log`) and recaptured with no band up as a regression check
+(`gf-review-safe-osrs-v1` m08/m10/m39, `gf-review-safe-rs289-stone-v1/r01`). Item (1) is closed;
+the band itself has no headless capture (the harness raises no keyboard).
 
 OSRS captures must use the prepared manifest (`MANIFEST=/private/tmp/plugin-engine-prepared-actions.ini`,
 `TORIRSSERVER_CONTENT=/private/tmp/plugin-engine-content/osrs239-content`): the shared repo's

@@ -133,6 +133,17 @@ fake_frame_provide(void* u, uint64_t owner)
     g_frame.provide_calls++;
 }
 
+/* The platform band: what platform_safe_rect answers, when present. */
+static struct { int present; int x; int y; int w; int h; } g_safe;
+static int
+fake_platform_safe_rect(void* u, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    (void)u;
+    if( !g_safe.present ) return 0;
+    *out_x = g_safe.x; *out_y = g_safe.y; *out_w = g_safe.w; *out_h = g_safe.h;
+    return 1;
+}
+
 static int
 fake_tab_enabled(void* u, int tabno)
 {
@@ -895,6 +906,7 @@ main(void)
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;
+    e.platform_safe_rect = fake_platform_safe_rect;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
@@ -1084,6 +1096,15 @@ main(void)
     CHECK(placed("sidebar", -1, 980, 498, 190, 261), "the panel hangs off the bottom-right corner");
     CHECK(placed("chat", -1, 20, 658, 479, 96), "the chat hangs off the bottom-left corner");
     CHECK(placed("main_modal", -1, 344, 233, 512, 334), "the modal is centred");
+    /* The platform band: a keyboard covering the bottom 300 rows is stated
+     * as the safe rect, and everything hung off the bottom edge follows it. */
+    g_safe.present = 1; g_safe.x = 0; g_safe.y = 0; g_safe.w = 1200; g_safe.h = 500;
+    declare(1200, 800);
+    CHECK(placed("chat", -1, 20, 358, 479, 96) && placed("sidebar", -1, 980, 198, 190, 261),
+          "the resizable frame hangs its chat and panel off the safe bottom, not the canvas floor");
+    g_safe.present = 0;
+    declare(1200, 800);
+    CHECK(placed("chat", -1, 20, 658, 479, 96), "and gives the rows back when the band goes");
     printf("GAMEFRAME resizable closed pieces=%d\n", pieces_behind_viewport());
     CHECK(pieces_behind_viewport() == 4, "a collapsed sidebar draws two tab rows and the chat, no pillars and no backing");
     CHECK(owned_count("chatsw.") == 3 && strcmp(owned("chatsw.1")->op, "Hide chat") == 0,
