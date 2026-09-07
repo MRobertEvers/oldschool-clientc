@@ -104,7 +104,11 @@ if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
       TORIRS_SIM_CLICK_AT='500,585,184' TORIRS_SIM_CMD='480,setstat strength 1;650,setstat strength 20'
     scenario skill-guide GF_MATRIX_RS289_SCENARIO=skill-guide GF_MATRIX_MAX_FRAMES=900 \
       TORIRS_SIM_CLICK_AT='500,585,184;650,584,250'
-    echo "RS289 NATIVE CONTRACT: $failures failed scenario groups / 2"
+    # The sidebar's find_all numbering on the classic-fixed frame: 14 members
+    # with tab 7 a hole, reported by the bridge's last PLUGIN_FIND_ALL line.
+    scenario find-all-holes GF_MATRIX_RS289_FRAME=gameframe-layout/classic-fixed \
+      GF_MATRIX_FIND_ALL_HOLES=sidebar:14:7 GF_MATRIX_MAX_FRAMES=700
+    echo "RS289 NATIVE CONTRACT: $failures failed scenario groups / 3"
     exit $((failures > 0))
   fi
   for state in 0 1 2 3 4 5; do

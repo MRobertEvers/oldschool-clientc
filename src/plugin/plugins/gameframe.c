@@ -2805,9 +2805,9 @@ frame_layout_modern_resizable(
      * bottom_row_y, where spending it was tried and what it cost is written
      * down.
      *
-     * This layout draws its chrome in the frame's BACKDROP pass, under every
-     * live surface (@see emit_plugin_frame_pass -- over the scene, under the
-     * interfaces, which is the only place a gameframe can go), so the same
+     * This layout's chrome is owned images anchored BEHIND the scene, under
+     * every live surface (@see frame_apply_pieces -- over the world, under
+     * the interfaces, which is the only place a gameframe can go), so the same
      * collision came out the other way up: the whole scroll on top of the
      * inventory and equipment stones, hiding both icons. Seating the member at
      * the height there is ABOVE the strip is that same picture from the other

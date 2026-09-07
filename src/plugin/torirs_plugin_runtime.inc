@@ -2284,17 +2284,6 @@ plugin_v2_runtime_draw_end(
 }
 
 void
-plugin_v2_runtime_draw_clip(
-    struct PluginV2DrawScope* scope,
-    struct ToriRS_Rect clip)
-{
-    assert(scope);
-    assert(scope->active);
-    scope->clip_active = clip.width > 0 && clip.height > 0;
-    scope->clip = clip;
-}
-
-void
 plugin_v2_runtime_draw_region(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Rect region)

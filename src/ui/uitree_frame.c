@@ -78,9 +78,6 @@ struct UITreeFrameLayout
     /** Nodes carrying each role and their exact array-slot incarnations. */
     int32_t slot_node[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     uint64_t slot_incarnation[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
-    /** UITree_FrameSlotIndex for each, so a per-member box finds its node
-     *  without re-deriving it every frame. */
-    int slot_member[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     int slot_node_count[UITREE_FRAME_SLOT_COUNT];
     /** Lane chrome the provision suppresses. */
     int32_t hidden[UITREE_FRAME_HIDDEN_MAX];
@@ -283,8 +280,9 @@ UITree_FrameSlotIndex(
  * The slot -> node answers, remembered per tree.
  *
  * Both lookups below are linear scans of every component, and a frame asks
- * them several times (the plugin bridge's placement and "is this slot
- * live" queries, the role placements): 0.18 ms a frame on the Moto X.
+ * them several times (the plugin bridge's slot-node cache and its widget
+ * find / find_all answers, the role table's _SLOT matches): 0.18 ms a frame
+ * on the Moto X.
  *
  * What makes a node answer a slot is not only topology: a sidebar mount is
  * a slot member only while `componentno >= 0`, which the server sets and
@@ -572,7 +570,6 @@ frame_collect_slots(
             }
             fl->slot_node[s][n] = (int32_t)i;
             fl->slot_incarnation[s][n] = c->incarnation;
-            fl->slot_member[s][n] = UITree_FrameSlotIndex(c, s);
             fl->slot_node_count[s] = n + 1;
         }
     }
@@ -1219,7 +1216,6 @@ UITree_FrameSlotsStale(struct UITree* tree)
     frame_collect_slots(tree, next);
     stale = memcmp(next->slot_node, fl->slot_node, sizeof(next->slot_node)) != 0 ||
             memcmp(next->slot_incarnation, fl->slot_incarnation, sizeof(next->slot_incarnation)) != 0 ||
-            memcmp(next->slot_member, fl->slot_member, sizeof(next->slot_member)) != 0 ||
             memcmp(next->slot_node_count, fl->slot_node_count, sizeof(next->slot_node_count)) != 0;
     free(next);
     return stale;

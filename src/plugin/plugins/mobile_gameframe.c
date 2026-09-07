@@ -1214,9 +1214,9 @@ mobile_housing(struct MobileCall* ctx)
  * The drawer, and the sheet.
  *
  * Both are the player's, both are the plugin's to remember, and neither has a
- * counterpart in the client: a role this declaration does not mention is one
- * the host hides, so "the drawer is shut" is not a flag the sidebar reads, it
- * is a frame that stops having a sidebar in it.
+ * counterpart in the client: a role this plan does not place is one the
+ * plugin hides itself (mobile_apply_surfaces), so "the drawer is shut" is not
+ * a flag the sidebar reads, it is a frame that stops having a sidebar in it.
  *
  * The drawer starts SHUT. On a phone the first thing wanted is the world, and a
  * frame that opened onto a panel would be spending its first impression on the

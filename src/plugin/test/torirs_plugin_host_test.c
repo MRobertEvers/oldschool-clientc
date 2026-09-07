@@ -603,11 +603,13 @@ fake_screenshot(
     return 1;
 }
 
+static uint64_t frame_provide_owner;
 static void
 fake_frame_provide(void* u, uint64_t owner)
 {
     struct FakeEngine* e = u;
     assert(owner);
+    frame_provide_owner = owner;
     e->frame_provides++;
 }
 static int
@@ -2503,10 +2505,12 @@ static void test_gameframe_provider(void)
     CHECK(PluginHost_Register(host,&GF_PROVIDER)>=0,"an event-driven frame provider registers");
     g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
     snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-provider/event");
-    gf_events=0;gf_answer=TORIRS_FRAME_READY;gf_widget_ok=0;
+    gf_events=0;gf_answer=TORIRS_FRAME_READY;gf_widget_ok=0;frame_provide_owner=0;widget_owner=0;
     PluginHost_Start(host);
     PluginHost_Layout(host,900,600);
     gf_api->frame.selection(gf_api,&selection);
+    CHECK(frame_provide_owner!=0 && frame_provide_owner==widget_owner,
+          "the publication carries the providing plugin's owner id, the one its widget requests used");
     printf("GAMEFRAME_PROVIDER events=%d active=%d %dx%d canvas=%d offer=%s provides=%d status=%d id=%s\n",
            gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_offer,g_engine.frame_provides,selection.status,selection.active_id);
     CHECK(gf_events==1 && gf_active_last==1 && gf_w==765 && gf_h==503 && gf_canvas==TORIRS_FRAME_CANVAS_FIXED && strcmp(gf_offer,"event")==0,
@@ -2514,7 +2518,7 @@ static void test_gameframe_provider(void)
     CHECK(gf_widget_ok==1,"the provider event may find and move widgets");
     CHECK(g_engine.frame_provides==1 && g_engine.frame_active==1 &&
           g_engine.layout_canvas==TORIRS_FRAME_CANVAS_FIXED && g_engine.layout_fixed_w==765,
-          "a READY provider publishes chrome suppression and its canvas policy without a slot declaration");
+          "a READY provider publishes chrome suppression and its canvas policy through frame_provide");
     CHECK(selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
           "the provided offer is the active frame");
     {

@@ -13,9 +13,9 @@
  *      rather than the app's. A fixed-canvas offer would letterbox a
  *      phone layout into a desktop canvas.
  *   2. The DRAWER. Shut is not "placed somewhere harmless", it is NOT PLACED --
- *      the host hides a role a declaration stops mentioning, and that is the
- *      entire open/close mechanism. Both halves are asserted, and so is the
- *      tab-stone gesture that drives them.
+ *      the plugin hides a role its plan stops placing (mobile_apply_surfaces),
+ *      and that is the entire open/close mechanism. Both halves are asserted,
+ *      and so is the tab-stone gesture that drives them.
  *   3. RESIZE. Every anchor is arithmetic on the canvas and pinned to an EDGE,
  *      which only shows up by declaring twice at two different sizes.
  *   4. The SHEET giving way. On a canvas too narrow to hold the drawer and the

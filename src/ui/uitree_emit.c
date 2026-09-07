@@ -3506,8 +3506,10 @@ emit_buffer_insert_at(
 
     assert(out);
     assert(desc);
-    assert(at >= 0 && at <= old_count);
-    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_CANVAS);
+    assert(at >= 0);
+    assert(at <= old_count);
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY);
+    assert(source <= UITREE_EMIT_OVERLAY_CANVAS);
     emit_buffer_append(out, desc);
     if( at < old_count )
     {
@@ -3535,9 +3537,11 @@ emit_buffer_remove_at(struct UITreeEmitBuffer* out, int at)
     int source;
 
     assert(out);
-    assert(at >= 0 && at < out->count);
+    assert(at >= 0);
+    assert(at < out->count);
     source = out->cmds[at].entity_overlay_source;
-    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_CANVAS);
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY);
+    assert(source <= UITREE_EMIT_OVERLAY_CANVAS);
     if( at + 1 < out->count )
         memmove(
             &out->cmds[at],

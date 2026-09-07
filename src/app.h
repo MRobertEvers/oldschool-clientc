@@ -1232,7 +1232,9 @@ struct App
     uint32_t* panel_custom_pixels;
     size_t panel_custom_pixel_capacity;
     /** Which draw list the plugin verbs append to this dispatch -- enum
-     * AppPluginSurface, which IS the host's enum PluginDrawSurface. */
+     * AppPluginSurface, whose values are the engine's
+     * TORIRS_PLUGIN_ENGINE_DRAW_* (the host's enum PluginDrawSurface is
+     * defined from the same constants). */
     int plugin_draw_canvas;
     /*
      * Internal engine mirror of the host's committed plugin gameframe.

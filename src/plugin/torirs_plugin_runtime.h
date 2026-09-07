@@ -131,13 +131,6 @@ plugin_v2_runtime_draw_end(
     struct PluginV2DrawScope* scope,
     struct ToriRS_Graphics* builder);
 
-/** Restrict this callback-scoped builder to an already resolved semantic
- * tree clip. The setting dies with the scope. */
-void
-plugin_v2_runtime_draw_clip(
-    struct PluginV2DrawScope* scope,
-    struct ToriRS_Rect clip);
-
 /** Set a callback-local drawing region; subsequent builder coordinates are
  * translated by its origin and clipped to it. */
 void

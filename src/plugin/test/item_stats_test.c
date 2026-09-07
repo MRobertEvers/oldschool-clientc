@@ -409,9 +409,8 @@ static enum ToriRS_AssetState v2_image_compose(
 }
 static void v2_image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; fake_image_release(image.value); }
-/* The canvas this paint callback may draw on, as the plugin now reads it from
- * the graphics context. No placement area is offered at all, so a plugin that
- * still asked the placement API would call a null function here. */
+/* The canvas this paint callback may draw on, as the plugin reads it from the
+ * graphics context's draw_context bounds -- the only area the API offers. */
 static struct ToriRS_Rect g_canvas_bounds = { 0, 0, 765, 503 };
 static bool v2_draw_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* out)
 {

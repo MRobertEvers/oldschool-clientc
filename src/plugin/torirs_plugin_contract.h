@@ -3,7 +3,7 @@
 
 /* Major 3: live widgets and native events. The host checks identities and
  * callback lifetimes; plugins never receive UITree pointers or retained indices.
- * This unshipped API replaces the earlier declaration/claim proposal. */
+ * This API replaced the earlier declaration/claim contract. */
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

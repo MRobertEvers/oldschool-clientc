@@ -3993,7 +3993,8 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     case PLUGIN_WIDGET_SET_IMAGE:
         /* r->id is a validated plugin image slot; the tree draws it at the
-         * scene id the publish used (see app_plugin_image_scene_id). */
+         * scene id the publish used (UITreeSceneBridge_PublishPluginImage:
+         * UITREE_SCENE_PLUGIN_IMAGE_BASE + slot). */
         if( c->plugin_owner==owner && c->type==UIELEM_RS_GRAPHIC )
         {
             if( !UITree_WidgetSetGraphic(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id,r->a,r->b) ) return TORIRS_CONTRACT_FAILED;

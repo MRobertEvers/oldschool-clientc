@@ -56,7 +56,8 @@
  * WHICH safe area a node keeps clear of, and which of its edges.
  *
  * There is more than one box that deserves the name, and they answer to
- * different occluders; V2 exposes the result through the placement module.
+ * different occluders; plugins read the OS one through the draw context's
+ * bounds and the gameframe event's safe rect.
  * The OS one is the canvas minus what the PLATFORM put on top of the whole
  * window (today a soft keyboard, a band off the bottom while it is up); the
  * game-chrome one, when the layout learns to resolve it, is the canvas minus
@@ -2115,7 +2116,8 @@ bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner
  * hit directly OVER it, directly BEHIND it, or in its place (REPLACE, which
  * inherits the target's native visibility). Retained per owner like the
  * geometry edits: the latest writer wins, NATIVE records "no relation", reset
- * drops it. Numeric values match UITreeFrameRelation (pinned in uitree_frame.c). */
+ * drops it. Numeric values match the plugin contract's ToriRS_WidgetRelation
+ * (pinned by the static assert in torirs_plugin_bridge.u.c). */
 enum UITreeWidgetRelation
 {
     UITREE_WIDGET_RELATION_NATIVE = 0,
