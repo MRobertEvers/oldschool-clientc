@@ -8,6 +8,12 @@ Two sessions work in this worktree. A session claims a batch here before editing
 removes the claim in the commit that closes it; the other session leaves those files alone.
 
 - No batch is currently claimed by the second session (the Lua demos and probes are committed).
+- Claimed by the first session (2026-09-06): the frame products batch: `src/plugin/plugins/gameframe.c`,
+  `src/plugin/plugins/mobile_gameframe.c`, `src/plugin/test/gameframe_test.c`,
+  `src/plugin/test/mobile_gameframe_test.c`, their harness/pixel rules, and afterwards the removal of
+  the superseded execution APIs (`ui_contributions`, `on_ui_node_draw/action`, `on_canvas_action`,
+  frame builder, placement, `frame_root`, the `frame.orb.*` dump block) across the host, runtime,
+  Lua runtime, `plugin_api.meta.lua` and their tests.
 
 | Consumer | Current state | Captures |
 |---|---|---|
