@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -834,6 +835,33 @@ static void test_product_behavior(struct ToriRS_PluginHost* host,
     free(source);free(product);free(test);
 }
 
+static void test_widgetprobe_composition(struct ToriRS_PluginHost* host)
+{
+    int perf_size=0,probe_size=0,test_size=0;
+    char* perf=read_file("../script/plugins/performance_display.lua",&perf_size);
+    char* probe=read_file("../script/plugins/_widgetprobe.lua",&probe_size);
+    char* test=read_file("plugin/test/widgetprobe_composition_behavior.lua",&test_size);
+    CHECK(perf && probe && test,"composition sources readable");
+    if( !perf || !probe || !test ) { free(perf);free(probe);free(test);return; }
+    size_t capacity=(size_t)perf_size+(size_t)probe_size+(size_t)test_size+128;
+    char* source=malloc(capacity);assert(source);
+    int size=snprintf(source,capacity,"local performance=(function()\n%.*s\nend)()\nlocal product=(function()\n%.*s\nend)()\n%.*s",
+        perf_size,perf,probe_size,probe,test_size,test);
+    int index=PluginLua_AddScript(host,"widgetprobe-composition",source,size);
+    CHECK(index>=0,"composition behavior registers");
+    if( index>=0 )
+    {
+        struct FakeInstance instance={"widgetprobe-composition",""};
+        struct ToriRS_Api api=fake_api(&instance);
+        int logs=g_logs,disabled=g_disabled_self;
+        g_defs[index]->callbacks.on_start(&api,NULL);
+        if( g_disabled_self!=disabled ) fprintf(stderr,"composition: %s\n",g_disable_reason);
+        CHECK(g_disabled_self==disabled && g_logs==logs+1,"both shipped sources compose without overlap");
+        g_defs[index]->callbacks.on_stop(&api,NULL);
+    }
+    free(source);free(perf);free(probe);free(test);
+}
+
 static void
 test_config_boundary(struct ToriRS_PluginHost* host)
 {
@@ -1093,6 +1121,7 @@ main(void)
         "plugin/test/loot_beam_behavior.lua","loot-beam-behavior");
     test_product_behavior(&host,"../script/plugins/performance_display.lua",
         "plugin/test/performance_display_behavior.lua","performance-behavior");
+    test_widgetprobe_composition(&host);
     test_product_behavior(&host,"../script/plugins/tile_indicator.lua",
         "plugin/test/tile_indicator_behavior.lua","tile-behavior");
     test_product_behavior(&host,"../script/plugins/entity_highlighter.lua",
