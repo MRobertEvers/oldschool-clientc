@@ -86,6 +86,8 @@ struct PlatformWindow
     int resizable_w;
     int resizable_h;
     int interface_scale_mode;
+    char const* capture_present_path;
+    bool capture_present_saved;
 
     /*
      * The auxiliary window: one extra, optional, never a render target.
@@ -3154,6 +3156,11 @@ PlatformWindow_PollCommands(
             break;
         }
         case SDL_WINDOWEVENT:
+            /* A desktop pointer outside the window is absent just like a
+             * lifted touch. Keeping its last coordinates live leaves native
+             * and plugin tooltips hovered until it eventually comes back. */
+            if( event.window.event == SDL_WINDOWEVENT_LEAVE )
+                CmdBus_PushMouseLeave(bus);
             /* Focus loss: the OS stops delivering key-ups, so anything held now
              * would latch forever. Reference InputManager.onFocusOut. */
             if( event.window.event == SDL_WINDOWEVENT_FOCUS_LOST )
@@ -3475,10 +3482,44 @@ PlatformWindow_Present(struct PlatformWindow* platform)
 #else
     (void)chrome_dst;
 #endif
+    if( platform->capture_present_path )
+    {
+        /* Read BEFORE RenderPresent: a renderer may discard its target after
+         * the swap. This is the composed window, not a resized canvas copy. */
+        SDL_Surface* capture = SDL_CreateRGBSurfaceWithFormat(
+            0, window_w + pane_w, window_h, 32, SDL_PIXELFORMAT_ARGB8888);
+        assert(capture);
+        platform->capture_present_saved =
+            SDL_RenderReadPixels(platform->renderer, NULL, capture->format->format,
+                capture->pixels, capture->pitch) == 0 &&
+            SDL_SaveBMP(capture, platform->capture_present_path) == 0;
+        fprintf(stderr,
+            "NATIVE_PRESENT logical=%dx%d drawable=%dx%d game_dst=%d,%d,%d,%d density=%d saved=%d path=%s\n",
+            platform->width, platform->height, window_w + pane_w, window_h,
+            dst.x, dst.y, dst.w, dst.h, PlatformWindow_PixelDensity(platform),
+            platform->capture_present_saved ? 1 : 0, platform->capture_present_path);
+        if( !platform->capture_present_saved )
+            fprintf(stderr, "presentation capture failed: %s\n", SDL_GetError());
+        SDL_FreeSurface(capture);
+    }
     sdl_present_timed(platform);
     /* Software already uploaded and composited the retained chrome texture in
      * this present. GL clears the same latch through ChromeTakeDirty. */
     platform->chrome_dirty = false;
+}
+
+bool
+PlatformWindow_CapturePresent(struct PlatformWindow* platform, char const* path)
+{
+    assert(platform);
+    assert(path);
+    if( platform->use_opengl )
+        return false;
+    platform->capture_present_path = path;
+    platform->capture_present_saved = false;
+    PlatformWindow_Present(platform);
+    platform->capture_present_path = NULL;
+    return platform->capture_present_saved;
 }
 
 void

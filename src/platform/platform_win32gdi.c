@@ -2571,6 +2571,15 @@ PlatformWindow_CanPresent(struct PlatformWindow const* p)
     return p->hwnd != NULL;
 }
 
+bool
+PlatformWindow_CapturePresent(struct PlatformWindow* p, char const* path)
+{
+    assert(p);
+    assert(path);
+    /* GDI/D3D presentation readback is not implemented by this diagnostic. */
+    return false;
+}
+
 void
 PlatformWindow_Present(struct PlatformWindow* p)
 {

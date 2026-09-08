@@ -24,13 +24,21 @@ static struct FakeWidget widgets[64];
 static int next_owned = W_FIRST_OWNED;
 static int native_orbs;        /* the lane has interface 160 */
 static int cutscene_status;    /* varbit cutscene_status */
-static int button_available[3]; /* prayer, run, spec */
+static int button_available[3]; /* prayer, run, spec: the lane declares the role */
+/* The client has hidden the button (rev-239 does exactly this to the special
+ * attack button when the wielded weapon has no special): the node is still
+ * there, so `find` answers, and the live action query is blocked. */
+static int button_hidden[3];
 static int run_mode;
+static int spec_alias;         /* the profile's legacy [iface:orb_spec_button] */
+static enum ToriRS_ContractResult invoke_result = TORIRS_CONTRACT_OK;
 static int invoked_component = -1, invoked_operation = -1, invoked_actions;
 static struct ToriRS_WidgetRef last_action_widget;
-static int composes, sets_image, positions, removes, released, logs;
+static int composes, sets_image, positions, removes, released, logs, revalidates, notifies;
 static uint32_t last_composed[57 * 34];
-static char last_log[256];
+static char last_log[256], spec_value_log[256], last_notify[256];
+static char watched[8][32];
+static int watch_count;
 
 static struct ToriRS_WidgetRef ref_of(int id) { return (struct ToriRS_WidgetRef){{ 77, (uint64_t)id, 1 }}; }
 static int id_of(struct ToriRS_WidgetRef r) { return r.opaque[0] == 77 && r.opaque[2] == 1 ? (int)r.opaque[1] : -1; }
@@ -50,12 +58,15 @@ static enum ToriRS_ContractResult f_find(void* c, char const* role, struct ToriR
 static enum ToriRS_ContractResult f_actions(void* c, struct ToriRS_WidgetRef w, struct ToriRS_WidgetAction* out, size_t cap, size_t* count)
 {
     (void)c; int id = id_of(w);
+    /* The bridge answers NATIVE_BLOCKED for a display-hidden node, before it
+     * has any options to report. */
+    if( id >= W_BTN_PRAYER && id <= W_BTN_SPEC && button_hidden[id - W_BTN_PRAYER] ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
     *count = id >= W_BTN_PRAYER && id <= W_BTN_SPEC ? 1 : 0;
     if( *count && cap ) out[0] = (struct ToriRS_WidgetAction){ .ref = { w, 1, 9 }, .label = "Activate" };
     return *count > cap ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
 }
 static enum ToriRS_ContractResult f_invoke(void* c, struct ToriRS_WidgetActionRef a)
-{ (void)c; invoked_actions++; last_action_widget = a.widget; return TORIRS_CONTRACT_OK; }
+{ (void)c; invoked_actions++; last_action_widget = a.widget; return invoke_result; }
 static enum ToriRS_ContractResult f_position(void* c, struct ToriRS_WidgetRef w, struct ToriRS_WidgetBounds* out)
 {
     (void)c; int id = id_of(w); if( id < 0 || !widgets[id].alive ) return TORIRS_CONTRACT_STALE_REFERENCE;
@@ -77,12 +88,12 @@ static enum ToriRS_ContractResult f_set_position(void* c, struct ToriRS_WidgetRe
 { (void)c; int id = id_of(w); if( id < W_FIRST_OWNED ) return TORIRS_CONTRACT_NATIVE_BLOCKED; widgets[id].x = x; widgets[id].y = y; positions++; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult f_set_on_op(void* c, struct ToriRS_WidgetRef w, char const* label, ToriRS_WidgetListener l, void* user)
 { (void)c; int id = id_of(w); if( id < W_FIRST_OWNED ) return TORIRS_CONTRACT_NATIVE_BLOCKED; snprintf(widgets[id].op_label, sizeof(widgets[id].op_label), "%s", label ? label : ""); widgets[id].op = l; widgets[id].op_user = user; return TORIRS_CONTRACT_OK; }
-static enum ToriRS_ContractResult f_revalidate(void* c, struct ToriRS_WidgetRef w) { (void)c; (void)w; return TORIRS_CONTRACT_OK; }
+static enum ToriRS_ContractResult f_revalidate(void* c, struct ToriRS_WidgetRef w) { (void)c; (void)w; revalidates++; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult f_bounds(void* c, struct ToriRS_WidgetRef w, struct ToriRS_WidgetBounds* out)
 { (void)c; int id = id_of(w); int px = widgets[widgets[id].parent].x, py = widgets[widgets[id].parent].y; *out = (struct ToriRS_WidgetBounds){ px + widgets[id].x, py + widgets[id].y, widgets[id].w, widgets[id].h }; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult f_remove(void* c, struct ToriRS_WidgetRef w) { (void)c; int id = id_of(w); if( id < W_FIRST_OWNED ) return TORIRS_CONTRACT_NATIVE_BLOCKED; widgets[id].alive = 0; removes++; return TORIRS_CONTRACT_OK; }
 static enum ToriRS_ContractResult f_watch(void* c, char const* role, ToriRS_WidgetListener l, void* user)
-{ (void)c; (void)role; (void)l; (void)user; return TORIRS_CONTRACT_OK; }
+{ (void)c; (void)l; (void)user; if( watch_count < 8 ) snprintf(watched[watch_count++], 32, "%s", role); return TORIRS_CONTRACT_OK; }
 
 /* --- fake assets: every image is a 4x4 (frame 57x34) opaque block --------- */
 static int next_image = 1;
@@ -111,21 +122,30 @@ static void a_asset_release(struct ToriRS_Api* api, char const* name) { (void)ap
 
 /* --- fake config / cache / game ------------------------------------------ */
 static int replace_native = 1;
-static bool cfg_bool(struct ToriRS_Api* api, char const* key, bool* out) { (void)api; *out = strcmp(key, "replace_native") == 0 ? replace_native != 0 : strncmp(key, "show_", 5) == 0; return true; }
+static int show_prayer = 1;
+static bool cfg_bool(struct ToriRS_Api* api, char const* key, bool* out)
+{ (void)api; *out = strcmp(key, "replace_native") == 0 ? replace_native != 0
+    : strcmp(key, "show_prayer") == 0 ? show_prayer != 0 : strncmp(key, "show_", 5) == 0; return true; }
 static bool cfg_int(struct ToriRS_Api* api, char const* key, int* out)
-{ (void)api; if( !strcmp(key, "offset_x") ) *out = 6; else if( !strcmp(key, "offset_y") ) *out = -3; else if( !strcmp(key, "run_varp") || !strcmp(key, "spec_varp") ) *out = -1; else if( !strcmp(key, "spec_max") ) *out = 1000; else *out = 0; return true; }
+{ (void)api; if( !strcmp(key, "offset_x") ) *out = 6; else if( !strcmp(key, "offset_y") ) *out = -3; else if( !strcmp(key, "run_varp") || !strcmp(key, "spec_varp") || !strcmp(key, "spec_armed_varp") ) *out = -1; else if( !strcmp(key, "spec_max") ) *out = 1000; else *out = 0; return true; }
 static bool cfg_string(struct ToriRS_Api* api, char const* key, char const** out) { (void)api; (void)key; *out = ""; return true; }
 static bool named_id(struct ToriRS_Api* api, char const* kind, char const* name, int* out)
-{ (void)api; if( !strcmp(kind, "varp") ) { *out = !strcmp(name, "run_mode") ? 173 : 300; return true; }
+{ (void)api; if( !strcmp(kind, "varp") ) { if( !strcmp(name, "run_mode") ) { *out = 173; return true; }
+      if( !strcmp(name, "special_attack_energy") ) { *out = 300; return true; } return false; }
   if( !strcmp(kind, "varbit") && !strcmp(name, "cutscene_status") ) { *out = 4606; return true; }
-  if( !strcmp(kind, "iface") && !native_orbs && !strcmp(name, "orb_run_on") ) { *out = 153; return true; } return false; }
+  if( !strcmp(kind, "iface") && !native_orbs && !strcmp(name, "orb_run_on") ) { *out = 153; return true; }
+  /* Both shipped profiles carry this legacy alias for the special orb; on the
+   * interface-160 lane it names a button the client may have hidden. */
+  if( !strcmp(kind, "iface") && spec_alias && !strcmp(name, "orb_spec_button") ) { *out = native_orbs ? (160 << 16) | 36 : 400; return true; } return false; }
 static int cache_varbit(struct ToriRS_Api* api, int id) { (void)api; return id == 4606 ? cutscene_status : 0; }
 static int cache_varp(struct ToriRS_Api* api, int id) { (void)api; return id == 300 ? 500 : id == 173 ? run_mode : 0; }
 static bool cache_invoke(struct ToriRS_Api* api, int component, int operation) { (void)api; invoked_component = component; invoked_operation = operation; return true; }
 static bool skill(struct ToriRS_Api* api, int index, struct ToriRS_SkillSnapshot* out) { (void)api; if( index != 3 && index != 5 ) return false; out->current_level = index == 3 ? 42 : 30; out->base_level = index == 3 ? 50 : 40; return true; }
 static int run_energy(struct ToriRS_Api* api) { (void)api; return 75; }
-static void notify(struct ToriRS_Api* api, char const* text) { (void)api; (void)text; }
-static void log_line(struct ToriRS_Api* api, char const* format, ...) { (void)api; va_list ap; va_start(ap, format); vsnprintf(last_log, sizeof(last_log), format, ap); va_end(ap); logs++; }
+static void notify(struct ToriRS_Api* api, char const* text) { (void)api; notifies++; snprintf(last_notify, sizeof(last_notify), "%s", text ? text : ""); }
+static void log_line(struct ToriRS_Api* api, char const* format, ...)
+{ (void)api; va_list ap; va_start(ap, format); vsnprintf(last_log, sizeof(last_log), format, ap); va_end(ap); logs++;
+  if( strstr(last_log, "MINIMAP_ORBS_VALUE orb=orb_special") ) snprintf(spec_value_log, sizeof(spec_value_log), "%s", last_log); }
 
 static int orb_covers_map(struct FakeWidget const* map, struct FakeWidget const* orb)
 {
@@ -139,6 +159,17 @@ static int owned_under(int parent, char const* key)
 static int alive_owned(void) { int n = 0; for( int i = W_FIRST_OWNED; i < next_owned; i++ ) n += widgets[i].alive; return n; }
 static void bind(struct ToriRS_PluginDef const* def, struct ToriRS_Api* api, void* state, char const* role, int id, int bound)
 { (void)def; struct ToriRS_WidgetEvent ev = { .type = bound ? TORIRS_WIDGET_BOUND : TORIRS_WIDGET_UNBOUND, .widget = ref_of(id), .role = role }; minimap_orbs_test_binding(api, state, &ev); }
+/* The widget a role names, so a test can replay a publication in the order the
+ * host would deliver it: watch-registration order. */
+static int widget_for_role(char const* role)
+{
+    if( !strcmp(role, "minimap") ) return W_MINIMAP;
+    if( !strcmp(role, "orb_hitpoints") ) return W_ORB_HP;
+    if( !strcmp(role, "orb_prayer") ) return W_ORB_PRAYER;
+    if( !strcmp(role, "orb_run") ) return W_ORB_RUN;
+    if( !strcmp(role, "orb_spec") ) return W_ORB_SPEC;
+    return -1;
+}
 
 int main(void)
 {
@@ -161,15 +192,20 @@ int main(void)
 
     CHECK(TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start && TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed);
     state = calloc(1, TORIRS_PLUGIN_MINIMAP_ORBS.state_size); CHECK(state);
+    spec_alias = 1;
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_start(&api, state);
     CHECK(alive_owned() == 0);
+    /* The minimap is watched LAST: every native orb role has had its say
+     * before the plugin decides the column goes beside the map. */
+    CHECK(watch_count == 5 && strcmp(watched[watch_count - 1], "minimap") == 0);
 
     /* Lane without native orbs: bind the minimap only. */
     bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "minimap", W_MINIMAP, 1);
     CHECK(alive_owned() == 4);
     {
-        int hp = owned_under(W_MAP_PARENT, "orb_hitpoints"), run = owned_under(W_MAP_PARENT, "orb_run"), spec = owned_under(W_MAP_PARENT, "orb_special");
-        CHECK(hp >= 0 && run >= 0 && spec >= 0);
+        int hp = owned_under(W_MAP_PARENT, "orb_hitpoints"), prayer = owned_under(W_MAP_PARENT, "orb_prayer");
+        int run = owned_under(W_MAP_PARENT, "orb_run"), spec = owned_under(W_MAP_PARENT, "orb_special");
+        CHECK(hp >= 0 && prayer >= 0 && run >= 0 && spec >= 0);
         CHECK(widgets[hp].w == 57 && widgets[hp].h == 34 && widgets[hp].image == 100);
         CHECK(widgets[hp].x <= widgets[W_MINIMAP].x + 6 - 57);
         for( int i = W_FIRST_OWNED; i < next_owned; i++ ) CHECK(!orb_covers_map(&widgets[W_MINIMAP], &widgets[i]));
@@ -185,10 +221,36 @@ int main(void)
         /* A quiet frame composes and moves nothing -- including the inactive
          * (walking) run orb and the inactive special orb, whose grey
          * substitution must be part of the hashed inputs. */
-        int c = composes, p = positions;
+        int c = composes, p = positions, v = revalidates;
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
-        CHECK(composes == c && positions == p);
+        CHECK(composes == c && positions == p && revalidates == v);
+        /* The column closes up: switching the prayer orb off slides the two
+         * below it into the vacated slots -- the table is a column, not four
+         * fixed addresses. */
+        int const prayer_y = widgets[prayer].y, run_y = widgets[run].y, hp_y = widgets[hp].y;
+        CHECK(prayer_y != run_y);
+        show_prayer = 0;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed(&api, state, "show_prayer");
+        CHECK(owned_under(W_MAP_PARENT, "orb_prayer") < 0 && alive_owned() == 3);
+        CHECK(widgets[hp].y == hp_y && widgets[run].y == prayer_y);
+        CHECK(!orb_covers_map(&widgets[W_MINIMAP], &widgets[run]));
+        show_prayer = 1;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed(&api, state, "show_prayer");
+        prayer = owned_under(W_MAP_PARENT, "orb_prayer");
+        CHECK(prayer >= 0 && widgets[run].y == run_y && widgets[prayer].y == prayer_y);
+        /* A world that names no special-attack button has no special attack:
+         * the orb is not drawn at all, rather than a meter over whatever that
+         * world keeps in the varp its profile copied. */
+        spec_alias = 0;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed(&api, state, "spec_button");
+        CHECK(owned_under(W_MAP_PARENT, "orb_special") < 0 && alive_owned() == 3);
+        spec_value_log[0] = 0;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(spec_value_log[0] == 0);
+        spec_alias = 1;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed(&api, state, "spec_button");
+        CHECK(owned_under(W_MAP_PARENT, "orb_special") >= 0 && alive_owned() == 4);
         /* The map moves: the column follows without re-creating controls. */
         widgets[W_MINIMAP].x = 500; int alive = next_owned;
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
@@ -210,29 +272,56 @@ int main(void)
     CHECK(released >= 15);
 
     /* Lane with interface 160: controls cover the native roots and press the native button. */
-    native_orbs = 1; button_available[0] = 1; button_available[1] = 1; button_available[2] = 0; released = 0; invoked_actions = 0;
+    native_orbs = 1; button_available[0] = 1; button_available[1] = 1; button_available[2] = 1;
+    button_hidden[2] = 1; /* no special-attack weapon wielded: the client hid the button */
+    released = 0; invoked_actions = 0; watch_count = 0;
     for( int i = W_FIRST_OWNED; i < 64; i++ ) widgets[i].alive = 0;
     for( int id = W_ORB_HP; id <= W_ORB_SPEC; id++ ) widgets[id] = (struct FakeWidget){ .parent = 0, .x = 516 + 10 * (id - W_ORB_HP), .y = 41 + 33 * (id - W_ORB_HP), .w = 57, .h = 34, .alive = 1 };
     for( int id = W_BTN_PRAYER; id <= W_BTN_SPEC; id++ ) widgets[id] = (struct FakeWidget){ .parent = W_ORB_PRAYER + (id - W_BTN_PRAYER), .x = 3, .y = 5, .w = 50, .h = 26, .alive = 1 };
     TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_start(&api, state);
-    bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "minimap", W_MINIMAP, 1);
-    bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "orb_hitpoints", W_ORB_HP, 1);
-    bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "orb_prayer", W_ORB_PRAYER, 1);
-    bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "orb_run", W_ORB_RUN, 1);
-    bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, "orb_spec", W_ORB_SPEC, 1);
+    {
+        /* One publication, delivered the way the host delivers it: every watch
+         * in registration order. Each control is created once, under its own
+         * native root, and no orb is ever placed beside the map on the way. */
+        int const p = positions, v = revalidates;
+        CHECK(watch_count == 5);
+        for( int i = 0; i < watch_count; i++ )
+        {
+            bind(&TORIRS_PLUGIN_MINIMAP_ORBS, &api, state, watched[i], widget_for_role(watched[i]), 1);
+            for( int j = W_FIRST_OWNED; j < next_owned; j++ )
+                CHECK(!(widgets[j].alive && widgets[j].parent == W_MAP_PARENT));
+        }
+        CHECK(alive_owned() == 4 && positions - p == 4 && revalidates - v == 4);
+    }
     {
         int run = owned_under(W_ORB_RUN, "orb_run"), prayer = owned_under(W_ORB_PRAYER, "orb_prayer"), spec = owned_under(W_ORB_SPEC, "orb_special");
         CHECK(run >= 0 && prayer >= 0 && spec >= 0 && owned_under(W_MAP_PARENT, "orb_run") < 0);
         CHECK(widgets[run].x == 0 && widgets[run].y == 0 && widgets[run].w == 57);
         CHECK(strcmp(widgets[prayer].op_label, "Quick-prayers") == 0);
+        /* The client has hidden the special-attack button, and it says so in
+         * the live action query. The profile's static [iface:] alias still
+         * names that component -- it is a press target, not a claim that the
+         * press would land -- so the cover stays unarmed and wears the grey
+         * the client is drawing underneath, instead of a full cyan disc. */
         CHECK(widgets[spec].op_label[0] == 0);
+        CHECK(strstr(spec_value_log, "inactive=1") != NULL);
         struct ToriRS_WidgetEvent press = { .type = TORIRS_WIDGET_OPERATION, .widget = ref_of(run), .operation = 1 };
         widgets[run].op(&api, widgets[run].op_user, &press);
         CHECK(invoked_actions == 1 && id_of(last_action_widget) == W_BTN_RUN && strstr(last_log, "via=native"));
-        /* The special-attack button appears (a special weapon): the orb arms. */
-        button_available[2] = 1;
+        /* A native action that refuses between the arming and the press is not
+         * a silent no-op: nothing else can be pressed here, and the user is
+         * told rather than left clicking a live-looking orb. */
+        int const n = notifies;
+        invoke_result = TORIRS_CONTRACT_NATIVE_BLOCKED;
+        widgets[run].op(&api, widgets[run].op_user, &press);
+        CHECK(notifies == n + 1 && strstr(last_log, "via=none") && strstr(last_notify, "Toggle Run"));
+        invoke_result = TORIRS_CONTRACT_OK;
+        /* The special-attack button appears (a special weapon): the orb arms
+         * and the disc goes live on the same frame path. */
+        button_hidden[2] = 0;
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
         CHECK(strcmp(widgets[spec].op_label, "Use Special Attack") == 0);
+        CHECK(strstr(spec_value_log, "inactive=0") != NULL);
         /* Keeping native orbs removes the plugin's covers. */
         replace_native = 0;
         TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_config_changed(&api, state, "replace_native");

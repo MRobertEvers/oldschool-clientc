@@ -206,7 +206,7 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  * one file that sees both numbers. The range above it starts 0x08000000
  * higher, so there is no ceiling here worth economising against.
  */
-#define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 192
+#define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 384
 
 void
 UITreeSceneBridge_Init(

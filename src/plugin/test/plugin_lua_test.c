@@ -13,6 +13,7 @@
 struct ToriRS_PluginHost { int unused; };
 
 static struct ToriRS_PluginDef const* g_defs[PLUGIN_LUA_TEST_MAX];
+static struct ToriRS_PluginDef g_def_storage[PLUGIN_LUA_TEST_MAX];
 static void (*g_reload[PLUGIN_LUA_TEST_MAX])(struct ToriRS_PluginHost*, int, void*);
 static void* g_reload_user[PLUGIN_LUA_TEST_MAX];
 static int g_registered;
@@ -26,6 +27,8 @@ static int g_action_rows;
 static int g_surfaces;
 static int g_disabled_self;
 static int g_config_dispatches;
+static char g_config_value[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+static int g_stroke_calls;
 static char g_disable_reason[192];
 
 #define CHECK(condition, message)                                                       \
@@ -46,7 +49,10 @@ PluginHost_Register(
     (void)host;
     CHECK(g_registered < PLUGIN_LUA_TEST_MAX, "registration table capacity");
     if( g_registered >= PLUGIN_LUA_TEST_MAX ) return -1;
-    g_defs[g_registered] = def;
+    /* Registration copies callbacks in the real host. Keeping its caller's
+     * pointer here would conceal a reload that failed to refresh that copy. */
+    g_def_storage[g_registered] = *def;
+    g_defs[g_registered] = &g_def_storage[g_registered];
     return g_registered++;
 }
 
@@ -60,6 +66,16 @@ PluginHost_SetReloadHandler(
     (void)host;
     g_reload[index] = handler;
     g_reload_user[index] = user;
+}
+
+void
+PluginHost_SetCallbacks(
+    struct ToriRS_PluginHost* host,
+    int index,
+    struct ToriRS_PluginCallbacks const* callbacks)
+{
+    (void)host;
+    g_def_storage[index].callbacks = *callbacks;
 }
 
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int index, char const* text)
@@ -95,11 +111,13 @@ static enum ToriRS_Result
 fake_config_set(struct ToriRS_Api* api, char const* key, char const* value)
 {
     char const* id = ((struct FakeInstance*)api->instance)->id;
-    if( strchr(value, '\n') || strchr(value, '\r') || strchr(key, '-') )
+    if( strlen(value) >= sizeof(g_config_value) ||
+        strchr(value, '\n') || strchr(value, '\r') || strchr(key, '-') )
         return TORIRS_RESULT_INVALID;
     for( int i = 0; i < g_registered; i++ )
     {
         if( strcmp(g_defs[i]->id, id) != 0 ) continue;
+        memcpy(g_config_value, value, strlen(value) + 1);
         if( g_defs[i]->callbacks.on_config_changed )
             g_defs[i]->callbacks.on_config_changed(api, NULL, key);
         g_config_dispatches++;
@@ -216,6 +234,7 @@ static void
 reset_fake(void)
 {
     memset(g_defs, 0, sizeof(g_defs));
+    memset(g_def_storage, 0, sizeof(g_def_storage));
     memset(g_reload, 0, sizeof(g_reload));
     memset(g_reload_user, 0, sizeof(g_reload_user));
     g_registered = 0;
@@ -756,12 +775,172 @@ static void test_product_behavior(struct ToriRS_PluginHost* host,
     free(source);free(product);free(test);
 }
 
+static void
+test_config_boundary(struct ToriRS_PluginHost* host)
+{
+    static char const SOURCE[] =
+        "return {id='config-boundary',on_key=function(api,event) "
+        "local value, key = nil, 'tags' "
+        "if event.key==0 then value=string.rep('n',191) "
+        "elseif event.key==1 then value=string.rep('n',192) "
+        "elseif event.key==2 then value=string.rep('n',1000) "
+        "elseif event.key==3 then value='123'..string.char(0)..'456' "
+        "elseif event.key==4 then key='tags'..string.char(0)..'other';value='123' "
+        "elseif event.key==5 then value=true "
+        "elseif event.key==6 then value=false "
+        "elseif event.key==7 then value=42 "
+        "else value='' end "
+        "local ok,reason=api.config.set(key,value) "
+        "if event.key>=1 and event.key<=4 then "
+        "assert(not ok and reason=='invalid','lossy config write was accepted') "
+        "else assert(ok) end return 'consume' end}";
+    struct FakeInstance instance = { "config-boundary", NULL };
+    struct ToriRS_Api api = fake_api(&instance);
+    struct ToriRS_KeyEvent event = { 0 };
+    int index = PluginLua_AddScript(host, instance.id, SOURCE, (int)strlen(SOURCE));
+    int writes = g_config_dispatches;
+    int disables = g_disabled_self;
+    char expected[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+
+    CHECK(index >= 0, "config boundary probe registers");
+    if( index < 0 ) return;
+    memset(expected, 'n', sizeof(expected) - 1);
+    expected[sizeof(expected) - 1] = '\0';
+    CHECK(g_defs[index]->callbacks.on_key(&api, NULL, &event) == TORIRS_CALLBACK_CONSUME &&
+            g_config_dispatches == writes + 1 && strcmp(g_config_value, expected) == 0,
+        "maximum-length config value reaches the host without losing a byte");
+    for( event.key = 1; event.key <= 4; event.key++ )
+        CHECK(g_defs[index]->callbacks.on_key(&api, NULL, &event) == TORIRS_CALLBACK_CONSUME &&
+                g_config_dispatches == writes + 1 && strcmp(g_config_value, expected) == 0,
+            "oversized or embedded-NUL config input is refused without a prefix write");
+    for( event.key = 5; event.key <= 8; event.key++ )
+    {
+        static char const* const values[] = { "1", "0", "42", "" };
+        CHECK(g_defs[index]->callbacks.on_key(&api, NULL, &event) == TORIRS_CALLBACK_CONSUME &&
+                strcmp(g_config_value, values[event.key - 5]) == 0,
+            "boolean, numeric, and empty config values retain their supported spelling");
+    }
+    CHECK(g_disabled_self == disables && g_config_dispatches == writes + 5,
+        "refused config data leaves the plugin running and only valid writes dispatch");
+}
+
+static void
+test_callback_subscriptions(struct ToriRS_PluginHost* host)
+{
+    static char const SOURCE[] =
+        "return {id='sparse-callbacks',on_key=function(api) "
+        "api.core.log('key');return 'consume' end}";
+    static char const REPLACEMENT[] =
+        "return {id='sparse-callbacks',on_logic_tick=function(api) "
+        "api.core.log('tick') end}";
+    static char const MISSING_FRAME_HANDLER[] =
+        "return {id='missing-frame-handler',frames={{id='frame',title='Frame',"
+        "canvas='fixed',width=765,height=503}}}";
+    struct FakeInstance instance = { "sparse-callbacks", NULL };
+    struct ToriRS_Api api = fake_api(&instance);
+    struct ToriRS_KeyEvent key = { 0 };
+    struct ToriRS_TickEvent tick = { 0 };
+    int index = PluginLua_AddScript(host, instance.id, SOURCE, (int)strlen(SOURCE));
+    int logs = g_logs;
+    int disables = g_disabled_self;
+
+    CHECK(index >= 0, "sparse callback probe registers");
+    if( index < 0 ) return;
+    struct ToriRS_PluginCallbacks const* callbacks = &g_defs[index]->callbacks;
+    CHECK(callbacks->on_start && callbacks->on_stop,
+        "adapter lifecycle hooks remain available without script lifecycle handlers");
+    CHECK(callbacks->on_key && !callbacks->on_frame_start && !callbacks->on_logic_tick &&
+            !callbacks->on_server_tick && !callbacks->on_npc_spawn && !callbacks->on_item_spawn &&
+            !callbacks->on_draw_world && !callbacks->on_draw_canvas && !callbacks->on_menu_build &&
+            !callbacks->on_menu_select && !callbacks->on_ui_build && !callbacks->on_gameframe,
+        "a key-only Lua plugin does not subscribe the host to unrelated event production");
+    callbacks->on_start(&api, NULL);
+    CHECK(callbacks->on_key(&api, NULL, &key) == TORIRS_CALLBACK_CONSUME && g_logs == logs + 1,
+        "a declared callback still dispatches and preserves its consume result");
+    callbacks->on_stop(&api, NULL);
+    CHECK(PluginLua_TestReplaceSource(index, REPLACEMENT, (int)strlen(REPLACEMENT)),
+        "replacement source changes the actual callback set");
+    g_reload[index](host, index, g_reload_user[index]);
+    CHECK(!callbacks->on_key && callbacks->on_logic_tick && !callbacks->on_draw_world,
+        "reload refreshes copied host subscriptions, adding and removing callbacks");
+    callbacks->on_start(&api, NULL);
+    if( callbacks->on_logic_tick ) callbacks->on_logic_tick(&api, NULL, &tick);
+    CHECK(g_logs == logs + 2 && g_disabled_self == disables,
+        "the newly subscribed callback reaches the rebuilt VM");
+    CHECK(PluginLua_AddScript(host, "missing-frame-handler", MISSING_FRAME_HANDLER,
+            (int)strlen(MISSING_FRAME_HANDLER)) < 0,
+        "frame offers require a real gameframe handler before host registration");
+}
+
+static enum ToriRS_Result
+fake_world_tile_stroke(struct ToriRS_Graphics* draw, int x, int z, int level,
+    uint32_t fill, uint32_t outline, int alpha, int width)
+{
+    (void)draw;
+    CHECK(x == 3200 && z == 3201 && level == 0 && fill == 0x112233 &&
+            outline == 0x445566 && alpha == 40 && width == 0,
+        "Lua stroke tile preserves fill, border colour, alpha, and a zero-width border");
+    g_stroke_calls++;
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+fake_world_hull_stroke(struct ToriRS_Graphics* draw, int element, uint32_t rgb,
+    int alpha, int shape, int width)
+{
+    (void)draw;
+    CHECK(element == 42 && rgb == 0x778899 && alpha == 80 &&
+            shape == TORIRS_HULL_MESH && width == 2,
+        "Lua stroke hull forwards the named shape and literal canvas-pixel width");
+    g_stroke_calls++;
+    return TORIRS_RESULT_BUDGET;
+}
+
+static void
+test_graphics_stroke(struct ToriRS_PluginHost* host)
+{
+    static char const SOURCE[] =
+        "local calls=0;return {id='graphics-stroke',on_draw_world=function(api,draw) "
+        "calls=calls+1;local ok,reason "
+        "if calls==1 then "
+        "assert(draw.world_tile_stroke(3200,3201,0,0x112233,0x445566,40,0)) "
+        "ok,reason=draw.world_hull_stroke(42,0x778899,80,'mesh',2) "
+        "assert(not ok and reason=='budget','stroke capacity refusal must reach Lua') "
+        "ok,reason=draw.world_tile_stroke(1,2,0,1,nil,0,256) "
+        "assert(not ok and reason=='invalid','invalid stroke width is refused') "
+        "else "
+        "ok,reason=draw.world_tile_stroke(1,2,0,1) "
+        "assert(not ok and reason=='unsupported','short graphics prefix has no stroke tail') "
+        "ok,reason=draw.world_hull_stroke(42,1) "
+        "assert(not ok and reason=='unsupported','short graphics prefix has no hull stroke tail') "
+        "end end}";
+    struct FakeInstance instance = { "graphics-stroke", NULL };
+    struct ToriRS_Api api = fake_api(&instance);
+    struct ToriRS_Graphics draw = { 0 };
+    int index = PluginLua_AddScript(host, instance.id, SOURCE, (int)strlen(SOURCE));
+    int disables = g_disabled_self;
+
+    CHECK(index >= 0, "graphics stroke probe registers");
+    if( index < 0 ) return;
+    draw.struct_size = sizeof(draw);
+    draw.world_tile_stroke = fake_world_tile_stroke;
+    draw.world_hull_stroke = fake_world_hull_stroke;
+    g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
+    draw.struct_size = offsetof(struct ToriRS_Graphics, world_tile_stroke);
+    g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
+    CHECK(g_disabled_self == disables && g_stroke_calls == 2,
+        "Lua stroke bindings preserve results and never read an unavailable optional tail");
+}
+
 int
 main(void)
 {
     struct ToriRS_PluginHost host = { 0 };
     reset_fake();
     test_runtime(&host);
+    test_config_boundary(&host);
+    test_callback_subscriptions(&host);
+    test_graphics_stroke(&host);
     test_widget_watch(&host);
     test_widget_actions(&host);
     test_widget_set_on_op(&host);

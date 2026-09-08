@@ -13,6 +13,10 @@
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
 #define CS_FRAME_ROWS_MAX 33
+/* The step the client's own scale rows have always moved in. */
+#define CS_SCALE_STEP 25
+/* 100..400 by 25 -- the widest range RS_CS2Host has ever reported. */
+#define CS_SCALE_ROWS_MAX 13
 
 struct CsFrameRow
 {
@@ -29,17 +33,10 @@ struct ClientSettingsState
     int frame_row_count;
     uint32_t frame_seen_revision;
     char frame_seen_requested[TORIRS_PLUGIN_FRAME_ID_MAX];
+    char scale_value[CS_SCALE_ROWS_MAX][8];
+    char scale_label[CS_SCALE_ROWS_MAX][8];
+    int scale_row_count;
     bool page_built;
-};
-
-static char const* const CS_SCALE_VALUE[] = {
-    "100", "125", "150", "175", "200", "225", "250",
-    "275", "300", "325", "350", "375", "400",
-};
-
-static char const* const CS_SCALE_LABEL[] = {
-    "100%", "125%", "150%", "175%", "200%", "225%", "250%",
-    "275%", "300%", "325%", "350%", "375%", "400%",
 };
 
 static char const* const CS_FILTER_VALUE[] = { "0", "1", "2" };
@@ -55,6 +52,38 @@ cs_nearest_row(int value, int base, int step, int count)
     if( row < 0 ) row = 0;
     if( row >= count ) row = count - 1;
     return row;
+}
+
+/*
+ * The scales the CLIENT says it will take, not a list written here.
+ *
+ * display_get answers with the range the store accepts, and the page offers
+ * exactly that: a hard-coded 100..400 offers rows a client may have no way to
+ * honour, and a scale that is clamped away downstream is a row that reads back
+ * as chosen while nothing on screen has moved. The range is the only thing
+ * that can narrow it, so the range is what the rows are built from.
+ */
+static int
+cs_scale_rows(
+    struct ClientSettingsState* state,
+    int min,
+    int max)
+{
+    int count = 0;
+
+    assert(state);
+    assert(min > 0);
+    for( int percent = min;
+         percent <= max && count < CS_SCALE_ROWS_MAX;
+         percent += CS_SCALE_STEP, count++ )
+    {
+        snprintf(state->scale_value[count], sizeof(state->scale_value[count]),
+            "%d", percent);
+        snprintf(state->scale_label[count], sizeof(state->scale_label[count]),
+            "%d%%", percent);
+    }
+    state->scale_row_count = count;
+    return count;
 }
 
 static char const*
@@ -119,26 +148,36 @@ cs_frame_choices(
             selected_present = true;
         info.struct_size = sizeof(info);
     }
-    /* The lane's own gameframe is filtered out of the offers above because
-     * Auto already means it -- but a saved choice of exactly "core/native"
-     * (rs289lc saves it) is a real, available frame, not a missing provider.
-     * Found reading "Unavailable: core/native" in the rs289lc panel capture. */
-    if( !selected_present && strcmp(selection->requested_id, "core/native") == 0 )
-    {
-        cs_frame_row(state, "core/native", "Native gameframe", true,
-            "This lane's own gameframe");
-        selected_present = true;
-    }
+    /*
+     * A saved id no offer answers still gets its row -- it is the row the
+     * dropdown has to select -- and what that row SAYS is decided by one
+     * question: is the client running it?
+     *
+     * The lane's own gameframe is filtered out of the offers above because
+     * Auto already means it, so a saved "core/native" arrives here as an id
+     * with no provider. It is not a missing provider: the resolver commits it
+     * as the active frame, and labelling the frame on screen "Unavailable"
+     * was the first half of a row that then explained it could not be used.
+     * The same holds for any provider that was committed and has since gone:
+     * while it is the active id it is the frame in force.
+     */
     if( !selected_present && selection->requested_id[0] )
     {
+        bool const in_force =
+            strcmp(selection->requested_id, selection->active_id) == 0;
         char label[TORIRS_UI_LABEL_MAX];
-        snprintf(label, sizeof(label), "Unavailable: %s", selection->requested_id);
+        if( in_force )
+            snprintf(label, sizeof(label), "%s",
+                cs_frame_title(state, selection->requested_id));
+        else
+            snprintf(label, sizeof(label), "Unavailable: %s", selection->requested_id);
         cs_frame_row(
             state,
             selection->requested_id,
             label,
             true,
-            "Provider is not currently available");
+            in_force ? "The gameframe this client is running"
+                     : "Provider is not currently available");
     }
 }
 
@@ -151,16 +190,21 @@ cs_frame_detail(
 {
     char const* requested = cs_frame_title(state, selection->requested_id);
     char const* active = cs_frame_title(state, selection->active_id);
-    if( selection->status == TORIRS_FRAME_STATUS_NATIVE &&
-        strcmp(selection->requested_id, "auto") == 0 )
+    if( strcmp(selection->requested_id, "auto") == 0 )
         snprintf(out, out_size, "Active: %s. Auto follows this lane.", active);
-    /* NATIVE as well as ACTIVE: a lane whose saved choice IS its native
-     * gameframe (rs289lc's "core/native") reports NATIVE with the requested and
-     * active ids equal, and read "Switching to ... Active for now: ..." for a
-     * frame that was already up. Found by the rs289lc panel capture. */
-    else if( (selection->status == TORIRS_FRAME_STATUS_ACTIVE ||
-              selection->status == TORIRS_FRAME_STATUS_NATIVE) &&
-             strcmp(selection->requested_id, selection->active_id) == 0 )
+    /*
+     * The frame asked for IS the frame in force, whatever the status says.
+     *
+     * The status ladder describes a DIFFERENCE between the two, so it has
+     * nothing to report when there is none. A saved id with no provider --
+     * "core/native", or a provider that has since been removed while still
+     * committed -- resolves to FALLBACK with the requested and active ids
+     * equal, and reading that rung out produced a sentence that contradicted
+     * itself: "Could not use Native gameframe. Active fallback: Native
+     * gameframe. The requested gameframe is not installed in this build."
+     * The client was running the gameframe the sentence said it could not use.
+     */
+    else if( strcmp(selection->requested_id, selection->active_id) == 0 )
         snprintf(out, out_size, "Active: %s.", active);
     else if( selection->status == TORIRS_FRAME_STATUS_LOADING )
         snprintf(out, out_size, "Loading %s. Active for now: %s.%s%s",
@@ -182,9 +226,20 @@ cs_remember(
         "%s", selection->requested_id);
 }
 
-/* The frame catalogue and status are retained properties of two existing
- * rows. Updating them must not rebuild the whole page: the host journals these
- * two row mutations and the browser executor consumes only those entries. */
+/*
+ * The frame catalogue and status are retained properties of two existing rows,
+ * patched in place: the host journals the two row mutations and the browser
+ * executor consumes only those entries, so nothing else on the page moves.
+ *
+ * With ONE exception, and it is not a fallback that never fires. set_options
+ * refuses a list whose LENGTH changed (@see plugin_v2_panel_set_options), and
+ * the row set does change length -- the saved-id row at the end of the
+ * catalogue appears and disappears as the saved id becomes reachable or not.
+ * That publish returns INVALID and the page is rebuilt instead, which costs
+ * the reader the scroll position and any open dropdown. Rebuilding is the
+ * correct answer to a list the model cannot hold; pretending it does not
+ * happen is what left it untested.
+ */
 static void
 cs_publish_frame(
     struct ToriRS_Api* api,
@@ -248,7 +303,7 @@ cs_on_ui_build(
     struct ClientSettingsState* state = state_ptr;
     struct ToriRS_FrameSelection frame = { .struct_size = sizeof(frame) };
     struct ToriRS_SelectOption frame_options[CS_FRAME_ROWS_MAX];
-    struct ToriRS_SelectOption scale_options[13];
+    struct ToriRS_SelectOption scale_options[CS_SCALE_ROWS_MAX];
     struct ToriRS_SelectOption filter_options[3];
     char detail[192];
     int value = 0, min = 0, max = 0;
@@ -272,11 +327,21 @@ cs_on_ui_build(
     if( api->client->display_get(
             api, TORIRS_DISPLAY_UI_SCALE, &value, &min, &max) )
     {
-        int const row = cs_nearest_row(value, min, 25, 13);
-        (void)max;
-        cs_static_options(scale_options, CS_SCALE_VALUE, CS_SCALE_LABEL, 13);
-        panel->select(panel, CS_ID_SCALE, "Interface scaling",
-            CS_SCALE_VALUE[row], scale_options, 13);
+        int const count = cs_scale_rows(state, min, max);
+        if( count > 0 )
+        {
+            char const* values[CS_SCALE_ROWS_MAX];
+            char const* labels[CS_SCALE_ROWS_MAX];
+            int const row = cs_nearest_row(value, min, CS_SCALE_STEP, count);
+            for( int i = 0; i < count; i++ )
+            {
+                values[i] = state->scale_value[i];
+                labels[i] = state->scale_label[i];
+            }
+            cs_static_options(scale_options, values, labels, count);
+            panel->select(panel, CS_ID_SCALE, "Interface scaling",
+                state->scale_value[row], scale_options, count);
+        }
     }
     if( api->client->display_get(
             api, TORIRS_DISPLAY_UI_SCALE_FILTER, &value, &min, &max) )
@@ -287,8 +352,10 @@ cs_on_ui_build(
         panel->select(panel, CS_ID_FILTER, "Scaling filter",
             CS_FILTER_VALUE[row], filter_options, 3);
     }
-    panel->label(panel, "note",
-        "Scaling draws the whole canvas larger, the 3D scene included.");
+    /* Short because the row is a single unwrapped line 296 pixels wide in the
+     * in-canvas presentation: the sentence this replaced lost "included." off
+     * its end. */
+    panel->label(panel, "note", "Scales everything, the 3D scene included.");
 }
 
 static bool
@@ -330,10 +397,17 @@ cs_on_ui_action(
     }
     if( strcmp(event->id, CS_ID_SCALE) == 0 )
     {
+        /* Refused here rather than clamped by the store: the rows are built
+         * from this same range, so a percent outside it did not come off the
+         * page, and writing it would leave the row reading back a scale the
+         * client never took. */
+        int max = 0;
+        int const percent = atoi(event->text);
         if( api->client->display_get(
-                api, TORIRS_DISPLAY_UI_SCALE, NULL, &min, NULL) )
+                api, TORIRS_DISPLAY_UI_SCALE, NULL, &min, &max) &&
+            percent >= min && percent <= max )
             (void)api->client->display_set(
-                api, TORIRS_DISPLAY_UI_SCALE, atoi(event->text));
+                api, TORIRS_DISPLAY_UI_SCALE, percent);
         return;
     }
     if( strcmp(event->id, CS_ID_FILTER) == 0 &&

@@ -2492,6 +2492,407 @@ static struct ToriRS_FrameOffer const GF_BUILDERLESS[]={
     {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
 static struct ToriRS_PluginDef const GF_NO_HANDLER={.struct_size=sizeof(GF_NO_HANDLER),.id="gf-none",.title="None",.version="3.0.0",
     .frames=GF_BUILDERLESS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks)}};
+
+/* ------------------------------------------------------------------------ */
+/* Repair-pass regressions                                                   */
+/*                                                                           */
+/* Four host behaviours that each failed SILENTLY -- settings deleted by a   */
+/* save, a mistyped colour drawn as black, art that stopped loading, a well  */
+/* that drew off its own end -- so nothing above would have gone red for any */
+/* of them.                                                                  */
+/* ------------------------------------------------------------------------ */
+
+static struct ToriRS_Api* g_pin_api;
+static int g_pin_asset_refusals;
+static int g_pin_asset_requests;
+static uint32_t g_pin_colour;
+static int g_pin_rows;
+static int g_pin_beam;
+static enum ToriRS_Result g_pin_height_exact;
+static enum ToriRS_Result g_pin_height_over;
+
+static struct ToriRS_ConfigItem const PIN_CONFIG_ITEMS[] = {
+    { .key = "hull_colour", .label = "Hull", .type = TORIRS_CONFIG_COLOR,
+      .default_value = "0x00ff00" },
+    { .key = "rows", .label = "Rows", .type = TORIRS_CONFIG_INT, .default_value = "12" },
+    { .key = "beam", .label = "Beam", .type = TORIRS_CONFIG_BOOL, .default_value = "true" },
+    { .key = "shape", .label = "Shape", .type = TORIRS_CONFIG_ENUM,
+      .default_value = "hull", .choices = "hull|tile" },
+    { 0 },
+};
+static struct ToriRS_ConfigSchema const PIN_CONFIG = {
+    .struct_size = sizeof(PIN_CONFIG),
+    .items = PIN_CONFIG_ITEMS,
+};
+
+static void
+pin_start(
+    struct ToriRS_Api* api,
+    void* state)
+{
+    struct ToriRS_PanelDescriptor panel = { .preferred_width = 320 };
+
+    (void)state;
+    g_pin_api = api;
+    CHECK(
+        api->panel.request(api, &panel) == TORIRS_RESULT_OK,
+        "the pin probe registers a page");
+}
+
+static void
+pin_read_config(struct ToriRS_Api* api)
+{
+    uint32_t colour = 0xdeadbeef;
+    int rows = -1;
+    bool beam = false;
+
+    if( api->config.get_color(api, "hull_colour", &colour) )
+        g_pin_colour = colour;
+    if( api->config.get_int(api, "rows", &rows) )
+        g_pin_rows = rows;
+    if( api->config.get_bool(api, "beam", &beam) )
+        g_pin_beam = beam ? 1 : 0;
+}
+
+static void
+pin_logic(
+    struct ToriRS_Api* api,
+    void* state,
+    struct ToriRS_TickEvent const* event)
+{
+    (void)state;
+    (void)event;
+    pin_read_config(api);
+}
+
+static void
+pin_ui_build(
+    struct ToriRS_Api* api,
+    void* state,
+    struct ToriRS_PanelBuilder* panel,
+    int view)
+{
+    (void)state;
+    if( view != TORIRS_PANEL_VIEW_PAGE )
+        return;
+    panel->custom(panel, "well", TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT);
+    g_pin_height_exact = api->panel.set_height(api, "well", 200);
+    g_pin_height_over =
+        api->panel.set_height(api, "well", TORIRS_PANEL_CUSTOM_HEIGHT_MAX + 400);
+}
+
+static struct ToriRS_PluginDef const PIN_PROBE = {
+    .struct_size = sizeof(PIN_PROBE),
+    .id = "pin-probe",
+    .title = "Pin Probe",
+    .version = "3.0.0",
+    .config = &PIN_CONFIG,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = pin_start,
+        .on_logic_tick = pin_logic,
+        .on_ui_build = pin_ui_build,
+    },
+};
+
+/* A second definition under a name the FIRST host does not carry, so the
+ * carried-through section can be handed to a real plugin later. */
+static struct ToriRS_PluginDef const PIN_LATE = {
+    .struct_size = sizeof(PIN_LATE),
+    .id = "absent-lua",
+    .title = "Absent Lua",
+    .version = "3.0.0",
+    .config = &PIN_CONFIG,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+
+/* Asks for more files than the pre-repair ceiling of 128 held, from on_start,
+ * the way a frame provider asks for its whole atlas. */
+static void
+pin_hungry_start(
+    struct ToriRS_Api* api,
+    void* state)
+{
+    char name[32];
+    int i;
+
+    (void)state;
+    for( i = 0; i < 200; i++ )
+    {
+        snprintf(name, sizeof(name), "pin_%03d.png", i);
+        g_pin_asset_requests++;
+        if( api->assets.request(api, name) == TORIRS_ASSET_BUDGET )
+            g_pin_asset_refusals++;
+    }
+}
+
+static struct ToriRS_PluginDef const PIN_HUNGRY = {
+    .struct_size = sizeof(PIN_HUNGRY),
+    .id = "pin-hungry",
+    .title = "Pin Hungry",
+    .version = "3.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = pin_hungry_start,
+    },
+};
+
+static void
+pin_image_roster_start(struct ToriRS_Api* api, void* state)
+{
+    uint32_t pixel = 0xff102030u;
+    char name[32];
+    (void)state;
+    for( int i = 0; i < 110; i++ )
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        snprintf(name, sizeof(name), "composed-%d", i);
+        CHECK(api->assets.image_compose(api, name, 1, 1, &pixel, &image) == TORIRS_ASSET_READY,
+            "concurrent providers and remaining roster can hold their images");
+        CHECK(image.value > 0, "an image in a high shared slot gets a valid owner token");
+    }
+}
+
+static void
+test_repair_pins(void)
+{
+    /* ---- (a) a save must not delete a plugin this run does not have ---- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        static char const SAVED[] =
+            "; torirs plugin settings\n"
+            "[plugin:pin-probe]\nrows=3\n"
+            "[plugin:absent-lua]\nhull_colour=0x112233\nrows=9\n"
+            "[plugin:absent-c]\nenabled=0\n";
+        void* encoded = NULL;
+        int encoded_size = 0;
+        int index;
+
+        index = PluginHost_Register(host, &PIN_PROBE);
+        CHECK(index == 0, "the pin probe registers");
+        PluginHost_ConfigDecode(host, SAVED, (int)(sizeof(SAVED) - 1));
+        CHECK(
+            strcmp(PluginHost_ConfigGet(host, index, "rows"), "3") == 0,
+            "a saved value for a registered plugin still lands on it");
+
+        /* The save that used to do the damage: one change to one plugin. */
+        CHECK(
+            PluginHost_ConfigSet(host, index, "rows", "5"),
+            "changing a setting on the loaded plugin succeeds");
+        CHECK(
+            PluginHost_ConfigEncode(host, &encoded, &encoded_size) && encoded,
+            "the store encodes after the change");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:pin-probe]") &&
+                strstr((char const*)encoded, "rows=5"),
+            "the changed plugin's own section is written");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:absent-lua]") &&
+                strstr((char const*)encoded, "hull_colour=0x112233") &&
+                strstr((char const*)encoded, "rows=9"),
+            "a section whose plugin never registered survives the rewrite whole");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:absent-c]") &&
+                strstr((char const*)encoded, "enabled=0"),
+            "an absent plugin's enabled=0 survives the rewrite too");
+
+        /* Round trip: re-reading what was written must not multiply or lose
+         * the carried sections. */
+        {
+            struct ToriRS_PluginHost* second = PluginHost_New(&engine);
+            void* again = NULL;
+            int again_size = 0;
+            char const* at;
+            int sections = 0;
+
+            PluginHost_ConfigDecode(second, encoded, encoded_size);
+            CHECK(
+                PluginHost_ConfigEncode(second, &again, &again_size) && again,
+                "the carried sections encode again from a host that knows none of them");
+            for( at = strstr((char const*)again, "[plugin:absent-lua]"); at;
+                 at = strstr(at + 1, "[plugin:absent-lua]") )
+                sections++;
+            CHECK(sections == 1, "a carried section is written exactly once per round trip");
+            CHECK(
+                strstr((char const*)again, "[plugin:pin-probe]") &&
+                    strstr((char const*)again, "rows=5"),
+                "a section for a plugin the second host does not have is carried as well");
+            free(again);
+            PluginHost_Free(second);
+        }
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* A large unavailable roster must not turn preservation into another
+     * fixed-capacity truncation. Update and replay also remain idempotent. */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        char name[32];
+        void* encoded = NULL;
+        int size = 0;
+        for( int i = 0; i < 256; i++ )
+        {
+            snprintf(name, sizeof(name), "unavailable-%d", i);
+            PluginHost_ConfigApply(host, name, "setting", "saved");
+        }
+        PluginHost_ConfigApply(host, "unavailable-255", "setting", "updated");
+        CHECK(PluginHost_ConfigEncode(host, &encoded, &size), "a large unavailable roster encodes");
+        for( int i = 0; i < 256; i++ )
+        {
+            snprintf(name, sizeof(name), "[plugin:unavailable-%d]", i);
+            CHECK(strstr(encoded, name) != NULL, "every unavailable plugin survives beyond 128 rows");
+        }
+        CHECK(strstr(encoded, "setting=updated") != NULL, "a carried setting is updated in place");
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* ---- (a2) the plugin that turns up late gets its saved values ------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        static char const SAVED[] = "[plugin:absent-lua]\nrows=9\n";
+        void* encoded = NULL;
+        int encoded_size = 0;
+        char const* at;
+        int sections = 0;
+        int late;
+
+        PluginHost_ConfigDecode(host, SAVED, (int)(sizeof(SAVED) - 1));
+        late = PluginHost_Register(host, &PIN_LATE);
+        CHECK(late >= 0, "a script that finishes loading after the settings file registers");
+        CHECK(
+            strcmp(PluginHost_ConfigGet(host, late, "rows"), "9") == 0,
+            "a late registration adopts the values that were being held for its name");
+        CHECK(
+            PluginHost_ConfigEncode(host, &encoded, &encoded_size) && encoded,
+            "the adopted store encodes");
+        for( at = strstr((char const*)encoded, "[plugin:absent-lua]"); at;
+             at = strstr(at + 1, "[plugin:absent-lua]") )
+            sections++;
+        CHECK(sections == 1, "an adopted plugin is written once, not once from each store");
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* ---- (b) an unreadable number falls back to the DECLARED default --- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &PIN_PROBE);
+
+        CHECK(index >= 0, "the pin probe registers for the config read");
+        PluginHost_Start(host);
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_colour == 0x00ff00u, "a declared colour default reads back");
+        CHECK(!PluginHost_ConfigSet(host, index, "shape", "hul"),
+            "an enum write outside the declared choices is refused");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "shape"), "hull") == 0,
+            "a refused enum write preserves the previous setting");
+        CHECK(PluginHost_ConfigSet(host, index, "shape", "tile"),
+            "a declared enum choice remains writable");
+
+        CHECK(
+            PluginHost_ConfigSet(host, index, "hull_colour", "cyan"),
+            "a word can be typed into a colour field");
+        g_pin_colour = 0xdeadbeefu;
+        PluginHost_LogicTick(host, 1);
+        CHECK(
+            g_pin_colour == 0x00ff00u,
+            "a colour that will not parse reads as the plugin's declared default, not black");
+
+        CHECK(
+            PluginHost_ConfigSet(host, index, "rows", "12 rows"),
+            "a trailing word can be typed into a number field");
+        g_pin_rows = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_rows == 12, "an unparseable int reads as the declared default");
+
+        /* The bool spellings must survive the fallback: `false` is not a
+         * number, and falling back on it would turn a default-on setting
+         * back on every time somebody switched it off by hand. */
+        CHECK(
+            PluginHost_ConfigSet(host, index, "beam", "false"),
+            "a bool can be spelled out");
+        g_pin_beam = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_beam == 0, "'false' switches a default-on bool off");
+        CHECK(
+            PluginHost_ConfigSet(host, index, "beam", "nonsense"),
+            "a bool field accepts a typo");
+        g_pin_beam = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_beam == 1, "an unparseable bool reads as the declared default");
+        PluginHost_Free(host);
+    }
+
+    /* ---- (c) the shared asset table seats the shipped roster ----------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+
+        g_pin_asset_requests = 0;
+        g_pin_asset_refusals = 0;
+        CHECK(PluginHost_Register(host, &PIN_HUNGRY) >= 0, "the hungry probe registers");
+        PluginHost_Start(host);
+        CHECK(g_pin_asset_requests == 200, "the probe asked for every file it ships");
+        CHECK(
+            g_pin_asset_refusals == 0,
+            "a frame provider's whole atlas fits the shared asset table");
+        PluginHost_Free(host);
+    }
+
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef defs[3];
+        char const* names[] = { "frame-old", "frame-loading", "other-plugins" };
+        int const releases = g_engine.image_releases;
+        for( int i = 0; i < 3; i++ )
+        {
+            defs[i] = PIN_HUNGRY;
+            defs[i].id = names[i];
+            defs[i].callbacks.on_start = pin_image_roster_start;
+            CHECK(PluginHost_Register(host, &defs[i]) >= 0, "a concurrent image owner registers");
+        }
+        PluginHost_Start(host);
+        CHECK(g_composed.slot >= 192, "image composition reaches beyond the previous shared ceiling");
+        PluginHost_Free(host);
+        CHECK(g_engine.image_releases - releases == 330, "teardown releases all three owners' images");
+    }
+
+    /* ---- (d) a clamped well height is reported, not answered OK -------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &PIN_PROBE);
+        uint32_t generation;
+        struct ToriRS_PanelWidget const* widget;
+
+        CHECK(index >= 0, "the pin probe registers for the panel");
+        PluginHost_Start(host);
+        CHECK(PluginHost_PanelSelect(host, index), "the pin probe's page can be selected");
+        generation = PluginHost_PanelSelectionGeneration(host);
+        CHECK(
+            PluginHost_PanelWidgetCount(host, generation) == 1,
+            "the page carries its one custom well");
+        CHECK(
+            g_pin_height_exact == TORIRS_RESULT_OK,
+            "a height inside the bound is answered OK");
+        CHECK(
+            g_pin_height_over != TORIRS_RESULT_OK,
+            "a height past the bound is NOT answered OK -- the plugin can page or shrink");
+        widget = PluginHost_PanelWidgetAt(host, generation, 0);
+        CHECK(
+            widget && widget->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+            "the clamped height is still recorded, so the well is bounded rather than stale");
+        PluginHost_Free(host);
+    }
+}
+
 static void test_gameframe_provider(void)
 {
     struct ToriRS_PluginEngine engine;
@@ -3377,6 +3778,7 @@ main(void)
     test_widget_operations();
     test_widget_images();
     test_gameframe_provider();
+    test_repair_pins();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

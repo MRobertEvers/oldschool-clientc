@@ -592,6 +592,13 @@ PlatformWindow_SetPresentDamageRects(
 void
 PlatformWindow_Present(struct PlatformWindow* platform);
 
+/** Capture the composed software presentation, including its actual scale and
+ * letterbox, as a BMP. Returns false when readback is unsupported (GPU/native
+ * mobile backends) or the output cannot be written. Diagnostic-only; unlike a
+ * canvas capture this records the pixels actually presented by the window. */
+bool
+PlatformWindow_CapturePresent(struct PlatformWindow* platform, char const* path);
+
 /**
  * Is there somewhere to put a frame right now?
  *

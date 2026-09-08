@@ -2770,6 +2770,11 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
+.PHONY: test-base37
+test-base37: $(OBJ_DIR) net/jbase37.c net/test/jbase37_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/jbase37_test net/jbase37.c net/test/jbase37_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/jbase37_test
+
 # -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
 # CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
 # assertion in the file out and left it passing on values it was asserting

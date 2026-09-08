@@ -1,7 +1,28 @@
 /* Native widget probe, registered only with TORIRS_WIDGET_DEMO. */
 #include "plugin/torirs_plugin_api.h"
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
+
+/*
+ * Where the two owned labels sit in the viewport.
+ *
+ * BELOW the shipped performance readout, which defaults to x=10, y=25 and four
+ * 15px rows, i.e. down to y=88. This used to be 40/56, straight through the
+ * middle of it: run the demo beside the ordinary roster and both plugins
+ * painted unanchored text into the same corner, so the demo's labels -- the
+ * thing every widget receipt pins -- were unreadable while every log line
+ * still said they were fine.
+ *
+ * Note what this is NOT: an arbitration. The contract has no way for one
+ * plugin to reserve a band of the canvas or to ask what another has taken, so
+ * this is one plugin stepping out of another's DEFAULT footprint, and a person
+ * who moves the performance readout down here can still collide with it. The
+ * general answer belongs in the host, not in each plugin's constants.
+ */
+#define WIDGET_DEMO_LABEL_X 12
+#define WIDGET_DEMO_LABEL_Y 96
+#define WIDGET_DEMO_CONTROL_Y 112
 
 struct WidgetDemoState {
     struct ToriRS_WidgetRef label, control, public_button;
@@ -55,6 +76,30 @@ static void widget_demo_operation(struct ToriRS_Api* api,void* user,struct ToriR
     if( result==TORIRS_CONTRACT_OK ) ui->set_text(ui->context,event->widget,"Public: set");
 }
 
+/*
+ * Arm the owned control, with the label the `rearm` setting asks for.
+ *
+ * One place, called from both halves, and that is the fix rather than a
+ * tidy-up: the re-armed label used to be installed only by the config
+ * callback, so the next viewport rebind -- a client_layout_mode change, a
+ * provided-frame switch, anything that remounts the toplevel -- created the
+ * control again and armed it with the ORIGINAL label, silently reverting a
+ * setting that still read true in the panel and on disk. A setting is a fact
+ * about the plugin, so every path that builds the control has to read it.
+ */
+static enum ToriRS_ContractResult widget_demo_arm(struct ToriRS_Api* api,void* user)
+{
+    struct WidgetDemoState* state=user;
+    struct ToriRS_WidgetApi* ui=&api->widgets;
+    bool rearm=false;
+    assert(state);
+    assert(state->control.opaque[2]);
+    api->config.get_bool(api,"rearm",&rearm);
+    return ui->set_on_op(ui->context,state->control,
+        rearm ? "Re-armed: set public chat to friends" : "Set public chat to friends",
+        widget_demo_operation,user);
+}
+
 static void widget_demo_update(struct ToriRS_Api* api, void* user, struct ToriRS_TickEvent const* tick)
 {
     struct WidgetDemoState* state=user;
@@ -91,15 +136,15 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
         }
         if( ui->create_text(ui->context,event->widget,"strength",&state->label)!=TORIRS_CONTRACT_OK ) return;
         state->level=-1;
-        ui->set_position(ui->context,state->label,12,40);
+        ui->set_position(ui->context,state->label,WIDGET_DEMO_LABEL_X,WIDGET_DEMO_LABEL_Y);
         ui->set_text_color(ui->context,state->label,0xffffff);
         widget_demo_update(api,user,NULL);
         ui->revalidate(ui->context,state->label);
         if( ui->create_text(ui->context,event->widget,"public",&state->control)!=TORIRS_CONTRACT_OK ) return;
-        ui->set_position(ui->context,state->control,12,56);
+        ui->set_position(ui->context,state->control,WIDGET_DEMO_LABEL_X,WIDGET_DEMO_CONTROL_Y);
         ui->set_text(ui->context,state->control,"Public: Friends");
         ui->set_text_color(ui->context,state->control,0x00ffff);
-        enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,"Set public chat to friends",widget_demo_operation,user);
+        enum ToriRS_ContractResult armed=widget_demo_arm(api,user);
         ui->revalidate(ui->context,state->control);
         struct ToriRS_WidgetBounds box={0};
         ui->bounds(ui->context,state->control,&box);
@@ -124,13 +169,19 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
 static void widget_demo_config(struct ToriRS_Api* api,void* user,char const* key)
 {
     struct WidgetDemoState* state=user;
-    struct ToriRS_WidgetApi* ui=&api->widgets;
-    bool rearm=false;
-    if( strcmp(key,"rearm")!=0 || !state->control.opaque[2] ) return;
-    api->config.get_bool(api,"rearm",&rearm);
-    if( !rearm ) return;
-    enum ToriRS_ContractResult result=ui->set_on_op(ui->context,state->control,"Re-armed: set public chat to friends",widget_demo_operation,user);
-    api->core.log(api,"WIDGET_DEMO_REARM result=%d",result);
+    if( strcmp(key,"rearm")!=0 ) return;
+    /* No control yet is a legitimate state, not a failure: the viewport has
+     * not bound, so there is nothing to arm and the bind will read the setting
+     * for itself. It still gets a line -- a toggle before the bind used to
+     * return in silence, which is indistinguishable from a broken host. */
+    if( !state->control.opaque[2] )
+    {
+        api->core.log(api,"WIDGET_DEMO_REARM_DEFERRED control=absent");
+        return;
+    }
+    /* Both directions: turning `rearm` back off restores the original label
+     * and retires the rows built for the re-armed one. */
+    api->core.log(api,"WIDGET_DEMO_REARM result=%d",widget_demo_arm(api,user));
 }
 static void widget_demo_start(struct ToriRS_Api* api, void* user)
 {

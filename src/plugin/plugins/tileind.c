@@ -65,6 +65,53 @@ tileind_config_color(
     return value;
 }
 
+/*
+ * One marker, drawn and then CHECKED.
+ *
+ * The result is not decoration. The client's world overlay pool is finite, and
+ * in a crowded scene -- a hundred health bars, hitsplats and overhead names --
+ * it fills, at which point a quad pushed into it is dropped. On screen that is
+ * indistinguishable from the plugin being switched off, so the log has to be
+ * the thing that tells them apart.
+ *
+ * Once per session, not once per frame: the condition lasts as long as the
+ * crowd does, and a line a frame would bury everything else in the log. The
+ * flag is process-wide because the plugin is stateless by design (state_size
+ * is 0) and there is exactly one registration of it.
+ */
+static void
+tileind_marker(
+    struct ToriRS_Api* api,
+    struct ToriRS_Graphics* draw,
+    int tile_x,
+    int tile_z,
+    int level,
+    uint32_t fill_rgb,
+    uint32_t outline_rgb,
+    int alpha)
+{
+    static bool reported = false;
+    enum ToriRS_Result result;
+
+    assert(api);
+    assert(draw);
+
+    result = draw->world_tile(
+        draw, tile_x, tile_z, level, fill_rgb, outline_rgb, alpha);
+    if( result == TORIRS_RESULT_OK )
+        return;
+    if( reported )
+        return;
+    reported = true;
+    api->core.log(
+        api,
+        "TILEIND_MARKER_DROPPED result=%d tile=%d,%d level=%d",
+        (int)result,
+        tile_x,
+        tile_z,
+        level);
+}
+
 static void
 tileind_draw(
     struct ToriRS_Api* api,
@@ -89,7 +136,8 @@ tileind_draw(
      */
     if( tileind_config_bool(api, "show_hover", true) &&
         api->input.hover_tile(api, &hover_x, &hover_z, &hover_level) )
-        (void)draw->world_tile(
+        tileind_marker(
+            api,
             draw,
             hover_x,
             hover_z,
@@ -101,7 +149,8 @@ tileind_draw(
     if( !api->world.local_player(api, &me) )
         return;
 
-    (void)draw->world_tile(
+    tileind_marker(
+        api,
         draw,
         me.true_x,
         me.true_z,
@@ -125,7 +174,8 @@ tileind_draw(
      * which is exactly as long as a destination marker should live.
      */
     if( me.dest_x != me.true_x || me.dest_z != me.true_z )
-        (void)draw->world_tile(
+        tileind_marker(
+            api,
             draw,
             me.dest_x,
             me.dest_z,
@@ -165,17 +215,19 @@ static struct ToriRS_ConfigItem const TILEIND_CONFIG[] = {
 };
 
 /*
- * On by default, like everything else that ships.
+ * On by default, like everything else that ships, and it is the twin that
+ * ships on.
  *
- * It was off, for two reasons that are worth keeping written down. A marker
- * under the player is a debugging aid nobody asked for on first launch; and
- * this is the PARITY TWIN of `plugins/tile_indicator.lua`, so with both
- * running every tile is drawn twice, by two implementations that exist to be
- * compared against each other. Neither reason has gone away -- the default
- * changed, not the situation. If the doubled marker is unwanted, the fix is to
- * drop one of the two from `script/plugins/plugins.ini`, not to put this back
- * to off: which twin runs is a question about the list, and the list is where
- * it can be answered per lane.
+ * This is the PARITY TWIN of `plugins/tile_indicator.lua`: the two draw the
+ * same markers from the same api, which is what keeps the contract honest
+ * about being language-agnostic. Both on is not a configuration -- every
+ * marker is then composited twice, so the alpha-40 wash under the player comes
+ * out roughly twice as strong as the setting says, and turning either twin off
+ * leaves the marker on screen, which reads as a broken switch. So the Lua twin
+ * ships `enabled=0` in `script/plugins/plugins.ini` and this one carries the
+ * feature. That is the author's switch and not the user's: enabling the Lua
+ * twin in the roster still works, and the comparison the pair exists for is
+ * one line of the manifest away.
  */
 static struct ToriRS_ConfigSchema const TILEIND_SCHEMA = {
     .struct_size = sizeof(struct ToriRS_ConfigSchema),

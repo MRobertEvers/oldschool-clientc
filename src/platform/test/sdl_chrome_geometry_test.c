@@ -1,6 +1,6 @@
 /*
  * The attached plugin pane's WINDOW-SIZE policy, and nothing else: no
- * executor, no pixels, so it runs on the macOS backend too (whose pane pixels
+ * executor, so it runs on the macOS backend too (whose pane pixels
  * belong to a WKWebView and whose sdl_chrome_test therefore cannot pass).
  *
  * The policy under test (platform_window.h, "Growth is a courtesy"):
@@ -23,6 +23,7 @@
  * flags), so that arm is a code-reading guarantee only.
  */
 #include "platform/platform_window.h"
+#include "platform/interface_scale_geometry.h"
 
 #include "cmd/cmdbus.h"
 
@@ -30,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static int failures;
 
@@ -142,6 +144,15 @@ main(void)
     SDL_Window* window;
     SDL_Rect usable;
     int display_w;
+
+    CHECK_EQ(ToriRS_InterfaceScaleWindowPoints(765, 100, 2, true), 765,
+        "fixed 100% preserves its existing Retina window-point size");
+    CHECK_EQ(ToriRS_InterfaceScaleWindowPoints(765, 150, 2, true), 1148,
+        "fixed 150% grows relative to its existing Retina presentation");
+    CHECK_EQ(ToriRS_InterfaceScaleWindowPoints(765, 100, 2, false), 383,
+        "resizable drawable floor converts to window points with upward rounding");
+    CHECK_EQ(ToriRS_InterfaceScaleWindowPoints(765, 150, 2, false), 574,
+        "resizable scale applies before drawable-to-point conversion");
 
     SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
     platform = PlatformWindow_New();
@@ -289,6 +300,86 @@ main(void)
     PlatformWindow_SetCanvasFollowsWindow(platform, &bus, true, MIN_W, MIN_H);
     CHECK_EQ(window_width(window), 600 + RAIL_POINTS, "leaving fixed mode restores the resizable size");
     CHECK_EQ(take_resize_width(&bus), 600, "and pushes the game area, not the whole drawable");
+
+    /* A desktop pointer leaving the real SDL window must be distinguishable
+     * from one parked motionless on a tooltip. Returning motion supplies the
+     * ordinary position command, which clears absence in the input drain. */
+    (void)poll_resize_width(platform, &bus);
+    for( int motion = 0; motion < 2; motion++ )
+    {
+        SDL_Event event;
+        struct ToriRS_CmdHeader header;
+        uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        int leaves = 0;
+        int moves = 0;
+        memset(&event, 0, sizeof(event));
+        if( motion )
+        {
+            event.type = SDL_MOUSEMOTION;
+            event.motion.windowID = SDL_GetWindowID(window);
+            event.motion.x = 10;
+            event.motion.y = 10;
+        }
+        else
+        {
+            event.type = SDL_WINDOWEVENT;
+            event.window.windowID = SDL_GetWindowID(window);
+            event.window.event = SDL_WINDOWEVENT_LEAVE;
+        }
+        CHECK(SDL_PushEvent(&event) == 1, "pointer event enters the SDL queue");
+        PlatformWindow_PollCommands(platform, &bus);
+        while( CmdBus_Pop(&bus, &header, payload) )
+        {
+            leaves += header.type == TORIRS_CMD_INPUT_MOUSE_LEAVE;
+            moves += header.type == TORIRS_CMD_INPUT_MOUSE_MOVE;
+        }
+        CHECK_EQ(leaves, motion ? 0 : 1, "window leave emits exactly one absence command");
+        if( motion )
+            CHECK_EQ(moves, 1, "returning pointer motion restores its position");
+    }
+
+    /* A presentation capture must observe a physical scale change even when
+     * the logical framebuffer remains at its fixed floor. Sample real
+     * composed pixels too: a correctly sized but blank BMP is not evidence. */
+    {
+        char capture_path[] = "/tmp/torirs-present-XXXXXX";
+        int const fd = mkstemp(capture_path);
+        int const logical_w = PlatformWindow_Width(platform);
+        int const logical_h = PlatformWindow_Height(platform);
+        int* pixels = PlatformWindow_Pixels(platform);
+        CHECK(fd >= 0, "presentation capture has an isolated path");
+        if( fd >= 0 )
+        {
+            close(fd);
+            for( int i = 0; i < logical_w * logical_h; i++ )
+                pixels[i] = 0x12abcd;
+            for( int percent = 100; percent <= 150; percent += 50 )
+            {
+                int const game_w = ToriRS_InterfaceScaleWindowPoints(logical_w, percent, 1, true);
+                int const game_h = ToriRS_InterfaceScaleWindowPoints(logical_h, percent, 1, true);
+                SDL_Surface* capture;
+                PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, game_w, game_h);
+                CHECK(PlatformWindow_CapturePresent(platform, capture_path), "composed presentation is captured");
+                capture = SDL_LoadBMP(capture_path);
+                CHECK(capture != NULL, "presentation capture is a readable BMP");
+                if( capture )
+                {
+                    Uint8 r, g, b;
+                    Uint32 pixel = 0;
+                    CHECK_EQ(capture->w, game_w + RAIL_POINTS, "BMP records physical game width plus rail");
+                    CHECK_EQ(capture->h, game_h, "BMP records physical scaled height");
+                    memcpy(&pixel, (unsigned char*)capture->pixels + 10 * capture->pitch + 10 * capture->format->BytesPerPixel,
+                        capture->format->BytesPerPixel);
+                    SDL_GetRGB(pixel, capture->format, &r, &g, &b);
+                    CHECK(r == 0x12 && g == 0xab && b == 0xcd, "BMP holds rendered canvas ink");
+                    SDL_FreeSurface(capture);
+                }
+                CHECK_EQ(PlatformWindow_Width(platform), logical_w, "physical scaling leaves logical width intact");
+                CHECK_EQ(PlatformWindow_Height(platform), logical_h, "physical scaling leaves logical height intact");
+            }
+            unlink(capture_path);
+        }
+    }
 
     PlatformWindow_Free(platform);
     if( failures )

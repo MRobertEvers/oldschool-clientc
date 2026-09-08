@@ -1102,6 +1102,17 @@ main(void)
     declare(1200, 800);
     CHECK(placed("chat", -1, 20, 358, 479, 96) && placed("sidebar", -1, 980, 198, 190, 261),
           "the resizable frame hangs its chat and panel off the safe bottom, not the canvas floor");
+    /*
+     * And a safe rect with an ORIGIN, which is the half a zero-origin band
+     * cannot ask: every surface the frame places moves with it, the chatbox
+     * included. Placed without ctx->origin the chat stays at 20,598 while the
+     * scene, the map ring and the panel all move 40 columns right and 30 rows
+     * down -- the one placement helper that used to skip the origin.
+     */
+    g_safe.present = 1; g_safe.x = 40; g_safe.y = 30; g_safe.w = 1120; g_safe.h = 740;
+    declare(1200, 800);
+    CHECK(placed("viewport", -1, 40, 30, 1120, 740) && placed("chat", -1, 60, 628, 479, 96),
+          "a safe rect with an origin moves the chatbox with every other surface");
     g_safe.present = 0;
     declare(1200, 800);
     CHECK(placed("chat", -1, 20, 658, 479, 96), "and gives the rows back when the band goes");
@@ -1134,6 +1145,27 @@ main(void)
         declare(1200, 800);
         CHECK(!native("chat", -1)->hidden && placed("chat", -1, 20, 658, 479, 96), "pressing it again brings the chatbox back");
     }
+    /*
+     * A plan with NO chat buttons in it still DROPS the switches.
+     *
+     * Every OldSchool layout is that plan -- the CS2 pack carries its own
+     * filters, so the frame places none -- and the drop is what stops three
+     * live "Hide chat" controls being left parented to the lane's widgets.
+     * Asked of the live frame by changing the answer the layout asks for,
+     * because it is the apply pass's invariant and not a shipped offer: the
+     * drop used to be written inside the member loop, reachable only from the
+     * one plan that HAS members and therefore does not need it.
+     */
+    {
+        int const was_lane = g_lane_game;
+        CHECK(owned_count("chatsw.") == 3, "the switches are live before the plan that has none");
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
+        declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 0, "a plan with no chat buttons drops the owned switches");
+        g_lane_game = was_lane;
+        declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 3, "and the plan that has them puts them back");
+    }
 
     /* ---- 5. release ---------------------------------------------------- */
     g_widget_resets = 0;
@@ -1152,7 +1184,11 @@ main(void)
     declare(765, 503);
     CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && g_frame.active == 1,
           "the provider owns the OldSchool frame too");
-    CHECK(placed("chat", -1, 17, 357, 519, 96), "the chat pack takes the 2004 origin and height and keeps its own width");
+    CHECK(placed("chat", -1, 17, 338, 519, 165),
+          "Classic Fixed preserves the full authored chat pack at the canvas bottom");
+    CHECK(placed("viewport", -1, 4, 4, 512, 334) &&
+              native("chat", -1)->y + native("chat", -1)->h == 503,
+          "preserving chat content neither shrinks the world view nor clips the pack below the canvas");
     CHECK(placed("orbs", -1, 521, 4, 236, 163), "548's orb block sits beside the 2004 housing");
     CHECK(placed("orbs", 1, 717, 119, 30, 30) && placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
           "the world map, the wiki banner and the whole adviser are seated");
@@ -1160,12 +1196,20 @@ main(void)
     CHECK(pieces_behind_viewport() == 14 && owned_count("icon.") == 14,
           "the surround is re-cut for the pack, without the 2004 parchment, and every stone wears rev-239's icon");
     {
-        struct FakeWidget const* flat = NULL;
+        int rails = 0;
         for( int i = 0; i < g_w_count; i++ )
             if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 )
-            { int cx, cy; fw_canvas(i, &cx, &cy); if( cx == 0 && cy == 467 ) flat = &g_w[i]; }
-        CHECK(flat && image_opaque_rows(flat->image) == g_image[flat->image].h,
-              "no captionless 2004 hollows below the CS2 filters: the band is flat rock");
+            {
+                int cx, cy;
+                fw_canvas(i, &cx, &cy);
+                if( cy == 338 && (cx == 0 || cx == 536) && g_w[i].img_h == 165 )
+                {
+                    CHECK(image_opaque_rows(g_w[i].image) > 0,
+                          "the extended chat rail contains the classic frame's rock pixels");
+                    rails++;
+                }
+            }
+        CHECK(rails == 2, "classic rock rails flank the full native chat height");
     }
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0,

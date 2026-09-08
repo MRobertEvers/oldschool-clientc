@@ -23,6 +23,7 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
+#include "platform/interface_scale_geometry.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
@@ -1735,9 +1736,31 @@ frame_loop_step(void)
                 { TORIRS_REPORT("sim_plugin_toggle: invalid input\n"); cursor=NULL; }
                 else if( frame_count>=at && app.plugins )
                 {
+                    /* What the host DID, not that the name resolved. Several
+                     * asks are legitimately ignored -- a frame provider's
+                     * state is the Gameframe preference and PluginHost_SetEnabled
+                     * returns without touching it, an essential plugin refuses
+                     * a disable, a plugin may stand down on this lane -- and
+                     * reporting the lookup as `applied` made every one of them
+                     * read as a success. So the state is read either side of
+                     * the call and `applied` is whether the plugin ended up in
+                     * the asked-for state. */
                     int index=PluginHost_IndexOf(app.plugins,id);
-                    if( index>=0 ) PluginHost_SetEnabled(app.plugins,index,enabled!=0);
-                    TORIRS_REPORT("sim_plugin_toggle: frame=%ld id=%s enabled=%d applied=%d\n",frame_count,id,enabled,index>=0);
+                    int found=index>=0;
+                    int was_enabled=found && PluginHost_IsEnabled(app.plugins,index);
+                    int was_running=found && PluginHost_IsRunning(app.plugins,index);
+                    int now_enabled=was_enabled, now_running=was_running;
+                    if( found )
+                    {
+                        PluginHost_SetEnabled(app.plugins,index,enabled!=0);
+                        now_enabled=PluginHost_IsEnabled(app.plugins,index);
+                        now_running=PluginHost_IsRunning(app.plugins,index);
+                    }
+                    TORIRS_REPORT("sim_plugin_toggle: frame=%ld id=%s enabled=%d found=%d "
+                        "was=%d/%d now=%d/%d applied=%d\n",
+                        frame_count,id,enabled,found,was_enabled,was_running,
+                        now_enabled,now_running,
+                        found && now_enabled==(enabled!=0));
                     char const* next=strchr(cursor,';'); cursor=next ? next+1 : NULL;
                 }
             }
@@ -2704,6 +2727,93 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_MOUSE_LEAVE="frame[;frame...]": leave through the same
+         * input command as the platform, without rewinding the frame clock. */
+        {
+            static char const* leave_cursor = NULL;
+            static int leave_init = 0;
+            if( !leave_init )
+            {
+                leave_init = 1;
+                leave_cursor = getenv("TORIRS_SIM_MOUSE_LEAVE");
+            }
+            while( leave_cursor && *leave_cursor )
+            {
+                char* end = NULL;
+                long const at = strtol(leave_cursor, &end, 10);
+                if( end == leave_cursor || (*end != '\0' && *end != ';') || at < 0 )
+                {
+                    TORIRS_ERR("sim_mouse_leave: invalid frame list '%s'\n", leave_cursor);
+                    leave_cursor = NULL;
+                    break;
+                }
+                if( frame_count < at )
+                    break;
+                CmdBus_PushMouseLeave(&bus);
+                TORIRS_REPORT("sim_mouse_leave: frame=%ld\n", at);
+                leave_cursor = *end == ';' ? end + 1 : NULL;
+            }
+        }
+
+        /* TORIRS_SIM_HOVER="x,y[,frames]": hold the pointer there over the
+         * closing frames of the run, so the exit dumps and the TORIRS_EXIT_BMP
+         * capture see hover-dependent chrome (IF1 overlayer tooltips,
+         * over-colour swaps, CS2 onmouserepeat tooltip layers) rather than
+         * whatever the last main-loop event left behind.
+         *
+         * Parked IN the loop, on the loop's own clock, exactly like
+         * TORIRS_SIM_MOVE_AT above. The previous implementation ran four
+         * EXTRA App_RunOnce frames after the loop with an input clock
+         * restarted at 20 ms; the client read that rewind as a stalled server
+         * and dropped the session, so every hover capture was scored on a
+         * disconnected client (no NATIVE_PLAYER in the exit dump, "Connection
+         * lost" over the world).
+         *
+         * `frames` is how many closing frames the pointer is held for -- the
+         * hover paths want several, since a tooltip layer is built by the
+         * frame AFTER the one that first saw the pointer. */
+        {
+            static int sim_hover_init = 0;
+            static int hover_valid = 0;
+            static int hover_x = 0, hover_y = 0;
+            static long hover_frames = 8;
+            static int hover_announced = 0;
+            if( !sim_hover_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_HOVER");
+                sim_hover_init = 1;
+                if( spec && *spec )
+                {
+                    char* end = NULL;
+                    hover_x = (int)strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        long held;
+                        hover_y = (int)strtol(end + 1, &end, 0);
+                        hover_valid = 1;
+                        held = (end && *end == ',') ? strtol(end + 1, NULL, 0) : 0;
+                        if( held > 0 )
+                            hover_frames = held;
+                    }
+                    else
+                        TORIRS_REPORT("sim_hover: invalid input\n");
+                }
+            }
+            /* An unbounded run has no last frame to count back from, so there
+             * the pointer is simply parked from the first frame onward. */
+            if( hover_valid &&
+                (max_frames <= 0 || frame_count > max_frames - hover_frames) )
+            {
+                CmdBus_PushMouseMove(&bus, hover_x, hover_y);
+                if( !hover_announced )
+                {
+                    hover_announced = 1;
+                    TORIRS_REPORT("sim_hover: parking at %d,%d from frame %ld\n",
+                        hover_x, hover_y, frame_count);
+                }
+            }
+        }
+
         /* TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH...]": inject a window
          * resize at the given main-loop frame. The only way to exercise
          * the resize path headlessly — SDL_VIDEODRIVER=dummy never
@@ -3073,19 +3183,20 @@ frame_loop_step(void)
      * drain/resize/present picks up the new size. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_WINDOW_SYNC)
     {
-        /* "Interface scaling" (device option 27) shrinks the canvas the window
-         * is letterboxed from, so it is a canvas change and nothing else — no
-         * window call, and no bus round trip, because the click that caused it
-         * is already in the recorded stream and the canvas is a pure function
-         * of it and the window size. The surface reconcile at the top of the
-         * next frame picks up the new backbuffer size. */
-        App_SyncUiScale(&app);
-
-        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
-            App_SyncFixedChromeInset(&app) )
+        /* A scale can reduce the logical canvas only down to its authored
+         * floor. Beyond that point it needs a larger physical game area.
+         * App_SyncUiScale reports the consumed setting even when that floor
+         * left the logical size unchanged. */
+        int const scale_changed = App_SyncUiScale(&app);
+        bool const fixed = App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED;
+        int const canvas_changed = fixed ? App_SyncFixedChromeInset(&app)
+                                         : App_SyncResizableCanvasFloor(&app);
+        if( fixed && (canvas_changed || scale_changed) )
         {
-            int const fw = UITREE_LAYOUT_ROOT_W;
-            int const fh = UITREE_LAYOUT_ROOT_H;
+            int const percent = RS_CS2Host_UiScalePercent(&app.host);
+            int const density = PlatformWindow_PixelDensity(platform);
+            int const fw = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_W, percent, density, true);
+            int const fh = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_H, percent, density, true);
             /*
              * Clear the follow gate FIRST, then snap the window.
              *
@@ -3103,8 +3214,9 @@ frame_loop_step(void)
              */
             PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, fw, fh);
             PlatformWindow_SetWindowSize(platform, fw, fh);
-            if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+            if( getenv("TORIRS_RESIZE_DEBUG") || getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("UI_SCALE_REQUEST mode=fixed percent=%d density=%d canvas=%dx%d game_points=%dx%d\n",
+                    percent, density, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, fw, fh);
         }
         /*
          * Resizable mode: the SAME strip, carved from a canvas nobody grew.
@@ -3123,15 +3235,30 @@ frame_loop_step(void)
          * points: on a 2x display the two differ by the density, and asking for
          * pixels there would double a window that only needed 42 more columns.
          */
-        else if( App_SyncResizableCanvasFloor(&app) )
+        else if( !fixed && (canvas_changed || scale_changed) )
         {
             int const density = PlatformWindow_PixelDensity(platform);
-            int const fw = UITREE_LAYOUT_ROOT_W;
-            int const fh = UITREE_LAYOUT_ROOT_H;
+            int const percent = RS_CS2Host_UiScalePercent(&app.host);
+            int min_w = 0;
+            int min_h = APP_CANVAS_MIN_H;
+            int fw = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_W, percent, density, false);
+            int fh = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_H, percent, density, false);
             assert(density >= 1);
-            PlatformWindow_SetWindowSize(platform, fw / density, fh / density);
-            if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("resizable-chrome: canvas %dx%d (strip floor)\n", fw, fh);
+            App_PluginLayoutMinSize(&app, &min_w, &min_h);
+            min_w = App_CanvasFloorWidth(&app);
+            /* A resizable window keeps its room when the scale goes down.
+             * Only a clamped logical floor asks for additional physical room. */
+            if( fw < app.window_w / density )
+                fw = app.window_w / density;
+            if( fh < app.window_h / density )
+                fh = app.window_h / density;
+            PlatformWindow_SetCanvasFollowsWindow(platform, &bus, true,
+                ToriRS_InterfaceScaleWindowPoints(min_w, percent, density, false),
+                ToriRS_InterfaceScaleWindowPoints(min_h, percent, density, false));
+            PlatformWindow_SetWindowSize(platform, fw, fh);
+            if( getenv("TORIRS_RESIZE_DEBUG") || getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("UI_SCALE_REQUEST mode=resizable percent=%d density=%d canvas=%dx%d game_points=%dx%d\n",
+                    percent, density, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, fw, fh);
         }
 
     /*
@@ -3158,11 +3285,20 @@ frame_loop_step(void)
         if( App_TakeWindowModeChange(&app, &new_mode) )
         {
             bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+            int const percent = RS_CS2Host_UiScalePercent(&app.host);
+            int const density = PlatformWindow_PixelDensity(platform);
+            int min_w = 0;
+            int min_h = APP_CANVAS_MIN_H;
+            if( resizable )
+                App_PluginLayoutMinSize(&app, &min_w, &min_h);
+            min_w = resizable ? App_CanvasFloorWidth(&app) : App_FixedCanvasWidth(&app);
+            int const fw = ToriRS_InterfaceScaleWindowPoints(min_w, percent, density, !resizable);
+            int const fh = ToriRS_InterfaceScaleWindowPoints(min_h, percent, density, !resizable);
             TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
             PlatformWindow_SetCanvasFollowsWindow(
-                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                platform, &bus, resizable, fw, fh);
             if( !resizable )
-                CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                CmdBus_PushWindowResize(&bus, fw, fh);
             /* Strip inset is applied next frame once layout has measured it. */
         }
         {
@@ -3334,31 +3470,42 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
+    /* The ordinary exit BMP is the logical framebuffer. At its floor a
+     * scaling fix changes only the physical presentation, so capture that
+     * independently instead of teaching the logical pixel rules a new size. */
+    {
+        char const* present_path = getenv("TORIRS_EXIT_PRESENT_BMP");
+        if( present_path )
+        {
+            bool const saved = PlatformWindow_CapturePresent(platform, present_path);
+            TORIRS_REPORT("PRESENT_CAPTURE saved=%d path=%s\n", saved ? 1 : 0, present_path);
+        }
+    }
 
     /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
      * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
     if( getenv("TORIRS_EXIT_BMP") )
     {
-        /* TORIRS_SIM_HOVER=x,y: park the pointer there for a few real
-         * interact frames FIRST, so both the dumps below and the BMP capture
-         * hover-dependent chrome (IF1 overlayer tooltips, over-colour swaps,
-         * CS2 onmouserepeat tooltip layers) instead of whatever the last
-         * main-loop event left behind. */
+        /* TORIRS_SIM_HOVER=x,y: what the pointer was parked over while the
+         * loop's last frames ran, and what the client made of it. The parking
+         * itself happens IN the loop (see the sim_hover block there) -- this
+         * only reports the resolved subject, on the state the dumps and the
+         * BMP capture below are about to be taken from.
+         *
+         * It used to drive four more App_RunOnce frames here, on an input
+         * clock restarted at 20 ms. That rewind ended the client's session:
+         * the capture came out under a "Connection lost" banner and the exit
+         * dump lost NATIVE_PLAYER, so every hover measurement was taken on a
+         * dead client. */
         if( getenv("TORIRS_SIM_HOVER") )
         {
-            struct LibToriRS_Input hov_storage;
-            struct LibToriRS_Input* hov_input = LibToriRS_Input_Init(&hov_storage, 0);
             char* hov_sep = NULL;
             int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
             int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
-            for( int t = 0; t < 4; t++ )
-            {
-                LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
-                LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
-                LibToriRS_Input_End(hov_input);
-                App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
-            }
-            TORIRS_LOG("sim_hover: parked at %d,%d hover_com_id=%d\n",
+            /* TORIRS_REPORT, not TORIRS_LOG: the lever is the env var, and an
+             * optimised build compiles TORIRS_LOG out -- the harness reads
+             * this line out of an OPT=1 capture. */
+            TORIRS_REPORT("sim_hover: parked at %d,%d hover_com_id=%d\n",
                 hov_x,
                 hov_y,
                 app.hover_com_id);
@@ -4819,10 +4966,10 @@ main(
      * follows a drawable twice the window points: the frame drew at 1x in the
      * top-left quarter, and every click landed at double its coordinate,
      * because MapMouse scales window points into the canvas by exactly the
-     * ratio the frame was not drawn at. Fixed pins the canvas at 765x503 and
-     * letterboxes it into the drawable, which on a 2x display is an exact
-     * doubling -- and MapMouse undoes the same letterbox, so clicks land where
-     * they are drawn.
+     * ratio the frame was not drawn at. Fixed pins the canvas at 765x503;
+     * at 100% it remains a 765x503-point window (an exact doubling on a 2x
+     * display), and interface scaling grows that existing presentation.
+     * MapMouse undoes the same letterbox so clicks land where they are drawn.
      *
      * A manifest that states `[ui:boot] windowmode=` still wins: this only
      * fills in the case nobody answered. */
@@ -5992,10 +6139,14 @@ main(
         {
             int const boot_mode = App_WindowMode(&app);
             bool const resizable = boot_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+            int const percent = RS_CS2Host_UiScalePercent(&app.host);
+            int const density = PlatformWindow_PixelDensity(platform);
+            int const fw = ToriRS_InterfaceScaleWindowPoints(APP_CANVAS_MIN_W, percent, density, !resizable);
+            int const fh = ToriRS_InterfaceScaleWindowPoints(APP_CANVAS_MIN_H, percent, density, !resizable);
             PlatformWindow_SetCanvasFollowsWindow(
-                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                platform, &bus, resizable, fw, fh);
             if( !resizable )
-                CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                CmdBus_PushWindowResize(&bus, fw, fh);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG("windowmode: boot %s\n",
                     CS2VM_WindowModeName(boot_mode));

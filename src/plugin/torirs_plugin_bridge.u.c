@@ -25,6 +25,9 @@
  * of which live down with the client's own graphics. Only the vtable is
  * assembled here.
  */
+_Static_assert(UITREE_SCENE_PLUGIN_IMAGE_SLOTS >= TORIRS_PLUGIN_IMAGES_MAX,
+    "scene image slots cover the host's shared image table");
+
 static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
 static int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
@@ -2306,6 +2309,20 @@ app_plugin_feature_repush(struct App* app)
     app->need_redraw = 1;
 }
 
+/* A feature's stored spelling can differ from what the renderer applies.
+ * Keep the raw boot cell for RESTORE/default identity, but report the same
+ * effective distance the painter uses rather than its private zero sentinel. */
+static int
+app_plugin_feature_effective_read(struct App* app, struct AppPluginFeatureDesc const* desc)
+{
+    assert(app);
+    assert(desc);
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_TABLE &&
+        desc->offset == APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance) )
+        return ToriRS_Features_PainterDrawDistance(&app->features_storage);
+    return app_plugin_feature_read(app, desc, 0);
+}
+
 static int
 app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
 {
@@ -2333,8 +2350,8 @@ app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
     out->value_count = desc->value_count;
     for( int i = 0; i < desc->value_count; i++ )
         out->values[i] = desc->values[i];
-    out->value = app_plugin_feature_read(app, desc, 0);
-    out->is_default = out->value == app_plugin_feature_read(app, desc, 1);
+    out->value = app_plugin_feature_effective_read(app, desc);
+    out->is_default = app_plugin_feature_read(app, desc, 0) == app_plugin_feature_read(app, desc, 1);
     return at;
 }
 
@@ -2351,7 +2368,7 @@ app_plugin_feature_get(void* user, char const* key)
     struct AppPluginFeatureDesc const* desc = app_plugin_feature_desc(key);
     if( !desc )
         return TORIRS_FEATURE_UNSET;
-    return app_plugin_feature_read(app, desc, 0);
+    return app_plugin_feature_effective_read(app, desc);
 }
 
 static int
@@ -2843,14 +2860,16 @@ app_plugin_overlay_argb(uint32_t rgb)
  */
 
 static int
-app_plugin_draw_tile(
+app_plugin_draw_tile_stroke(
     void* user,
     int tile_x,
     int tile_z,
     int level,
     uint32_t rgb,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int outline_width,
+    int item_budget)
 {
     struct App* app = (struct App*)user;
     static const int CORNER[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
@@ -2863,7 +2882,6 @@ app_plugin_draw_tile(
     int scene_x;
     int scene_z;
     int plane_y;
-    int const before = app ? app_overlay_count(app) : 0;
 
     assert(app);
 
@@ -2964,48 +2982,56 @@ emit:
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
      * -- see draw_tile in torirs_plugin_api.h. */
-    if( fill_alpha > 0 )
-        app_overlay_push_polygon_filled(
-            app,
-            hull_x,
-            hull_y,
-            hull_size,
-            app_plugin_overlay_argb(fill_rgb),
-            255 - (fill_alpha > 255 ? 255 : fill_alpha));
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
-    return app_overlay_count(app) - before;
+    return app_overlay_push_polygon_styled(
+        app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(fill_rgb),
+        fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+        app_plugin_overlay_argb(rgb), outline_width, item_budget);
 }
 
 static int
-app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape)
+app_plugin_draw_tile(void* user, int x, int z, int level, uint32_t rgb, uint32_t fill, int alpha)
+{
+    return app_plugin_draw_tile_stroke(user, x, z, level, rgb, fill, alpha, 1, INT_MAX);
+}
+
+static int
+app_plugin_draw_hull_stroke(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape,
+                           int outline_width, int item_budget)
 {
     struct App* app = (struct App*)user;
-    int before;
+    int emitted;
 
     assert(app);
     assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
-    before = app_overlay_count(app);
     /* Either silhouette the client already knows how to draw. Their fill
      * transparency is fixed at APP_OUTLINE_FILL_TRANS for the hover and editor
      * marks; here the plugin chooses, so an outline-only highlight is
      * possible. */
     if( shape == TORIRS_HULL_MESH )
-        app_overlay_outline_element_mesh_trans(
+        emitted = app_overlay_outline_element_mesh_stroke(
             app,
             element_id,
             app_plugin_overlay_argb(rgb),
-            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+            outline_width, item_budget);
     else
-        app_overlay_outline_element_model_trans(
+        emitted = app_overlay_outline_element_model_stroke(
             app,
             element_id,
             app_plugin_overlay_argb(rgb),
-            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+            outline_width, item_budget);
     static int trace_count;
     if( getenv("TORIRS_TRACE_PLUGIN_WORLD") && trace_count++<32 )
         TORIRS_REPORT("PLUGIN_HULL element=%d shape=%d emitted=%d\n",
-            element_id,shape,app_overlay_count(app)-before);
-    return app_overlay_count(app) - before;
+            element_id,shape,emitted);
+    return emitted;
+}
+
+static int
+app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int alpha, int shape)
+{
+    return app_plugin_draw_hull_stroke(user, element_id, rgb, alpha, shape, 1, INT_MAX);
 }
 
 static int
@@ -3588,9 +3614,10 @@ app_plugin_mouse_pos(void* user, int* out_x, int* out_y)
     struct App* app = (struct App*)user;
 
     assert(app);
-    /* The same point every click path reads, latched once per frame from the
-     * input drain (App_RunOnce). Before the first frame it is 0,0, which is a
-     * legal position -- so the answer is the position, not a validity flag. */
+    /* Coordinates remain latched after the pointer leaves. That last point
+     * must not keep a plugin tooltip hovered or pause an orb's expiry. */
+    if( app->pointer_absent )
+        return 0;
     if( out_x )
         *out_x = app->world_mouse_x;
     if( out_y )
@@ -4948,6 +4975,8 @@ app_plugin_engine(struct App* app)
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
+    engine.draw_tile_stroke = app_plugin_draw_tile_stroke;
+    engine.draw_hull_stroke = app_plugin_draw_hull_stroke;
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;

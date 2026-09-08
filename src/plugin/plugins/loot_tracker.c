@@ -252,6 +252,7 @@ struct LootTrackerState
     bool expanded[LT_SOURCES_MAX];
     bool drop_view;
     bool show_ignored;
+    int strip_page;
     struct ToriRS_ImageRef img_view;
     uint32_t* view_px;
     int view_w;
@@ -294,9 +295,17 @@ struct LootTrackerState
     uint64_t next_panel_ms;
     long long session_value;
     int session_kills;
+    /** False until the store has been read once. The first read is a BASELINE
+     *  -- a plugin enabled mid-trip must not announce the kills that were
+     *  already in the client's record. */
+    bool store_baseline;
     bool dirty;
     bool redraw_pending;
     uint64_t loot_revision;
+    /** When the draw pass first found the art missing, and whether the one
+     *  log line about it has been spent. @see lt_draw_text_only. */
+    uint64_t art_wait_ms;
+    bool art_warned;
 };
 
 struct LootTrackerRuntime
@@ -341,6 +350,7 @@ struct LootTrackerRuntime
 #define g_expanded (rt->state->expanded)
 #define g_drop_view (rt->state->drop_view)
 #define g_show_ignored (rt->state->show_ignored)
+#define g_strip_page (rt->state->strip_page)
 #define g_img_view (rt->state->img_view)
 #define g_view_px (rt->state->view_px)
 #define g_view_w (rt->state->view_w)
@@ -382,9 +392,12 @@ struct LootTrackerRuntime
 #define g_next_panel_ms (rt->state->next_panel_ms)
 #define g_session_value (rt->state->session_value)
 #define g_session_kills (rt->state->session_kills)
+#define g_store_baseline (rt->state->store_baseline)
 #define g_dirty (rt->state->dirty)
 #define g_redraw_pending (rt->state->redraw_pending)
 #define g_loot_revision (rt->state->loot_revision)
+#define g_art_wait_ms (rt->state->art_wait_ms)
+#define g_art_warned (rt->state->art_warned)
 
 /* ------------------------------------------------------------------------ */
 /* Names and numbers                                                         */
@@ -883,6 +896,36 @@ lt_source_remove(struct LootTrackerRuntime* rt, int index)
     g_dirty = true;
 }
 
+/**
+ * "Goblin x2 loot: 3 gp", when the setting asks for one.
+ *
+ * Shared by both lanes deliberately. The chat line used to live inside the
+ * rs289 inference settle, so "Announce loot in chat" was a knob that did
+ * nothing at all on OldSchool -- where the record comes out of the client's
+ * own loot store -- while the settings form offered it on both.
+ */
+static void
+lt_announce(
+    struct LootTrackerRuntime* rt,
+    struct LtSource const* source,
+    long long value)
+{
+    char line[200];
+    char amount[32];
+
+    assert(rt);
+    assert(source);
+    if( !lt_config_bool(rt, "kill_chat_message") )
+        return;
+    if( value < lt_config_int(rt, "chat_value_threshold") )
+        return;
+    lt_commas(value, amount, sizeof(amount));
+    snprintf(
+        line, sizeof(line), "%s x%d loot: %s gp", source->name, source->kills,
+        amount);
+    g_api->core.notify(g_api, line);
+}
+
 static void
 lt_pending_settle(struct LootTrackerRuntime* rt, int index)
 {
@@ -909,17 +952,7 @@ lt_pending_settle(struct LootTrackerRuntime* rt, int index)
             }
             lt_revalue(rt);
             g_dirty = true;
-            if( lt_config_bool(rt, "kill_chat_message") &&
-                value >= lt_config_int(rt, "chat_value_threshold") )
-            {
-                char line[200];
-                char amount[32];
-                lt_commas(value, amount, sizeof(amount));
-                snprintf(
-                    line, sizeof(line), "%s x%d loot: %s gp",
-                    source->name, source->kills, amount);
-                g_api->core.notify(g_api, line);
-            }
+            lt_announce(rt, source, value);
         }
     }
     g_pending[index] = g_pending[--g_pending_count];
@@ -1250,28 +1283,107 @@ lt_drop_rows(int n)
     return (n + LT_GRID_COLS - 1) / LT_GRID_COLS;
 }
 
-static int
-lt_strip_h(struct LootTrackerRuntime* rt)
+/** One bounded page of complete source bands or complete item-grid rows. */
+struct LtStripPlan
 {
-    int total = LT_TOTALS_H + LT_HEAD_GAP;
-    int visible_sources = 0;
+    int height;
+    int source_start;
+    int source_cut;
+    int drop_start;
+    int drop_cut;
+    int page;
+    int page_count;
+    int footer_y;
+};
+
+#define LT_PAGER_H 24
+
+/* Even the largest retained source fits intact; a 32-item table occupies
+ * seven rows. Pagination therefore never has to cut a header or item glyph. */
+_Static_assert(((LT_ITEMS_MAX + LT_GRID_COLS - 1) / LT_GRID_COLS) * LT_CELL_H + 46 <=
+                   TORIRS_PANEL_CUSTOM_HEIGHT_MAX - LT_PAGER_H - LT_TOTALS_H - LT_HEAD_GAP,
+               "the largest loot source must fit on one page");
+
+static void
+lt_strip_plan(struct LootTrackerRuntime* rt, struct LtStripPlan* out)
+{
+    int const top = LT_TOTALS_H + LT_HEAD_GAP;
+    int const budget = TORIRS_PANEL_CUSTOM_HEIGHT_MAX - LT_PAGER_H;
+    int total = top;
+    int page_count = 1;
+    int start[LT_SOURCES_MAX + 1] = { 0 };
+    int height[LT_SOURCES_MAX] = { 0 };
+
+    assert(rt);
+    assert(out);
+    memset(out, 0, sizeof(*out));
 
     if( g_drop_view )
     {
-        struct LtItem drops[LT_SOURCES_MAX * 4];
+        struct LtItem drops[LT_SOURCES_MAX * LT_ITEMS_MAX];
         int const n = lt_collect_drops(
             rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
-        return total + (n > 0 ? lt_drop_rows(n) * LT_CELL_H + 6 : LT_HEAD_H);
+        int const rows = lt_drop_rows(n);
+        int const per_page = (budget - top - 6) / LT_CELL_H;
+        int const all_height = top + (n > 0 ? rows * LT_CELL_H + 6 : LT_HEAD_H);
+        page_count = all_height <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX ? 1 :
+                         (rows + per_page - 1) / per_page;
+        if( g_strip_page >= page_count ) g_strip_page = page_count - 1;
+        if( g_strip_page < 0 ) g_strip_page = 0;
+        out->page = g_strip_page;
+        out->page_count = page_count;
+        out->drop_start = page_count > 1 ? g_strip_page * per_page * LT_GRID_COLS : 0;
+        out->drop_cut = page_count > 1 ? out->drop_start + per_page * LT_GRID_COLS : n;
+        if( out->drop_cut > n ) out->drop_cut = n;
+        out->height = top + (n > 0 ? lt_drop_rows(out->drop_cut - out->drop_start) * LT_CELL_H + 6 : LT_HEAD_H);
+        out->footer_y = out->height;
+        if( page_count > 1 ) out->height += LT_PAGER_H;
+        return;
     }
 
+    for( int i = 0; i < g_source_count; i++ ) total += lt_source_h(rt, i);
+    if( total == top ) total += LT_HEAD_H;
+    if( total <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX )
+    {
+        g_strip_page = 0;
+        out->page_count = 1;
+        out->source_cut = g_source_count;
+        out->height = total;
+        return;
+    }
+    total = top;
     for( int i = 0; i < g_source_count; i++ )
     {
-        if( lt_source_visible(rt, i) )
-            visible_sources++;
-        total += lt_source_h(rt, i);
+        int const h = lt_source_h(rt, i);
+        if( h <= 0 )
+            continue;
+        if( total + h > budget )
+        {
+            height[page_count - 1] = total;
+            start[page_count++] = i;
+            total = top;
+        }
+        total += h;
     }
-    /* The empty note still needs a line to sit on. */
-    return visible_sources > 0 ? total : total + LT_HEAD_H;
+    height[page_count - 1] = total;
+    start[page_count] = g_source_count;
+    if( g_strip_page >= page_count ) g_strip_page = page_count - 1;
+    if( g_strip_page < 0 ) g_strip_page = 0;
+    out->page = g_strip_page;
+    out->page_count = page_count;
+    out->source_start = start[g_strip_page];
+    out->source_cut = start[g_strip_page + 1];
+    out->footer_y = height[g_strip_page];
+    out->height = out->footer_y + LT_PAGER_H;
+}
+
+static int
+lt_strip_h(struct LootTrackerRuntime* rt)
+{
+    struct LtStripPlan plan;
+
+    lt_strip_plan(rt, &plan);
+    return plan.height;
 }
 
 /** The totals band, which the game's tracker puts above the categories. */
@@ -1359,9 +1471,11 @@ lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
 static int
 lt_source_at(struct LootTrackerRuntime* rt, int y, int* out_local_y)
 {
+    struct LtStripPlan plan;
     int top = LT_TOTALS_H + LT_HEAD_GAP;
 
-    for( int i = 0; i < g_source_count; i++ )
+    lt_strip_plan(rt, &plan);
+    for( int i = plan.source_start; i < plan.source_cut; i++ )
     {
         int const h = lt_source_h(rt, i);
         if( y >= top && y < top + h )
@@ -1585,6 +1699,7 @@ lt_compose_key(struct LootTrackerRuntime* rt, int width)
     LT_MIX(width);
     LT_MIX(g_drop_view ? 1 : 0);
     LT_MIX(g_show_ignored ? 1 : 0);
+    LT_MIX(g_strip_page);
     LT_MIX(g_source_count);
     LT_MIX(g_session_kills);
     LT_MIX(g_session_value);
@@ -1618,13 +1733,18 @@ lt_compose_key(struct LootTrackerRuntime* rt, int width)
 static void
 lt_compose(struct LootTrackerRuntime* rt, int width)
 {
-    int const height = lt_strip_h(rt);
-    size_t const pixels = (size_t)width * (size_t)height;
-    uint64_t const key = lt_compose_key(rt, width);
+    struct LtStripPlan plan;
+    int height;
+    size_t pixels;
+    uint64_t key;
     int top = 0;
     int visible_sources = 0;
 
     assert(rt);
+    lt_strip_plan(rt, &plan);
+    key = lt_compose_key(rt, width);
+    height = plan.height;
+    pixels = (size_t)width * (size_t)height;
     if( width <= 0 || height <= 0 )
         return;
     /*
@@ -1661,7 +1781,7 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
             LT_INK_HEAD);
     else if( g_drop_view )
     {
-        struct LtItem drops[LT_SOURCES_MAX * 4];
+        struct LtItem drops[LT_SOURCES_MAX * LT_ITEMS_MAX];
         int const n = lt_collect_drops(
             rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
 
@@ -1669,15 +1789,15 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
             PluginDraw_Text(
                 g_compose, width, height, 4, top + 3,
                 &g_text, "No loot to display.", LT_INK_HEAD);
-        for( int i = 0; i < n; i++ )
+        for( int i = plan.drop_start; i < plan.drop_cut; i++ )
             lt_draw_cell(
                 rt, g_compose, width, height,
-                lt_grid_x(width, i % LT_GRID_COLS),
-                top + (i / LT_GRID_COLS) * LT_CELL_H, &drops[i],
+                lt_grid_x(width, (i - plan.drop_start) % LT_GRID_COLS),
+                top + ((i - plan.drop_start) / LT_GRID_COLS) * LT_CELL_H, &drops[i],
                 lt_item_ignored(rt, &drops[i]));
     }
     else
-        for( int i = 0; i < g_source_count; i++ )
+        for( int i = plan.source_start; i < plan.source_cut; i++ )
         {
             int const source_h = lt_source_h(rt, i);
             if( source_h <= 0 )
@@ -1685,6 +1805,20 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
             lt_draw_source(rt, g_compose, width, height, top, i);
             top += source_h;
         }
+
+    if( plan.page_count > 1 )
+    {
+        char page[32];
+        snprintf(page, sizeof(page), "%d / %d", plan.page + 1, plan.page_count);
+        lt_thinbox(g_compose, width, height, 0, plan.footer_y, width, LT_PAGER_H);
+        PluginDraw_Text(g_compose, width, height, 6, plan.footer_y + 5, &g_text,
+                        plan.page > 0 ? "< Previous" : "", LT_INK_HEAD);
+        PluginDraw_TextRight(g_compose, width, height, width - 6, plan.footer_y + 5, &g_text,
+                             plan.page + 1 < plan.page_count ? "Next >" : "", LT_INK_HEAD);
+        PluginDraw_Text(g_compose, width, height,
+                        (width - PluginDraw_TextWidth(&g_text, page)) / 2,
+                        plan.footer_y + 5, &g_text, page, LT_INK_HEAD);
+    }
 
     (void)g_api->assets.image_compose(
         g_api, "strip", width, height, g_compose, &g_strip_image);
@@ -1742,6 +1876,8 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     int selected_source_id = 0;
     int old_id[LT_SOURCES_MAX];
     bool old_expanded[LT_SOURCES_MAX];
+    int old_kills[LT_SOURCES_MAX];
+    long long old_value[LT_SOURCES_MAX];
 
     assert(rt);
 
@@ -1749,6 +1885,10 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     {
         old_id[i] = g_source[i].id;
         old_expanded[i] = g_expanded[i];
+        old_kills[i] = g_source[i].kills;
+        /* Ignored rows included: the chat line is about the DROP, exactly as
+         * it is on the inference lane, and not about what the page shows. */
+        old_value[i] = lt_source_value_visible(rt, &g_source[i], true);
     }
     if( g_detail >= 0 && g_detail < before )
     {
@@ -1800,18 +1940,52 @@ lt_sync_store(struct LootTrackerRuntime* rt)
             memset(&item, 0, sizeof(item));
             item.obj_id = row.obj_id;
             item.quantity = row.quantity;
-            /* The store priced it when it landed; a name still has to be
-             * asked for, and an objtype that is not resident yet simply has
-             * none this pass. */
-            item.cost = row.value;
+            /*
+             * The store's row value is CUMULATIVE and LtItem.cost is the price
+             * of ONE.
+             *
+             * LootStore_AddKillLoot writes `cost * qty` and adds `cost * qty`
+             * again on every later drop of the same obj, so `row.value` is
+             * already the whole stack. Taking it as the unit price made every
+             * readout on this lane cost * qty^2 -- a hundred coins came back
+             * as 10,000 gp -- and the high-alchemy basis was then three fifths
+             * of the squared number. Dividing is exact: every add used the
+             * same cache cost.
+             *
+             * A name still has to be asked for, and an objtype that is not
+             * resident yet simply has none this pass.
+             */
+            item.cost = row.quantity > 0 ? row.value / row.quantity : row.value;
             if( g_api->game->item_info(g_api, row.obj_id, &info) )
                 lt_clean_name(info.name, item.name, sizeof(item.name));
             dst->items[dst->item_count++] = item;
         }
         if( count >= before || memcmp(&previous, dst, sizeof(*dst)) != 0 )
             changed = true;
+        /*
+         * A kill this read is new to us. The store keeps a running total per
+         * source rather than a per-kill split, so what the drop was worth is
+         * the difference the read moved the source by.
+         */
+        if( g_store_baseline )
+        {
+            int prior_kills = 0;
+            long long prior_value = 0;
+
+            for( int old = 0; old < before; old++ )
+                if( old_id[old] == src.id )
+                {
+                    prior_kills = old_kills[old];
+                    prior_value = old_value[old];
+                    break;
+                }
+            if( dst->kills > prior_kills )
+                lt_announce(
+                    rt, dst, lt_source_value_visible(rt, dst, true) - prior_value);
+        }
         count++;
     }
+    g_store_baseline = true;
 
     g_source_count = count;
     if( before != count )
@@ -2030,6 +2204,65 @@ lt_panel_build(
 }
 
 /**
+ * The log as plain text, when the art never arrived.
+ *
+ * The strip is composed out of six shipped assets, and the host keeps ONE
+ * bounded asset table for every plugin at once: with a frame provider and the
+ * full roster running it fills, and the slot request then answers nothing
+ * without a word to anybody. This gate used to return on that, so the page was
+ * a permanently empty box while the plugin reported running -- the one failure
+ * a person cannot tell apart from "this plugin does nothing".
+ *
+ * The client's own caption font belongs to the draw context and costs this
+ * plugin no asset at all, so the numbers are still readable while the pictures
+ * are missing.
+ */
+#define LT_ART_GRACE_MS 3000
+#define LT_TEXT_ONLY_LINE_H 14
+
+static void
+lt_draw_text_only(
+    struct LootTrackerRuntime* rt,
+    struct ToriRS_Graphics* draw,
+    struct ToriRS_DrawContext const* context)
+{
+    long long total_value = 0;
+    int total_count = 0;
+    char line[128];
+    char amount[32];
+    int y = LT_TEXT_ONLY_LINE_H;
+
+    assert(rt);
+    assert(draw);
+    assert(context);
+
+    lt_display_totals(rt, &total_value, &total_count);
+    lt_commas(total_value, amount, sizeof(amount));
+    snprintf(
+        line, sizeof(line), "Loot: %d kills, %s gp", total_count, amount);
+    draw->text(draw, 4, y, line, LT_INK_VALUE);
+    y += LT_TEXT_ONLY_LINE_H;
+    draw->text(draw, 4, y, "(page art unavailable)", LT_INK_HEAD);
+    y += LT_TEXT_ONLY_LINE_H;
+
+    for( int i = 0; i < g_source_count; i++ )
+    {
+        if( y > context->bounds.height )
+            break;
+        if( !lt_source_visible(rt, i) )
+            continue;
+        lt_commas(
+            lt_source_value_visible(rt, &g_source[i], g_show_ignored), amount,
+            sizeof(amount));
+        snprintf(
+            line, sizeof(line), "%s x%d  %s gp", g_source[i].name,
+            g_source[i].kills, amount);
+        draw->text(draw, 4, y, line, LT_INK_HEAD);
+        y += LT_TEXT_ONLY_LINE_H;
+    }
+}
+
+/**
  * Draw the selected source's drops.
  *
  * Every icon is asked for again, on every pass, and that is the contract
@@ -2057,12 +2290,29 @@ lt_panel_draw(
         return;
     /* The art crosses the IO queue, so the first passes after a start have
      * nothing to draw with. The next invalidate fills it -- the same state the
-     * client's own inventory icons are in for a frame or two. */
+     * client's own inventory icons are in for a frame or two. Past the grace
+     * period it is not in flight any more, and an empty box is then a lie. */
     if( !lt_art_ready(rt) )
     {
+        uint64_t const now = g_api->core.frame_ms(g_api);
+
         g_redraw_pending = true;
+        if( g_art_wait_ms == 0 )
+            g_art_wait_ms = now;
+        if( now < g_art_wait_ms + LT_ART_GRACE_MS )
+            return;
+        if( !g_art_warned )
+        {
+            g_art_warned = true;
+            g_api->core.log(
+                g_api,
+                "loot-tracker: page art did not load (the host's shared asset "
+                "table is full); drawing the log as text");
+        }
+        lt_draw_text_only(rt, draw, &context);
         return;
     }
+    g_art_wait_ms = 0;
 
     g_well_w = context.bounds.width;
     g_redraw_pending = false;
@@ -2155,8 +2405,22 @@ lt_panel_action(
      */
     if( strcmp(ev->id, "strip") == 0 )
     {
+        struct LtStripPlan plan;
         int local_y = 0;
         int source;
+
+        lt_strip_plan(rt, &plan);
+        if( plan.page_count > 1 && ev->y >= plan.footer_y && ev->y < plan.height )
+        {
+            int const page = g_strip_page;
+            if( ev->x >= 0 && ev->x < g_well_w / 3 && page > 0 )
+                g_strip_page--;
+            else if( ev->x >= g_well_w * 2 / 3 && ev->x < g_well_w && page + 1 < plan.page_count )
+                g_strip_page++;
+            if( page != g_strip_page )
+                g_api->panel.invalidate(g_api);
+            return;
+        }
 
         /*
          * The TOTALS band's own four controls first, because they sit above
@@ -2212,7 +2476,10 @@ lt_panel_action(
             else
                 return;
             if( rebuild || (g_built_detail >= 0 && g_detail < 0) )
+            {
+                if( rebuild ) g_strip_page = 0;
                 g_api->panel.invalidate(g_api);
+            }
             else
                 lt_page_refresh(rt);
             return;
@@ -2261,6 +2528,9 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
     g_dirty = false;
     g_redraw_pending = false;
     g_loot_revision = 0;
+    g_store_baseline = false;
+    g_art_wait_ms = 0;
+    g_art_warned = false;
     g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
     g_show_ignored = false;
     g_strip_image.value = 0;
@@ -2296,8 +2566,14 @@ lt_panel_layout(
     assert(ev);
 
     g_page_visible = ev->visible;
-    if( ev->width > 0 )
-        g_well_w = ev->width;
+    /*
+     * The layout event's width is the PANEL's; the strip is drawn into a
+     * custom region that is narrower whenever the pane carries a scrollbar.
+     * g_well_w is what the totals band's right-anchored controls were placed
+     * against, so it may only ever be the region width the draw pass reports
+     * -- taking the panel width here made a click land up to a scrollbar's
+     * worth away from the button it was drawn on.
+     */
     if( g_page_visible )
     {
         if( !lt_infers_loot(rt) )
@@ -2369,7 +2645,19 @@ lt_tick(
     g_next_panel_ms = now + LT_PANEL_REFRESH_MS;
 
     if( !g_page_visible )
+    {
+        /*
+         * The chat announcement is the one reading that is not about the page.
+         * A person who asked for a line per kill asked for it whether or not
+         * the panel happens to be open, so the store is scanned for that and
+         * for nothing else; the picture and the rows still wait until somebody
+         * is looking. @see lt_announce.
+         */
+        if( !lt_infers_loot(rt) && lt_config_bool(rt, "kill_chat_message") &&
+            lt_sync_changed(rt, false) )
+            g_dirty = true;
         return;
+    }
 
     /* OldSchool mirrors its authoritative store; RS2 was updated directly by
      * the inference callbacks above. */

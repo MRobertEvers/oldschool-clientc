@@ -64,6 +64,14 @@
  * today has used -- and the orb switches itself off if none of them answer.
  * See orbs_varp.
  *
+ * A number is not the same question as a FACILITY, though. Hitpoints, prayer
+ * and run energy exist on every world this client can talk to; a special
+ * attack does not, and a varp id resolving says nothing about whether the
+ * world has one -- read a 2004 world's varp 300 and you get a number, and the
+ * orb draws "60" for a special attack that world never had. So the special
+ * orb is drawn only where the lane also names a button for it, which is the
+ * one thing a world without the facility cannot have. @see ORB_PART.facility.
+ *
  * ## How an orb is presented now
  *
  * Each orb is an OWNED IMAGE CONTROL: one plugin-owned graphic child carrying
@@ -86,6 +94,13 @@
  * dispatcher, which re-checks visibility, masks and identity. A raw
  * `<interface>:<component>[:<op>]` override, and the older `[iface:<name>]`
  * compatibility lookup, remain as documented escape hatches.
+ *
+ * One resolver answers both "is this orb armed?" and "what does the press
+ * invoke?", so the two cannot disagree, and a press that finds nothing says
+ * so to the user instead of returning quietly. The alias is a press target,
+ * never proof that a press would land: a cover over a native orb asks only the
+ * live query, so it wears the state the client itself is drawing underneath.
+ * @see orbs_resolve_press.
  *
  * Pressing the real button rather than writing the var is what makes this
  * work at all: the run toggle and the special attack are the SERVER's, and a
@@ -113,7 +128,7 @@
 #define ORB_TEXT_RGB 0xFFFF00u
 
 /**
- * Where each orb sits, relative to the column's origin.
+ * Where the Nth SHOWN orb sits, relative to the column's origin.
  *
  * The reference's own four positions, from interface 160: the orbs do not
  * stack in a straight line, they step out to the right as they go down,
@@ -122,7 +137,9 @@
  *
  * Orbs fill these slots in order, so a client showing three of them uses the
  * first three and the curve is continuous -- rather than leaving the gap where
- * the prayer orb would have been.
+ * the prayer orb would have been. That is why orbs_layout counts the orbs it
+ * places rather than indexing this table by the orb's own enum: the table is a
+ * COLUMN, not four fixed addresses.
  */
 static const struct
 {
@@ -215,6 +232,12 @@ struct OrbControl
     struct ToriRS_ImageRef composed;
     /* What the last composition drew, so a quiet frame composes nothing. */
     uint32_t composed_key;
+    /* The parent-local origin last written, so a settled layout writes no
+     * geometry and asks for no revalidate: a whole-tree EnsureLayout per orb
+     * per binding event is what turned one publication into forty. */
+    int applied_x;
+    int applied_y;
+    bool placed;
     bool armed;
     bool action_available;
     bool native;
@@ -561,11 +584,23 @@ static struct
     char const* action;
     char const* native_role;
     char const* action_role;
+    /*
+     * Whether this orb pictures a FACILITY rather than a number.
+     *
+     * Hitpoints, prayer and run energy are numbers every revision this client
+     * speaks puts on the wire, so the orb is drawn wherever the plugin runs.
+     * The special attack is not a number, it is a thing a world either has or
+     * has not -- and the tell that it has one is that something can be pressed
+     * to use it. A world naming no such button (rs289lc's profile says so in
+     * as many words) gets no orb, rather than a meter over whatever it keeps
+     * in the varp id its profile copied. @see orbs_lane_declares_button.
+     */
+    bool facility;
 } const ORB_PART[ORB_COUNT] = {
-    { "orb_hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure", "orb_hitpoints", NULL },
-    { "orb_prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers", "orb_prayer", "action_frame_orb_prayer_activate" },
-    { "orb_run", "show_run", "run_button", "orb_run_on", "Toggle Run", "orb_run", "action_frame_orb_run_enable" },
-    { "orb_special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack", "orb_spec", "action_frame_orb_special_activate" },
+    { "orb_hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure", "orb_hitpoints", NULL, false },
+    { "orb_prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers", "orb_prayer", "action_frame_orb_prayer_activate", false },
+    { "orb_run", "show_run", "run_button", "orb_run_on", "Toggle Run", "orb_run", "action_frame_orb_run_enable", false },
+    { "orb_special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack", "orb_spec", "action_frame_orb_special_activate", true },
 };
 
 /* ------------------------------------------------------------ compositing */
@@ -800,63 +835,166 @@ orbs_native_action(
     return true;
 }
 
-static bool
-orbs_has_action(struct ToriRS_Api* api, int orb)
+/** Where an orb's press goes on this lane. @see orbs_resolve_press. */
+enum OrbPressKind
 {
-    int component, operation;
-    char const* key = ORB_PART[orb].button_key;
-    char const* name = ORB_PART[orb].button_name;
+    ORB_PRESS_NONE = 0,
+    ORB_PRESS_COMPONENT,
+    ORB_PRESS_NATIVE,
+};
+
+struct OrbPressTarget
+{
+    enum OrbPressKind kind;
+    int component;
+    int operation;
+    struct ToriRS_WidgetActionRef action;
+    /* The config key and compatibility name this orb answers to in its
+     * CURRENT state -- the run orb's are not the same turning run on as off. */
+    char const* key;
+    char const* name;
+};
+
+/**
+ * Where this orb's press goes on this lane, as ONE answer.
+ *
+ * The arming question ("does this orb offer a verb?") and the press itself
+ * used to resolve the target separately, so they could disagree: an orb could
+ * look pressable and do nothing. Both ask this now.
+ *
+ * The order is the documented one -- the raw override a private lane states,
+ * the live action behind the lane's semantic role, then the legacy
+ * `[iface:<name>]` alias -- with one rule the alias never had:
+ *
+ * A COVER WEARS THE STATE OF THE ORB IT COVERS. The alias is a press target,
+ * never evidence that a press would land: it is a static line in a profile.
+ * `[iface:orb_spec_button] id=if(160, 36)` is true of interface 160 whether or
+ * not the client has hidden that button because the wielded weapon has no
+ * special attack -- and on rev-239 the client hides exactly that node
+ * (`com=10485796 hidden=1 native_input=0`) and paints the orb grey. Consulted
+ * there, the alias armed the plugin's cover and painted a full CYAN disc over
+ * the client's own "no special attack" grey. So an orb sitting on a native
+ * root asks only the live query, which describes the button as it is now; a
+ * lane with no native orb of its own has nothing live to ask and keeps the
+ * alias, which is how the 2004 lane's run toggle is found.
+ */
+static enum OrbPressKind
+orbs_resolve_press(
+    struct ToriRS_Api* api,
+    struct OrbsState const* state,
+    int orb,
+    struct OrbPressTarget* out)
+{
+    assert(api);
+    assert(state);
+    assert(out);
+    assert(orb >= 0);
+    assert(orb < ORB_COUNT);
+
+    memset(out, 0, sizeof(*out));
+    out->key = ORB_PART[orb].button_key;
+    out->name = ORB_PART[orb].button_name;
     if( orb == ORB_RUN && orbs_running(api) )
     {
-        key = "run_button_off";
-        name = "orb_run_off";
+        out->key = "run_button_off";
+        out->name = "orb_run_off";
     }
-    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
+    if( orbs_parse_button(orbs_cfg_string(api, out->key), &out->component, &out->operation) )
+        return out->kind = ORB_PRESS_COMPONENT;
+    if( orbs_native_action(api, orb, &out->action) )
+        return out->kind = ORB_PRESS_NATIVE;
+    if( state->orb[orb].native_root.opaque[2] )
+        return out->kind = ORB_PRESS_NONE;
+    if( orbs_compat_button(api, out->name, &out->component, &out->operation) )
+        return out->kind = ORB_PRESS_COMPONENT;
+    return out->kind = ORB_PRESS_NONE;
+}
+
+/** Whether the orb offers a verb: exactly "orbs_press would find a target". */
+static bool
+orbs_has_action(struct ToriRS_Api* api, struct OrbsState const* state, int orb)
+{
+    struct OrbPressTarget target;
+    return orbs_resolve_press(api, state, orb, &target) != ORB_PRESS_NONE;
+}
+
+/**
+ * Does this lane name a button for this orb AT ALL?
+ *
+ * Not "can it be pressed right now": that answer changes with the wielded
+ * weapon, and an orb that vanished every time a special weapon was sheathed
+ * would be worse than one that greys. This is the lane's own statement that
+ * the facility exists -- an override, a semantic action role whose node is in
+ * the tree at all (hidden or not), or a legacy alias.
+ */
+static bool
+orbs_lane_declares_button(struct ToriRS_Api* api, int orb)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct ToriRS_WidgetRef node = { 0 };
+    char const* role = orbs_action_role(api, orb);
+    int component, operation;
+
+    assert(orb >= 0);
+    assert(orb < ORB_COUNT);
+    if( orbs_parse_button(orbs_cfg_string(api, ORB_PART[orb].button_key), &component, &operation) )
         return true;
-    if( orbs_native_action(api, orb, NULL) )
+    if( role && ui->find(ui->context, role, &node) == TORIRS_CONTRACT_OK )
         return true;
-    return orbs_compat_button(api, name, &component, &operation) != 0;
+    return orbs_compat_button(api, ORB_PART[orb].button_name, &component, &operation) != 0;
+}
+
+/** The press found nothing to press: say so where the user can see it. */
+static void
+orbs_press_unavailable(struct ToriRS_Api* api, int orb)
+{
+    char message[160];
+    snprintf(message, sizeof(message),
+        "Minimap orbs: this world offers no '%s' button to press.", ORB_PART[orb].action);
+    api->core.notify(api, message);
+    api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=none", ORB_PART[orb].key);
 }
 
 /** Press the orb: raw override, checked native action, then compatibility. */
 static void
-orbs_press(struct ToriRS_Api* api, int orb)
+orbs_press(struct ToriRS_Api* api, struct OrbsState* state, int orb)
 {
     struct ToriRS_WidgetApi* ui = &api->widgets;
-    struct ToriRS_WidgetActionRef action;
-    int component, operation;
-    char const* key = ORB_PART[orb].button_key;
-    char const* name = ORB_PART[orb].button_name;
-    if( orb == ORB_RUN && orbs_running(api) )
+    struct OrbPressTarget target;
+
+    if( orbs_resolve_press(api, state, orb, &target) == ORB_PRESS_NATIVE )
     {
-        key = "run_button_off";
-        name = "orb_run_off";
-    }
-    if( orbs_parse_button(orbs_cfg_string(api, key), &component, &operation) )
-        goto invoke;
-    if( orbs_native_action(api, orb, &action) )
-    {
-        enum ToriRS_ContractResult result = ui->invoke(ui->context, action);
+        enum ToriRS_ContractResult const result = ui->invoke(ui->context, target.action);
         api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=native result=%d", ORB_PART[orb].key, result);
         if( result == TORIRS_CONTRACT_OK )
             return;
+        /* The node refused between the arming and the press. The alias is the
+         * only target left, and only where nothing native was covered. */
+        if( state->orb[orb].native_root.opaque[2] ||
+            !orbs_compat_button(api, target.name, &target.component, &target.operation) )
+        {
+            orbs_press_unavailable(api, orb);
+            return;
+        }
     }
-    if( !orbs_compat_button(api, name, &component, &operation) )
+    else if( target.kind == ORB_PRESS_NONE )
     {
-        api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=none", ORB_PART[orb].key);
+        /* Nothing to press. A press that reached here is not a no-op the user
+         * has to guess at: the orb was armed and it is not any more. */
+        orbs_press_unavailable(api, orb);
         return;
     }
-invoke:
-    if( !api->cache.invoke(api, component, operation) )
+    if( !api->cache.invoke(api, target.component, target.operation) )
     {
         char message[160];
         snprintf(message, sizeof(message),
-            "Minimap orbs: this world has no interface component %d for '%s'.", component, key);
+            "Minimap orbs: this world has no interface component %d for '%s'.", target.component, target.key);
         api->core.notify(api, message);
         api->core.log(api, "%s", message);
         return;
     }
-    api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=component component=%d op=%d", ORB_PART[orb].key, component, operation);
+    api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=component component=%d op=%d",
+        ORB_PART[orb].key, target.component, target.operation);
 }
 
 static void
@@ -866,7 +1004,7 @@ orbs_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent con
     for( int i = 0; i < ORB_COUNT; i++ )
         if( ToriRS_WidgetRefEqual(state->orb[i].control, event->widget) )
         {
-            orbs_press(api, i);
+            orbs_press(api, state, i);
             return;
         }
 }
@@ -900,12 +1038,21 @@ orbs_map_ink_left(struct ToriRS_WidgetBounds const* map, int top, int bottom)
     return left;
 }
 
-/** Interface 160's slot for `orb` beside `map`, then clamped out of the disc. */
+/**
+ * Interface 160's `slot`th place beside `map`, then clamped out of the disc.
+ *
+ * A SLOT, not an orb: the caller counts the orbs it has placed, so switching
+ * the prayer orb off closes the column up instead of leaving its hole.
+ */
 static void
-orbs_beside_map(struct ToriRS_Api* api, struct ToriRS_WidgetBounds const* map, int orb, int* out_x, int* out_y)
+orbs_beside_map(struct ToriRS_Api* api, struct ToriRS_WidgetBounds const* map, int slot, int* out_x, int* out_y)
 {
-    int x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
-    int const y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[orb].dy;
+    assert(slot >= 0);
+    assert(slot < ORB_SLOT_COUNT);
+    assert(out_x);
+    assert(out_y);
+    int x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[slot].dx;
+    int const y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") - ORB_SLOT[0].dy + ORB_SLOT[slot].dy;
     int const limit = orbs_map_ink_left(map, y, y + ORB_H);
     if( x + ORB_W > limit )
         x = limit - ORB_W;
@@ -922,6 +1069,7 @@ orbs_remove_control(struct ToriRS_Api* api, struct OrbControl* orb)
     orb->control = (struct ToriRS_WidgetRef){ 0 };
     orb->parent = (struct ToriRS_WidgetRef){ 0 };
     orb->composed_key = 0;
+    orb->placed = false;
     orb->armed = false;
 }
 
@@ -972,13 +1120,18 @@ orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
         state->map_valid = true;
     state->cutscene = orbs_cutscene_active(api);
 
+    /* The column's own counter: the Nth orb PLACED takes the Nth slot. */
+    int slot = 0;
     for( int i = 0; i < ORB_COUNT; i++ )
     {
         struct OrbControl* orb = &state->orb[i];
         struct ToriRS_WidgetRef parent = { 0 };
+        struct ToriRS_WidgetRef previous = orb->control;
+        bool const native = replace_native && orb->native_root.opaque[2];
+        bool created, moved, arm_changed = false, available;
         int x = 0, y = 0;
-        bool native = replace_native && orb->native_root.opaque[2];
-        if( state->cutscene || !orbs_cfg_bool(api, ORB_PART[i].show_key) )
+        if( state->cutscene || !orbs_cfg_bool(api, ORB_PART[i].show_key) ||
+            (ORB_PART[i].facility && !orbs_lane_declares_button(api, i)) )
         {
             orbs_remove_control(api, orb);
             continue;
@@ -988,7 +1141,7 @@ orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
         else if( state->map_valid && !orb->native_root.opaque[2] )
         {
             parent = beside_parent;
-            orbs_beside_map(api, &state->map_local, i, &x, &y);
+            orbs_beside_map(api, &state->map_local, slot, &x, &y);
         }
         else
         {
@@ -1002,27 +1155,55 @@ orbs_layout(struct ToriRS_Api* api, struct OrbsState* state)
         {
             orb->control = (struct ToriRS_WidgetRef){ 0 };
             orb->parent = (struct ToriRS_WidgetRef){ 0 };
+            orb->placed = false;
             continue;
         }
+        if( !native )
+            slot++;
         orb->parent = parent;
-        (void)ui->set_position(ui->context, orb->control, x, y);
-        if( orb->composed.value )
-            (void)ui->set_image(ui->context, orb->control, orb->composed, ORB_W, ORB_H);
-        orb->action_available = orbs_has_action(api, i);
-        if( orb->action_available )
+        created = !ToriRS_WidgetRefEqual(orb->control, previous);
+        moved = created || !orb->placed || orb->applied_x != x || orb->applied_y != y;
+        /* Everything below is written only when it CHANGED. A binding event
+         * for one orb re-runs this whole loop for all four, and a revalidate
+         * is a whole-tree EnsureLayout: writing every field every time is how
+         * one publication became forty of them. */
+        if( moved )
         {
-            if( ui->set_on_op(ui->context, orb->control, ORB_PART[i].action, orbs_operation, state) == TORIRS_CONTRACT_OK )
-                orb->armed = true;
+            (void)ui->set_position(ui->context, orb->control, x, y);
+            orb->applied_x = x;
+            orb->applied_y = y;
+            orb->placed = true;
         }
-        else if( orb->armed )
+        if( created )
         {
-            (void)ui->set_on_op(ui->context, orb->control, NULL, NULL, NULL);
-            orb->armed = false;
+            /* A fresh child carries no picture: re-hang the one already
+             * composed, and only recompose when that could not be done. */
+            if( orb->composed.value == 0 ||
+                ui->set_image(ui->context, orb->control, orb->composed, ORB_W, ORB_H) != TORIRS_CONTRACT_OK )
+                orb->composed_key = 0;
         }
-        (void)ui->revalidate(ui->context, orb->control);
-        orb->composed_key = 0; /* a moved or re-created control redraws */
+        available = orbs_has_action(api, state, i);
+        /* A fresh control carries no operation, so creation installs one only
+         * if the orb has a verb; otherwise only a CHANGE of verb is written. */
+        if( created ? available : available != orb->action_available )
+        {
+            if( available )
+                orb->armed = ui->set_on_op(ui->context, orb->control, ORB_PART[i].action, orbs_operation, state) ==
+                             TORIRS_CONTRACT_OK;
+            else
+            {
+                (void)ui->set_on_op(ui->context, orb->control, NULL, NULL, NULL);
+                orb->armed = false;
+            }
+            arm_changed = true;
+        }
+        orb->action_available = available;
         orb->native = native;
-        orbs_log_control(api, state, i);
+        if( moved || arm_changed )
+        {
+            (void)ui->revalidate(ui->context, orb->control);
+            orbs_log_control(api, state, i);
+        }
     }
 }
 
@@ -1056,12 +1237,19 @@ orbs_refresh(struct ToriRS_Api* api, struct OrbsState* state, int i)
     else
     {
         int const spec_varp = orbs_varp(api, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
+        /* The lit disc is a SECOND var -- "the special is armed for the next
+         * swing" -- and which id that is on this lane is not deducible from
+         * the meter's. It was read at spec_varp + 1, an id-adjacency guess no
+         * profile stated and nothing resolved; it is resolved by name now,
+         * with the same historical last resort the meter's id has. */
+        int const armed_varp = orbs_varp(api, "spec_armed_varp", "special_attack_enabled", spec_varp + 1);
         int const spec_max = orbs_cfg_int(api, "spec_max");
-        int energy, armed;
+        int energy;
+        bool armed;
         if( spec_varp < 0 || spec_max <= 0 )
             return;
         energy = api->cache.varp(api, spec_varp);
-        armed = api->cache.varp(api, spec_varp + 1) > 0;
+        armed = armed_varp >= 0 && api->cache.varp(api, armed_varp) > 0;
         if( energy < 0 ) energy = 0;
         if( energy > spec_max ) energy = spec_max;
         key = orbs_compose(api, state, i, armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN, ORB_IMG_ICON_SPEC,
@@ -1124,9 +1312,19 @@ orbs_start(struct ToriRS_Api* api, void* plugin_state)
     state->digit_steps = 1;
     orbs_load_images(api, state);
     (void)orbs_load_digits(api, state);
-    (void)ui->watch(ui->context, "minimap", orbs_binding, state);
+    /*
+     * The native orb roles are watched FIRST and the minimap last, because the
+     * host dispatches a publication's bindings in watch-registration order
+     * (PluginHost_WidgetsChanged, ascending serial) and every one of them
+     * re-runs orbs_layout. Watched the other way round, the minimap bound
+     * first, all four native roots were still zero, and the plugin built the
+     * whole column beside the map -- then tore it down again root by root as
+     * the orb roles arrived. This order asks "does this lane draw its own
+     * orbs?" before answering "where does the column go?".
+     */
     for( int i = 0; i < ORB_COUNT; i++ )
         (void)ui->watch(ui->context, ORB_PART[i].native_role, orbs_binding, state);
+    (void)ui->watch(ui->context, "minimap", orbs_binding, state);
 }
 
 static void
@@ -1194,7 +1392,7 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
             relayout = true;
     }
     for( int i = 0; i < ORB_COUNT && !relayout; i++ )
-        if( state->orb[i].control.opaque[2] && orbs_has_action(api, i) != state->orb[i].action_available )
+        if( state->orb[i].control.opaque[2] && orbs_has_action(api, state, i) != state->orb[i].action_available )
             relayout = true;
     if( orbs_cutscene_active(api) != state->cutscene )
         relayout = true;
@@ -1218,6 +1416,11 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "run_varp",       TORIRS_CONFIG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
     { "spec_varp",
      TORIRS_CONFIG_INT,                       "Special attack varp (-1 auto)",
+     "-1",                                                                                  -1,
+     65535,                                                                                               NULL,
+     0                                                                                                            },
+    { "spec_armed_varp",
+     TORIRS_CONFIG_INT,                       "Special attack armed varp (-1 auto)",
      "-1",                                                                                  -1,
      65535,                                                                                               NULL,
      0                                                                                                            },

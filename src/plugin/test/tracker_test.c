@@ -472,10 +472,19 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
     }
     if( obj_id < 0 )
         return;
+    /*
+     * `value` is the price of ONE, and the row's value is CUMULATIVE -- that
+     * is LootStore_AddKillLoot's own arithmetic ("rows[i].value += value * qty"
+     * / "row->value = value * qty"), and the reason it is copied exactly here
+     * is that a fake handing back a unit price is a fake in which multiplying
+     * by the quantity a second time looks right. It did, and every stack on
+     * the OldSchool lane was priced cost * qty^2.
+     */
     for( int r = 0; r < g_store.source[index].row_count; r++ )
         if( g_store.source[index].rows[r].obj_id == obj_id )
         {
             g_store.source[index].rows[r].quantity += qty;
+            g_store.source[index].rows[r].value += value * qty;
             return;
         }
     assert(g_store.source[index].row_count < FAKE_LOOT_ROWS);
@@ -484,7 +493,7 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
             &g_store.source[index].rows[g_store.source[index].row_count++];
         row->obj_id = obj_id;
         row->quantity = qty;
-        row->value = value;
+        row->value = value * qty;
     }
 }
 
@@ -1068,6 +1077,7 @@ client_reset(void)
     g_client.me.true_x = 3200;
     g_client.me.true_z = 3200;
     g_client.me.level = 0;
+    snprintf(g_client.me.name, sizeof(g_client.me.name), "tracker-test");
     for( int i = 0; i < FAKE_SKILLS; i++ )
     {
         g_client.level[i] = 1;
@@ -1510,6 +1520,74 @@ test_xp_offline_gains_are_not_the_session(void)
         row_text("d_gained") && strcmp(row_text("d_gained"), "600") == 0,
         "the saved session comes back and the offline million does not (got %s)",
         row_text("d_gained") ? row_text("d_gained") : "(none)");
+}
+
+static void
+test_xp_restore_identity_and_late_asset(void)
+{
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    g_client.xp[SKILL_WOODCUTTING] = 1000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] = 1600; tick(1000);
+    dispatch_stop();
+    TEST_ASSERT(strstr(g_client.asset_bytes, "# owner ") == g_client.asset_bytes,
+        "saved XP identifies the character and lane");
+
+    /* Login and an observed gain beat the queued file read. */
+    g_client.asset_present = false;
+    g_client.xp[SKILL_WOODCUTTING] = 1001600;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100; tick(1000);
+    g_client.asset_present = true;
+    struct ToriRS_AssetEvent asset = { .name = "session.txt", .ok = true };
+    g_plugin->callbacks.on_asset(&g_api, g_plugin_state, &asset);
+    if( g_client.rebuild_wanted ) panel_build();
+    press_box(0);
+    TEST_ASSERT(row_text("d_gained") && strcmp(row_text("d_gained"), "700") == 0,
+        "a delayed session read retains saved and newly observed gains");
+    dispatch_stop();
+
+    snprintf(g_client.me.name, sizeof(g_client.me.name), "another-player");
+    g_client.xp[SKILL_WOODCUTTING] += 1000000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    TEST_ASSERT(box_count() == 0, "a higher-XP different character never inherits the session");
+}
+
+static void
+test_xp_pages_and_late_skills(void)
+{
+    client_reset();
+    for( int i = 1; i < FAKE_SKILLS; i++ ) g_client.xp_stated[i] = false;
+    xp_start(); tick(20);
+    for( int i = 1; i < 12; i++ ) g_client.xp_stated[i] = true;
+    tick(20);
+    for( int i = 0; i < 12; i++ ) g_client.xp[i] += 100;
+    tick(1000);
+    TEST_ASSERT(box_count() == 8, "eight skills fit beside the overview and navigation");
+    struct FakeWidget const* boxes = fake_widget_find("boxes");
+    TEST_ASSERT(boxes && boxes->height <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+        "a page remains inside the host well allocation");
+    struct ToriRS_PanelActionEvent next = {
+        .id = "boxes", .action = TORIRS_PANEL_ACTION_ACTIVATE,
+        .x = 250, .y = boxes ? boxes->height - 2 : 0, .text = ""
+    };
+    dispatch_panel_action(&next);
+    if( g_client.rebuild_wanted ) panel_build();
+    TEST_ASSERT(box_count() == 4, "Next exposes the four skills beyond the original clipped area");
+    press_box(3);
+    TEST_ASSERT(detail_skill() && strcmp(detail_skill(), "Firemaking") == 0,
+        "a late-stated skill on the second page opens its own detail");
+    TEST_ASSERT(row_text("d_gained") && strcmp(row_text("d_gained"), "100") == 0,
+        "growing the stat table preserves the late skill's real gain");
+    boxes = fake_widget_find("boxes");
+    next.x = 8; next.y = boxes ? boxes->height - 2 : 0;
+    dispatch_panel_action(&next);
+    if( g_client.rebuild_wanted ) panel_build();
+    TEST_ASSERT(box_count() == 8, "Previous returns to the first page");
 }
 
 /* ====================================================================== */
@@ -2051,6 +2129,8 @@ main(void)
     test_xp_logout_pauses_and_keeps_state();
     test_xp_reset();
     test_xp_offline_gains_are_not_the_session();
+    test_xp_restore_identity_and_late_asset();
+    test_xp_pages_and_late_skills();
 
     test_loot_kill_becomes_a_record();
     test_loot_rs289_inference_and_osrs_dedup();

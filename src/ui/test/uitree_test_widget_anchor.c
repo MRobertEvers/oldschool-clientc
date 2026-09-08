@@ -206,10 +206,48 @@ static void test_anchor_rejections(void)
     scene_close(&s);
 }
 
+/* A cache toplevel has thousands of resident nodes, and a frame's images
+ * share an anchor target. Ordering must depend on those images' records,
+ * including every sibling, rather than a fixed-size temporary child list. */
+static void test_anchor_sparse_tree_many_images(void)
+{
+    enum { RESIDENT_NODES = 7000, IMAGE_COUNT = 80, RECORD_COUNT = IMAGE_COUNT + 2 };
+    struct AnchorRecord { int32_t node_plus_one; int serial; } records[RECORD_COUNT];
+    struct UITree* tree = UITree_New(RESIDENT_NODES + IMAGE_COUNT + 2);
+    int32_t const root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 0, 0, 0, 765, 503);
+    int32_t const target = UITree_TestPushXy(tree, root, UIELEM_RS_RECT, 1, 0, 0, 765, 503);
+    int32_t image[IMAGE_COUNT];
+    for( int i = 2; i < RESIDENT_NODES; i++ )
+        (void)UITree_TestPushXy(tree, root, UIELEM_RS_RECT, i, 0, 0, 1, 1);
+    for( int i = 0; i < IMAGE_COUNT; i++ )
+    {
+        image[i] = UITree_TestPushXy(tree, root, UIELEM_RS_RECT, RESIDENT_NODES + i, 0, 0, 1, 1);
+        TEST_ASSERT(UITree_WidgetSetAnchor(tree, UITree_RefAt(tree, image[i]), 7,
+                        UITree_RefAt(tree, target), UITREE_WIDGET_RELATION_OVER) == UITREE_WIDGET_ANCHOR_OK,
+                    "each frame image anchors over its target");
+    }
+    /* Images arrive before the target, in the opposite order to their node
+     * indices. Both target records move together, and sibling order follows
+     * their first record, never their allocation order. */
+    for( int i = 0; i < IMAGE_COUNT; i++ )
+        records[i] = (struct AnchorRecord){ image[IMAGE_COUNT - 1 - i] + 1, i };
+    records[IMAGE_COUNT] = (struct AnchorRecord){ target + 1, IMAGE_COUNT };
+    records[IMAGE_COUNT + 1] = (struct AnchorRecord){ target + 1, IMAGE_COUNT + 1 };
+    int const count = UITree_FrameReorder(tree, NULL, records, RECORD_COUNT,
+                                         sizeof(records[0]), offsetof(struct AnchorRecord, node_plus_one));
+    TEST_ASSERT(count == RECORD_COUNT, "all records survive ordering on a sparse cache tree");
+    TEST_ASSERT(records[0].serial == IMAGE_COUNT && records[1].serial == IMAGE_COUNT + 1,
+                "the target's records remain together beneath its frame images");
+    for( int i = 0; i < IMAGE_COUNT; i++ )
+        TEST_ASSERT(records[i + 2].serial == i, "every image follows its target in stable record order");
+    UITree_Free(tree);
+}
+
 void test_widget_anchor_depth(void)
 {
     test_anchor_behind_and_over();
     test_anchor_replace_follows_native_visibility();
     test_anchor_chain_and_absent_target();
     test_anchor_rejections();
+    test_anchor_sparse_tree_many_images();
 }

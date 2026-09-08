@@ -101,6 +101,27 @@ struct PluginConfigSlot
      * plugin that owns them may not have finished loading, and rewriting the
      * file must not delete a section we merely did not understand yet. */
     int schema_index;
+    /* This value would not parse as a number and the plugin has already been
+     * told so once. Cleared whenever the value changes, so a second typo is
+     * reported again rather than swallowed by the first one's flag. */
+    bool number_warned;
+};
+
+/*
+ * One saved line whose section names no registered plugin.
+ *
+ * Held verbatim -- name, key and value, exactly as the file spelled them --
+ * because the host has no schema to interpret them against and no business
+ * inventing one. The whole point is that a run which cannot account for a
+ * section must still be able to write it back unchanged.
+ *
+ * @see plugin_orphan_store.
+ */
+struct PluginOrphanConfig
+{
+    char plugin[TORIRS_PLUGIN_NAME_MAX];
+    char key[64];
+    char value[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
 };
 
 
@@ -169,6 +190,14 @@ struct PluginContext
     /* Overlay items pushed this frame, against TORIRS_PLUGIN_DRAW_BUDGET. */
     int draw_used;
     bool draw_clipped;
+    /* The shared asset table was full when this plugin asked, and it has been
+     * told so. Per plugin rather than per host so every starved plugin is
+     * named, and a flag rather than nothing so a frame provider asking for
+     * ninety-seven files does not write ninety-seven lines. */
+    bool asset_budget_reported;
+    /* The same, for the resident IMAGE table. A separate flag so a plugin
+     * starved by one is still told when it is later starved by the other. */
+    bool image_budget_reported;
     char name[TORIRS_PLUGIN_NAME_MAX];
     /* What the panel shows. Derived once per (re)load rather than at every
      * draw, and held here rather than read through the def, because a def may
@@ -202,9 +231,9 @@ struct PluginContext
     void* reload_user;
 };
 
-_Static_assert(
-    TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX >= TORIRS_PLUGIN_IMAGES_MAX,
-    "v2 image tokens cover the host image table");
+/* Image tokens belong to one plugin and map to arbitrary engine slots.
+ * The global table also holds other plugins and cached item images, so it
+ * need not fit in a single owner's reference table. */
 _Static_assert(
     TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX >= TORIRS_PLUGIN_MODELS_MAX,
     "v2 model tokens cover the host model table");
@@ -548,6 +577,12 @@ struct ToriRS_PluginHost
     bool panel_game_visible;
 
     bool config_dirty;
+
+    /* Saved settings for plugins this run does not have. Carried through the
+     * rewrite untouched; adopted the moment their plugin registers. */
+    struct PluginOrphanConfig* orphan_config;
+    int orphan_config_count;
+    int orphan_config_capacity;
 };
 
 static int
@@ -805,6 +840,98 @@ plugin_config_seed(
         snprintf(
             slot->value, sizeof(slot->value), "%s", item->default_value ? item->default_value : "");
     }
+}
+
+/* -- settings belonging to plugins this run does not have ---------------- */
+
+/*
+ * Remember one line whose section names nothing registered.
+ *
+ * Keyed by (plugin, key) and REPLACED rather than appended, so replaying the
+ * same file twice -- which a reconnect or a settings save will do -- cannot
+ * grow the table.
+ */
+static void
+plugin_orphan_store(
+    struct ToriRS_PluginHost* host,
+    char const* plugin_name,
+    char const* key,
+    char const* value)
+{
+    struct PluginOrphanConfig* row;
+
+    assert(host);
+    assert(plugin_name);
+    assert(key);
+    assert(value);
+
+    /* A name too long to be a plugin's cannot be one this build is missing
+     * either, so there is nothing here worth carrying. Data, not a bug: the
+     * string came off a line in a file. */
+    if( strlen(plugin_name) >= sizeof(row->plugin) )
+        return;
+
+    for( int i = 0; i < host->orphan_config_count; i++ )
+    {
+        row = &host->orphan_config[i];
+        if( strcmp(row->plugin, plugin_name) == 0 && strcmp(row->key, key) == 0 )
+        {
+            snprintf(row->value, sizeof(row->value), "%s", value);
+            return;
+        }
+    }
+
+    if( host->orphan_config_count == host->orphan_config_capacity )
+    {
+        /* A rendering budget must never become a settings deletion budget. */
+        assert(host->orphan_config_capacity <= INT_MAX / 2);
+        int capacity = host->orphan_config_capacity ? host->orphan_config_capacity * 2 : 32;
+        host->orphan_config = realloc(
+            host->orphan_config, (size_t)capacity * sizeof(*host->orphan_config));
+        assert(host->orphan_config);
+        host->orphan_config_capacity = capacity;
+    }
+
+    row = &host->orphan_config[host->orphan_config_count++];
+    memset(row, 0, sizeof(*row));
+    snprintf(row->plugin, sizeof(row->plugin), "%s", plugin_name);
+    snprintf(row->key, sizeof(row->key), "%s", key);
+    snprintf(row->value, sizeof(row->value), "%s", value);
+}
+
+/*
+ * A plugin just registered: hand it whatever the file had saved for it and
+ * drop those rows.
+ *
+ * Registration after a decode is the ordinary case for a script the manifest
+ * loads late, and it is also what keeps the encoder honest -- a name held in
+ * both places would be written as two sections of the same plugin, the second
+ * of them stale, and the next decode would apply the stale one last.
+ */
+static void
+plugin_orphan_adopt(
+    struct ToriRS_PluginHost* host,
+    int index)
+{
+    int kept = 0;
+
+    assert(host);
+    assert(index >= 0);
+    assert(index < host->plugin_count);
+
+    for( int i = 0; i < host->orphan_config_count; i++ )
+    {
+        struct PluginOrphanConfig* row = &host->orphan_config[i];
+        if( strcmp(row->plugin, host->plugins[index].name) != 0 )
+        {
+            if( kept != i )
+                host->orphan_config[kept] = *row;
+            kept++;
+            continue;
+        }
+        PluginHost_ConfigApply(host, row->plugin, row->key, row->value);
+    }
+    host->orphan_config_count = kept;
 }
 
 /*
@@ -1552,28 +1679,139 @@ api_cfg_str(
  * read every one of those as 0, silently, which is a colour (black) and a
  * plausible id, so a mistyped value looked like a setting that did nothing.
  *
- * @return `fallback` when the value is not one whole expression. Silent,
- * deliberately: a colour key is read on the draw path, so a broken one would
- * print once per frame forever.
+ * @return false when the value is not one whole expression, leaving `*out`
+ * alone. Whether that is worth a message is the CALLER's question -- see
+ * plugin_cfg_number_checked, which is where every api accessor asks it.
  */
-static int
-plugin_cfg_number(
+static bool
+plugin_cfg_number_parse(
     char const* value,
-    int fallback)
+    int* out)
 {
     char const* end = NULL;
     int parsed = 0;
 
     assert(value);
+    assert(out);
 
     if( !revconfig_parse_int_expr(value, &end, &parsed) )
-        return fallback;
+        return false;
     /* One expression and nothing after it -- "5 apples" is a typo, not a 5. */
     while( *end == ' ' || *end == '\t' || *end == '\r' || *end == '\n' )
         end++;
     if( *end != '\0' )
+        return false;
+    *out = parsed;
+    return true;
+}
+
+/**
+ * The spellings a settings file writes a switch in, both ways round.
+ *
+ * Named here rather than inside api_cfg_bool because a DECLARED DEFAULT is
+ * written the same way -- `default_value = "true"` is the ordinary shape of a
+ * bool schema item -- so the fallback path has to read it with the same rules
+ * the stored value gets.
+ */
+static bool
+plugin_cfg_bool_parse(
+    char const* value,
+    int* out)
+{
+    assert(value);
+    assert(out);
+
+    if( strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 ||
+        strcmp(value, "on") == 0 )
+    {
+        *out = 1;
+        return true;
+    }
+    if( strcmp(value, "false") == 0 || strcmp(value, "no") == 0 ||
+        strcmp(value, "off") == 0 )
+    {
+        *out = 0;
+        return true;
+    }
+    return plugin_cfg_number_parse(value, out);
+}
+
+/**
+ * A stored value as a number, falling back to what the PLUGIN declared.
+ *
+ * The fallback used to be a bare 0, which for the keys this exists for is a
+ * colour (black) and a plausible id, so typing `cyan` into a colour field --
+ * or leaving a stray character in a hex one -- produced a marker that drew,
+ * in the wrong colour, with nothing said. Zero is also not what the plugin
+ * asked for: it shipped a default for this key and that default is the answer
+ * to "the file does not give me a usable value".
+ *
+ * Said out loud, once per slot rather than once per read, because a colour is
+ * read on the draw path and the flag is cleared whenever the value changes --
+ * so a second typo is reported again and a correction stops the message.
+ *
+ * @param fallback What to answer when the schema has no usable default either.
+ */
+static int
+plugin_cfg_number_checked(
+    struct PluginContext* ctx,
+    char const* key,
+    bool (*parse)(char const*, int*),
+    int fallback)
+{
+    struct PluginConfigSlot* slot;
+    char const* value;
+    char const* declared = NULL;
+    int parsed = 0;
+
+    assert(ctx);
+    assert(key);
+    assert(parse);
+
+    value = api_cfg_str(ctx, key);
+    /* Empty is "unset", which is a state and not a typo: a key with no
+     * declared default is seeded empty and reads as the caller's fallback,
+     * silently, exactly as it always has. */
+    if( value[0] == '\0' )
         return fallback;
-    return parsed;
+    if( parse(value, &parsed) )
+        return parsed;
+
+    /* api_cfg_str has already asserted the key is one this plugin declared,
+     * so the slot behind it exists. */
+    slot = plugin_config_slot(ctx, key, false);
+    assert(slot);
+    if( slot->schema_index >= 0 )
+        declared = plugin_schema(ctx)[slot->schema_index].default_value;
+
+    if( declared && declared[0] && parse(declared, &parsed) )
+    {
+        if( !slot->number_warned )
+        {
+            slot->number_warned = true;
+            TORIRS_ERR(
+                "plugin: %s cannot read setting '%s' = '%s'; using the declared "
+                "default '%s'\n",
+                ctx->name,
+                key,
+                value,
+                declared);
+        }
+        return parsed;
+    }
+
+    if( !slot->number_warned )
+    {
+        slot->number_warned = true;
+        TORIRS_ERR(
+            "plugin: %s cannot read setting '%s' = '%s', and declares no default it "
+            "can read either; reading it as %d\n",
+            ctx->name,
+            key,
+            value,
+            fallback);
+    }
+    return fallback;
 }
 
 static int
@@ -1581,12 +1819,7 @@ api_cfg_bool(
     struct PluginContext* ctx,
     char const* key)
 {
-    char const* value = api_cfg_str(ctx, key);
-    if( value[0] == '\0' )
-        return 0;
-    if( strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 )
-        return 1;
-    return plugin_cfg_number(value, 0) != 0;
+    return plugin_cfg_number_checked(ctx, key, plugin_cfg_bool_parse, 0) != 0;
 }
 
 static int
@@ -1594,7 +1827,7 @@ api_cfg_int(
     struct PluginContext* ctx,
     char const* key)
 {
-    return plugin_cfg_number(api_cfg_str(ctx, key), 0);
+    return plugin_cfg_number_checked(ctx, key, plugin_cfg_number_parse, 0);
 }
 
 /**
@@ -1610,7 +1843,31 @@ api_cfg_color(
     struct PluginContext* ctx,
     char const* key)
 {
-    return (uint32_t)plugin_cfg_number(api_cfg_str(ctx, key), 0) & 0xffffffu;
+    return (uint32_t)plugin_cfg_number_checked(ctx, key, plugin_cfg_number_parse, 0) &
+           0xffffffu;
+}
+
+static bool
+plugin_config_choice_valid(struct ToriRS_ConfigItem const* item, char const* value)
+{
+    assert(item);
+    assert(value);
+    if( item->type != TORIRS_CONFIG_ENUM )
+        return true;
+    if( !item->choices )
+        return false;
+    size_t const length = strlen(value);
+    char const* choice = item->choices;
+    for( ;; )
+    {
+        char const* end = strchr(choice, '|');
+        size_t const size = end ? (size_t)(end - choice) : strlen(choice);
+        if( size == length && memcmp(choice, value, size) == 0 )
+            return true;
+        if( !end )
+            return false;
+        choice = end + 1;
+    }
 }
 
 bool
@@ -1630,10 +1887,21 @@ PluginHost_ConfigSet(
     struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, true);
     if( !slot )
         return false;
+    if( slot->schema_index >= 0 &&
+        !plugin_config_choice_valid(&plugin_schema(ctx)[slot->schema_index], value) )
+    {
+        TORIRS_ERR("plugin: %s refused setting '%s' = '%s': not a declared choice\n",
+            ctx->name, key, value);
+        return false;
+    }
     if( strcmp(slot->value, value) == 0 )
         return true;
 
     snprintf(slot->value, sizeof(slot->value), "%s", value);
+    /* A new spelling gets a fresh hearing: the complaint about the old one
+     * must not silence a complaint about this one, and a correction must be
+     * able to stop the message. */
+    slot->number_warned = false;
     host->config_dirty = true;
 
     if( ctx->enabled && ctx->running )
@@ -2003,6 +2271,39 @@ plugin_asset_drop(
         host->assets[i] = host->assets[i + 1];
     host->asset_count--;
     memset(&host->assets[host->asset_count], 0, sizeof(host->assets[0]));
+}
+
+/*
+ * Say that the shared asset table refused this plugin.
+ *
+ * TORIRS_ERR and not TORIRS_LOG: narration is compiled out under OPT=1, which
+ * is the build people run, so the old message existed only where nobody was
+ * looking. A starved plugin does not crash -- it draws a page with no art on
+ * it, or a frame with half its stones missing -- and "why is it blank" has no
+ * other answer available from the outside.
+ *
+ * Once per plugin. The v2 asset and image paths refuse BEFORE reaching the
+ * claim, so they call this too; all three roads to a refusal say the same
+ * thing.
+ */
+static void
+plugin_asset_budget_refused(
+    struct PluginContext* ctx,
+    char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    if( ctx->asset_budget_reported )
+        return;
+    ctx->asset_budget_reported = true;
+    TORIRS_ERR(
+        "plugin: %s asked for '%s' but the shared asset table is full (%d of %d "
+        "resident); this plugin's remaining art will not load\n",
+        ctx->name,
+        name,
+        ctx->host->asset_count,
+        TORIRS_PLUGIN_ASSETS_MAX);
 }
 
 static struct PluginAsset*
@@ -2436,11 +2737,7 @@ api_asset_load(
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
-            "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
-            ctx->name,
-            name,
-            TORIRS_PLUGIN_ASSETS_MAX);
+        plugin_asset_budget_refused(ctx, name);
         return 0;
     }
 
@@ -2491,11 +2788,7 @@ api_asset_save(
     struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
-            "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
-            ctx->name,
-            name,
-            TORIRS_PLUGIN_ASSETS_MAX);
+        plugin_asset_budget_refused(ctx, name);
         return 0;
     }
 
@@ -3338,35 +3631,104 @@ api_panel_set_value(
     return true;
 }
 
+/**
+ * Set a custom well's preferred height, and SAY when the number was not used.
+ *
+ * A well is bounded -- TORIRS_PANEL_CUSTOM_HEIGHT_MAX is what the shell will
+ * allocate -- and a plugin that composes a taller row than that is not making
+ * a mistake it can see: its own draw callback receives the granted rect, so
+ * everything past the bound simply is not there. The tracker pages are the
+ * shape this bites: one asks for a row per kill source and the other for a box
+ * per skill trained, and both compute a height that grows without limit over a
+ * long trip. Answering `true` to a request that was cut left them drawing off
+ * the end of the well with no way to learn they should page or shrink.
+ *
+ * So the clamp is still applied -- the shell cannot allocate more, and leaving
+ * the old height in place would be worse than a bounded one -- but the answer
+ * distinguishes it. @see TORIRS_RESULT_BUDGET.
+ *
+ * @return TORIRS_RESULT_OK when the exact request was recorded,
+ *   TORIRS_RESULT_BUDGET when a bounded height was recorded instead,
+ *   TORIRS_RESULT_NOT_FOUND when there is no such custom well to set.
+ */
+static enum ToriRS_Result
+api_panel_set_height_result(
+    struct PluginContext* ctx,
+    char const* custom_view_id,
+    int preferred_height)
+{
+    struct ToriRS_PanelWidget* widget;
+    int requested;
+    int granted;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, custom_view_id, &slot) )
+        return TORIRS_RESULT_NOT_FOUND;
+    widget = &ctx->host->panel_widgets[slot];
+    if( widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
+        return TORIRS_RESULT_NOT_FOUND;
+
+    /* Zero is the documented "give me the usual well", not a request for no
+     * height, so it is a substitution and never a refusal. */
+    requested = preferred_height == 0 ? TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT : preferred_height;
+    granted = requested;
+    if( granted < TORIRS_PANEL_CUSTOM_HEIGHT_MIN )
+        granted = TORIRS_PANEL_CUSTOM_HEIGHT_MIN;
+    if( granted > TORIRS_PANEL_CUSTOM_HEIGHT_MAX )
+        granted = TORIRS_PANEL_CUSTOM_HEIGHT_MAX;
+
+    if( widget->preferred_height != granted )
+    {
+        widget->preferred_height = granted;
+        ctx->host->panel_invalidated[slot] = true;
+        plugin_panel_bump(&ctx->host->panel_model_revision);
+        plugin_panel_change_widget(
+            ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT);
+    }
+
+    if( granted == requested )
+    {
+        widget->height_clamped = false;
+        return TORIRS_RESULT_OK;
+    }
+
+    /*
+     * The user hears it too, once per transition into the clamped state. A
+     * plugin is free to ignore the return -- the shipped pages did, which is
+     * how this stayed invisible -- and the person looking at a chart with its
+     * bottom missing has no other way to find out.
+     */
+    if( !widget->height_clamped )
+    {
+        widget->height_clamped = true;
+        TORIRS_ERR(
+            "plugin: %s asked for a %dpx custom area '%s'; the page allocates at most "
+            "%dpx, so everything past that is not drawn\n",
+            ctx->name,
+            requested,
+            widget->id,
+            TORIRS_PANEL_CUSTOM_HEIGHT_MAX);
+    }
+    return TORIRS_RESULT_BUDGET;
+}
+
+/*
+ * The bool spelling the pre-ABI-21 call sites use.
+ *
+ * `false` for a clamp as well as for a missing well: those callers have no
+ * richer answer to give, and "your number was not used" is the half of the
+ * news they can act on. api_panel_set_height_result is what the v2 api should
+ * return whole.
+ */
 static bool
 api_panel_set_height(
     struct PluginContext* ctx,
     char const* custom_view_id,
     int preferred_height)
 {
-    struct ToriRS_PanelWidget* widget;
-    int slot;
-
-    assert(ctx);
-    if( !plugin_panel_mutable(ctx, custom_view_id, &slot) )
-        return false;
-    widget = &ctx->host->panel_widgets[slot];
-    if( widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
-        return false;
-    if( preferred_height == 0 )
-        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT;
-    if( preferred_height < TORIRS_PANEL_CUSTOM_HEIGHT_MIN )
-        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MIN;
-    if( preferred_height > TORIRS_PANEL_CUSTOM_HEIGHT_MAX )
-        preferred_height = TORIRS_PANEL_CUSTOM_HEIGHT_MAX;
-    if( widget->preferred_height == preferred_height )
-        return true;
-    widget->preferred_height = preferred_height;
-    ctx->host->panel_invalidated[slot] = true;
-    plugin_panel_bump(&ctx->host->panel_model_revision);
-    plugin_panel_change_widget(
-        ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT);
-    return true;
+    return api_panel_set_height_result(ctx, custom_view_id, preferred_height) ==
+           TORIRS_RESULT_OK;
 }
 
 static bool
@@ -3548,7 +3910,7 @@ plugin_draw_allow(
         if( !ctx->draw_clipped )
         {
             ctx->draw_clipped = true;
-            TORIRS_LOG(
+            TORIRS_ERR(
                 "plugin: %s hit its %d-item draw budget this frame; "
                 "the rest of its overlay was dropped\n",
                 ctx->name,
@@ -3578,8 +3940,28 @@ plugin_draw_require_world(struct PluginContext* ctx)
         "draw_tile/draw_hull name something in the scene; the screen surfaces have none");
 }
 
-static void
-api_draw_tile(
+static enum ToriRS_Result
+plugin_draw_account(struct PluginContext* ctx, int emitted)
+{
+    assert(ctx);
+    if( emitted >= 0 )
+    {
+        ctx->draw_used += emitted;
+        return TORIRS_RESULT_OK;
+    }
+    assert(emitted == -1 || emitted == -2);
+    if( !ctx->draw_clipped )
+    {
+        ctx->draw_clipped = true;
+        TORIRS_ERR("plugin: %s overlay was not drawn: %s\n", ctx->name,
+                   emitted == -1 ? "the shared overlay pool is full"
+                                 : "the primitive exceeds the remaining per-frame draw budget");
+    }
+    return TORIRS_RESULT_BUDGET;
+}
+
+static enum ToriRS_Result
+api_draw_tile_stroke(
     struct PluginContext* ctx,
     void* surface,
     int tile_x,
@@ -3587,34 +3969,48 @@ api_draw_tile(
     int level,
     uint32_t rgb,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int outline_width)
 {
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
-    ctx->draw_used += ctx->host->engine.draw_tile(
-        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
+        return TORIRS_RESULT_BUDGET;
+    if( ctx->host->engine.draw_tile_stroke )
+        return plugin_draw_account(ctx, ctx->host->engine.draw_tile_stroke(
+            ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha,
+            outline_width, TORIRS_PLUGIN_DRAW_BUDGET - ctx->draw_used));
+    if( outline_width != 1 )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return plugin_draw_account(ctx, ctx->host->engine.draw_tile(
+        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha));
 }
 
-static void
-api_draw_hull(
+static enum ToriRS_Result
+api_draw_hull_stroke(
     struct PluginContext* ctx,
     void* surface,
     int element_id,
     uint32_t rgb,
     int fill_alpha,
-    int shape)
+    int shape,
+    int outline_width)
 {
     assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
+        return TORIRS_RESULT_BUDGET;
     /* An entity whose APPEARANCE facet another plugin owns is that plugin's to
      * outline. Refusal is silent, like an element that is not on screen. */
     if( !plugin_entity_hull_allowed(ctx->host, ctx->index, element_id) )
-        return;
-    ctx->draw_used +=
-        ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape);
+        return TORIRS_RESULT_OK;
+    if( ctx->host->engine.draw_hull_stroke )
+        return plugin_draw_account(ctx, ctx->host->engine.draw_hull_stroke(
+            ctx->host->engine.user, element_id, rgb, fill_alpha, shape, outline_width,
+            TORIRS_PLUGIN_DRAW_BUDGET - ctx->draw_used));
+    if( outline_width != 1 )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return plugin_draw_account(ctx,
+        ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape));
 }
 
 static void
@@ -4661,6 +5057,7 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
             free(host->plugins[i].v2);
             host->plugins[i].v2 = NULL;
         }
+    free(host->orphan_config);
     free(host);
 }
 
@@ -5455,7 +5852,10 @@ plugin_v2_asset_request(
     if( asset )
         return plugin_v2_asset_slot_state(asset);
     if( host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX )
+    {
+        plugin_asset_budget_refused(context, name);
         return TORIRS_ASSET_BUDGET;
+    }
     (void)api_asset_load(context, name);
     return plugin_v2_asset_slot_state(
         plugin_asset_find(host, context->index, name));
@@ -5496,7 +5896,27 @@ plugin_v2_image_request(
     if( image < 0 )
     {
         if( free_image < 0 || (!asset && host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX) )
+        {
+            /* Two tables can refuse here and the caller cannot tell them
+             * apart, so name the one that actually did. Neither is narration:
+             * an image that never arrives is art that never draws. */
+            if( free_image < 0 )
+            {
+                if( !context->image_budget_reported )
+                {
+                    context->image_budget_reported = true;
+                    TORIRS_ERR(
+                        "plugin: %s asked for image '%s' but the resident image table "
+                        "is full (%d); this plugin's remaining art will not draw\n",
+                        context->name,
+                        name,
+                        TORIRS_PLUGIN_IMAGES_MAX);
+                }
+            }
+            else
+                plugin_asset_budget_refused(context, name);
             return TORIRS_ASSET_BUDGET;
+        }
         image = api_image_load(context, name);
         if( image < 0 )
             return TORIRS_ASSET_BUDGET;
@@ -6111,6 +6531,12 @@ PluginHost_Register(
     }
     plugin_v2_order_insert(host, index);
     host->plugin_count++;
+    /* A plugin registering after the settings file was read -- a script the
+     * manifest loads late, or one reloaded during a session -- takes over the
+     * lines that were being held for its name. It has to happen HERE and not
+     * at the next decode: nothing re-reads the file, so those lines would
+     * otherwise sit unclaimed while the plugin ran on schema defaults. */
+    plugin_orphan_adopt(host, index);
     return index;
 }
 
@@ -6312,6 +6738,26 @@ PluginHost_SetReloadHandler(
     context = plugin_at(host, plugin_index);
     context->reload_handler = handler;
     context->reload_user = handler ? user : NULL;
+}
+
+void
+PluginHost_SetCallbacks(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    struct ToriRS_PluginCallbacks const* callbacks)
+{
+    struct PluginContext* context;
+    struct PluginV2Instance* v2;
+
+    assert(host);
+    assert(callbacks);
+    assert(callbacks->struct_size == sizeof(*callbacks));
+    context = plugin_at(host, plugin_index);
+    assert(!context->running);
+    v2 = context->v2;
+    assert(v2);
+    v2->callbacks_storage = *callbacks;
+    v2->definition_storage.callbacks = *callbacks;
 }
 
 void
@@ -7299,7 +7745,18 @@ PluginHost_ConfigApply(
 
     int const index = PluginHost_IndexOf(host, plugin_name);
     if( index < 0 )
+    {
+        /*
+         * Nothing registered answers to this name, which is NOT the same as
+         * "this line is junk". A script that would not compile, one the
+         * manifest is not listing today, a C plugin another build carries --
+         * every one of those is a plugin whose settings the user still owns.
+         * The line is kept verbatim so the rewrite this file gets on every
+         * save puts it back rather than deleting it.
+         */
+        plugin_orphan_store(host, plugin_name, key, value);
         return;
+    }
 
     struct PluginContext* ctx = &host->plugins[index];
 
@@ -7319,6 +7776,8 @@ PluginHost_ConfigApply(
     struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, true);
     if( !slot )
         return;
+    if( strcmp(slot->value, value) != 0 )
+        slot->number_warned = false;
     snprintf(slot->value, sizeof(slot->value), "%s", value);
 }
 
@@ -7438,6 +7897,10 @@ PluginHost_ConfigEncode(
     for( int i = 0; i < host->plugin_count; i++ )
         cap +=
             96 + (size_t)host->plugins[i].config_count * (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
+    /* Carried-through sections cost a header apiece in the worst case, which
+     * is every one of them belonging to a different absent plugin. */
+    cap += (size_t)host->orphan_config_count *
+           (96 + TORIRS_PLUGIN_NAME_MAX + 64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
 
     char* buf = malloc(cap);
     assert(buf);
@@ -7498,6 +7961,44 @@ PluginHost_ConfigEncode(
                 wrote_section = true;
             }
             at += (size_t)snprintf(buf + at, cap - at, "%s=%s\n", slot->key, slot->value);
+        }
+    }
+
+    /*
+     * Sections nothing registered claims, written back exactly as they were
+     * read.
+     *
+     * Without this the file the user gets back is the file this PROCESS could
+     * account for, and a plugin that failed to compile, or that this build
+     * does not carry, has its settings deleted by the first save anything else
+     * makes. @see plugin_orphan_store.
+     *
+     * Grouped by name in one pass over a table small enough that the quadratic
+     * walk is cheaper than sorting a copy of it.
+     */
+    for( int i = 0; i < host->orphan_config_count; i++ )
+    {
+        struct PluginOrphanConfig const* first = &host->orphan_config[i];
+        bool earlier = false;
+
+        for( int j = 0; j < i; j++ )
+        {
+            if( strcmp(host->orphan_config[j].plugin, first->plugin) == 0 )
+            {
+                earlier = true;
+                break;
+            }
+        }
+        if( earlier )
+            continue;
+
+        at += (size_t)snprintf(buf + at, cap - at, "\n[plugin:%s]\n", first->plugin);
+        for( int j = i; j < host->orphan_config_count; j++ )
+        {
+            struct PluginOrphanConfig const* row = &host->orphan_config[j];
+            if( strcmp(row->plugin, first->plugin) != 0 )
+                continue;
+            at += (size_t)snprintf(buf + at, cap - at, "%s=%s\n", row->key, row->value);
         }
     }
 

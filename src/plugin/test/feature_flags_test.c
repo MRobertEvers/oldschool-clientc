@@ -142,6 +142,10 @@ fake_feature_get(
 {
     (void)u;
     struct FakeFlag const* f = flag_find(k);
+    /* The engine owns sentinel interpretation: its draw-distance getter
+     * reports the painter's minimum while the raw boot/default cell stays0. */
+    if( f && strcmp(f->key, "draw_distance") == 0 && f->value == 0 )
+        return f->min;
     return f ? f->value : TORIRS_FEATURE_UNSET;
 }
 
@@ -1319,7 +1323,7 @@ main(void)
         CHECK(
             w && w->structured_select && w->select_option_count == 5 &&
                 strcmp(w->select_options[0].label,
-                       "Revision default (25 tiles)") == 0,
+                       "Default: 25 tiles") == 0,
             "and its default entry carries the value in force");
         CHECK(w && w->selected == 0, "opening on it when nothing is stored");
     }
@@ -1328,7 +1332,7 @@ main(void)
         CHECK(
             w && w->structured_select && w->select_option_count == 3 &&
                 strcmp(w->select_options[0].label,
-                       "Revision default (Adjustable)") == 0,
+                       "Default: Adjustable") == 0,
             "an enum's default entry names its value the same way");
     }
 
@@ -1358,7 +1362,7 @@ main(void)
         struct ToriRS_PanelWidget const* w = widget_named(host, p, "camera_zoom");
         CHECK(w && w->selected == 2, "the row comes back showing what was chosen");
         CHECK(
-            w && strcmp(w->select_options[0].label, "Revision default") == 0,
+            w && strcmp(w->select_options[0].label, "Default") == 0,
             "and the default entry drops the value it no longer names");
     }
 
@@ -1385,7 +1389,7 @@ main(void)
     {
         struct ToriRS_PanelWidget const* w = widget_named(host, p, "draw_distance");
         CHECK(
-            w && strcmp(w->select_options[0].label, "Revision default") == 0,
+            w && strcmp(w->select_options[0].label, "Default") == 0,
             "an overridden row's default entry names nothing");
     }
     pick(host, p, "draw_distance", "Revision default");
@@ -1435,6 +1439,38 @@ main(void)
         CHECK(w && choice_index(w, "63") == 5, "and is appended after the named ones");
         CHECK(w && w->selected == 5, "with the row showing it");
         PluginHost_Free(host3);
+    }
+
+    /* A renderer sentinel is not a user-facing distance. The page consumes
+     * effective readback and must never rewrite the raw boot/default value
+     * just to make that caption readable. */
+    {
+        struct ToriRS_PluginEngine e4 = fake_engine();
+        struct ToriRS_PluginHost* host4 = PluginHost_New(&e4);
+        int const p4 = PluginHost_Register(host4, &TORIRS_FEATURE_FLAGS);
+        struct ToriRS_PanelWidget const* w;
+
+        g_flags[0].boot = 0;
+        flags_reset();
+        PluginHost_Start(host4);
+        CHECK(PluginHost_PanelSelect(host4, p4), "the sentinel-default page selects");
+        CHECK(PluginHost_PanelLayout(host4, PluginHost_PanelSelectionGeneration(host4),
+                320, 480, 1000, TORIRS_PANEL_SIZE_MEDIUM, true, true),
+            "the sentinel-default page receives its input layout");
+        w = widget_named(host4, p4, "draw_distance");
+        CHECK(w && strcmp(w->select_options[0].label, "Default: 25 tiles") == 0,
+            "a raw-zero default names the effective painter distance");
+        CHECK(g_flags[0].value == 0, "rendering the effective caption preserves the raw sentinel");
+        pick(host4, p4, "draw_distance", "60 tiles");
+        CHECK(g_flags[0].value == 60, "the sentinel profile still accepts a distance override");
+        pick(host4, p4, "draw_distance", "Revision default");
+        CHECK(g_flags[0].value == 0, "restoring default restores raw zero rather than its displayed25");
+        w = widget_named(host4, p4, "draw_distance");
+        CHECK(w && strcmp(w->select_options[0].label, "Default: 25 tiles") == 0,
+            "restored sentinel again reports its effective25 tiles");
+        PluginHost_Free(host4);
+        g_flags[0].boot = 25;
+        flags_reset();
     }
 
     PluginHost_Free(host);

@@ -442,6 +442,10 @@ warn = nil
 ---@field image fun(image: torirs.ImageRef, x: integer, y: integer, alpha?: integer)
 ---@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer): boolean, torirs.ResultName
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
+--- Stroke widths are canvas pixels (0 suppresses the border, default 1, maximum 255).
+--- These optional graphics verbs return unsupported on an older builder and budget on a capacity refusal.
+---@field world_tile_stroke fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName
+---@field world_hull_stroke fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer, outline_width?: integer): boolean, torirs.ResultName
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
 

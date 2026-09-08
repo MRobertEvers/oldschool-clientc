@@ -5,8 +5,9 @@
  *
  *   The BEHAVIOUR -- a first sight of a stat seeds instead of appearing, a
  *   gain appears, five is the ceiling and the oldest is what goes, an expiry
- *   removes, a hover holds one alive, Flip flips -- is checked with assertions,
- *   because every one of those is a yes or no.
+ *   removes, a LIVE hover holds one alive and a dead one does not, the
+ *   vertical key stacks them -- is checked with assertions, because every one
+ *   of those is a yes or no.
  *
  *   The PICTURE is not. "Is the arc on the right side of the disc, is the icon
  *   the right skill, is the ring anti-aliased" is not a predicate, and a test
@@ -404,11 +405,25 @@ fake_stat(void* u, int skill, int* cur, int* base)
 /* The bridge's own arithmetic: level_xp[n] is the xp that reaches level n + 2,
  * so a level's own threshold is two entries below it and the next one is one. */
 static int g_stats_ready = 1;
+/*
+ * WHICH skills the server has stated, which is not the same thing as which
+ * skills exist. app_plugin_stat_xp answers 0 for a skill whose last_seen_level
+ * is still 0 -- the pre-login table is a fresh account's, not this one's -- so
+ * a plugin enumerating stats sees the stated set, and that set GROWS: a lane
+ * may split its stat burst across two packet pumps, and a skill the server has
+ * never touched is a hole in the middle of it. Both are stated here, because
+ * this mock server otherwise states all 25 at once and a plugin that froze its
+ * table on the first answer would look correct forever.
+ */
+static int g_stats_stated = SKILL_COUNT; /* stated: index < this ... */
+static int g_stats_hole = -1;            /* ... except this one. */
 static int
 fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
 {
     (void)u;
     if( !g_stats_ready || skill < 0 || skill >= SKILL_COUNT )
+        return 0;
+    if( skill >= g_stats_stated || skill == g_stats_hole )
         return 0;
     if( xp )
         *xp = g_xp[skill];
@@ -435,13 +450,18 @@ fake_run_energy(void* u)
     (void)u;
     return 100;
 }
+static int g_menu_added;
+static int g_menu_action;
+static int g_menu_dropped;
+static char g_menu_text[32];
 static int
 fake_menu_add(void* u, void* cursor, char const* text, int action_id)
 {
     (void)u;
     (void)cursor;
-    (void)text;
-    (void)action_id;
+    g_menu_added++;
+    g_menu_action = action_id;
+    snprintf(g_menu_text, sizeof(g_menu_text), "%s", text);
     return 1;
 }
 
@@ -451,6 +471,7 @@ fake_menu_drop(void* u, void* cursor, int index)
     (void)u;
     (void)cursor;
     (void)index;
+    g_menu_dropped++;
     return 1;
 }
 
@@ -981,7 +1002,32 @@ static struct FakeControl const* control_named(char const* prefix)
         if( g_control[i].alive && g_control[i].image && strncmp(g_control[i].key, prefix, strlen(prefix)) == 0 ) return &g_control[i];
     return NULL;
 }
-static int control_index(struct FakeControl const* c) { return c == &g_no_control ? -1 : (int)(c - g_control) + FAKE_FIRST_OWNED; }
+
+/*
+ * How many pixels of a control's picture are exactly this colour.
+ *
+ * The progress arc is drawn in one flat ARGB -- the skill's own colour, or the
+ * configured one -- over a disc and a ring that are neither, so counting exact
+ * matches counts the arc. Anti-aliased edges blend away from it and are simply
+ * not counted, which is what makes the number a MONOTONE reading of the arc's
+ * length rather than a pixel-for-pixel pin on the rasteriser.
+ */
+static int
+exact_pixels(struct FakeControl const* control, uint32_t argb)
+{
+    struct FakeImage const* image;
+    int n = 0;
+
+    if( !control || control->image <= 0 || control->image > FAKE_IMAGE_SLOTS )
+        return 0;
+    image = &g_image[control->image - 1];
+    if( !image->argb )
+        return 0;
+    for( int i = 0; i < image->w * image->h; i++ )
+        if( image->argb[i] == argb )
+            n++;
+    return n;
+}
 
 /* One client cycle, and ONLY that -- the 2004-era lanes have no server tick
  * fence, so the poll must live on the logic tick. */
@@ -1125,7 +1171,9 @@ main(void)
 
     tick();
     frame();
+    /* The first burst states five stats and nothing else. */
     g_stats_ready = 1;
+    g_stats_stated = 5;
     tick();
     frame();
     CHECK(globes(g) == 0, "the first sight of the stat table places nothing");
@@ -1134,6 +1182,46 @@ main(void)
     tick();
     frame();
     CHECK(globes(g) == 1, "a table sized after login still notices the first gain");
+    g_now_ms += 11000;
+    frame();
+    CHECK(globes(g) == 0, "cleared before the fence case");
+    /*
+     * The rest of the table arrives -- with a HOLE at skill 5, a stat this
+     * server has still never stated, which is what a scan that stops at the
+     * first gap would take for the end of the table.
+     *
+     * A table sized once from the first burst and frozen there leaves every
+     * skill above it untracked for the life of the plugin: no globe, no drop,
+     * no tooltip, and nothing on screen to say why. So it has to grow.
+     */
+    g_stats_stated = SKILL_COUNT;
+    g_stats_hole = 5;
+    g_now_ms += 600;
+    tick();
+    frame();
+    CHECK(globes(g) == 0, "the stats stated late seed rather than erupt");
+    g_now_ms += 600;
+    g_level[22] = 30;
+    g_xp[22] = g_level_xp[28] + 200;
+    tick();
+    frame();
+    CHECK(globes(g) == 1,
+        "a gain on a skill stated after the table was sized is tracked -- past the "
+        "hole in the middle of the burst");
+    g_now_ms += 11000;
+    frame();
+    /* And the hole itself, once the server does state it. */
+    g_stats_hole = -1;
+    g_now_ms += 600;
+    tick();
+    frame();
+    CHECK(globes(g) == 0, "the skill the burst skipped seeds on its first sight too");
+    g_now_ms += 600;
+    g_level[5] = 20;
+    g_xp[5] = g_level_xp[18] + 100;
+    tick();
+    frame();
+    CHECK(globes(g) == 1, "and gains after that");
     g_now_ms += 11000;
     frame();
     CHECK(globes(g) == 0, "cleared before the fence case");
@@ -1158,7 +1246,9 @@ main(void)
     frame();
     CHECK(globes(g) == 1, "a gain puts one globe control in the viewport");
     CHECK(globes(g) == 1 && g[0]->w == g[0]->h && g[0]->w >= 40, "the globe's picture is square and at least the default orb");
-    CHECK(globes(g) == 1 && strcmp(g[0]->op, "Flip") == 0 && g[0]->registration != 0, "and it is armed with Flip");
+    /* The image remains pass-through; Flip uses the menu callback below. */
+    CHECK(globes(g) == 1 && g[0]->op[0] == '\0' && g[0]->registration == 0,
+        "and it carries no operation, so the scene under it keeps its own menu");
     {
         int const more[] = { 0, 2, 6, 14, 20 };
         int const percent[] = { 12, 35, 58, 80, 96 };
@@ -1188,19 +1278,47 @@ main(void)
     frame();
     CHECK(control_named("tooltip") != NULL, "hovering a globe adds the tooltip control");
     CHECK(control_named("tooltip") && control_named("tooltip")->w == 150, "which is the reference's own width");
-    /* Flip: the globe's operation, dispatched as the native menu would. */
-    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[2])), g[2]->registration),
-        "the Flip operation dispatches to the owning plugin");
+    /* Flip augments the world menu after native rows are built. */
+    {
+        struct ToriRS_MenuBuildEvent menu = { .row_count = 2 };
+        menu.rows[0].text = "Walk here";
+        menu.rows[1].text = "Examine tree";
+        g_menu_added = g_menu_dropped = 0;
+        PluginHost_MenuBuild(g_host, &menu, &menu, false);
+        CHECK(g_menu_added == 1 && strcmp(g_menu_text, "Flip") == 0,
+            "a right-click over a globe adds Flip to the native menu");
+        CHECK(g_menu_dropped == 0 && menu.row_count == 2 &&
+            strcmp(menu.rows[1].text, "Examine tree") == 0,
+            "adding Flip preserves every native world row");
+        struct ToriRS_MenuRow pick = { .text = "Flip", .action = g_menu_action };
+        CHECK(PluginHost_MenuSelect(g_host, &pick, g_mouse_x, g_mouse_y),
+            "the appended Flip route is handled");
+        CHECK(strcmp(PluginHost_ConfigGet(g_host, index, "vertical"), "1") == 0,
+            "selecting Flip changes the orientation");
+        g_menu_added = 0;
+        PluginHost_MenuBuild(g_host, &menu, &menu, true);
+        CHECK(g_menu_added == 0, "hover text adds no Flip row");
+        g_mouse_x = -1;
+        PluginHost_MenuBuild(g_host, &menu, &menu, false);
+        CHECK(g_menu_added == 0, "a click away from the globe adds no Flip row");
+    }
     g_mouse_x = -1;
     frame();
     {
         int n = globes(g);
         int stacked = n > 1;
         for( int i = 1; i < n; i++ ) if( g[i]->y <= g[i - 1]->y || g[i]->x != g[0]->x ) stacked = 0;
-        CHECK(stacked, "Flip stacks them into a column");
+        CHECK(stacked, "the vertical key stacks them into a column");
     }
     globes(g);
-    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[0])), g[0]->registration), "Flip again");
+    PluginHost_ConfigSet(g_host, index, "vertical", "0");
+    frame();
+    {
+        int n = globes(g);
+        int in_a_row = n > 1;
+        for( int i = 1; i < n; i++ ) if( g[i]->x <= g[i - 1]->x || g[i]->y != g[0]->y ) in_a_row = 0;
+        CHECK(in_a_row, "and back into a row");
+    }
     g_now_ms += 11000;
     frame();
     CHECK(globes(g) == 0, "a globe past its duration is gone with its control");
@@ -1212,12 +1330,78 @@ main(void)
     CHECK(globes(g) == 1, "a fresh gain is back");
     g_mouse_x = g[0]->x + g[0]->w / 2;
     g_mouse_y = g[0]->y + g[0]->h / 2;
+    /* A stationary pointer is still present: reading the tooltip must not
+     * require wiggling the mouse. Absence comes from the input API. */
     for( int i = 0; i < 40; i++ ) { g_now_ms += 1000; frame(); }
-    CHECK(globes(g) >= 1, "hovering holds a globe past its duration");
+    CHECK(globes(g) >= 1, "a stationary present pointer holds a globe past its duration");
+    g_mouse_x = -1;
+    frame();
+    CHECK(control_named("tooltip") == NULL, "pointer absence removes the tooltip immediately");
+    for( int i = 0; i < 40; i++ ) { g_now_ms += 1000; frame(); }
+    CHECK(globes(g) == 0, "an absent pointer allows the globe to expire");
     g_mouse_x = -1;
     g_now_ms += 20000;
     frame();
-    CHECK(globes(g) == 0 && control_named("tooltip") == NULL, "the tooltip leaves with the hover");
+
+    /*
+     * The progress arc -- the fraction of the level, drawn round the ring, and
+     * the whole point of the plugin.
+     *
+     * Nothing in the drive harness can settle this: every xp source it has
+     * (`::setlevel`, and the server's own setLevel behind it) puts xp exactly
+     * ON the level threshold so the base survives a logout, which is 0% of the
+     * way into the level -- so every capture shows an empty ring and a "0%"
+     * caption, and an arc that was never drawn at all would look identical. It
+     * is settled here instead, off the composed pixels.
+     *
+     * The arc is a flat colour, so counting pixels of exactly that colour is a
+     * monotone reading of its length. The colour is the config's rather than
+     * the skill's, so the count cannot pick up a stray pixel of the same shade
+     * from the skill icon underneath.
+     */
+    {
+        int const skill = 7; /* cooking, which nothing above has touched */
+        int const level = 40;
+        int const base = g_level_xp[level - 2];
+        int const next = g_level_xp[level - 1];
+        uint32_t const arc = 0xFFFF00FFu;
+        int empty = 0;
+        int part = 0;
+        int most = 0;
+
+        PluginHost_ConfigSet(g_host, index, "custom_arc_color", "1");
+        PluginHost_ConfigSet(g_host, index, "arc_color", "#FF00FF");
+        g_now_ms += 30000;
+        frame();
+        CHECK(globes(g) == 0, "cleared before the arc case");
+
+        g_now_ms += 600;
+        g_level[skill] = level;
+        g_xp[skill] = base;
+        tick();
+        frame();
+        empty = globes(g) == 1 ? exact_pixels(g[0], arc) : -1;
+        CHECK(empty == 0, "xp landing exactly on the level threshold draws no arc: 0% is 0%");
+
+        g_now_ms += 600;
+        g_xp[skill] = base + (next - base) * 12 / 100;
+        tick();
+        frame();
+        part = globes(g) == 1 ? exact_pixels(g[0], arc) : -1;
+        CHECK(part > 0, "part-way through a level the arc is drawn");
+
+        g_now_ms += 600;
+        g_xp[skill] = base + (next - base) * 90 / 100;
+        tick();
+        frame();
+        most = globes(g) == 1 ? exact_pixels(g[0], arc) : -1;
+        CHECK(most > part * 3, "and it grows with the fraction of the level");
+
+        PluginHost_ConfigSet(g_host, index, "custom_arc_color", "0");
+        g_now_ms += 30000;
+        frame();
+        CHECK(globes(g) == 0, "cleared after the arc case");
+    }
 
     /* Floating labels. */
     {

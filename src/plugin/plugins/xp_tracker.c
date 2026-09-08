@@ -242,11 +242,16 @@ struct XtState
     bool page_built;
     bool page_visible;
     bool state_applied;
+    /** Who the live session belongs to: "<game>:<revision>:<name>", captured
+     *  while logged in because the save happens on the logout edge, when the
+     *  client can no longer answer who was playing. @see xt_state_save. */
+    char owner[96];
     uint64_t last_second_ms;
     uint64_t session_start_ms;
     uint64_t next_panel_ms;
     bool logged_in;
     int box_skill[XT_SKILLS_MAX];
+    int box_page;
     int box_count;
     /* The exact order painted into the retained CUSTOM well. Input uses this
      * snapshot, never a newly collected order under an older bitmap. */
@@ -277,6 +282,7 @@ struct XtState
 #define g_page_built (state->page_built)
 #define g_page_visible (state->page_visible)
 #define g_state_applied (state->state_applied)
+#define g_owner (state->owner)
 #define g_last_second_ms (state->last_second_ms)
 #define g_session_start_ms (state->session_start_ms)
 #define g_next_panel_ms (state->next_panel_ms)
@@ -726,9 +732,45 @@ xt_tick_second(
 /* Persistence                                                               */
 /* ------------------------------------------------------------------------ */
 
-/** The saved-state file. One line per skill; see xt_state_save. */
+/** The saved-state file. An owner line, then one line per skill; see
+ *  xt_state_save. */
 #define XT_STATE_ASSET "session.txt"
 #define XT_STATE_MAX 4096
+/** First line of the file: which character on which lane the session is. */
+#define XT_STATE_OWNER_TAG "# owner "
+
+/**
+ * Who this session belongs to.
+ *
+ * One prefs directory holds ONE session file, and the rows in it are keyed by
+ * skill NAME -- which every account and both lanes spell identically. Without
+ * an owner the file was restored onto whoever logged in next: switching to a
+ * higher-xp character, or from the 2004 lane to OldSchool, opened the page
+ * claiming the previous character's session, and the only row it refused was
+ * one whose live xp had gone backwards.
+ *
+ * The lane is in it as well as the name, because the same character name on
+ * two revisions is two different accounts with two different xp tables.
+ */
+static void
+xt_owner_id(struct ToriRS_Api* api, char* out, size_t out_size)
+{
+    struct ToriRS_PlayerSnapshot me;
+    struct ToriRS_LaneInfo lane;
+
+    assert(api);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    memset(&lane, 0, sizeof(lane));
+    if( !api->core.lane || !api->core.lane(api, &lane) )
+        return;
+    memset(&me, 0, sizeof(me));
+    if( !api->world.local_player(api, &me) || !me.name[0] )
+        return;
+    snprintf(out, out_size, "%d:%d:%s", lane.game, lane.revision, me.name);
+}
 
 /**
  * Write the session out so it survives a restart.
@@ -746,6 +788,17 @@ xt_state_save(struct ToriRS_Api* api, struct XtState* state)
     int at = 0;
 
     if( !xt_cfg_bool(api, "save_state") )
+        return;
+    /*
+     * No owner, no file. The save runs on the logout EDGE, where the client
+     * can no longer say who was playing, so the identity is the one captured
+     * while the session was live -- and a session that never saw a login is
+     * not one anybody can be given back.
+     */
+    if( !g_owner[0] )
+        return;
+    at = snprintf(buf, sizeof(buf), XT_STATE_OWNER_TAG "%s\n", g_owner);
+    if( at <= 0 || at >= (int)sizeof(buf) )
         return;
 
     for( int i = 0; i < g_skill_count && at < (int)sizeof(buf); i++ )
@@ -799,7 +852,7 @@ xt_skill_by_name(
  * it, logging back in after a night on another client opens the panel claiming
  * you just earned a million xp in no time at all.
  */
-static void
+static bool
 xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
 {
     void const* data;
@@ -808,15 +861,26 @@ xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
     char const* end;
 
     if( !xt_cfg_bool(api, "save_state") )
-        return;
+        return true;
 
-    if( !api->assets.bytes(api, XT_STATE_ASSET, &data, &size) )
-        return;
-    if( !data || size <= 0 )
-        return;
+    if( !g_owner[0] || !api->assets.bytes(api, XT_STATE_ASSET, &data, &size) )
+        return false;
+    if( size == 0 )
+        return true;
+    assert(data);
 
     at = (char const*)data;
     end = at + size;
+    char const* owner_end = memchr(at, '\n', size);
+    size_t const prefix = sizeof(XT_STATE_OWNER_TAG) - 1;
+    if( !owner_end || (size_t)(owner_end - at) != prefix + strlen(g_owner) ||
+        memcmp(at, XT_STATE_OWNER_TAG, prefix) != 0 ||
+        memcmp(at + prefix, g_owner, strlen(g_owner)) != 0 )
+    {
+        api->core.log(api, "XP_TRACKER_SESSION_IGNORED owner=%s (missing or different saved owner)", g_owner);
+        return true;
+    }
+    at = owner_end + 1;
     while( at < end )
     {
         char const* line_end = memchr(at, '\n', (size_t)(end - at));
@@ -857,15 +921,21 @@ xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
         if( live_xp < last_xp )
             continue;
 
-        g_skill[index].start_xp = start_xp + (live_xp - last_xp);
+        /* The asset can arrive after this login has already earned XP.
+         * Rebase only offline gains and retain everything observed meanwhile. */
+        int const observed = g_skill[index].start_xp >= 0 ? xt_gained(&g_skill[index]) : 0;
+        int const observed_actions = g_skill[index].actions;
+        uint64_t const observed_time = g_skill[index].skill_time_ms;
+        g_skill[index].start_xp = start_xp + (live_xp - last_xp) - observed;
         g_skill[index].last_xp = live_xp;
         g_skill[index].gained_before_reset = before;
-        g_skill[index].gained_since_reset = since;
-        g_skill[index].actions = actions;
+        g_skill[index].gained_since_reset = since + observed;
+        g_skill[index].actions = actions + observed_actions;
         g_skill[index].actions_since_reset = 0;
-        g_skill[index].skill_time_ms = time_ms;
+        g_skill[index].skill_time_ms = time_ms + observed_time;
         g_skill[index].last_change_ms = api->core.frame_ms(api);
     }
+    return true;
 }
 
 /**
@@ -1206,24 +1276,24 @@ xt_draw_box(
     else
     {
         /*
-         * The percentage, exactly as script5371 spells one: the permyriad is
-         * padded with SPACES to five characters and then cut 3/2, so 6949
-         * becomes " 69.49%" and 949 becomes "  9.49%". The padding is not
-         * decoration -- it is what keeps the decimal point in the same column
-         * down a list of boxes, which a centred "%.2f" does not.
+         * The percentage, spelled the way script5371 spells one: the integer
+         * part padded with SPACES to three columns, then two decimals. The
+         * padding is not decoration -- it is what keeps the decimal point in
+         * the same column down a list of boxes, which a centred "%.2f" does
+         * not.
+         *
+         * The DECIMALS are padded with zeros, and that is the half this had
+         * wrong. Spacing the whole permyriad to five characters and cutting it
+         * 3/2 is right only at or above 1%: at permyriad 0 it produced
+         * "   . 0%" -- a percentage with no integer part at all -- and every
+         * skill sits there for the first moments after a level, which is
+         * exactly when a person reads the bar.
          */
         long long const permyriad =
             ((long long)(xp - level_xp) * 10000) / (next_xp - level_xp);
-        char pad[16];
-        int n = snprintf(pad, sizeof(pad), "%lld", permyriad);
-        char spaced[16];
-        int at = 0;
-        for( int i = n; i < 5; i++ )
-            spaced[at++] = ' ';
-        memcpy(spaced + at, pad, (size_t)n);
-        at += n;
-        spaced[at] = '\0';
-        snprintf(text, sizeof(text), "%.3s.%.2s%%", spaced, spaced + 3);
+        snprintf(
+            text, sizeof(text), "%3lld.%02lld%%", permyriad / 100,
+            permyriad % 100);
     }
     PLUGIN_DRAW_TEXT(
         buf, w, h, (w - PluginDraw_TextWidth(&g_font, text)) / 2, bar_y + 2, text,
@@ -1312,6 +1382,36 @@ xt_slots(struct ToriRS_Api* api, int out[4])
     out[3] = xt_label_slot(api, "label_bottom_right", XT_LABEL_ACTIONS_LEFT);
 }
 
+/** A page reserves space for its navigation inside the bounded custom well. */
+#define XT_MORE_H 14
+
+static int
+xt_box_limit(void)
+{
+    int const rows = (TORIRS_PANEL_CUSTOM_HEIGHT_MAX - XT_MORE_H) / XT_BOX_PITCH;
+    /* The overview box always occupies the first pitch. */
+    return rows > 1 ? rows - 1 : 0;
+}
+
+static int
+xt_box_first(struct XtState const* state)
+{
+    int const limit = xt_box_limit();
+    int const last_page = g_box_count > 0 ? (g_box_count - 1) / limit : 0;
+    int const page = state->box_page < last_page ? state->box_page : last_page;
+    return page * limit;
+}
+
+/** Skill boxes this well will draw, which is the list or the ceiling. */
+static int
+xt_drawn_boxes(struct XtState const* state)
+{
+    int const limit = xt_box_limit();
+    int const first = xt_box_first(state);
+    int const remaining = g_box_count - first;
+    return remaining < limit ? remaining : limit;
+}
+
 /** The well's height for the boxes it has to hold. */
 static int
 xt_well_h(struct XtState const* state)
@@ -1319,7 +1419,12 @@ xt_well_h(struct XtState const* state)
     /* The overview box is always there -- it is the session's answer and it
      * has one whether or not a skill has been trained -- so the strip is one
      * box taller than the list. */
-    return (g_box_count + 1) * XT_BOX_PITCH;
+    int const drawn = xt_drawn_boxes(state);
+    int height = (drawn + 1) * XT_BOX_PITCH;
+
+    if( g_box_count > xt_box_limit() )
+        height += XT_MORE_H;
+    return height;
 }
 
 /**
@@ -1359,6 +1464,8 @@ xt_compose_key(
 
     XT_MIX(width);
     XT_MIX(g_box_count);
+    XT_MIX(xt_drawn_boxes(state));
+    XT_MIX(xt_box_first(state));
     for( int i = 0; i < 4; i++ )
         XT_MIX(slot[i]);
     for( int i = 0; i < g_box_count; i++ )
@@ -1427,16 +1534,32 @@ xt_compose(struct ToriRS_Api* api, struct XtState* state, int width)
     memset(g_compose, 0, pixels * sizeof(*g_compose));
 
     xt_draw_overview(state, g_compose, width, height, 0);
-    for( int i = 0; i < g_box_count; i++ )
-        xt_draw_box(
-            api,
-            state,
-            g_compose,
-            width,
-            height,
-            (i + 1) * XT_BOX_PITCH,
-            g_box_skill[i],
-            slot);
+    {
+        int const drawn = xt_drawn_boxes(state);
+
+        for( int i = 0; i < drawn; i++ )
+            xt_draw_box(
+                api,
+                state,
+                g_compose,
+                width,
+                height,
+                (i + 1) * XT_BOX_PITCH,
+                g_box_skill[xt_box_first(state) + i],
+                slot);
+        /* What did not fit, said out loud rather than dropped. */
+        if( g_box_count > xt_box_limit() )
+        {
+            char more[64];
+            snprintf(
+                more, sizeof(more), "< Prev   Page %d/%d   Next >",
+                xt_box_first(state) / xt_box_limit() + 1,
+                (g_box_count + xt_box_limit() - 1) / xt_box_limit());
+            PLUGIN_DRAW_TEXT(
+                g_compose, width, height, XT_PAD,
+                (drawn + 1) * XT_BOX_PITCH + 2, more, XT_INK_KEY);
+        }
+    }
 
     (void)api->assets.image_compose(
         api, "boxes", width, height, g_compose, &state->compose_image);
@@ -1591,11 +1714,13 @@ xt_panel_build(
     }
 
     xt_collect_boxes(api, state);
-    g_built_box_count = g_box_count;
+    /* The DRAWN count, not the collected one: a box past the well's ceiling
+     * was never painted, so no y in the region belongs to it. */
+    g_built_box_count = xt_drawn_boxes(state);
     memcpy(
         g_built_box_skill,
-        g_box_skill,
-        (size_t)g_box_count * sizeof(g_built_box_skill[0]));
+        g_box_skill + xt_box_first(state),
+        (size_t)g_built_box_count * sizeof(g_built_box_skill[0]));
     panel->custom(panel, "boxes", xt_well_h(state));
 
     g_built_detail = g_detail;
@@ -1643,10 +1768,10 @@ xt_page_stale(struct ToriRS_Api* api, struct XtState* state)
      * click queued against the prior bitmap then fails its widget-serial
      * fence instead of opening whichever skill moved under the same y. */
     xt_collect_boxes(api, state);
-    if( g_box_count != g_built_box_count )
+    if( xt_drawn_boxes(state) != g_built_box_count )
         return true;
-    for( int i = 0; i < g_box_count; i++ )
-        if( g_box_skill[i] != g_built_box_skill[i] )
+    for( int i = 0; i < g_built_box_count; i++ )
+        if( g_box_skill[xt_box_first(state) + i] != g_built_box_skill[i] )
             return true;
     wants_detail = g_detail >= 0 && g_detail < g_skill_count &&
                    xt_row_wanted(api, state, g_detail);
@@ -1718,6 +1843,19 @@ xt_panel_action(
 
     if( strcmp(ev->id, "boxes") == 0 )
     {
+        if( g_box_count > xt_box_limit() &&
+            ev->y >= (g_built_box_count + 1) * XT_BOX_PITCH )
+        {
+            int page = xt_box_first(state) / xt_box_limit();
+            int const last = (g_box_count - 1) / xt_box_limit();
+            page += ev->x < g_well_w / 2 ? -1 : 1;
+            if( page < 0 ) page = 0;
+            if( page > last ) page = last;
+            state->box_page = page;
+            g_detail = -1;
+            api->panel.invalidate(api);
+            return;
+        }
         /* Row zero is the session overview. Skill boxes begin one pitch down. */
         int const row = ev->y / XT_BOX_PITCH - 1;
         int const skill = row >= 0 && row < g_built_box_count
@@ -1821,13 +1959,12 @@ xt_asset(
     struct XtState* state = plugin_state;
     assert(ev);
 
-    /* Only once there are READINGS to reconcile onto; otherwise the tick does
-     * it the moment there are. @see xt_stats_live. */
-    if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 &&
-        !g_state_applied && g_skill_count > 0 && xt_stats_live(api, state) )
+    if( ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 && !g_state_applied )
     {
-        g_state_applied = true;
-        xt_state_apply(api, state);
+        if( !ev->ok )
+            g_state_applied = true;
+        else if( g_skill_count > 0 && xt_stats_live(api, state) )
+            g_state_applied = xt_state_apply(api, state);
         api->panel.invalidate(api);
     }
     (void)xt_art_ready(api, state);
@@ -1866,23 +2003,20 @@ xt_stop(struct ToriRS_Api* api, void* plugin_state)
 static void
 xt_size_table(struct ToriRS_Api* api, struct XtState* state)
 {
-    int count = 0;
+    int const previous = g_skill_count;
+    int count = previous;
     struct ToriRS_SkillSnapshot snapshot;
-
-    if( g_skill_count > 0 )
-        return;
-    while( count < XT_SKILLS_MAX && xt_skill_snapshot(api, count, &snapshot) )
-        count++;
-    if( count == 0 )
-        return; /* no session yet; ask again next tick */
-
-    g_skill_count = count;
-    for( int i = 0; i < g_skill_count; i++ )
+    for( int i = previous; i < XT_SKILLS_MAX; i++ )
+        if( xt_skill_snapshot(api, i, &snapshot) )
+            count = i + 1;
+    for( int i = previous; i < count; i++ )
     {
         memset(&g_skill[i], 0, sizeof(g_skill[i]));
         g_skill[i].start_xp = -1;
     }
-    g_session_start_ms = api->core.frame_ms(api);
+    g_skill_count = count;
+    if( previous == 0 && count > 0 )
+        g_session_start_ms = api->core.frame_ms(api);
 }
 
 static void
@@ -1898,6 +2032,27 @@ xt_tick(
     uint64_t const now = api->core.frame_ms(api);
     bool const logged_in = api->world.local_player(api, &me);
 
+    if( logged_in )
+    {
+        char owner[sizeof(g_owner)];
+        xt_owner_id(api, owner, sizeof(owner));
+        if( owner[0] )
+        {
+            if( g_owner[0] && strcmp(owner, g_owner) != 0 )
+            {
+                memset(g_skill, 0, sizeof(state->skill));
+                g_skill_count = 0;
+                g_box_count = 0;
+                state->box_page = 0;
+                g_detail = -1;
+                g_state_applied = false;
+                if( xt_cfg_bool(api, "save_state") )
+                    (void)api->assets.request(api, XT_STATE_ASSET);
+                api->panel.invalidate(api);
+            }
+            snprintf(g_owner, sizeof(g_owner), "%s", owner);
+        }
+    }
     xt_size_table(api, state);
     if( g_skill_count == 0 )
         return;
@@ -1937,8 +2092,7 @@ xt_tick(
          * session runs on, and a seed taken first would be the one it kept. */
         if( !g_state_applied && xt_stats_live(api, state) )
         {
-            g_state_applied = true;
-            xt_state_apply(api, state);
+            g_state_applied = xt_state_apply(api, state);
             api->panel.invalidate(api);
         }
 
@@ -1964,6 +2118,20 @@ xt_tick(
         else
             xt_page_refresh(api, state);
     }
+}
+
+static void
+xt_config_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
+{
+    struct XtState* state = plugin_state;
+    assert(key);
+    if( strcmp(key, "save_state") == 0 && xt_cfg_bool(api, "save_state") )
+    {
+        g_state_applied = false;
+        (void)api->assets.request(api, XT_STATE_ASSET);
+    }
+    g_next_panel_ms = 0;
+    api->panel.invalidate(api);
 }
 
 static struct ToriRS_ConfigItem const XT_CONFIG[] = {
@@ -2000,6 +2168,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
         .on_start = xt_start,
         .on_stop = xt_stop,
         .on_asset = xt_asset,
+        .on_config_changed = xt_config_changed,
         .on_logic_tick = xt_tick,
         .on_ui_build = xt_panel_build,
         .on_ui_action = xt_panel_action,

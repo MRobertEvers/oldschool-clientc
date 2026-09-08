@@ -161,6 +161,32 @@ local STYLES        = {
 
 local LUMINANCE_MAX = 127
 
+-- The style the config names, and what to do when it names something else.
+--
+-- `style` is an enum row, but a config VALUE is not checked against the row's
+-- choices anywhere: api.config.set stores any string the INI grammar accepts,
+-- and plugin_prefs.ini is a text file the host writes for a user to read and
+-- therefore to edit. STYLES[<a name that is not a style>] is nil, indexing it
+-- faults, and a Lua fault switches the plugin off for the whole session -- so
+-- one typo took the beams away with nothing on screen to say why. The value is
+-- read through here instead, once, and a name that is not a style is reported
+-- and replaced by the schema's own default rather than ending the session.
+local DEFAULT_STYLE = "modern"
+-- The last name reported, so a bad value costs one line and not one per tick.
+local style_warned  = nil
+
+local function style_of(api)
+    local name = api.config.style
+
+    if STYLES[name] then return name end
+    if style_warned ~= name then
+        style_warned = name
+        api.core.log(
+            "unknown beam style '" .. tostring(name) .. "'; drawing " .. DEFAULT_STYLE)
+    end
+    return DEFAULT_STYLE
+end
+
 local function hsl_unpack(hsl)
     return (hsl >> 10) & 63, (hsl >> 7) & 7, hsl & 127
 end
@@ -199,6 +225,26 @@ local dirty         = true
 -- moves.
 local live          = 0
 
+-- Re-pricing a floor the snapshot could not price.
+--
+-- ObjStack.cost is a provider HIT only -- app_plugin_fill_obj takes the
+-- objtype the stack's model was built from and does NOT queue a load for one
+-- that is not resident, because a snapshot must not start IO. A drop sampled
+-- while its type is still loading is therefore worth 0, clears no threshold,
+-- and nothing that fires afterwards says "the type landed": the beam a user
+-- was promised never appears. So an unpriced stack schedules another look,
+-- half a second apart and a bounded number of times -- long enough for a
+-- config-group fetch, short enough that a stack whose cache cost really is
+-- zero does not cost a walk of the ground list for the rest of the session.
+local REPRICE_TICKS = 25
+local REPRICE_TRIES = 10
+local reprice_in    = 0
+local reprice_left  = 0
+
+-- The last yaw asked for, so a spin slow enough to land on the same one over
+-- several frames restates nothing -- see on_frame_start.
+local spin_turn     = nil
+
 -- The model for a style, asked for on first use. nil only when the resident
 -- model table is full, which two files cannot fill.
 local function model_for(api, style)
@@ -221,14 +267,22 @@ end
 -- The colour a value earns, or nil when it earns none. Walked from the top so
 -- the highest tier a value clears wins, and gated on the configured tier so
 -- "beam from high" does not light the low-value drops underneath it.
+--
+-- STRICTLY greater, exactly as ground_items.lua tier_of and the reference
+-- GroundItemsPlugin.priceChecks it is copied from: an item worth exactly the
+-- low threshold is not a low-value item. The header promises the value rows of
+-- the two plugins are spelled the same way so a threshold set on one reads off
+-- the other, and `>=` here broke that promise on one number -- the boundary --
+-- where a stack was beamed by this plugin and left untiered by the other in
+-- the same frame.
 local function tier_colour(api, value)
     local floor = tier_rank(api.config.tier)
     if floor == 0 then return nil end
 
-    if value >= api.config.insane_value and floor <= 4 then return api.config.insane_color end
-    if value >= api.config.high_value and floor <= 3 then return api.config.high_color end
-    if value >= api.config.medium_value and floor <= 2 then return api.config.medium_color end
-    if value >= api.config.low_value and floor <= 1 then return api.config.low_color end
+    if value > api.config.insane_value and floor <= 4 then return api.config.insane_color end
+    if value > api.config.high_value and floor <= 3 then return api.config.high_color end
+    if value > api.config.medium_value and floor <= 2 then return api.config.medium_color end
+    if value > api.config.low_value and floor <= 1 then return api.config.low_color end
     return nil
 end
 
@@ -258,9 +312,19 @@ end
 local function parse_prices(text)
     local out = {}
     local n = 0
-    for id, price in string.gmatch(text, "(%d+)%s*=%s*(%d+)") do
-        out[tonumber(id)] = tonumber(price)
-        n = n + 1
+    -- A LINE at a time, because a comment is a property of a line and a match
+    -- run over the whole file has no notion of one: "# 995 = 1" is a row a
+    -- user commented out to turn it off, and the shipped header's own prose
+    -- says so. Everything from the first `#` is dropped, which is what makes
+    -- the trailing "# Abyssal whip" on a live row a comment too, and what is
+    -- left has to be a whole row and nothing else.
+    for line in string.gmatch(text, "[^\r\n]+") do
+        local body = string.match(line, "^([^#]*)")
+        local id, price = string.match(body, "^%s*(%d+)%s*=%s*(%d+)%s*$")
+        if id then
+            out[tonumber(id)] = tonumber(price)
+            n = n + 1
+        end
     end
     return out, n
 end
@@ -277,6 +341,8 @@ end
 -- already-dull colour (sat <= 2) because taking one off would push it to grey.
 --
 local function dress(api, beam, rgb, style)
+    -- style_of answered this; every caller passes what it returned.
+    assert(STYLES[style], "dress: style must be one the plugin ships")
     local handle = beam.handle
     local shape = STYLES[style]
     local model = model_for(api, style)
@@ -300,13 +366,16 @@ local function dress(api, beam, rgb, style)
 end
 
 local function rebuild(api)
-    local style = api.config.style
+    local style = style_of(api)
     local want = {}
     local tally = 0
+    -- Set by a stack this walk could not price; see REPRICE_TICKS.
+    local blind = false
 
     for obj in items(api) do
         local value = value_of(api, obj)
         tally = tally + 1
+        if obj.cost == 0 and not prices[obj.obj_id] then blind = true end
         local rgb = tier_colour(api, value)
         if rgb then
             -- One beam per TILE, coloured by the best thing on it: a tile with
@@ -368,6 +437,11 @@ local function rebuild(api)
     if live ~= before then
         api.core.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
     end
+
+    -- Every beam was just placed at its resting yaw, so the next frame states
+    -- the turn again whatever it was doing before.
+    spin_turn = nil
+    reprice_in = (blind and reprice_left > 0) and REPRICE_TICKS or 0
 end
 
 local function clear(api)
@@ -376,10 +450,12 @@ local function clear(api)
         beams[key] = nil
     end
     live = 0
+    spin_turn = nil
 end
 
 function plugin.on_start(api)
     beams, models, prices, dirty, live = {}, {}, {}, true, 0
+    reprice_in, reprice_left, spin_turn, style_warned = 0, REPRICE_TRIES, nil, nil
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)
@@ -409,11 +485,20 @@ end
 -- Every edge that can change what should be lit. They only mark, because a
 -- zone update can carry a dozen OBJ_ADDs and rebuilding on each would walk
 -- the whole ground-item list a dozen times for one visible result.
-function plugin.on_item_spawn() dirty = true end
+-- A stack that arrived, changed or left is also a fresh chance to price one,
+-- so the retry budget is restored here -- at the edge that means the floor is
+-- different -- and never inside rebuild, where a floor that never changes
+-- would keep handing itself a new budget forever.
+local function items_changed()
+    dirty = true
+    reprice_left = REPRICE_TRIES
+end
 
-function plugin.on_item_changed() dirty = true end
+function plugin.on_item_spawn() items_changed() end
 
-function plugin.on_item_despawn() dirty = true end
+function plugin.on_item_changed() items_changed() end
+
+function plugin.on_item_despawn() items_changed() end
 
 function plugin.on_config_changed(api, key)
     -- A style or colour change has to reach the beams that are already up, and
@@ -429,6 +514,7 @@ function plugin.on_world_loaded(api, ev)
     -- are geometry, and nothing about a scene rebuild changes their shape.
     clear(api)
     dirty = true
+    reprice_left = REPRICE_TRIES
 end
 
 -- on_logic_tick and not on_server_tick: the tick fence (PKT_NAME_SERVER_TICK_END)
@@ -441,6 +527,13 @@ end
 -- is the client's own 20ms cycle and exists on every lane; the `dirty` gate
 -- below is what keeps this cheap when nothing changed.
 function plugin.on_logic_tick(api, ev)
+    if reprice_in > 0 then
+        reprice_in = reprice_in - 1
+        if reprice_in == 0 then
+            reprice_left = reprice_left - 1
+            dirty = true
+        end
+    end
     if dirty then
         dirty = false
         rebuild(api)
@@ -462,6 +555,12 @@ function plugin.on_frame_start(api, ev)
     if spin == 0 then return end
     -- 2048 yaw units to a turn, `spin` degrees to a second.
     turn = (ev.now_ms * spin * 2048) // 360000
+    -- Quantised, so a slow spin asks for the same yaw over several frames.
+    -- Restating a position that did not move still costs the host the redraw
+    -- it schedules for a moved object, so the frame that turns nothing does
+    -- nothing.
+    if turn == spin_turn then return end
+    spin_turn = turn
 
     for _, beam in pairs(beams) do
         if beam.x then

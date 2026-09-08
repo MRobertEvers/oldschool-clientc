@@ -3337,13 +3337,14 @@ app_overlay_build_npc_headicon(
 
 /* Push one projected world segment as a LINE overlay (box + diagonal). */
 static void
-app_overlay_push_segment(
+app_overlay_push_segment_stroke(
     struct App* app,
     int screen_x0,
     int screen_y0,
     int screen_x1,
     int screen_y1,
-    uint32_t color)
+    uint32_t color,
+    int outline_width)
 {
     struct UITreeEntityOverlay seg = {
         .kind = UITREE_ENTITY_OVERLAY_LINE,
@@ -3352,12 +3353,18 @@ app_overlay_push_segment(
         .w = screen_x0 < screen_x1 ? screen_x1 - screen_x0 : screen_x0 - screen_x1,
         .h = screen_y0 < screen_y1 ? screen_y1 - screen_y0 : screen_y0 - screen_y1,
         .color = color,
-        .line_width = 2,
+        .line_width = (uint8_t)outline_width,
         /* Direction 0 = TL->BR. The segment runs that diagonal when x and y
          * grow together; otherwise it is the other one. */
         .line_direction = ((screen_x0 < screen_x1) != (screen_y0 < screen_y1)) ? 1 : 0,
     };
     app_overlay_push(app, &seg);
+}
+
+static void
+app_overlay_push_segment(struct App* app, int x0, int y0, int x1, int y1, uint32_t color)
+{
+    app_overlay_push_segment_stroke(app, x0, y0, x1, y1, color, 2);
 }
 
 /*
@@ -3470,6 +3477,62 @@ app_overlay_push_polygon(
     }
 }
 
+/* Reserve the complete projected primitive before its first item. A global
+ * pool refusal is different from empty/offscreen geometry, and a partial fill
+ * must never leave an unmatched POLY_BEGIN in the retained render stream. */
+static int
+app_overlay_push_polygon_styled(
+    struct App* app, int const* x, int const* y, int count,
+    uint32_t fill, int fill_trans, uint32_t outline, int width, int item_budget)
+{
+    int const fill_items = fill_trans >= 0 && count >= 3 ? count + 2 : 0;
+    int const edge_items = width > 0 && count >= 2 ? (count == 2 ? 1 : count) : 0;
+    int const needed = fill_items + edge_items;
+    int const capacity = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
+
+    assert(app);
+    assert(x);
+    assert(y);
+    assert(width >= 0);
+    assert(width <= 255);
+    assert(count >= 0);
+    assert(item_budget >= 0);
+    assert(app->plugin_draw_canvas == APP_PLUGIN_SURFACE_WORLD);
+    if( needed == 0 )
+        return 0;
+    /* Reject geometry wholly beyond the viewport before asking for storage.
+     * A clipped-away shape is a successful no-op, even when the pool is full. */
+    {
+        int min_x = x[0], max_x = x[0], min_y = y[0], max_y = y[0];
+        int const margin = (width + 1) / 2;
+        for( int i = 1; i < count; i++ )
+        {
+            if( x[i] < min_x ) min_x = x[i];
+            if( x[i] > max_x ) max_x = x[i];
+            if( y[i] < min_y ) min_y = y[i];
+            if( y[i] > max_y ) max_y = y[i];
+        }
+        if( !app->world_view_valid || app->world_emit_desc.w <= 0 || app->world_emit_desc.h <= 0 ||
+            (int64_t)max_x + margin < app->world_emit_desc.x ||
+            (int64_t)max_y + margin < app->world_emit_desc.y ||
+            (int64_t)min_x - margin >= (int64_t)app->world_emit_desc.x + app->world_emit_desc.w ||
+            (int64_t)min_y - margin >= (int64_t)app->world_emit_desc.y + app->world_emit_desc.h )
+            return 0;
+    }
+    if( needed > item_budget )
+        return -2;
+    if( needed > capacity - app->entity_overlay_count )
+        return -1;
+    if( fill_items )
+        app_overlay_push_polygon_filled(app, x, y, count, fill, fill_trans);
+    for( int i = 0; i < edge_items; i++ )
+    {
+        int const next = (i + 1) % count;
+        app_overlay_push_segment_stroke(app, x[i], y[i], x[next], y[next], outline, width);
+    }
+    return needed;
+}
+
 /**
  * Outline the MODEL of a scene element: a silhouette that wraps the thing in
  * three dimensions, not a quad on the ground under it.
@@ -3502,11 +3565,13 @@ app_overlay_push_polygon(
  * @return 1 when an outline was emitted.
  */
 static int
-app_overlay_outline_element_model_trans(
+app_overlay_outline_element_model_stroke(
     struct App* app,
     int element_id,
     uint32_t color,
-    int fill_trans)
+    int fill_trans,
+    int outline_width,
+    int item_budget)
 {
     struct ToriDraw_SceneElement* element;
     struct ToriDraw_BoundsCylinder* bounds;
@@ -3569,10 +3634,8 @@ app_overlay_outline_element_model_trans(
     /* Fill first, outline over it: the wash says "this one" at a glance and the
      * outline gives it a definite edge, which a translucent fill alone does not
      * have against busy ground. */
-    if( fill_trans >= 0 )
-        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
-    return 1;
+    return app_overlay_push_polygon_styled(
+        app, hull_x, hull_y, hull_size, color, fill_trans, color, outline_width, item_budget);
 }
 
 /**
@@ -3621,11 +3684,13 @@ app_overlay_outline_element_model_trans(
  * @return 1 when an outline was emitted.
  */
 static int
-app_overlay_outline_element_mesh_trans(
+app_overlay_outline_element_mesh_stroke(
     struct App* app,
     int element_id,
     uint32_t color,
-    int fill_trans)
+    int fill_trans,
+    int outline_width,
+    int item_budget)
 {
     enum
     {
@@ -3810,10 +3875,8 @@ app_overlay_outline_element_mesh_trans(
         return 0;
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
-    if( fill_trans >= 0 )
-        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
-    return 1;
+    return app_overlay_push_polygon_styled(
+        app, hull_x, hull_y, hull_size, color, fill_trans, color, outline_width, item_budget);
 }
 
 /* The mark the hover footprint and the editor selection both draw: the
@@ -3824,8 +3887,8 @@ app_overlay_outline_element_model(
     int element_id,
     uint32_t color)
 {
-    return app_overlay_outline_element_model_trans(
-        app, element_id, color, APP_OUTLINE_FILL_TRANS);
+    return app_overlay_outline_element_model_stroke(
+        app, element_id, color, APP_OUTLINE_FILL_TRANS, 2, INT_MAX) > 0;
 }
 
 static void
@@ -30440,8 +30503,11 @@ App_SyncUiScale(struct App* app)
     if( app->window_w <= 0 || app->window_h <= 0 )
         return 0;
     app->host.ui_scale_dirty = false;
-    return App_SetCanvasSize(
+    App_SetCanvasSize(
         app, app_ui_scaled_axis(app, app->window_w), app_ui_scaled_axis(app, app->window_h));
+    /* The logical floor may keep the canvas unchanged. The shell still has
+     * to enlarge the physical game area to present that floor at this scale. */
+    return 1;
 }
 
 int
@@ -30875,7 +30941,9 @@ App_DrainCommands(
                         "resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
                 app->window_w = cmd->width;
                 app->window_h = cmd->height;
-                app->host.ui_scale_dirty = false;
+                /* A resize can arrive alongside a settings change. It updates
+                 * the canvas but must not consume the shell's pending request
+                 * to provide enough physical pixels for the new scale. */
                 App_SetCanvasSize(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }

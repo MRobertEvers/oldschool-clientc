@@ -65,14 +65,35 @@
  * pixels behind them -- a frame drawn with half its art missing and one line
  * on stderr to say why.
  *
+ * Raised again from 128, this time against a COUNT of what the shipped roster
+ * asks for rather than against a guess. A frame provider requests every file
+ * in its table from on_start, so its whole atlas is resident the moment it
+ * runs:
+ *
+ *   gameframe-layout   97   (FRAME_IMAGE_FILE, both surrounds + three icon sets)
+ *   mobile-gameframe   68   (MOBILE_IMAGE_FILE)
+ *   minimap-orbs       15
+ *   loot-tracker       12
+ *   xp-tracker          8
+ *   screenshot          2    item-stats 3, loot-beam 3, xp-drop-orbs 2,
+ *   ground-items        1    paneldemo 1
+ *
+ * That is 144 for the roster with ONE frame provider and 212 with both
+ * resident, so 128 could not seat even the first of those: the layout plugin
+ * alone plus the orbs overran it, and everything asked for afterwards was
+ * refused. 256 seats both providers with room for a plugin somebody adds.
+ *
  * The cost is honest and known: the PNG bytes of an image stay resident after
  * the decode that only needed them once, so ~70 KB of this table is bytes
  * nothing will read again. Dropping them would mean the host deciding that a
  * file loaded as an image is not also wanted as bytes, which is not something
  * it can know -- a plugin may legitimately hold both. Slots are cheap; the
  * guess would not be.
+ *
+ * Exhaustion is never silent: plugin_asset_budget_refused says which plugin
+ * asked for what, once per plugin, on stderr in every build.
  */
-#define TORIRS_PLUGIN_ASSETS_MAX 128
+#define TORIRS_PLUGIN_ASSETS_MAX 256
 /** Resident shipped MODELS, across every plugin. Each holds decoded geometry
  *  the host keeps for as long as the plugin runs, so the ceiling is what stops
  *  a plugin from loading a folder of art nothing stands on. */
@@ -90,7 +111,10 @@
  * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
-#define TORIRS_PLUGIN_IMAGES_MAX 192
+/* Both frame providers coexist while a replacement loads. Their 165 shipped
+ * images share this pool with the rest of the roster, generated frame masks,
+ * XP globes, composed panels and up to 48 cached item icons. */
+#define TORIRS_PLUGIN_IMAGES_MAX 384
 /**
  * Item icons the host keeps rasterised, across every plugin.
  *
@@ -729,6 +753,15 @@ struct ToriRS_PluginEngine
     uint32_t (*hsl_to_rgb)(
         void* user,
         int hsl);
+    /* Optional stroke-aware drawing. Nonnegative = emitted item count (zero
+     * also covers offscreen geometry), -1 = global pool full, -2 = item_budget
+     * too small. A refusal emits nothing, including no partial polygon run. */
+    int (*draw_tile_stroke)(
+        void* user, int tile_x, int tile_z, int level, uint32_t rgb,
+        uint32_t fill_rgb, int fill_alpha, int outline_width, int item_budget);
+    int (*draw_hull_stroke)(
+        void* user, int element_id, uint32_t rgb, int fill_alpha,
+        int shape, int outline_width, int item_budget);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -796,6 +829,13 @@ PluginHost_SetReloadHandler(
     int plugin_index,
     void (*handler)(struct ToriRS_PluginHost*, int, void*),
     void* user);
+/** Internal runtime-host hook, called while a plugin is stopped. Replaces
+ * event subscriptions before Start builds the new run's subscriber lists. */
+void
+PluginHost_SetCallbacks(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    struct ToriRS_PluginCallbacks const* callbacks);
 /**
  * Is this plugin switched on RIGHT NOW -- the user's switch, minus any lane
  * that refused it. What the roster's checkbox and the boot line both want.
@@ -1113,6 +1153,11 @@ struct ToriRS_PanelWidget
     int value;
     /** CUSTOM only: preferred logical content height. */
     int preferred_height;
+    /** CUSTOM only: the last request did not fit and was cut to the bound
+     *  above. Remembered so the refusal is said once per change rather than
+     *  once per frame -- a plugin that recomputes its well from a row count
+     *  calls set_height on every build. @see api_panel_set_height. */
+    bool height_clamped;
     /** Never reused within one host lifetime. Lets a queued intent distinguish
      *  a removed node from a later declaration with the same string id. */
     uint32_t serial;

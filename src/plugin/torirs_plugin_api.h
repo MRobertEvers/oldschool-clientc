@@ -235,7 +235,20 @@ struct ToriRS_Graphics
     bool (*context)(
         struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
+    /** Optional tail: outline width in canvas pixels, 0 suppresses the border.
+     * Fill alpha is independent. Check struct_size before reading this tail.
+     * A capacity refusal returns BUDGET; offscreen geometry returns OK. */
+    enum ToriRS_Result (*world_tile_stroke)(
+        struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
+        uint32_t fill_rgb, uint32_t outline_rgb, int alpha, int outline_width);
+    enum ToriRS_Result (*world_hull_stroke)(
+        struct ToriRS_Graphics* draw, int element_id, uint32_t rgb,
+        int alpha, int shape, int outline_width);
 };
+
+#define TORIRS_GRAPHICS_STROKE_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, world_hull_stroke) + \
+                sizeof(((struct ToriRS_Graphics*)0)->world_hull_stroke)))
 
 /* A NULL id terminates an offer array. Only the fields for the chosen canvas
  * policy are meaningful: width/height for FIXED, min_* for WINDOW. An offer

@@ -236,6 +236,28 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 #define MOBILE_O_ADVISER_DY 143
 #define MOBILE_O_ADVISER_W 34
 #define MOBILE_O_ADVISER_H 34
+/*
+ * The world-map globe and the wiki banner inside that block.
+ *
+ * The two other children whose spot the pack picks by TOPLEVEL:
+ * `orbs_worldmap_setup_1700` and `wiki_icon_update_3306` anchor both to the
+ * block's RIGHT edge and inset them by ten and eight columns on the Fixed
+ * toplevel and by nothing on the resizable ones. This block IS the resizable
+ * one's (@see MOBILE_O_ORBS_DX), so the inset is nothing; every other number
+ * about them -- the row, the globe's 30x30 ring, the banner's 40x34 box -- is
+ * the same on all three. Read off the two procs, as the adviser's are.
+ *
+ * SEATED, and not left to the pack. A member this frame does not place is one
+ * the apply pass hides, so leaving these two out did not leave them where they
+ * were: it took the world map and the wiki off the Stone Drawer entirely,
+ * while every other frame in the tree has both.
+ */
+#define MOBILE_O_WORLD_MAP_W 30
+#define MOBILE_O_WORLD_MAP_H 30
+#define MOBILE_O_WORLD_MAP_DY 115
+#define MOBILE_O_WIKI_W 40
+#define MOBILE_O_WIKI_H 34
+#define MOBILE_O_WIKI_DY 135
 
 /*
  * The map housing: a RING, with the scene showing through everywhere it is not.
@@ -1055,6 +1077,18 @@ struct MobileState
     int map_w;
     int map_h;
     bool masks_ready;
+    /*
+     * The housing was READ and did not have two windows in it.
+     *
+     * A latch and not a second spelling of `masks_ready`: the frame handler
+     * retries the read while the masks are missing, and a housing that cannot
+     * yield them is a picture, not a wait -- so without this the same six
+     * buffers were allocated, dilated and flooded twice over on EVERY frame,
+     * forever, behind one log line per frame. The answer can only change with
+     * the picture, and the picture can only change through the setting that
+     * drops the latch. @see mobile_on_config.
+     */
+    bool masks_unreadable;
     bool drawer_open;
     bool chat_open;
     bool keyboard_on;
@@ -1071,6 +1105,16 @@ struct MobileState
     int provided;
     int logged_pending;
     int chat_dressed;
+    /** The element this frame last dressed as the filter row: the bar the
+     *  profile names, or -- where the toplevel does not paint that bar -- the
+     *  band the captions are in. Kept so that taking the dressing off puts
+     *  back exactly what was dressed. @see mobile_chat_strip. */
+    struct ToriRS_WidgetRef chat_strip;
+    /** What the pack looked like when it was last dressed: the strip and the
+     *  backing this frame edited, their boxes, and every filter cell -- the
+     *  node references included, so a rebuilt pack (a new incarnation) is a
+     *  different answer and gets dressed again. @see mobile_chat_signature. */
+    uint64_t chat_dressed_sig;
     /* The owned children, by role in the plan. */
     struct MobileOwned piece[MOBILE_BLIT_MAX];
     struct MobileOwned housing;
@@ -1106,6 +1150,7 @@ struct MobileCall
 #define g_map_w (ctx->state->map_w)
 #define g_map_h (ctx->state->map_h)
 #define g_masks_ready (ctx->state->masks_ready)
+#define g_masks_unreadable (ctx->state->masks_unreadable)
 #define g_drawer_open (ctx->state->drawer_open)
 #define g_chat_open (ctx->state->chat_open)
 #define g_keyboard_on (ctx->state->keyboard_on)
@@ -1967,7 +2012,14 @@ mobile_build_masks(struct MobileCall* ctx)
     {
         /* Said rather than guessed at: a ring this code has not been read
          * against is worth a line, and an unmasked map is a better failure than
-         * a mask cut around the wrong shape. */
+         * a mask cut around the wrong shape.
+         *
+         * Said ONCE. The scan is a function of the housing's pixels, so a
+         * second look at the same picture has the same answer; latching it is
+         * what turns "this housing has no windows" from a per-frame flood
+         * scan and a per-frame log line into a fact the frame states and then
+         * lives with. @see MobileState::masks_unreadable. */
+        g_masks_unreadable = true;
         g_api->core.log(
             g_api,
             "map housing has %d window(s); expected 2, leaving it unmasked",
@@ -3213,6 +3265,24 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_ADVISER_DY,
         MOBILE_O_ADVISER_W,
         MOBILE_O_ADVISER_H);
+    /* And the two beside the ring, at the block's right edge.
+     * @see MOBILE_O_WORLD_MAP_W. */
+    mobile_member(
+        ctx,
+        FRAME_SURFACE_ORBS,
+        FRAME_ORBS_MEMBER_WORLD_MAP,
+        map_x + g_hole_map.x + MOBILE_O_ORBS_DX + MOBILE_O_ORBS_W - MOBILE_O_WORLD_MAP_W,
+        map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_WORLD_MAP_DY,
+        MOBILE_O_WORLD_MAP_W,
+        MOBILE_O_WORLD_MAP_H);
+    mobile_member(
+        ctx,
+        FRAME_SURFACE_ORBS,
+        FRAME_ORBS_MEMBER_WIKI,
+        map_x + g_hole_map.x + MOBILE_O_ORBS_DX + MOBILE_O_ORBS_W - MOBILE_O_WIKI_W,
+        map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_WIKI_DY,
+        MOBILE_O_WIKI_W,
+        MOBILE_O_WIKI_H);
 
     if( g_drawer_open )
         mobile_blit(
@@ -3532,17 +3602,46 @@ mobile_owned_centred(
         ctx, owned, parent, key, image, iw, ih, box.x + (box.width - iw) / 2, box.y + (box.height - ih) / 2);
 }
 
-/* Tap blockers: the chat sheet asks for the keyboard, the rest swallow. */
+/* Tap blockers: the ones that are not the sheet only swallow the tap, which is
+ * the whole of their job -- the control exists so a tap on chrome does not walk
+ * the player. @see mobile_type_pressed for the sheet's. */
 static void
 mobile_blocker_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
-    char const* op = user;
+    (void)user;
     assert(api);
     assert(event);
-    if( event->type != TORIRS_WIDGET_OPERATION || !op )
+}
+
+/*
+ * The sheet was tapped: ask for the keys.
+ *
+ * TWO levers, because they are not one lever and only one of them exists on
+ * any given lane. `chat_focus` hands the CLIENT's own chat line the keys --
+ * that is what a 2004 lane wants, and raising its keyboard is a consequence of
+ * it. A CS2 lane has no client-drawn chat line at all (the cache's chatbox
+ * routes its own keys), so that call is a documented no-op there and a tap on
+ * the sheet did nothing whatever: the Keyboard stone beside the switch was the
+ * only way to get a keyboard up on the frame built for a device that has no
+ * other kind. Asking for text input as well is the half that works on every
+ * lane, and it goes through the same latch the stone sets, so the stone still
+ * puts the keyboard away afterwards instead of turning it on again.
+ */
+static void
+mobile_type_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct MobileState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_OPERATION )
         return;
-    if( strcmp(op, "Type") == 0 )
-        api->input.chat_focus(api, true);
+    api->input.chat_focus(api, true);
+    if( state->keyboard_on )
+        return;
+    state->keyboard_on = true;
+    api->input.text_input(api, true);
 }
 
 /* The chrome and the blockers, anchored OVER the scene in layout order; the
@@ -3580,8 +3679,11 @@ mobile_apply_pieces(struct MobileCall* ctx, struct ToriRS_WidgetRef parent, stru
         (void)snprintf(key, sizeof(key), "piece.%02d", i);
         if( !mobile_owned_image(ctx, &state->piece[i], parent, key, image, w, h, b->x, b->y) )
             continue;
-        (void)ui->set_on_op(ui->context, state->piece[i].ref, b->op, b->op ? mobile_blocker_pressed : NULL,
-                            b->op ? (void*)b->op : NULL);
+        if( b->op && strcmp(b->op, "Type") == 0 )
+            (void)ui->set_on_op(ui->context, state->piece[i].ref, b->op, mobile_type_pressed, state);
+        else
+            (void)ui->set_on_op(ui->context, state->piece[i].ref, b->op, b->op ? mobile_blocker_pressed : NULL,
+                                b->op ? (void*)b->op : NULL);
         if( ui->set_anchor(ui->context, state->piece[i].ref, viewport, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
             last = state->piece[i].ref;
     }
@@ -3860,6 +3962,38 @@ mobile_clear(struct MobileCall* ctx)
     memset(&g_frame, 0, sizeof(g_frame));
 }
 
+/*
+ * A member the plan did not seat: hidden, or left where the pack put it?
+ *
+ * The two are different answers and the roles that have members disagree:
+ *
+ *  - ORBS. The activity adviser is the one child the TOPLEVEL positions rather
+ *    than the pack, so a frame that does not seat it must not show it -- the
+ *    pack would drop it inside the map circle or on the tab stones. The
+ *    world-map globe and the wiki banner the pack anchors to the BLOCK, so one
+ *    this frame does not seat keeps the spot it was given and moves with the
+ *    block; hiding those two took both buttons off the frame.
+ *    @see [role:frame_orbs_*] in the revision profile, which states exactly
+ *    this, and MOBILE_O_WORLD_MAP_W, where both are now seated.
+ *  - CHAT_BUTTONS. The four filters belong to the SHEET. While the sheet is up
+ *    every one of them is seated; when it stands down (a canvas too narrow to
+ *    hold the drawer and the sheet at once) their native boxes are left lying
+ *    on the world with this frame's own switches drawn through them, so they
+ *    go away with the thing they belong to. A lane whose filters live inside
+ *    the chat pack seats none of them and the pack's own box carries them,
+ *    which is why the question is about the SHEET and not about the member.
+ */
+static bool
+mobile_member_hidden_unplaced(struct MobileCall* ctx, int surface, int member)
+{
+    assert(ctx);
+    if( surface == FRAME_SURFACE_ORBS )
+        return member == FRAME_ORBS_MEMBER_ACTIVITY_ADVISER;
+    if( surface == FRAME_SURFACE_CHAT_BUTTONS )
+        return !g_frame.chat_placed;
+    return false;
+}
+
 /* The live surfaces, moved to the plan's rectangles; an unplaced role is
  * hidden (the shut drawer, the chat put away); members follow. */
 static void
@@ -3887,8 +4021,12 @@ mobile_apply_surfaces(struct MobileCall* ctx, struct ToriRS_WidgetRef viewport, 
             else if( !has_members )
                 (void)ui->set_hidden(ui->context, widget, true);
         }
-        if( has_members &&
-            ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) != TORIRS_CONTRACT_OK )
+        /* Asked for even when the plan seated none of them: a role whose
+         * members all went away is exactly the case that has some to hide,
+         * and gating the lookup on the PLAN meant the four filter buttons
+         * were never even looked up on the frame that stood their sheet
+         * down. A role this lane does not have answers unavailable. */
+        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) != TORIRS_CONTRACT_OK )
             member_count = 0;
         for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
         {
@@ -3899,7 +4037,7 @@ mobile_apply_surfaces(struct MobileCall* ctx, struct ToriRS_WidgetRef viewport, 
                 continue;
             if( at->placed )
                 (void)mobile_place_widget(ctx, members[m], at->rect, base, true);
-            else if( s == FRAME_SURFACE_ORBS )
+            else if( mobile_member_hidden_unplaced(ctx, s, (int)m) )
                 (void)ui->set_hidden(ui->context, members[m], true);
         }
         /* The 2004 plates under the four filter captions: owned images anchored
@@ -3948,6 +4086,112 @@ mobile_apply_skins(struct MobileCall* ctx)
 }
 
 /*
+ * Can this element reach the screen at all?
+ *
+ * A child is drawn INTO its parent, so an element whose box lies wholly
+ * outside its parent's is clipped away entirely however bound, unhidden and
+ * well-sized it looks. That is not a hypothetical: the mobile toplevel lays
+ * the element the profile binds as the filter bar out twenty-six rows above
+ * its own parent's top, and paints the row on a graphic its script creates
+ * instead -- so re-skinning the bound one dressed nothing at all, and nothing
+ * in the tree said so.
+ */
+static bool
+mobile_widget_paints(
+    struct MobileCall* ctx, struct ToriRS_WidgetRef widget, struct ToriRS_WidgetBounds* out_box)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef parent;
+    struct ToriRS_WidgetBounds box;
+    struct ToriRS_WidgetBounds around;
+
+    assert(ctx);
+    assert(out_box);
+    if( ui->bounds(ui->context, widget, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 )
+        return false;
+    *out_box = box;
+    /* A root has nothing to be clipped by, and an element whose parent will
+     * not answer is taken at its word rather than thrown away. */
+    if( ui->parent(ui->context, widget, &parent) != TORIRS_CONTRACT_OK ||
+        ui->bounds(ui->context, parent, &around) != TORIRS_CONTRACT_OK || around.width <= 0 ||
+        around.height <= 0 )
+        return true;
+    return box.x < around.x + around.width && around.x < box.x + box.width &&
+           box.y < around.y + around.height && around.y < box.y + box.height;
+}
+
+/*
+ * WHICH element wears the 2004 strip.
+ *
+ * The bar the profile names, whenever the toplevel paints it -- that is the
+ * element the filter row is laid out in and the one every desktop OldSchool
+ * root draws. Where it is clipped away the captions are still somewhere, and
+ * the one thing that is always true of that somewhere is that it is their
+ * PARENT: on the mobile toplevel it is the script-created graphic the row is
+ * drawn on, which no profile can name because it does not exist until the
+ * script has run.
+ *
+ * Taken only when that parent is a STRIP: a lane whose filter plates hang
+ * directly off the chat pack would otherwise put a 519x165 slab of rock behind
+ * the text. "A strip" is stated as containing every plate and standing no more
+ * than twice the tallest of them, which is the shape of a row of buttons and
+ * not the shape of a block.
+ */
+static bool
+mobile_chat_strip(
+    struct MobileCall* ctx,
+    struct ToriRS_WidgetRef const* plate,
+    struct ToriRS_WidgetBounds const* plate_box,
+    int plate_count,
+    struct ToriRS_WidgetRef* out_strip,
+    struct ToriRS_WidgetBounds* out_box)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef widget;
+    struct ToriRS_WidgetBounds box;
+    int tallest = 0;
+
+    assert(ctx);
+    assert(plate);
+    assert(plate_box);
+    assert(out_strip);
+    assert(out_box);
+    if( ui->find(ui->context, "chat_bar", &widget) == TORIRS_CONTRACT_OK &&
+        mobile_widget_paints(ctx, widget, &box) )
+    {
+        *out_strip = widget;
+        *out_box = box;
+        return true;
+    }
+    if( plate_count <= 0 )
+        return false;
+    if( ui->parent(ui->context, plate[0], &widget) != TORIRS_CONTRACT_OK ||
+        !mobile_widget_paints(ctx, widget, &box) )
+        return false;
+    for( int i = 0; i < plate_count; i++ )
+    {
+        if( plate_box[i].height > tallest )
+            tallest = plate_box[i].height;
+        if( plate_box[i].x < box.x || plate_box[i].y < box.y ||
+            plate_box[i].x + plate_box[i].width > box.x + box.width ||
+            plate_box[i].y + plate_box[i].height > box.y + box.height )
+            return false;
+    }
+    if( box.height > tallest * 2 )
+        return false;
+    *out_strip = widget;
+    *out_box = box;
+    return true;
+}
+
+/** One value folded into the dressing's signature. @see mobile_chat_signature. */
+static uint64_t
+mobile_chat_fold(uint64_t hash, uint64_t value)
+{
+    return (hash ^ value) * 1099511628211u;
+}
+
+/*
  * The OldSchool chat pack in this frame's parchment, or the dressing taken off.
  *
  * The pack keeps its text, its input line, its scrollbar and its eight FILTERS.
@@ -3962,13 +4206,17 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct MobileState* state = ctx->state;
-    struct ToriRS_WidgetRef chat;
-    struct ToriRS_WidgetRef backing;
-    struct ToriRS_WidgetRef bar;
-    struct ToriRS_WidgetBounds backing_box;
-    struct ToriRS_WidgetBounds bar_box;
+    struct ToriRS_WidgetRef chat = { { 0 } };
+    struct ToriRS_WidgetRef backing = { { 0 } };
+    struct ToriRS_WidgetRef bar = { { 0 } };
+    struct ToriRS_WidgetRef plate[MOBILE_CHAT_CELL_MAX];
+    struct ToriRS_WidgetBounds plate_box[MOBILE_CHAT_CELL_MAX];
+    struct ToriRS_WidgetBounds backing_box = { 0, 0, 0, 0 };
+    struct ToriRS_WidgetBounds bar_box = { 0, 0, 0, 0 };
     struct MobileChatCell cell[MOBILE_CHAT_CELL_MAX];
+    int plate_count = 0;
     int cell_count = 0;
+    uint64_t signature = 1469598103934665603u;
     struct ToriRS_ImageRef rock;
     struct ToriRS_ImageRef paper;
     char role[32];
@@ -3980,41 +4228,98 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
         {
             if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
                 (void)ui->reset(ui->context, backing);
+            /* Whatever was dressed, and not whatever is named: the strip is
+             * the bar on most roots and the captions' own band on the mobile
+             * one. A reference whose node is gone answers stale and there is
+             * nothing left to put back. */
+            if( ToriRS_WidgetRefValid(state->chat_strip) )
+                (void)ui->reset(ui->context, state->chat_strip);
             if( ui->find(ui->context, "chat_bar", &bar) == TORIRS_CONTRACT_OK )
                 (void)ui->reset(ui->context, bar);
             for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
             {
-                struct ToriRS_WidgetRef plate;
+                struct ToriRS_WidgetRef found;
                 (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-                if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
-                    (void)ui->reset(ui->context, plate);
+                if( ui->find(ui->context, role, &found) == TORIRS_CONTRACT_OK )
+                    (void)ui->reset(ui->context, found);
             }
             mobile_owned_drop(ctx, &state->pack_sheet);
+            state->chat_strip = (struct ToriRS_WidgetRef){ { 0 } };
+            state->chat_dressed_sig = 0;
             state->chat_dressed = 0;
         }
         return;
     }
-    if( ui->find(ui->context, "chat_bar", &bar) != TORIRS_CONTRACT_OK ||
-        ui->bounds(ui->context, bar, &bar_box) != TORIRS_CONTRACT_OK || bar_box.width <= 0 || bar_box.height <= 0 )
-        return;
     for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
     {
-        struct ToriRS_WidgetRef plate;
+        struct ToriRS_WidgetRef found;
         struct ToriRS_WidgetBounds box;
         (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-        if( ui->find(ui->context, role, &plate) != TORIRS_CONTRACT_OK ||
-            ui->bounds(ui->context, plate, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 )
+        if( ui->find(ui->context, role, &found) != TORIRS_CONTRACT_OK ||
+            ui->bounds(ui->context, found, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 )
             continue;
-        cell[cell_count++] = (struct MobileChatCell){ box.x - bar_box.x, box.y - bar_box.y, box.width, box.height };
+        plate[plate_count] = found;
+        plate_box[plate_count] = box;
+        plate_count++;
     }
-    rock = mobile_bar_art(ctx, bar_box.width, bar_box.height, cell, cell_count);
-    if( rock.value == 0 )
+    if( !mobile_chat_strip(ctx, plate, plate_box, plate_count, &bar, &bar_box) )
         return;
-    (void)ui->set_image(ui->context, bar, rock, 0, 0);
+    for( int i = 0; i < plate_count; i++ )
+        cell[cell_count++] = (struct MobileChatCell){ plate_box[i].x - bar_box.x, plate_box[i].y - bar_box.y,
+                                                      plate_box[i].width, plate_box[i].height };
+    /*
+     * What all of this is a function of, folded into one number.
+     *
+     * Every call below is a widget EDIT, and the host marks the frame for
+     * redraw on each one -- so re-issuing an unchanged dressing sixty times a
+     * second is a client that never rests, on a frame whose whole point is a
+     * device with a battery. The edits are retained by the tree and applied
+     * after the lane's own, so an unchanged answer needs no repeating; the
+     * node REFERENCES are in the number, incarnation included, which is what
+     * makes a rebuilt pack a different answer and dresses it again.
+     */
+    signature = mobile_chat_fold(signature, bar.opaque[0]);
+    signature = mobile_chat_fold(signature, bar.opaque[1]);
+    signature = mobile_chat_fold(signature, bar.opaque[2]);
+    signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.x);
+    signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.y);
+    signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.width);
+    signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.height);
+    for( int i = 0; i < plate_count; i++ )
+    {
+        signature = mobile_chat_fold(signature, plate[i].opaque[1]);
+        signature = mobile_chat_fold(signature, plate[i].opaque[2]);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)plate_box[i].x);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)plate_box[i].y);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)plate_box[i].width);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)plate_box[i].height);
+    }
     if( ui->find(ui->context, "chat", &chat) == TORIRS_CONTRACT_OK &&
         ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK &&
         ui->bounds(ui->context, backing, &backing_box) == TORIRS_CONTRACT_OK && backing_box.width > 0 &&
         backing_box.height > 0 )
+    {
+        signature = mobile_chat_fold(signature, chat.opaque[1]);
+        signature = mobile_chat_fold(signature, chat.opaque[2]);
+        signature = mobile_chat_fold(signature, backing.opaque[1]);
+        signature = mobile_chat_fold(signature, backing.opaque[2]);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)backing_box.x);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)backing_box.y);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)backing_box.width);
+        signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)backing_box.height);
+    }
+    else
+    {
+        chat = (struct ToriRS_WidgetRef){ { 0 } };
+    }
+    if( state->chat_dressed && state->chat_dressed_sig == signature )
+        return;
+    rock = mobile_bar_art(ctx, bar_box.width, bar_box.height, cell, cell_count);
+    if( rock.value == 0 )
+        return;
+    (void)ui->set_image(ui->context, bar, rock, 0, 0);
+    state->chat_strip = bar;
+    if( ToriRS_WidgetRefValid(chat) )
     {
         int const h = backing_box.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B;
         paper = mobile_paper_art(ctx, backing_box.width, h);
@@ -4030,13 +4335,9 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
             (void)ui->set_image(ui->context, backing, state->blank, 0, 0);
         }
     }
-    for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
-    {
-        struct ToriRS_WidgetRef plate;
-        (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-        if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
-            (void)ui->set_hidden(ui->context, plate, true);
-    }
+    for( int i = 0; i < plate_count; i++ )
+        (void)ui->set_hidden(ui->context, plate[i], true);
+    state->chat_dressed_sig = signature;
     state->chat_dressed = 1;
 }
 
@@ -4197,12 +4498,12 @@ mobile_on_frame(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_FrameEven
     mobile_chat_decoration_update(ctx);
     if( state->provided && api->core.screen(api) == TORIRS_SCREEN_GAME )
         mobile_refresh_tabs(ctx);
-    if( g_art_built && g_masks_ready )
+    if( g_art_built && (g_masks_ready || g_masks_unreadable) )
         return;
-    if( !g_masks_ready )
+    if( !g_masks_ready && !g_masks_unreadable )
         mobile_build_masks(ctx);
     mobile_build_art(ctx);
-    if( g_art_built && g_masks_ready )
+    if( g_art_built && (g_masks_ready || g_masks_unreadable) )
         api->frame.invalidate(api);
 }
 
@@ -4363,6 +4664,7 @@ mobile_on_config(struct ToriRS_Api* api, void* state_ptr, char const* key)
     state->art[ART_MINIMAP_MASK] = (struct ToriRS_ImageRef){ 0 };
     state->art[ART_COMPASS_MASK] = (struct ToriRS_ImageRef){ 0 };
     state->masks_ready = false;
+    state->masks_unreadable = false;
     api->frame.invalidate(api);
 }
 /*

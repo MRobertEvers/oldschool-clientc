@@ -1001,6 +1001,10 @@ struct AnchorWork
     unsigned char* is_target;
     unsigned char* handled; /* per node: unit already written or dropped */
     int* first;             /* per node: earliest record of the unit, count when absent */
+    int32_t* child;         /* first anchored child, ordered by earliest record */
+    int32_t* next;          /* next anchored sibling, or next scheduled root */
+    int* record_next;       /* next record of the same unit */
+    int32_t* at;            /* roots scheduled at each record position */
 };
 
 static int32_t
@@ -1034,34 +1038,22 @@ anchor_tree_first(struct AnchorWork const* w, int32_t unit, int depth)
 {
     int first = w->first[unit];
     if( depth > 64 ) return first;
-    for( uint32_t n = 0; n < w->tree->component_count; n++ )
-        if( w->target[n] == (int32_t)unit )
-        {
-            int child = anchor_tree_first(w, (int32_t)n, depth + 1);
-            if( child < first ) first = child;
-        }
+    for( int32_t n = w->child[unit]; n >= 0; n = w->next[n] )
+    {
+        int child = anchor_tree_first(w, n, depth + 1);
+        if( child < first ) first = child;
+    }
     return first;
 }
 
 static void
 anchor_write_tree(struct AnchorWork* w, int32_t unit, int depth)
 {
-    struct UITree const* tree = w->tree;
-    int32_t children[64];
-    int count = 0, replacement = -1;
+    int replacement = -1;
     if( depth > 64 || w->handled[unit] ) return;
     w->handled[unit] = 1;
-    for( uint32_t n = 0; n < tree->component_count && count < 64; n++ )
+    for( int32_t child = w->child[unit]; child >= 0; child = w->next[child] )
     {
-        if( w->target[n] != unit ) continue;
-        int at = count++;
-        while( at > 0 && w->first[children[at - 1]] > w->first[n] )
-        { children[at] = children[at - 1]; at--; }
-        children[at] = (int32_t)n;
-    }
-    for( int i = 0; i < count; i++ )
-    {
-        int32_t child = children[i];
         if( w->relation[child] == UITREE_WIDGET_RELATION_BEHIND )
             anchor_write_tree(w, child, depth + 1);
         else if( w->relation[child] == UITREE_WIDGET_RELATION_REPLACE &&
@@ -1071,13 +1063,11 @@ anchor_write_tree(struct AnchorWork* w, int32_t unit, int depth)
     if( replacement >= 0 )
         anchor_write_tree(w, replacement, depth + 1);
     else
-        for( int i = 0; i < w->count; i++ )
-            if( w->record_unit[i] == unit )
-                memcpy(w->output + (size_t)w->written++ * w->stride,
-                       w->input + (size_t)i * w->stride, w->stride);
-    for( int i = 0; i < count; i++ )
+        for( int i = w->first[unit]; i < w->count; i = w->record_next[i] )
+            memcpy(w->output + (size_t)w->written++ * w->stride,
+                   w->input + (size_t)i * w->stride, w->stride);
+    for( int32_t child = w->child[unit]; child >= 0; child = w->next[child] )
     {
-        int32_t child = children[i];
         if( w->relation[child] == UITREE_WIDGET_RELATION_OVER )
             anchor_write_tree(w, child, depth + 1);
         else if( w->relation[child] == UITREE_WIDGET_RELATION_REPLACE )
@@ -1101,6 +1091,10 @@ frame_reorder_widget_anchors(struct UITree const* tree, struct UITreeHost const*
     w.handled = calloc(n, sizeof(*w.handled));
     w.record_unit = malloc((size_t)count * sizeof(*w.record_unit));
     w.output = malloc((size_t)count * stride);
+    w.child = malloc((size_t)n * sizeof(*w.child));
+    w.next = malloc((size_t)n * sizeof(*w.next));
+    w.record_next = malloc((size_t)count * sizeof(*w.record_next));
+    w.at = malloc(((size_t)count + 1) * sizeof(*w.at));
     assert(w.target);
     assert(w.unit_of);
     assert(w.first);
@@ -1109,34 +1103,76 @@ frame_reorder_widget_anchors(struct UITree const* tree, struct UITreeHost const*
     assert(w.handled);
     assert(w.record_unit);
     assert(w.output);
+    assert(w.child);
+    assert(w.next);
+    assert(w.record_next);
+    assert(w.at);
     for( uint32_t i = 0; i < n; i++ )
     {
         int32_t target;
         w.unit_of[i] = -2;
         w.first[i] = count;
+        w.child[i] = -1;
+        w.next[i] = -1;
         w.relation[i] = (unsigned char)UITree_WidgetAnchorAt(tree, (int32_t)i, &target);
         w.target[i] = w.relation[i] == UITREE_WIDGET_RELATION_NATIVE ? -1 : target;
         if( w.target[i] >= 0 ) { w.is_target[target] = 1; anchored++; }
     }
     if( !anchored )
         goto done;
-    for( int i = 0; i < count; i++ )
+    for( int i = count - 1; i >= 0; i-- )
     {
         int32_t node_plus_one;
         memcpy(&node_plus_one, w.input + (size_t)i * stride + node_offset, sizeof(node_plus_one));
         w.record_unit[i] = node_plus_one > 0 && (uint32_t)(node_plus_one - 1) < n
                                ? anchor_unit_of(&w, node_plus_one - 1) : -1;
-        if( w.record_unit[i] >= 0 && w.first[w.record_unit[i]] == count )
+        if( w.record_unit[i] >= 0 )
+        {
+            w.record_next[i] = w.first[w.record_unit[i]];
             w.first[w.record_unit[i]] = i;
+        }
     }
+    /* Bucket the anchors by their first record, preserving node order for
+     * ties. Walk those buckets backwards and prepend to each target's list:
+     * children then have the same stable order as the old insertion sort.
+     * The buckets can afterwards be reused to schedule the root units.
+     *
+     * A cache tree can hold 7,000 nodes but emit only 130 records. Previously
+     * every record position scanned all 7,000 nodes, and every candidate root
+     * recursively scanned them again for each anchored image in its chain.
+     * Paint, hover and hit testing all paid that cost. Index the relationships
+     * once so those consumers visit only the anchors and records they order. */
+    for( int i = 0; i <= count; i++ ) w.at[i] = -1;
+    for( uint32_t i = 0; i < n; i++ )
+        if( w.target[i] >= 0 )
+        {
+            w.next[i] = w.at[w.first[i]];
+            w.at[w.first[i]] = (int32_t)i;
+        }
+    for( int i = count; i >= 0; i-- )
+        for( int32_t node = w.at[i]; node >= 0; )
+        {
+            int32_t const following = w.next[node];
+            int32_t const target = w.target[node];
+            w.next[node] = w.child[target];
+            w.child[target] = node;
+            node = following;
+        }
+    for( int i = 0; i <= count; i++ ) w.at[i] = -1;
+    for( uint32_t r = n; r-- > 0; )
+        if( w.is_target[r] && w.target[r] < 0 )
+        {
+            int const first = anchor_tree_first(&w, (int32_t)r, 0);
+            w.next[r] = w.at[first];
+            w.at[first] = (int32_t)r;
+        }
     /* Roots: targets that are not themselves anchored. Each tree is written
      * where its earliest record stood; a root with no records anywhere in its
      * tree is never written and its children keep their native positions. */
     for( int i = 0; i <= count; i++ )
     {
-        for( uint32_t r = 0; r < n; r++ )
-            if( w.is_target[r] && w.target[r] < 0 && !w.handled[r] && anchor_tree_first(&w, (int32_t)r, 0) == i )
-                anchor_write_tree(&w, (int32_t)r, 0);
+        for( int32_t r = w.at[i]; r >= 0; r = w.next[r] )
+            anchor_write_tree(&w, r, 0);
         if( i == count ) break;
         int32_t unit = w.record_unit[i];
         if( unit >= 0 && w.handled[unit] ) continue;
@@ -1147,6 +1183,7 @@ frame_reorder_widget_anchors(struct UITree const* tree, struct UITreeHost const*
 done:
     free(w.target); free(w.unit_of); free(w.first); free(w.relation);
     free(w.is_target); free(w.handled); free(w.record_unit); free(w.output);
+    free(w.child); free(w.next); free(w.record_next); free(w.at);
     return count;
 }
 

@@ -2708,7 +2708,8 @@ App_SyncResizableCanvasFloor(struct App* app);
 
 /**
  * Apply a pending "Interface scaling" change (device option 27), if a
- * clientscript made one since the last call. Returns 1 if the canvas changed.
+ * clientscript made one since the last call. Returns 1 if a pending scale was
+ * consumed, including when the logical canvas stayed clamped at its floor.
  *
  * The scale is realised as a *smaller canvas*, not as a second coordinate
  * space: the whole client — UI tree, world viewport, backbuffer — lays out and
@@ -2719,9 +2720,9 @@ App_SyncResizableCanvasFloor(struct App* app);
  * the mobile client pays: the 3D viewport renders at the reduced resolution
  * too.
  *
- * Fixed mode is deliberately unaffected — its canvas is pinned to the classic
- * frame and already letterboxed to fill the window, so there is nothing left
- * for a scale to do. App_SetCanvasSize's floor enforces that on its own.
+ * At the logical floor, including a fixed frame, the shell must instead ask
+ * for a larger physical game area. The floor remains intact: native widgets
+ * keep their authored geometry while the presentation scales the whole frame.
  */
 int
 App_SyncUiScale(struct App* app);

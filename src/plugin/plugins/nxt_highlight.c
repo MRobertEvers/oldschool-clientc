@@ -84,6 +84,12 @@ nxt_highlight_draw(
     assert(api);
     assert(api->game);
     assert(draw);
+    /* This optional graphics tail keeps the existing major-3 entrypoints and
+     * their offsets intact. An older host cannot represent a fill-only group
+     * or the cache's requested thickness through those older entrypoints. */
+    if( draw->struct_size < TORIRS_GRAPHICS_STROKE_SIZE ||
+        !draw->world_tile_stroke || !draw->world_hull_stroke )
+        return;
 
     for( ;; )
     {
@@ -111,12 +117,13 @@ nxt_highlight_draw(
          * carry the model bits and still resolve to a bare tile.
          */
         if( item.element_id >= 0 && (model_outline || model_fill) )
-            (void)draw->world_hull(
+            (void)draw->world_hull_stroke(
                 draw,
                 item.element_id,
                 item.rgb,
                 model_fill ? item.opacity : 0,
-                TORIRS_HULL_MESH);
+                TORIRS_HULL_MESH,
+                model_outline ? item.outline_width : 0);
 
         if( tile_outline || tile_fill )
         {
@@ -127,14 +134,15 @@ nxt_highlight_draw(
              * a slope. */
             for( int dz = 0; dz < item.size_z; dz++ )
                 for( int dx = 0; dx < item.size_x; dx++ )
-                    (void)draw->world_tile(
+                    (void)draw->world_tile_stroke(
                         draw,
                         item.tile_x + dx,
                         item.tile_z + dz,
                         item.level,
                         item.rgb,
                         item.rgb,
-                        tile_fill ? item.opacity : 0);
+                        tile_fill ? item.opacity : 0,
+                        tile_outline ? item.outline_width : 0);
         }
     }
 }

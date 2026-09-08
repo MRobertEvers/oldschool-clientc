@@ -42,6 +42,7 @@ static int g_checks;
 #define FAKE_NPCS_MAX 4
 #define FAKE_LOCS_MAX 8
 #define FAKE_ASSET_MAX 4096
+#define FAKE_TILE_MARKS 16
 
 struct FakeEngine
 {
@@ -75,7 +76,17 @@ struct FakeEngine
     int hulls;
     int texts;
     uint32_t last_tile_rgb;
+    uint32_t last_tile_fill_rgb;
     int last_tile_fill_alpha;
+    int last_tile_width;
+    int last_hull_width;
+    int last_hull_alpha;
+    int draw_refusal_mode;
+    /* WHICH tiles, not just how many: a footprint loop that transposed its
+     * two axes draws the right number of the wrong tiles, and every
+     * non-square subject in the cache is marked beside itself. */
+    int tile_x[FAKE_TILE_MARKS];
+    int tile_z[FAKE_TILE_MARKS];
     char last_text[64];
 
     /* api->notify: what the player was told, and how often. */
@@ -344,12 +355,15 @@ fake_draw_tile(
     int fill_alpha)
 {
     (void)u;
-    (void)tx;
-    (void)tz;
     (void)level;
-    (void)fill_rgb;
+    if( g_engine.tiles < FAKE_TILE_MARKS )
+    {
+        g_engine.tile_x[g_engine.tiles] = tx;
+        g_engine.tile_z[g_engine.tiles] = tz;
+    }
     g_engine.tiles++;
     g_engine.last_tile_rgb = rgb;
+    g_engine.last_tile_fill_rgb = fill_rgb;
     g_engine.last_tile_fill_alpha = fill_alpha;
     return 1;
 }
@@ -363,6 +377,27 @@ fake_draw_hull(void* u, int element_id, uint32_t rgb, int fill_alpha, int shape)
     (void)shape;
     g_engine.hulls++;
     return 1;
+}
+static int
+fake_draw_tile_stroke(void* u, int x, int z, int level, uint32_t rgb,
+                      uint32_t fill, int alpha, int width, int item_budget)
+{
+    CHECK(item_budget > 0, "stroke receives the remaining host draw budget");
+    g_engine.last_tile_width = width;
+    if( g_engine.draw_refusal_mode )
+        return g_engine.draw_refusal_mode == 3 ? 0 : -g_engine.draw_refusal_mode;
+    return fake_draw_tile(u, x, z, level, rgb, fill, alpha);
+}
+static int
+fake_draw_hull_stroke(void* u, int element, uint32_t rgb, int alpha, int shape,
+                      int width, int item_budget)
+{
+    CHECK(item_budget > 0, "hull receives the remaining host draw budget");
+    g_engine.last_hull_width = width;
+    g_engine.last_hull_alpha = alpha;
+    if( g_engine.draw_refusal_mode )
+        return g_engine.draw_refusal_mode == 3 ? 0 : -g_engine.draw_refusal_mode;
+    return fake_draw_hull(u, element, rgb, alpha, shape);
 }
 static int
 fake_draw_line(void* u, int x0, int y0, int x1, int y1, uint32_t rgb)
@@ -927,6 +962,8 @@ fake_engine(void)
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
+    e.draw_tile_stroke = fake_draw_tile_stroke;
+    e.draw_hull_stroke = fake_draw_hull_stroke;
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
@@ -995,9 +1032,51 @@ draw_reset(void)
     g_engine.tiles = 0;
     g_engine.hulls = 0;
     g_engine.texts = 0;
+    memset(g_engine.tile_x, 0, sizeof(g_engine.tile_x));
+    memset(g_engine.tile_z, 0, sizeof(g_engine.tile_z));
     g_engine.menu_rows = 0;
     g_engine.last_text[0] = '\0';
     g_engine.last_menu_text[0] = '\0';
+}
+
+static enum ToriRS_Result draw_results[4];
+
+static void
+draw_result_probe(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* draw)
+{
+    (void)api;
+    (void)state;
+    CHECK(draw->struct_size >= TORIRS_GRAPHICS_STROKE_SIZE, "graphics advertises its optional stroke tail");
+    draw_results[0] = draw->world_tile(draw, 3200, 3200, 0, 0x123456, 0x654321, 70);
+    draw_results[1] = draw->world_hull(draw, 41, 0x123456, 70, TORIRS_HULL_MESH);
+    draw_results[2] = draw->world_tile_stroke(draw, 3200, 3200, 0, 0x123456, 0x654321, 70, 0);
+    draw_results[3] = draw->world_hull_stroke(draw, 41, 0x123456, 70, TORIRS_HULL_MESH, 2);
+    CHECK(draw->world_tile_stroke(draw, 0, 0, 0, 0, 0, 0, -1) == TORIRS_RESULT_INVALID,
+          "negative stroke width is rejected before the engine call");
+}
+
+static void
+test_draw_capacity_results(void)
+{
+    static struct ToriRS_PluginDef const probe = {
+        .struct_size = sizeof(probe), .id = "stroke-result-probe", .title = "Stroke results",
+        .version = "1.0", .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+                                        .on_draw_world = draw_result_probe },
+    };
+    for( int mode = 0; mode <= 3; mode++ )
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        g_engine.draw_refusal_mode = mode;
+        CHECK(PluginHost_Register(host, &probe) >= 0, "stroke result probe registers");
+        PluginHost_Start(host);
+        PluginHost_DrawWorld(host);
+        for( int i = 0; i < 4; i++ )
+            CHECK(draw_results[i] == (mode == 1 || mode == 2 ? TORIRS_RESULT_BUDGET : TORIRS_RESULT_OK),
+                  "old and appended drawing verbs report capacity refusal but accept offscreen no-ops");
+        PluginHost_Free(host);
+    }
+    g_engine.draw_refusal_mode = 0;
 }
 
 int
@@ -1084,6 +1163,16 @@ main(void)
         PluginHost_DrawWorld(host);
         CHECK(g_engine.hulls == 1, "a model-flagged item is outlined");
         CHECK(g_engine.tiles == 0, "and its tile is not marked -- no tile flag");
+        CHECK(g_engine.last_hull_width == 1, "a one-pixel group keeps its exact width");
+        g_engine.highlights[0].outline_width = 2;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_hull_width == 2, "two-pixel model outlines remain distinct from one-pixel outlines");
+        g_engine.highlights[0].outline_width = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_hull_width == 0 && g_engine.last_hull_alpha == 30,
+              "a fill-only model suppresses its border while preserving the wash");
 
         /* A hovered tile, as clientscript 5198 sets one up:
          * `_7035(5, colour, 0, 70, 10)` -- flags 10 = tile outline + tile
@@ -1099,6 +1188,7 @@ main(void)
         PluginHost_DrawWorld(host);
         CHECK(g_engine.hulls == 0, "a tile item has no model to outline");
         CHECK(g_engine.tiles == 1, "its tile is marked");
+        CHECK(g_engine.last_tile_width == 1, "the tile's one-pixel width reaches the engine");
         CHECK(g_engine.last_tile_rgb == 0xBEBA6E, "in the colour the script chose");
         CHECK(
             g_engine.last_tile_fill_alpha == 70,
@@ -1111,9 +1201,16 @@ main(void)
         draw_reset();
         PluginHost_DrawWorld(host);
         CHECK(g_engine.tiles == 1, "a fill with no border still draws its tile");
+        CHECK(g_engine.last_tile_width == 0, "fill-only tiles emit no outline stroke");
         CHECK(
             g_engine.last_tile_fill_alpha == 70,
             "as a wash -- the fill half is what makes it live");
+        g_engine.highlights[0].outline_width = 1;
+
+        g_engine.highlights[0].outline_width = 2;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_tile_width == 2, "a two-pixel tile width reaches the engine unchanged");
         g_engine.highlights[0].outline_width = 1;
 
         /* Outline without fill: the wash is the fill flag's, not the
@@ -1138,6 +1235,77 @@ main(void)
         draw_reset();
         PluginHost_DrawWorld(host);
         CHECK(g_engine.tiles == 4, "a 2x2 footprint is four tiles, not one");
+        CHECK(
+            g_engine.tile_x[0] == 3200 && g_engine.tile_z[0] == 3200,
+            "anchored at the SW corner the engine reported");
+
+        /*
+         * ...and the footprint is not square.
+         *
+         * A 2x2 is symmetric: a loop that ran dx over size_z and dz over
+         * size_x passes the check above and misplaces every oblong subject in
+         * the cache -- a 3x1 fence marked as a 1x3 one, three tiles of the
+         * right colour beside the thing they are for. Only a non-square
+         * footprint tells the two loops apart, so the tiles themselves are
+         * named here and not just counted.
+         */
+        g_engine.highlights[0].size_x = 3;
+        g_engine.highlights[0].size_z = 1;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.tiles == 3, "a 3x1 footprint is three tiles");
+        CHECK(
+            g_engine.tile_x[2] == 3202 && g_engine.tile_z[2] == 3200,
+            "and they run along X, which is the axis size_x names");
+        g_engine.highlights[0].size_x = 1;
+        g_engine.highlights[0].size_z = 1;
+
+        /* The wash and the border are the same colour here because the group
+         * has one, but they are two arguments and the renderer must not send
+         * the group's colour as only one of them. */
+        g_engine.highlights[0].flags = 2 | 8;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(
+            g_engine.last_tile_fill_rgb == 0xBEBA6E &&
+                g_engine.last_tile_rgb == 0xBEBA6E,
+            "the group's colour reaches both the border and the wash");
+        g_engine.highlights[0].flags = 2;
+
+        /*
+         * ALWAYS_ON_TOP (16) and MINIMAP (64) are qualifiers on a draw, not a
+         * draw. On their own they must produce nothing: a renderer that read
+         * "the group has flags" as "the group wants marking" would paint every
+         * on-top group the cache declares, whether or not it asked for a
+         * shape.
+         *
+         * Neither is HONOURED here -- there is no depth and no minimap verb in
+         * the draw API -- and that is the open half of this row; what is
+         * pinned is that they invent nothing.
+         */
+        g_engine.highlights[0].flags = 16 | 64;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(
+            g_engine.tiles == 0 && g_engine.hulls == 0,
+            "a qualifier flag with no draw flag draws nothing");
+        g_engine.highlights[0].flags = 2;
+
+        /* Every item in the list, not the head of it. A group resolves to as
+         * many subjects as the world holds and the renderer walks until the
+         * engine stops. */
+        g_engine.highlights[1] = g_engine.highlights[0];
+        g_engine.highlights[1].kind = TORIRS_HIGHLIGHT_LOC;
+        g_engine.highlights[1].element_id = 77;
+        g_engine.highlights[1].tile_x = 3300;
+        g_engine.highlights[1].flags = 1;
+        g_engine.highlight_count = 2;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(
+            g_engine.tiles == 1 && g_engine.hulls == 1,
+            "a two-item list draws both, each as its own flags name");
+        g_engine.highlight_count = 1;
 
         /* The walk restarts each frame, which is what makes the engine
          * re-resolve; a renderer that cached the cursor would draw one frame
@@ -1212,7 +1380,76 @@ main(void)
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 0, "logs under the player are not a nest");
 
+        /* ---- the second nest of the same kind ----------------------------
+         *
+         * It is not a spawn. `App_WorldObjStackAdd` finds the stack already on
+         * the tile by obj id, raises its count and reports a CHANGE -- so a
+         * plugin listening only for spawns hears the first red egg under it
+         * and nothing at all about the second, which is precisely the drop a
+         * woodcutter walks away from.
+         */
+        obj.obj_id = 5073;
+        obj.tile_x = 3200;
+        obj.count = 1;
+        g_engine.notifies = 0;
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 1, "the first nest of a kind is a spawn");
+
+        obj.count = 2;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(
+            g_engine.notifies == 2,
+            "and the second, which merged into that stack, is announced too");
+
+        /* Taking one back off the stack is the same callback with the same
+         * fields and a smaller number. Only the previous count tells the two
+         * apart, which is why the plugin keeps one. */
+        obj.count = 1;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(g_engine.notifies == 2, "a stack getting smaller is not a drop");
+
+        /* However it grows, somebody else's tile is not yours. */
+        obj.tile_x = 3210;
+        obj.count = 1;
+        PluginHost_ObjSpawn(host, &obj);
+        obj.count = 2;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(
+            g_engine.notifies == 2,
+            "a stack growing across the clearing is still not yours");
+
+        /* A count change on a stack this plugin never saw arrive -- it was
+         * switched on mid-session, or the tile was already loaded. There is no
+         * baseline, so there is no edge: an unknown state is not an event, the
+         * same rule the cannon builtin states as `last_ammo = -1`. */
+        obj.obj_id = 5074; /* bird_nest_ring, never spawned above */
+        obj.tile_x = 3200;
+        obj.count = 5;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(
+            g_engine.notifies == 2,
+            "a count with no remembered baseline announces nothing");
+        obj.count = 6;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(
+            g_engine.notifies == 3,
+            "and the baseline it took makes the next growth an event");
+
+        /* The nest that lands after you have picked the last one up is a new
+         * one, not a stack coming back. */
+        obj.obj_id = 5073;
+        obj.count = 1;
+        PluginHost_ObjDespawn(host, &obj);
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 4, "a nest landing on a cleared tile is announced");
+
+        /* Switched off, the count change is as silent as the spawn. */
         g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 1;
+        obj.count = 2;
+        PluginHost_ObjCount(host, &obj);
+        CHECK(g_engine.notifies == 4, "varbit 1 silences the second nest too");
+
+        obj.count = 0;
     }
 
     /* ---- 248 / 249 / 250: the cannon ammunition rows ---------------------
@@ -1319,12 +1556,64 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "native null coordinate has no ammo events");
 
+        /*
+         * The drop that empties the cannon in one tick, with 250 unticked.
+         *
+         * 15 -> 0 with the amount at 10 is a textbook crossing of setting
+         * 248's line: the previous count was above it and the new one is at or
+         * below. "Out of ammo wins over low on ammo" is a rule about two lines
+         * arriving together -- with the out-of-ammo row off there is no second
+         * line, and swallowing the low one leaves the user who ticked 248 and
+         * set an amount with no warning at all for the worst drop there is.
+         */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 1;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 10;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C82;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 15;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(
+            g_engine.notifies == 5,
+            "15 -> 0 with 250 off still warns -- it crossed 248's line");
+        CHECK(
+            strstr(g_engine.last_notify, "low") != NULL,
+            "and it is the low-on-ammo line, the row that is switched on");
+
+        /* With 250 ticked the very same drop is ONE line and it is the empty
+         * one: two lines for one event is what the precedence rule is for. */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 15;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(
+            g_engine.notifies == 6,
+            "with both rows on the same drop is one line, not two");
+        CHECK(
+            strstr(g_engine.last_notify, "run out") != NULL,
+            "and out of ammo is the one that speaks");
+
+        /* Both rows off is still silence: the low line is not a fallback for
+         * a row the user unticked. */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 0;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 15;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 6, "both rows off says nothing at all");
+
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 0;
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0;
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 0;
     }
 
     PluginHost_Free(host);
+    test_draw_capacity_results();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
