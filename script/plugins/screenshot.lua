@@ -116,12 +116,26 @@ end
 -- which is the filename, the only part worth reading. The folder the user
 -- configured is theirs already, so the message names what the PLUGIN chose
 -- beneath it. The full path stays in the plugin log.
-local function short_path(api, name, directory)
+local function relative_folder(api, directory)
     local root = api.config.destination
     if root ~= "" and directory:sub(1, #root) == root then
         directory = directory:sub(#root + 1):gsub("^/+", "")
     end
-    return (directory ~= "" and directory .. "/" or "") .. name
+    return directory
+end
+
+-- Slugs and filenames contain ASCII only. Keep chat lines conservatively
+-- below the shipped fonts' maximum glyph advance, and account for a frame
+-- narrowing the native chat region. Every byte is retained across lines;
+-- clipping a long basename would discard the part the user needs to find.
+local function notify_lines(api, text)
+    local limit = 32
+    local chat = api.widgets.find("chat") or api.widgets.find("frame_chat")
+    local box = chat and chat:bounds()
+    if box then limit = math.max(1, math.min(limit, (box.width - 32) // 12)) end
+    for at = 1, #text, limit do
+        api.core.notify(text:sub(at, at + limit - 1))
+    end
 end
 
 local function capture(api, name, directory)
@@ -136,7 +150,10 @@ local function capture(api, name, directory)
         return
     end
     api.core.log("captured", result)
-    api.core.notify("Screenshot saved: " .. short_path(api, name, directory))
+    api.core.notify("Screenshot saved:")
+    local relative = relative_folder(api, directory)
+    if relative ~= "" then notify_lines(api, "Folder: " .. relative) end
+    notify_lines(api, "File: " .. name)
 end
 
 local function capture_now(api)

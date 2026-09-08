@@ -57,6 +57,16 @@ return { id = 'screenshot-behavior', on_start = function(host)
         return self
     end
     local function one(t) local k, v = next(t); assert(k and next(t, k) == nil, 'exactly one control'); return v end
+    local function latest_notice()
+        local first = #notices
+        while first > 1 and notices[first] ~= 'Screenshot saved:' do first = first - 1 end
+        local group = {}
+        for i = first, #notices do
+            assert(#notices[i] <= 32, 'screenshot notice lines remain bounded')
+            group[#group + 1] = notices[i]
+        end
+        return table.concat(group), first
+    end
     local function schema(key)
         for _, item in ipairs(product.config) do
             if item.key == key then return item end
@@ -95,12 +105,12 @@ return { id = 'screenshot-behavior', on_start = function(host)
 
     -- The notice is the file and the folder the PLUGIN chose, not the absolute
     -- path: one GAME line does not wrap and the chatbox clips exactly the tail.
-    assert(notices[1] == 'Screenshot saved: Test-Player/screenshot_2026-09-06_12-00-00.png',
-        'the notice names the capture, not an unwrappable absolute path')
-    assert(not notices[1]:find('/saved/'), 'the absolute path stays in the log')
+    assert(latest_notice() == 'Screenshot saved:Folder: Test-PlayerFile: screenshot_2026-09-06_12-00-00.png',
+        'the notice keeps folder and complete filename on bounded separate lines')
+    assert(not latest_notice():find('/saved/'), 'the absolute path stays in the log')
     config.destination = '/home/me/shots'
     camera.fn(camera)
-    assert(notices[#notices] == 'Screenshot saved: Test-Player/screenshot_2026-09-06_12-00-00.png',
+    assert(latest_notice() == 'Screenshot saved:Folder: Test-PlayerFile: screenshot_2026-09-06_12-00-00.png',
         'the folder the user configured is not repeated back at them')
     config.destination = ''
     for _ = 1, 10 do product.on_logic_tick(api) end
@@ -123,12 +133,13 @@ return { id = 'screenshot-behavior', on_start = function(host)
     local clear = one(viewport.children)
     assert(clear.x == 1124 and clear.y == 732,
         'corner camera moves above native tab chrome instead of painting beneath it')
-    local before_click = #captures
+    local before_click, before_notices = #captures, #notices
     clear.fn(clear)
     assert(#captures == before_click + 1, 'the relocated visible camera still captures')
     -- Keep later absolute capture counts unchanged: this probe owns its extra
     -- evidence and removes it after checking the operation.
-    captures[#captures], notices[#notices] = nil, nil
+    captures[#captures] = nil
+    for i = #notices, before_notices + 1, -1 do notices[i] = nil end
     hud.frame_sidebar = widget('sidebar', 965, 500, 190, 261)
     product.on_logic_tick(api)
     clear = one(viewport.children)
@@ -140,6 +151,17 @@ return { id = 'screenshot-behavior', on_start = function(host)
         'bound but hidden native roles do not displace the corner camera')
     hud = {}
 
+
+    local before_long, before_long_notices = #captures, #notices
+    local old_name = api.world.local_player
+    api.world.local_player = function() return { name = 'gfbf1ec23308' } end
+    product.on_game_event(api, { kind = 'level_up', subject = 'Woodcutting', value = 10 })
+    product.on_server_tick(api); product.on_server_tick(api)
+    assert(latest_notice() == 'Screenshot saved:Folder: gfbf1ec23308/LevelsFile: Woodcutting-10_2026-09-06_12-00-00.png',
+        'long category capture keeps every basename character across bounded chat lines')
+    api.world.local_player = old_name
+    for i = #captures, before_long + 1, -1 do captures[i] = nil end
+    for i = #notices, before_long_notices + 1, -1 do notices[i] = nil end
 
     config.camera = 'report-button'; product.on_config_changed(api, 'camera')
     assert(next(viewport.children) == nil, 'leaving a corner mode removes the corner control')
