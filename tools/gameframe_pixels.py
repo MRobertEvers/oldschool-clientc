@@ -28,6 +28,105 @@ def read_bmp(path):
     return width, abs(height), rows
 
 
+def read_asset_png(path):
+    """Read the shipped noninterlaced RGBA8 frame art without a Pillow dependency."""
+    import zlib
+    data = Path(path).read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("frame art is not PNG")
+    width, height, depth, colour, compression, filtering, interlace = struct.unpack(">IIBBBBB", data[16:29])
+    if (depth, colour, compression, filtering, interlace) != (8, 6, 0, 0, 0):
+        raise ValueError("frame-art oracle requires noninterlaced RGBA8 PNG")
+    packed = bytearray()
+    at = 8
+    while at < len(data):
+        size = struct.unpack_from(">I", data, at)[0]
+        if data[at+4:at+8] == b"IDAT":
+            packed.extend(data[at+8:at+8+size])
+        at += size + 12
+    raw = zlib.decompress(packed)
+    stride = width * 4
+    if len(raw) != height * (stride + 1):
+        raise ValueError("frame-art PNG has an unexpected decoded length")
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        method = raw[y*(stride+1)]
+        row = bytearray(raw[y*(stride+1)+1:(y+1)*(stride+1)])
+        for x in range(stride):
+            left, above = row[x-4] if x >= 4 else 0, previous[x]
+            corner = previous[x-4] if x >= 4 else 0
+            if method == 0: predictor = 0
+            elif method == 1: predictor = left
+            elif method == 2: predictor = above
+            elif method == 3: predictor = (left + above) // 2
+            elif method == 4:
+                prediction = left + above - corner
+                distances = (abs(prediction-left), abs(prediction-above), abs(prediction-corner))
+                predictor = (left, above, corner)[distances.index(min(distances))]
+            else: raise ValueError("unknown PNG row filter")
+            row[x] = (row[x] + predictor) & 255
+        rows.append([tuple(row[x:x+4]) for x in range(0, stride, 4)])
+        previous = row
+    return width, height, rows
+
+
+def check_classic_chat_pack(rows, log, failures):
+    """Preserve native content and compare both full-height rails with authored art."""
+    height, width = len(rows), len(rows[0])
+    boxes = {int(child): tuple(map(int, box)) for child, *box in re.findall(
+        r"BOUNDS[^\n]*\(162\|(\d+)\)[^\n]*hidden=0[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)", log)}
+    pack, input_line, scroll, bar = (boxes.get(i) for i in (0, 57, 58, 3))
+    def inside(inner, outer):
+        if not inner or not outer: return False
+        x,y,w,h = inner; ox,oy,ow,oh = outer
+        return w > 0 and h > 0 and x >= ox and y >= oy and x+w <= ox+ow and y+h <= oy+oh
+    controls = [boxes.get(i) for i in (5,8,12,16,20,24,28,32)]
+    # The authored desktop chat contains 142px of log/input plus its23px bar.
+    # The scroll window must retain eight14px rows and its2px breathing room.
+    content = (pack is not None and pack[2:] == (519,165) and
+               inside(pack, (0,0,width,height)) and inside(input_line, pack) and
+               input_line[3] == 16 and inside(scroll, pack) and scroll[3] >= 114 and
+               inside(bar, pack) and bar[3] == 23 and
+               input_line[1]+input_line[3] <= bar[1] and
+               all(inside(control, bar) for control in controls))
+    print(f"PIXEL chat_pack_native_content={'PASS' if content else 'FAIL'} pack={pack} scroll={scroll} input={input_line}")
+    if not content: failures.append("chat_pack_native_content")
+    valid, checked = bool(content), 0
+    if valid:
+        px,py,pw,ph = pack
+        art_dir = Path(__file__).resolve().parent.parent / "script/plugins/assets/gameframe-layout"
+        # The bottom-left sidebar stone/icon legitimately paints above the
+        # right rail. Exclude only this frame owner's visible icon/face boxes,
+        # and require at least three quarters of EACH rail to remain sampled.
+        owner_match = re.search(
+            rf"OWNED_WIDGET owner=(\d+) key=piece\.\d+ node=\d+ box={px+pw},{py},17,{ph}[^\n]*hidden=0", log)
+        owner = owner_match[1] if owner_match else None
+        covers = [tuple(map(int, box)) for found_owner, *box in re.findall(
+            r"OWNED_WIDGET owner=(\d+) key=(?:icon|face)\.\d+ node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]*hidden=0", log)
+            if found_owner == owner]
+        valid = owner is not None
+        for filename, x0 in (("classic_backleft2.png", px-17), ("classic_backvmid3.png", px+pw)):
+            sw,sh,source = read_asset_png(art_dir/filename)
+            if not inside((x0,py,17,ph),(0,0,width,height)):
+                valid = False
+                continue
+            rail_checked = 0
+            for y in range(ph):
+                mirrored = y % (2*sh)
+                sy = mirrored if mirrored < sh else 2*sh-1-mirrored
+                for x in range(17):
+                    r,g,b,a = source[sy][x*sw//17]
+                    covered = any(cx <= x0+x < cx+cw and cy <= py+y < cy+ch
+                                  for cx,cy,cw,ch in covers)
+                    if a == 255 and not covered:
+                        checked += 1
+                        rail_checked += 1
+                        if rows[py+y][x0+x] != (b,g,r): valid = False
+            valid = valid and rail_checked >= 17*ph*3//4
+    print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} authored_pixels={checked}")
+    if not valid: failures.append("chat_inside_complete_surround")
+
+
 ORB_NAMES = ("hitpoints", "prayer", "run", "special")
 
 
@@ -761,43 +860,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
         return failures
     if frame == "gameframe-layout/classic-fixed":
-        # The approved plain-rock band spans x=0..495, y=467..498.
-        # Its 29-column source repeats without any of the four old recesses.
-        # Checking all repeats also catches partially covered/late old art.
-        # Mobile puts its message area below the filters, covering part of
-        # this strip. Test the exposed rock, not the chat painted over it.
-        backing = None
-        if bounds_path:
-            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
-                              Path(bounds_path).read_text())
-            if match:
-                backing = tuple(map(int, match.groups()))
-        def exposed(x, y):
-            if backing is None:
-                return True
-            bx, by, bw, bh = backing
-            return not (bx <= x < bx + bw and by <= y < by + bh)
-        valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
-        if valid:
-            valid = all(rows[y][x] == rows[y][x % 29]
-                        for y in range(467, 499) for x in range(29, 496)
-                        if exposed(x, y) and exposed(x % 29, y))
-            valid = valid and len({p for row in rows[467:499] for p in row[:29]}) > 3
-        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
-        if not valid:
-            failures.append("no_captionless_2004_hollows")
-        if root != 601:
-            # Approved running-client crop. The pre-fix 519-wide parchment
-            # covered 40 columns of the old rail; its surviving right edge
-            # does not match this complete re-cut border.
-            fixture = Path(__file__).parent / "testdata/gameframe/classic-chat-rail.bmp"
-            rw, rh, expected = read_bmp(fixture)
-            valid = width >= 536 + rw and height >= 357 + rh
-            if valid:
-                valid = all(rows[357 + y][536:536 + rw] == expected[y] for y in range(rh))
-            print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} root={root}")
-            if not valid:
-                failures.append("chat_inside_complete_surround")
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        check_classic_chat_pack(rows, log, failures)
     if native_focus_hide:
         log = Path(bounds_path).read_text() if bounds_path else ""
         markers = ("sim_type: c97 at frame 700", "sim_type: c98 at frame 701",
