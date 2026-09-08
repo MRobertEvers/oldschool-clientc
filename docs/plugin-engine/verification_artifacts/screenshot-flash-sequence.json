@@ -1,0 +1,122 @@
+[
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00559.bmp",
+    "source_sha256": "3e34321308f1bfe521dc0a62303a773baeac22876cf824a2163646a20a86561e",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00559.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00561.bmp",
+    "source_sha256": "8520e7e2ed88fe31f5bcefb4ca466f1f1d6649e85fb517df41610a64909861f4",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00561.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00563.bmp",
+    "source_sha256": "2a373624e6587ba40be5c0524cc4b21d789b2d873e93a63b8af8bb8b7a0a4bf6",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00563.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00565.bmp",
+    "source_sha256": "e066f72bae46f84c55f74f5e35bcc8978e7c32709a532602d582ace89dfd7ec5",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00565.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00567.bmp",
+    "source_sha256": "ccffa2c8a88baebdddfbadca43c9874f17f3192802e7fc0c79e390e78a30ce14",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00567.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00569.bmp",
+    "source_sha256": "308fe25df38f6998a16c93fa27f94037233f452f652f10ee1f07c71452cbed1a",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00569.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00571.bmp",
+    "source_sha256": "2f138e5ff0792606ae23fd1530737eacc6bbc02a0570cdfaf7fdab5912c90d6d",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00571.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  },
+  {
+    "source": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00573.bmp",
+    "source_sha256": "191bc7b83ddcc02b88ae6c01ba22f8872cebee4da772e5b5eb2679ef44335d99",
+    "view_2x": "/private/tmp/critic-fixes/screenshot-flash-f/frame_00573.2x.png",
+    "crop_logical": [
+      430,
+      455,
+      520,
+      503
+    ],
+    "inspected": true,
+    "visual_inspected_2x_region": true,
+    "observer": "/root",
+    "observation": "Exact2x crop with full exit-frame context. Idle559/561/563; brighter565/567/569; idle571/573."
+  }
+]

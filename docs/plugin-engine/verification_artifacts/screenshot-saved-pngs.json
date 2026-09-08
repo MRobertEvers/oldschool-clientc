@@ -1,0 +1,128 @@
+[
+  {
+    "scenario": "shot-063-hotkey-codes-candidate2",
+    "source": "/private/tmp/critic-runs/full-root-shot-063-hotkey-codes-candidate2-20260908T172004Z-3bfb52/plugin_assets/screenshot/testc/screenshot_2026-09-08_12-20-19.png",
+    "source_sha256": "1107c2380ca1ea02efb27536c6bfc0aac5104bc9a210b50ede379b6d50d45eab",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/0.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-065-camera-click",
+    "source": "/private/tmp/critic-runs/full-root-shot-065-camera-click-20260908T172028Z-2eef16/plugin_assets/screenshot/testc/screenshot_2026-09-08_12-20-41.png",
+    "source_sha256": "9b7ad6ca8230a188cbdffde600e964175b23ebc4fb90882893bc3dddd9348b07",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/1.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-066-manual-wrapped-osrs",
+    "source": "/private/tmp/critic-runs/full-root-shot-066-manual-wrapped-osrs-20260908T172118Z-b5da1a/plugin_assets/screenshot/testc/screenshot_2026-09-08_12-21-40.png",
+    "source_sha256": "af00a221817b7ccece8b293a9d990a201f9f3c12985fb21340c552ea15c9c205",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/2.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-066-manual-wrapped-rs289",
+    "source": "/private/tmp/critic-runs/full-root-shot-066-manual-wrapped-rs289-20260908T172145Z-176542/plugin_assets/screenshot/gfabcb6368ad/screenshot_2026-09-08_12-21-56.png",
+    "source_sha256": "68b1668f56c82332983b925a1927a098152a0820278ab54b7b16fabc0145d732",
+    "size": [
+      765,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/3.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-066-long-category-rs289",
+    "source": "/private/tmp/critic-runs/full-root-shot-066-long-category-rs289-20260908T172207Z-0a9304/plugin_assets/screenshot/gf4697f993f6/Levels/Woodcutting-10_2026-09-08_12-22-20.png",
+    "source_sha256": "942cae4f9070c3fbe88a6bba09fa15da305f780a540bb3ca6769c4a3d7c4f6bf",
+    "size": [
+      765,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/4.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-long-real-event",
+    "source": "/private/tmp/critic-runs/full-root-shot-long-real-event-20260908T172529Z-167346/plugin_assets/screenshot/testc/Collection-Log/Bird-nest_2026-09-08_12-25-52.png",
+    "source_sha256": "9e829797f4ac5173e17a482ca7fcf87b159d52dc79c4db7810397f4ed64b4c44",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/5.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-long-real-event",
+    "source": "/private/tmp/critic-runs/full-root-shot-long-real-event-20260908T172529Z-167346/plugin_assets/screenshot/testc/Collection-Log/Trailblazer-reloaded-relic-hunter-t3-ar_2026-09-08_12-25-49.png",
+    "source_sha256": "1fa8ac51c7ac4fabcae096796ef4420a0fef2b46c0df6d2bcc1c410b4c0f84e4",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/6.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual saved PNG inspected at 2x. Complete world, native UI, and plugin composition are present at recorded dimensions; no blank, corrupted or clipped framebuffer. Notices visible at capture time retain complete filenames by wrapping."
+  },
+  {
+    "scenario": "shot-066-manual-wrapped-rs289-f",
+    "source": "/private/tmp/critic-runs/full-root-shot-066-manual-wrapped-rs289-f-20260908T185435Z-cd943c/plugin_assets/screenshot/gf1a9272c5f2/screenshot_2026-09-08_13-54-46.png",
+    "source_sha256": "7a9c61823476e3d93d829a339eabc2e10e8dfbcf32cbbf30eb814d12746c50f4",
+    "size": [
+      765,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/7.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual final-F saved PNG inspected at exact2x. Complete rendered native frame and shared roster; no missing panels, clipped framebuffer or blank output."
+  },
+  {
+    "scenario": "shot-065-camera-click-f",
+    "source": "/private/tmp/critic-runs/full-root-shot-065-camera-click-f-20260908T185457Z-850211/plugin_assets/screenshot/testc/screenshot_2026-09-08_13-55-15.png",
+    "source_sha256": "818882327cb74a0b4417e6216dc349f6b4d98a14d30ac4e0b60296e9c9b477f0",
+    "size": [
+      807,
+      503
+    ],
+    "view_2x": "/private/tmp/critic-fixes/root-saved-png-views/8.2x.png",
+    "inspected": true,
+    "visual_inspected_2x": true,
+    "observer": "/root",
+    "visual_observation": "Actual final-F saved PNG inspected at exact2x. Complete rendered native frame and shared roster; no missing panels, clipped framebuffer or blank output."
+  }
+]
