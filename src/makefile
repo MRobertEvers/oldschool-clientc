@@ -2776,8 +2776,9 @@ test-base37: $(OBJ_DIR) net/jbase37.c net/test/jbase37_test.c
 	./$(OBJ_DIR)/jbase37_test
 
 .PHONY: test-plugin-settings-sync
-test-plugin-settings-sync: $(OBJ_DIR) plugin/test/settings_merge_test.py plugin/torirs_plugin_panel.u.c
+test-plugin-settings-sync: $(OBJ_DIR) plugin/test/settings_merge_test.py plugin/test/settings_save_test.py plugin/torirs_plugin_panel.u.c
 	CC="$(CC)" python3 plugin/test/settings_merge_test.py $(OBJ_DIR)
+	CC="$(CC)" python3 plugin/test/settings_save_test.py $(OBJ_DIR)
 
 # -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
 # CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every

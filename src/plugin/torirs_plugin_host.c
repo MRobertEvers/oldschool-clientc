@@ -1822,6 +1822,17 @@ api_cfg_bool(
     return plugin_cfg_number_checked(ctx, key, plugin_cfg_bool_parse, 0) != 0;
 }
 
+bool
+PluginHost_ConfigGetBool(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key)
+{
+    assert(host);
+    assert(key);
+    return api_cfg_bool(plugin_at(host, plugin_index), key) != 0;
+}
+
 static int
 api_cfg_int(
     struct PluginContext* ctx,
@@ -1881,7 +1892,7 @@ plugin_config_schema_value_valid(struct ToriRS_ConfigItem const* item, char cons
 }
 
 bool
-PluginHost_ConfigSet(
+PluginHost_ConfigValidate(
     struct ToriRS_PluginHost* host,
     int plugin_index,
     char const* key,
@@ -1894,16 +1905,31 @@ PluginHost_ConfigSet(
     struct PluginContext* ctx = plugin_at(host, plugin_index);
     if( !plugin_config_key_valid(key) || !plugin_config_value_valid(value) )
         return false;
-    struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, true);
-    if( !slot )
-        return false;
-    if( slot->schema_index >= 0 &&
-        !plugin_config_schema_value_valid(&plugin_schema(ctx)[slot->schema_index], value) )
+    struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, false);
+    int const schema_index = slot ? slot->schema_index : plugin_schema_index(ctx, key);
+    if( schema_index >= 0 &&
+        !plugin_config_schema_value_valid(&plugin_schema(ctx)[schema_index], value) )
     {
         TORIRS_ERR("plugin: %s refused setting '%s' = '%s': outside its declared type, range or choices\n",
             ctx->name, key, value);
         return false;
     }
+    return true;
+}
+
+bool
+PluginHost_ConfigSet(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key,
+    char const* value)
+{
+    if( !PluginHost_ConfigValidate(host, plugin_index, key, value) )
+        return false;
+    struct PluginContext* ctx = plugin_at(host, plugin_index);
+    struct PluginConfigSlot* slot = plugin_config_slot(ctx, key, true);
+    if( !slot )
+        return false;
     if( strcmp(slot->value, value) == 0 )
         return true;
 
@@ -6798,6 +6824,12 @@ PluginHost_Reload(
      */
     if( ctx->reload_handler )
         ctx->reload_handler(host, plugin_index, ctx->reload_user);
+
+    /* A removed key remains persisted, but no longer belongs to any schema
+     * row. Clear old indices even if the replacement schema is refused: an
+     * old index may now name another setting or lie beyond its terminator. */
+    for( int i = 0; i < ctx->config_count; i++ )
+        ctx->config[i].schema_index = -1;
 
     /* Reread through the new def, for the same reason as the schema below. */
     plugin_title_refresh(ctx);

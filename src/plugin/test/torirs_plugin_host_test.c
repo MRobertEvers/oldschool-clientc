@@ -2824,6 +2824,19 @@ test_repair_pins(void)
         g_pin_beam = -1;
         PluginHost_LogicTick(host, 1);
         CHECK(g_pin_beam == 0, "'false' switches a default-on bool off");
+        CHECK(!PluginHost_ConfigGetBool(host, index, "beam"),
+            "the settings panel reads the same false spelling as the plugin");
+        {
+            char const* const spellings[] = { "true", "yes", "on", "1 << 4" };
+            for( unsigned i = 0; i < sizeof(spellings) / sizeof(spellings[0]); i++ )
+            {
+                CHECK(PluginHost_ConfigSet(host, index, "beam", spellings[i]),
+                    "a supported true spelling is writable");
+                PluginHost_LogicTick(host, 1);
+                CHECK(g_pin_beam == 1 && PluginHost_ConfigGetBool(host, index, "beam"),
+                    "the settings panel and plugin agree on every true spelling");
+            }
+        }
         CHECK(
             !PluginHost_ConfigSet(host, index, "beam", "nonsense"),
             "a bool write refuses a typo");
@@ -2831,12 +2844,71 @@ test_repair_pins(void)
         g_pin_beam = -1;
         PluginHost_LogicTick(host, 1);
         CHECK(g_pin_beam == 1, "an unparseable bool reads as the declared default");
+        CHECK(PluginHost_ConfigGetBool(host, index, "beam"),
+            "the settings panel uses the same declared boolean fallback");
         CHECK(!PluginHost_ConfigSet(host, index, "hotkey", "112"),
             "an unreachable screenshot key is refused at the host boundary");
         CHECK(strcmp(PluginHost_ConfigGet(host, index, "hotkey"), "0") == 0,
             "a refused key leaves the saved preference unchanged");
         CHECK(PluginHost_ConfigSet(host, index, "hotkey", "16"),
             "a reachable screenshot key is accepted");
+        PluginHost_Free(host);
+    }
+
+    /* A runtime may remove or reorder settings while rebuilding on reload. */
+    {
+        struct ToriRS_ConfigItem items[] = {
+            { "keep", TORIRS_CONFIG_INT, "Keep", "1", 0, 99, NULL, 0 },
+            { "removed", TORIRS_CONFIG_STRING, "Removed", "seed", 0, 0, NULL, 0 },
+            { "moved", TORIRS_CONFIG_BOOL, "Moved", "true", 0, 0, NULL, 0 },
+            { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 }
+        };
+        struct ToriRS_ConfigItem const replacement[] = {
+            { "moved", TORIRS_CONFIG_BOOL, "Moved", "true", 0, 0, NULL, 0 },
+            { "keep", TORIRS_CONFIG_INT, "Keep", "1", 0, 99, NULL, 0 },
+            { "added", TORIRS_CONFIG_STRING, "Added", "new default", 0, 0, NULL, 0 },
+            { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 }
+        };
+        struct ToriRS_ConfigSchema schema = {
+            .struct_size = sizeof(schema), .items = items
+        };
+        struct ToriRS_PluginDef def = {
+            .struct_size = sizeof(def), .id = "reload-schema", .title = "Reload schema",
+            .version = "1", .config = &schema,
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) }
+        };
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &def);
+        void* encoded = NULL;
+        int encoded_size = 0;
+        CHECK(index >= 0, "a mutable runtime schema registers");
+        PluginHost_Start(host);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "legacy before"),
+            "the original string key is writable");
+        CHECK(PluginHost_ConfigSet(host, index, "keep", "9"),
+            "the retained int has a non-default value");
+        memcpy(items, replacement, sizeof(items));
+        PluginHost_Reload(host, index);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "legacy after"),
+            "a removed key remains writable without its old row's new int constraint");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "keep"), "9") == 0,
+            "reload preserves a reordered key's value");
+        CHECK(!PluginHost_ConfigSet(host, index, "keep", "100"),
+            "the reordered int keeps its own range constraint");
+        CHECK(PluginHost_ConfigGetBool(host, index, "moved"),
+            "the reordered bool keeps its value");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "added"), "new default") == 0,
+            "reload seeds only the newly declared key");
+        items[0] = (struct ToriRS_ConfigItem){0};
+        PluginHost_Reload(host, index);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "past terminator"),
+            "an empty replacement schema leaves old keys unclaimed");
+        CHECK(PluginHost_ConfigEncode(host, &encoded, &encoded_size),
+            "old keys still encode after the replacement schema becomes empty");
+        CHECK(strstr((char const*)encoded, "removed=past terminator") != NULL,
+            "removed settings remain preserved in the saved store");
+        free(encoded);
         PluginHost_Free(host);
     }
 

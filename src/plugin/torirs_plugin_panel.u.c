@@ -458,7 +458,7 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
         ToriRSChrome_SetChecked(
             &app->plugin_ui,
             row->widget,
-            atoi(app_plugin_panel_value(app, row->plugin, item->key)) != 0);
+            PluginHost_ConfigGetBool(app->plugins, row->plugin, item->key));
     }
     else if( item->type == TORIRS_CONFIG_ENUM &&
              row->widget < app->plugin_ui.widget_count &&
@@ -491,29 +491,40 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
     }
 }
 
+/* Read staged text without interpreting expressions or truncating input.
+ * Only a checkbox needs storage for its canonical persisted spelling. */
+static char const*
+app_plugin_panel_config_value(
+    struct App* app, struct AppPluginPanelRow const* row, char boolean[4])
+{
+    struct ToriRS_ConfigItem const* item;
+    char const* text;
+    assert(app);
+    assert(row);
+    assert(boolean);
+    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+    assert(item);
+    if( item->type == TORIRS_CONFIG_BOOL )
+    {
+        snprintf(boolean, 4, "%d", ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
+        return boolean;
+    }
+    text = item->type == TORIRS_CONFIG_ENUM ? app_plugin_dropdown_value(app, row->widget) : NULL;
+    if( !text )
+        text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
+    return text ? text : "";
+}
+
 /* A canonical snapshot of the staged control. A too-long local edit is
  * always dirty; never truncate it into looking equal to the stored value. */
 static bool
 app_plugin_panel_config_text(
     struct App* app, struct AppPluginPanelRow const* row, char* out, size_t size)
 {
-    struct ToriRS_ConfigItem const* item;
-    char const* text;
-    assert(app);
-    assert(row);
+    char boolean[4];
+    char const* text = app_plugin_panel_config_value(app, row, boolean);
     assert(out);
     assert(size > 0);
-    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
-    assert(item);
-    if( item->type == TORIRS_CONFIG_BOOL )
-    {
-        snprintf(out, size, "%d", ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
-        return true;
-    }
-    text = item->type == TORIRS_CONFIG_ENUM ? app_plugin_dropdown_value(app, row->widget) : NULL;
-    if( !text )
-        text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
-    if( !text ) text = "";
     if( strlen(text) >= size )
         return false;
     snprintf(out, size, "%s", text);
@@ -1538,7 +1549,7 @@ app_plugin_panel_sync(struct App* app)
                     &app->plugin_ui,
                     app->plugin_panel,
                     item->label,
-                    atoi(app_plugin_panel_value(app, p, item->key)) != 0);
+                    PluginHost_ConfigGetBool(app->plugins, p, item->key));
             }
             else if( item->type == TORIRS_CONFIG_ENUM && item->choices )
             {
@@ -1692,58 +1703,36 @@ app_plugin_panel_save(struct App* app, int plugin)
 {
     assert(app);
 
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    /* Validate every staged value before the first write. This is the same
+     * validator ConfigSet uses, so a typo cannot partially save the form and
+     * valid integer expressions keep their original spelling. */
+    for( int pass = 0; pass < 2; pass++ )
     {
-        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_ConfigItem const* item;
+        for( int i = 0; i < app->plugin_panel_row_count; i++ )
+        {
+            struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+            struct ToriRS_ConfigItem const* item;
+            char boolean[4];
+            char const* value;
 
-        if( row->plugin != plugin || row->kind != APP_PLUGIN_ROW_CONFIG )
-            continue;
-        item = PluginHost_ConfigItem(app->plugins, plugin, row->cfg_index);
-        if( !item )
-            continue;
+            if( row->plugin != plugin || row->kind != APP_PLUGIN_ROW_CONFIG )
+                continue;
+            item = PluginHost_ConfigItem(app->plugins, plugin, row->cfg_index);
+            if( !item )
+                continue;
 
-        if( item->type == TORIRS_CONFIG_BOOL )
-        {
-            char buf[4];
-            snprintf(
-                buf, sizeof(buf), "%d",
-                ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
-            PluginHost_ConfigSet(app->plugins, plugin, item->key, buf);
-        }
-        else if( item->type == TORIRS_CONFIG_ENUM )
-        {
-            /* The chosen OPTION, not the widget's text field -- a dropdown's
-             * text is empty, so reading it here wrote every enum key blank on
-             * Save. */
-            char const* chosen = app_plugin_dropdown_value(app, row->widget);
-            if( chosen )
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, chosen);
-            else
-                PluginHost_ConfigSet(
-                    app->plugins, plugin, item->key,
-                    ToriRSChrome_Text(&app->plugin_ui, row->widget));
-        }
-        else
-        {
-            char const* text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
-            /* Clamp an int here rather than letting a typo through: the store
-             * is textual, so nothing downstream would catch "999" for a key
-             * declared 0..255, and the plugin would just read a wrong number. */
-            if( item->type == TORIRS_CONFIG_INT && item->max > item->min )
+            value = app_plugin_panel_config_value(app, row, boolean);
+            if( pass == 0 )
             {
-                int v = atoi(text);
-                char buf[16];
-                if( v < item->min )
-                    v = item->min;
-                if( v > item->max )
-                    v = item->max;
-                snprintf(buf, sizeof(buf), "%d", v);
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, buf);
-                ToriRSChrome_SetText(&app->plugin_ui, row->widget, buf);
+                if( !PluginHost_ConfigValidate(app->plugins, plugin, item->key, value) )
+                    return;
             }
             else
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, text);
+            {
+                bool const applied = PluginHost_ConfigSet(app->plugins, plugin, item->key, value);
+                assert(applied);
+                (void)applied;
+            }
         }
     }
 

@@ -1096,7 +1096,23 @@ PluginHost_ConfigGet(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     char const* key);
-/** Returns false when the key or single-line value cannot be persisted. */
+/** Read an existing setting with the plugin API's boolean spelling and
+ *  declared-default rules. An undeclared/unpersisted key is a caller error. */
+bool
+PluginHost_ConfigGetBool(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key);
+/** Check a proposed write with ConfigSet's rules and diagnostics, without
+ *  changing the store or dispatching config callbacks. */
+bool
+PluginHost_ConfigValidate(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key,
+    char const* value);
+/** Returns false when the key/value cannot be persisted or the value violates
+ *  its declared type, range or choices. */
 bool
 PluginHost_ConfigSet(
     struct ToriRS_PluginHost* host,
