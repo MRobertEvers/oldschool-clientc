@@ -1108,6 +1108,7 @@ struct MobileState
     /** Native bar last re-skinned or hidden beneath the owned row image.
      *  Taking the dressing off restores that same native reference. */
     struct ToriRS_WidgetRef chat_strip;
+    struct ToriRS_WidgetRef chat_filter_backing;
     /** What the pack looked like when it was last dressed: the strip and the
      *  backing this frame edited, their boxes, and every filter cell -- the
      *  node references included, so a rebuilt pack (a new incarnation) is a
@@ -3956,6 +3957,9 @@ mobile_clear(struct MobileCall* ctx)
         mobile_owned_drop(ctx, &state->plate[i]);
     mobile_owned_drop(ctx, &state->pack_sheet);
     mobile_owned_drop(ctx, &state->pack_bar);
+    if( ToriRS_WidgetRefValid(state->chat_filter_backing) )
+        (void)ui->reset(ui->context, state->chat_filter_backing);
+    state->chat_filter_backing = (struct ToriRS_WidgetRef){ { 0 } };
     if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
         (void)ui->reset(ui->context, backing);
     mobile_reset_surfaces(ctx);
@@ -4127,8 +4131,8 @@ mobile_widget_paints(
  * the one thing that is always true of that somewhere is that it is their
  * common ancestor. Each button can have an intermediate container, and the
  * common row can contain a script-created background rectangle. An owned
- * image behind the first button branch dresses that row without trying to
- * change a layer or rectangle into a native graphic.
+ * image behind the whole row dresses every button while the separate
+ * decorative-background role is hidden.
  *
  * Taken only when that parent is a STRIP: a lane whose filter plates hang
  * directly off the chat pack would otherwise put a 519x165 slab of rock behind
@@ -4144,7 +4148,8 @@ mobile_chat_strip(
     int plate_count,
     struct ToriRS_WidgetRef* out_strip,
     struct ToriRS_WidgetBounds* out_box,
-    struct ToriRS_WidgetRef* out_first_branch)
+    bool prefer_owned,
+    bool* out_owned)
 {
     struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct ToriRS_WidgetRef widget;
@@ -4156,9 +4161,9 @@ mobile_chat_strip(
     assert(plate_box);
     assert(out_strip);
     assert(out_box);
-    assert(out_first_branch);
-    *out_first_branch = (struct ToriRS_WidgetRef){ { 0 } };
-    if( ui->find(ui->context, "chat_bar", &widget) == TORIRS_CONTRACT_OK &&
+    assert(out_owned);
+    *out_owned = false;
+    if( !prefer_owned && ui->find(ui->context, "chat_bar", &widget) == TORIRS_CONTRACT_OK &&
         mobile_widget_paints(ctx, widget, &box) )
     {
         *out_strip = widget;
@@ -4170,8 +4175,8 @@ mobile_chat_strip(
     for( int i = 0; i < plate_count; i++ )
         if( plate_box[i].height > tallest )
             tallest = plate_box[i].height;
-    /* Each button can have its own container. Find their common row, keeping
-     * the first branch under it as the paint-order anchor for an owned band. */
+    /* Each button can have its own container. The whole common row is the
+     * target: anchoring behind one button says nothing about its siblings. */
     struct ToriRS_WidgetRef branch = plate[0];
     for( int depth = 0; depth < 32; depth++ )
     {
@@ -4189,7 +4194,7 @@ mobile_chat_strip(
             {
                 *out_strip = widget;
                 *out_box = box;
-                *out_first_branch = branch;
+                *out_owned = true;
                 return true;
             }
         }
@@ -4223,7 +4228,8 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
     struct ToriRS_WidgetRef chat = { { 0 } };
     struct ToriRS_WidgetRef backing = { { 0 } };
     struct ToriRS_WidgetRef bar = { { 0 } };
-    struct ToriRS_WidgetRef first_branch = { { 0 } };
+    struct ToriRS_WidgetRef filter_backing = { { 0 } };
+    bool owned_band = false;
     struct ToriRS_WidgetRef plate[MOBILE_CHAT_CELL_MAX];
     struct ToriRS_WidgetBounds plate_box[MOBILE_CHAT_CELL_MAX];
     struct ToriRS_WidgetBounds backing_box = { 0, 0, 0, 0 };
@@ -4260,6 +4266,9 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
             }
             mobile_owned_drop(ctx, &state->pack_sheet);
             mobile_owned_drop(ctx, &state->pack_bar);
+            if( ToriRS_WidgetRefValid(state->chat_filter_backing) )
+                (void)ui->reset(ui->context, state->chat_filter_backing);
+            state->chat_filter_backing = (struct ToriRS_WidgetRef){ { 0 } };
             state->chat_strip = (struct ToriRS_WidgetRef){ { 0 } };
             state->chat_dressed_sig = 0;
             state->chat_dressed = 0;
@@ -4285,7 +4294,9 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
         plate_box[plate_count] = box;
         plate_count++;
     }
-    if( !mobile_chat_strip(ctx, plate, plate_box, plate_count, &bar, &bar_box, &first_branch) )
+    (void)ui->find(ui->context, "chat_filter_backing", &filter_backing);
+    if( !mobile_chat_strip(ctx, plate, plate_box, plate_count, &bar, &bar_box,
+            ToriRS_WidgetRefValid(filter_backing), &owned_band) )
         return;
     for( int i = 0; i < plate_count; i++ )
         cell[cell_count++] = (struct MobileChatCell){ plate_box[i].x - bar_box.x, plate_box[i].y - bar_box.y,
@@ -4304,8 +4315,9 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
     signature = mobile_chat_fold(signature, bar.opaque[0]);
     signature = mobile_chat_fold(signature, bar.opaque[1]);
     signature = mobile_chat_fold(signature, bar.opaque[2]);
-    signature = mobile_chat_fold(signature, first_branch.opaque[1]);
-    signature = mobile_chat_fold(signature, first_branch.opaque[2]);
+    signature = mobile_chat_fold(signature, (uint64_t)owned_band);
+    signature = mobile_chat_fold(signature, filter_backing.opaque[1]);
+    signature = mobile_chat_fold(signature, filter_backing.opaque[2]);
     signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.x);
     signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.y);
     signature = mobile_chat_fold(signature, (uint64_t)(uint32_t)bar_box.width);
@@ -4342,16 +4354,24 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
     rock = mobile_bar_art(ctx, bar_box.width, bar_box.height, cell, cell_count);
     if( rock.value == 0 )
         return;
-    if( ToriRS_WidgetRefValid(first_branch) )
+    if( ToriRS_WidgetRefValid(state->chat_filter_backing) )
+        (void)ui->reset(ui->context, state->chat_filter_backing);
+    state->chat_filter_backing = (struct ToriRS_WidgetRef){ { 0 } };
+    if( owned_band )
     {
         /* The row can be a layer with a script-created rectangle background,
-         * neither of which accepts set_image. Paint an owned band above that
-         * background and directly behind the first native button subtree. */
+         * neither of which accepts set_image. Hide only that decoration and
+         * paint an owned band behind the whole native button-row subtree. */
         struct ToriRS_WidgetRef named_bar;
         if( !mobile_owned_image(ctx, &state->pack_bar, bar, "pack-bar", rock,
                 bar_box.width, bar_box.height, bar_box.x, bar_box.y) )
             return;
-        (void)ui->set_anchor(ui->context, state->pack_bar.ref, first_branch, TORIRS_WIDGET_RELATION_BEHIND);
+        (void)ui->set_anchor(ui->context, state->pack_bar.ref, bar, TORIRS_WIDGET_RELATION_BEHIND);
+        if( ToriRS_WidgetRefValid(filter_backing) )
+        {
+            (void)ui->set_hidden(ui->context, filter_backing, true);
+            state->chat_filter_backing = filter_backing;
+        }
         if( ui->find(ui->context, "chat_bar", &named_bar) == TORIRS_CONTRACT_OK )
         {
             (void)ui->set_hidden(ui->context, named_bar, true);

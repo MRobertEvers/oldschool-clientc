@@ -2526,7 +2526,7 @@ ToriRSChrome_CustomRegion(
     if( out_region )
     {
         out_region->x = w->x + DBG_RULE;
-        out_region->y = w->y + (w->label[0] ? DBG_ROW_H : 0) + DBG_RULE;
+        out_region->y = w->custom_region_y;
         out_region->w = w->w - 2 * DBG_RULE;
         out_region->h = w->view_h;
     }
@@ -5653,6 +5653,10 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             inner.y = box.y + DBG_RULE;
             inner.w = box.w - 2 * DBG_RULE;
             inner.h = box.h - 2 * DBG_RULE;
+            /* Keep raster and local-input coordinates tied to the complete
+             * well. The row hit box is clipped below, which must not pin a
+             * tall custom image to the top of the scroll window. */
+            w->custom_region_y = inner.y;
             visible = dbg_rect_clip(clip, inner);
             w->custom_clip_x = visible.x;
             w->custom_clip_y = visible.y;
