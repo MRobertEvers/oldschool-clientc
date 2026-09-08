@@ -231,14 +231,8 @@ cs_remember(
  * patched in place: the host journals the two row mutations and the browser
  * executor consumes only those entries, so nothing else on the page moves.
  *
- * With ONE exception, and it is not a fallback that never fires. set_options
- * refuses a list whose LENGTH changed (@see plugin_v2_panel_set_options), and
- * the row set does change length -- the saved-id row at the end of the
- * catalogue appears and disappears as the saved id becomes reachable or not.
- * That publish returns INVALID and the page is rebuilt instead, which costs
- * the reader the scroll position and any open dropdown. Rebuilding is the
- * correct answer to a list the model cannot hold; pretending it does not
- * happen is what left it untested.
+ * The saved-id row can appear or disappear as an offer becomes reachable.
+ * set_options resizes that retained slice without rebuilding the page.
  */
 static void
 cs_publish_frame(

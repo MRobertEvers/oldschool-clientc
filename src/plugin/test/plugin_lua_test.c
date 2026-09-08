@@ -689,8 +689,11 @@ static bool fake_menu_entry(struct ToriRS_Api* api,struct ToriRS_MenuBuildEvent*
 }
 static void test_menu_module(struct ToriRS_PluginHost* host)
 {
+    CHECK(TORIRS_PLUGIN_MENU_ROWS_MAX>=25,"native menu snapshot exceeds the old16-row boundary");
+    if( TORIRS_PLUGIN_MENU_ROWS_MAX<25 ) return;
     char const source[]="return {id='menu-module',"
         "on_menu_build=function(api,event) assert(api.ui==nil);"
+        "assert(#event.rows==25 and event.rows[25].npc_slot==99, 'crowded menu retains its final native target');"
         "assert(api.menu.add('Tag Guard',85)) end,"
         "on_frame_start=function(api,event) api.menu.add('Tag Guard',85) end}";
     struct FakeInstance instance={"menu-module",""};
@@ -700,7 +703,12 @@ static void test_menu_module(struct ToriRS_PluginHost* host)
     CHECK(index>=0,"menu module test registers");
     if( index<0 ) return;
     g_defs[index]->callbacks.on_start(&api,NULL);
-    struct ToriRS_MenuBuildEvent event={0};
+    struct ToriRS_MenuBuildEvent event={.row_count=25};
+    for( int i=0; i<event.row_count; i++ )
+    {
+        event.rows[i].text="Examine Guard";
+        event.rows[i].npc_slot=i==24 ? 99 : -1;
+    }
     expected_menu=&event;menu_calls=0;
     g_defs[index]->callbacks.on_menu_build(&api,NULL,&event);
     CHECK(menu_calls==1,"menu addition reaches native API");
@@ -896,6 +904,19 @@ fake_world_hull_stroke(struct ToriRS_Graphics* draw, int element, uint32_t rgb,
     return TORIRS_RESULT_BUDGET;
 }
 
+static enum ToriRS_Result
+fake_world_hull_styled(struct ToriRS_Graphics* draw,int element,uint32_t rgb,
+                      int alpha,int shape,int width,uint32_t flags)
+{
+    (void)draw;
+    CHECK(element==42 && rgb==0x778899 && alpha==80 && shape==TORIRS_HULL_MESH && width==2,
+          "Lua silhouette preserves mesh geometry and style");
+    CHECK(flags==0 || flags==TORIRS_WORLD_DRAW_ALWAYS_ON_TOP,
+          "Lua silhouette carries only the requested visibility flag");
+    g_stroke_calls++;
+    return TORIRS_RESULT_BUDGET;
+}
+
 static void
 test_graphics_stroke(struct ToriRS_PluginHost* host)
 {
@@ -906,6 +927,12 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
         "assert(draw.world_tile_stroke(3200,3201,0,0x112233,0x445566,40,0)) "
         "ok,reason=draw.world_hull_stroke(42,0x778899,80,'mesh',2) "
         "assert(not ok and reason=='budget','stroke capacity refusal must reach Lua') "
+        "ok,reason=draw.world_hull_styled(42,0x778899,80,'mesh',2,0) "
+        "assert(not ok and reason=='budget','visible mesh refusal must reach Lua') "
+        "ok,reason=draw.world_hull_styled(42,0x778899,80,'mesh',2,16) "
+        "assert(not ok and reason=='budget','always-on-top mesh refusal must reach Lua') "
+        "ok,reason=draw.world_hull_styled(42,1,0,'mesh',2,1) "
+        "assert(not ok and reason=='invalid','unknown style flag is refused') "
         "ok,reason=draw.world_tile_stroke(1,2,0,1,nil,0,256) "
         "assert(not ok and reason=='invalid','invalid stroke width is refused') "
         "else "
@@ -913,6 +940,8 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
         "assert(not ok and reason=='unsupported','short graphics prefix has no stroke tail') "
         "ok,reason=draw.world_hull_stroke(42,1) "
         "assert(not ok and reason=='unsupported','short graphics prefix has no hull stroke tail') "
+        "ok,reason=draw.world_hull_styled(42,1) "
+        "assert(not ok and reason=='unsupported','short prefix cannot read the style tail') "
         "end end}";
     struct FakeInstance instance = { "graphics-stroke", NULL };
     struct ToriRS_Api api = fake_api(&instance);
@@ -925,10 +954,11 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
     draw.struct_size = sizeof(draw);
     draw.world_tile_stroke = fake_world_tile_stroke;
     draw.world_hull_stroke = fake_world_hull_stroke;
+    draw.world_hull_styled = fake_world_hull_styled;
     g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
     draw.struct_size = offsetof(struct ToriRS_Graphics, world_tile_stroke);
     g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
-    CHECK(g_disabled_self == disables && g_stroke_calls == 2,
+    CHECK(g_disabled_self == disables && g_stroke_calls == 4,
         "Lua stroke bindings preserve results and never read an unavailable optional tail");
 }
 
@@ -954,6 +984,8 @@ main(void)
         "plugin/test/roleprobe_behavior.lua","roleprobe-behavior");
     test_product_behavior(&host,"../script/plugins/screenshot.lua",
         "plugin/test/screenshot_behavior.lua","screenshot-behavior");
+    test_product_behavior(&host,"../script/plugins/loot_beam.lua",
+        "plugin/test/loot_beam_behavior.lua","loot-beam-behavior");
     test_product_behavior(&host,"../script/plugins/performance_display.lua",
         "plugin/test/performance_display_behavior.lua","performance-behavior");
     test_product_behavior(&host,"../script/plugins/tile_indicator.lua",

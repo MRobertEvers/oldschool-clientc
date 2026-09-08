@@ -1,11 +1,72 @@
 /* Command-name contract shared by the CS2 compiler and decompiler. */
 
 #include "cs2/cs2_command.h"
+#include "cs2/cs2_compile.h"
 #include "rscache_test.h"
+#include <stdlib.h>
+#include <string.h>
+
+static const struct RSCache_CS2_Script*
+overlay_script(void* user, int id)
+{
+    return id == 1 ? user : NULL;
+}
+
+static void
+check_overlay_targets(struct RSCache_CS2_Script const* script)
+{
+    int creations = 0;
+    for( int i = 0; i < script->op_count; ++i )
+        if( script->opcodes[i] == 103 )
+        {
+            RSCACHE_CHECK_EQ(script->int_operands[i], creations);
+            ++creations;
+        }
+    RSCACHE_CHECK_EQ(creations, 2);
+}
+
+static void
+test_overlay_dot_roundtrip(void)
+{
+    struct RSCache_ClientScript first = {0}, roundtrip = {0};
+    struct RSCache_CS2_CompileOptions compile = {0};
+    struct RSCache_CS2_DecompileOptions decompile = {0};
+    char error[512] = {0};
+    char const* source = "[proc,script1](newvar $newvar0)\n"
+        "overlay_cc_create($newvar0, 4, 0);\ncc_settext(\"timer\");\n"
+        ".overlay_cc_create($newvar0, 5, 1);\n.cc_setsize(17, 17, 0, 0);\n"
+        "cc_settext(\"2m\");\n";
+    bool ok = RSCache_CS2_Compile(source, &compile, &first, error, sizeof error);
+    RSCACHE_CHECK(ok);
+    if( !ok ) return;
+    check_overlay_targets(&first.script);
+    first.script.script_id = 1;
+    decompile.scripts.user = &first.script;
+    decompile.scripts.load = overlay_script;
+    char* name = NULL;
+    char* decoded = RSCache_CS2_Decompile(1, &decompile, &name, error, sizeof error);
+    RSCACHE_CHECK(decoded != NULL);
+    if( decoded )
+    {
+        RSCACHE_CHECK(strstr(decoded, ".overlay_cc_create") != NULL);
+        ok = RSCache_CS2_Compile(decoded, &compile, &roundtrip, error, sizeof error);
+        RSCACHE_CHECK(ok);
+        if( ok )
+        {
+            check_overlay_targets(&roundtrip.script);
+            RSCache_ClientScriptFreeInplace(&roundtrip);
+        }
+        free(decoded);
+    }
+    free(name);
+    RSCache_ClientScriptFreeInplace(&first);
+}
 
 int
 main(void)
 {
+    RSCACHE_TEST_GROUP("overlay creation retains primary and secondary targets");
+    test_overlay_dot_roundtrip();
     RSCACHE_TEST_GROUP("canonical names from current VM metadata");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(103), "overlay_cc_create");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(1703), "cc_getcomponentparam");
@@ -29,6 +90,8 @@ main(void)
         RSCACHE_CS2_PROTO_BOOLEAN);
 
     RSCACHE_TEST_GROUP("cc_find_param variable signature");
+    RSCACHE_CHECK(RSCache_CS2_CommandGet(103)->dot_capable);
+    RSCACHE_CHECK(RSCache_CS2_CommandGet(203)->dot_capable);
     const struct RSCache_CS2_CommandInfo* find_param = RSCache_CS2_CommandGet(210);
     RSCACHE_CHECK_EQ(find_param->kind, RSCACHE_CS2_CMD_FIND_PARAM);
     RSCACHE_CHECK(find_param->dot_capable);

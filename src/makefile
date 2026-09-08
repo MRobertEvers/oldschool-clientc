@@ -593,7 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
-	render/torirs_frame.c render/torirs_pick.c \
+	render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c \
@@ -2780,6 +2780,10 @@ test-plugin-settings-sync: $(OBJ_DIR) plugin/test/settings_merge_test.py plugin/
 	CC="$(CC)" python3 plugin/test/settings_merge_test.py $(OBJ_DIR)
 	CC="$(CC)" python3 plugin/test/settings_save_test.py $(OBJ_DIR)
 
+.PHONY: test-plugin-panel-region
+test-plugin-panel-region: $(OBJ_DIR) plugin/test/panel_region_test.py plugin/torirs_plugin_panel.u.c
+	CC="$(CC)" python3 plugin/test/panel_region_test.py $(OBJ_DIR)
+
 # -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
 # CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
 # assertion in the file out and left it passing on values it was asserting
@@ -3172,7 +3176,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c \
-		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		perf/torirs_perf.c \
@@ -3192,7 +3196,7 @@ test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_entity_overlay_sprite_test \
 		render/test/torirs_frame_entity_overlay_sprite_test.c \
-		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
 
@@ -3201,7 +3205,7 @@ test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_flat_test \
 		render/test/torirs_frame_flat_test.c \
-		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_flat_test
 
@@ -6051,3 +6055,32 @@ test-canoes-server:
 test-sailing-server: torirsserver
 	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_SAILING_ONLY=1 TORIRSSERVER_REV=osrs239 \
 		TORIRSSERVER_CACHE=cache.osrs239 ./src/$(OBJ_DIR)/torirsserver --selftest
+
+.PHONY: test-frame-draw-gate
+test-frame-draw-gate: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_draw_gate_test test/frame_draw_gate_test.c
+	./$(OBJ_DIR)/frame_draw_gate_test
+
+
+.PHONY: test-silhouette
+test-silhouette: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/silhouette_test \
+		render/torirs_silhouette.c render/test/torirs_silhouette_test.c -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/silhouette_test
+
+.PHONY: test-frame-silhouette
+test-frame-silhouette: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_silhouette_test \
+		render/test/torirs_frame_silhouette_test.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_silhouette_test
+
+.PHONY: test-cs2-overlay-find
+test-cs2-overlay-find: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_overlay_find_test \
+		cs2vm2/test/overlay_find_test.c cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
+		cs2vm2/cs2_opcode_meta.c perf/torirs_perf.c $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_overlay_find_test

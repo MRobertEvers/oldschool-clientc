@@ -201,6 +201,9 @@ struct ToriDraw_RasterTarget
     const vertexint_t* bind_vertices_z;
 
     void* internal;
+    /** Parallel projection's pixels-per-world-unit scale, in 16.16.
+     * Appended so existing normalized-target field offsets stay unchanged. */
+    int parallel_zoom16;
 };
 
 /*

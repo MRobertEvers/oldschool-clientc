@@ -4075,6 +4075,7 @@ ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* fra
     assert(frame);
     if( !gles2_render_frame_begin(renderer) )
         return;
+    frame->world_depth_test = renderer->zbuffer != NULL;
     ToriRS_FrameBegin(frame);
     gles2_render_frame_commands(renderer, frame);
     ToriRS_FrameEnd(frame);

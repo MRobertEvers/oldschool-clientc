@@ -2361,6 +2361,7 @@ lt_panel_draw(
     if( strcmp(node, "strip") != 0 || !draw->context(draw, &context) ||
         context.bounds.width <= 0 )
         return;
+    g_well_w = context.bounds.width;
     /* The art crosses the IO queue, so the first passes after a start have
      * nothing to draw with. The next invalidate fills it -- the same state the
      * client's own inventory icons are in for a frame or two. Past the grace
@@ -2386,7 +2387,6 @@ lt_panel_draw(
     }
     g_art_wait_ms = 0;
 
-    g_well_w = context.bounds.width;
     g_redraw_pending = false;
     lt_compose(rt, context.bounds.width);
     if( g_strip_image.value )
@@ -2478,6 +2478,7 @@ lt_panel_action(
     if( strcmp(ev->id, "strip") == 0 )
     {
         struct LtStripPlan plan;
+        int const well_w = ev->region_width > 0 ? ev->region_width : g_well_w;
         int local_y = 0;
         int source;
 
@@ -2485,9 +2486,9 @@ lt_panel_action(
         if( plan.page_count > 1 && ev->y >= plan.footer_y && ev->y < plan.height )
         {
             int const page = g_strip_page;
-            if( ev->x >= 0 && ev->x < g_well_w / 3 && page > 0 )
+            if( ev->x >= 0 && ev->x < well_w / 3 && page > 0 )
                 g_strip_page--;
-            else if( ev->x >= g_well_w * 2 / 3 && ev->x < g_well_w && page + 1 < plan.page_count )
+            else if( ev->x >= well_w * 2 / 3 && ev->x < well_w && page + 1 < plan.page_count )
                 g_strip_page++;
             if( page != g_strip_page )
                 g_api->panel.invalidate(g_api);
@@ -2500,12 +2501,13 @@ lt_panel_action(
          *
          * Same four the cache offers, in the same places: the view toggle at
          * the left, then value-basis, collapse-all and the ignore list at the
-         * right. `g_well_w` is the width the strip was last composed at, which
-         * is what the right-anchored three were placed against.
+         * right. Input carries the current custom allocation so a layout
+         * followed by a click does not depend on a draw running in between.
+         * Legacy callers without that allocation use the last drawn width.
          */
         if( ev->y < LT_TOTALS_H )
         {
-            int const w = g_well_w;
+            int const w = well_w;
             bool rebuild = false;
             if( ev->x >= LT_BTN_LEFT_X && ev->x < LT_BTN_LEFT_X + LT_BTN )
             {

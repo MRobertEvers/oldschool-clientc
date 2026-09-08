@@ -3638,245 +3638,49 @@ app_overlay_outline_element_model_stroke(
         app, hull_x, hull_y, hull_size, color, fill_trans, color, outline_width, item_budget);
 }
 
-/**
- * Directions sampled around a projected mesh when reducing it to a hull.
- *
- * The reduction is what makes a mesh outline affordable. The exact hull of a
- * few thousand screen points costs an angular sort over all of them; the
- * extreme point along a FIXED direction is one multiply-add and one compare
- * per vertex. Every such extreme is a vertex of the true hull, so the polygon
- * built from them is inscribed in it — tighter than the real silhouette by at
- * most the sagitta of a 360/(2*N) degree arc, never looser — and it is capped
- * at 2*N points, which is what keeps a highlight's cost to the overlay budget
- * bounded no matter how detailed the model is.
- *
- * 16 directions is an 11.25 degree gap between samples: under half a percent
- * of the silhouette's radius, which is sub-pixel on anything short of a boss
- * filling the viewport.
- */
-#define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
+/* Keep posed mesh topology until the shared frame renderer can see its actual
+ * faces and the scene's foreground. One complete request is reserved here;
+ * clipped spans are emitted after world drawing, before interface layers. */
+static int
+app_overlay_outline_element_mesh_styled(
+    struct App* app, int element_id, uint32_t color, int fill_trans,
+    int outline_width, bool always_on_top, int item_budget)
+{
+    struct UITreeEntityOverlay item;
+    int const capacity=(int)(sizeof(app->entity_overlays)/sizeof(app->entity_overlays[0]));
+    assert(app);
+    assert(outline_width>=0);
+    assert(outline_width<=255);
+    assert(item_budget>=0);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_WORLD);
+    if( fill_trans<0 && outline_width==0 ) return 0;
+    if( !app->scene || element_id<0 || !app->world_view_valid ||
+        app->world_emit_desc.w<=0 || app->world_emit_desc.h<=0 ||
+        !ToriDraw_SceneElementIsLive(app->scene,element_id) ) return 0;
+    struct ToriDraw_SceneElement* element=ToriDraw_SceneElementGet(app->scene,element_id);
+    assert(element);
+    if( ToriDraw_ModelGetVertexCount(element->model)<=0 ||
+        ToriDraw_ModelGetFaceCount(element->model)<=0 ) return 0;
+    if( item_budget<1 ) return -2;
+    if( app->entity_overlay_count>=capacity ) return -1;
+    memset(&item,0,sizeof(item));
+    item.kind=UITREE_ENTITY_OVERLAY_SILHOUETTE;
+    item.color=color;
+    item.trans=fill_trans;
+    item.line_width=(uint8_t)outline_width;
+    item.silhouette_element_id=element_id;
+    item.silhouette_always_on_top=always_on_top;
+    app_overlay_push(app,&item);
+    return 1;
+}
 
-/**
- * Outline the MESH of a scene element: the model's own posed vertices, rather
- * than the box that contains them.
- *
- * The bounds outline above is the cylinder — `radius` in every horizontal
- * direction — so an npc is wrapped at the radius of whatever sticks out
- * furthest: a halberd, a cape, a wing. That reads on screen as a square around
- * every npc regardless of its shape, which is exactly what this is for. Here
- * the geometry that is actually drawn is what gets hulled, so a thin thing
- * outlines thin and a turning thing narrows as it turns.
- *
- * The vertices read are the LIVE ones (`vertices_*`, never
- * `original_vertices_*`): the animation frame, the post-transform placement
- * and any merged spot graphic are already applied to them, which is what keeps
- * the outline on the pose being rendered instead of the bind pose.
- *
- * Placement is re-derived here the way the projector derives it — roll, then
- * pitch, then yaw about the model's own origin, then the element's world
- * position — because a model's vertices are stored in its own frame and only
- * the projector has ever combined them with the element's angles.
- *
- * Cost is one projection per vertex per frame against the bounds outline's
- * eight, which is why the shape is the caller's choice and not the only mode.
- *
- * @param fill_trans 0 opaque .. 255 invisible, or -1 for no fill at all.
- * @return 1 when an outline was emitted.
- */
 static int
 app_overlay_outline_element_mesh_stroke(
-    struct App* app,
-    int element_id,
-    uint32_t color,
-    int fill_trans,
-    int outline_width,
-    int item_budget)
+    struct App* app, int element_id, uint32_t color, int fill_trans,
+    int outline_width, int item_budget)
 {
-    enum
-    {
-        DIRECTIONS = APP_OUTLINE_HULL_MESH_DIRECTIONS,
-        CANDIDATES = DIRECTIONS * 2
-    };
-    struct ToriDraw_SceneElement* element;
-    vertexint_t const* vertices_x;
-    vertexint_t const* vertices_y;
-    vertexint_t const* vertices_z;
-    int vertex_count;
-    int sin_dir[DIRECTIONS];
-    int cos_dir[DIRECTIONS];
-    long long extreme[CANDIDATES];
-    int extreme_x[CANDIDATES];
-    int extreme_y[CANDIDATES];
-    int extreme_seen[CANDIDATES];
-    int px[CANDIDATES];
-    int py[CANDIDATES];
-    int hull_x[CANDIDATES];
-    int hull_y[CANDIDATES];
-    int count = 0;
-    int hull_size;
-    int ox;
-    int oy;
-    int oz;
-    int yaw;
-    int pitch;
-    int roll;
-    int sin_yaw;
-    int cos_yaw;
-    int sin_pitch;
-    int cos_pitch;
-    int sin_roll;
-    int cos_roll;
-
-    assert(app);
-
-    if( !app->scene || element_id < 0 )
-        return 0;
-    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
-        return 0;
-
-    element = ToriDraw_SceneElementGet(app->scene, element_id);
-    if( !element )
-        return 0;
-
-    vertex_count = ToriDraw_ModelGetVertexCount(element->model);
-    vertices_x = ToriDraw_ModelGetVerticesX(element->model);
-    vertices_y = ToriDraw_ModelGetVerticesY(element->model);
-    vertices_z = ToriDraw_ModelGetVerticesZ(element->model);
-    /* No mesh is not a failure, for the same reason no bounds cylinder is not:
-     * a handle that is not a full model (a sprite billboard, an empty slot)
-     * has no vertices and there is nothing to outline. */
-    if( vertex_count <= 0 || !vertices_x || !vertices_y || !vertices_z )
-        return 0;
-
-    for( int d = 0; d < DIRECTIONS; d++ )
-    {
-        /* Half a turn of directions, not a whole one: the minimum along a
-         * direction IS the maximum along its opposite, so the other half would
-         * ask every vertex the same question a second time. */
-        int const angle = d * (2048 / (DIRECTIONS * 2));
-        sin_dir[d] = ToriDraw_Sin(angle);
-        cos_dir[d] = ToriDraw_Cos(angle);
-        extreme_seen[d * 2] = 0;
-        extreme_seen[d * 2 + 1] = 0;
-    }
-
-    ox = element->world_position.x;
-    oy = element->world_position.y;
-    oz = element->world_position.z;
-    yaw = element->world_position.yaw;
-    pitch = element->world_position.pitch;
-    roll = element->world_position.roll;
-    sin_yaw = ToriDraw_Sin(yaw);
-    cos_yaw = ToriDraw_Cos(yaw);
-    sin_pitch = ToriDraw_Sin(pitch);
-    cos_pitch = ToriDraw_Cos(pitch);
-    sin_roll = ToriDraw_Sin(roll);
-    cos_roll = ToriDraw_Cos(roll);
-
-    for( int v = 0; v < vertex_count; v++ )
-    {
-        /* 64-bit intermediates. A vertex coordinate is a signed 16-bit
-         * quantity and the trig tables are 16.16, so one product alone reaches
-         * 2^31 and the sum of two passes it -- the same shape the projection
-         * kernels carry, but they are fed a model that has already been culled
-         * against the scene's capacity while this runs on whatever the
-         * element holds. The >>16 result is identical wherever int would not
-         * have overflowed. */
-        long long vx = vertices_x[v];
-        long long vy = vertices_y[v];
-        long long vz = vertices_z[v];
-        int screen_x;
-        int screen_y;
-        long long tmp;
-
-        /* graphics/projection.u.c project_orthographic order: roll (Z), pitch
-         * (X), yaw (Y). Any other order puts the outline somewhere the model
-         * is not the moment two of the three are non-zero. */
-        if( roll != 0 )
-        {
-            tmp = (vy * sin_roll + vx * cos_roll) >> 16;
-            vy = (vy * cos_roll - vx * sin_roll) >> 16;
-            vx = tmp;
-        }
-        if( pitch != 0 )
-        {
-            tmp = (vy * cos_pitch - vz * sin_pitch) >> 16;
-            vz = (vy * sin_pitch + vz * cos_pitch) >> 16;
-            vy = tmp;
-        }
-        if( yaw != 0 )
-        {
-            tmp = (vz * sin_yaw + vx * cos_yaw) >> 16;
-            vz = (vz * cos_yaw - vx * sin_yaw) >> 16;
-            vx = tmp;
-        }
-
-        /* A vertex behind the near plane is dropped rather than clamped: the
-         * hull of what IS on screen is a smaller mark, while a clamped one is
-         * a wrong mark. */
-        if( !app_world_project_at(
-                app, ox + (int)vx, oz + (int)vz, oy + (int)vy, &screen_x, &screen_y) )
-            continue;
-
-        for( int d = 0; d < DIRECTIONS; d++ )
-        {
-            /* 64-bit: screen coordinates run to six figures once a model is
-             * close to the camera, and a 16.16 direction multiplies that past
-             * 2^32. A wrapped dot product picks the wrong vertex and the
-             * outline folds through itself. */
-            long long const dot =
-                (long long)screen_x * cos_dir[d] + (long long)screen_y * sin_dir[d];
-            int const hi = d * 2;
-            int const lo = d * 2 + 1;
-
-            if( !extreme_seen[hi] || dot > extreme[hi] )
-            {
-                extreme_seen[hi] = 1;
-                extreme[hi] = dot;
-                extreme_x[hi] = screen_x;
-                extreme_y[hi] = screen_y;
-            }
-            if( !extreme_seen[lo] || dot < extreme[lo] )
-            {
-                extreme_seen[lo] = 1;
-                extreme[lo] = dot;
-                extreme_x[lo] = screen_x;
-                extreme_y[lo] = screen_y;
-            }
-        }
-    }
-
-    /* Distinct points only. One vertex is the extreme in many directions at
-     * once — on a small model, in nearly all of them — and repeated points
-     * make the scan's collinear tie-break decide a turn between two copies of
-     * the same coordinate. */
-    for( int i = 0; i < CANDIDATES; i++ )
-    {
-        int duplicate = 0;
-
-        if( !extreme_seen[i] )
-            continue;
-        for( int j = 0; j < count; j++ )
-        {
-            if( px[j] == extreme_x[i] && py[j] == extreme_y[i] )
-            {
-                duplicate = 1;
-                break;
-            }
-        }
-        if( duplicate )
-            continue;
-        px[count] = extreme_x[i];
-        py[count] = extreme_y[i];
-        count++;
-    }
-
-    if( count < 2 )
-        return 0;
-
-    hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
-    return app_overlay_push_polygon_styled(
-        app, hull_x, hull_y, hull_size, color, fill_trans, color, outline_width, item_budget);
+    return app_overlay_outline_element_mesh_styled(app,element_id,color,fill_trans,
+        outline_width,true,item_budget);
 }
 
 /* The mark the hover footprint and the editor selection both draw: the
@@ -6955,6 +6759,10 @@ app_ui_host_publish_inputs(struct App* app)
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
         signature[UITREE_HOST_INPUT_POINTER] =
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->first_row);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->visible_rows);
         signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
         signature[UITREE_HOST_INPUT_POINTER] =
@@ -15826,7 +15634,7 @@ App_MinimenuRowCenter(
     prefix_len = strlen(prefix);
     for( int i = 0; i < menu->option_count; i++ )
     {
-        if( strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
+        if( !UIMinimenu_OptionVisible(menu,i) || strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
             continue;
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, i);
@@ -16410,6 +16218,8 @@ void
 App_NetSessionReset(struct App* app)
 {
     assert(app);
+    app->delayed_stat_count = 0;
+    app->delayed_stat_until = 0;
     RS_EntitySync_Clear(&app->esync, app->world);
     /* The reference's game-state reset puts both Attack options back to their
      * boot value rather than recomputing them from the varp table it is about
@@ -17362,6 +17172,15 @@ app_logic_tick(struct App* app)
                 }
             }
         }
+    }
+
+    if( app->delayed_stat_count > 0 )
+    {
+        struct RS_GameProtoCtx delayed_ctx = {
+            .tree = app->tree, .invs = &app->invs, .varps = &app->varps,
+            .stats = &app->stats, .chat = &app->chat, .app = app,
+        };
+        RS_GameProto_FlushDelayedStats(&delayed_ctx);
     }
 
     /* Zone sub-packets queued during an async world load drain here once the
@@ -24695,7 +24514,7 @@ app_spawn_task_new(
  * nothing moved -- which matters, because the natural way to write a plugin is
  * to restate the whole intent every tick.
  */
-static void
+static bool
 app_plugin_object_sync(struct App* app, int handle)
 {
     struct AppPluginObject* obj = app_plugin_object_at(app, handle);
@@ -24705,7 +24524,7 @@ app_plugin_object_sync(struct App* app, int handle)
 
     assert(app);
     if( !obj )
-        return;
+        return false;
 
     /* A change to what the MODEL is made of cannot be applied in place. */
     if( obj->element_id >= 0 &&
@@ -24716,7 +24535,7 @@ app_plugin_object_sync(struct App* app, int handle)
 
     /* Nothing to draw yet, or nothing to draw at all. */
     if( obj->model_id < 0 || !app->world )
-        return;
+        return false;
 
     if( !app_plugin_object_scene_pos(app, obj, &world_x, &world_z, &world_y) )
     {
@@ -24724,13 +24543,13 @@ app_plugin_object_sync(struct App* app, int handle)
          * still meaningful and the object comes back when the scene does. */
         if( obj->element_id >= 0 )
             app_plugin_object_teardown(app, obj);
-        return;
+        return false;
     }
 
     if( obj->element_id < 0 )
     {
         if( obj->load_pending )
-            return;
+            return false;
         /* One task per object per attempt. Without the latch a plugin polling
          * an object whose model is still loading would queue a task every
          * frame, and the exec pipeline is serial. */
@@ -24739,7 +24558,7 @@ app_plugin_object_sync(struct App* app, int handle)
             app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
         task->plugin_object = handle;
         ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
-        return;
+        return false;
     }
 
     /* Live: position, orientation, level and visibility are applied in place. */
@@ -24760,6 +24579,7 @@ app_plugin_object_sync(struct App* app, int handle)
         World_PluginObjectSetActive(app->world, obj->world_index, obj->active != 0);
     }
     app->need_redraw = 1;
+    return true;
 }
 
 /*
@@ -25180,6 +25000,9 @@ App_DrawComplete(
     int* pixels;
 
     assert(app);
+    /* Exactly one fresh presentation on every renderer. Readback/fallback and
+     * diagnostic BMP renders do not change the screen's frame-rate counter. */
+    app->frames_rendered++;
 
     /*
      * Nobody waiting, nothing to do -- and this test comes FIRST, before the
@@ -25658,13 +25481,19 @@ app_plugin_object_set_position(
         return;
     if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->level == level &&
         obj->height == height && obj->yaw == yaw )
+    {
+        if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+            TORIRS_PLUGIN_MUTATION_INSTANCE,false,false);
         return;
+    }
     obj->tile_x = tile_x;
     obj->tile_z = tile_z;
     obj->level = level;
     obj->height = height;
     obj->yaw = yaw;
-    app_plugin_object_sync(app, handle);
+    bool const redraw = app_plugin_object_sync(app, handle);
+    if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+        TORIRS_PLUGIN_MUTATION_INSTANCE,true,redraw);
 }
 
 static void
@@ -25678,9 +25507,15 @@ app_plugin_object_set_active(void* user, int handle, int active)
     if( !obj )
         return;
     if( obj->active == (active != 0) )
+    {
+        if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+            TORIRS_PLUGIN_MUTATION_INSTANCE,false,false);
         return;
+    }
     obj->active = active != 0;
-    app_plugin_object_sync(app, handle);
+    bool const redraw = app_plugin_object_sync(app, handle);
+    if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+        TORIRS_PLUGIN_MUTATION_INSTANCE,true,redraw);
 }
 
 static int
@@ -34315,6 +34150,9 @@ App_WorldObjStackSetOwnership(
     assert(app);
     assert(idx >= 0);
     world = App_ActiveWorldview(app)->world;
+    if( getenv("TORIRS_GROUND_ITEMS_DEBUG") )
+        TORIRS_REPORT("GROUND_STACK_OWNERSHIP index=%d public_ticks=%d despawn_ticks=%d clock=%d\n",
+            idx, public_ticks, despawn_ticks, now);
     World_ObjStackSetOwnership(
         world,
         idx,
@@ -35607,8 +35445,6 @@ App_Render(
     assert(app);
     assert(pixels);
     assert(app->soft);
-
-    app->frames_rendered++;
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {

@@ -810,6 +810,10 @@ struct FrameState
     /* Whether the SIDEBAR was open when the plan was made; the resizable
      * layout has a collapsed state and re-plans when the live answer moves. */
     bool sidebar_open;
+    /* Member identity can change while the chat parent stays bound. Observe
+     * that set separately so a missing native filter retires its owned switch. */
+    struct ToriRS_WidgetRef chat_members[FRAME_MEMBER_MAX];
+    size_t chat_member_count;
     /** A 1x1 transparent picture: the stone a 2004 tab wears when it is not
      *  pressed, and the face of the owned chat switches. */
     struct ToriRS_ImageRef blank;
@@ -3777,9 +3781,34 @@ frame_image_request(struct ToriRS_Api* api, struct FrameState* state, int image)
 static void
 frame_role_changed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
-    (void)user;
+    struct FrameState* state = user;
     assert(api);
+    assert(state);
     assert(event);
+    if( event->type == TORIRS_WIDGET_TREE_CHANGED )
+    {
+        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX] = { 0 };
+        size_t count = 0;
+        enum ToriRS_ContractResult const result = api->widgets.find_all(
+            api->widgets.context, "chat_buttons", members, FRAME_MEMBER_MAX, &count);
+        if( result == TORIRS_CONTRACT_UNAVAILABLE )
+            count = 0;
+        else if( result != TORIRS_CONTRACT_OK && result != TORIRS_CONTRACT_BUDGET_EXCEEDED )
+        {
+            assert(!"chat member lookup contract failed");
+            return;
+        }
+        if( count > FRAME_MEMBER_MAX )
+            count = FRAME_MEMBER_MAX;
+        if( count == state->chat_member_count &&
+            memcmp(members, state->chat_members, sizeof(members)) == 0 )
+            return;
+        api->core.log(api, "FRAME_CHAT_MEMBERS previous=%zu count=%zu", state->chat_member_count, count);
+        memcpy(state->chat_members, members, sizeof(members));
+        state->chat_member_count = count;
+        api->frame.invalidate(api);
+        return;
+    }
     if( event->type == TORIRS_WIDGET_BOUND || event->type == TORIRS_WIDGET_UNBOUND )
         api->frame.invalidate(api);
 }
@@ -3802,6 +3831,7 @@ frame_on_start(struct ToriRS_Api* api, void* state_ptr)
     (void)api->assets.image_compose(api, "frame_blank.png", 1, 1, &clear, &state->blank);
     for( size_t i = 0; i < sizeof(WATCHED) / sizeof(WATCHED[0]); i++ )
         (void)api->widgets.watch(api->widgets.context, WATCHED[i], frame_role_changed, state);
+    (void)api->widgets.watch_tree(api->widgets.context, frame_role_changed, state);
 }
 
 /*

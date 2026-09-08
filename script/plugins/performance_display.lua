@@ -84,6 +84,7 @@ local FRAME_WINDOW = 10
 local sample_started_ms = nil
 local sample_frames = 0
 local sample_drawn_at_start = 0
+local last_work_drawn = nil
 local sampled_fps = 0
 local sampled_memory = 0
 
@@ -266,13 +267,16 @@ end
 function plugin.on_config_changed(api) layout_labels(api) end
 
 function plugin.on_frame_start(api, ev)
-    -- 0 means the host measured no frame -- a headless run reports nothing, and
-    -- so does the first frame. Recording it would drag the mean toward a work
-    -- time no frame took.
+    -- The work sample and drawn count both describe the preceding iteration.
+    -- A draw cap leaves logic-only iterations between presentations; including
+    -- their cheap work would dilute "Frame" and inflate "Effective FPS".
+    -- The first callback has no preceding observation to pair, and zero means
+    -- unmeasured (as in a headless harness), so neither becomes a sample.
     local work_us = api.core.frame_work_us()
-    if work_us > 0 then
+    if last_work_drawn and ev.drawn_frames > last_work_drawn and work_us > 0 then
         recent_push(work_us)
     end
+    last_work_drawn = ev.drawn_frames
 
     if not sample_started_ms then
         sample_started_ms = ev.now_ms
@@ -305,6 +309,7 @@ function plugin.on_stop(api)
     labels = {}
     surface = nil
     sample_started_ms = nil
+    last_work_drawn = nil
     sample_frames = 0
     sampled_fps = 0
     sampled_memory = 0

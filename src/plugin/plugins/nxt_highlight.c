@@ -87,8 +87,8 @@ nxt_highlight_draw(
     /* This optional graphics tail keeps the existing major-3 entrypoints and
      * their offsets intact. An older host cannot represent a fill-only group
      * or the cache's requested thickness through those older entrypoints. */
-    if( draw->struct_size < TORIRS_GRAPHICS_STROKE_SIZE ||
-        !draw->world_tile_stroke || !draw->world_hull_stroke )
+    if( draw->struct_size < TORIRS_GRAPHICS_STYLE_SIZE ||
+        !draw->world_tile_stroke || !draw->world_hull_styled )
         return;
 
     for( ;; )
@@ -117,13 +117,14 @@ nxt_highlight_draw(
          * carry the model bits and still resolve to a bare tile.
          */
         if( item.element_id >= 0 && (model_outline || model_fill) )
-            (void)draw->world_hull_stroke(
+            (void)draw->world_hull_styled(
                 draw,
                 item.element_id,
                 item.rgb,
                 model_fill ? item.opacity : 0,
                 TORIRS_HULL_MESH,
-                model_outline ? item.outline_width : 0);
+                model_outline ? item.outline_width : 0,
+                item.flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP);
 
         if( tile_outline || tile_fill )
         {

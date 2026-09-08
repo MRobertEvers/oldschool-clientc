@@ -174,6 +174,10 @@ struct UIMinimenu
     int width;
     int height;
     int hovered_option; /* -1 = none */
+    /** Visible row window, counted from the highest-priority (last) option. */
+    int first_row, visible_rows, scrollbar_w;
+    bool scroll_dragging;
+    int scroll_drag_y, scroll_drag_row;
     /** Cache font id used for measuring and drawing rows (bold-12). */
     int font_id;
     struct UIMinimenuLayout layout;
@@ -306,6 +310,15 @@ UIMinimenu_ShowAt(
 /** >= 0 option row; -1 inside chrome / margin; -2 outside (close). */
 int
 UIMinimenu_HitOption(struct UIMinimenu const* menu, int click_x, int click_y);
+
+/** A row must be in the visible window to paint or accept a click. */
+bool UIMinimenu_OptionVisible(struct UIMinimenu const* menu, int option_index);
+/** Scroll towards lower-priority rows for positive delta; clamps to endpoints. */
+bool UIMinimenu_Scroll(struct UIMinimenu* menu, int rows);
+struct UIMinimenuScrollbar { int x, y, w, h, arrow_h, thumb_y, thumb_h; };
+bool UIMinimenu_Scrollbar(struct UIMinimenu const* menu, struct UIMinimenuScrollbar* out);
+/** Own scrollbar presses/held drags/releases without selecting an option. */
+bool UIMinimenu_ScrollbarInput(struct UIMinimenu* menu, int x, int y, bool pressed, bool held);
 
 /** Returns true when the hovered row changed. */
 bool

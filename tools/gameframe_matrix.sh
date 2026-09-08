@@ -147,6 +147,12 @@ fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
 [[ ! -e "$OUT/index.txt" ]] || { echo "capture index already exists: $OUT/index.txt" >&2; exit 2; }
 : > "$OUT/index.txt"
+if [[ -n "${GF_MATRIX_PLUGIN_PREFS:-}" ]]; then
+  # Copy a real preference file so shipped values and malformed-file recovery
+  # are testable without the matrix replacing the state under investigation.
+  [[ -f "$GF_MATRIX_PLUGIN_PREFS" ]] || { echo "plugin preferences missing: $GF_MATRIX_PLUGIN_PREFS" >&2; exit 2; }
+  cp "$GF_MATRIX_PLUGIN_PREFS" "$OUT/plugin_prefs.ini"
+else
 cat > "$OUT/plugin_prefs.ini" <<EOF
 [plugin:gameframe-layout]
 enabled=1
@@ -162,6 +168,7 @@ show_spec=1
 [plugin:xp-drop-orbs]
 enabled=1
 EOF
+fi
 
 one() {
   local tag=$1 mode=$2 size=$3 frame=$4 mobile=$5

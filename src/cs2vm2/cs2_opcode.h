@@ -353,12 +353,12 @@
  * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
  */
 #define CS2_OP_OVERLAY_FIND 202
-/* OVERLAY_CC_FIND — Find a dynamic child inside a scripted entity overlay layer.
- * int stack in:   overlay, sub                    (sub = top)
+/* OVERLAY_CC_FIND — Make a scripted entity overlay layer the active component.
+ * int stack in:   overlay
  * str stack in:   -
  * int stack out:  1 if found (active set) else 0
  * str stack out:  -
- * notes: Opcode 203; completes the reference overlay-layer family.
+ * notes: Rev-239 script 6695 creates an empty overlay, stores its returned handle, then pushes only that handle before opcode 203. It selects the root before any child exists, so a second subid argument underflows the native script.
  */
 #define CS2_OP_OVERLAY_CC_FIND 203
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204

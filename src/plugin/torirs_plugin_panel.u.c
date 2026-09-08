@@ -1096,12 +1096,22 @@ app_plugin_panel_patch_row(
                     model, options, TORIRS_CHROME_SELECT_OPTIONS_MAX);
                 if( count < 0 )
                     return 0;
+                int const before_count = app->plugin_ui.widgets[row->widget].option_count;
+                int const before_open = app->plugin_ui.dropdown_open;
+                int const panel = app->plugin_ui.widgets[row->widget].panel;
+                int const before_scroll = app->plugin_ui.panels[panel].scroll_y;
                 ToriRSChrome_DropdownSetStructuredOptions(
                     &app->plugin_ui,
                     row->widget,
                     options,
                     count,
                     model->selected_value);
+                if( getenv("TORIRS_TRACE_PANEL_RETAINED") )
+                    fprintf(stderr,
+                        "PANEL_RETAINED id=%s serial=%u count=%d->%d open=%d->%d scroll=%d->%d\n",
+                        model->id, row->widget_serial, before_count, count,
+                        before_open, app->plugin_ui.dropdown_open, before_scroll,
+                        app->plugin_ui.panels[panel].scroll_y);
             }
             else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
                 ToriRSChrome_DropdownSetSelected(
@@ -1779,6 +1789,52 @@ app_plugin_panel_model_for_row(
     return NULL;
 }
 
+/** Resolve the custom allocation from the presenter before either input or
+ * paint. The whole panel width is not the custom content width. */
+static int
+app_plugin_panel_custom_size(
+    struct App* app, struct AppPluginPanelRow const* row, int* width, int* height)
+{
+    struct ToriRSChromeRect region;
+    assert(app);
+    assert(row);
+    assert(width);
+    assert(height);
+    int const scale = ToriRSChrome_Scale(&app->plugin_ui) > 0
+        ? ToriRSChrome_Scale(&app->plugin_ui) : 1;
+    *width = 0;
+    *height = 0;
+    if( app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
+    {
+        struct ToriRS_PanelWidget const* model = app_plugin_panel_model_for_row(app, row);
+        if( !app->plugin_rail_has_layout || !app->plugin_rail_layout.visible ||
+            app->plugin_rail_layout.selection_generation != app->plugin_shell.selection_generation ||
+            app->plugin_rail_layout.page_generation != app->plugin_panel_built_generation ||
+            !model || model->kind != TORIRS_PANEL_WIDGET_CUSTOM )
+            return 0;
+        *width = app->plugin_rail_layout.custom_width;
+        *height = model->preferred_height;
+        if( *width <= 0 )
+        {
+            /* Older cached presenters omit customWidth. Share exactly the
+             * same fallback with paint until their measured width arrives. */
+            if( ToriRSChrome_CustomRegion(&app->plugin_ui, row->widget, &region, NULL) )
+                *width = (region.w + scale - 1) / scale;
+            else
+                *width = app->plugin_rail_layout.width > TORIRS_PANEL_WIDTH_MAX
+                    ? TORIRS_PANEL_WIDTH_MAX : app->plugin_rail_layout.width;
+        }
+    }
+    else
+    {
+        if( !ToriRSChrome_CustomRegion(&app->plugin_ui, row->widget, &region, NULL) )
+            return 0;
+        *width = (region.w + scale - 1) / scale;
+        *height = (region.h + scale - 1) / scale;
+    }
+    return *width > 0 && *height > 0;
+}
+
 /** Dispatch one copied semantic intent through all three identity fences. */
 static int
 app_plugin_panel_dispatch_row(
@@ -1791,14 +1847,19 @@ app_plugin_panel_dispatch_row(
     int y)
 {
     uint64_t sequence;
+    int region_width = 0;
+    int region_height = 0;
 
     if( !app || !app->plugins || !row ||
         app->plugin_panel_built_generation == 0 || row->widget_serial == 0 )
         return 0;
+    if( row->widget_kind == TORIRS_PANEL_WIDGET_CUSTOM &&
+        !app_plugin_panel_custom_size(app, row, &region_width, &region_height) )
+        return 0;
     sequence = ++app->plugin_panel_intent_sequence;
     if( sequence == 0 )
         sequence = ++app->plugin_panel_intent_sequence;
-    return PluginHost_PanelDispatch(
+    return PluginHost_PanelDispatchRegion(
         app->plugins,
         app->plugin_panel_built_generation,
         row->widget_serial,
@@ -1808,7 +1869,9 @@ app_plugin_panel_dispatch_row(
         value,
         text,
         x,
-        y);
+        y,
+        region_width,
+        region_height);
 }
 
 /**
@@ -3337,42 +3400,7 @@ app_plugin_panel_draw_custom(struct App* app)
         external = app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER;
         if( external )
         {
-            struct ToriRS_PanelWidget const* model =
-                PluginHost_PanelWidgetAt(
-                    app->plugins, generation, row->model_index);
-
-            if( !app->plugin_rail_has_layout || !app->plugin_rail_layout.visible ||
-                app->plugin_rail_layout.selection_generation !=
-                    app->plugin_shell.selection_generation ||
-                app->plugin_rail_layout.page_generation != generation || !model ||
-                model->kind != TORIRS_PANEL_WIDGET_CUSTOM ||
-                model->serial != row->widget_serial )
-                continue;
-            logical_w = app->plugin_rail_layout.custom_width;
-            logical_h = model->preferred_height;
-            if( logical_w <= 0 )
-            {
-                struct ToriRSChromeRect fallback_region;
-                int const fallback_scale =
-                    ToriRSChrome_Scale(&app->plugin_ui) > 0
-                        ? ToriRSChrome_Scale(&app->plugin_ui)
-                        : 1;
-
-                /* Additive wire compatibility: an older cached page does not
-                 * send customWidth. Prefer the hidden model's already-resolved
-                 * content width when it has one; otherwise use the bounded
-                 * pane allocation rather than leave the custom page blank.
-                 * A later measured width changes the region and redraws it. */
-                if( ToriRSChrome_CustomRegion(
-                        &app->plugin_ui, row->widget, &fallback_region, NULL) )
-                    logical_w =
-                        (fallback_region.w + fallback_scale - 1) / fallback_scale;
-                else
-                    logical_w = app->plugin_rail_layout.width > TORIRS_PANEL_WIDTH_MAX
-                                    ? TORIRS_PANEL_WIDTH_MAX
-                                    : app->plugin_rail_layout.width;
-            }
-            if( logical_w <= 0 || logical_h <= 0 )
+            if( !app_plugin_panel_custom_size(app, row, &logical_w, &logical_h) )
                 continue;
             region = (struct ToriRSChromeRect){ 0, 0, logical_w, logical_h };
             clip = region;
@@ -3412,8 +3440,8 @@ app_plugin_panel_draw_custom(struct App* app)
             /* The exact physical region remains the clip. Rounding the logical
              * callback box up lets IF3 cover an odd-sized final column/row;
              * the region clip trims the at-most-(scale-1) excess pixels. */
-            logical_w = (region.w + scale - 1) / scale;
-            logical_h = (region.h + scale - 1) / scale;
+            if( !app_plugin_panel_custom_size(app, row, &logical_w, &logical_h) )
+                continue;
         }
 
         layout_changes = ToriRSChromePanelDraw_Changes(
@@ -3930,12 +3958,25 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
                  * the row does not offer, a stale serial); the plugin never
                  * saw it. Said as such, not as a missing row. The literal
                  * value "!activate" presses a button or action row instead of
-                 * picking, through the same dispatch. */
-                dispatched = strcmp(sim_pick_value, "!activate") == 0
-                    ? app_plugin_panel_dispatch_row(
-                          app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
-                    : app_plugin_panel_dispatch_row(
-                          app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
+                 * picking. "!open" opens a real retained dropdown so a later
+                 * option-count mutation can prove that interaction survives. */
+                if( strcmp(sim_pick_value, "!open") == 0 &&
+                    row->widget_kind == TORIRS_PANEL_WIDGET_DROPDOWN )
+                {
+                    struct ToriRSChromeWidget const* widget = &app->plugin_ui.widgets[row->widget];
+                    int const x = widget->x + widget->w - 6;
+                    int const y = widget->y + widget->h / 2;
+                    ToriRSChrome_MouseMove(&app->plugin_ui, x, y);
+                    ToriRSChrome_MouseDown(&app->plugin_ui, x, y);
+                    ToriRSChrome_MouseUp(&app->plugin_ui, x, y);
+                    dispatched = app->plugin_ui.dropdown_open == row->widget;
+                }
+                else
+                    dispatched = strcmp(sim_pick_value, "!activate") == 0
+                        ? app_plugin_panel_dispatch_row(
+                              app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
+                        : app_plugin_panel_dispatch_row(
+                              app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
                 fprintf(stderr, "chrome: sim pick '%s' %s = '%s' (option %d) -> %s (tick %d)\n",
                     sim_pick_plugin, sim_pick_widget, sim_pick_value, value,
                     dispatched ? "dispatched" : "refused by the host fence", g_plugin_panel_ticks);

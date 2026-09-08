@@ -98,5 +98,19 @@ return {id='entity-behavior',on_start=function(host)
     added={};product.on_menu_build(api,menu)
     assert(#added==1 and added[1].text=='Tag @yel@Man',
         'a touch client reaches Tag without a key it does not have')
+
+    local crowded={hover_pass=false,rows={}}
+    api.world.npc_by_slot=function(slot)
+        return {slot=slot,base_npc_id=20000+slot,name='Crowd '..slot,element_id=slot}
+    end
+    for slot=1,25 do crowded.rows[slot]={npc_slot=slot} end
+    added={};product.on_menu_build(api,crowded)
+    assert(#added==25 and added[25].text=='Tag @yel@Crowd 25',
+        'every distinct native target remains actionable beyond both old menu limits')
+    product.on_menu_select(api,{owned=true,tag=added[25].tag})
+    assert(api.config.tags:find('20025',1,true), 'the final crowded-menu action tags its intended species')
+    capabilities.touch=false
+    added={};product.on_menu_build(api,crowded)
+    assert(#added==0, 'a crowded menu still obeys the desktop modifier gate')
     host.core.log('entity behavior passed')
 end}

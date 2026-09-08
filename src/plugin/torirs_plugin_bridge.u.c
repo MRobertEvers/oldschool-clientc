@@ -27,6 +27,8 @@
  */
 _Static_assert(UITREE_SCENE_PLUGIN_IMAGE_SLOTS >= TORIRS_PLUGIN_IMAGES_MAX,
     "scene image slots cover the host's shared image table");
+_Static_assert(TORIRS_PLUGIN_MENU_ROWS_MAX == UITREE_MINIMENU_MAX_OPTIONS,
+    "plugins receive the complete native menu");
 
 static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
 static int
@@ -249,6 +251,47 @@ app_plugin_fill_npc(
     app_plugin_fill_npc_for_world(app, app->world, npc, out);
 }
 
+/* Diagnostic plugin-observation delay, not a network/cache-loader stall. The
+ * world and native models keep progressing while both plugin item queries
+ * consistently report one definition as pending. Time starts at its first
+ * plugin observation; an unrelated earlier item cannot consume the delay. */
+static bool app_plugin_item_info_delayed(struct App* app, int obj_id)
+{
+    static bool parsed, started, released;
+    static int delayed_id = -1;
+    static unsigned long long delay_cycles;
+    static uint64_t first_cycle;
+    assert(app);
+    if( !parsed )
+    {
+        char const* spec = getenv("TORIRS_SIM_ITEM_INFO_DELAY");
+        parsed = true;
+        if( spec )
+        {
+            char extra;
+            if( sscanf(spec,"%d,%llu%c",&delayed_id,&delay_cycles,&extra)!=2 ||
+                delayed_id<0 || delay_cycles<1 || delay_cycles>10000000 )
+            {
+                delayed_id = -1;
+                TORIRS_REPORT("SIM_ITEM_INFO_DELAY invalid; expected item_id,logic_cycles\n");
+            }
+        }
+    }
+    if( obj_id!=delayed_id || released ) return false;
+    if( !started )
+    {
+        started = true;
+        first_cycle = app->logic_cycle;
+        TORIRS_REPORT("SIM_ITEM_INFO_DELAY pending item=%d first_cycle=%llu duration=%llu mode=plugin_observation\n",
+            obj_id,(unsigned long long)first_cycle,delay_cycles);
+    }
+    if( app->logic_cycle-first_cycle < delay_cycles ) return true;
+    released = true;
+    TORIRS_REPORT("SIM_ITEM_INFO_DELAY released item=%d cycle=%llu elapsed=%llu mode=plugin_observation\n",
+        obj_id,(unsigned long long)app->logic_cycle,(unsigned long long)(app->logic_cycle-first_cycle));
+    return false;
+}
+
 static void
 app_plugin_fill_obj(
     struct App* app,
@@ -279,7 +322,8 @@ app_plugin_fill_obj(
      */
     {
         struct ToriRS_Objtype* type =
-            stack->obj_id >= 0 ? CacheProvider_ObjtypeGet(app->provider, stack->obj_id) : NULL;
+            stack->obj_id >= 0 && !app_plugin_item_info_delayed(app,stack->obj_id)
+                ? CacheProvider_ObjtypeGet(app->provider, stack->obj_id) : NULL;
         out->cost = type ? type->cost : 0;
     }
 }
@@ -2715,7 +2759,7 @@ app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
     assert(app);
     assert(out);
 
-    if( obj_id < 0 || !app->provider )
+    if( obj_id < 0 || !app->provider || app_plugin_item_info_delayed(app,obj_id) )
         return 0;
     type = CacheProvider_ObjtypeGet(app->provider, obj_id);
     if( !type )
@@ -3026,6 +3070,26 @@ app_plugin_draw_hull_stroke(void* user, int element_id, uint32_t rgb, int fill_a
         TORIRS_REPORT("PLUGIN_HULL element=%d shape=%d emitted=%d\n",
             element_id,shape,emitted);
     return emitted;
+}
+
+static int
+app_plugin_draw_hull_styled(void* user,int element_id,uint32_t rgb,int alpha,
+    int shape,int outline_width,uint32_t flags,int item_budget)
+{
+    struct App* app=user;
+    assert(app);
+    assert(shape==TORIRS_HULL_BOUNDS || shape==TORIRS_HULL_MESH);
+    assert((flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)==0);
+    if( shape==TORIRS_HULL_BOUNDS )
+    {
+        /* Bounds are a screen-space envelope, with no corresponding depth
+         * surface. Keep that explicit instead of promising false occlusion. */
+        assert(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP);
+        return app_plugin_draw_hull_stroke(user,element_id,rgb,alpha,shape,outline_width,item_budget);
+    }
+    return app_overlay_outline_element_mesh_styled(app,element_id,
+        app_plugin_overlay_argb(rgb),alpha>0?255-alpha:-1,outline_width,
+        (flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)!=0,item_budget);
 }
 
 static int
@@ -3827,18 +3891,68 @@ app_plugin_trace_find_all(
         role, count, list);
 }
 
+int
+App_PluginFixtureRoleMembers(struct App* app, char const* role, int present)
+{
+    assert(app);
+    assert(role);
+    if( strcmp(role, "chat_buttons") != 0 || (present != 0 && present != 1) )
+        return 0;
+    int const absent = !present;
+    if( app->plugin_fixture_chat_members_absent == absent )
+        return 1;
+    app->plugin_fixture_chat_members_absent = absent;
+    if( app->plugins )
+        PluginHost_WidgetBindingsInvalidate(app->plugins);
+    int native_members = 0;
+    if( app->tree )
+        for( int i = 0; i < UITREE_FRAME_SLOT_NODES_MAX; i++ )
+            if( UITree_FrameSlotMemberNode(app->tree, TORIRS_HOST_SURFACE_CHAT_BUTTONS, i) >= 0 )
+                native_members++;
+    TORIRS_REPORT("ROLE_MEMBERS_FIXTURE role=%s exposed=%d native_members=%d binding_publication=pending\n",
+        role, present, native_members);
+    return 1;
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     struct App* app = user;
+    assert(app);
+    assert(r);
     struct UITree* tree = app->tree;
+    uint32_t const dirty_before = tree ? tree->dirty_gen : 0;
+    uint32_t const topology_before = tree ? tree->generation : 0;
+    uint32_t const layout_before = tree ? tree->layout_resolve_seq : 0;
+    uint64_t const edit_before = tree ? tree->widget_edit_revision : 0;
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
     {
         UITree_WidgetResetOwner(tree, owner);
-        app->need_redraw = 1;
+        bool const redraw = tree && (tree->dirty_gen != dirty_before ||
+            tree->generation != topology_before || tree->layout_resolve_seq != layout_before);
+        if( redraw ) app->need_redraw = 1;
+        if( app->plugins ) PluginHost_RecordRetainedMutation(app->plugins,owner,
+            TORIRS_PLUGIN_MUTATION_WIDGET,redraw || (tree && tree->widget_edit_revision != edit_before),redraw);
         return TORIRS_CONTRACT_OK;
     }
     if( !tree ) return TORIRS_CONTRACT_UNAVAILABLE;
+    /* Deliberately model a missing semantic binding while retaining the
+     * actual native nodes. Both public lookup forms give the same answer;
+     * ordinary binding publication, not direct callbacks, drives consumers. */
+    if( app->plugin_fixture_chat_members_absent &&
+        (r->kind == PLUGIN_WIDGET_FIND || r->kind == PLUGIN_WIDGET_FIND_ALL) &&
+        strcmp(r->name, "chat_buttons") == 0 )
+    {
+        if( r->kind == PLUGIN_WIDGET_FIND_ALL )
+        {
+            *r->count = 0;
+            if( r->capacity )
+                memset(r->refs, 0, r->capacity * sizeof(*r->refs));
+        }
+        else
+            *r->refs = (struct ToriRS_WidgetRef){0};
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    }
     if( r->kind==PLUGIN_WIDGET_FIND_ALL && strcmp(r->name,"ground_item_labels")==0 )
     {
         /* The pinned CS2 ground-items script uses coordinate-overlay slot 0.
@@ -4034,19 +4148,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             if( !UITree_WidgetSetArt(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
         }
         else return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_SET_MASK:
         if( c->plugin_owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( c->type!=UIELEM_BUILTIN_MINIMAP && c->type!=UIELEM_BUILTIN_COMPASS && c->type!=UIELEM_BUILTIN_SPRITE )
             return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetMask(tree,ref,owner,r->id<0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_OPACITY:
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_ANCHOR:
     {
@@ -4065,7 +4176,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         case UITREE_WIDGET_ANCHOR_BUDGET: return TORIRS_CONTRACT_BUDGET_EXCEEDED;
         default: return TORIRS_CONTRACT_INVALID_ARGUMENT;
         }
-        app->need_redraw=1;
         break;
     }
     case PLUGIN_WIDGET_SET_TEXT:
@@ -4095,7 +4205,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     default: return TORIRS_CONTRACT_UNAVAILABLE;
     }
-    app->need_redraw = 1;
+    /* A successful setter may have done nothing. The tree owns the mutation
+     * publications; preserve pending redraws, but do not manufacture another
+     * from an unchanged retained value. Latent owner changes are measured
+     * separately from paint/layout changes. */
+    bool const redraw = tree->dirty_gen != dirty_before || tree->generation != topology_before ||
+        tree->layout_resolve_seq != layout_before;
+    bool const changed = redraw || tree->widget_edit_revision != edit_before;
+    if( redraw ) app->need_redraw = 1;
+    if( app->plugins ) PluginHost_RecordRetainedMutation(app->plugins,owner,
+        TORIRS_PLUGIN_MUTATION_WIDGET,changed,redraw);
     return TORIRS_CONTRACT_OK;
 }
 
@@ -4977,6 +5096,7 @@ app_plugin_engine(struct App* app)
     engine.draw_hull = app_plugin_draw_hull;
     engine.draw_tile_stroke = app_plugin_draw_tile_stroke;
     engine.draw_hull_stroke = app_plugin_draw_hull_stroke;
+    engine.draw_hull_styled = app_plugin_draw_hull_styled;
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;

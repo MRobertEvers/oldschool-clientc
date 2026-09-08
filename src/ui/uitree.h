@@ -1342,6 +1342,9 @@ struct UITree
      *  whereas under-counting reuses a stale list and freezes a panel. Anything
      *  that sets `is_dirty` must bump this in the same breath. */
     uint32_t dirty_gen;
+    /** Last actual plugin edit publication, including latent ownership changes
+     * which need no paint. Repeated winning values do not advance this stamp. */
+    uint64_t widget_edit_revision;
     /* Bounded accounting while App moves projected overlay layers. Any other
      * dirty/layout publication makes the emission shortcut ineligible. */
     uint32_t overlay_motion_dirty, overlay_motion_layout;

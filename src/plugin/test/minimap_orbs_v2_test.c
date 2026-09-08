@@ -316,6 +316,21 @@ int main(void)
         widgets[run].op(&api, widgets[run].op_user, &press);
         CHECK(notifies == n + 1 && strstr(last_log, "via=none") && strstr(last_notify, "Toggle Run"));
         invoke_result = TORIRS_CONTRACT_OK;
+        /* The original readiness gap was run-OFF with no compatibility alias.
+         * A display-hidden native action must remove the cover's verb before
+         * any attempted press; merely returning an error on press is too late. */
+        run_mode = 1;
+        button_hidden[1] = 1;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(widgets[run].op == NULL && widgets[run].op_label[0] == 0);
+        int const blocked_invocations = invoked_actions;
+        button_hidden[1] = 0;
+        TORIRS_PLUGIN_MINIMAP_ORBS.callbacks.on_frame_start(&api, state, NULL);
+        CHECK(widgets[run].op != NULL && !strcmp(widgets[run].op_label, "Toggle Run"));
+        invoked_component = -1;
+        widgets[run].op(&api, widgets[run].op_user, &press);
+        CHECK(invoked_actions == blocked_invocations + 1 && invoked_component == -1);
+        run_mode = 0;
         /* The special-attack button appears (a special weapon): the orb arms
          * and the disc goes live on the same frame path. */
         button_hidden[2] = 0;

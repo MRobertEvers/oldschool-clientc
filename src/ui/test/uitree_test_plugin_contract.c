@@ -288,6 +288,15 @@ void test_live_widget_geometry(void)
                 "widget geometry reaches native layout including zero");
     TEST_ASSERT(tree->components[node].position.x == 10 && tree->components[node].position.width == 30,
                 "widget edits do not overwrite native inputs");
+    uint32_t const quiet_dirty=tree->dirty_gen;
+    uint64_t const quiet_edits=tree->widget_edit_revision;
+    for( int frame=0; frame<100; ++frame )
+    {
+        UITree_WidgetSetPosition(tree,ref,10,80,90);
+        UITree_WidgetSetSize(tree,ref,20,0,50);
+    }
+    TEST_ASSERT(tree->dirty_gen==quiet_dirty && tree->widget_edit_revision==quiet_edits,
+                "repeated winning geometry stays idle without serial or dirty churn");
     UITree_SetPositionAt(tree, node, 11, 22);
     UITree_SetSizeAt(tree, node, 44, 55);
     UITree_EnsureLayout(tree);
@@ -296,6 +305,12 @@ void test_live_widget_geometry(void)
     UITree_WidgetSetPosition(tree, ref, 20, 100, 110);
     UITree_EnsureLayout(tree);
     TEST_ASSERT(tree->components[node].position.abs_x == 100, "last widget setter wins");
+    UITree_WidgetSetPosition(tree,ref,10,80,90);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(tree->components[node].position.abs_x==80,
+                "repeating a latent owner value reclaims its last-writer precedence");
+    UITree_WidgetSetPosition(tree,ref,20,100,110);
+    UITree_EnsureLayout(tree);
     UITree_WidgetReset(tree, ref, 20);
     UITree_EnsureLayout(tree);
     TEST_ASSERT(tree->components[node].position.abs_x == 80 && tree->components[node].position.abs_w == 44,

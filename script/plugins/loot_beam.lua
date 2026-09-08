@@ -225,21 +225,13 @@ local dirty         = true
 -- moves.
 local live          = 0
 
--- Re-pricing a floor the snapshot could not price.
---
--- ObjStack.cost is a provider HIT only -- app_plugin_fill_obj takes the
--- objtype the stack's model was built from and does NOT queue a load for one
--- that is not resident, because a snapshot must not start IO. A drop sampled
--- while its type is still loading is therefore worth 0, clears no threshold,
--- and nothing that fires afterwards says "the type landed": the beam a user
--- was promised never appears. So an unpriced stack schedules another look,
--- half a second apart and a bounded number of times -- long enough for a
--- config-group fetch, short enough that a stack whose cache cost really is
--- zero does not cost a walk of the ground list for the rest of the session.
+-- A zero snapshot cost can mean a resident valueless item or a pending
+-- definition. game.item_info answers that distinction. Poll only the pending
+-- ids, at a bounded cadence, until they become resident or leave the floor.
+-- There is no arbitrary deadline after which a late definition is forgotten.
 local REPRICE_TICKS = 25
-local REPRICE_TRIES = 10
-local reprice_in    = 0
-local reprice_left  = 0
+local reprice_in = 0
+local pending_types = {}
 
 -- The last yaw asked for, so a spin slow enough to land on the same one over
 -- several frames restates nothing -- see on_frame_start.
@@ -369,13 +361,18 @@ local function rebuild(api)
     local style = style_of(api)
     local want = {}
     local tally = 0
-    -- Set by a stack this walk could not price; see REPRICE_TICKS.
-    local blind = false
+    local checked_types = {}
+    pending_types = {}
 
     for obj in items(api) do
         local value = value_of(api, obj)
         tally = tally + 1
-        if obj.cost == 0 and not prices[obj.obj_id] then blind = true end
+        if api.config.tier ~= "off" and obj.cost == 0 and not prices[obj.obj_id] and
+                checked_types[obj.obj_id] == nil then
+            local ready = api.game.item_info(obj.obj_id) ~= nil
+            checked_types[obj.obj_id] = ready
+            if not ready then pending_types[obj.obj_id] = true end
+        end
         local rgb = tier_colour(api, value)
         if rgb then
             -- One beam per TILE, coloured by the best thing on it: a tile with
@@ -441,7 +438,7 @@ local function rebuild(api)
     -- Every beam was just placed at its resting yaw, so the next frame states
     -- the turn again whatever it was doing before.
     spin_turn = nil
-    reprice_in = (blind and reprice_left > 0) and REPRICE_TICKS or 0
+    reprice_in = next(pending_types) and REPRICE_TICKS or 0
 end
 
 local function clear(api)
@@ -455,7 +452,7 @@ end
 
 function plugin.on_start(api)
     beams, models, prices, dirty, live = {}, {}, {}, true, 0
-    reprice_in, reprice_left, spin_turn, style_warned = 0, REPRICE_TRIES, nil, nil
+    reprice_in, pending_types, spin_turn, style_warned = 0, {}, nil, nil
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)
@@ -465,6 +462,7 @@ function plugin.on_stop(api)
     -- The model files go with the plugin; the host releases them when it stops
     -- one, for the same reason it takes its objects out of the world.
     clear(api)
+    pending_types, reprice_in = {}, 0
 end
 
 function plugin.on_asset(api, ev)
@@ -485,13 +483,10 @@ end
 -- Every edge that can change what should be lit. They only mark, because a
 -- zone update can carry a dozen OBJ_ADDs and rebuilding on each would walk
 -- the whole ground-item list a dozen times for one visible result.
--- A stack that arrived, changed or left is also a fresh chance to price one,
--- so the retry budget is restored here -- at the edge that means the floor is
--- different -- and never inside rebuild, where a floor that never changes
--- would keep handing itself a new budget forever.
+-- Rebuilding refreshes the pending-id set too, so departed stacks leave no
+-- periodic readiness queries behind.
 local function items_changed()
     dirty = true
-    reprice_left = REPRICE_TRIES
 end
 
 function plugin.on_item_spawn() items_changed() end
@@ -514,7 +509,6 @@ function plugin.on_world_loaded(api, ev)
     -- are geometry, and nothing about a scene rebuild changes their shape.
     clear(api)
     dirty = true
-    reprice_left = REPRICE_TRIES
 end
 
 -- on_logic_tick and not on_server_tick: the tick fence (PKT_NAME_SERVER_TICK_END)
@@ -530,8 +524,10 @@ function plugin.on_logic_tick(api, ev)
     if reprice_in > 0 then
         reprice_in = reprice_in - 1
         if reprice_in == 0 then
-            reprice_left = reprice_left - 1
-            dirty = true
+            for id in pairs(pending_types) do
+                if api.game.item_info(id) then dirty = true; break end
+            end
+            if not dirty then reprice_in = REPRICE_TICKS end
         end
     end
     if dirty then
@@ -556,9 +552,8 @@ function plugin.on_frame_start(api, ev)
     -- 2048 yaw units to a turn, `spin` degrees to a second.
     turn = (ev.now_ms * spin * 2048) // 360000
     -- Quantised, so a slow spin asks for the same yaw over several frames.
-    -- Restating a position that did not move still costs the host the redraw
-    -- it schedules for a moved object, so the frame that turns nothing does
-    -- nothing.
+    -- The host also treats an unchanged position as a no-op; avoiding the
+    -- redundant API call here keeps a stationary beam cheap in both layers.
     if turn == spin_turn then return end
     spin_turn = turn
 

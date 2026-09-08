@@ -1,7 +1,7 @@
 {
   "script_id": 7232,
   "name": "groundItemCaption",
-  "source_sha256": "eb1a2f9c94e5e7adbfb52dfe0dcb756749fbda4a62e2a4f526fc16944897e4d0",
+  "source_sha256": "d193d3287d3a4f724e8eb016939304f550f1405ccb737d269cea2eddf5da7c68",
   "trailer_fields": [
     20,
     3,
@@ -42,5 +42,11 @@
   "output_locals": [
     8,
     13
-  ]
+  ],
+  "legacy_source_sha256": "eb1a2f9c94e5e7adbfb52dfe0dcb756749fbda4a62e2a4f526fc16944897e4d0",
+  "legacy_overlay_dot_pcs": [
+    97,
+    333
+  ],
+  "empty_caption": "Suppresses the whole native row, including timer and edit-control siblings."
 }

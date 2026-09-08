@@ -1,0 +1,512 @@
+{
+  "requested_at_utc": "2026-09-08T15:39:07.175906+00:00",
+  "scope": "Every registered shipping feature plugin, including disabled-by-default and hidden Activities plugins; Lua host and bundled API examples checked separately.",
+  "release_candidate": null,
+  "requirements": [
+    "Use the final integrated candidate; retain baseline evidence at f7526e5b0.",
+    "Exercise visible normal state, configuration/control interaction, relevant adversarial state and opposite control.",
+    "Inspect original pixels at 2x; logs and pixel rules corroborate but cannot replace human visual review.",
+    "Verify isolated output and shared-roster composition where plugin coexists with other UI.",
+    "For each failing or constrained behavior, record evidence, reproduction, consequence, responsible API semantics and source references.",
+    "A capability refusal must be demonstrated and documented; never count an unreached stimulus as a pass."
+  ],
+  "plugins": [
+    {
+      "plugin": "client-settings",
+      "owner": "settings_frames",
+      "register_ids": [
+        0,
+        1,
+        2
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "feature-flags",
+      "owner": "settings_frames",
+      "register_ids": [
+        3,
+        4,
+        5
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "gameframe-layout",
+      "owner": "settings_frames",
+      "register_ids": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "mobile-gameframe",
+      "owner": "settings_frames",
+      "register_ids": [
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "minimap-orbs",
+      "owner": "settings_frames",
+      "register_ids": [
+        45,
+        46,
+        47,
+        48,
+        49
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "loot-tracker",
+      "owner": "settings_frames",
+      "register_ids": [
+        35,
+        36,
+        37,
+        38,
+        39
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "nxt-highlight",
+      "owner": "world",
+      "register_ids": [
+        68,
+        69
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "nxt-bird-nest",
+      "owner": "world",
+      "register_ids": [
+        70,
+        71
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "nxt-cannon-ammo",
+      "owner": "world",
+      "register_ids": [
+        72,
+        73
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "tile-indicator-c",
+      "owner": "world",
+      "register_ids": [
+        74,
+        75,
+        76,
+        77
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "tile-indicator-lua",
+      "owner": "world",
+      "register_ids": [
+        78,
+        79
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "entity-highlighter",
+      "owner": "world",
+      "register_ids": [
+        13,
+        14,
+        15,
+        16
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "performance-display",
+      "owner": "telemetry",
+      "register_ids": [
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "loot-beam",
+      "owner": "telemetry",
+      "register_ids": [
+        23,
+        24,
+        25,
+        26,
+        27,
+        28
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "item-stats",
+      "owner": "root",
+      "register_ids": [
+        17,
+        18
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "xp-tracker",
+      "owner": "root",
+      "register_ids": [
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "xp-drop-orbs",
+      "owner": "root",
+      "register_ids": [
+        50,
+        51,
+        52,
+        53
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "ground-items",
+      "owner": "root",
+      "register_ids": [
+        11,
+        12
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    },
+    {
+      "plugin": "screenshot",
+      "owner": "root",
+      "register_ids": [
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "status": "pending_final_candidate_visual_review",
+      "eras": {
+        "osrs239": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        },
+        "rs289lc": {
+          "status": "pending",
+          "captures": [],
+          "visual_findings": [],
+          "api_obstacles": []
+        }
+      }
+    }
+  ],
+  "infrastructure": [
+    "lua runtime and manifest loader"
+  ],
+  "examples": [
+    "widget-demo",
+    "_widgetprobe",
+    "_paneldemo",
+    "_windemo"
+  ],
+  "summary": {
+    "shipped_feature_plugins": 19,
+    "visually_verified_on_final_candidate": 0,
+    "pending": 19
+  },
+  "integration_validation": {
+    "required_tests_passed": 22,
+    "additional_tests_passed": 10,
+    "results": "/private/tmp/critic-fixes/goal-gate-c/tests-results.json",
+    "compiler_decompiler_roundtrip_checks": 37,
+    "native_hook_tests": 6,
+    "final_visual_review_complete": false
+  }
+}

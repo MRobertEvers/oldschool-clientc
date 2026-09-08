@@ -94,6 +94,8 @@ enum UITreeEntityOverlayKind
     UITREE_ENTITY_OVERLAY_POLY_BEGIN,
     UITREE_ENTITY_OVERLAY_POLY_POINT,
     UITREE_ENTITY_OVERLAY_POLY_END,
+    /** Deferred posed mesh coverage, expanded to spans by the shared frame. */
+    UITREE_ENTITY_OVERLAY_SILHOUETTE,
 };
 
 /* Long enough for a full overhead chat line (reference chatMessage); hitsplat
@@ -125,6 +127,9 @@ struct UITreeEntityOverlay
     /** LINE only: which diagonal of the box, and its thickness (0 = 1px). */
     uint8_t line_direction;
     uint8_t line_width;
+    /** SILHOUETTE: live scene element and whether foreground can cover it. */
+    int silhouette_element_id;
+    bool silhouette_always_on_top;
     /** TEXT: centred on x, baseline at y (reference centreString). */
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };

@@ -116,7 +116,19 @@ def fingerprint(script, script_id):
 
 
 def patch(data, spec):
-    if hashlib.sha256(data).hexdigest() != spec['source_sha256']:
+    source_hash = hashlib.sha256(data).hexdigest()
+    if source_hash == spec.get('legacy_source_sha256'):
+        # The old decompiler metadata discarded103's secondary-widget bit.
+        # Repair only the exact shipped bytes, and prove the result is the
+        # canonical native script before applying the callback transform.
+        legacy = decode(data)
+        for pc in spec['legacy_overlay_dot_pcs']:
+            if legacy['ops'][pc] != (103, 0):
+                raise ValueError('legacy overlay target contract changed')
+            legacy['ops'][pc] = (103, 1)
+        data = encode(legacy)
+        source_hash = hashlib.sha256(data).hexdigest()
+    if source_hash != spec['source_sha256']:
         raise ValueError('native script fingerprint mismatch; refusing an incompatible hook')
     script = decode(data)
     if encode(script) != data: raise ValueError('input codec roundtrip changed bytes')
@@ -133,7 +145,13 @@ def patch(data, spec):
     outputs=set(spec['output_locals'])
     for local in reversed(spec['int_locals']):
         added.append((34,local) if local in outputs else (38,0))
-    added += [(36,spec['string_local']),(33,spec['color_local']),(1101,0),
+    # Empty means the row is filtered out. The caption and its native timer /
+    # edit controls form one row, although the cache stores them as siblings.
+    # Return the next child index before creating those auxiliary siblings;
+    # hiding only the caption would leave them beside a zero-width label.
+    added += [(36,spec['string_local']),
+        (35,spec['string_local']),(4117,0),(0,0),(7,2),(33,3),(21,0),
+        (33,spec['color_local']),(1101,0),
         (0,0),(33,13),(0,1),(0,2),(1000,0),(35,spec['string_local'])]
     def target(pc): return pc+len(added) if pc>at else pc
     new_ops=[]

@@ -6736,6 +6736,7 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
     renderer->in3d = false;
     renderer->in2d = false;
     renderer->frame_clock += 1.0;
+    frame->world_depth_test = renderer->zbuffer != NULL;
     ToriRS_FrameBegin(frame);
     while( ToriRS_FrameNextCommand(frame, &command) )
         d3d9_dispatch(renderer, &command);

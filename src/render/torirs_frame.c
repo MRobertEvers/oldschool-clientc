@@ -3,6 +3,7 @@
 
 #include "painters/painters.h"
 #include "render/torirs_arc.h"
+#include "render/torirs_silhouette_frame.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
@@ -839,6 +840,47 @@ translate_scrollbar_h_step(
 }
 
 static bool
+frame_silhouette_span(struct ToriRS_Frame* frame,
+    const struct UITreeEntityOverlay* item,struct ToriRS_RenderCommand* out,
+    int clip_x,int clip_y,int clip_w,int clip_h)
+{
+    struct ToriRS_Silhouette* mask;
+    size_t count,start,end;
+    int alpha;
+    if( !frame->silhouette || frame->silhouette_emit_index!=frame->emit_index ||
+        frame->silhouette_item_index!=frame->scrollbar_step )
+    {
+        ToriRS_SilhouetteFree(frame->silhouette);
+        free(frame->silhouette);
+        frame->silhouette=ToriRS_SilhouetteBuildFrame(frame,item->silhouette_element_id,
+            item->trans>=0?255-item->trans:0,item->line_width,
+            item->silhouette_always_on_top,clip_x,clip_y,clip_w,clip_h);
+        frame->silhouette_pixel=0;
+        frame->silhouette_emit_index=frame->emit_index;
+        frame->silhouette_item_index=frame->scrollbar_step;
+    }
+    mask=frame->silhouette;
+    if( !mask ) return false;
+    count=(size_t)mask->width*mask->height;
+    while( frame->silhouette_pixel<count && !mask->alpha[frame->silhouette_pixel] )
+        ++frame->silhouette_pixel;
+    if( frame->silhouette_pixel==count ) return false;
+    start=frame->silhouette_pixel;
+    alpha=mask->alpha[start];
+    end=(start/mask->width+1)*mask->width;
+    while( frame->silhouette_pixel<end && mask->alpha[frame->silhouette_pixel]==alpha )
+        ++frame->silhouette_pixel;
+    out->kind=TORIRSRC_FILL_RECT;
+    out->u.fill_rect=(struct ToriRS_RenderCommand_FillRect){
+        .x=mask->x+(int)(start%mask->width),.y=mask->y+(int)(start/mask->width),
+        .w=(int)(frame->silhouette_pixel-start),.h=1,
+        .argb=(int)((item->color&0x00ffffffu)|((uint32_t)alpha<<24)),
+        .scissor_x=clip_x,.scissor_y=clip_y,.scissor_w=clip_w,.scissor_h=clip_h,.filled=1};
+    frame->overlay_repeat=true;
+    return true;
+}
+
+static bool
 translate_ui_cmd(
     struct ToriRS_Frame* frame,
     struct UITreeEmitDesc const* desc,
@@ -1280,6 +1322,8 @@ translate_ui_cmd(
 
         switch( item->kind )
         {
+        case UITREE_ENTITY_OVERLAY_SILHOUETTE:
+            return frame_silhouette_span(frame,item,out,clip_x,clip_y,clip_w,clip_h);
         case UITREE_ENTITY_OVERLAY_SPRITE:
             if( item->scene_id <= 0 )
                 return false;
@@ -2712,6 +2756,7 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     assert(frame->scene);
     assert(frame->canvas_w > 0 && frame->canvas_h > 0);
     assert(!frame->flat_arena);
+    assert(!frame->silhouette);
     for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; ++i )
         if( frame->views[i].live && frame->views[i].flat_hsl >= 0 )
         {
@@ -2751,6 +2796,7 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
+    frame->overlay_repeat = false;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
@@ -2783,6 +2829,9 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
+    /* The replay borrows world data, never the owner's overlay cursor. */
+    frame->silhouette = NULL;
+    frame->overlay_repeat = false;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
@@ -2919,6 +2968,7 @@ again:
 
         {
             struct ToriRS_RenderCommand draw;
+            frame->overlay_repeat = false;
             if( !translate_ui_cmd(frame, desc, &draw) )
             {
                 if( is_scrollbar )
@@ -2936,7 +2986,7 @@ again:
                 continue;
             }
 
-            if( is_scrollbar )
+            if( is_scrollbar && !frame->overlay_repeat )
             {
                 frame->scrollbar_step++;
                 if( frame->scrollbar_step >= sb_steps )
@@ -2945,7 +2995,7 @@ again:
                     frame->scrollbar_step = 0;
                 }
             }
-            else
+            else if( !is_scrollbar )
             {
                 frame->emit_index++;
                 frame->scrollbar_step = 0;
@@ -2984,6 +3034,9 @@ ToriRS_FrameEnd(struct ToriRS_Frame* frame)
     assert(!frame->world_only);
     frame_flat_free(frame->flat_arena);
     frame->flat_arena = NULL;
+    ToriRS_SilhouetteFree(frame->silhouette);
+    free(frame->silhouette);
+    frame->silhouette = NULL;
     frame->prepare_gpu_poses = false;
     if( frame->scene )
         ToriDraw_SceneFrameEnd(frame->scene);

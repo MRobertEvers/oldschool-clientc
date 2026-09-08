@@ -44,11 +44,15 @@ return { id = 'performance-behavior', on_start = function(host)
     watch(viewport,{kind='bound'})
     product.on_frame_start(api,{now_ms=0,drawn_frames=10})
     -- Fifty callbacks, but only fifteen rendered frames in one second.
+    local previous_drawn=10
     for i=1,50 do
-        product.on_frame_start(api,{now_ms=i*20,drawn_frames=10+math.floor(i*15/50)})
+        local drawn=10+math.floor(i*15/50)
+        work=drawn>previous_drawn and 4000 or 100
+        product.on_frame_start(api,{now_ms=i*20,drawn_frames=drawn})
+        previous_drawn=drawn
     end
     assert(text('fps')=='FPS: 15.0', 'FPS must count rendered frames')
-    assert(text('frame')=='Frame: 4.00 ms', 'frame time must exclude pacing sleep')
+    assert(text('frame')=='Frame: 4.00 ms', 'frame time excludes pacing sleep and logic-only iterations')
     assert(text('effective')=='Effective FPS: 250.0', 'effective rate uses work time')
     assert(text('memory')=='Memory: 128.0 MiB')
     assert(layout_calls==4, 'frame callbacks must not repair layout')

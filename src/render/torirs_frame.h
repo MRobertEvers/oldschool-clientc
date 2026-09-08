@@ -5,12 +5,14 @@
 #include "ui/uitree_scroll.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 struct PaintersBuffer;
 struct ToriDraw_Scene;
 struct UITreeEmitBuffer;
 struct UITreeEmitDesc;
 struct World;
+struct ToriRS_Silhouette;
 
 /** Pass coalescing for BEGIN/END_2D/3D. */
 enum ToriRS_FramePassKind
@@ -146,6 +148,14 @@ struct ToriRS_Frame
     bool world_only;
     /** GPU lane: pose on this owning thread before publishing model inputs. */
     bool prepare_gpu_poses;
+    /** Chosen renderer's scene visibility rule, independent of platform. */
+    bool world_depth_test;
+    /** Deferred mesh overlay cursor; owned by this frame until FrameEnd. */
+    struct ToriRS_Silhouette* silhouette;
+    size_t silhouette_pixel;
+    int silhouette_emit_index;
+    int silhouette_item_index;
+    bool overlay_repeat;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;

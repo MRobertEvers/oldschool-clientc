@@ -62,7 +62,22 @@ enum PluginCallbackKind
     /* An owned control's operation: a player's click, so the input verbs
      * (tab_select and the like) are open to it. */
     PLUGIN_CALLBACK_WIDGET_OPERATION,
+    PLUGIN_CALLBACK_GAMEFRAME,
     PLUGIN_CALLBACK_COUNT
+};
+
+struct PluginTelemetryScope
+{
+    struct PluginTelemetryScope* parent;
+    uint64_t started_ns, child_ns;
+};
+struct PluginTelemetry
+{
+    uint64_t (*clock_ns)(void* user);
+    void* clock_user;
+    struct PluginTelemetryScope* active;
+    struct ToriRS_PluginCallbackTelemetry callbacks[TORIRS_PLUGIN_MAX][PLUGIN_CALLBACK_COUNT];
+    struct ToriRS_PluginMutationTelemetry mutations[TORIRS_PLUGIN_MAX][TORIRS_PLUGIN_MUTATION_COUNT];
 };
 
 struct PluginCanvasDispatch
@@ -349,6 +364,7 @@ enum PluginDrawSurface
 struct ToriRS_PluginHost
 {
     struct ToriRS_PluginEngine engine;
+    struct PluginTelemetry* telemetry;
 
     struct PluginContext plugins[TORIRS_PLUGIN_MAX];
     int plugin_count;
@@ -932,6 +948,36 @@ plugin_orphan_adopt(
         PluginHost_ConfigApply(host, row->plugin, row->key, row->value);
     }
     host->orphan_config_count = kept;
+}
+
+static void
+plugin_telemetry_begin(struct ToriRS_PluginHost* host, struct PluginTelemetryScope* scope)
+{
+    if( !host->telemetry ) return;
+    scope->parent = host->telemetry->active;
+    scope->child_ns = 0;
+    scope->started_ns = host->telemetry->clock_ns(host->telemetry->clock_user);
+    host->telemetry->active = scope;
+}
+
+static void
+plugin_telemetry_end(struct ToriRS_PluginHost* host, int plugin,
+    enum PluginCallbackKind kind, struct PluginTelemetryScope* scope)
+{
+    if( !host->telemetry ) return;
+    struct PluginTelemetry* telemetry = host->telemetry;
+    uint64_t const now = telemetry->clock_ns(telemetry->clock_user);
+    assert(telemetry->active == scope);
+    assert(now >= scope->started_ns);
+    uint64_t const elapsed = now - scope->started_ns;
+    assert(elapsed >= scope->child_ns);
+    struct ToriRS_PluginCallbackTelemetry* row = &telemetry->callbacks[plugin][kind];
+    row->calls++;
+    row->elapsed_ns += elapsed;
+    row->self_ns += elapsed - scope->child_ns;
+    if( elapsed > row->max_ns ) row->max_ns = elapsed;
+    telemetry->active = scope->parent;
+    if( scope->parent ) scope->parent->child_ns += elapsed;
 }
 
 /*
@@ -4049,6 +4095,20 @@ api_draw_hull_stroke(
         ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape));
 }
 
+static enum ToriRS_Result
+api_draw_hull_styled(struct PluginContext* ctx,void* surface,int element_id,
+    uint32_t rgb,int fill_alpha,int shape,int outline_width,uint32_t flags)
+{
+    plugin_draw_require_world(ctx);
+    if( !plugin_draw_allow(ctx,surface) ) return TORIRS_RESULT_BUDGET;
+    if( !plugin_entity_hull_allowed(ctx->host,ctx->index,element_id) )
+        return TORIRS_RESULT_OK;
+    if( !ctx->host->engine.draw_hull_styled ) return TORIRS_RESULT_UNSUPPORTED;
+    return plugin_draw_account(ctx,ctx->host->engine.draw_hull_styled(
+        ctx->host->engine.user,element_id,rgb,fill_alpha,shape,outline_width,flags,
+        TORIRS_PLUGIN_DRAW_BUDGET-ctx->draw_used));
+}
+
 static void
 api_draw_line(
     struct PluginContext* ctx,
@@ -5070,8 +5130,8 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         host->dispatching = i;
         host->dispatch_event = PLUGIN_CALLBACK_STOP;
         if( ctx->def->callbacks.on_stop )
-            ctx->def->callbacks.on_stop(
-                &ctx->v2->runtime.api, ctx->v2->state);
+            (void)plugin_v2_event(ctx, NULL,
+                (void*)(intptr_t)(PLUGIN_CALLBACK_STOP + 1));
         host->dispatching = -1;
         host->dispatch_event = -1;
         plugin_v2_shutdown(ctx);
@@ -5094,6 +5154,7 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
             host->plugins[i].v2 = NULL;
         }
     free(host->orphan_config);
+    free(host->telemetry);
     free(host);
 }
 
@@ -5249,9 +5310,31 @@ plugin_frame_selection_active(
     snprintf(host->frame_selection.reason, sizeof(host->frame_selection.reason), "%s", why);
     host->frame_selection.revision++;
     if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+    {
         TORIRS_REPORT("frame_selection: requested=%s active=%s status=%d reason=%s\n",
                    host->frame_selection.requested_id, active, status, why);
-
+        int total_images = 0;
+        for( int image = 0; image < TORIRS_PLUGIN_IMAGES_MAX; image++ )
+            total_images += host->images[image].plugin >= 0;
+        for( int plugin = 0; plugin < host->plugin_count; plugin++ )
+        {
+            struct PluginContext const* ctx = &host->plugins[plugin];
+            int images = 0, assets = 0, pending = 0;
+            if( !plugin_provides_frames(ctx) )
+                continue;
+            for( int image = 0; image < TORIRS_PLUGIN_IMAGES_MAX; image++ )
+                images += host->images[image].plugin == plugin;
+            for( int asset = 0; asset < host->asset_count; asset++ )
+                if( host->assets[asset].plugin == plugin )
+                {
+                    assets++;
+                    pending += host->assets[asset].pending;
+                }
+            TORIRS_REPORT("FRAME_RESIDENCY provider=%s running=%d image_slots=%d assets=%d pending=%d total_image_slots=%d capacity=%d active=%s requested=%s status=%d\n",
+                ctx->name, ctx->running, images, assets, pending, total_images,
+                TORIRS_PLUGIN_IMAGES_MAX, active, host->frame_selection.requested_id, status);
+        }
+    }
 }
 
 /* The canvas less the platform's band, as ToriRS_GameframeEvent.safe: the
@@ -5327,7 +5410,10 @@ plugin_gameframe_release(struct ToriRS_PluginHost* host, int owner)
         host, ev.width, ev.height, &ev.safe.x, &ev.safe.y, &ev.safe.width, &ev.safe.height);
     host->dispatching = owner;
     host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
+    struct PluginTelemetryScope scope;
+    plugin_telemetry_begin(host, &scope);
     (void)v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &ev);
+    plugin_telemetry_end(host, owner, PLUGIN_CALLBACK_GAMEFRAME, &scope);
     host->dispatching = previous_dispatching;
     host->dispatch_event = previous_event;
 }
@@ -5737,6 +5823,8 @@ plugin_v2_panel_set_options(
 {
     struct ToriRS_PluginHost* host = user;
     struct ToriRS_PanelWidget* widget;
+    struct ToriRS_PluginSelectOption replacement[TORIRS_PLUGIN_SELECT_OPTIONS_MAX];
+    char selected_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
     int selected = -1;
     int slot;
     bool changed = false;
@@ -5750,13 +5838,19 @@ plugin_v2_panel_set_options(
         return TORIRS_RESULT_NOT_FOUND;
     widget = &host->panel_widgets[slot];
     if( widget->kind != TORIRS_PANEL_WIDGET_DROPDOWN || !widget->structured_select ||
-        option_count < 0 || option_count != widget->select_option_count ||
+        option_count < 0 || option_count > TORIRS_PLUGIN_SELECT_OPTIONS_MAX ||
+        host->panel_select_option_count - widget->select_option_count + option_count >
+            TORIRS_PLUGIN_SELECT_OPTIONS_MAX ||
         (option_count > 0 && !options) ||
         strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
         return TORIRS_RESULT_INVALID;
+    plugin_copy_str(selected_value, sizeof(selected_value), value);
+    changed = option_count != widget->select_option_count;
+    /* Validate and copy the complete replacement before touching the retained
+     * pool. A rejected row must not leave an earlier row partially updated. */
     for( int i = 0; i < option_count; i++ )
     {
-        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
+        struct ToriRS_PluginSelectOption* destination = &replacement[i];
         char const* detail;
         if( options[i].struct_size < TORIRS_SELECT_OPTION_REQUIRED_SIZE ||
             !options[i].value || !options[i].value[0] || !options[i].label ||
@@ -5766,26 +5860,51 @@ plugin_v2_panel_set_options(
             if( strcmp(options[i].value, options[j].value) == 0 )
                 return TORIRS_RESULT_INVALID;
         detail = options[i].detail ? options[i].detail : "";
-        if( strcmp(destination->value, options[i].value) != 0 ||
-            strcmp(destination->label, options[i].label) != 0 ||
-            strcmp(destination->detail, detail) != 0 ||
-            destination->enabled != options[i].enabled )
-            changed = true;
+        memset(destination, 0, sizeof(*destination));
         plugin_copy_str(destination->value, sizeof(destination->value), options[i].value);
         plugin_copy_str(destination->label, sizeof(destination->label), options[i].label);
         plugin_copy_str(destination->detail, sizeof(destination->detail), detail);
         destination->enabled = options[i].enabled;
-        if( strcmp(options[i].value, value) == 0 )
+        if( i >= widget->select_option_count ||
+            memcmp(destination, &widget->select_options[i], sizeof(*destination)) != 0 )
+            changed = true;
+        if( strcmp(options[i].value, selected_value) == 0 )
             selected = i;
     }
-    if( widget->selected != selected || strcmp(widget->selected_value, value) != 0 )
+    if( widget->selected != selected || strcmp(widget->selected_value, selected_value) != 0 )
         changed = true;
+    if( !changed )
+    {
+        PluginHost_RecordRetainedMutation(
+            host, context->index + 1, TORIRS_PLUGIN_MUTATION_PANEL, false, false);
+        return TORIRS_RESULT_OK;
+    }
+    int const first = (int)(widget->select_options - host->panel_select_options);
+    int const tail = first + widget->select_option_count;
+    int const delta = option_count - widget->select_option_count;
+    assert(first >= 0);
+    assert(tail <= host->panel_select_option_count);
+    memmove(
+        &host->panel_select_options[first + option_count],
+        &host->panel_select_options[tail],
+        (size_t)(host->panel_select_option_count - tail) * sizeof(replacement[0]));
+    memcpy(&host->panel_select_options[first], replacement,
+        (size_t)option_count * sizeof(replacement[0]));
+    host->panel_select_option_count += delta;
+    widget->select_option_count = option_count;
+    /* Declarations append their slices in widget order, including empty
+     * lists. Only following slices move; their widget identities stay put. */
+    for( int i = slot + 1; i < host->panel_widget_count; i++ )
+        if( host->panel_widgets[i].structured_select )
+            host->panel_widgets[i].select_options += delta;
     widget->selected = selected;
     widget->value = selected;
-    plugin_copy_str(widget->selected_value, sizeof(widget->selected_value), value);
-    plugin_copy_str(widget->text, sizeof(widget->text), value);
+    plugin_copy_str(widget->selected_value, sizeof(widget->selected_value), selected_value);
+    plugin_copy_str(widget->text, sizeof(widget->text), selected_value);
     if( changed )
     {
+        PluginHost_RecordRetainedMutation(
+            host, context->index + 1, TORIRS_PLUGIN_MUTATION_PANEL, true, true);
         plugin_panel_bump(&host->panel_model_revision);
         plugin_panel_change_widget(
             host,
@@ -6139,7 +6258,7 @@ plugin_v2_has_event_callback(
 }
 
 static enum ToriRS_CallbackResult
-plugin_v2_event(
+plugin_v2_event_untimed(
     struct PluginContext* ctx,
     void* event,
     void* userdata)
@@ -6275,6 +6394,18 @@ plugin_v2_event(
         assert(!"unmapped v2 callback event");
     }
     return TORIRS_CALLBACK_CONTINUE;
+}
+
+static enum ToriRS_CallbackResult
+plugin_v2_event(struct PluginContext* ctx, void* event, void* userdata)
+{
+    assert(ctx);
+    struct PluginTelemetryScope scope;
+    enum PluginCallbackKind const kind = (enum PluginCallbackKind)((intptr_t)userdata - 1);
+    plugin_telemetry_begin(ctx->host, &scope);
+    enum ToriRS_CallbackResult const result = plugin_v2_event_untimed(ctx, event, userdata);
+    plugin_telemetry_end(ctx->host, ctx->index, kind, &scope);
+    return result;
 }
 
 static void
@@ -6656,8 +6787,8 @@ plugin_teardown(
         host->dispatching = plugin_index;
         host->dispatch_event = PLUGIN_CALLBACK_STOP;
         if( ctx->def->callbacks.on_stop )
-            ctx->def->callbacks.on_stop(
-                &ctx->v2->runtime.api, ctx->v2->state);
+            (void)plugin_v2_event(ctx, NULL,
+                (void*)(intptr_t)(PLUGIN_CALLBACK_STOP + 1));
         host->dispatching = -1;
         host->dispatch_event = -1;
         /* on_stop observes the plugin as live. From this point onward no
@@ -7136,7 +7267,10 @@ bool PluginHost_WidgetOperation(struct ToriRS_PluginHost* host,uint64_t owner,
             .operation=1,.native_revision=registration,.role=""};
         int previous_owner=host->dispatching,previous_event=host->dispatch_event;
         host->dispatching=index;host->dispatch_event=PLUGIN_CALLBACK_WIDGET_OPERATION;
+        struct PluginTelemetryScope scope;
+        plugin_telemetry_begin(host, &scope);
         op.listener(&ctx->v2->runtime.api,op.user,&event);
+        plugin_telemetry_end(host, index, PLUGIN_CALLBACK_WIDGET_OPERATION, &scope);
         host->dispatching=previous_owner;host->dispatch_event=previous_event;
         return true;
     }
@@ -7161,9 +7295,29 @@ plugin_widget_watch_call(struct ToriRS_PluginHost* host, int owner, int slot, ui
     int previous_owner = host->dispatching, previous_event = host->dispatch_event;
     host->dispatching = owner;
     host->dispatch_event = PLUGIN_CALLBACK_WIDGET_BINDING;
+    struct PluginTelemetryScope scope;
+    plugin_telemetry_begin(host, &scope);
     watch->listener(&host->plugins[owner].v2->runtime.api, watch->user, event);
+    plugin_telemetry_end(host, owner, PLUGIN_CALLBACK_WIDGET_BINDING, &scope);
     host->dispatching = previous_owner;
     host->dispatch_event = previous_event;
+}
+
+void
+PluginHost_WidgetBindingsInvalidate(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->widget_watch_pending = true;
+    for( int owner = 0; owner < host->plugin_count; owner++ )
+    {
+        struct PluginContext* ctx = &host->plugins[owner];
+        if( !ctx->widget_watches )
+            continue;
+        for( int i = 0; i < PLUGIN_WIDGET_WATCH_MAX; i++ )
+            if( ctx->widget_watches[i].serial &&
+                strcmp(ctx->widget_watches[i].role, "@tree") == 0 )
+                ctx->widget_watches[i].tree_notified = false;
+    }
 }
 
 void
@@ -7615,7 +7769,10 @@ PluginHost_Layout(
     previous_event = host->dispatch_event;
     host->dispatching = owner;
     host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
+    struct PluginTelemetryScope scope;
+    plugin_telemetry_begin(host, &scope);
     v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
+    plugin_telemetry_end(host, owner, PLUGIN_CALLBACK_GAMEFRAME, &scope);
     host->dispatching = previous_dispatching;
     host->dispatch_event = previous_event;
     if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_ERROR )
@@ -8513,6 +8670,26 @@ PluginHost_PanelDispatch(
     int x,
     int y)
 {
+    return PluginHost_PanelDispatchRegion(
+        host, selection_generation, widget_serial, intent_sequence, widget_id,
+        action, value, text, x, y, 0, 0);
+}
+
+int
+PluginHost_PanelDispatchRegion(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    uint64_t intent_sequence,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y,
+    int region_width,
+    int region_height)
+{
     struct ToriRS_PanelActionEvent ev;
     struct ToriRS_PanelWidget* widget;
     char event_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
@@ -8536,6 +8713,10 @@ PluginHost_PanelDispatch(
     if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_KEY )
         return 0;
     widget = &host->panel_widgets[slot];
+    if( region_width < 0 || region_height < 0 ||
+        (region_width == 0) != (region_height == 0) ||
+        (region_width > 0 && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM) )
+        return 0;
     if( action >= TORIRS_PANEL_ACTION_DRAG && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
         return 0;
 
@@ -8614,6 +8795,8 @@ PluginHost_PanelDispatch(
     ev.selection_generation = selection_generation;
     ev.widget_serial = widget_serial;
     ev.intent_sequence = intent_sequence;
+    ev.region_width = region_width;
+    ev.region_height = region_height;
     plugin_dispatch_one(host, plugin, PLUGIN_CALLBACK_PANEL_ACTION, &ev);
     return 1;
 }
@@ -8700,4 +8883,114 @@ PluginHost_PanelDraw(
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
     return 1;
+}
+
+/* The slot order is host-private. Consumers match these stable callback names. */
+static char const* const plugin_callback_names[] = {
+    "on_start", "on_stop", "on_frame_start", "on_logic_tick", "on_server_tick",
+    "on_world_loaded", "on_script_callback", "on_npc_spawn", "on_npc_retype", "on_npc_despawn",
+    "on_key", "on_menu_build", "on_menu_select", "on_draw_world", "on_draw_canvas",
+    "on_config_changed", "on_item_spawn", "on_item_changed", "on_item_despawn",
+    "on_asset", "on_chat_message", "on_game_event", "legacy_ui", "legacy_ui_build",
+    "legacy_layout", "on_screen_changed", "on_ui_build", "on_ui_action",
+    "on_ui_layout", "on_ui_draw", "widget_binding", "widget_operation", "on_gameframe"
+};
+_Static_assert(sizeof(plugin_callback_names)/sizeof(plugin_callback_names[0]) == PLUGIN_CALLBACK_COUNT,
+    "Every host callback phase must have a telemetry name");
+
+void PluginHost_TelemetryStart(struct ToriRS_PluginHost* host,
+    uint64_t (*clock_ns)(void* user), void* clock_user)
+{
+    assert(host);
+    assert(clock_ns);
+    assert(host->dispatching < 0);
+    if( !host->telemetry )
+    {
+        host->telemetry = calloc(1, sizeof(*host->telemetry));
+        assert(host->telemetry);
+    }
+    host->telemetry->clock_ns = clock_ns;
+    host->telemetry->clock_user = clock_user;
+    PluginHost_TelemetryReset(host);
+}
+
+void PluginHost_TelemetryReset(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    assert(host->dispatching < 0);
+    if( !host->telemetry ) return;
+    assert(!host->telemetry->active);
+    memset(host->telemetry->callbacks, 0, sizeof(host->telemetry->callbacks));
+    memset(host->telemetry->mutations, 0, sizeof(host->telemetry->mutations));
+}
+
+int PluginHost_TelemetryCallbackCount(void) { return PLUGIN_CALLBACK_COUNT; }
+
+void PluginHost_TelemetryReadCallback(struct ToriRS_PluginHost const* host,
+    int plugin_index, int callback_index, struct ToriRS_PluginCallbackTelemetry* out)
+{
+    assert(host);
+    assert(out);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    assert(callback_index >= 0);
+    assert(callback_index < PLUGIN_CALLBACK_COUNT);
+    memset(out, 0, sizeof(*out));
+    if( host->telemetry ) *out = host->telemetry->callbacks[plugin_index][callback_index];
+    out->callback = plugin_callback_names[callback_index];
+    struct PluginContext const* ctx = &host->plugins[plugin_index];
+    if( callback_index == PLUGIN_CALLBACK_GAMEFRAME )
+        out->subscribed = ctx->def->callbacks.on_gameframe != NULL;
+    else if( callback_index == PLUGIN_CALLBACK_WIDGET_BINDING && ctx->widget_watches )
+    {
+        for( int i = 0; i < PLUGIN_WIDGET_WATCH_MAX; ++i )
+            out->subscribed |= ctx->widget_watches[i].serial != 0;
+    }
+    else if( callback_index == PLUGIN_CALLBACK_WIDGET_OPERATION && ctx->widget_ops )
+    {
+        for( int i = 0; i < PLUGIN_WIDGET_OP_MAX; ++i )
+            out->subscribed |= ctx->widget_ops[i].serial != 0;
+    }
+    else
+        out->subscribed = plugin_v2_has_event_callback(ctx->def, (enum PluginCallbackKind)callback_index);
+}
+
+void PluginHost_TelemetryReadMutation(struct ToriRS_PluginHost const* host,
+    int plugin_index, enum ToriRS_PluginMutationCategory category,
+    struct ToriRS_PluginMutationTelemetry* out)
+{
+    assert(host);
+    assert(out);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    assert(category >= 0);
+    assert(category < TORIRS_PLUGIN_MUTATION_COUNT);
+    memset(out, 0, sizeof(*out));
+    if( host->telemetry ) *out = host->telemetry->mutations[plugin_index][category];
+}
+
+void PluginHost_RecordRetainedMutation(struct ToriRS_PluginHost* host,
+    uint64_t owner, enum ToriRS_PluginMutationCategory category,
+    bool changed, bool redraw_requested)
+{
+    assert(host);
+    assert(owner > 0);
+    assert(owner <= (uint64_t)host->plugin_count);
+    assert(category >= 0);
+    assert(category < TORIRS_PLUGIN_MUTATION_COUNT);
+    if( !host->telemetry ) return;
+    struct ToriRS_PluginMutationTelemetry* row = &host->telemetry->mutations[owner - 1][category];
+    row->attempts++;
+    row->changes += changed ? 1 : 0;
+    row->redraw_requests += redraw_requested ? 1 : 0;
+}
+
+void PluginHost_RecordCurrentRetainedMutation(struct ToriRS_PluginHost* host,
+    enum ToriRS_PluginMutationCategory category, bool changed, bool redraw_requested)
+{
+    assert(host);
+    if( !host->telemetry ) return;
+    assert(host->dispatching >= 0);
+    PluginHost_RecordRetainedMutation(host, (uint64_t)host->dispatching + 1,
+        category, changed, redraw_requested);
 }

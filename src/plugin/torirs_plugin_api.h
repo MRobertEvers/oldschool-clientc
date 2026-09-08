@@ -244,11 +244,22 @@ struct ToriRS_Graphics
     enum ToriRS_Result (*world_hull_stroke)(
         struct ToriRS_Graphics* draw, int element_id, uint32_t rgb,
         int alpha, int shape, int outline_width);
+    /** Optional visibility-aware mesh styling. Flags zero respects scene
+     * occlusion; TORIRS_WORLD_DRAW_ALWAYS_ON_TOP bypasses foreground surfaces.
+     * BOUNDS has no mesh depth and requires ALWAYS_ON_TOP, otherwise UNSUPPORTED.
+     * Older hull entrypoints preserve their original always-on-top layering. */
+    enum ToriRS_Result (*world_hull_styled)(
+        struct ToriRS_Graphics* draw, int element_id, uint32_t rgb,
+        int alpha, int shape, int outline_width, uint32_t flags);
 };
 
 #define TORIRS_GRAPHICS_STROKE_SIZE \
     ((uint32_t)(offsetof(struct ToriRS_Graphics, world_hull_stroke) + \
                 sizeof(((struct ToriRS_Graphics*)0)->world_hull_stroke)))
+
+#define TORIRS_GRAPHICS_STYLE_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, world_hull_styled) + \
+                sizeof(((struct ToriRS_Graphics*)0)->world_hull_styled)))
 
 /* A NULL id terminates an offer array. Only the fields for the chosen canvas
  * policy are meaningful: width/height for FIXED, min_* for WINDOW. An offer

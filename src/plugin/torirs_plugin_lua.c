@@ -1621,6 +1621,33 @@ lua_builder_world_hull_stroke(lua_State* L)
     }
     return 2;
 }
+static int
+lua_builder_world_hull_styled(lua_State* L)
+{
+    struct ToriRS_Graphics* draw=lua_draw_builder(L);
+    lua_Integer width=luaL_optinteger(L,5,1);
+    lua_Integer flags=luaL_optinteger(L,6,0);
+    if( width<0 || width>255 || flags<0 || flags>UINT32_MAX ||
+        ((uint32_t)flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP) )
+        lua_push_result(L,TORIRS_RESULT_INVALID);
+    else if( draw->struct_size<TORIRS_GRAPHICS_STYLE_SIZE || !draw->world_hull_styled )
+        lua_push_result(L,TORIRS_RESULT_UNSUPPORTED);
+    else
+    {
+        int shape=TORIRS_HULL_MESH;
+        if( lua_type(L,4)==LUA_TSTRING )
+        {
+            char const* name=lua_tostring(L,4);
+            if( strcmp(name,"bounds")==0 ) shape=TORIRS_HULL_BOUNDS;
+            else if( strcmp(name,"mesh")!=0 ) return luaL_error(L,"unknown hull shape '%s'",name);
+        }
+        else if( !lua_isnoneornil(L,4) )
+            shape=lua_enum_integer(L,4,TORIRS_HULL_BOUNDS,TORIRS_HULL_MESH,"hull shape");
+        lua_push_result(L,draw->world_hull_styled(draw,(int)luaL_checkinteger(L,1),
+            lua_color_arg(L,2),(int)luaL_optinteger(L,3,0),shape,(int)width,(uint32_t)flags));
+    }
+    return 2;
+}
 static int lua_builder_image_clip(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);d->image_clip(d,lua_image_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),lua_check_rect(L,4),(int)luaL_optinteger(L,5,255));return 0; }
 static int lua_builder_context(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);struct ToriRS_DrawContext v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);if(!d->context(d,&v)){lua_pushnil(L);return 1;}lua_createtable(L,0,2);lua_push_rect(L,v.bounds);lua_setfield(L,-2,"bounds");lua_push_rect(L,v.clip);lua_setfield(L,-2,"clip");return 1; }
 
@@ -1769,6 +1796,7 @@ static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"rect",lua_builder_rect},{"line",lua_builder_line},{"text",lua_builder_text},
     {"image",lua_builder_image},{"world_tile",lua_builder_world_tile},{"world_hull",lua_builder_world_hull},
     {"world_tile_stroke",lua_builder_world_tile_stroke},{"world_hull_stroke",lua_builder_world_hull_stroke},
+    {"world_hull_styled",lua_builder_world_hull_styled},
     {"image_clip",lua_builder_image_clip},{"context",lua_builder_context},{NULL,NULL}
 };
 static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
@@ -1900,7 +1928,7 @@ static void lua_push_menu_build_event(lua_State* L,struct ToriRS_MenuBuildEvent 
 static void lua_push_menu_select_event(lua_State* L,struct ToriRS_MenuSelectEvent const* e){lua_createtable(L,0,6);lua_push_menu_row(L,&e->row);lua_setfield(L,-2,"row");lua_pushinteger(L,(lua_Integer)e->plugin_tag);lua_setfield(L,-2,"tag");lua_pushboolean(L,e->owned);lua_setfield(L,-2,"owned");lua_pushinteger(L,e->click_x);lua_setfield(L,-2,"x");lua_pushinteger(L,e->click_y);lua_setfield(L,-2,"y");}
 
 static char const* lua_panel_action_name(int action){static char const* const names[]={"activate","toggle","text","pick","drag","scroll","key"};return action>=0&&action<7?names[action]:"unknown";}
-static void lua_push_panel_action(lua_State* L,struct ToriRS_PanelActionEvent const* e){lua_createtable(L,0,10);lua_pushstring(L,e->id?e->id:"");lua_setfield(L,-2,"id");lua_pushstring(L,lua_panel_action_name(e->action));lua_setfield(L,-2,"action");lua_pushinteger(L,e->value);lua_setfield(L,-2,"value");lua_pushboolean(L,e->value!=0);lua_setfield(L,-2,"on");lua_pushstring(L,e->text?e->text:"");lua_setfield(L,-2,"text");lua_pushinteger(L,e->x);lua_setfield(L,-2,"x");lua_pushinteger(L,e->y);lua_setfield(L,-2,"y");lua_pushinteger(L,e->selection_generation);lua_setfield(L,-2,"generation");lua_pushinteger(L,e->widget_serial);lua_setfield(L,-2,"serial");lua_pushinteger(L,(lua_Integer)e->intent_sequence);lua_setfield(L,-2,"sequence");}
+static void lua_push_panel_action(lua_State* L,struct ToriRS_PanelActionEvent const* e){lua_createtable(L,0,12);lua_pushstring(L,e->id?e->id:"");lua_setfield(L,-2,"id");lua_pushstring(L,lua_panel_action_name(e->action));lua_setfield(L,-2,"action");lua_pushinteger(L,e->value);lua_setfield(L,-2,"value");lua_pushboolean(L,e->value!=0);lua_setfield(L,-2,"on");lua_pushstring(L,e->text?e->text:"");lua_setfield(L,-2,"text");lua_pushinteger(L,e->x);lua_setfield(L,-2,"x");lua_pushinteger(L,e->y);lua_setfield(L,-2,"y");lua_pushinteger(L,e->selection_generation);lua_setfield(L,-2,"generation");lua_pushinteger(L,e->widget_serial);lua_setfield(L,-2,"serial");lua_pushinteger(L,(lua_Integer)e->intent_sequence);lua_setfield(L,-2,"sequence");lua_pushinteger(L,e->region_width);lua_setfield(L,-2,"region_width");lua_pushinteger(L,e->region_height);lua_setfield(L,-2,"region_height");}
 static void lua_push_panel_layout(lua_State* L,struct ToriRS_PanelLayoutEvent const* e){static char const* const size[]={"compact","medium","expanded"};lua_createtable(L,0,8);lua_pushinteger(L,e->width);lua_setfield(L,-2,"width");lua_pushinteger(L,e->height);lua_setfield(L,-2,"height");lua_pushinteger(L,e->scale_milli);lua_setfield(L,-2,"scale_milli");lua_pushnumber(L,(lua_Number)e->scale_milli/1000.0);lua_setfield(L,-2,"scale");lua_pushstring(L,e->size_class>=0&&e->size_class<3?size[e->size_class]:"unknown");lua_setfield(L,-2,"size_class");lua_pushboolean(L,e->visible);lua_setfield(L,-2,"visible");lua_pushboolean(L,e->game_visible);lua_setfield(L,-2,"game_visible");lua_pushinteger(L,e->selection_generation);lua_setfield(L,-2,"generation");}
 
 static void

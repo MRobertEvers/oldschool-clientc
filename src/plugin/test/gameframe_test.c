@@ -1120,6 +1120,36 @@ main(void)
     CHECK(pieces_behind_viewport() == 4, "a collapsed sidebar draws two tab rows and the chat, no pillars and no backing");
     CHECK(owned_count("chatsw.") == 3 && strcmp(owned("chatsw.1")->op, "Hide chat") == 0,
           "the resizable frame's chat switches stand over the first three filters");
+    /* Lose only the role members: their native parents and the active frame
+     * remain alive. Binding invalidation, not a forced declaration, must
+     * trigger teardown and later rebind of the owned chat switches. */
+    {
+        int members[4];
+        for( int i = 0; i < 4; i++ )
+        {
+            members[i] = fw_find("chat_buttons", i);
+            CHECK(members[i] >= 0, "the live frame starts with each chat member");
+            snprintf(g_w[members[i]].role, sizeof(g_w[members[i]].role), "%s", "unresolved_chat");
+        }
+        int published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls > published, "chat member loss requests another plan without changing its parent");
+        if( g_frame.set_calls > published ) declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 0, "memberless bindings remove all three live switches");
+        for( int i = 0; i < 4; i++ )
+            snprintf(g_w[members[i]].role, sizeof(g_w[members[i]].role), "%s", "chat_buttons");
+        published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls > published, "returning members request a new plan without a parent rebind");
+        if( g_frame.set_calls > published ) declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 3, "returned bindings recreate exactly three switches");
+        published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls == published, "unrelated tree changes do not replan an unchanged member set");
+    }
     g_frame.active_tab = 0;
     tick_and_declare(1200, 800);
     printf("GAMEFRAME resizable open pieces=%d\n", pieces_behind_viewport());

@@ -14,6 +14,7 @@
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
+#include "input/torirs_touch.h"
 #include "net/net.h"
 #include "net/net_out.h"
 #include "perf/torirs_perf.h"
@@ -73,6 +74,7 @@ struct ToriRS_GLES2;
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
 #include "pacer.h"
+#include "frame_draw_gate.h"
 #include "ui/torirs_chrome_inkwell.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -427,6 +429,8 @@ sim_render_frame(struct App* app)
         sim_pixel_count = want;
     }
     App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* This scratch surface is the headless simulation's presented frame. */
+    app->frames_rendered++;
 }
 
 /*
@@ -494,6 +498,78 @@ static int
 touch_overlay_owns_point(void* user, int x, int y)
 {
     return App_PointerOwnedByUi((struct App*)user, x, y);
+}
+
+/* Replay real finger policy into the ordinary command bus. A mouse move on a
+ * touch-sized canvas cannot exercise hold selection or pointer departure.
+ * TORIRS_SIM_TOUCH="frame,down|move|up,id,x,y;..." uses canvas coordinates,
+ * just like the platform backends after their window-to-canvas conversion. */
+static void
+sim_touch_pump(struct App* app, struct ToriRS_CmdBus* bus, long frame, uint64_t now)
+{
+    static struct ToriRS_Touch touch;
+    static int initialized;
+    static char const* cursor;
+    static char const* inset_cursor;
+    static int enabled;
+    if( !initialized )
+    {
+        cursor = getenv("TORIRS_SIM_TOUCH");
+        inset_cursor = getenv("TORIRS_SIM_KEYBOARD_INSET");
+        enabled = cursor && *cursor;
+        ToriRS_TouchReset(&touch);
+        initialized = 1;
+    }
+    if( enabled )
+    {
+        ToriRS_TouchSetViewport(&touch,
+            app->world_view_valid ? app->world_emit_desc.x : 0,
+            app->world_view_valid ? app->world_emit_desc.y : 0,
+            app->world_view_valid ? app->world_emit_desc.w : 0,
+            app->world_view_valid ? app->world_emit_desc.h : 0);
+        ToriRS_TouchSetOverlayTest(&touch, touch_overlay_owns_point, app);
+        ToriRS_TouchTick(&touch, bus, now);
+    }
+    while( cursor && *cursor )
+    {
+        long at = -1;
+        int id = -1, x = 0, y = 0;
+        char phase[8] = {0};
+        int parsed = sscanf(cursor, "%ld,%7[^,],%d,%d,%d", &at, phase, &id, &x, &y);
+        int kind = strcmp(phase, "down") == 0 ? TORIRS_TOUCH_BEGAN :
+            strcmp(phase, "move") == 0 ? TORIRS_TOUCH_MOVED :
+            strcmp(phase, "up") == 0 ? TORIRS_TOUCH_ENDED : -1;
+        if( parsed != 5 || at < 0 || id < 0 || kind < 0 )
+        {
+            TORIRS_REPORT("sim_touch: invalid input\n");
+            cursor = NULL;
+            break;
+        }
+        if( frame < at ) break;
+        ToriRS_TouchEvent(&touch, bus, (enum ToriRS_TouchPhase)kind, id, x, y, now);
+        TORIRS_REPORT("sim_touch: frame=%ld phase=%s id=%d point=%d,%d fingers=%d\n",
+            frame, phase, id, x, y, touch.count);
+        char const* next = strchr(cursor, ';');
+        cursor = next ? next + 1 : NULL;
+    }
+    /* This is the platform's inset notification, not a plugin state write.
+     * It lets a desktop capture verify the layout response to an IME opening. */
+    while( inset_cursor && *inset_cursor )
+    {
+        long at = -1;
+        int bottom = -1;
+        if( sscanf(inset_cursor, "%ld,%d", &at, &bottom) != 2 || at < 0 || bottom < 0 )
+        {
+            TORIRS_REPORT("sim_keyboard_inset: invalid input\n");
+            inset_cursor = NULL;
+            break;
+        }
+        if( frame < at ) break;
+        CmdBus_PushKeyboardInset(bus, bottom);
+        TORIRS_REPORT("sim_keyboard_inset: frame=%ld bottom=%d\n", frame, bottom);
+        char const* next = strchr(inset_cursor, ';');
+        inset_cursor = next ? next + 1 : NULL;
+    }
 }
 
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
@@ -914,6 +990,100 @@ static int sim_ready;
 static int sim_ready_failed;
 static uint64_t sim_ready_start_ms;
 static uint64_t sim_next_frame_ms;
+
+/* Opt-in measurements distinguish loop work, emitted redraws and presentations.
+ * START_FRAME excludes startup while preserving the caller's original stimulus. */
+static struct {
+    bool active, draw_pending;
+    uint64_t started_us, loops, redraws, presents, retained_presents, cap_skips;
+    uint64_t rendered_at_start, draw_work_us, idle_work_us, render_present_us;
+    uint64_t logic_at_start;
+    struct ToriRS_DrawGate gate;
+} plugin_measurement;
+
+static int diagnostic_draw_cap_fps(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* value = getenv("TORIRS_DRAW_CAP_FPS");
+        char* end = NULL;
+        long fps = value ? strtol(value, &end, 10) : 0;
+        cached = 0;
+        if( value && (!*value || !end || *end || fps < 1 || fps > 1000) )
+            TORIRS_ERR("TORIRS_DRAW_CAP_FPS must be an integer from 1 to 1000; ignored\n");
+        else if( value ) cached = (int)fps;
+    }
+    return cached;
+}
+
+static uint64_t plugin_measurement_clock(void* user)
+{
+    (void)user;
+    return PlatformWindow_TicksUs() * 1000;
+}
+
+static void plugin_measurement_begin(void)
+{
+    static int enabled = -1;
+    static long start_frame;
+    if( enabled < 0 )
+    {
+        enabled = getenv("TORIRS_PLUGIN_TELEMETRY") != NULL;
+        char const* start = getenv("TORIRS_PLUGIN_TELEMETRY_START_FRAME");
+        start_frame = start ? strtol(start, NULL, 10) : 0;
+        if( start_frame < 0 ) start_frame = 0;
+    }
+    if( !enabled || plugin_measurement.active || !app.plugins ||
+        (sim_after_ready && !sim_ready) || frame_count < start_frame ) return;
+    PluginHost_TelemetryStart(app.plugins, plugin_measurement_clock, NULL);
+    plugin_measurement.active = true;
+    plugin_measurement.started_us = PlatformWindow_TicksUs();
+    plugin_measurement.logic_at_start = app.logic_cycle;
+    plugin_measurement.rendered_at_start = app.frames_rendered;
+    TORIRS_REPORT("PLUGIN_TELEMETRY_BEGIN frame=%ld clock=monotonic_us draw_cap_fps=%d\n",
+        frame_count, diagnostic_draw_cap_fps());
+}
+
+static void plugin_measurement_dump(void)
+{
+    if( !plugin_measurement.active ) return;
+    uint64_t const elapsed_us = PlatformWindow_TicksUs() - plugin_measurement.started_us;
+    TORIRS_REPORT("PLUGIN_LOOP_TELEMETRY elapsed_us=%" PRIu64 " loops=%" PRIu64
+        " logic_ticks=%" PRIu64 " redraws=%" PRIu64 " presents=%" PRIu64
+        " retained_presents=%" PRIu64 " cap_skips=%" PRIu64
+        " counted_frames=%" PRIu64 " draw_cap_fps=%d"
+        " draw_work_us=%" PRIu64 " idle_work_us=%" PRIu64 " render_present_us=%" PRIu64 "\n",
+        elapsed_us, plugin_measurement.loops, app.logic_cycle - plugin_measurement.logic_at_start,
+        plugin_measurement.redraws, plugin_measurement.presents,
+        plugin_measurement.retained_presents, plugin_measurement.cap_skips,
+        app.frames_rendered - plugin_measurement.rendered_at_start, diagnostic_draw_cap_fps(),
+        plugin_measurement.draw_work_us, plugin_measurement.idle_work_us, plugin_measurement.render_present_us);
+    for( int plugin = 0; plugin < PluginHost_Count(app.plugins); ++plugin )
+    {
+        for( int slot = 0; slot < PluginHost_TelemetryCallbackCount(); ++slot )
+        {
+            struct ToriRS_PluginCallbackTelemetry row;
+            PluginHost_TelemetryReadCallback(app.plugins, plugin, slot, &row);
+            TORIRS_REPORT("PLUGIN_CALLBACK plugin=%s callback=%s subscribed=%d running=%d"
+                " calls=%" PRIu64 " elapsed_ns=%" PRIu64 " self_ns=%" PRIu64 " max_ns=%" PRIu64 "\n",
+                PluginHost_Name(app.plugins, plugin), row.callback, row.subscribed,
+                PluginHost_IsRunning(app.plugins, plugin), row.calls, row.elapsed_ns, row.self_ns, row.max_ns);
+        }
+        char const* const categories[] = { "widget", "instance", "panel" };
+        for( int category = 0; category < TORIRS_PLUGIN_MUTATION_COUNT; ++category )
+        {
+            struct ToriRS_PluginMutationTelemetry row;
+            PluginHost_TelemetryReadMutation(app.plugins, plugin,
+                (enum ToriRS_PluginMutationCategory)category, &row);
+            TORIRS_REPORT("PLUGIN_MUTATION plugin=%s category=%s attempts=%" PRIu64
+                " changes=%" PRIu64 " redraw_requests=%" PRIu64 "\n",
+                PluginHost_Name(app.plugins, plugin), categories[category],
+                row.attempts, row.changes, row.redraw_requests);
+        }
+    }
+}
+
 
 #if defined(TORIRS_PLATFORM_WEB)
 /*
@@ -1700,6 +1870,7 @@ frame_loop_step(void)
                     app.world_view_valid ? app.world_emit_desc.w : 0,
                     app.world_view_valid ? app.world_emit_desc.h : 0);
                 PlatformWindow_PollCommands(platform, &bus);
+                sim_touch_pump(&app, &bus, frame_count, now);
                 if( sock )
                     NetTransport_Poll(sock, app.net, &bus);
             }
@@ -2257,7 +2428,7 @@ frame_loop_step(void)
                  * unimplementable in the first place.
                  */
                 RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
-                TORIRS_LOG("sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
+                TORIRS_REPORT("sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
                     vb_id,
                     vb_value,
                     VarPManager_VarbitBaseVar(&app.varps, (int)vb_id),
@@ -2727,6 +2898,40 @@ frame_loop_step(void)
             }
         }
 
+        /* Service-boundary role fixture: native widgets stay alive, but their
+         * semantic lookup disappears and returns through the binding path.
+         * TORIRS_SIM_ROLE_MEMBERS="frame,chat_buttons,0|1[;...]". */
+        {
+            static char const* role_cursor = NULL;
+            static int role_init = 0;
+            if( !role_init )
+            {
+                role_init = 1;
+                role_cursor = getenv("TORIRS_SIM_ROLE_MEMBERS");
+            }
+            while( role_cursor && *role_cursor )
+            {
+                long at = -1;
+                char role[32];
+                int present = -1;
+                int consumed = 0;
+                if( sscanf(role_cursor, "%ld,%31[^,],%d%n", &at, role, &present, &consumed) != 3 ||
+                    at < 0 || (present != 0 && present != 1) ||
+                    (role_cursor[consumed] != '\0' && role_cursor[consumed] != ';') )
+                {
+                    TORIRS_ERR("sim_role_members: invalid fixture '%s'\n", role_cursor);
+                    role_cursor = NULL;
+                    break;
+                }
+                if( frame_count < at )
+                    break;
+                int const applied = App_PluginFixtureRoleMembers(&app, role, present);
+                TORIRS_REPORT("sim_role_members: frame=%ld role=%s present=%d applied=%d\n",
+                    at, role, present, applied);
+                role_cursor = role_cursor[consumed] == ';' ? role_cursor + consumed + 1 : NULL;
+            }
+        }
+
         /* TORIRS_SIM_MOUSE_LEAVE="frame[;frame...]": leave through the same
          * input command as the platform, without rewinding the frame clock. */
         {
@@ -2962,6 +3167,11 @@ frame_loop_step(void)
          * App.touch_ui. */
         if( torirs_env_touch_ui() )
             app.touch_ui = 1;
+        if( getenv("TORIRS_SIM_TOUCH") )
+        {
+            app.touch_ui = 1;
+            app.touch_camera = 1;
+        }
         /* A finger scrolls a list by dragging it; a mouse has the bar and the
          * wheel. Mirrored here, beside the flag it follows, rather than after
          * App_Init -- this block is what sets touch_ui, and it runs from the
@@ -3008,10 +3218,13 @@ frame_loop_step(void)
 #endif
     }
 
+    plugin_measurement_begin();
+    if( plugin_measurement.active ) plugin_measurement.loops++;
     app_redraw = 0;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
+        if( plugin_measurement.active && app_redraw ) plugin_measurement.redraws++;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
         if( ContentTest_Enabled() && getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") )
         {
@@ -3161,11 +3374,32 @@ frame_loop_step(void)
     }
     if( ContentTest_DrawRequested(&app) )
         app_redraw = 1;
+    /* A capped one-shot UI change still needs presentation when its deadline
+     * arrives, even if no later callback requests another emitted redraw. */
+    if( plugin_measurement.draw_pending && App_FrameSettled(&app) && PlatformWindow_CanPresent(platform) )
+        app_redraw = 1;
+    /* Unlike a configured pacer cap this diagnostic changes no loop deadline,
+     * logic clock or saved preference. It isolates actual draws from callbacks. */
+    if( app_redraw && diagnostic_draw_cap_fps() > 0 &&
+        !ToriRS_DrawGateAllow(&plugin_measurement.gate, PlatformWindow_TicksUs(), diagnostic_draw_cap_fps()) )
+    {
+        app_redraw = 0;
+        plugin_measurement.draw_pending = true;
+        if( plugin_measurement.active ) plugin_measurement.cap_skips++;
+    }
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
+            uint64_t const started_us = plugin_measurement.active ? PlatformWindow_TicksUs() : 0;
+            uint64_t const previous_presentations = app.frames_rendered;
             interactive_render_present(&app, platform, gl3, d3d9, gles2);
+            if( app.frames_rendered != previous_presentations ) plugin_measurement.draw_pending = false;
+            if( plugin_measurement.active )
+            {
+                plugin_measurement.presents += app.frames_rendered - previous_presentations;
+                plugin_measurement.render_present_us += PlatformWindow_TicksUs() - started_us;
+            }
         }
     }
     else
@@ -3173,6 +3407,7 @@ frame_loop_step(void)
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
             interactive_present_retained(platform, gl3, d3d9, gles2);
+            if( plugin_measurement.active ) plugin_measurement.retained_presents++;
         }
     }
 
@@ -3292,7 +3527,12 @@ frame_loop_step(void)
     {
         int keyboard_on = 0;
         if( App_TakeTextInputChange(&app, &keyboard_on) )
+        {
             PlatformWindow_SetTextInput(platform, keyboard_on);
+            if( getenv("TORIRS_SIM_TOUCH") || getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("TEXT_INPUT_CHANGE frame=%ld on=%d requested=%d inset=%d\n",
+                    frame_count, keyboard_on, app.text_input_on, app.keyboard_inset);
+        }
     }
     {
         int new_mode = 0;
@@ -3378,7 +3618,13 @@ frame_loop_step(void)
      * nothing: fflush on an empty buffer writes nothing. See the setvbuf in
      * main(). */
     fflush(stderr);
-    App_NoteFrameTime(&app, PlatformWindow_TicksUs() - frame_start_us);
+    uint64_t const loop_work_us = PlatformWindow_TicksUs() - frame_start_us;
+    App_NoteFrameTime(&app, loop_work_us);
+    if( plugin_measurement.active )
+    {
+        if( app_redraw ) plugin_measurement.draw_work_us += loop_work_us;
+        else plugin_measurement.idle_work_us += loop_work_us;
+    }
 #if defined(TORIRS_FRAME_TIMES)
     ToriRS_FrameTimes_End(PlatformWindow_TicksUs());
 #endif
@@ -3492,6 +3738,8 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
+    /* Before diagnostic BMPs: their draw callbacks are outside this live window. */
+    plugin_measurement_dump();
     /* The ordinary exit BMP is the logical framebuffer. At its floor a
      * scaling fix changes only the physical presentation, so capture that
      * independently instead of teaching the logical pixel rules a new size. */
@@ -3906,6 +4154,17 @@ frame_loop_teardown(void)
                         ++buttons;bool live=UITree_NodeNativeInputPresent(app.tree,&app.ui_host,child);live_buttons+=live;
                         TORIRS_REPORT("NATIVE_GROUND_CONTROL root=%d node=%d live=%d box=%d,%d,%d,%d\n",
                             root,child,live,item->position.abs_x,item->position.abs_y,item->position.abs_w,item->position.abs_h);
+                    }
+                    else if( item->position.width_mode != 1 || item->position.width != 108 )
+                    {
+                        int painted = 0;
+                        for( int j=0; j<app.emit.count; ++j )
+                            if( app.emit.cmds[j].node_index == child ) ++painted;
+                        TORIRS_REPORT("NATIVE_GROUND_AUX root=%d node=%d painted=%d hidden=%d box=%d,%d,%d,%d text=%s\n",
+                            root, child, painted, item->widget_hidden,
+                            item->position.abs_x, item->position.abs_y,
+                            item->position.abs_w, item->position.abs_h,
+                            item->type == UIELEM_RS_TEXT && item->u.rs_text.text ? item->u.rs_text.text : "");
                     }
                 }
                 TORIRS_REPORT("NATIVE_GROUND_OVERLAY root=%d widget_hide=%d native_hide=%d emitted=%d coord=%d captions=%d hidden_captions=%d caption_emits=%d buttons=%d live_buttons=%d\n",

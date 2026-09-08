@@ -43,7 +43,7 @@
 #define TORIRS_PLUGIN_CONFIG_VALUE_MAX 192
 #define TORIRS_PLUGIN_SUBS_MAX 32
 /* Rows one menu build may carry routes for. Bounded by the menu itself. */
-#define TORIRS_PLUGIN_MENU_ROUTES_MAX 24
+#define TORIRS_PLUGIN_MENU_ROUTES_MAX TORIRS_PLUGIN_MENU_ROWS_MAX
 /* Overlay items one plugin may push per frame, before the host clips it and
  * says so. The pool it draws from is shared with health bars and chat. */
 #define TORIRS_PLUGIN_DRAW_BUDGET 512
@@ -176,6 +176,9 @@ struct PluginWidgetRequest
  * publication fence. A zero instance means no ready native tree. */
 bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+/** Re-publish semantic bindings whose resolver changed without native node
+ *  replacement. The next ordinary WidgetsChanged call delivers the update. */
+void PluginHost_WidgetBindingsInvalidate(struct ToriRS_PluginHost*);
 
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a
  * plugin. The adapter and its strings live only through this dispatch. */
@@ -762,6 +765,9 @@ struct ToriRS_PluginEngine
     int (*draw_hull_stroke)(
         void* user, int element_id, uint32_t rgb, int fill_alpha,
         int shape, int outline_width, int item_budget);
+    int (*draw_hull_styled)(
+        void* user, int element_id, uint32_t rgb, int fill_alpha,
+        int shape, int outline_width, uint32_t flags, int item_budget);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1376,6 +1382,24 @@ PluginHost_PanelDispatch(
     int x,
     int y);
 
+/** Dispatch custom input with its presenter's current logical allocation.
+ *  Ordinary controls use zero dimensions. The old entry point remains a
+ *  compatibility wrapper for callers without custom allocation facts. */
+int
+PluginHost_PanelDispatchRegion(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    uint64_t intent_sequence,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y,
+    int region_width,
+    int region_height);
+
 /** Whether a selected custom node is dirty, followed by its scoped draw pass.
  *  The caller prepares `surface` as a panel-local target before dispatch and
  *  restores its renderer afterwards. Draw returns 0 for hidden, clean, stale,
@@ -1401,5 +1425,48 @@ PluginHost_PanelDraw(
     int y,
     int width,
     int height);
+
+/* Opt-in developer measurements. No allocation or clock reads until enabled.
+ * Callback elapsed time is inclusive; self_ns excludes nested plugin callbacks.
+ * Names are host-owned. Read every slot, including zero-call subscriptions, to
+ * distinguish an absent callback from a subscribed callback which did not fire. */
+struct ToriRS_PluginCallbackTelemetry
+{
+    char const* callback;
+    bool subscribed;
+    uint64_t calls, elapsed_ns, self_ns, max_ns;
+};
+enum ToriRS_PluginMutationCategory
+{
+    TORIRS_PLUGIN_MUTATION_WIDGET,
+    TORIRS_PLUGIN_MUTATION_INSTANCE,
+    TORIRS_PLUGIN_MUTATION_PANEL,
+    TORIRS_PLUGIN_MUTATION_COUNT
+};
+struct ToriRS_PluginMutationTelemetry
+{
+    uint64_t attempts, changes, redraw_requests;
+};
+void PluginHost_TelemetryStart(struct ToriRS_PluginHost* host,
+    uint64_t (*clock_ns)(void* user), void* clock_user);
+/** Starts a fresh measurement window; only between callbacks. */
+void PluginHost_TelemetryReset(struct ToriRS_PluginHost* host);
+int PluginHost_TelemetryCallbackCount(void);
+void PluginHost_TelemetryReadCallback(struct ToriRS_PluginHost const* host,
+    int plugin_index, int callback_index, struct ToriRS_PluginCallbackTelemetry* out);
+void PluginHost_TelemetryReadMutation(struct ToriRS_PluginHost const* host,
+    int plugin_index, enum ToriRS_PluginMutationCategory category,
+    struct ToriRS_PluginMutationTelemetry* out);
+/** Record one validated retained setter request using its actual change and
+ * redraw decisions. Owner is the engine seam's 1-based plugin owner token;
+ * redraw_requests counts requests, even when a previous caller already dirtied
+ * the frame. A successful unchanged setter is an attempt, not a change. */
+void PluginHost_RecordRetainedMutation(struct ToriRS_PluginHost* host,
+    uint64_t owner, enum ToriRS_PluginMutationCategory category,
+    bool changed, bool redraw_requested);
+
+/** For engine object setters invoked inside a plugin callback. */
+void PluginHost_RecordCurrentRetainedMutation(struct ToriRS_PluginHost* host,
+    enum ToriRS_PluginMutationCategory category, bool changed, bool redraw_requested);
 
 #endif /* TORIRS_PLUGIN_HOST_H */

@@ -2227,6 +2227,20 @@ v2_builder_world_hull_stroke(
 }
 
 static enum ToriRS_Result
+v2_builder_world_hull_styled(struct ToriRS_Graphics* draw,int element_id,
+    uint32_t rgb,int alpha,int shape,int outline_width,uint32_t flags)
+{
+    struct PluginV2DrawScope* scope=v2_draw_scope(draw);
+    if( shape!=TORIRS_HULL_BOUNDS && shape!=TORIRS_HULL_MESH ) return TORIRS_RESULT_INVALID;
+    if( outline_width<0 || outline_width>255 ) return TORIRS_RESULT_INVALID;
+    if( flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP ) return TORIRS_RESULT_INVALID;
+    if( shape==TORIRS_HULL_BOUNDS && !(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return api_draw_hull_styled(scope->runtime->context,scope->surface_token,
+        element_id,rgb,v2_alpha(alpha),shape,outline_width,flags);
+}
+
+static enum ToriRS_Result
 v2_builder_world_tile(struct ToriRS_Graphics* draw, int x, int z, int level,
                       uint32_t fill, uint32_t outline, int alpha)
 {
@@ -2287,6 +2301,7 @@ plugin_v2_runtime_draw_begin(
         .context = v2_builder_context,
         .world_tile_stroke = v2_builder_world_tile_stroke,
         .world_hull_stroke = v2_builder_world_hull_stroke,
+        .world_hull_styled = v2_builder_world_hull_styled,
     };
 }
 

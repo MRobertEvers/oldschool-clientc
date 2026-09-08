@@ -2655,9 +2655,97 @@ pin_image_roster_start(struct ToriRS_Api* api, void* state)
     }
 }
 
+static struct ToriRS_Api* g_resize_api;
+static char const* const RESIZE_VALUES[] = { "auto", "one", "two", "three", "four", "core/native" };
+
+static void
+resize_start(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_PanelDescriptor panel = { .preferred_width = 320 };
+    (void)state;
+    g_resize_api = api;
+    CHECK(api->panel.request(api, &panel) == TORIRS_RESULT_OK, "resize fixture registers its page");
+}
+
+static void
+resize_build(struct ToriRS_Api* api, void* state, struct ToriRS_PanelBuilder* panel, int view)
+{
+    struct ToriRS_SelectOption options[6];
+    (void)api;
+    (void)state;
+    (void)view;
+    for( int i = 0; i < 6; i++ )
+        options[i] = (struct ToriRS_SelectOption){
+            .struct_size = sizeof(options[i]), .value = RESIZE_VALUES[i],
+            .label = RESIZE_VALUES[i], .enabled = true, .detail = "" };
+    panel->select(panel, "first", "First", "core/native", options, 6);
+    panel->select(panel, "second", "Second", "auto", options, 3);
+    panel->select(panel, "empty", "Empty", "", NULL, 0);
+}
+
+static void
+test_retained_option_resize(void)
+{
+    struct ToriRS_PluginDef def = {
+        .struct_size = sizeof(def), .id = "resize-options", .title = "Resize options", .version = "1",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+            .on_start = resize_start, .on_ui_build = resize_build }
+    };
+    struct ToriRS_PluginEngine engine = fake_engine();
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    struct ToriRS_SelectOption options[6];
+    int const plugin = PluginHost_Register(host, &def);
+    PluginHost_Start(host);
+    CHECK(PluginHost_PanelSelect(host, plugin), "resize fixture opens");
+    uint32_t const generation = PluginHost_PanelSelectionGeneration(host);
+    struct ToriRS_PanelWidget const* first = PluginHost_PanelWidgetAt(host, generation, 0);
+    struct ToriRS_PanelWidget const* second = PluginHost_PanelWidgetAt(host, generation, 1);
+    uint32_t const serial = first->serial;
+    PluginHost_PanelChangesAcknowledge(host, generation);
+    for( int i = 0; i < 6; i++ )
+        options[i] = (struct ToriRS_SelectOption){
+            .struct_size = sizeof(options[i]), .value = RESIZE_VALUES[i],
+            .label = RESIZE_VALUES[i], .enabled = true, .detail = "" };
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "one", options, 5) == TORIRS_RESULT_OK,
+        "the real host accepts the original six-to-five saved-id transition");
+    CHECK(first->serial == serial && first->select_option_count == 5 && first->selected == 1 &&
+        PluginHost_PanelSelectionGeneration(host) == generation && PluginHost_PanelWidgetCount(host, generation) == 3,
+        "count changes keep widget identity, page identity and stable selection");
+    CHECK(second->select_option_count == 3 && !strcmp(second->select_options[2].value, "two"),
+        "shrinking one packed slice preserves the following dropdown");
+    struct ToriRS_PluginPanelChange change;
+    CHECK(PluginHost_PanelChangeNext(host, generation, &change) == 1 &&
+        change.widget_serial == serial && (change.flags & TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS),
+        "the resize is one retained option mutation");
+    CHECK(PluginHost_PanelChangeNext(host, generation, &change) == 0,
+        "resizing options does not request a page rebuild");
+    options[0].label = "must not leak";
+    options[1].value = "auto";
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "auto", options, 5) == TORIRS_RESULT_INVALID &&
+        !strcmp(first->select_options[0].label, "auto"),
+        "a later invalid row cannot partially mutate an earlier retained option");
+    options[0].label = "auto";
+    options[1].value = "one";
+    for( int i = 0; i < 150; i++ )
+    {
+        CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "", NULL, 0) == TORIRS_RESULT_OK,
+            "a retained slice can become empty");
+        CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "core/native", options, 6) == TORIRS_RESULT_OK,
+            "repeated growth reuses the released option capacity");
+    }
+    CHECK(!strcmp(second->select_options[2].value, "two"),
+        "repeated growth and shrink preserve the following dropdown's copied strings");
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "empty", "one", options, 2) == TORIRS_RESULT_OK,
+        "an originally empty following slice remains a valid insertion point");
+    CHECK(first->select_option_count == 6 && !strcmp(first->selected_value, "core/native"),
+        "growing the final empty slice leaves earlier selections intact");
+    PluginHost_Free(host);
+}
+
 static void
 test_repair_pins(void)
 {
+    test_retained_option_resize();
     /* ---- (a) a save must not delete a plugin this run does not have ---- */
     {
         struct ToriRS_PluginEngine engine = fake_engine();
@@ -3268,6 +3356,86 @@ static void test_script_callbacks(void)
     PluginHost_Free(script_test_host);
 }
 
+static struct ToriRS_PluginHost* telemetry_host;
+static uint64_t telemetry_now;
+static int telemetry_clock_reads;
+static uint64_t telemetry_clock(void* user)
+{
+    (void)user;
+    telemetry_clock_reads++;
+    return telemetry_now;
+}
+static void telemetry_server(struct ToriRS_Api* api, void* state,
+    struct ToriRS_TickEvent const* event)
+{
+    (void)api; (void)state; (void)event;
+    telemetry_now += 7;
+}
+static void telemetry_frame(struct ToriRS_Api* api, void* state,
+    struct ToriRS_FrameEvent const* event)
+{
+    (void)api; (void)state;
+    CHECK(event->drawn_frames == 15, "frame events preserve actual draw count");
+    telemetry_now += 10;
+    PluginHost_ServerTick(telemetry_host, 1);
+    telemetry_now += 3;
+}
+static struct ToriRS_PluginCallbackTelemetry telemetry_row(int plugin, char const* name)
+{
+    struct ToriRS_PluginCallbackTelemetry row = {0};
+    for( int i = 0; i < PluginHost_TelemetryCallbackCount(); ++i )
+    {
+        PluginHost_TelemetryReadCallback(telemetry_host, plugin, i, &row);
+        if( strcmp(row.callback, name) == 0 ) return row;
+    }
+    CHECK(0, "telemetry callback name exists");
+    return row;
+}
+static void test_callback_telemetry(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    telemetry_host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef a = {.struct_size=sizeof(a), .id="telemetry-a", .title="A", .version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_frame_start=telemetry_frame}};
+    struct ToriRS_PluginDef b = {.struct_size=sizeof(b), .id="telemetry-b", .title="B", .version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_server_tick=telemetry_server}};
+    int ai=PluginHost_Register(telemetry_host,&a), bi=PluginHost_Register(telemetry_host,&b);
+    PluginHost_Start(telemetry_host);
+    PluginHost_FrameStart(telemetry_host,0,15);
+    CHECK(telemetry_clock_reads==0 && telemetry_row(ai,"on_frame_start").calls==0,
+        "disabled telemetry does not call the clock or accumulate callbacks");
+    PluginHost_TelemetryStart(telemetry_host,telemetry_clock,NULL);
+    PluginHost_FrameStart(telemetry_host,20,15);
+    struct ToriRS_PluginCallbackTelemetry outer=telemetry_row(ai,"on_frame_start");
+    struct ToriRS_PluginCallbackTelemetry inner=telemetry_row(bi,"on_server_tick");
+    CHECK(outer.calls==1 && outer.elapsed_ns==20 && outer.self_ns==13 && outer.max_ns==20,
+        "per-plugin timing excludes nested callbacks from self time");
+    CHECK(inner.calls==1 && inner.elapsed_ns==7 && inner.self_ns==7,
+        "nested plugin time has its own callback attribution");
+    CHECK(outer.subscribed && !telemetry_row(ai,"on_server_tick").subscribed &&
+        telemetry_row(ai,"on_server_tick").calls==0,
+        "sparse subscription census distinguishes absent handlers from called ones");
+    PluginHost_SetEnabled(telemetry_host,bi,false);
+    PluginHost_FrameStart(telemetry_host,40,15);
+    outer=telemetry_row(ai,"on_frame_start");
+    CHECK(outer.calls==2 && outer.elapsed_ns==33 && outer.self_ns==26 &&
+        telemetry_row(bi,"on_server_tick").calls==1,
+        "disabled plugin remains uncalled while its historical samples survive");
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,false,false);
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,true,true);
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,true,true);
+    struct ToriRS_PluginMutationTelemetry mutation;
+    PluginHost_TelemetryReadMutation(telemetry_host,ai,TORIRS_PLUGIN_MUTATION_WIDGET,&mutation);
+    CHECK(mutation.attempts==3 && mutation.changes==2 && mutation.redraw_requests==2,
+        "retained attempts, real changes and repeated dirty requests are separate");
+    PluginHost_TelemetryReset(telemetry_host);
+    CHECK(telemetry_row(ai,"on_frame_start").calls==0 && telemetry_row(ai,"on_frame_start").subscribed,
+        "measurement reset clears samples without changing live subscriptions");
+    PluginHost_TelemetryReadMutation(telemetry_host,ai,TORIRS_PLUGIN_MUTATION_WIDGET,&mutation);
+    CHECK(mutation.attempts==0,"measurement reset also clears retained counters");
+    PluginHost_Free(telemetry_host);
+}
+
 int
 main(void)
 {
@@ -3862,6 +4030,7 @@ main(void)
     test_widget_images();
     test_gameframe_provider();
     test_repair_pins();
+    test_callback_telemetry();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

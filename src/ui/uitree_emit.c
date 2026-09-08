@@ -1429,8 +1429,13 @@ emit_minimenu_popup(
         0,
         "Choose Option");
 
+    struct UITreeEmitClip rows_clip;
+    rows_clip = *parent_clip;
+    if( menu->scrollbar_w && !clip_intersect(&rows_clip,parent_clip,mx+1,my+layout->separator_y+1,
+        mw-menu->scrollbar_w-2,mh-layout->separator_y-3) ) return;
     for( int i = 0; i < menu->option_count; i++ )
     {
+        if( !UIMinimenu_OptionVisible(menu,i) ) continue;
         int const hovered = menu->hovered_option == i;
         int text_x;
         int text_y;
@@ -1441,7 +1446,7 @@ emit_minimenu_popup(
             out,
             c,
             idx,
-            parent_clip,
+            &rows_clip,
             text_x,
             text_y,
             text_w,
@@ -1451,6 +1456,21 @@ emit_minimenu_popup(
             1,
             menu->options[i].text);
     }
+    struct UIMinimenuScrollbar bar;
+    if( UIMinimenu_Scrollbar(menu,&bar) )
+    {
+        emit_minimenu_rect(out,c,idx,parent_clip,bar.x,bar.y,bar.w,bar.h,0x000000);
+        emit_minimenu_rect(out,c,idx,parent_clip,bar.x+1,bar.y+1,bar.w-2,bar.arrow_h-2,0x70695b);
+        emit_minimenu_rect(out,c,idx,parent_clip,bar.x+1,bar.y+bar.h-bar.arrow_h+1,bar.w-2,bar.arrow_h-2,0x70695b);
+        emit_minimenu_rect(out,c,idx,parent_clip,bar.x+1,bar.thumb_y,bar.w-2,bar.thumb_h,0x70695b);
+        for( int row=0;row<4;++row )
+        {
+            int const center=bar.x+bar.w/2;
+            emit_minimenu_rect(out,c,idx,parent_clip,center-row,bar.y+bar.arrow_h/2-2+row,2*row+1,1,0x000000);
+            emit_minimenu_rect(out,c,idx,parent_clip,center-row,bar.y+bar.h-bar.arrow_h/2+2-row,2*row+1,1,0x000000);
+        }
+    }
+
 }
 
 /** `from` moved toward `to` by t/255, per channel. */

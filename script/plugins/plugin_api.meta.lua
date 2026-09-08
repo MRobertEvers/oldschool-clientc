@@ -187,6 +187,8 @@ warn = nil
 ---@field generation integer
 ---@field serial integer
 ---@field sequence integer
+---@field region_width integer Current custom-region logical width before drawing; zero for ordinary controls or legacy hosts.
+---@field region_height integer Current custom-region logical height before drawing; zero for ordinary controls or legacy hosts.
 
 ---@class torirs.PanelLayoutEvent
 ---@field width integer
@@ -446,6 +448,7 @@ warn = nil
 --- These optional graphics verbs return unsupported on an older builder and budget on a capacity refusal.
 ---@field world_tile_stroke fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName
 ---@field world_hull_stroke fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer, outline_width?: integer): boolean, torirs.ResultName
+---@field world_hull_styled fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer, outline_width?: integer, flags?: integer): boolean, torirs.ResultName # Mesh silhouette by default; flags0 respects foreground, flags16 always on top. Bounds requires flags16.
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
 

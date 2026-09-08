@@ -81,6 +81,7 @@ struct FakeEngine
     int last_tile_width;
     int last_hull_width;
     int last_hull_alpha;
+    uint32_t last_hull_flags;
     int draw_refusal_mode;
     /* WHICH tiles, not just how many: a footprint loop that transposed its
      * two axes draws the right number of the wrong tiles, and every
@@ -398,6 +399,13 @@ fake_draw_hull_stroke(void* u, int element, uint32_t rgb, int alpha, int shape,
     if( g_engine.draw_refusal_mode )
         return g_engine.draw_refusal_mode == 3 ? 0 : -g_engine.draw_refusal_mode;
     return fake_draw_hull(u, element, rgb, alpha, shape);
+}
+static int
+fake_draw_hull_styled(void* u,int element,uint32_t rgb,int alpha,int shape,
+                     int width,uint32_t flags,int item_budget)
+{
+    g_engine.last_hull_flags=flags;
+    return fake_draw_hull_stroke(u,element,rgb,alpha,shape,width,item_budget);
 }
 static int
 fake_draw_line(void* u, int x0, int y0, int x1, int y1, uint32_t rgb)
@@ -964,6 +972,7 @@ fake_engine(void)
     e.draw_hull = fake_draw_hull;
     e.draw_tile_stroke = fake_draw_tile_stroke;
     e.draw_hull_stroke = fake_draw_hull_stroke;
+    e.draw_hull_styled = fake_draw_hull_styled;
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
@@ -1164,6 +1173,13 @@ main(void)
         CHECK(g_engine.hulls == 1, "a model-flagged item is outlined");
         CHECK(g_engine.tiles == 0, "and its tile is not marked -- no tile flag");
         CHECK(g_engine.last_hull_width == 1, "a one-pixel group keeps its exact width");
+        CHECK(g_engine.last_hull_flags==0,"ordinary mesh highlights respect scene visibility");
+        g_engine.highlights[0].flags|=TORIRS_WORLD_DRAW_ALWAYS_ON_TOP;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_hull_flags==TORIRS_WORLD_DRAW_ALWAYS_ON_TOP,
+              "cache always-on-top reaches the renderer without losing the draw bits");
+        g_engine.highlights[0].flags&=~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP;
         g_engine.highlights[0].outline_width = 2;
         draw_reset();
         PluginHost_DrawWorld(host);
@@ -1279,9 +1295,8 @@ main(void)
          * on-top group the cache declares, whether or not it asked for a
          * shape.
          *
-         * Neither is HONOURED here -- there is no depth and no minimap verb in
-         * the draw API -- and that is the open half of this row; what is
-         * pinned is that they invent nothing.
+         * Model depth is transported by world_hull_styled. MINIMAP still has
+         * no draw verb here. Neither qualifier invents a requested shape.
          */
         g_engine.highlights[0].flags = 16 | 64;
         draw_reset();

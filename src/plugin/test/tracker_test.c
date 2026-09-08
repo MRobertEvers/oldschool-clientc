@@ -1738,6 +1738,50 @@ test_loot_drop_before_removal(void)
     TEST_ASSERT(!has_loot(), "an old unrelated ground item is outside the inference window");
 }
 
+/* The original capture could click only after a draw had already repaired
+ * the cached width. Dispatch layout and input consecutively, before any draw. */
+static void
+test_loot_layout_then_click_before_draw(void)
+{
+    for( int era = 0; era < 2; era++ )
+    {
+        for( int width = 278; width <= 294; width += 16 )
+        {
+            client_reset();
+            g_lane_game = era ? TORIRS_GAME_RS2 : TORIRS_GAME_OLDSCHOOL;
+            loot_start();
+            struct ToriRS_PanelLayoutEvent layout = {
+                .width = 320, .height = 500, .scale_milli = 1000,
+                .size_class = TORIRS_PANEL_SIZE_MEDIUM, .visible = true,
+                .game_visible = true, .selection_generation = 1
+            };
+            struct ToriRS_PanelActionEvent action = {
+                .id = "strip", .action = TORIRS_PANEL_ACTION_ACTIVATE,
+                .text = "", .x = 197, .y = 20, .selection_generation = 1,
+                .region_width = width, .region_height = 200
+            };
+            dispatch_panel_layout(&layout);
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"),
+                width == 278 ? "High alchemy" : "Cache value"),
+                "layout then x197 before first draw uses custom width%d on era%d", width, era);
+            fake_config_set_raw("price_source", "Cache value");
+            /* A new layout still must not replace the custom width with the
+             * whole panel width. Test the exact painted button boundary. */
+            layout.width = 350;
+            action.x = width - 96 - 1;
+            dispatch_panel_layout(&layout);
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"), "Cache value"),
+                "one pixel outside the value button is inert before draw at width%d", width);
+            action.x++;
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"), "High alchemy"),
+                "the first pixel inside the value button works before draw at width%d", width);
+        }
+    }
+}
+
 /*
  * A kill in the client's store becomes a band.
  *
@@ -2173,6 +2217,7 @@ main(void)
     test_loot_kill_becomes_a_record();
     test_loot_rs289_inference_and_osrs_dedup();
     test_loot_drop_before_removal();
+    test_loot_layout_then_click_before_draw();
     test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();

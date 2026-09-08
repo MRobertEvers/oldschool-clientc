@@ -45,4 +45,8 @@ RS_GameProto_Exec(
 void
 RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
 
+/** Drain the opt-in TORIRS_SIM_STAT_DELAY packet-delivery fixture. */
+void
+RS_GameProto_FlushDelayedStats(struct RS_GameProtoCtx const* ctx);
+
 #endif

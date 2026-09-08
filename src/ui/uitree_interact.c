@@ -1567,6 +1567,25 @@ interact_minimenu(
      * the menu in the app. App-level gestures also poll the raw input state,
      * so visibility alone cannot stop this press propagating to them. */
     out->minimenu_consumed_pointer = 1;
+    int const mx = input->curr.mouse_x, my = input->curr.mouse_y;
+    bool const left_down = LibToriRS_Input_IsMouseDown(input,TORIRSM_LEFT);
+    if( input->curr.mouse_wheel_y && mx>=menu->x && mx<menu->x+menu->width &&
+        my>=menu->y && my<menu->y+menu->height )
+    {
+        int64_t rows = -(int64_t)input->curr.mouse_wheel_y * 3;
+        if( rows > menu->option_count ) rows = menu->option_count;
+        if( rows < -menu->option_count ) rows = -menu->option_count;
+        if( UIMinimenu_Scroll(menu,(int)rows) ) out->need_redraw = 1;
+        out->wheel_consumed = 1;
+    }
+    int const first_row = menu->first_row;
+    if( UIMinimenu_ScrollbarInput(menu,mx,my,left_down,LibToriRS_Input_IsMouseHeld(input,TORIRSM_LEFT)) )
+    {
+        if( left_down ) interact->swallow_left_click = 1;
+        if( menu->first_row != first_row ) out->need_redraw = 1;
+        if( UIMinimenu_UpdateHover(menu,mx,my) ) out->need_redraw = 1;
+        return 1;
+    }
 
     if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
         out->need_redraw = 1;
