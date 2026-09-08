@@ -2693,13 +2693,10 @@ is_on_menu_build(
  * A frame, and -- once per change -- what this plugin can do with the lane.
  *
  * A tooltip that follows the pointer needs a pointer: the panel is composed
- * from the HOVER pass's rows, and a touch lane runs no hover pass at all (a
- * finger tap leaves the client with a position but nothing hovering it, so the
- * pass that names the cell is skipped). On that lane there is nothing for this
- * plugin to describe and it draws nothing, which without a line looks exactly
- * like a plugin that is broken. Said the way nxt-highlight says it, off the
- * `touch` CAPABILITY rather than a revision or a platform symbol, because the
- * input policy can change under a running client.
+ * from the HOVER pass's rows. A held finger supplies that pointer until the
+ * long-press menu takes over; lifting clears it after the input grace frame.
+ * The touch capability therefore changes how long a preview lasts, not whether
+ * one can ever appear. Report the actual gesture policy once per change.
  */
 static void
 is_on_frame(
@@ -2716,7 +2713,7 @@ is_on_frame(
     {
         g_touch_said = touch;
         g_api->core.log(g_api, "item stats: %s",
-            touch ? "unavailable, a touch lane has no pointer hover to describe a cell from"
+            touch ? "touch previews last while a finger is held over a cell"
                   : "the cell under the pointer is described beside it");
     }
 }

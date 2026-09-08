@@ -1408,7 +1408,7 @@ app_minimap_push_dot(
     int w = 4, h = 4;
     struct UITreeMinimapDot* dot;
 
-    if( app->minimap_dot_count >= (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count >= app->minimap_native_limit )
         return;
     if( dx * dx + dy * dy > 6400 )
         return;
@@ -1429,6 +1429,7 @@ app_minimap_push_dot(
         }
     }
     dot = &app->minimap_dots[app->minimap_dot_count++];
+    memset(dot,0,sizeof(*dot));
     dot->dx = x - w / 2;
     dot->dy = -y - h / 2;
     dot->w = w;
@@ -2428,6 +2429,8 @@ App_MinimapBuildDots(
     struct App* app,
     struct UITreeMinimapDot const** out_dots)
 {
+    assert(app);
+    assert(out_dots);
     struct WorldEntity_Player* local = app_local_player(app);
     struct World* world = app->world;
     struct World_EntityPool* pool;
@@ -2450,6 +2453,20 @@ App_MinimapBuildDots(
      * hull (deob client.java:9343-9352) — that is what scrolls the sea past
      * while the boat sails. */
     app_wev_actor_root_fine(app, &local->view_placement, &px, &pz);
+    app->minimap_player_x=px;
+    app->minimap_player_z=pz;
+    app->minimap_level=cull_level;
+    /* A separate draw scope, independent of WORLD descriptor order. Rebuild
+     * from current callbacks every time the normal minimap requests its list,
+     * so disabled plugins and removed groups leave no retained ghost marks. */
+    if( !app->plugin_minimap_prepared )
+    {
+        app->plugin_minimap_prepared=true;
+        if( app->plugins ) PluginHost_DrawMinimap(app->plugins);
+        app->plugin_minimap_count=app->minimap_dot_count;
+    }
+    else app->minimap_dot_count=app->plugin_minimap_count;
+    app->minimap_native_limit=app->minimap_dot_count+256;
     dots_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPDOTS);
     marker_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPMARKER);
 
@@ -2631,9 +2648,10 @@ App_MinimapBuildDots(
             0);
 
     /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
-    if( app->minimap_dot_count < (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count < app->minimap_native_limit )
     {
         struct UITreeMinimapDot* dot = &app->minimap_dots[app->minimap_dot_count++];
+        memset(dot,0,sizeof(*dot));
         dot->dx = -1;
         dot->dy = -1;
         dot->w = 3;
@@ -27086,6 +27104,11 @@ app_hover_text_update(
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
+        /* Keep the hover pass for item previews and native menu state. The
+         * touch interface uses the held-finger preview and long-press menu;
+         * a second line at viewport(0,0) would paint across its chat filters. */
+        if( app->touch_ui )
+            app->hover_text.visible = false;
     }
 
     /* Anchor at the world viewport's top-left (4726's container origin), or
@@ -31034,6 +31057,8 @@ App_RunOnce(
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     app->plugin_overlay_batch_started = 0;
+    app->plugin_minimap_prepared=false;
+    app->plugin_minimap_count=0;
     PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */

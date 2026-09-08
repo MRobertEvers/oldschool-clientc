@@ -1912,6 +1912,32 @@ xt_panel_action(
 }
 
 static void
+xt_request_state(struct ToriRS_Api* api, struct XtState* state)
+{
+    enum ToriRS_AssetState const result = api->assets.request(api, XT_STATE_ASSET);
+    /* A cached terminal answer emits no new on_asset callback. Waiting for
+     * that callback would invalidate this page forever after save is enabled. */
+    switch( result )
+    {
+    case TORIRS_ASSET_PENDING:
+    case TORIRS_ASSET_READY:
+        g_state_applied = false;
+        break;
+    case TORIRS_ASSET_MISSING:
+        g_state_applied = true;
+        break;
+    case TORIRS_ASSET_BUDGET:
+    case TORIRS_ASSET_ERROR:
+        g_state_applied = true;
+        api->core.log(api, "XP_TRACKER_SESSION_UNAVAILABLE result=%d", (int)result);
+        break;
+    case TORIRS_ASSET_INVALID:
+    default:
+        assert(!"invalid XP session asset request");
+    }
+}
+
+static void
 xt_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XtState* state = plugin_state;
@@ -1947,7 +1973,7 @@ xt_start(struct ToriRS_Api* api, void* plugin_state)
     /* Requested here and applied by the sizer: the file crosses the IO queue
      * and the stat table does not exist yet either. */
     if( xt_cfg_bool(api, "save_state") )
-        (void)api->assets.request(api, XT_STATE_ASSET);
+        xt_request_state(api, state);
 }
 
 static void
@@ -2127,8 +2153,7 @@ xt_config_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
     assert(key);
     if( strcmp(key, "save_state") == 0 && xt_cfg_bool(api, "save_state") )
     {
-        g_state_applied = false;
-        (void)api->assets.request(api, XT_STATE_ASSET);
+        xt_request_state(api, state);
     }
     g_next_panel_ms = 0;
     api->panel.invalidate(api);

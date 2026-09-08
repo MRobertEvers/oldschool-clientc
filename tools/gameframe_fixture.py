@@ -51,6 +51,7 @@ def inspect(repo, binary, manifest_path, revision):
         "GF_MATRIX_SCRIPT_SOURCE", "GF_MATRIX_NATIVE_GROUND_LABELS", "TORIRS_SIM_VARBIT", "TORIRS_GROUND_ITEMS_DEBUG",
         "GF_MATRIX_PERFORMANCE_METRICS", "GF_MATRIX_PERFORMANCE_POSITION", "GF_MATRIX_PERFORMANCE_COLOR",
         "GF_MATRIX_PLUGIN_PREFS", "TORIRS_SIM_TOUCH", "TORIRS_SIM_KEYBOARD_INSET",
+        "GF_MATRIX_PLUGIN_ASSETS", "TORIRS_SIM_ASSET_DELIVERY_DELAY",
         "TORIRS_SIM_STAT_DELAY", "TORIRS_SIM_ITEM_INFO_DELAY", "TORIRS_SIM_CLICK_NPC",
         "TORIRS_SIM_MENU_ROW", "TORIRS_SIM_RUNSCRIPT", "TORIRS_SIM_HOOK",
         "TORIRS_SIM_PLUGIN_PANEL", "TORIRS_SIM_PANEL_PICK", "TORIRS_TRACE_PANEL_RETAINED",
@@ -61,6 +62,9 @@ def inspect(repo, binary, manifest_path, revision):
     if prefs_source:
         report["plugin_preferences_source"] = {"path": str(Path(prefs_source).resolve()),
             "sha256": digest(prefs_source)}
+    asset_seed = os.environ.get("GF_MATRIX_PLUGIN_ASSETS")
+    if asset_seed:
+        report["plugin_asset_seed"] = {str(p): digest(p) for p in sorted(Path(asset_seed).rglob("*")) if p.is_file()}
     script_root = os.environ.get("TORIRS_SCRIPT_DIR")
     if script_root:
         report["plugin_script_files"] = {str(p): digest(p) for p in sorted(Path(script_root).rglob("*")) if p.is_file()}

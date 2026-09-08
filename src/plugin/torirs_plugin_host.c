@@ -63,6 +63,7 @@ enum PluginCallbackKind
      * (tab_select and the like) are open to it. */
     PLUGIN_CALLBACK_WIDGET_OPERATION,
     PLUGIN_CALLBACK_GAMEFRAME,
+    PLUGIN_CALLBACK_DRAW_MINIMAP,
     PLUGIN_CALLBACK_COUNT
 };
 
@@ -297,6 +298,13 @@ struct PluginAsset
     char name[TORIRS_PLUGIN_ASSET_NAME_MAX];
     void* data;
     int size;
+    /* Opt-in delivery fixture retains real IO bytes without making them
+     * visible through assets.bytes before their delayed terminal event. */
+    void* delayed_data;
+    int delayed_size;
+    uint64_t delayed_until_ms;
+    bool delivery_held;
+    bool delivery_fixture_used;
     /* A read is in flight. The slot is claimed before the IO starts so a
      * second asset_load of the same name joins the first rather than queuing
      * a duplicate read. */
@@ -358,7 +366,8 @@ enum PluginDrawSurface
     PLUGIN_DRAW_SURFACE_WORLD = TORIRS_PLUGIN_ENGINE_DRAW_WORLD,
     PLUGIN_DRAW_SURFACE_CANVAS = TORIRS_PLUGIN_ENGINE_DRAW_CANVAS,
     /** Panel-local custom region prepared by the application shell. */
-    PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL
+    PLUGIN_DRAW_SURFACE_PANEL = TORIRS_PLUGIN_ENGINE_DRAW_PANEL,
+    PLUGIN_DRAW_SURFACE_MINIMAP = TORIRS_PLUGIN_ENGINE_DRAW_MINIMAP
 };
 
 struct ToriRS_PluginHost
@@ -1071,7 +1080,7 @@ static int
 plugin_ev_is_draw(enum PluginCallbackKind ev)
 {
     return ev == PLUGIN_CALLBACK_DRAW_WORLD || ev == PLUGIN_CALLBACK_DRAW_CANVAS ||
-           ev == PLUGIN_CALLBACK_PANEL_DRAW;
+           ev == PLUGIN_CALLBACK_PANEL_DRAW || ev == PLUGIN_CALLBACK_DRAW_MINIMAP;
 }
 
 /* ------------------------------------------------------------ api surface */
@@ -2348,6 +2357,7 @@ plugin_asset_drop(
     assert(slot);
 
     free(slot->data);
+    free(slot->delayed_data);
     int const at = (int)(slot - host->assets);
     for( int i = at; i < host->asset_count - 1; i++ )
         host->assets[i] = host->assets[i + 1];
@@ -3042,6 +3052,29 @@ PluginHost_AssetDeliver(
     {
         free(data);
         return;
+    }
+
+    if( !slot->delivery_fixture_used )
+    {
+        char const* fixture = getenv("TORIRS_SIM_ASSET_DELIVERY_DELAY");
+        char wanted_plugin[64] = {0};
+        char wanted_asset[64] = {0};
+        unsigned long delay = 0;
+        if( fixture && sscanf(fixture, "%63[^,],%63[^,],%lu", wanted_plugin, wanted_asset, &delay) == 3 &&
+            strcmp(plugin_name, wanted_plugin) == 0 && strcmp(asset_name, wanted_asset) == 0 )
+        {
+            assert(delay > 0);
+            assert(delay <= 60000);
+            assert(!slot->delivery_held);
+            slot->delivery_fixture_used = true;
+            slot->delivery_held = true;
+            slot->delayed_data = data;
+            slot->delayed_size = size;
+            slot->delayed_until_ms = host->engine.frame_ms(host->engine.user) + delay;
+            TORIRS_REPORT("ASSET_DELIVERY_HELD plugin=%s asset=%s delay_ms=%lu bytes=%d\n",
+                plugin_name, asset_name, delay, size);
+            return;
+        }
     }
 
     slot->pending = false;
@@ -3976,7 +4009,7 @@ plugin_panel_build_active(
  * still be inside its per-frame allotment. Clipping is reported once per frame
  * per plugin -- a silent cap reads as "drew everything" when it did not. */
 static bool
-plugin_draw_allow(
+plugin_draw_budget_allow(
     struct PluginContext* ctx,
     void* surface)
 {
@@ -4001,6 +4034,13 @@ plugin_draw_allow(
         return false;
     }
     return true;
+}
+
+static bool plugin_draw_allow(struct PluginContext* ctx, void* surface)
+{
+    assert(ctx);
+    assert(ctx->host->draw_canvas != PLUGIN_DRAW_SURFACE_MINIMAP);
+    return plugin_draw_budget_allow(ctx,surface);
 }
 
 /*
@@ -4040,6 +4080,18 @@ plugin_draw_account(struct PluginContext* ctx, int emitted)
                                  : "the primitive exceeds the remaining per-frame draw budget");
     }
     return TORIRS_RESULT_BUDGET;
+}
+
+static enum ToriRS_Result api_draw_minimap_tile(struct PluginContext* ctx, void* surface,
+    int x, int z, int level, uint32_t fill, uint32_t outline, int alpha, int width)
+{
+    assert(ctx);
+    assert(ctx->host->draw_canvas == PLUGIN_DRAW_SURFACE_MINIMAP);
+    assert(ctx->host->draw_surface);
+    assert(surface==ctx->host->draw_surface);
+    if( !ctx->host->engine.draw_minimap_tile ) return TORIRS_RESULT_UNSUPPORTED;
+    return plugin_draw_account(ctx,ctx->host->engine.draw_minimap_tile(ctx->host->engine.user,
+        x,z,level,outline,fill,alpha,width,TORIRS_PLUGIN_DRAW_BUDGET-ctx->draw_used));
 }
 
 static enum ToriRS_Result
@@ -4093,6 +4145,18 @@ api_draw_hull_stroke(
         return TORIRS_RESULT_UNSUPPORTED;
     return plugin_draw_account(ctx,
         ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape));
+}
+
+static enum ToriRS_Result
+api_draw_tile_styled(struct PluginContext* ctx,void* surface,int x,int z,int level,
+    uint32_t rgb,uint32_t fill,int alpha,int width,uint32_t flags)
+{
+    plugin_draw_require_world(ctx);
+    if( !plugin_draw_allow(ctx,surface) ) return TORIRS_RESULT_BUDGET;
+    if( !ctx->host->engine.draw_tile_styled ) return TORIRS_RESULT_UNSUPPORTED;
+    return plugin_draw_account(ctx,ctx->host->engine.draw_tile_styled(
+        ctx->host->engine.user,x,z,level,rgb,fill,alpha,width,flags,
+        TORIRS_PLUGIN_DRAW_BUDGET-ctx->draw_used));
 }
 
 static enum ToriRS_Result
@@ -6244,6 +6308,8 @@ plugin_v2_has_event_callback(
         return def->callbacks.on_draw_world != NULL;
     case PLUGIN_CALLBACK_DRAW_CANVAS:
         return def->callbacks.on_draw_canvas != NULL;
+    case PLUGIN_CALLBACK_DRAW_MINIMAP:
+        return def->callbacks.on_draw_minimap != NULL;
     case PLUGIN_CALLBACK_PANEL_BUILD:
         return def->callbacks.on_ui_build != NULL;
     case PLUGIN_CALLBACK_PANEL_ACTION:
@@ -6342,6 +6408,15 @@ plugin_v2_event_untimed(
                        TORIRS_CALLBACK_CONSUME
                    ? TORIRS_CALLBACK_CONSUME
                    : TORIRS_CALLBACK_CONTINUE;
+    case PLUGIN_CALLBACK_DRAW_MINIMAP:
+    {
+        struct PluginV2DrawScope scope;
+        struct ToriRS_Graphics builder;
+        plugin_v2_runtime_draw_begin(&v2->runtime,event,&scope,&builder);
+        v2->definition->callbacks.on_draw_minimap(api,state,&builder);
+        plugin_v2_runtime_draw_end(&scope,&builder);
+        break;
+    }
     case PLUGIN_CALLBACK_DRAW_WORLD:
     {
         struct PluginV2DrawScope scope;
@@ -7186,6 +7261,29 @@ PluginHost_FrameStart(
 {
     if( !host )
         return;
+    /* Delayed real IO completions stay PENDING until this ordinary frame
+     * boundary. Delivery may release/compact the asset table in its callback. */
+    for( int i = 0; i < host->asset_count; )
+    {
+        struct PluginAsset* slot = &host->assets[i];
+        if( !slot->delivery_held || host->engine.frame_ms(host->engine.user) < slot->delayed_until_ms )
+        {
+            ++i;
+            continue;
+        }
+        char plugin[TORIRS_PLUGIN_NAME_MAX];
+        char asset[TORIRS_PLUGIN_ASSET_NAME_MAX];
+        snprintf(plugin, sizeof plugin, "%s", host->plugins[slot->plugin].def->id);
+        snprintf(asset, sizeof asset, "%s", slot->name);
+        void* data = slot->delayed_data;
+        int const size = slot->delayed_size;
+        slot->delayed_data = NULL;
+        slot->delayed_size = 0;
+        slot->delivery_held = false;
+        TORIRS_REPORT("ASSET_DELIVERY_RELEASE plugin=%s asset=%s bytes=%d\n", plugin, asset, size);
+        PluginHost_AssetDeliver(host, plugin, asset, data, size);
+        i = 0;
+    }
     /* The frame boundary is also where per-frame draw budgets reset. */
     for( int i = 0; i < host->plugin_count; i++ )
     {
@@ -7603,6 +7701,21 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
      * hull goes over whatever anyone else marked around it. */
     plugin_entity_paint_looks(host);
     host->draw_surface = NULL;
+}
+
+void PluginHost_DrawMinimap(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    if( !host->callback_count[PLUGIN_CALLBACK_DRAW_MINIMAP] ) return;
+    void* previous_surface=host->draw_surface;
+    int const previous_canvas=host->draw_canvas;
+    host->draw_surface=host;
+    host->draw_canvas=PLUGIN_DRAW_SURFACE_MINIMAP;
+    host->engine.draw_select_canvas(host->engine.user,PLUGIN_DRAW_SURFACE_MINIMAP);
+    plugin_dispatch(host,PLUGIN_CALLBACK_DRAW_MINIMAP,host->draw_surface);
+    host->draw_surface=previous_surface;
+    host->draw_canvas=previous_canvas;
+    host->engine.draw_select_canvas(host->engine.user,previous_canvas);
 }
 
 void
@@ -8893,7 +9006,7 @@ static char const* const plugin_callback_names[] = {
     "on_config_changed", "on_item_spawn", "on_item_changed", "on_item_despawn",
     "on_asset", "on_chat_message", "on_game_event", "legacy_ui", "legacy_ui_build",
     "legacy_layout", "on_screen_changed", "on_ui_build", "on_ui_action",
-    "on_ui_layout", "on_ui_draw", "widget_binding", "widget_operation", "on_gameframe"
+    "on_ui_layout", "on_ui_draw", "widget_binding", "widget_operation", "on_gameframe", "on_draw_minimap"
 };
 _Static_assert(sizeof(plugin_callback_names)/sizeof(plugin_callback_names[0]) == PLUGIN_CALLBACK_COUNT,
     "Every host callback phase must have a telemetry name");

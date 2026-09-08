@@ -676,11 +676,8 @@ test_tooltip_clears_the_pointer_caption(void)
 /*
  * A touch lane is told about, once.
  *
- * There is no hover pass behind a finger, so the panel can never be composed
- * there; a plugin that is enabled, reports itself running and silently draws
- * nothing is indistinguishable from a broken one. The line is keyed to the
- * `touch` capability, so it is said again if the input policy changes, and not
- * once per frame.
+ * A finger supplies a hover while held, then departs. The diagnostic must not
+ * claim the preview is unavailable merely because the capability is touch.
  */
 static void
 test_touch_lane_is_stated(void)
@@ -695,15 +692,16 @@ test_touch_lane_is_stated(void)
         "a pointer lane states what it does, once (%d lines: %s)", g_log_count, g_log_last);
 
     g_touch = 1;
-    /* The touch lane's own state: no hover pass, so no rows and no panel. */
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1, "a held finger can preview its item");
+    TEST_ASSERT(strstr(g_log_last, "touch previews") != NULL,
+        "the touch lane states its actual preview policy (%s)", g_log_last);
     frame(-1);
     TEST_ASSERT(g_client.draw_count == 0, "nothing hovered still draws nothing");
-    TEST_ASSERT(strstr(g_log_last, "touch lane") != NULL,
-        "the touch lane says why nothing is drawn (%s)", g_log_last);
     said = g_log_count;
     frame(-1);
     TEST_ASSERT(g_log_count == said,
-        "the refusal is said on the change, not every frame (%d lines)", g_log_count);
+        "the policy is said on the change, not every frame (%d lines)", g_log_count);
     g_touch = 0;
 }
 

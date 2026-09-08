@@ -77,6 +77,7 @@ enum LuaHandler
     LUA_ON_UI_DRAW,
     LUA_ON_UI_LAYOUT,
     LUA_ON_GAMEFRAME,
+    LUA_ON_DRAW_MINIMAP,
     LUA_HANDLER_COUNT
 };
 
@@ -109,6 +110,7 @@ static char const* const LUA_HANDLER_NAMES[LUA_HANDLER_COUNT] = {
     "on_ui_draw",
     "on_ui_layout",
     "on_gameframe",
+    "on_draw_minimap",
 };
 
 struct LuaCallbackScope
@@ -150,6 +152,7 @@ struct LuaScript
     int table_ref;
     int api_ref;
     int draw_ref;
+    int minimap_draw_ref;
     int panel_builder_ref;
     int handler_ref[LUA_HANDLER_COUNT];
 
@@ -863,12 +866,16 @@ static void lua_push_widget(lua_State* L, struct ToriRS_WidgetRef ref)
     *value = ref;
     luaL_setmetatable(L, LUA_WIDGET_MT);
 }
-static int lua_widget_result(lua_State* L, enum ToriRS_ContractResult result)
+static char const* lua_widget_result_name(enum ToriRS_ContractResult result)
 {
     static char const* const names[] = {"ok","unavailable","stale_reference","wrong_context",
         "invalid_argument","unsupported_layout","native_blocked","pending","budget_exceeded","failed"};
+    return result >= 0 && result <= TORIRS_CONTRACT_FAILED ? names[result] : "failed";
+}
+static int lua_widget_result(lua_State* L, enum ToriRS_ContractResult result)
+{
     lua_pushboolean(L, result == TORIRS_CONTRACT_OK);
-    lua_pushstring(L, result >= 0 && result <= TORIRS_CONTRACT_FAILED ? names[result] : "failed");
+    lua_pushstring(L, lua_widget_result_name(result));
     return 2;
 }
 static int lua_widget_find(lua_State* L)
@@ -973,12 +980,13 @@ static int lua_widget_actions(lua_State* L)
     struct ToriRS_WidgetRef widget=lua_widget_arg(L);size_t count=0;
     enum ToriRS_ContractResult result=api->actions(api->context,widget,NULL,0,&count);
     if( result!=TORIRS_CONTRACT_OK && result!=TORIRS_CONTRACT_BUDGET_EXCEEDED )
-    { lua_pushnil(L);return 1; }
+    { lua_pushnil(L);lua_pushstring(L,lua_widget_result_name(result));return 2; }
     if( count>INT_MAX || count>SIZE_MAX/sizeof(struct ToriRS_WidgetAction) )
         return luaL_error(L,"widget actions exceed runtime capacity");
     struct ToriRS_WidgetAction* actions=lua_newuserdatauv(L,count*sizeof(*actions),0);
     result=api->actions(api->context,widget,actions,count,&count);
-    if( result!=TORIRS_CONTRACT_OK ) { lua_pop(L,1);lua_pushnil(L);return 1; }
+    if( result!=TORIRS_CONTRACT_OK )
+    { lua_pop(L,1);lua_pushnil(L);lua_pushstring(L,lua_widget_result_name(result));return 2; }
     lua_createtable(L,(int)count,0);
     for( size_t i=0;i<count;++i )
     {
@@ -1573,6 +1581,18 @@ static int lua_builder_text(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_b
 static int lua_builder_image(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);d->image(d,lua_image_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),(int)luaL_optinteger(L,4,255));return 0; }
 static int lua_builder_world_tile(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);uint32_t fill=lua_color_arg(L,4);uint32_t outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);lua_push_result(L,d->world_tile(d,(int)luaL_checkinteger(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),fill,outline,(int)luaL_optinteger(L,6,0)));return 2; }
 static int lua_builder_world_hull(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);int shape=TORIRS_HULL_BOUNDS;if(lua_type(L,4)==LUA_TSTRING){char const*name=lua_tostring(L,4);if(strcmp(name,"mesh")==0)shape=TORIRS_HULL_MESH;else if(strcmp(name,"bounds")!=0)return luaL_error(L,"unknown hull shape '%s'",name);}else if(!lua_isnoneornil(L,4))shape=lua_enum_integer(L,4,TORIRS_HULL_BOUNDS,TORIRS_HULL_MESH,"hull shape");lua_push_result(L,d->world_hull(d,(int)luaL_checkinteger(L,1),lua_color_arg(L,2),(int)luaL_optinteger(L,3,0),shape));return 2; }
+static int lua_builder_minimap_tile(lua_State* L)
+{
+    struct ToriRS_Graphics* d=lua_draw_builder(L);
+    lua_Integer width=luaL_optinteger(L,7,1),alpha=luaL_optinteger(L,6,0);
+    if( width<0 || width>255 || alpha<0 || alpha>255 ) { lua_push_result(L,TORIRS_RESULT_INVALID);return 2; }
+    if( d->struct_size<TORIRS_GRAPHICS_MINIMAP_SIZE || !d->minimap_tile )
+    { lua_push_result(L,TORIRS_RESULT_UNSUPPORTED);return 2; }
+    uint32_t fill=lua_color_arg(L,4),outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);
+    lua_push_result(L,d->minimap_tile(d,(int)luaL_checkinteger(L,1),(int)luaL_checkinteger(L,2),
+        (int)luaL_checkinteger(L,3),fill,outline,(int)alpha,(int)width));return 2;
+}
+
 static int
 lua_builder_world_tile_stroke(lua_State* L)
 {
@@ -1645,6 +1665,26 @@ lua_builder_world_hull_styled(lua_State* L)
             shape=lua_enum_integer(L,4,TORIRS_HULL_BOUNDS,TORIRS_HULL_MESH,"hull shape");
         lua_push_result(L,draw->world_hull_styled(draw,(int)luaL_checkinteger(L,1),
             lua_color_arg(L,2),(int)luaL_optinteger(L,3,0),shape,(int)width,(uint32_t)flags));
+    }
+    return 2;
+}
+static int
+lua_builder_world_tile_styled(lua_State* L)
+{
+    struct ToriRS_Graphics* draw=lua_draw_builder(L);
+    lua_Integer width=luaL_optinteger(L,7,1),flags=luaL_optinteger(L,8,0);
+    if( width<0 || width>255 || flags<0 || flags>UINT32_MAX ||
+        ((uint32_t)flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP) )
+        lua_push_result(L,TORIRS_RESULT_INVALID);
+    else if( draw->struct_size<TORIRS_GRAPHICS_TILE_STYLE_SIZE || !draw->world_tile_styled )
+        lua_push_result(L,TORIRS_RESULT_UNSUPPORTED);
+    else
+    {
+        uint32_t const fill=lua_color_arg(L,4);
+        uint32_t const outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);
+        lua_push_result(L,draw->world_tile_styled(draw,(int)luaL_checkinteger(L,1),
+            (int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),fill,outline,
+            (int)luaL_optinteger(L,6,0),(int)width,(uint32_t)flags));
     }
     return 2;
 }
@@ -1795,8 +1835,10 @@ static struct LuaFn const LUA_GAME_FNS[] = {
 static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"rect",lua_builder_rect},{"line",lua_builder_line},{"text",lua_builder_text},
     {"image",lua_builder_image},{"world_tile",lua_builder_world_tile},{"world_hull",lua_builder_world_hull},
+    {"minimap_tile",lua_builder_minimap_tile},
     {"world_tile_stroke",lua_builder_world_tile_stroke},{"world_hull_stroke",lua_builder_world_hull_stroke},
     {"world_hull_styled",lua_builder_world_hull_styled},
+    {"world_tile_styled",lua_builder_world_tile_styled},
     {"image_clip",lua_builder_image_clip},{"context",lua_builder_context},{NULL,NULL}
 };
 static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
@@ -1845,6 +1887,10 @@ lua_build_api_table(struct LuaScript* script)
     }
     script->api_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_GRAPHICS_FNS);script->draw_ref=luaL_ref(L,LUA_REGISTRYINDEX);
+    /* This scope has world-coordinate minimap tiles, not canvas primitives.
+     * Give Lua only its valid verb so a scope mistake stays a script error. */
+    lua_newtable(L);lua_pushlightuserdata(L,script);lua_pushcclosure(L,lua_builder_minimap_tile,1);
+    lua_setfield(L,-2,"minimap_tile");script->minimap_draw_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_PANEL_BUILDER_FNS);script->panel_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);
 }
 
@@ -1996,9 +2042,10 @@ static void lua_cb_script(struct ToriRS_Api* api,void* state,struct ToriRS_Scrip
     luaL_newmetatable(L,LUA_SCRIPT_REF_MT);lua_setmetatable(L,-2);lua_setfield(L,-2,"ref");
     lua_call_end(script,LUA_ON_SCRIPT_CALLBACK,2,false);
 }
-static void lua_callback_draw(struct ToriRS_Api*a,enum LuaHandler h,struct ToriRS_Graphics*d){struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,h)){s->cur_draw=d;lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,h,2,false);}}
+static void lua_callback_draw(struct ToriRS_Api*a,enum LuaHandler h,struct ToriRS_Graphics*d){struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,h)){s->cur_draw=d;lua_rawgeti(s->L,LUA_REGISTRYINDEX,h==LUA_ON_DRAW_MINIMAP?s->minimap_draw_ref:s->draw_ref);lua_call_end(s,h,2,false);}}
 static void lua_cb_draw_world(struct ToriRS_Api*a,void*state,struct ToriRS_Graphics*d){(void)state;lua_callback_draw(a,LUA_ON_DRAW_WORLD,d);}
 static void lua_cb_draw_canvas(struct ToriRS_Api*a,void*state,struct ToriRS_Graphics*d){(void)state;lua_callback_draw(a,LUA_ON_DRAW_CANVAS,d);}
+static void lua_cb_draw_minimap(struct ToriRS_Api*a,void*state,struct ToriRS_Graphics*d){(void)state;lua_callback_draw(a,LUA_ON_DRAW_MINIMAP,d);}
 static void lua_cb_ui_build(struct ToriRS_Api*a,void*state,struct ToriRS_PanelBuilder*p,int view){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_BUILD)){s->cur_panel=p;lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->panel_builder_ref);lua_pushstring(s->L,view==TORIRS_PANEL_VIEW_SETTINGS?"settings":"page");lua_call_end(s,LUA_ON_UI_BUILD,3,false);}}
 static void lua_cb_ui_action(struct ToriRS_Api*a,void*state,struct ToriRS_PanelActionEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_ACTION)){lua_push_panel_action(s->L,e);lua_call_end(s,LUA_ON_UI_ACTION,2,false);}}
 static void lua_cb_ui_draw(struct ToriRS_Api*a,void*state,char const*node,struct ToriRS_Graphics*d){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_UI_DRAW)){s->cur_draw=d;lua_pushstring(s->L,node?node:"");lua_rawgeti(s->L,LUA_REGISTRYINDEX,s->draw_ref);lua_call_end(s,LUA_ON_UI_DRAW,3,false);}}
@@ -2230,6 +2277,7 @@ lua_definition_callbacks(struct LuaScript const* script, struct ToriRS_PluginCal
     HANDLER(on_menu_select, LUA_ON_MENU_SELECT, lua_cb_menu_select);
     HANDLER(on_draw_world, LUA_ON_DRAW_WORLD, lua_cb_draw_world);
     HANDLER(on_draw_canvas, LUA_ON_DRAW_CANVAS, lua_cb_draw_canvas);
+    HANDLER(on_draw_minimap, LUA_ON_DRAW_MINIMAP, lua_cb_draw_minimap);
     HANDLER(on_ui_build, LUA_ON_UI_BUILD, lua_cb_ui_build);
     HANDLER(on_ui_action, LUA_ON_UI_ACTION, lua_cb_ui_action);
     HANDLER(on_ui_draw, LUA_ON_UI_DRAW, lua_cb_ui_draw);
@@ -2365,6 +2413,7 @@ lua_script_build(
     script->table_ref = LUA_NOREF;
     script->api_ref = LUA_NOREF;
     script->draw_ref = LUA_NOREF;
+    script->minimap_draw_ref = LUA_NOREF;
     script->panel_builder_ref = LUA_NOREF;
     for( int i = 0; i < LUA_HANDLER_COUNT; i++ )
         script->handler_ref[i] = LUA_NOREF;

@@ -3033,6 +3033,72 @@ emit:
 }
 
 static int
+app_plugin_draw_tile_styled(void* user,int tile_x,int tile_z,int level,
+    uint32_t rgb,uint32_t fill_rgb,int alpha,int width,uint32_t flags,int item_budget)
+{
+    struct App* app=user;
+    struct UITreeEntityOverlay item;
+    struct World* source;
+    struct Wev* wev=NULL;
+    struct WevDeckBox box;
+    struct HeightmapHeights heights;
+    int local_x,local_z,view_id,real_level=level;
+    static const int corner[4][2]={{0,0},{1,0},{1,1},{0,1}};
+    assert(app);
+    assert(width>=0);
+    assert(width<=255);
+    assert(alpha>=0);
+    assert(alpha<=255);
+    assert((flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)==0);
+    assert(item_budget>=0);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_WORLD);
+    if( !app->world || !app->world_view_valid || (width==0 && alpha==0) ) return 0;
+    source=app->world;
+    view_id=App_WevHomeViewForAbsTile(app,tile_x,tile_z,&local_x,&local_z);
+    if( view_id!=0 && Wevs_IsLive(&app->wevs,view_id) &&
+        WorldviewRegistry_IsLive(&app->worldviews,view_id) )
+    {
+        wev=Wevs_Get(&app->wevs,view_id);
+        source=WorldviewRegistry_Get(&app->worldviews,view_id)->world;
+        if( !source ) return 0;
+        app_wev_deck_box(app,wev,app->world,&box);
+    }
+    else
+    {
+        local_x=tile_x-source->_base_tile_x;
+        local_z=tile_z-source->_base_tile_z;
+    }
+    if( !source->heightmap || local_x<0 || local_z<0 ||
+        local_x>=source->_scene_size || local_z>=source->_scene_size ||
+        level<0 || level>=source->heightmap->levels ) return 0;
+    if( level<source->heightmap->levels-1 &&
+        (World_TileFlagGet(source,local_x,local_z,1)&RSCACHE_FLOFLAG_LINK_BELOW) )
+        ++real_level;
+    heightmap_get_heights(source->heightmap,local_x,local_z,real_level,&heights);
+    int const height[4]={heights.sw_height,heights.se_height,heights.ne_height,heights.nw_height};
+    memset(&item,0,sizeof(item));
+    item.kind=UITREE_ENTITY_OVERLAY_WORLD_SURFACE;
+    item.color=app_plugin_overlay_argb(rgb);
+    item.surface_fill_color=app_plugin_overlay_argb(fill_rgb);
+    item.trans=alpha>0?255-alpha:-1;
+    item.line_width=(uint8_t)width;
+    item.silhouette_always_on_top=(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)!=0;
+    for( int i=0;i<4;++i )
+    {
+        int x=(local_x+corner[i][0])*128,z=(local_z+corner[i][1])*128;
+        if( wev ) Wev_ParentFromDeck(&box,x,z,&x,&z);
+        item.surface_x[i]=x;
+        item.surface_z[i]=z;
+        item.surface_y[i]=height[i]+(wev?wev->y+wev->bob_y:0);
+    }
+    if( item_budget<1 ) return -2;
+    if( app->entity_overlay_count>=(int)(sizeof(app->entity_overlays)/sizeof(app->entity_overlays[0])) )
+        return -1;
+    app_overlay_push(app,&item);
+    return 1;
+}
+
+static int
 app_plugin_draw_tile(void* user, int x, int z, int level, uint32_t rgb, uint32_t fill, int alpha)
 {
     return app_plugin_draw_tile_stroke(user, x, z, level, rgb, fill, alpha, 1, INT_MAX);
@@ -3070,6 +3136,31 @@ app_plugin_draw_hull_stroke(void* user, int element_id, uint32_t rgb, int fill_a
         TORIRS_REPORT("PLUGIN_HULL element=%d shape=%d emitted=%d\n",
             element_id,shape,emitted);
     return emitted;
+}
+
+/* Native minimap pixels are four per tile. Unlike a world projection these
+ * remain meaningful when the 3D camera faces away from the marked tile. */
+static int app_plugin_draw_minimap_tile(void* user,int tile_x,int tile_z,int level,
+    uint32_t outline,uint32_t fill,int alpha,int width,int item_budget)
+{
+    struct App* app=user;
+    assert(app);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_MINIMAP);
+    if( !app->world || level!=app->minimap_level || (!alpha && !width) ) return 0;
+    int64_t const dx=((int64_t)tile_x-app->world->_base_tile_x)*4-app->minimap_player_x/32;
+    int64_t const dz=((int64_t)tile_z-app->world->_base_tile_z)*4-app->minimap_player_z/32;
+    struct UITreeMinimapDot projected={0};
+    int const yaw=ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    if( !ToriRS_MinimapTileProject(&projected,dx,dz,ToriDraw_Sin(yaw),ToriDraw_Cos(yaw)) ) return 0;
+    if( item_budget<1 ) return -2;
+    if( app->minimap_dot_count>=TORIRS_PLUGIN_DRAW_BUDGET ) return -1;
+    struct UITreeMinimapDot* dot=&app->minimap_dots[app->minimap_dot_count++];
+    *dot=projected;
+    dot->color=app_plugin_overlay_argb(outline);
+    dot->tile_fill=app_plugin_overlay_argb(fill);
+    dot->tile_alpha=alpha;
+    dot->tile_outline_width=width;
+    return 1;
 }
 
 static int
@@ -5095,8 +5186,10 @@ app_plugin_engine(struct App* app)
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
     engine.draw_tile_stroke = app_plugin_draw_tile_stroke;
+    engine.draw_tile_styled = app_plugin_draw_tile_styled;
     engine.draw_hull_stroke = app_plugin_draw_hull_stroke;
     engine.draw_hull_styled = app_plugin_draw_hull_styled;
+    engine.draw_minimap_tile = app_plugin_draw_minimap_tile;
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;

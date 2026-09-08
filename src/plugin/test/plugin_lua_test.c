@@ -478,10 +478,14 @@ static enum ToriRS_ContractResult fake_lua_watch(void* context, char const* role
     return TORIRS_CONTRACT_OK;
 }
 static int lua_action_calls;
+static int lua_actions_mode;
 static enum ToriRS_ContractResult fake_lua_actions(void* ctx,struct ToriRS_WidgetRef widget,
     struct ToriRS_WidgetAction* out,size_t capacity,size_t* count)
 {
     (void)ctx;*count=2;
+    if( lua_actions_mode == 1 ) { *count=0;return TORIRS_CONTRACT_NATIVE_BLOCKED; }
+    if( lua_actions_mode == 2 && capacity >= 2 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+    if( lua_actions_mode == 3 ) { *count=0;return TORIRS_CONTRACT_OK; }
     if( capacity<2 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
     out[0]=(struct ToriRS_WidgetAction){.ref={widget,1,3},.label="First"};
     out[1]=(struct ToriRS_WidgetAction){.ref={widget,2,UINT64_C(0xfedcba9876543210)},.label="Second"};
@@ -515,6 +519,31 @@ static void test_widget_actions(struct ToriRS_PluginHost* host)
     CHECK(g_disabled_self==disables+1 && lua_action_calls==1 && strstr(g_disable_reason,"torirs.WidgetActionRef"),
           "Lua rejects forged action references before reaching native dispatch");
 }
+static void test_widget_action_refusals(struct ToriRS_PluginHost* host)
+{
+    static char const source[] =
+        "local p={id='widget-action-refusals'};local n=0;function p.on_start(api) "
+        "assert(api.widgets.watch('sidebar',function(widget,event) n=n+1;"
+        "local actions,reason=widget:actions();"
+        "if n==1 then assert(actions==nil and reason=='native_blocked') "
+        "elseif n==2 then assert(actions==nil and reason=='stale_reference') "
+        "else assert(type(actions)=='table' and #actions==0 and reason==nil) end;"
+        "api.core.log('action refusal checked') end)) end;return p";
+    struct FakeInstance instance={"widget-action-refusals",""};
+    struct ToriRS_Api api=fake_api(&instance);
+    api.widgets.watch=fake_lua_watch;api.widgets.actions=fake_lua_actions;
+    int index=PluginLua_AddScript(host,"widget-action-refusals",source,(int)strlen(source));
+    CHECK(index>=0,"action refusal script registers");
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_BOUND,.widget={{1,2,3}},.role="sidebar"};
+    int const logs=g_logs,disables=g_disabled_self;
+    for( lua_actions_mode=1;lua_actions_mode<=3;lua_actions_mode++ )
+        lua_watch_listener(&api,lua_watch_user,&event);
+    lua_actions_mode=0;
+    CHECK(g_logs==logs+3 && g_disabled_self==disables,
+        "Lua preserves first-query and fill-query refusal reasons while empty actions remain a successful table");
+}
+
 static void test_widget_watch(struct ToriRS_PluginHost* host)
 {
     static char const source[] =
@@ -917,6 +946,18 @@ fake_world_hull_styled(struct ToriRS_Graphics* draw,int element,uint32_t rgb,
     return TORIRS_RESULT_BUDGET;
 }
 
+static enum ToriRS_Result
+fake_world_tile_styled(struct ToriRS_Graphics* draw,int x,int z,int level,
+    uint32_t fill,uint32_t outline,int alpha,int width,uint32_t flags)
+{
+    (void)draw;
+    CHECK(x==3200 && z==3201 && level==0 && fill==0x112233 && outline==0x445566 &&
+          alpha==40 && width==0,"Lua surface preserves independent fill, outline, alpha and width");
+    CHECK(flags==0 || flags==TORIRS_WORLD_DRAW_ALWAYS_ON_TOP,"Lua surface forwards visibility policy");
+    g_stroke_calls++;
+    return TORIRS_RESULT_OK;
+}
+
 static void
 test_graphics_stroke(struct ToriRS_PluginHost* host)
 {
@@ -925,6 +966,10 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
         "calls=calls+1;local ok,reason "
         "if calls==1 then "
         "assert(draw.world_tile_stroke(3200,3201,0,0x112233,0x445566,40,0)) "
+        "assert(draw.world_tile_styled(3200,3201,0,0x112233,0x445566,40,0,0)) "
+        "assert(draw.world_tile_styled(3200,3201,0,0x112233,0x445566,40,0,16)) "
+        "ok,reason=draw.world_tile_styled(1,2,0,1,nil,0,1,1) "
+        "assert(not ok and reason=='invalid','unknown tile visibility flag is refused') "
         "ok,reason=draw.world_hull_stroke(42,0x778899,80,'mesh',2) "
         "assert(not ok and reason=='budget','stroke capacity refusal must reach Lua') "
         "ok,reason=draw.world_hull_styled(42,0x778899,80,'mesh',2,0) "
@@ -942,6 +987,8 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
         "assert(not ok and reason=='unsupported','short graphics prefix has no hull stroke tail') "
         "ok,reason=draw.world_hull_styled(42,1) "
         "assert(not ok and reason=='unsupported','short prefix cannot read the style tail') "
+        "ok,reason=draw.world_tile_styled(1,2,0,1) "
+        "assert(not ok and reason=='unsupported','short prefix cannot read tile style tail') "
         "end end}";
     struct FakeInstance instance = { "graphics-stroke", NULL };
     struct ToriRS_Api api = fake_api(&instance);
@@ -955,11 +1002,44 @@ test_graphics_stroke(struct ToriRS_PluginHost* host)
     draw.world_tile_stroke = fake_world_tile_stroke;
     draw.world_hull_stroke = fake_world_hull_stroke;
     draw.world_hull_styled = fake_world_hull_styled;
+    draw.world_tile_styled = fake_world_tile_styled;
     g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
     draw.struct_size = offsetof(struct ToriRS_Graphics, world_tile_stroke);
     g_defs[index]->callbacks.on_draw_world(&api, NULL, &draw);
-    CHECK(g_disabled_self == disables && g_stroke_calls == 4,
+    CHECK(g_disabled_self == disables && g_stroke_calls == 6,
         "Lua stroke bindings preserve results and never read an unavailable optional tail");
+}
+
+static int lua_minimap_calls;
+static enum ToriRS_Result fake_minimap_tile(struct ToriRS_Graphics* draw,int x,int z,int level,
+    uint32_t fill,uint32_t outline,int alpha,int width)
+{
+    (void)draw;
+    CHECK(x==3200 && z==3210 && level==0 && fill==0x123456 && outline==0x654321 && alpha==50 && width==0,
+        "Lua minimap verb preserves world coords, independent alpha and zero border");
+    ++lua_minimap_calls;return TORIRS_RESULT_BUDGET;
+}
+static void test_minimap_graphics(struct ToriRS_PluginHost* host)
+{
+    char const* source="return {id='minimap-probe',on_draw_minimap=function(api,d) "
+        "assert(d.rect==nil and d.world_tile==nil,'map scope only offers map primitives'); "
+        "local ok,why=d.minimap_tile(3200,3210,0,0x123456,0x654321,50,0); "
+        "assert(not ok and (why=='budget' or why=='unsupported')); "
+        "local a,b=d.minimap_tile(3200,3210,0,0,0,50,256); assert(not a and b=='invalid') end}";
+    int index=PluginLua_AddScript(host,"minimap-probe",source,(int)strlen(source));
+    CHECK(index>=0,"Lua minimap callback registers");
+    if( index<0 ) return;
+    CHECK(g_defs[index]->callbacks.on_draw_minimap && !g_defs[index]->callbacks.on_draw_world,
+        "minimap callback stays sparse and does not subscribe to world draws");
+    struct FakeInstance instance={.id="minimap-probe"};
+    struct ToriRS_Api api=fake_api(&instance);
+    struct ToriRS_Graphics draw={.struct_size=sizeof(draw),.minimap_tile=fake_minimap_tile};
+    int disabled=g_disabled_self;
+    g_defs[index]->callbacks.on_draw_minimap(&api,NULL,&draw);
+    draw.struct_size=offsetof(struct ToriRS_Graphics,minimap_tile);
+    g_defs[index]->callbacks.on_draw_minimap(&api,NULL,&draw);
+    CHECK(lua_minimap_calls==1 && g_disabled_self==disabled,
+        "Lua map callback forwards budget and guards an older graphics prefix");
 }
 
 int
@@ -971,8 +1051,10 @@ main(void)
     test_config_boundary(&host);
     test_callback_subscriptions(&host);
     test_graphics_stroke(&host);
+    test_minimap_graphics(&host);
     test_widget_watch(&host);
     test_widget_actions(&host);
+    test_widget_action_refusals(&host);
     test_widget_set_on_op(&host);
     test_widget_set_anchor(&host);
     test_widget_images(&host);

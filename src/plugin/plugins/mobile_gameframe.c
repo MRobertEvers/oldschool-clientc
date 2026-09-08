@@ -202,6 +202,11 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
     { 1, 12, 13, 7, 9, 8, 11 },
 };
 
+#define MOBILE_COMPACT_COLS 5
+#define MOBILE_COMPACT_ROWS ((MOBILE_TAB_COUNT + MOBILE_COMPACT_COLS - 1) / MOBILE_COMPACT_COLS)
+#define MOBILE_COMPACT_W (MOBILE_COMPACT_COLS * MOBILE_O_STONE)
+#define MOBILE_COMPACT_H (MOBILE_COMPACT_ROWS * MOBILE_O_STONE)
+
 /*
  * The OldSchool chat PACK's container: interface 162 mounts into a 519x165
  * layer and owns the text, buttons, actions and scrollbar. On that lane the
@@ -3135,13 +3140,47 @@ mobile_layout_rail_oldschool(
         }
     }
 }
+/* A short safe area cannot stack the map and the tall two-column rail.
+ * Existing square stones form a compact grid; every icon and hitbox retains
+ * its authored size instead of disappearing beneath the housing. */
+static void
+mobile_layout_rail_compact(
+    struct MobileCall* ctx, enum MobileFamily family, int x, int y, int panel_x, int panel_y)
+{
+    assert(ctx);
+    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+    {
+        int const tab = family == FAMILY_OLDSCHOOL
+            ? MOBILE_O_COLUMN[i / MOBILE_RAIL_ROWS][i % MOBILE_RAIL_ROWS] : i;
+        int const cell_x = x + (i % MOBILE_COMPACT_COLS) * MOBILE_O_STONE;
+        int const cell_y = y + (i / MOBILE_COMPACT_COLS) * MOBILE_O_STONE;
+        mobile_blit(ctx, g_image[IMG_O_STONE], cell_x, cell_y);
+        if( g_drawer_open )
+        {
+            mobile_member(ctx, FRAME_SURFACE_SIDEBAR, tab,
+                panel_x, panel_y, MOBILE_PANEL_W, MOBILE_PANEL_H);
+            g_tab_present[tab] = true;
+        }
+        if( !g_tab_present[tab] )
+            continue;
+        struct MobileTab* entry = &g_frame.tab[g_frame.tab_count++];
+        entry->x = cell_x;
+        entry->y = cell_y;
+        entry->w = MOBILE_O_STONE;
+        entry->h = MOBILE_O_STONE;
+        entry->tabno = tab;
+        entry->icon = g_image[(mobile_lane_oldschool(ctx) ? IMG_O_SIDEICON_0 : IMG_SIDEICON_0) + tab];
+        entry->lit = g_image[IMG_O_STONE_LIT];
+    }
+}
+
 static void
 mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
 {
     enum MobileFamily const family = mobile_family(ctx);
     int const oldschool = mobile_lane_oldschool(ctx);
-    int const rail_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_W : MOBILE_RAIL_W;
-    int const rail_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_H : MOBILE_RAIL_H;
+    int rail_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_W : MOBILE_RAIL_W;
+    int rail_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_H : MOBILE_RAIL_H;
     /* The RIGHT and BOTTOM edges below are this box's rather than the window's
      * -- which is every edge the frame's own furniture is pinned to that any
      * lane in this tree occludes. The chat block stays on the window's left
@@ -3151,16 +3190,37 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     struct MobileArea const area = mobile_lane_area(ctx, canvas_w, canvas_h);
     int const area_right = area.x + area.w;
     int const area_bottom = area.y + area.h;
-    int const rail_x = area_right - MOBILE_MARGIN - rail_w;
-    int const rail_y = area_bottom - MOBILE_MARGIN - rail_h;
+    int rail_x = area_right - MOBILE_MARGIN - rail_w;
+    int rail_y = area_bottom - MOBILE_MARGIN - rail_h;
     /* The drawer hangs off the rail's inner edge and shares its bottom margin,
      * so the two read as one assembly rather than two things that happen to be
      * in the same corner. */
-    int const panel_x = rail_x - MOBILE_PANEL_W;
+    int panel_x = rail_x - MOBILE_PANEL_W;
     int const panel_y = area_bottom - MOBILE_MARGIN - MOBILE_PANEL_H;
     struct MobileHousing const* housing = mobile_housing(ctx);
     int const map_x = area_right - MOBILE_MARGIN - g_map_w;
     int const map_y = area.y + MOBILE_MARGIN;
+    int const reserved_left = map_x + g_hole_map.x + MOBILE_O_ORBS_DX;
+    int const reserved_bottom = oldschool
+        ? map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_ORBS_H
+        : map_y + g_map_h;
+    int const compact = rail_y < reserved_bottom + MOBILE_MARGIN;
+    int compact_above_chat = 0;
+    if( compact )
+    {
+        rail_w = MOBILE_COMPACT_W;
+        rail_h = MOBILE_COMPACT_H;
+        rail_x = area_right - MOBILE_MARGIN - rail_w;
+        rail_y = area_bottom - MOBILE_MARGIN - rail_h;
+        panel_x = reserved_left - MOBILE_MARGIN - MOBILE_PANEL_W;
+        if( rail_y < reserved_bottom + MOBILE_MARGIN )
+        {
+            compact_above_chat = 1;
+            rail_x = reserved_left - MOBILE_MARGIN - rail_w;
+            rail_y = area.y + MOBILE_MARGIN;
+            panel_x = area.x + MOBILE_MARGIN;
+        }
+    }
     int const safe_bottom = area_bottom;
     int strip_y;
     int chat_y;
@@ -3354,6 +3414,11 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         if( far_x > g_frame.toggle_x )
             g_frame.toggle_x = far_x;
     }
+    if( compact && g_drawer_open )
+        g_frame.toggle_x = compact_above_chat
+            ? panel_x + MOBILE_PANEL_W + MOBILE_MARGIN : area.x + MOBILE_MARGIN;
+    else if( compact_above_chat )
+        g_frame.toggle_x = area.x + MOBILE_MARGIN;
     g_frame.toggle_y =
         (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_PAPER_FRINGE_T) : safe_bottom) -
         MOBILE_MARGIN - g_frame.toggle_h;
@@ -3405,7 +3470,9 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         (struct ToriRS_Rect){ rail_x, rail_y, rail_w, rail_h },
         (struct ToriRS_ImageRef){ 0 });
 
-    if( family == FAMILY_OLDSCHOOL )
+    if( compact )
+        mobile_layout_rail_compact(ctx, family, rail_x, rail_y, panel_x, panel_y);
+    else if( family == FAMILY_OLDSCHOOL )
         mobile_layout_rail_oldschool(ctx, rail_x, rail_y, panel_x, panel_y);
     else
         mobile_layout_rail_classic(ctx, rail_x, rail_y, panel_x, panel_y);
@@ -3755,12 +3822,19 @@ mobile_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent
     state = handle->state;
     if( !api->cache.tab_enabled(api, handle->tabno) )
         return;
+    if( state->keyboard_on )
+    {
+        state->keyboard_on = false;
+        api->input.text_input(api, false);
+        api->input.chat_focus(api, false);
+    }
     if( state->drawer_open && api->cache.tab_active(api) == handle->tabno )
         state->drawer_open = false;
     else
     {
         state->drawer_open = true;
-        (void)api->cache.tab_select(api, handle->tabno);
+        if( api->cache.tab_active(api) != handle->tabno )
+            (void)api->cache.tab_select(api, handle->tabno);
     }
     api->frame.invalidate(api);
 }
@@ -3882,6 +3956,13 @@ mobile_keyboard_toggle_pressed(struct ToriRS_Api* api, void* user, struct ToriRS
     if( event->type != TORIRS_WIDGET_OPERATION )
         return;
     state->keyboard_on = !state->keyboard_on;
+    if( state->keyboard_on )
+    {
+        state->chat_open = true;
+        state->drawer_open = false;
+        api->input.chat_focus(api, true);
+        api->frame.invalidate(api);
+    }
     api->input.text_input(api, state->keyboard_on);
     /* Switching OFF also drops the chat line's focus, or the focus alone keeps
      * the keyboard up and the switch does nothing visible. */

@@ -145,7 +145,37 @@ def check_expected_orb_set(actual, expected, failures):
     return valid
 
 
-def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False, public_chat_mode="on", expected_orbs=None):
+def check_osrs_chat_hidden(log, root, failures):
+    """An explicitly hidden chat still has its controls, with no paint/input.
+
+    Check the complete descendant set, including dynamically created nodes;
+    checking raw IF_SETHIDE alone misses presentation-level hiding.
+    """
+    nodes = {int(node): (int(parent), int(component), int(paint), int(input_))
+        for node, parent, component, paint, input_ in re.findall(
+            r"^NATIVE_UI node=(\d+)[^\n]*? parent=(-?\d+) com=(-?\d+)[^\n]*? native_paint=(\d+) native_input=(\d+)",
+            log, re.M)}
+    children = (5, 8, 12, 16, 20, 24, 28) if root == 601 else (5, 8, 12, 16, 20, 24, 28, 32)
+    expected = {(162 << 16) | child for child in children}
+    present = {component for _, component, _, _ in nodes.values()}
+    controls_ok = expected <= present and (162 << 16) in present
+    print(f"PIXEL osrs_hidden_chat_controls={'PASS' if controls_ok else 'FAIL'} expected={len(expected)} present={len(expected & present)}")
+    if not controls_ok: failures.append("osrs_hidden_chat_controls")
+    descendants = {node for node, (_, component, _, _) in nodes.items() if component >> 16 == 162}
+    pending = list(descendants)
+    by_parent = collections.defaultdict(list)
+    for node, (parent, _, _, _) in nodes.items(): by_parent[parent].append(node)
+    while pending:
+        for child in by_parent[pending.pop()]:
+            if child not in descendants:
+                descendants.add(child);pending.append(child)
+    leaks = [node for node in descendants if nodes[node][2] or nodes[node][3]]
+    hidden_ok = bool(descendants) and not leaks
+    print(f"PIXEL osrs_chat_subtree_hidden={'PASS' if hidden_ok else 'FAIL'} nodes={len(descendants)} leaks={len(leaks)}")
+    if not hidden_ok: failures.append("osrs_chat_subtree_hidden")
+
+
+def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False, public_chat_mode="on", expected_orbs=None, chat_visible=True):
     height, width = len(rows), len(rows[0])
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
@@ -255,6 +285,9 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
         else:
             print("PIXEL orb_column_four_discs=SKIP minimap-orbs not running")
 
+    if not chat_visible:
+        check_osrs_chat_hidden(log, root, failures)
+        return
     controls = []
     for child, hidden, *box in re.findall(
             r"BOUNDS[^\n]*\(162\|(5|8|12|16|20|24|28|32)\)[^\n]*hidden=(\d+)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)", log):
@@ -653,6 +686,9 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
           revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, prefs=None, prefs_contains=None, prefs_absent=None, expect_log_count=None, expected_orbs=None, chat_visible=True, expected_xp_globes=None):
     width, height, rows = read_bmp(path)
     failures = []
+    if expected_xp_globes is not None and plugin_id != "xp-drop-orbs":
+        check_xp_orbs(rows, Path(bounds_path).read_text() if bounds_path else "",
+                      plugin_enabled, failures, expected_xp_globes)
     if public_chat_mode=="friends":
         log=Path(bounds_path).read_text() if bounds_path else ""
         valid=bool(re.search(r"NATIVE_CHAT_MODES public=1 private=0 trade=0",log))
@@ -903,7 +939,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if not valid:
             failures.append("native_focused_input_state")
     if bounds_path:
-        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline, public_chat_mode, expected_orbs)
+        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline, public_chat_mode, expected_orbs, chat_visible)
     return failures
 
 

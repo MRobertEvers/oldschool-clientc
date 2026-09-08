@@ -105,12 +105,14 @@ set_quad(struct ToriDraw_Model* m,int q,int x0,int y0,int x1,int y1,int distance
 }
 
 static unsigned char pixels[64*64];
+static uint32_t colors[64*64];
 static void
 run_frame(struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand command;
     int steps=0,tail=0;
     memset(pixels,0,sizeof(pixels));
+    memset(colors,0,sizeof(colors));
     ToriRS_FrameBegin(frame);
     while( ToriRS_FrameNextCommand(frame,&command) )
     {
@@ -119,11 +121,11 @@ run_frame(struct ToriRS_Frame* frame)
         if( command.kind!=TORIRSRC_FILL_RECT ) continue;
         struct ToriRS_RenderCommand_FillRect const* r=&command.u.fill_rect;
         if( (r->argb&0xffffff)==0xff00ff ) {++tail;continue;}
-        if( (r->argb&0xffffff)!=0xffff ) continue;
         CHECK(r->x>=0 && r->y>=0 && r->x+r->w<=64 && r->y+r->h<=64,
               "every emitted mask span stays inside the world viewport");
         for( int y=r->y;y<r->y+r->h;++y )
-            for( int x=r->x;x<r->x+r->w;++x ) pixels[y*64+x]=(unsigned)r->argb>>24;
+            for( int x=r->x;x<r->x+r->w;++x )
+            {pixels[y*64+x]=(unsigned)r->argb>>24;colors[y*64+x]=(unsigned)r->argb&0xffffff;}
     }
     CHECK(tail==1,"next overlay follows the complete silhouette exactly once");
     ToriRS_FrameEnd(frame);
@@ -198,6 +200,54 @@ int main(void)
     ToriDraw_ModelSetBoundsCylinder(subject);
     run_frame(&frame);
     CHECK(pixels[40*64+24]==70 && pixels[40*64+10]==0,"the next frame uses the live changed pose");
+    items[0]=(struct UITreeEntityOverlay){.kind=UITREE_ENTITY_OVERLAY_WORLD_SURFACE,
+        .color=0xff00ffff,.surface_fill_color=0xff112233,.trans=0,.line_width=2,
+        .silhouette_always_on_top=true,.surface_x={-24,-24,24,24},
+        .surface_y={-24,24,24,-24},.surface_z={100,100,100,100}};
+    run_frame(&frame);
+    CHECK(pixels[40*64+16]==255 && colors[40*64+16]==0x112233,
+          "world surface retains its independent opaque fill under always-on-top");
+    int outlines=0;
+    for( int i=0;i<64*64;++i ) if( pixels[i] && colors[i]==0x00ffff ) ++outlines;
+    CHECK(outlines>0,"equal-alpha fill and outline spans preserve their distinct colors");
+    items[0].silhouette_always_on_top=false;
+    run_frame(&frame);
+    CHECK(pixels[40*64+16]==0,"world surface respects foreground depth in a painter renderer");
+    CHECK(pixels[20*64+48]==255,"coplanar scene geometry does not erase a surface marker");
+    items[0].line_width=0;items[0].silhouette_always_on_top=true;
+    run_frame(&frame);outlines=0;
+    for( int i=0;i<64*64;++i ) if( pixels[i] && colors[i]==0x00ffff ) ++outlines;
+    CHECK(outlines==0 && pixels[40*64+16]==255,"native fill-only surface has no border");
+    items[0].surface_z[0]=25;
+    run_frame(&frame);
+    CHECK(pixels[45*64+48]>0,"whole world surface clips across the near plane without dropping its face");
+    /* The scene stores terrain about its centre; the surface request carries
+     * world corners. Camera rotation must not turn integer-origin rounding
+     * into a false foreground test against that same ground. */
+    struct ToriDraw_Model* ground=mesh(1);
+    int const gx[4]={-64,64,64,-64},gz[4]={-64,-64,64,64};
+    for( int i=0;i<4;++i ) {ground->vertices_x[i]=gx[i];ground->vertices_z[i]=gz[i];}
+    ground->face_indices_a[0]=0;ground->face_indices_b[0]=1;ground->face_indices_c[0]=2;
+    ground->face_indices_a[1]=0;ground->face_indices_b[1]=2;ground->face_indices_c[1]=3;
+    ToriDraw_ModelSetBoundsCylinder(ground);
+    int const ground_id=ToriDraw_SceneElementAddPool(scene,TORIDRAW_SCENE_POOL_STATIC);
+    ToriDraw_SceneElementSetModel(scene,ground_id,ToriDraw_ModelHandleOwned(ground));
+    ToriDraw_SceneElementSetPosition(scene,ground_id,0,0,64,0);
+    commands[0]=(struct PaintersElementCommand){0};commands[0]._bf_kind=PNTR_CMD_ELEMENT;
+    commands[0]._entity._bf_entity=ground_id;commands[0]._element_id=ground_id;painters.command_count=1;
+    camera.pitch=128;camera.yaw=64;
+    ToriRS_FrameSetWorld(&frame,world,&painters,&camera,0,-100,-200);
+    items[0]=(struct UITreeEntityOverlay){.kind=UITREE_ENTITY_OVERLAY_WORLD_SURFACE,
+        .color=0xff00ffff,.surface_fill_color=0xff112233,.trans=100,.line_width=0,
+        .silhouette_always_on_top=true,.surface_x={-64,64,64,-64},
+        .surface_y={0,0,0,0},.surface_z={0,0,128,128}};
+    run_frame(&frame);
+    unsigned char unoccluded[64*64];memcpy(unoccluded,pixels,sizeof(pixels));
+    int area=0;for( int i=0;i<64*64;++i ) area+=pixels[i]!=0;
+    CHECK(area>=100,"rotated camera sees substantial test terrain coverage");
+    items[0].silhouette_always_on_top=false;run_frame(&frame);
+    CHECK(memcmp(unoccluded,pixels,sizeof(pixels))==0,
+          "the same terrain cannot occlude its own coplanar marker after camera rotation");
     ToriDraw_SceneFree(scene);free(world);
     printf("frame silhouette: %d checks, %d failures\n",checks,failures);
     return failures?1:0;

@@ -580,7 +580,8 @@ enum AppPluginSurface
     APP_PLUGIN_SURFACE_WORLD = 0,
     APP_PLUGIN_SURFACE_CANVAS = 1,
     /** Selected semantic page's custom well; never enters a game draw list. */
-    APP_PLUGIN_SURFACE_PANEL = 2
+    APP_PLUGIN_SURFACE_PANEL = 2,
+    APP_PLUGIN_SURFACE_MINIMAP = 3
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -1183,8 +1184,13 @@ struct App
     int minimap_flag_z;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
-    struct UITreeMinimapDot minimap_dots[256];
-    int minimap_dot_count;
+    /* Plugin tiles precede native icons. Reserve the original 256 native slots
+     * independently of the 512 plugin tile budget. */
+    struct UITreeMinimapDot minimap_dots[256 + TORIRS_PLUGIN_DRAW_BUDGET];
+    int minimap_dot_count, minimap_native_limit;
+    int plugin_minimap_count;
+    bool plugin_minimap_prepared;
+    int minimap_player_x, minimap_player_z, minimap_level;
     /* Per-frame entity overlay primitives (health bars + hitsplats), filled
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
      * frame's draw. Reference drawEntities budget: each entity contributes at

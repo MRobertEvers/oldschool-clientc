@@ -13,6 +13,13 @@ struct ToriRS_Silhouette* ToriRS_SilhouetteBuildFrame(
     struct ToriRS_Frame* frame, int element_id, int fill_alpha, int outline_width,
     bool always_on_top, int clip_x, int clip_y, int clip_w, int clip_h);
 
+struct ToriRS_Silhouette* ToriRS_SilhouetteBuildSurface(
+    struct ToriRS_Frame* frame, const int x[4], const int y[4], const int z[4],
+    int fill_alpha, int outline_width, bool always_on_top,
+    int clip_x, int clip_y, int clip_w, int clip_h);
+
+void ToriRS_SilhouetteForgetFrame(struct ToriRS_Frame* frame);
+
 /* Narrow normalized-face seam, also exercised by the renderer fixture. */
 void ToriRS_SilhouetteDrawFace(
     struct ToriRS_Silhouette* mask,

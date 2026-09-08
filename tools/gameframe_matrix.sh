@@ -147,6 +147,10 @@ fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
 [[ ! -e "$OUT/index.txt" ]] || { echo "capture index already exists: $OUT/index.txt" >&2; exit 2; }
 : > "$OUT/index.txt"
+if [[ -n "${GF_MATRIX_PLUGIN_ASSETS:-}" ]]; then
+  [[ -d "$GF_MATRIX_PLUGIN_ASSETS" ]] || { echo "plugin assets missing: $GF_MATRIX_PLUGIN_ASSETS" >&2; exit 2; }
+  cp -R "$GF_MATRIX_PLUGIN_ASSETS" "$OUT/plugin_assets"
+fi
 if [[ -n "${GF_MATRIX_PLUGIN_PREFS:-}" ]]; then
   # Copy a real preference file so shipped values and malformed-file recovery
   # are testable without the matrix replacing the state under investigation.

@@ -3,6 +3,7 @@
 #include "render/torirs_frame.h"
 #include "toridraw.h"
 #include "toridraw_model.h"
+#include "toridraw_model_transform.h"
 #include "toridraw_raster_kernel.h"
 #include "toridraw_scene.h"
 #include "ui/uitree_emit.h"
@@ -194,12 +195,11 @@ silhouette_frame_face(void* data,const struct ToriDraw_RasterTarget* target,
 }
 
 static void
-silhouette_frame_walk(struct ToriRS_Frame* source,const struct UITreeEmitDesc* world,
-    int element_id,bool selected,struct SilhouetteFramePass* pass,toripixel_t* sink)
+silhouette_raster_model(struct ToriDraw_Scene* scene,
+    const struct ToriRS_RenderCommand_Model* model,
+    struct ToriRS_RenderCommand_Begin3D* view,
+    struct SilhouetteFramePass* pass,toripixel_t* sink)
 {
-    struct ToriRS_Frame replay=*source;
-    struct ToriRS_RenderCommand command;
-    struct ToriRS_RenderCommand_Begin3D view;
     struct ToriDraw_RasterKernelSDVTable const vtable={
         {silhouette_frame_face,silhouette_frame_face,silhouette_frame_face,silhouette_frame_face}};
     struct ToriDraw_RasterKernelSD zkernel={
@@ -211,37 +211,87 @@ silhouette_frame_walk(struct ToriRS_Frame* source,const struct UITreeEmitDesc* w
         .user_data=pass,.flags=TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
         .zbuffered_variant=&zkernel};
     struct ToriDraw_Kernel table=*ToriDraw_KernelGetSoftwarePainter();
-    bool in_world=false;
-    int order=0;
     table.name="silhouette";
     table.raster=&kernel;
     table.raster_hd=NULL;
-    replay.emit_cmds=world;
-    replay.emit_count=1;
+    if( model->animation && model->element_id>=0 )
+        ToriDraw_SceneElementApplyAnimation(scene,model->element_id,
+            model->anim_index==0,model->anim_frame);
+    struct ToriDraw_Position position=model->position;
+    if( ToriDraw_RenderModel1ProjectWithTable(model->model,scene,&position,
+            &view->view_port,&view->camera,&table)!=TORIDRAW_CULL_VISIBLE ) return;
+    if( ToriDraw_RenderModel2SortFacesWithTable(model->model,scene,&table)<=0 ) return;
+    (void)ToriDraw_RenderModel3RasterWithTable(scene,&view->view_port,&view->camera,sink,&table);
+}
+
+/* Derive nested-view transforms and painter commands once per viewport. A
+ * crowd of marked entities must not repeat the full world emitter for each
+ * bound/coverage pass. Commands borrow model/pose storage until FrameEnd. */
+struct ToriRS_SilhouetteWorld
+{
+    const struct UITreeEmitDesc* descriptor;
+    struct ToriRS_RenderCommand_Begin3D view;
+    struct ToriRS_RenderCommand_Model* models;
+    int count,capacity;
+    struct ToriRS_SilhouetteWorld* next;
+};
+
+static struct ToriRS_SilhouetteWorld*
+silhouette_world(struct ToriRS_Frame* source,const struct UITreeEmitDesc* descriptor)
+{
+    struct ToriRS_SilhouetteWorld* world;
+    for( world=source->silhouette_worlds;world;world=world->next )
+        if( world->descriptor==descriptor ) return world;
+    world=calloc(1,sizeof(*world));assert(world);
+    world->descriptor=descriptor;
+    struct ToriRS_Frame replay=*source;
+    struct ToriRS_RenderCommand command;
+    replay.emit_cmds=descriptor;replay.emit_count=1;
     ToriRS_FrameBeginWorldOnly(&replay);
     while( ToriRS_FrameNextCommand(&replay,&command) )
     {
-        if( command.kind==TORIRSRC_BEGIN_3D )
-        {
-            view=command.u.begin_3d;in_world=true;continue;
-        }
+        if( command.kind==TORIRSRC_BEGIN_3D ) world->view=command.u.begin_3d;
         if( command.kind!=TORIRSRC_DRAW_MODEL ) continue;
-        ++order;
-        struct ToriRS_RenderCommand_Model const* model=&command.u.model;
-        if( !in_world || model->pick_only || !ToriDraw_ModelKindIsFull(model->model.kind) ||
-            (model->element_id==element_id)!=selected ) continue;
-        pass->subject=selected;
-        pass->draw_order=order;
-        if( model->animation && model->element_id>=0 )
-            ToriDraw_SceneElementApplyAnimation(source->scene,model->element_id,
-                model->anim_index==0,model->anim_frame);
-        struct ToriDraw_Position position=model->position;
-        if( ToriDraw_RenderModel1ProjectWithTable(model->model,source->scene,&position,
-                &view.view_port,&view.camera,&table)!=TORIDRAW_CULL_VISIBLE ) continue;
-        if( ToriDraw_RenderModel2SortFacesWithTable(model->model,source->scene,&table)<=0 ) continue;
-        (void)ToriDraw_RenderModel3RasterWithTable(source->scene,&view.view_port,&view.camera,sink,&table);
+        if( world->count==world->capacity )
+        {
+            assert(world->capacity<=INT_MAX/2);
+            int const capacity=world->capacity?world->capacity*2:256;
+            assert(capacity>world->capacity);
+            void* grown=realloc(world->models,(size_t)capacity*sizeof(*world->models));
+            assert(grown);world->models=grown;world->capacity=capacity;
+        }
+        world->models[world->count++]=command.u.model;
     }
-    /* A world-only copy borrows the owning frame's flattened model arena. */
+    world->next=source->silhouette_worlds;source->silhouette_worlds=world;
+    return world;
+}
+
+void
+ToriRS_SilhouetteForgetFrame(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    while( frame->silhouette_worlds )
+    {
+        struct ToriRS_SilhouetteWorld* world=frame->silhouette_worlds;
+        frame->silhouette_worlds=world->next;
+        free(world->models);free(world);
+    }
+}
+
+static void
+silhouette_frame_walk(struct ToriRS_Frame* source,const struct UITreeEmitDesc* descriptor,
+    int element_id,bool selected,struct SilhouetteFramePass* pass,toripixel_t* sink)
+{
+    struct ToriRS_SilhouetteWorld* world=silhouette_world(source,descriptor);
+    struct ToriRS_RenderCommand_Begin3D view=world->view;
+    for( int i=0;i<world->count;++i )
+    {
+        struct ToriRS_RenderCommand_Model const* model=&world->models[i];
+        if( model->pick_only || !ToriDraw_ModelKindIsFull(model->model.kind) ||
+            (model->element_id==element_id)!=selected ) continue;
+        pass->subject=selected;pass->draw_order=i+1;
+        silhouette_raster_model(source->scene,model,&view,pass,sink);
+    }
 }
 
 struct ToriRS_Silhouette*
@@ -283,6 +333,72 @@ ToriRS_SilhouetteBuildFrame(struct ToriRS_Frame* frame,int element_id,
     silhouette_frame_walk(frame,world,element_id,true,&pass,sink);
     ToriRS_SilhouetteStyle(mask,fill_alpha,outline_width);
     if( !always_on_top ) silhouette_frame_walk(frame,world,element_id,false,&pass,sink);
+    free(sink);
+    return mask;
+}
+
+
+struct ToriRS_Silhouette*
+ToriRS_SilhouetteBuildSurface(struct ToriRS_Frame* frame,
+    const int x[4],const int y[4],const int z[4],int fill_alpha,int outline_width,
+    bool always_on_top,int clip_x,int clip_y,int clip_w,int clip_h)
+{
+    const struct UITreeEmitDesc* world=NULL;
+    struct SilhouetteFramePass pass={.bounds_only=true,.subject=true,.depth_test=true,
+        .left=INFINITY,.top=INFINITY,.right=-INFINITY,.bottom=-INFINITY};
+    struct ToriRS_RenderCommand_Begin3D view;
+    struct ToriRS_RenderCommand command;
+    struct ToriRS_Silhouette* mask;
+    toripixel_t* sink;
+    vertexint_t vx[4],vy[4],vz[4];
+    faceint_t a[2]={0,0},b[2]={1,2},c[2]={2,3};
+    hsl16_t color[2]={1,1};
+    int left,top,right,bottom;
+    assert(frame);
+    assert(frame->scene);
+    assert(x);
+    assert(y);
+    assert(z);
+    if( clip_w<=0 || clip_h<=0 || !frame->world || !frame->painters ) return NULL;
+    for( int i=frame->emit_index-1;i>=0;--i )
+        if( frame->emit_cmds[i].kind==UITREE_EMIT_WORLD ) {world=&frame->emit_cmds[i];break;}
+    if( !world ) return NULL;
+    struct ToriRS_Frame replay=*frame;
+    replay.emit_cmds=world;replay.emit_count=1;
+    ToriRS_FrameBeginWorldOnly(&replay);
+    if( !ToriRS_FrameNextCommand(&replay,&command) || command.kind!=TORIRSRC_BEGIN_3D ) return NULL;
+    view=command.u.begin_3d;
+    for( int i=0;i<4;++i ) {vx[i]=x[i]-x[0];vy[i]=y[i]-y[0];vz[i]=z[i]-z[0];}
+    /* A valid plane basis for each triangle also supplies the standard
+     * camera-space projection scratch used by the near clipper. No texture
+     * ids are assigned: this surface contributes coverage, not material. */
+    struct ToriDraw_Model quad={.vertex_count=4,.face_count=2,.textured_face_count=2,
+        .vertices_x=vx,.vertices_y=vy,.vertices_z=vz,
+        .face_indices_a=a,.face_indices_b=b,.face_indices_c=c,
+        .face_colors_a=color,.face_colors_b=color,.face_colors_c=color,
+        .textured_p_coordinate=a,.textured_m_coordinate=b,.textured_n_coordinate=c};
+    ToriDraw_ModelSetBoundsCylinder(&quad);
+    struct ToriRS_RenderCommand_Model surface={.element_id=-1,
+        .model={.kind=TORIDRAWMK_MODEL,.u.model.model=&quad},
+        .position={.x=x[0]-frame->cam_x,.y=y[0]-frame->cam_y,.z=z[0]-frame->cam_z}};
+    sink=malloc((size_t)frame->canvas_w*frame->canvas_h*sizeof(*sink));
+    assert(sink);
+    silhouette_raster_model(frame->scene,&surface,&view,&pass,sink);
+    double const clip_right=(double)clip_x+clip_w,clip_bottom=(double)clip_y+clip_h;
+    left=(int)fmin(clip_right,fmax(clip_x,floor(pass.left)-outline_width));
+    top=(int)fmin(clip_bottom,fmax(clip_y,floor(pass.top)-outline_width));
+    right=(int)fmax(clip_x,fmin(clip_right,ceil(pass.right)+outline_width));
+    bottom=(int)fmax(clip_y,fmin(clip_bottom,ceil(pass.bottom)+outline_width));
+    if( right<=left || bottom<=top ) {free(sink);return NULL;}
+    mask=malloc(sizeof(*mask));assert(mask);
+    ToriRS_SilhouetteInit(mask,left,top,right-left,bottom-top);
+    pass.bounds_only=false;pass.mask=mask;
+    silhouette_raster_model(frame->scene,&surface,&view,&pass,sink);
+    ToriRS_SilhouetteStyle(mask,fill_alpha,outline_width);
+    /* A surface marker is attached to the terrain geometry, not to an
+     * entity's painter submission. Compare scene depth in every renderer;
+     * coplanar terrain survives, nearer actors and scenery attenuate it. */
+    if( !always_on_top ) silhouette_frame_walk(frame,world,-1,false,&pass,sink);
     free(sink);
     return mask;
 }

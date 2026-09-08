@@ -79,6 +79,7 @@ struct FakeEngine
     uint32_t last_tile_fill_rgb;
     int last_tile_fill_alpha;
     int last_tile_width;
+    uint32_t last_tile_flags;
     int last_hull_width;
     int last_hull_alpha;
     uint32_t last_hull_flags;
@@ -399,6 +400,13 @@ fake_draw_hull_stroke(void* u, int element, uint32_t rgb, int alpha, int shape,
     if( g_engine.draw_refusal_mode )
         return g_engine.draw_refusal_mode == 3 ? 0 : -g_engine.draw_refusal_mode;
     return fake_draw_hull(u, element, rgb, alpha, shape);
+}
+static int
+fake_draw_tile_styled(void* u,int x,int z,int level,uint32_t rgb,uint32_t fill,
+                     int alpha,int width,uint32_t flags,int item_budget)
+{
+    g_engine.last_tile_flags=flags;
+    return fake_draw_tile_stroke(u,x,z,level,rgb,fill,alpha,width,item_budget);
 }
 static int
 fake_draw_hull_styled(void* u,int element,uint32_t rgb,int alpha,int shape,
@@ -973,6 +981,7 @@ fake_engine(void)
     e.draw_tile_stroke = fake_draw_tile_stroke;
     e.draw_hull_stroke = fake_draw_hull_stroke;
     e.draw_hull_styled = fake_draw_hull_styled;
+    e.draw_tile_styled = fake_draw_tile_styled;
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
@@ -1048,7 +1057,7 @@ draw_reset(void)
     g_engine.last_menu_text[0] = '\0';
 }
 
-static enum ToriRS_Result draw_results[4];
+static enum ToriRS_Result draw_results[6];
 
 static void
 draw_result_probe(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* draw)
@@ -1060,8 +1069,26 @@ draw_result_probe(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* d
     draw_results[1] = draw->world_hull(draw, 41, 0x123456, 70, TORIRS_HULL_MESH);
     draw_results[2] = draw->world_tile_stroke(draw, 3200, 3200, 0, 0x123456, 0x654321, 70, 0);
     draw_results[3] = draw->world_hull_stroke(draw, 41, 0x123456, 70, TORIRS_HULL_MESH, 2);
+    draw_results[4] = draw->world_tile_styled(draw,3200,3200,0,0x123456,0x654321,70,0,0);
+    draw_results[5] = draw->world_hull_styled(draw,41,0x123456,70,TORIRS_HULL_MESH,2,16);
+    CHECK(draw->world_hull_styled(draw,41,1,0,TORIRS_HULL_BOUNDS,1,0)==TORIRS_RESULT_UNSUPPORTED,
+          "bounds have no mesh depth and refuse a false occlusion promise");
     CHECK(draw->world_tile_stroke(draw, 0, 0, 0, 0, 0, 0, -1) == TORIRS_RESULT_INVALID,
           "negative stroke width is rejected before the engine call");
+}
+
+static void
+draw_wrong_scope_probe(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* draw)
+{
+    (void)api;(void)state;
+    CHECK(draw->world_tile_stroke(draw,3200,3200,0,1,1,0,1)==TORIRS_RESULT_INVALID,
+          "tile stroke on canvas returns a scope error without reaching the engine assertion");
+    CHECK(draw->world_hull_stroke(draw,41,1,0,TORIRS_HULL_MESH,1)==TORIRS_RESULT_INVALID,
+          "mesh stroke on canvas returns a scope error");
+    CHECK(draw->world_tile_styled(draw,3200,3200,0,1,1,0,1,0)==TORIRS_RESULT_INVALID,
+          "tile surface on canvas returns a scope error");
+    CHECK(draw->world_hull_styled(draw,41,1,0,TORIRS_HULL_MESH,1,0)==TORIRS_RESULT_INVALID,
+          "styled mesh on canvas returns a scope error");
 }
 
 static void
@@ -1070,7 +1097,8 @@ test_draw_capacity_results(void)
     static struct ToriRS_PluginDef const probe = {
         .struct_size = sizeof(probe), .id = "stroke-result-probe", .title = "Stroke results",
         .version = "1.0", .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
-                                        .on_draw_world = draw_result_probe },
+                                        .on_draw_world = draw_result_probe,
+                                        .on_draw_canvas = draw_wrong_scope_probe },
     };
     for( int mode = 0; mode <= 3; mode++ )
     {
@@ -1080,12 +1108,92 @@ test_draw_capacity_results(void)
         CHECK(PluginHost_Register(host, &probe) >= 0, "stroke result probe registers");
         PluginHost_Start(host);
         PluginHost_DrawWorld(host);
-        for( int i = 0; i < 4; i++ )
+        for( int i = 0; i < 6; i++ )
             CHECK(draw_results[i] == (mode == 1 || mode == 2 ? TORIRS_RESULT_BUDGET : TORIRS_RESULT_OK),
                   "old and appended drawing verbs report capacity refusal but accept offscreen no-ops");
+        int const old_tiles=g_engine.tiles,old_hulls=g_engine.hulls;
+        PluginHost_DrawCanvas(host,765,503);
+        CHECK(g_engine.tiles==old_tiles && g_engine.hulls==old_hulls,
+              "wrong-context world calls do not reach the renderer");
         PluginHost_Free(host);
     }
     g_engine.draw_refusal_mode = 0;
+}
+
+static int minimap_calls,minimap_canvas,minimap_alpha,minimap_width;
+static int minimap_x[8],minimap_z[8],minimap_budget;
+static void minimap_select(void* u,int canvas) { (void)u;minimap_canvas=canvas; }
+static int minimap_tile(void* u,int x,int z,int level,uint32_t outline,uint32_t fill,
+    int alpha,int width,int budget)
+{
+    (void)u;
+    if( x<0 ) return 0;
+    if( budget<=0 ) return -2;
+    CHECK(minimap_canvas==TORIRS_PLUGIN_ENGINE_DRAW_MINIMAP,"minimap primitive uses its own surface");
+    CHECK(level==0 && outline==0x00abcdu && fill==0x00abcdu,"minimap retains native level and colors");
+    CHECK(budget>0,"minimap receives the remaining plugin budget");
+    minimap_budget=budget;minimap_alpha=alpha;minimap_width=width;
+    if( minimap_calls<8 ) { minimap_x[minimap_calls]=x;minimap_z[minimap_calls]=z; }
+    ++minimap_calls;
+    return 1;
+}
+static void minimap_budget_probe(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* draw)
+{
+    (void)api;(void)state;
+    for( int i=0;i<TORIRS_PLUGIN_DRAW_BUDGET;++i )
+        CHECK(draw->minimap_tile(draw,3200,3210,0,0x00abcd,0x00abcd,50,0)==TORIRS_RESULT_OK,
+            "map tiles fit the declared per-plugin budget");
+    CHECK(draw->minimap_tile(draw,3200,3210,0,0x00abcd,0x00abcd,50,0)==TORIRS_RESULT_BUDGET,
+        "map capacity refusal is reported, not a successful partial draw");
+    CHECK(draw->minimap_tile(draw,-1,0,0,0,0,50,0)==TORIRS_RESULT_OK,
+        "off-map no-op remains OK after visible draws fill the budget");
+    CHECK(draw->minimap_tile(draw,3200,3210,0,0,0,50,256)==TORIRS_RESULT_INVALID,
+        "invalid minimap width never reaches the engine");
+}
+static void minimap_scope_probe(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* draw)
+{
+    (void)api;(void)state;
+    CHECK(draw->minimap_tile(draw,3200,3210,0,0,0,50,0)==TORIRS_RESULT_INVALID,
+        "world callback cannot issue a map command through the wrong scope");
+}
+static void test_minimap_highlights(void)
+{
+    memset(&g_engine,0,sizeof(g_engine));
+    struct ToriRS_PluginEngine engine=fake_engine();
+    engine.draw_minimap_tile=minimap_tile;engine.draw_select_canvas=minimap_select;
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    int plugin=PluginHost_Register(host,&TORIRS_PLUGIN_NXT_HIGHLIGHT);
+    PluginHost_Start(host);
+    g_engine.highlight_count=1;
+    struct ToriRS_HighlightItem* item=&g_engine.highlights[0];
+    *item=(struct ToriRS_HighlightItem){.kind=TORIRS_HIGHLIGHT_TILE,.element_id=-1,
+        .tile_x=3200,.tile_z=3210,.level=0,.size_x=2,.size_z=3,
+        .rgb=0x00abcd,.opacity=50,.outline_width=2,.flags=2|8|16|64};
+    PluginHost_FrameStart(host,0,0);
+    minimap_calls=0;PluginHost_DrawMinimap(host);
+    CHECK(minimap_calls==6 && minimap_alpha==50 && minimap_width==2,
+        "MINIMAP64 sends the complete2x3footprint through the independent draw pass");
+    CHECK(minimap_x[0]==3200 && minimap_z[0]==3210 && minimap_x[5]==3201 && minimap_z[5]==3212,
+        "map footprints preserve every absolute tile coordinate");
+    CHECK(minimap_budget==TORIRS_PLUGIN_DRAW_BUDGET-5,"each accepted map tile charges once");
+    CHECK(minimap_canvas==TORIRS_PLUGIN_ENGINE_DRAW_WORLD,"minimap scope restores normal overlay surface");
+    item->flags=8|64;item->outline_width=0;
+    PluginHost_FrameStart(host,20,0);minimap_calls=0;PluginHost_DrawMinimap(host);
+    CHECK(minimap_calls==6 && minimap_width==0,"fill-only minimap marks request no outline");
+    item->flags=2|8|16;
+    PluginHost_FrameStart(host,40,0);minimap_calls=0;PluginHost_DrawMinimap(host);
+    CHECK(minimap_calls==0,"identical group without MINIMAP64 draws no map marks");
+    item->flags=2|8|16|64;
+    PluginHost_SetEnabled(host,plugin,false);PluginHost_FrameStart(host,60,0);PluginHost_DrawMinimap(host);
+    CHECK(minimap_calls==0,"disabled highlight plugin contributes no minimap marks");
+    struct ToriRS_PluginDef probe={.struct_size=sizeof(probe),.id="minimap-budget",.title="Minimap budget",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_minimap=minimap_budget_probe,
+            .on_draw_world=minimap_scope_probe}};
+    CHECK(PluginHost_Register(host,&probe)>=0,"minimap budget probe registers");
+    PluginHost_Start(host);PluginHost_FrameStart(host,80,0);
+    PluginHost_DrawWorld(host);CHECK(minimap_calls==0,"wrong-scope map request makes no engine call");
+    PluginHost_DrawMinimap(host);CHECK(minimap_calls==TORIRS_PLUGIN_DRAW_BUDGET,"budget accepts exactly512complete map records");
+    PluginHost_Free(host);
 }
 
 int
@@ -1282,6 +1390,12 @@ main(void)
         g_engine.highlights[0].flags = 2 | 8;
         draw_reset();
         PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_tile_flags==0,"ordinary native tile respects foreground geometry");
+        g_engine.highlights[0].flags|=TORIRS_WORLD_DRAW_ALWAYS_ON_TOP;
+        draw_reset();PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_tile_flags==TORIRS_WORLD_DRAW_ALWAYS_ON_TOP,
+              "native tile always-on-top flag reaches the surface renderer");
+        g_engine.highlights[0].flags&=~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP;
         CHECK(
             g_engine.last_tile_fill_rgb == 0xBEBA6E &&
                 g_engine.last_tile_rgb == 0xBEBA6E,
@@ -1639,6 +1753,7 @@ main(void)
 
     PluginHost_Free(host);
     test_draw_capacity_results();
+    test_minimap_highlights();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

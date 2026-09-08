@@ -129,6 +129,8 @@ static struct
     char asset_bytes[FAKE_ASSET_MAX];
     int asset_size;
     bool asset_present;
+    bool session_missing;
+    int session_requests;
 
     /* What the custom draw pass did. */
     int icons_asked;
@@ -601,6 +603,11 @@ static enum ToriRS_AssetState v2_asset_request(
     struct ToriRS_Api* api, char const* name)
 {
     (void)api;
+    if( strcmp(name, "session.txt") == 0 )
+    {
+        ++g_client.session_requests;
+        if( g_client.session_missing ) return TORIRS_ASSET_MISSING;
+    }
     return fake_asset_load(NULL, name) ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
 }
 static bool v2_asset_bytes(
@@ -1558,6 +1565,24 @@ test_xp_restore_identity_and_late_asset(void)
 }
 
 static void
+test_xp_runtime_save_missing_is_terminal(void)
+{
+    client_reset();
+    xp_start();
+    tick(20);
+    g_client.session_missing = true;
+    fake_config_set_raw("save_state", "1");
+    g_plugin->callbacks.on_config_changed(&g_api, g_plugin_state, "save_state");
+    tick(20);
+    int const builds = g_client.builds;
+    for( int i = 0; i < 8; ++i ) tick(20);
+    TEST_ASSERT(g_client.session_requests == 1, "runtime save enable asks for the session");
+    TEST_ASSERT(g_client.builds == builds,
+        "a cached missing session does not invalidate the page forever (%d -> %d)",
+        builds, g_client.builds);
+}
+
+static void
 test_xp_pages_and_late_skills(void)
 {
     client_reset();
@@ -2212,6 +2237,7 @@ main(void)
     test_xp_reset();
     test_xp_offline_gains_are_not_the_session();
     test_xp_restore_identity_and_late_asset();
+    test_xp_runtime_save_missing_is_terminal();
     test_xp_pages_and_late_skills();
 
     test_loot_kill_becomes_a_record();

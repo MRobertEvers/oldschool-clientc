@@ -9,6 +9,9 @@
  * config round-trip that drops a key means settings vanish at the next launch.
  */
 
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "plugin/torirs_plugin_host.h"
 
 #include <assert.h>
@@ -126,6 +129,18 @@ fake_frame_ms(void* u)
 {
     (void)u;
     return 1000;
+}
+static uint64_t g_delivery_clock;
+static uint64_t delivery_frame_ms(void* u)
+{ (void)u; return g_delivery_clock; }
+static void delivery_fixture_env(char const* value)
+{
+#if defined(_WIN32)
+    _putenv_s("TORIRS_SIM_ASSET_DELIVERY_DELAY", value ? value : "");
+#else
+    if( value ) setenv("TORIRS_SIM_ASSET_DELIVERY_DELAY", value, 1);
+    else unsetenv("TORIRS_SIM_ASSET_DELIVERY_DELAY");
+#endif
 }
 static uint64_t
 fake_frame_work_us(void* u)
@@ -3831,6 +3846,39 @@ main(void)
             g_v2_seam.model_budget == TORIRS_ASSET_BUDGET,
             "the host reports its real model-table budget through V2");
         PluginHost_Free(seam_host);
+    }
+
+    /* Real IO bytes remain private until the delayed terminal event. */
+    {
+        struct ToriRS_PluginDef probe = V2_SEAM_PROBE;
+        struct ToriRS_PluginEngine delayed_engine = fake_engine();
+        probe.id = "delivery-probe";
+        delayed_engine.frame_ms = delivery_frame_ms;
+        memset(&g_v2_seam, 0, sizeof g_v2_seam);
+        struct ToriRS_PluginHost* delayed = PluginHost_New(&delayed_engine);
+        CHECK(PluginHost_Register(delayed, &probe) == 0, "delivery probe registers");
+        g_delivery_clock = 1000;
+        delivery_fixture_env("delivery-probe,raw.bin,50");
+        PluginHost_Start(delayed);
+        void* bytes = malloc(4);
+        assert(bytes);
+        memcpy(bytes, "DATA", 4);
+        PluginHost_AssetDeliver(delayed, probe.id, "raw.bin", bytes, 4);
+        PluginHost_LogicTick(delayed, 1);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_PENDING && !g_v2_seam.bytes_ready,
+            "held IO completion remains pending and exposes no bytes");
+        g_delivery_clock = 1049;
+        PluginHost_FrameStart(delayed, g_delivery_clock, 0);
+        PluginHost_LogicTick(delayed, 2);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_PENDING && !g_v2_seam.bytes_ready,
+            "delivery does not happen before its deadline");
+        g_delivery_clock = 1050;
+        PluginHost_FrameStart(delayed, g_delivery_clock, 0);
+        PluginHost_LogicTick(delayed, 3);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_READY && g_v2_seam.bytes_ready,
+            "ordinary delivery publishes the original IO bytes at the deadline");
+        PluginHost_Free(delayed);
+        delivery_fixture_env(NULL);
     }
 
     /* ---- incarnation-fenced V2 resources survive internal slot reuse ----- */

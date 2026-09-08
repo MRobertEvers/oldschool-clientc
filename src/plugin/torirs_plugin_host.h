@@ -139,6 +139,7 @@ struct ToriRS_PluginHost;
 #define TORIRS_PLUGIN_ENGINE_DRAW_WORLD 0
 #define TORIRS_PLUGIN_ENGINE_DRAW_CANVAS 1
 #define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 2
+#define TORIRS_PLUGIN_ENGINE_DRAW_MINIMAP 3
 
 /* ------------------------------------------------------------------------ */
 /* The engine seam. app.c implements every one of these.                     */
@@ -768,6 +769,12 @@ struct ToriRS_PluginEngine
     int (*draw_hull_styled)(
         void* user, int element_id, uint32_t rgb, int fill_alpha,
         int shape, int outline_width, uint32_t flags, int item_budget);
+    int (*draw_tile_styled)(
+        void* user, int tile_x, int tile_z, int level, uint32_t rgb,
+        uint32_t fill_rgb, int fill_alpha, int outline_width,
+        uint32_t flags, int item_budget);
+    int (*draw_minimap_tile)(void* user, int tile_x, int tile_z, int level,
+        uint32_t outline_rgb, uint32_t fill_rgb, int alpha, int outline_width, int item_budget);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1468,5 +1475,7 @@ void PluginHost_RecordRetainedMutation(struct ToriRS_PluginHost* host,
 /** For engine object setters invoked inside a plugin callback. */
 void PluginHost_RecordCurrentRetainedMutation(struct ToriRS_PluginHost* host,
     enum ToriRS_PluginMutationCategory category, bool changed, bool redraw_requested);
+
+void PluginHost_DrawMinimap(struct ToriRS_PluginHost* host);
 
 #endif /* TORIRS_PLUGIN_HOST_H */
