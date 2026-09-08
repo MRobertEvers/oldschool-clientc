@@ -1566,6 +1566,13 @@ v2_cache_tab_select(struct ToriRS_Api* api, int tab)
 }
 
 static bool
+v2_cache_tab_activate(struct ToriRS_Api* api, int tab)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_tab_activate(runtime->context, tab);
+}
+
+static bool
 v2_client_display_get(
     struct ToriRS_Api* api,
     int setting,
@@ -3280,6 +3287,7 @@ v2_runtime_init(
             .tab_active = v2_cache_tab_active,
             .tab_enabled = v2_cache_tab_enabled,
             .tab_select = v2_cache_tab_select,
+            .tab_activate = v2_cache_tab_activate,
         },
         .client = &runtime->client_api,
         .game = &runtime->game_api,

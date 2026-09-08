@@ -208,7 +208,7 @@ enum AppPluginRowKind
 #define APP_HINT_ARROW_NPC 2
 #define APP_HINT_ARROW_PLAYER 10
 
-#define APP_PLUGIN_HIGHLIGHTS_MAX 256
+#define APP_PLUGIN_HIGHLIGHTS_INITIAL_CAPACITY 256
 
 #define APP_PLUGIN_OBJECTS_MAX 256
 
@@ -1965,8 +1965,10 @@ struct App
      */
     int client_trigger_refire_pending;
 
-    struct ToriRS_HighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
+    /** Complete query snapshot; drawing has its own independent budget. */
+    struct ToriRS_HighlightItem* plugin_highlights;
     int plugin_highlight_count;
+    int plugin_highlight_capacity;
     /* Resolved LOC highlights, kept across frames.
      *
      * The loc pass is the expensive one: it walks the whole scenery pool
@@ -1976,8 +1978,9 @@ struct App
      * grid_position, so the answer only changes when the highlight state
      * changes or when the set of scenery does. Those are exactly the two
      * keys below. See app_plugin_highlights_rebuild_pools. */
-    struct ToriRS_HighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
+    struct ToriRS_HighlightItem* plugin_highlight_loc;
     int plugin_highlight_loc_count;
+    int plugin_highlight_loc_capacity;
     int plugin_highlight_loc_revision;
     bool plugin_highlight_loc_valid;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
@@ -2030,6 +2033,10 @@ struct App
      *  simulation frames count too. Diagnostic BMP/readback renders and retained
      *  presents do not. A frame-rate readout differences this count, not loops. */
     uint64_t frames_rendered;
+    /** Input-frame time for plugins. Live input carries monotonic real time;
+     * replay/content-test input carries its recorded/synthetic timestamp.
+     * Separate from last_frame_ms, which belongs to world/network simulation. */
+    uint64_t plugin_frame_ms;
     /** Frame durations in microseconds, newest written at dbg_frame_head. */
     uint32_t dbg_frame_us[APP_DEBUG_FRAME_SAMPLES];
     int dbg_frame_head;
@@ -3726,6 +3733,8 @@ App_DrainAudio(
 /** Whether the last App_RunOnce left async work queued. */
 int
 App_AsyncPending(const struct App* app);
+
+void App_SetPluginFrameTime(struct App* app, uint64_t frame_ms);
 
 void
 App_NoteFrameTime(

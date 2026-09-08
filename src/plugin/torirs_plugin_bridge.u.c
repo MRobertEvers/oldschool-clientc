@@ -467,15 +467,39 @@ app_plugin_highlight_begin(
 }
 
 static struct ToriRS_HighlightItem*
+app_plugin_highlight_append(struct ToriRS_HighlightItem** items,int* count,int* capacity,
+                            struct ToriRS_HighlightItem const* proto)
+{
+    assert(items);
+    assert(count);
+    assert(capacity);
+    assert(proto);
+    assert(*count>=0);
+    assert(*capacity>=*count);
+    /* Preserve an item copied from this same vector across a possible grow. */
+    struct ToriRS_HighlightItem const value=*proto;
+    if( *count==*capacity )
+    {
+        assert(*capacity<=INT_MAX/2);
+        int const next=*capacity?*capacity*2:APP_PLUGIN_HIGHLIGHTS_INITIAL_CAPACITY;
+        assert((size_t)next<=SIZE_MAX/sizeof(**items));
+        void* grown=realloc(*items,(size_t)next*sizeof(**items));
+        assert(grown);
+        *items=grown;
+        *capacity=next;
+    }
+    assert(*items);
+    struct ToriRS_HighlightItem* item=&(*items)[(*count)++];
+    *item=value;
+    return item;
+}
+
+static struct ToriRS_HighlightItem*
 app_plugin_highlight_push(struct App* app, struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlights[app->plugin_highlight_count++];
-    *item = *proto;
-    return item;
+    assert(app);
+    return app_plugin_highlight_append(&app->plugin_highlights,&app->plugin_highlight_count,
+                                       &app->plugin_highlight_capacity,proto);
 }
 
 /* The entity pools the rebuild walks, one per pass that has a pool. */
@@ -610,20 +634,17 @@ app_plugin_highlight_loc_cache_needs_full(struct App const* app)
         app->world->scenery_changed_overflow;
 }
 
-/* Push one resolved loc into the cache. Bounded by the same cap as the live
- * list, so a cache that fills cannot outrun what the list could hold. */
+/* Query completeness is independent of the renderer's per-frame draw budget.
+ * A type/group member can resolve to many live entities, so neither the LOC
+ * cache nor the final snapshot may silently stop at a fixed item count. */
 static struct ToriRS_HighlightItem*
 app_plugin_highlight_loc_cache_push(
     struct App* app,
     struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_loc_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlight_loc[app->plugin_highlight_loc_count++];
-    *item = *proto;
-    return item;
+    assert(app);
+    return app_plugin_highlight_append(&app->plugin_highlight_loc,&app->plugin_highlight_loc_count,
+                                       &app->plugin_highlight_loc_capacity,proto);
 }
 
 /*
@@ -1290,15 +1311,17 @@ app_plugin_highlight_next(void* user, int iter, struct ToriRS_HighlightItem* out
     /* The start of a walk is the only place the list is rebuilt: see the api
      * declaration. A cursor into a list that moved underneath it would skip or
      * repeat, so the rebuild must not happen mid-walk. */
-    if( iter < 0 )
+    if( iter < -1 )
+        return -1;
+    if( iter == -1 )
     {
         app_plugin_highlights_rebuild(app);
         app_plugin_highlights_report(app);
     }
 
-    next = iter + 1;
-    if( next >= app->plugin_highlight_count )
+    if( iter >= app->plugin_highlight_count - 1 )
         return -1;
+    next = iter + 1;
     *out = app->plugin_highlights[next];
     return next;
 }
@@ -1340,7 +1363,7 @@ app_plugin_frame_ms(void* user)
 {
     struct App* app = (struct App*)user;
     assert(app);
-    return app->last_frame_ms;
+    return app->plugin_frame_ms;
 }
 
 static uint64_t
@@ -4901,6 +4924,42 @@ app_plugin_tab_enabled(void* user, int tabno)
 }
 
 static int
+app_plugin_tab_activate(void* user, int tabno)
+{
+    struct App* app = user;
+    assert(app);
+    if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX || !RS_UISlots_TabGiven(app, tabno) )
+        return 0;
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return app_plugin_tab_select(user, tabno);
+
+    /* The bound control owns the operation arguments, including the live
+     * root's component enum. A declared switch script only selects; its
+     * native on_op also implements same-tab closure where supported.
+     * Navigation remains usable when a provider replaces the native strip,
+     * while TabGiven still checks the cache's actual availability. */
+    if( !app->tree )
+        return 0;
+    char role[32];
+    snprintf(role, sizeof(role), "sidetab_%d", tabno);
+    int const node = app_plugin_role_node(app, role);
+    if( node < 0 )
+        return 0;
+    struct UITreeRuntimeScriptHook const* hook = &UITree_Hooks(&app->tree->components[node])->on_op;
+    if( hook->script_id <= 0 )
+        return 0;
+    struct UITreeRuntimeScriptHook snapshot;
+    UITree_HookInitCopy(&snapshot, hook);
+    int const component = app->tree->components[node].component_id;
+    RS_CS2_SetEventOp(&app->host, 1, 0);
+    RS_CS2_DispatchHook(&app->host, &app->runner, component, &snapshot);
+    RS_CS2_SetEventOp(&app->host, 1, 0);
+    UITree_HookClear(&snapshot);
+    app->need_redraw = 1;
+    return 1;
+}
+
+static int
 app_plugin_stat(void* user, int skill, int* out_current, int* out_base)
 {
     struct App* app = (struct App*)user;
@@ -5215,6 +5274,7 @@ app_plugin_engine(struct App* app)
     engine.frame_provide = app_plugin_frame_provide;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
+    engine.tab_activate = app_plugin_tab_activate;
     engine.tab_enabled = app_plugin_tab_enabled;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;

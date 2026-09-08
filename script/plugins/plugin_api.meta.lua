@@ -344,6 +344,7 @@ warn = nil
 ---@field tab_active fun(): integer
 ---@field tab_enabled fun(tab: integer): boolean
 ---@field tab_select fun(tab: integer): boolean
+---@field tab_activate fun(tab: integer): boolean Activate the native control, including supported same-tab collapse; action callbacks only.
 
 ---@class torirs.ClientApi
 ---@field display_get fun(setting: integer): integer?, integer?, integer?

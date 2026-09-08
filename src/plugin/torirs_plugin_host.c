@@ -1467,9 +1467,7 @@ api_tab_active(struct PluginContext* ctx)
 }
 
 static bool
-api_tab_select(
-    struct PluginContext* ctx,
-    int tabno)
+api_tab_action_allowed(struct PluginContext* ctx)
 {
     assert(ctx);
     switch( ctx->host->dispatch_event )
@@ -1478,14 +1476,31 @@ api_tab_select(
     case PLUGIN_CALLBACK_MENU_SELECT:
     case PLUGIN_CALLBACK_PANEL_ACTION:
     case PLUGIN_CALLBACK_WIDGET_OPERATION:
-        break;
+        return true;
     default:
         return false;
     }
+}
+
+static bool
+api_tab_select(struct PluginContext* ctx, int tabno)
+{
+    assert(ctx);
+    if( !api_tab_action_allowed(ctx) )
+        return false;
     /* A tab number a plugin read off its own stone table. */
     if( tabno < 0 )
         return false;
     return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
+}
+
+static bool
+api_tab_activate(struct PluginContext* ctx, int tabno)
+{
+    assert(ctx);
+    if( !api_tab_action_allowed(ctx) || tabno < 0 || !ctx->host->engine.tab_activate )
+        return false;
+    return ctx->host->engine.tab_activate(ctx->host->engine.user, tabno) != 0;
 }
 
 static int

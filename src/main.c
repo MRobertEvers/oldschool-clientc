@@ -3223,6 +3223,8 @@ frame_loop_step(void)
     app_redraw = 0;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
+        /* Input carries this iteration's live or replay timestamp. App uses
+         * it for plugin time; logic_now remains GameShell's simulation clock. */
         app_redraw = App_RunOnce(&app, logic_now, input);
         if( plugin_measurement.active && app_redraw ) plugin_measurement.redraws++;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */

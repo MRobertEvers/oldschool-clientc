@@ -71,3 +71,12 @@ Loot Beams now polls only pending definition IDs every 25 logic ticks, with no
 arbitrary expiry; a zero-valued resident definition and a departed stack stop
 polling. The API has no definition-ready notification, so a bounded readiness
 poll remains necessary for a script that must react to late metadata.
+
+Plugin FrameStart and Core.frame_ms use the input frame's timestamp. Live input
+uses the monotonic time supplied by the shell; replay and content tests keep
+their recorded/synthetic input time. World and network simulation retain the
+separate GameShell logic clock. The plugin timestamp is published before host
+FrameStart flushes delayed assets, so delivery and deadline checks share one
+clock. Earlier candidate E timing receipts retain their original timebase;
+physical presentation/count and callback-duration evidence remain attributable
+to that binary, while FPS display checks are repeated after this correction.

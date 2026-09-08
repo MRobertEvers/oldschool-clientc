@@ -2484,6 +2484,14 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
 
+.PHONY: test-plugin-tab-activation
+test-plugin-tab-activation: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/src/plugin/test/tab_activation_test.py $(OBJ_DIR)/tab-activation
+
+.PHONY: test-plugin-chat-focus-order
+test-plugin-chat-focus-order: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/src/plugin/test/chat_focus_order_test.py $(OBJ_DIR)/chat-focus-order
+
 # The Stone Drawer mobile gameframe, same harness. What it asserts that the
 # desktop one cannot is the DRAWER: a role the declaration stops mentioning is
 # one the host hides, so "shut" has to be visible as a slot that was not placed.
@@ -6084,3 +6092,11 @@ test-cs2-overlay-find: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		cs2vm2/test/overlay_find_test.c cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
 		cs2vm2/cs2_opcode_meta.c perf/torirs_perf.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_overlay_find_test
+
+.PHONY: test-plugin-highlight-snapshot
+test-plugin-highlight-snapshot: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/tools/test_highlight_snapshot.py --out-dir $(OBJ_DIR) --cc "$(CC)"
+
+.PHONY: test-plugin-clock
+test-plugin-clock:
+	python3 plugin/test/plugin_clock_test.py

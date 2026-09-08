@@ -855,7 +855,11 @@ struct ToriRS_CacheApi
     /** Native navigation is allowed from action callbacks, not from layout,
      * draw or background updates that might fight a server/script closure. */
     bool (*tab_select)(struct ToriRS_Api* api, int tab);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
+    /** Activate the native tab control. Unlike deterministic tab_select,
+     * repeating a tab can collapse it when the cache's control supports that.
+     * Uses the same action-callback restriction as tab_select. */
+    bool (*tab_activate)(struct ToriRS_Api* api, int tab);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
 /** Client-owned settings and process facts, separate from plugin config. */

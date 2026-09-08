@@ -109,6 +109,8 @@ static struct
     int active_tab;
     int selected_tab;
     int select_calls;
+    int activate_calls;
+    int native_collapse;
     /** A tab the frame HAS and the server has not handed over, or -1. The
      *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
@@ -164,6 +166,16 @@ fake_tab_select(void* u, int tabno)
     (void)u;
     g_frame.selected_tab = tabno;
     g_frame.select_calls++;
+    return 1;
+}
+
+static int
+fake_tab_activate(void* u, int tabno)
+{
+    int const previous = g_frame.active_tab;
+    g_frame.activate_calls++;
+    fake_tab_select(u, tabno);
+    g_frame.active_tab = g_frame.native_collapse && previous == tabno ? -1 : tabno;
     return 1;
 }
 
@@ -909,6 +921,7 @@ main(void)
     e.platform_safe_rect = fake_platform_safe_rect;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_activate = fake_tab_activate;
     e.tab_enabled = fake_tab_enabled;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
@@ -1032,6 +1045,9 @@ main(void)
     g_frame.select_calls = 0;
     press("tab.03");
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "the semantic tab action runs once and selects the named tab");
+    CHECK(g_frame.activate_calls == 1, "a pressed stone uses native activation, not deterministic selection");
+    press("tab.03");
+    CHECK(g_frame.active_tab == 3, "repeated activation preserves the legacy native always-open policy");
     g_frame.active_tab = 3;
     frame_tick();
     CHECK(owned("face.03") && !owned("face.03")->hidden && owned("face.00") && owned("face.00")->hidden,
@@ -1317,6 +1333,22 @@ main(void)
         CHECK(placed("compass", -1, 588, 5, 35, 35) && placed("minimap", -1, 607, 8, 152, 152) &&
                   placed("viewport", -1, 0, 0, 765, 503),
               "the resizable frame lays out beside the popout strip, where the lane's own frame stands");
+        g_frame.native_collapse = 1;
+        g_frame.active_tab = -1;
+        frame_tick();
+        declare(807, 503);
+        int const closed_pieces = pieces_behind_viewport();
+        press("tab.03");
+        frame_tick();
+        declare(807, 503);
+        CHECK(g_frame.active_tab == 3 && pieces_behind_viewport() == closed_pieces + 3,
+              "native activation opens and dresses the resizable sidebar");
+        press("tab.03");
+        frame_tick();
+        declare(807, 503);
+        CHECK(g_frame.active_tab == -1 && pieces_behind_viewport() == closed_pieces,
+              "a repeated native activation removes the open sidebar surround and replans the tab rows");
+        g_frame.native_collapse = 0;
         g_w[strip].hidden = 1;
         declare(807, 503);
         CHECK(placed("compass", -1, 630, 5, 35, 35) && placed("viewport", -1, 0, 0, 807, 503),

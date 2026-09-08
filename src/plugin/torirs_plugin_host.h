@@ -334,6 +334,9 @@ struct ToriRS_PluginEngine
     int (*tab_select)(
         void* user,
         int tabno);
+    /** The native control's activation policy, including supported collapse.
+     * Optional for hosts without native tab-control activation. */
+    int (*tab_activate)(void* user, int tabno);
     /** Nonzero when that tab has an interface mounted behind it.
      *  @see tab_enabled. */
     int (*tab_enabled)(

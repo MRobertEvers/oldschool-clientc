@@ -445,8 +445,8 @@ enum ToriRS_HighlightKind
 };
 
 /**
- * One thing the CACHE has asked to be marked, already resolved to something on
- * the screen.
+ * One thing the CACHE has asked to be marked, resolved against the live world.
+ * Screen clipping and draw capacity are decided separately by the renderer.
  *
  * The HIGHLIGHT_* opcode family (7000..7044) is how the settings panel's
  * Activities category reaches this client: 125 clientscripts read a varbit and

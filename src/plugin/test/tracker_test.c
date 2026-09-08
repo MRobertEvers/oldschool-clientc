@@ -1583,6 +1583,69 @@ test_xp_runtime_save_missing_is_terminal(void)
 }
 
 static void
+test_xp_pending_session_keeps_page_stable(void)
+{
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(20);
+    int const builds = g_client.builds;
+    for( int i = 0; i < 8; ++i ) tick(20);
+    TEST_ASSERT(g_client.builds == builds,
+        "a pending session read does not rebuild unchanged UI (%d -> %d)", builds, g_client.builds);
+}
+
+static void
+test_xp_late_restore_preserves_rate_time(void)
+{
+    char saved[FAKE_ASSET_MAX];
+    int saved_size;
+    unsigned long long elapsed[2] = {0};
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    g_client.xp[SKILL_WOODCUTTING] = 1000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] = 1600;
+    tick(1000); dispatch_stop();
+    saved_size = g_client.asset_size;
+    memcpy(saved, g_client.asset_bytes, sizeof saved);
+    for( int delayed = 0; delayed < 2; ++delayed )
+    {
+        client_reset();
+        fake_config_set_raw("save_state", "1");
+        memcpy(g_client.asset_bytes, saved, sizeof saved);
+        g_client.asset_size = saved_size;
+        snprintf(g_client.asset_name, sizeof g_client.asset_name, "session.txt");
+        g_client.asset_present = !delayed;
+        g_client.xp[SKILL_WOODCUTTING] = 2000;
+        plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+        dispatch_start(); panel_build(); tick(20);
+        for( int i = 0; i < 8; ++i )
+        {
+            if( i == 3 ) g_client.xp[SKILL_WOODCUTTING] += 100;
+            tick(1000);
+            if( delayed && i == 5 )
+            {
+                g_client.asset_present = true;
+                struct ToriRS_AssetEvent asset = { .name="session.txt", .ok=true };
+                g_plugin->callbacks.on_asset(&g_api, g_plugin_state, &asset);
+            }
+        }
+        dispatch_stop();
+        char const* row = strstr(g_client.asset_bytes, "Woodcutting ");
+        int start, last, before, since, actions;
+        int parsed = row ? sscanf(row, "Woodcutting %d %d %d %d %d %llu",
+            &start, &last, &before, &since, &actions, &elapsed[delayed]) : 0;
+        TEST_ASSERT(parsed == 6 && since == 700, "both delivery schedules retain700XP");
+    }
+    TEST_ASSERT(elapsed[0] == elapsed[1],
+        "saved rate time is independent of asset latency (%llu versus %llu)", elapsed[0], elapsed[1]);
+}
+
+static void
 test_xp_pages_and_late_skills(void)
 {
     client_reset();
@@ -2238,6 +2301,8 @@ main(void)
     test_xp_offline_gains_are_not_the_session();
     test_xp_restore_identity_and_late_asset();
     test_xp_runtime_save_missing_is_terminal();
+    test_xp_pending_session_keeps_page_stable();
+    test_xp_late_restore_preserves_rate_time();
     test_xp_pages_and_late_skills();
 
     test_loot_kill_becomes_a_record();

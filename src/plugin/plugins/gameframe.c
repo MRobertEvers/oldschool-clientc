@@ -3098,8 +3098,8 @@ frame_apply_housing(struct FrameCall* ctx, struct ToriRS_WidgetRef parent)
     (void)ui->set_anchor(ui->context, state->housing.ref, anchor, TORIRS_WIDGET_RELATION_OVER);
 }
 
-/* A stone was pressed: open the panel it stands for. The lane's own switch
- * script runs on a CS2 toplevel; the client's selection on a 2004 one. */
+/* A stone activates the native control, including its same-tab collapse
+ * policy. Programmatic tab_select deliberately only selects a panel. */
 static void
 frame_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
@@ -3109,7 +3109,7 @@ frame_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent 
     assert(event);
     if( event->type != TORIRS_WIDGET_OPERATION )
         return;
-    (void)api->cache.tab_select(api, handle->tabno);
+    (void)api->cache.tab_activate(api, handle->tabno);
 }
 
 /*

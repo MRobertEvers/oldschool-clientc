@@ -1417,6 +1417,7 @@ fake_engine(void)
     e.frame_preference_set = fake_frame_preference_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_activate = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
@@ -1685,6 +1686,8 @@ v2_probe_gameframe(
 
     CHECK(!api->cache.tab_select(api, 3) && g_engine.native_tab_selects == navigation_before,
           "frame provision cannot issue native navigation commands");
+    CHECK(!api->cache.tab_activate(api, 3) && g_engine.native_tab_selects == navigation_before,
+          "frame provision cannot activate native navigation controls");
     CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
     CHECK(strcmp(event->offer_id, "test") == 0, "frame provision receives the local offer id");
     if( !event->active )

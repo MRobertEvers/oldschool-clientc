@@ -218,6 +218,9 @@ struct XtSkill
     bool action_history_full;
     /** Milliseconds this skill has been TRAINING -- see the header comment. */
     uint64_t skill_time_ms;
+    /** Time that a saved active rate would have accrued while its read was
+     * pending. Kept separately from new gains, so IO latency cannot raise XP/hr. */
+    uint64_t pending_state_time_ms;
     /** When it last gained, for the auto-pause and auto-reset timers. */
     uint64_t last_change_ms;
     bool paused;
@@ -719,6 +722,9 @@ xt_tick_second(
             idle_ms >= (uint64_t)reset_after_min * 60u * 1000u )
             xt_reset_rate(skill);
 
+        if( !g_state_applied && !skill->paused )
+            skill->pending_state_time_ms += delta_ms;
+
         /* A skill only accrues time while it is TRAINING: nothing gained since
          * the last reset means the rate is not measuring anything yet, and a
          * clock that ran anyway would drive every idle skill's xp/hr to zero. */
@@ -926,14 +932,18 @@ xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
         int const observed = g_skill[index].start_xp >= 0 ? xt_gained(&g_skill[index]) : 0;
         int const observed_actions = g_skill[index].actions;
         uint64_t const observed_time = g_skill[index].skill_time_ms;
+        uint64_t const pending_time = g_skill[index].pending_state_time_ms;
         g_skill[index].start_xp = start_xp + (live_xp - last_xp) - observed;
         g_skill[index].last_xp = live_xp;
         g_skill[index].gained_before_reset = before;
         g_skill[index].gained_since_reset = since + observed;
         g_skill[index].actions = actions + observed_actions;
         g_skill[index].actions_since_reset = 0;
-        g_skill[index].skill_time_ms = time_ms + observed_time;
-        g_skill[index].last_change_ms = api->core.frame_ms(api);
+        g_skill[index].skill_time_ms = time_ms +
+            (since > 0 && pending_time > observed_time ? pending_time : observed_time);
+        g_skill[index].pending_state_time_ms = 0;
+        /* Keep the observed baseline/gain time for auto-pause. The asset's
+         * arrival is not player activity and must not restart the idle timer. */
     }
     return true;
 }
@@ -2073,7 +2083,7 @@ xt_tick(
                 g_detail = -1;
                 g_state_applied = false;
                 if( xt_cfg_bool(api, "save_state") )
-                    (void)api->assets.request(api, XT_STATE_ASSET);
+                    xt_request_state(api, state);
                 api->panel.invalidate(api);
             }
             snprintf(g_owner, sizeof(g_owner), "%s", owner);
@@ -2119,7 +2129,8 @@ xt_tick(
         if( !g_state_applied && xt_stats_live(api, state) )
         {
             g_state_applied = xt_state_apply(api, state);
-            api->panel.invalidate(api);
+            if( g_state_applied )
+                api->panel.invalidate(api);
         }
 
         for( int i = 0; i < g_skill_count; i++ )

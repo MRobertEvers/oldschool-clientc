@@ -519,6 +519,28 @@ static void test_widget_actions(struct ToriRS_PluginHost* host)
     CHECK(g_disabled_self==disables+1 && lua_action_calls==1 && strstr(g_disable_reason,"torirs.WidgetActionRef"),
           "Lua rejects forged action references before reaching native dispatch");
 }
+static int tab_select_calls,tab_activate_calls;
+static bool fake_lua_tab_select(struct ToriRS_Api* api,int tab)
+{ (void)api;tab_select_calls++;return tab==3; }
+static bool fake_lua_tab_activate(struct ToriRS_Api* api,int tab)
+{ (void)api;tab_activate_calls++;return tab==3; }
+static void test_tab_activation(struct ToriRS_PluginHost* host)
+{
+    static char const source[] = "local p={id='tab-activation'};function p.on_key(api) "
+        "assert(api.cache.tab_select(3));assert(api.cache.tab_activate(3));"
+        "assert(not api.cache.tab_activate(-1));api.core.log('tab verbs verified') end;return p";
+    struct FakeInstance instance={"tab-activation",""};
+    struct ToriRS_Api api=fake_api(&instance);
+    api.cache.tab_select=fake_lua_tab_select;api.cache.tab_activate=fake_lua_tab_activate;
+    int index=PluginLua_AddScript(host,"tab-activation",source,(int)strlen(source));
+    CHECK(index>=0,"tab activation binding registers");
+    int const logs=g_logs,disabled=g_disabled_self;
+    struct ToriRS_KeyEvent key={0};
+    g_defs[index]->callbacks.on_key(&api,NULL,&key);
+    CHECK(g_logs==logs+1 && g_disabled_self==disabled && tab_select_calls==1 && tab_activate_calls==2,
+          "Lua keeps deterministic selection and native activation as distinct verbs");
+}
+
 static void test_widget_action_refusals(struct ToriRS_PluginHost* host)
 {
     static char const source[] =
@@ -1055,6 +1077,7 @@ main(void)
     test_widget_watch(&host);
     test_widget_actions(&host);
     test_widget_action_refusals(&host);
+    test_tab_activation(&host);
     test_widget_set_on_op(&host);
     test_widget_set_anchor(&host);
     test_widget_images(&host);

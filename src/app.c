@@ -8277,6 +8277,12 @@ App_AsyncPending(const struct App* app)
     return app->async_pending;
 }
 
+void App_SetPluginFrameTime(struct App* app, uint64_t frame_ms)
+{
+    assert(app);
+    app->plugin_frame_ms=frame_ms;
+}
+
 void
 App_NoteFrameTime(
     struct App* app,
@@ -10822,6 +10828,12 @@ App_Shutdown(struct App* app)
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
     app->plugins = NULL;
+    free(app->plugin_highlights);
+    app->plugin_highlights = NULL;
+    app->plugin_highlight_count = app->plugin_highlight_capacity = 0;
+    free(app->plugin_highlight_loc);
+    app->plugin_highlight_loc = NULL;
+    app->plugin_highlight_loc_count = app->plugin_highlight_loc_capacity = 0;
     if( app->editor )
     {
         /* Releases the content-tree lock. Unsaved edits are NOT written here:
@@ -31059,7 +31071,11 @@ App_RunOnce(
     app->plugin_overlay_batch_started = 0;
     app->plugin_minimap_prepared=false;
     app->plugin_minimap_count=0;
-    PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
+    /* Publish one timebase before FrameStart flushes delayed plugin assets:
+     * delivery deadlines (Core.frame_ms) and the flush must see the same clock.
+     * input time is real in a live loop and recorded/synthetic during replay. */
+    App_SetPluginFrameTime(app,input->curr.time);
+    PluginHost_FrameStart(app->plugins, app->plugin_frame_ms, app->frames_rendered);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
@@ -31894,6 +31910,11 @@ App_RunOnce(
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */
+            /* A retained control owns this press even without an open menu.
+             * Its callback may explicitly focus chat; the later outside-chat
+             * click policy must not immediately undo that request. */
+            if( scratch.options[default_idx].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+                plugin_pointer_consumed = 1;
             struct UIMinimenu saved = app->interact.minimenu;
             app->interact.minimenu = scratch;
             if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
@@ -31994,6 +32015,10 @@ App_RunOnce(
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
+            /* The world default list can contain an owned retained control
+             * too; give that press the same focus/gesture ownership. */
+            if( scratch.options[default_idx].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+                plugin_pointer_consumed = 1;
             struct UIMinimenu saved = app->interact.minimenu;
             app->interact.minimenu = scratch;
             if( app_minimenu_use_option(
