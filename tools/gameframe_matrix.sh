@@ -271,6 +271,7 @@ while IFS='|' read tag m f s; do
   # Oracle only: which orbs this capability/config probe expects to exist.
   # An explicit empty set is meaningful, so test presence rather than length.
   [[ "${GF_MATRIX_EXPECT_ORBS+x}" == x ]] && widget_args+=(--expected-orbs "$GF_MATRIX_EXPECT_ORBS")
+  [[ -n "${GF_MATRIX_EXPECT_XP_GLOBES:-}" ]] && widget_args+=(--expected-xp-globes "$GF_MATRIX_EXPECT_XP_GLOBES")
   [[ -n "${GF_MATRIX_NATIVE_GROUND_LABELS:-}" ]] && widget_args+=(--native-ground-labels "$GF_MATRIX_NATIVE_GROUND_LABELS")
   [[ -n "${GF_MATRIX_GROUND_ROW_GAP:-}" ]] && widget_args+=(--ground-row-gap "$GF_MATRIX_GROUND_ROW_GAP")
   [[ -n "${GF_MATRIX_NATIVE_CAPTION:-}" ]] && widget_args+=(--native-caption "$GF_MATRIX_NATIVE_CAPTION")
@@ -280,6 +281,7 @@ while IFS='|' read tag m f s; do
       widget_args+=(--overlay-text "$expected_text")
     done
   fi
+  [[ -n "${GF_MATRIX_CHAT_VISIBLE:-}" ]] && widget_args+=(--chat-visible "$GF_MATRIX_CHAT_VISIBLE")
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)
   # GF_MATRIX_WIDGET_OP=1: the simulated click (TORIRS_SIM_CLICK_AT) must land

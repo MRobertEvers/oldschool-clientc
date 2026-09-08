@@ -1848,10 +1848,20 @@ api_cfg_color(
 }
 
 static bool
-plugin_config_choice_valid(struct ToriRS_ConfigItem const* item, char const* value)
+plugin_config_schema_value_valid(struct ToriRS_ConfigItem const* item, char const* value)
 {
+    int parsed;
     assert(item);
     assert(value);
+    if( item->type == TORIRS_CONFIG_BOOL )
+        return plugin_cfg_bool_parse(value, &parsed);
+    if( item->type == TORIRS_CONFIG_INT || item->type == TORIRS_CONFIG_COLOR )
+    {
+        if( !plugin_cfg_number_parse(value, &parsed) )
+            return false;
+        return item->type != TORIRS_CONFIG_INT || item->max <= item->min ||
+            (parsed >= item->min && parsed <= item->max);
+    }
     if( item->type != TORIRS_CONFIG_ENUM )
         return true;
     if( !item->choices )
@@ -1888,9 +1898,9 @@ PluginHost_ConfigSet(
     if( !slot )
         return false;
     if( slot->schema_index >= 0 &&
-        !plugin_config_choice_valid(&plugin_schema(ctx)[slot->schema_index], value) )
+        !plugin_config_schema_value_valid(&plugin_schema(ctx)[slot->schema_index], value) )
     {
-        TORIRS_ERR("plugin: %s refused setting '%s' = '%s': not a declared choice\n",
+        TORIRS_ERR("plugin: %s refused setting '%s' = '%s': outside its declared type, range or choices\n",
             ctx->name, key, value);
         return false;
     }

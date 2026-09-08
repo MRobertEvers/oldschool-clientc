@@ -1844,6 +1844,10 @@ struct App
         int kind;
         /** CONFIG: index into the plugin's schema. */
         int cfg_index;
+        /** Last store value and its rendered form, for merging external writes
+         * without discarding an unsaved edit in the generated settings form. */
+        char config_source[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+        char config_presented[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
         /** PLUGIN_WIDGET: the id the plugin gave it. */
         char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
         /** PANEL_WIDGET: model slot, identity, and semantic kind copied with the row. */

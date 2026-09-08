@@ -17,7 +17,7 @@ uitree_canvas_hidden(struct UITree const* tree, int32_t idx)
     for( unsigned guard=0;idx>=0 && guard<256;guard++ ) {
         assert((uint32_t)idx<tree->component_count);
         struct UITreeComponent const* c=&tree->components[idx];
-        if( c->freed || c->behavior.hide || c->frame_hidden ) return 1;
+        if( c->freed || c->behavior.hide || c->frame_hidden || c->mount_hidden ) return 1;
         idx=c->parent;
     }
     return 0;

@@ -2518,6 +2518,8 @@ static struct ToriRS_ConfigItem const PIN_CONFIG_ITEMS[] = {
     { .key = "beam", .label = "Beam", .type = TORIRS_CONFIG_BOOL, .default_value = "true" },
     { .key = "shape", .label = "Shape", .type = TORIRS_CONFIG_ENUM,
       .default_value = "hull", .choices = "hull|tile" },
+    { .key = "hotkey", .label = "Hotkey", .type = TORIRS_CONFIG_INT,
+      .default_value = "0", .min = 0, .max = 52 },
     { 0 },
 };
 static struct ToriRS_ConfigSchema const PIN_CONFIG = {
@@ -2796,8 +2798,9 @@ test_repair_pins(void)
             "a declared enum choice remains writable");
 
         CHECK(
-            PluginHost_ConfigSet(host, index, "hull_colour", "cyan"),
-            "a word can be typed into a colour field");
+            !PluginHost_ConfigSet(host, index, "hull_colour", "cyan"),
+            "a mistyped colour is refused without saving it");
+        PluginHost_ConfigApply(host, "pin-probe", "hull_colour", "cyan");
         g_pin_colour = 0xdeadbeefu;
         PluginHost_LogicTick(host, 1);
         CHECK(
@@ -2805,8 +2808,9 @@ test_repair_pins(void)
             "a colour that will not parse reads as the plugin's declared default, not black");
 
         CHECK(
-            PluginHost_ConfigSet(host, index, "rows", "12 rows"),
-            "a trailing word can be typed into a number field");
+            !PluginHost_ConfigSet(host, index, "rows", "12 rows"),
+            "a trailing word in a number write is refused");
+        PluginHost_ConfigApply(host, "pin-probe", "rows", "12 rows");
         g_pin_rows = -1;
         PluginHost_LogicTick(host, 1);
         CHECK(g_pin_rows == 12, "an unparseable int reads as the declared default");
@@ -2821,11 +2825,18 @@ test_repair_pins(void)
         PluginHost_LogicTick(host, 1);
         CHECK(g_pin_beam == 0, "'false' switches a default-on bool off");
         CHECK(
-            PluginHost_ConfigSet(host, index, "beam", "nonsense"),
-            "a bool field accepts a typo");
+            !PluginHost_ConfigSet(host, index, "beam", "nonsense"),
+            "a bool write refuses a typo");
+        PluginHost_ConfigApply(host, "pin-probe", "beam", "nonsense");
         g_pin_beam = -1;
         PluginHost_LogicTick(host, 1);
         CHECK(g_pin_beam == 1, "an unparseable bool reads as the declared default");
+        CHECK(!PluginHost_ConfigSet(host, index, "hotkey", "112"),
+            "an unreachable screenshot key is refused at the host boundary");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "hotkey"), "0") == 0,
+            "a refused key leaves the saved preference unchanged");
+        CHECK(PluginHost_ConfigSet(host, index, "hotkey", "16"),
+            "a reachable screenshot key is accepted");
         PluginHost_Free(host);
     }
 

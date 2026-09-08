@@ -1278,6 +1278,12 @@ main(void)
     frame();
     CHECK(control_named("tooltip") != NULL, "hovering a globe adds the tooltip control");
     CHECK(control_named("tooltip") && control_named("tooltip")->w == 150, "which is the reference's own width");
+    CHECK(control_named("tooltip") && control_named("tooltip")->x + control_named("tooltip")->w <= g_mouse_x,
+          "the globe tooltip stays left of the pointer's native scene caption");
+    CHECK(control_named("tooltip") && control_named("tooltip")->x >= 0 &&
+          control_named("tooltip")->y >= 0 &&
+          control_named("tooltip")->y + control_named("tooltip")->h <= CANVAS_H,
+          "caption avoidance keeps the whole tooltip inside the viewport");
     /* Flip augments the world menu after native rows are built. */
     {
         struct ToriRS_MenuBuildEvent menu = { .row_count = 2 };

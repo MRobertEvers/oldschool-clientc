@@ -1380,14 +1380,7 @@ main(void)
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 0, "logs under the player are not a nest");
 
-        /* ---- the second nest of the same kind ----------------------------
-         *
-         * It is not a spawn. `App_WorldObjStackAdd` finds the stack already on
-         * the tile by obj id, raises its count and reports a CHANGE -- so a
-         * plugin listening only for spawns hears the first red egg under it
-         * and nothing at all about the second, which is precisely the drop a
-         * woodcutter walks away from.
-         */
+        /* A genuine stack-count increase is another observable drop edge. */
         obj.obj_id = 5073;
         obj.tile_x = 3200;
         obj.count = 1;
@@ -1449,6 +1442,23 @@ main(void)
         PluginHost_ObjCount(host, &obj);
         CHECK(g_engine.notifies == 4, "varbit 1 silences the second nest too");
 
+        /* Original live repro: first nest arrives while the plugin is off;
+         * after restart, a second same-id OBJ_ADD still carries count1. An
+         * arrival is not inferred from a quantity difference or old baseline. */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 0;
+        g_engine.notifies = 0;
+        obj.obj_id = 5070;
+        obj.count = 1;
+        PluginHost_SetEnabled(host, p_nest, false);
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 0, "a nest received while disabled stays silent");
+        PluginHost_SetEnabled(host, p_nest, true);
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 1, "same-count OBJ_ADD after restart is a new nest arrival");
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 2, "another same-count OBJ_ADD is independently announced");
+        PluginHost_ObjCount(host, &obj);
+        CHECK(g_engine.notifies == 2, "an unchanged OBJ_COUNT is not an arrival");
         obj.count = 0;
     }
 

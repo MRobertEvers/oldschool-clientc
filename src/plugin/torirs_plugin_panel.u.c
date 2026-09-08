@@ -352,6 +352,8 @@ app_plugin_panel_value(struct App* app, int plugin, char const* key)
     return v ? v : "";
 }
 
+static void app_plugin_panel_config_remember(struct App* app, struct AppPluginPanelRow* row);
+
 static void
 app_plugin_panel_track(
     struct App* app, int widget, int plugin, int kind, int cfg_index, char const* widget_id)
@@ -372,6 +374,8 @@ app_plugin_panel_track(
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", widget_id ? widget_id : "");
     row->widget_serial = 0;
     row->widget_kind = -1;
+    if( kind == APP_PLUGIN_ROW_CONFIG )
+        app_plugin_panel_config_remember(app, row);
 }
 
 /** Track one control mirrored from the generation-scoped ABI-21 panel model. */
@@ -484,6 +488,82 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
     {
         ToriRSChrome_SetText(
             &app->plugin_ui, row->widget, app_plugin_panel_value(app, row->plugin, item->key));
+    }
+}
+
+/* A canonical snapshot of the staged control. A too-long local edit is
+ * always dirty; never truncate it into looking equal to the stored value. */
+static bool
+app_plugin_panel_config_text(
+    struct App* app, struct AppPluginPanelRow const* row, char* out, size_t size)
+{
+    struct ToriRS_ConfigItem const* item;
+    char const* text;
+    assert(app);
+    assert(row);
+    assert(out);
+    assert(size > 0);
+    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+    assert(item);
+    if( item->type == TORIRS_CONFIG_BOOL )
+    {
+        snprintf(out, size, "%d", ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
+        return true;
+    }
+    text = item->type == TORIRS_CONFIG_ENUM ? app_plugin_dropdown_value(app, row->widget) : NULL;
+    if( !text )
+        text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
+    if( !text ) text = "";
+    if( strlen(text) >= size )
+        return false;
+    snprintf(out, size, "%s", text);
+    return true;
+}
+
+static void
+app_plugin_panel_config_remember(struct App* app, struct AppPluginPanelRow* row)
+{
+    struct ToriRS_ConfigItem const* item;
+    bool captured;
+    assert(app);
+    assert(row);
+    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+    assert(item);
+    snprintf(row->config_source, sizeof(row->config_source), "%s",
+        app_plugin_panel_value(app, row->plugin, item->key));
+    captured = app_plugin_panel_config_text(app, row, row->config_presented, sizeof(row->config_presented));
+    assert(captured);
+    (void)captured;
+}
+
+/* Settings are staged until Save, but an untouched field must still follow
+ * ConfigSet from another entry point. Merge only those untouched fields;
+ * local edits, focus, open dropdowns and scroll position remain retained. */
+static void
+app_plugin_panel_sync_config(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        struct ToriRS_ConfigItem const* item;
+        char const* source;
+        char staged[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+        if( row->kind != APP_PLUGIN_ROW_CONFIG )
+            continue;
+        item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+        assert(item);
+        source = app_plugin_panel_value(app, row->plugin, item->key);
+        if( strcmp(source, row->config_source) == 0 )
+            continue;
+        if( app_plugin_panel_config_text(app, row, staged, sizeof(staged)) &&
+            strcmp(staged, row->config_presented) == 0 )
+        {
+            app_plugin_panel_load_row(app, row);
+            app_plugin_panel_config_remember(app, row);
+        }
+        else
+            snprintf(row->config_source, sizeof(row->config_source), "%s", source);
     }
 }
 
@@ -1140,6 +1220,7 @@ app_plugin_panel_sync(struct App* app)
         g_plugin_page_view_built == g_plugin_page_view &&
         g_plugin_fullscreen_built == g_plugin_fullscreen )
     {
+        app_plugin_panel_sync_config(app);
         if( app->plugin_panel_built_model_rev == panel_model_rev )
             return;
         if( app_plugin_panel_patch_semantic(app, panel_active, panel_generation) )
@@ -1678,7 +1759,11 @@ app_plugin_panel_revert(struct App* app, int plugin)
 {
     for( int i = 0; i < app->plugin_panel_row_count; i++ )
         if( app->plugin_panel_rows[i].plugin == plugin )
+        {
             app_plugin_panel_load_row(app, &app->plugin_panel_rows[i]);
+            if( app->plugin_panel_rows[i].kind == APP_PLUGIN_ROW_CONFIG )
+                app_plugin_panel_config_remember(app, &app->plugin_panel_rows[i]);
+        }
 }
 
 /** The active host record named by one presented semantic row, or NULL. */

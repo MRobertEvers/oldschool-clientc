@@ -3187,10 +3187,21 @@ frame_loop_step(void)
          * floor. Beyond that point it needs a larger physical game area.
          * App_SyncUiScale reports the consumed setting even when that floor
          * left the logical size unchanged. */
+        int scale_floor_w = 0;
+        int scale_floor_h = APP_CANVAS_MIN_H;
+        if( app.host.ui_scale_dirty )
+        {
+            App_PluginLayoutMinSize(&app, &scale_floor_w, &scale_floor_h);
+            scale_floor_w = App_CanvasFloorWidth(&app);
+        }
         int const scale_changed = App_SyncUiScale(&app);
         bool const fixed = App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED;
+        /* App_SetCanvasSize already enforces the settled floor. Its onResize
+         * hooks may still be queued: measuring again now mistakes the old
+         * scripted width inside the newly narrowed parent for a permanent
+         * minimum, and grows the window by the old width times the scale. */
         int const canvas_changed = fixed ? App_SyncFixedChromeInset(&app)
-                                         : App_SyncResizableCanvasFloor(&app);
+                                         : scale_changed ? 0 : App_SyncResizableCanvasFloor(&app);
         if( fixed && (canvas_changed || scale_changed) )
         {
             int const percent = RS_CS2Host_UiScalePercent(&app.host);
@@ -3239,13 +3250,16 @@ frame_loop_step(void)
         {
             int const density = PlatformWindow_PixelDensity(platform);
             int const percent = RS_CS2Host_UiScalePercent(&app.host);
-            int min_w = 0;
-            int min_h = APP_CANVAS_MIN_H;
+            int min_w = scale_floor_w;
+            int min_h = scale_floor_h;
             int fw = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_W, percent, density, false);
             int fh = ToriRS_InterfaceScaleWindowPoints(UITREE_LAYOUT_ROOT_H, percent, density, false);
             assert(density >= 1);
-            App_PluginLayoutMinSize(&app, &min_w, &min_h);
-            min_w = App_CanvasFloorWidth(&app);
+            if( !scale_changed )
+            {
+                App_PluginLayoutMinSize(&app, &min_w, &min_h);
+                min_w = App_CanvasFloorWidth(&app);
+            }
             /* A resizable window keeps its room when the scale goes down.
              * Only a clamped logical floor asks for additional physical room. */
             if( fw < app.window_w / density )
@@ -3289,9 +3303,17 @@ frame_loop_step(void)
             int const density = PlatformWindow_PixelDensity(platform);
             int min_w = 0;
             int min_h = APP_CANVAS_MIN_H;
-            if( resizable )
-                App_PluginLayoutMinSize(&app, &min_w, &min_h);
-            min_w = resizable ? App_CanvasFloorWidth(&app) : App_FixedCanvasWidth(&app);
+            if( resizable && scale_changed )
+            {
+                min_w = scale_floor_w;
+                min_h = scale_floor_h;
+            }
+            else
+            {
+                if( resizable )
+                    App_PluginLayoutMinSize(&app, &min_w, &min_h);
+                min_w = resizable ? App_CanvasFloorWidth(&app) : App_FixedCanvasWidth(&app);
+            }
             int const fw = ToriRS_InterfaceScaleWindowPoints(min_w, percent, density, !resizable);
             int const fh = ToriRS_InterfaceScaleWindowPoints(min_h, percent, density, !resizable);
             TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");

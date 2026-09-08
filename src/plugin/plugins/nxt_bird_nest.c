@@ -15,9 +15,8 @@
  * the ground under you, silently, and is easy to walk away from. That is the
  * whole reason the setting exists, and it is also what makes it implementable
  * from here -- the nest arriving IS a ground-item event, which the plugin
- * layer already reports. TWO events, in fact: the first nest of a kind on a
- * tile is a spawn and every one after it is a count change on the stack that
- * merged it, so both are listened for below.
+ * layer already reports. Both item arrivals and increases in a previously
+ * observed stack can represent a new drop, so both are listened for below.
  *
  * No cache script reads this varbit. It is one of twenty-nine rows in the
  * category that nothing in the cache acts on, so the client owns it whole.
@@ -85,11 +84,10 @@ nxt_bird_nest_varbit(
 /**
  * The nest stacks this client has been told about, and how many were in each.
  *
- * A SECOND nest of the same kind landing on a tile that already has one is not
- * a spawn. `App_WorldObjStackAdd` finds the stack by obj id, raises its count
- * and reports that as on_item_changed -- so a plugin listening only for spawns
- * hears the first red egg under it and nothing at all about the second, which
- * is the drop the woodcutter is most likely to walk away from.
+ * OBJ_ADD is an arrival, including a second unstackable nest whose packet
+ * still carries count1. It is announced by on_item_spawn even if the scene
+ * coalesces the picture into an existing same-id slot. An actual OBJ_COUNT
+ * update instead reports a new absolute quantity through on_item_changed.
  *
  * The count alone cannot tell that growth from a shrink: somebody taking one
  * of a pair is the same callback with the same fields. So the previous count
@@ -237,7 +235,7 @@ nxt_bird_nest_spawn(
 }
 
 /*
- * The second nest, and every one after it.
+ * An increase carried by an actual stack-count update.
  *
  * Only an increase over a baseline this plugin saw for itself: the same
  * callback carries the shrink when you pick one up, and the count that arrives
@@ -337,8 +335,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_bird_nest_start,
         .on_item_spawn = nxt_bird_nest_spawn,
-        /* A same-id nest merges into the stack that is already there; the
-         * count change IS the second drop. */
+        /* Quantity updates are distinct from OBJ_ADD arrivals. */
         .on_item_changed = nxt_bird_nest_changed,
         .on_item_despawn = nxt_bird_nest_despawn,
     },

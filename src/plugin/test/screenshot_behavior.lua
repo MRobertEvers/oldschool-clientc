@@ -4,7 +4,7 @@
 -- teardown against fake widgets; native ownership and clicks are covered by
 -- the C suites and native captures.
 return { id = 'screenshot-behavior', on_start = function(host)
-    local watches, captures, notices = {}, {}, {}
+    local watches, captures, notices, hud = {}, {}, {}, {}
     local config = { destination = '', delay_ticks = 2, on_level_up = true, on_death = false,
         on_valuable_drop = true, on_collection_log = true, min_drop_value = 100000,
         hotkey = 0, camera = 'off' }
@@ -25,12 +25,14 @@ return { id = 'screenshot-behavior', on_start = function(host)
                 return true, '/saved/' .. directory .. '/' .. name
             end,
         },
-        widgets = { watch = function(role, callback) watches[role] = callback; return true end },
+        widgets = { watch = function(role, callback) watches[role] = callback; return true end,
+            find = function(role) return hud[role] end },
     }
     local function widget(name, x, y, w, h, parent)
         local self = { name = name, children = {}, hidden = false, box = { x = x, y = y, width = w, height = h } }
         function self:position() return self.box end
         function self:bounds() return self.box end
+        function self:visible() return not self.hidden end
         function self:parent() return parent end
         -- A retired native node answers stale_reference, exactly as the host
         -- does between a root remount and the watch that redelivers the role.
@@ -113,6 +115,31 @@ return { id = 'screenshot-behavior', on_start = function(host)
         'a window resize moves the corner camera to the new corner')
     product.on_logic_tick(api)
     assert(one(viewport.children) == moved, 'the resize settles in one rebuild')
+
+    -- The camera shares the viewport with a visible native tab strip. Its
+    -- click target must occupy free space, not become a replacement tab op.
+    for i = 0, 13 do hud['sidetab_' .. i] = widget('tab', 700 + i*33, 768, 33, 36) end
+    product.on_logic_tick(api)
+    local clear = one(viewport.children)
+    assert(clear.x == 1124 and clear.y == 732,
+        'corner camera moves above native tab chrome instead of painting beneath it')
+    local before_click = #captures
+    clear.fn(clear)
+    assert(#captures == before_click + 1, 'the relocated visible camera still captures')
+    -- Keep later absolute capture counts unchanged: this probe owns its extra
+    -- evidence and removes it after checking the operation.
+    captures[#captures], notices[#notices] = nil, nil
+    hud.frame_sidebar = widget('sidebar', 965, 500, 190, 261)
+    product.on_logic_tick(api)
+    clear = one(viewport.children)
+    assert(clear.x + 28 <= 961 and clear.y + 26 <= 764,
+        'opening a sidebar moves the camera clear without a viewport resize')
+    for _, covered in pairs(hud) do covered.hidden = true end
+    product.on_logic_tick(api)
+    assert(one(viewport.children).x == 1124 and one(viewport.children).y == 768,
+        'bound but hidden native roles do not displace the corner camera')
+    hud = {}
+
 
     config.camera = 'report-button'; product.on_config_changed(api, 'camera')
     assert(next(viewport.children) == nil, 'leaving a corner mode removes the corner control')

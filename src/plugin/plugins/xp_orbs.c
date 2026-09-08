@@ -1516,14 +1516,22 @@ orb_place_tooltip(
 place:
     /* Every frame, whatever the gate above decided: the panel follows the
      * pointer, and only its CONTENTS are on a clock. */
-    x = mouse_x + 10;
+    /* The native scene caption grows down and right from the pointer. Globe
+     * images pass input through to that scene, so their tooltip must occupy
+     * the other side instead of covering the caption's first two lines. */
+    x = mouse_x - ORB_TIP_W - 10;
     y = mouse_y + 20;
+    if( x < 0 )
+    {
+        x = mouse_x + 10;
+        y = mouse_y - height - 10;
+    }
     if( x + ORB_TIP_W > canvas_w )
         x = canvas_w - ORB_TIP_W;
     if( y + height > canvas_h )
         y = mouse_y - height - 5;
-    x = orb_clampi(x, 0, canvas_w);
-    y = orb_clampi(y, 0, canvas_h);
+    x = orb_clampi(x, 0, canvas_w > ORB_TIP_W ? canvas_w - ORB_TIP_W : 0);
+    y = orb_clampi(y, 0, canvas_h > height ? canvas_h - height : 0);
     if( !state->tip_control.opaque[2] &&
         ui->create_image(ui->context, state->viewport, "tooltip", &state->tip_control) != TORIRS_CONTRACT_OK )
         return;

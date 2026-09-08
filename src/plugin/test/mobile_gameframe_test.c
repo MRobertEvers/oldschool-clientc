@@ -217,6 +217,9 @@ fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
     return 1;
 }
 
+static int g_opaque_housing;
+static int g_opaque_housing_reads;
+
 static int
 fake_image_read(void* u, int slot, uint32_t* out, int max)
 {
@@ -229,6 +232,12 @@ fake_image_read(void* u, int slot, uint32_t* out, int max)
     if( n > max )
         return 0;
     memcpy(out, g_image[slot].argb, (size_t)n * sizeof(*out));
+    if( g_opaque_housing && g_image[slot].w == 233 && g_image[slot].h == 168 )
+    {
+        for( int i = 0; i < n; i++ )
+            out[i] = 0xff606060u;
+        g_opaque_housing_reads++;
+    }
     return n;
 }
 
@@ -521,7 +530,7 @@ declare(int w, int h)
  * parent's plus the local position the plugin set, which is what the bridge
  * reports as `bounds`.
  */
-#define FW_MAX 160
+#define FW_MAX 320
 struct FakeWidget
 {
     int alive;
@@ -1073,6 +1082,69 @@ main(void)
               owned("pack-sheet")->anchor_target == fw_find("chat", -1),
           "the torn sheet is an owned image directly behind the pack");
     CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
+
+    /* A mobile row has a clipped desktop-width named bar, per-button
+     * containers and a hidden Report container. Its visible row is the common
+     * ancestor, not the first button's immediate parent or the clipped bar. */
+    {
+        int const row = fw_add(0, "filter-row", -1, 58, 360, 461, 28);
+        int const bar = fw_find("chat_bar", -1);
+        int first_button = -1;
+        g_w[bar].parent = row;
+        g_w[bar].x = 58; g_w[bar].y = 362; g_w[bar].w = 519; g_w[bar].h = 23;
+        for( int i = 0; i < 8; i++ )
+        {
+            int const button = fw_add(row, "filter-cell", i, 65 + i * 65, 360, 58, 28);
+            int const plate = fw_find("chat_plate", i);
+            if( i == 0 ) first_button = button;
+            g_w[button].hidden = i == 7;
+            g_w[plate].parent = button;
+            g_w[plate].x = 65 + i * 65; g_w[plate].y = 363;
+            g_w[plate].w = 58; g_w[plate].h = 24;
+        }
+        frame_tick();
+        struct FakeWidget const* band = owned("pack-bar");
+        CHECK(band && band->parent == row && band->w == 461 && band->h == 28 &&
+                  owned_at("pack-bar", 58, 360),
+            "the clipped native bar is replaced by an owned image covering the visible row");
+        CHECK(band && band->anchor_target == first_button &&
+                  band->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND,
+            "the owned row is above its background and behind the first button subtree");
+        CHECK(g_w[bar].hidden, "the unusable native bar cannot cover the owned band");
+    }
+
+    /* The original bad-asset repro is a fully opaque 233x168 housing. Reject
+     * it before publication, keep navigation native and expose a reason; a
+     * once-only mask failure must not leave the bad picture over the compass. */
+    {
+        struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
+        g_opaque_housing = 1;
+        g_opaque_housing_reads = 0;
+        CHECK(PluginHost_ConfigSet(g_host, g_plugin, "housing", "Lizards"),
+            "the housing change is accepted");
+        frame_tick();
+        declare(M_W, M_H);
+        CHECK(g_frame.active == 0 && owned("housing") == NULL,
+            "invalid housing releases the frame without covering native navigation");
+        g_frame_settings_api->frame.selection(g_frame_settings_api, &selection);
+        CHECK(selection.status == TORIRS_FRAME_STATUS_FALLBACK &&
+                  strstr(selection.reason, "two transparent windows") != NULL,
+            "the failed frame exposes the invalid-housing reason");
+        CHECK(g_opaque_housing_reads == 1, "invalid housing is scanned once");
+        for( int i = 0; i < 10; i++ )
+        {
+            frame_tick();
+            declare(M_W, M_H);
+        }
+        CHECK(g_opaque_housing_reads == 1 && owned("housing") == NULL,
+            "a rejected housing is neither retried nor painted on later frames");
+        g_opaque_housing = 0;
+        select_frame("auto", 20000);
+        select_frame("mobile-gameframe/stone-drawer", 20001);
+        declare(M_W, M_H);
+        CHECK(g_frame.active == 1 && owned("housing") != NULL,
+            "reselecting with valid housing restores the normal provider");
+    }
 
     PluginHost_Free(g_host);
     printf("%d checks, %d failures\n", g_checks, g_failures);

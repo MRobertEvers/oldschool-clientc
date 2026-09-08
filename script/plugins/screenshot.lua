@@ -57,6 +57,7 @@ local NAME_MAX = 63
 local icon, icon_small
 local viewport, report            -- current native widgets, nil when unbound
 local corner_control, report_control
+local corner_x, corner_y
 local flash, flash_ticks = nil, 0
 -- The box the live control was placed against. A window resize moves it
 -- without changing any node's identity, so no widget watch fires and nothing
@@ -174,12 +175,62 @@ local function place_camera(api, parent, key, image, x, y)
     return control
 end
 
+-- Native chrome may float INSIDE a resizable viewport. Keep the camera
+-- in free viewport space instead of painting under that chrome or intercepting
+-- its buttons. Only visible role bounds are obstacles, never merely bound
+-- sidebar content whose tab is closed.
+local CAMERA_COVERS = { "chat", "frame_chat", "sidebar", "frame_sidebar",
+    "minimap", "compass", "orbs", "map_housing" }
+for i = 0, 13 do CAMERA_COVERS[#CAMERA_COVERS + 1] = "sidetab_" .. i end
+
+local function intersects(x, y, width, height, box)
+    return x < box.x + box.width and box.x < x + width and
+        y < box.y + box.height and box.y < y + height
+end
+
 local function corner_position(api, where, width, height)
-    local box = viewport and viewport:position()
+    local box = viewport and viewport:bounds()
     if not box or not width then return nil end
     local x = where:find("right") and box.width - width - MARGIN or MARGIN
     local y = where:find("bottom") and box.height - height - MARGIN or MARGIN
-    return x, y
+    local xs, ys, covers = { x }, { y }, {}
+    local seen_x, seen_y = { [x] = true }, { [y] = true }
+    local function add_candidate(values, seen, value, limit)
+        if value >= MARGIN and value <= limit and not seen[value] then
+            values[#values + 1], seen[value] = value, true
+        end
+    end
+    for _, role in ipairs(CAMERA_COVERS) do
+        local widget = api.widgets.find(role)
+        local cover = widget and widget:visible() and widget:bounds()
+        if cover and cover.width > 0 and cover.height > 0 and
+                intersects(box.x, box.y, box.width, box.height, cover) then
+            cover = { x = cover.x - box.x, y = cover.y - box.y,
+                width = cover.width, height = cover.height }
+            covers[#covers + 1] = cover
+            add_candidate(xs, seen_x, cover.x - width - MARGIN, box.width - width - MARGIN)
+            add_candidate(xs, seen_x, cover.x + cover.width + MARGIN, box.width - width - MARGIN)
+            add_candidate(ys, seen_y, cover.y - height - MARGIN, box.height - height - MARGIN)
+            add_candidate(ys, seen_y, cover.y + cover.height + MARGIN, box.height - height - MARGIN)
+        end
+    end
+    local best_x, best_y, best_distance
+    for _, cx in ipairs(xs) do
+        for _, cy in ipairs(ys) do
+            if cx >= MARGIN and cy >= MARGIN and
+                    cx + width + MARGIN <= box.width and cy + height + MARGIN <= box.height then
+                local clear = true
+                for _, cover in ipairs(covers) do
+                    if intersects(cx, cy, width, height, cover) then clear = false; break end
+                end
+                local distance = (cx - x)^2 + (cy - y)^2
+                if clear and (not best_distance or distance < best_distance) then
+                    best_x, best_y, best_distance = cx, cy, distance
+                end
+            end
+        end
+    end
+    return best_x, best_y
 end
 
 -- The box whichever live control was positioned against: the viewport for a
@@ -204,10 +255,16 @@ local function update_controls(api)
     flash, flash_ticks = nil, 0
     -- Corner control lives in the viewport.
     if corner_control then corner_control:remove(); corner_control = nil end
+    corner_x, corner_y = nil, nil
     if viewport and icon and where ~= "off" and where ~= "report-button" then
         local width, height = api.assets.image_size(icon)
         local x, y = corner_position(api, where, width, height)
-        if x then corner_control = place_camera(api, viewport, "camera", icon, x, y) end
+        corner_x, corner_y = x, y
+        if x then
+            corner_control = place_camera(api, viewport, "camera", icon, x, y)
+        else
+            api.core.log("corner camera has no free space outside visible native chrome")
+        end
     end
     -- Report-button mode hides the native button's presentation only; its
     -- native identity, operation and later server updates stay intact and are
@@ -292,6 +349,15 @@ function plugin.on_logic_tick(api)
         flash_ticks = flash_ticks - 1
         if flash_ticks == 0 then flash:set_opacity(IDLE_OPACITY); flash = nil end
     end
+    local where = api.config.camera
+    if viewport and icon and where ~= "off" and where ~= "report-button" then
+        local width, height = api.assets.image_size(icon)
+        local x, y = corner_position(api, where, width, height)
+        -- A tab can open or close without resizing the viewport. Recompute
+        -- the desired free position, but retain the control while it agrees.
+        if x ~= corner_x or y ~= corner_y then update_controls(api) end
+        return
+    end
     local box = anchor_box()
     if not box then return end
     if box.x == anchor_x and box.y == anchor_y and
@@ -324,6 +390,7 @@ function plugin.on_stop(api)
     if icon_small then api.assets.image_release(icon_small) end
     icon, icon_small, viewport, report, corner_control, report_control = nil, nil, nil, nil, nil, nil
     flash, flash_ticks = nil, 0
+    corner_x, corner_y = nil, nil
     remember_anchor(nil)
 end
 

@@ -34249,7 +34249,11 @@ App_WorldObjStackAdd(
     {
         app_obj_stack_refresh_model(app, world, existing, count);
         World_ObjStackSetCount(world, existing, count);
-        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_CHANGE);
+        /* This is an OBJ_ADD arrival even when the scene reuses a same-id
+         * render slot. Unstackable arrivals can both carry count1, so calling
+         * it a count change loses the second drop. Actual OBJ_COUNT packets
+         * still report CHANGE through App_WorldObjStackSetCount. */
+        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_SPAWN);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
         return existing;
