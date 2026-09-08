@@ -340,6 +340,7 @@ while IFS='|' read tag m f s; do
   # GF_MATRIX_HIGHLIGHT_COLOR=RRGGBB[:min]: the engine recorded a live cache
   # highlight group of that colour with members, and the renderer painted it.
   [[ -n "${GF_MATRIX_HIGHLIGHT_COLOR:-}" ]] && widget_args+=(--highlight-color "$GF_MATRIX_HIGHLIGHT_COLOR")
+  [[ -n "${GF_MATRIX_TRUE_TILE_COLOR:-}" ]] && widget_args+=(--true-tile-color "$GF_MATRIX_TRUE_TILE_COLOR")
   # GF_MATRIX_PANEL_CUSTOM_INK=ID[:min]: a plugin page custom row has its allotted
   # region and at least min distinct colours painted inside it.
   [[ -n "${GF_MATRIX_PANEL_CUSTOM_INK:-}" ]] && widget_args+=(--panel-custom-ink "$GF_MATRIX_PANEL_CUSTOM_INK")

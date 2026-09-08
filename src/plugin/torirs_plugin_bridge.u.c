@@ -4933,24 +4933,34 @@ app_plugin_tab_activate(void* user, int tabno)
     if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return app_plugin_tab_select(user, tabno);
 
-    /* The bound control owns the operation arguments, including the live
+    /* The authored control owns the operation arguments, including the live
      * root's component enum. A declared switch script only selects; its
      * native on_op also implements same-tab closure where supported.
      * Navigation remains usable when a provider replaces the native strip,
      * while TabGiven still checks the cache's actual availability. */
     if( !app->tree )
         return 0;
-    char role[32];
-    snprintf(role, sizeof(role), "sidetab_%d", tabno);
-    int const node = app_plugin_role_node(app, role);
+    /* sidetab_N is the availability ICON. The operation stone can be its
+     * sibling, so neither its own hook nor an ancestor walk identifies the
+     * control. Follow the same declared tab->button and root component maps
+     * used by the cache's init script. */
+    int const buttons = RevConfigRefs_Get(&app->revconfig_refs, "enum", "sidebar_buttons");
+    int control = -1, key = -1, uid = -1;
+    int const element_map = app_plugin_frame_role_enum_id(app, app_plugin_frame_root(app), &control);
+    if( buttons < 0 || element_map < 0 ||
+        !app_plugin_frame_enum_value(app, buttons, tabno, &key) || key < 0 ||
+        !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 )
+        return 0;
+    int const node = UITree_FindByComponentId(app->tree, uid);
     if( node < 0 )
         return 0;
-    struct UITreeRuntimeScriptHook const* hook = &UITree_Hooks(&app->tree->components[node])->on_op;
-    if( hook->script_id <= 0 )
+    int component = -1;
+    struct UITreeRuntimeScriptHook const* hook =
+        UITree_ResolveClickHook(app->tree, node, &component);
+    if( !hook || hook->script_id <= 0 )
         return 0;
     struct UITreeRuntimeScriptHook snapshot;
     UITree_HookInitCopy(&snapshot, hook);
-    int const component = app->tree->components[node].component_id;
     RS_CS2_SetEventOp(&app->host, 1, 0);
     RS_CS2_DispatchHook(&app->host, &app->runner, component, &snapshot);
     RS_CS2_SetEventOp(&app->host, 1, 0);

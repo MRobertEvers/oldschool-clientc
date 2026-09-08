@@ -383,6 +383,20 @@ def check_report_replaced(log, failures):
     if not camera_nodes: failures.append("report_camera_painted")
 
 
+def check_tile_marker_color(rows, color, failures):
+    """Oracle expectation only; configuration does not always request cyan."""
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", color):
+        raise ValueError("true tile color must be RRGGBB")
+    rgb = int(color, 16)
+    bgr = (rgb & 255, (rgb >> 8) & 255, (rgb >> 16) & 255)
+    ink = sum(pixel == bgr for row in rows for pixel in row)
+    valid = ink >= 30
+    detail = f"cyan_pixels={ink}" if color.upper() == "00FFFF" else f"colour={color.upper()} pixels={ink}"
+    print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} {detail}")
+    if not valid:
+        failures.append("true_tile_marker")
+
+
 def check_highlight_color(rows, log, spec, failures):
     """A cache highlight group was recorded live by the engine AND its exact
     colour is painted. spec is RRGGBB[:min_pixels]. The NATIVE_HIGHLIGHT line is
@@ -683,7 +697,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, prefs=None, prefs_contains=None, prefs_absent=None, expect_log_count=None, expected_orbs=None, chat_visible=True, expected_xp_globes=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, prefs=None, prefs_contains=None, prefs_absent=None, expect_log_count=None, expected_orbs=None, chat_visible=True, expected_xp_globes=None, true_tile_color="00FFFF"):
     width, height, rows = read_bmp(path)
     failures = []
     if expected_xp_globes is not None and plugin_id != "xp-drop-orbs":
@@ -746,10 +760,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         print(f"PIXEL selected_plugin_running={'PASS' if valid else 'FAIL'} id={plugin_id}")
         if not valid: failures.append("selected_plugin_running")
         if plugin_id in ("tile-indicator-c","tile-indicator-lua") and plugin_enabled:
-            cyan=sum(pixel==(255,255,0) for row in rows for pixel in row)
-            valid=cyan>=30
-            print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} cyan_pixels={cyan}")
-            if not valid: failures.append("true_tile_marker")
+            check_tile_marker_color(rows, true_tile_color, failures)
         if plugin_id=="drawprobe" and plugin_enabled:
             # Interior of the probe's magenta rectangle, alpha 128, above the
             # native world. The original translator dropped opacity and made
@@ -1044,6 +1055,7 @@ if __name__ == "__main__":
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--highlight-color", help="RRGGBB[:min] a live cache highlight group of this colour has members and its exact colour is painted")
+    parser.add_argument("--true-tile-color", default="00FFFF", help="oracle-only RRGGBB expected from a configured C/Lua tile outline; default cyan")
     parser.add_argument("--panel-custom-ink", help="ID[:min] a plugin page custom row has an allotted region with at least min distinct colours painted")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
@@ -1083,7 +1095,7 @@ if __name__ == "__main__":
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
                                     args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes,
                                     prefs=args.prefs, prefs_contains=args.prefs_contains,
-                                    prefs_absent=args.prefs_absent, expect_log_count=args.expect_log_count, expected_orbs=args.expected_orbs, chat_visible=bool(args.chat_visible), expected_xp_globes=args.expected_xp_globes)))
+                                    prefs_absent=args.prefs_absent, expect_log_count=args.expect_log_count, expected_orbs=args.expected_orbs, chat_visible=bool(args.chat_visible), expected_xp_globes=args.expected_xp_globes, true_tile_color=args.true_tile_color)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)
