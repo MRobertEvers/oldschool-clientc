@@ -544,6 +544,7 @@ struct FakeWidget
     int moved;
     int image, img_w, img_h; /* owned: the picture shown; -1 none */
     int art;                 /* native: retained re-skin slot, -1 none */
+    int reskin_blocked;
     int mask;                /* native: retained mask slot, -2 unset, -1 unmasked */
     int opacity;
     char op[32];
@@ -695,7 +696,21 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
         n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SIZE: n->w = r->a; n->h = r->b; n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_HIDDEN: n->hidden = r->a ? 1 : 0; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_ANCHOR: n->anchor_target = r->a ? fw_id(r->target) : -1; n->anchor_relation = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_ANCHOR:
+    {
+        int const target = r->a ? fw_id(r->target) : -1;
+        if( r->a )
+        {
+            if( target < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+            if( target == id ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+            for( int p = n->parent; p >= 0; p = g_w[p].parent )
+                if( p == target ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+            for( int p = g_w[target].parent; p >= 0; p = g_w[p].parent )
+                if( p == id ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        }
+        n->anchor_target = target; n->anchor_relation = r->a;
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_CREATE_IMAGE:
     {
         for( int i = 0; i < g_w_count; i++ )
@@ -709,6 +724,7 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     case PLUGIN_WIDGET_SET_IMAGE:
         if( n->owner ) { n->image = r->id; n->img_w = r->a; n->img_h = r->b; n->w = r->a; n->h = r->b; return TORIRS_CONTRACT_OK; }
         if( r->a || r->b ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        if( n->reskin_blocked ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         n->art = r->id; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SET_MASK: if( n->owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED; n->mask = r->id; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_OPACITY: n->opacity = r->a; return TORIRS_CONTRACT_OK;
@@ -1090,6 +1106,7 @@ main(void)
         int const row = fw_add(0, "filter-row", -1, 58, 360, 461, 28);
         int const background = fw_add(row, "chat_filter_backing", -1, 58, 360, 461, 28);
         int const bar = fw_find("chat_bar", -1);
+        native("chat_backing", -1)->reskin_blocked = 1;
         g_w[bar].parent = row;
         g_w[bar].x = 58; g_w[bar].y = 362; g_w[bar].w = 519; g_w[bar].h = 23;
         for( int i = 0; i < 8; i++ )
@@ -1103,15 +1120,19 @@ main(void)
         }
         frame_tick();
         struct FakeWidget const* band = owned("pack-bar");
-        CHECK(band && band->parent == row && band->w == 461 && band->h == 28 &&
+        CHECK(band && band->parent == g_w[row].parent && band->w == 461 && band->h == 28 &&
                   owned_at("pack-bar", 58, 360),
-            "the clipped native bar is replaced by an owned image covering the visible row");
+            "the clipped native bar is replaced by a sibling image covering the visible row");
         CHECK(band && band->anchor_target == row &&
                   band->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND,
             "the owned band is behind the complete button-row subtree");
         CHECK(g_w[background].hidden && !g_w[row].hidden,
             "only the separate background is hidden, never the row carrying captions");
         CHECK(g_w[bar].hidden, "the unusable native bar cannot cover the owned band");
+        CHECK(native("chat_backing", -1)->hidden && !native("chat", -1)->hidden,
+            "a non-reskinnable background is hidden without hiding chat text or input");
+        CHECK(owned("pack-sheet") && owned("pack-sheet")->parent == native("chat", -1)->parent,
+            "the parchment is a disjoint sibling of its chat anchor target");
     }
 
     /* The original bad-asset repro is a fully opaque 233x168 housing. Reject

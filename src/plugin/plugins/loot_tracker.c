@@ -213,6 +213,15 @@ struct LtPending
     bool confirmed;
 };
 
+/* Drops and NPC removals may be drained in either order during one server
+ * tick. Retain unmatched arrivals for the same two-tick inference window. */
+#define LT_RECENT_DROPS_MAX (LT_PENDING_MAX * LT_ITEMS_MAX)
+struct LtRecentDrop
+{
+    struct ToriRS_GroundItemSnapshot item;
+    uint64_t at_ms;
+};
+
 struct LootTrackerState
 {
     struct LtSource source[LT_SOURCES_MAX];
@@ -226,6 +235,8 @@ struct LootTrackerState
     int built_source_items[LT_SOURCES_MAX];
     struct LtPending pending[LT_PENDING_MAX];
     int pending_count;
+    struct LtRecentDrop recent_drops[LT_RECENT_DROPS_MAX];
+    int recent_drop_count;
     int next_fallback_source_id;
     bool page_built;
     bool page_visible;
@@ -326,6 +337,8 @@ struct LootTrackerRuntime
 #define g_built_source_items (rt->state->built_source_items)
 #define g_pending (rt->state->pending)
 #define g_pending_count (rt->state->pending_count)
+#define g_recent_drops (rt->state->recent_drops)
+#define g_recent_drop_count (rt->state->recent_drop_count)
 #define g_next_fallback_source_id (rt->state->next_fallback_source_id)
 #define g_page_built (rt->state->page_built)
 #define g_page_visible (rt->state->page_visible)
@@ -966,6 +979,46 @@ lt_pending_expire(struct LootTrackerRuntime* rt, uint64_t now)
             lt_pending_settle(rt, i);
 }
 
+static bool
+lt_drop_matches(struct LtPending const* pending, struct ToriRS_GroundItemSnapshot const* ground)
+{
+    assert(pending);
+    assert(ground);
+    return pending->level == ground->level && ground->tile_x >= pending->tile_x &&
+        ground->tile_x < pending->tile_x + pending->size &&
+        ground->tile_z >= pending->tile_z && ground->tile_z < pending->tile_z + pending->size;
+}
+
+static void
+lt_pending_item(struct LtPending* pending, struct ToriRS_GroundItemSnapshot const* ground)
+{
+    struct LtItem item;
+    assert(pending);
+    assert(ground);
+    memset(&item, 0, sizeof(item));
+    item.obj_id = ground->obj_id;
+    item.quantity = ground->count > 0 ? ground->count : 1;
+    item.cost = ground->cost;
+    lt_clean_name(ground->name, item.name, sizeof(item.name));
+    for( int i = 0; i < pending->item_count; i++ )
+        if( pending->items[i].obj_id == item.obj_id )
+        {
+            pending->items[i].quantity += item.quantity;
+            return;
+        }
+    if( pending->item_count < LT_ITEMS_MAX )
+        pending->items[pending->item_count++] = item;
+}
+
+static void
+lt_recent_expire(struct LootTrackerRuntime* rt, uint64_t now)
+{
+    assert(rt);
+    for( int i = g_recent_drop_count - 1; i >= 0; i-- )
+        if( now >= g_recent_drops[i].at_ms + LT_PENDING_MS )
+            g_recent_drops[i] = g_recent_drops[--g_recent_drop_count];
+}
+
 static void
 lt_npc_despawn(
     struct ToriRS_Api* api,
@@ -1001,6 +1054,17 @@ lt_npc_despawn(
     pending->size = npc->size > 0 ? npc->size : 1;
     pending->at_ms = g_api->core.frame_ms(g_api);
     pending->confirmed = npc->health_ratio == 0 && npc->health_scale > 0;
+    lt_recent_expire(rt, pending->at_ms);
+    for( int i = 0; i < g_recent_drop_count; )
+    {
+        if( lt_drop_matches(pending, &g_recent_drops[i].item) )
+        {
+            lt_pending_item(pending, &g_recent_drops[i].item);
+            g_recent_drops[i] = g_recent_drops[--g_recent_drop_count];
+        }
+        else
+            i++;
+    }
 }
 
 static void
@@ -1011,7 +1075,6 @@ lt_item_spawn(
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
-    struct LtItem item;
     int best = -1;
 
     assert(api);
@@ -1021,29 +1084,36 @@ lt_item_spawn(
     for( int i = 0; i < g_pending_count; i++ )
     {
         struct LtPending const* pending = &g_pending[i];
-        if( pending->level != ground->level || ground->tile_x < pending->tile_x ||
-            ground->tile_x >= pending->tile_x + pending->size ||
-            ground->tile_z < pending->tile_z ||
-            ground->tile_z >= pending->tile_z + pending->size )
+        if( !lt_drop_matches(pending, ground) )
             continue;
         if( best < 0 || pending->at_ms > g_pending[best].at_ms )
             best = i;
     }
-    if( best < 0 )
+    if( best >= 0 )
+    {
+        lt_pending_item(&g_pending[best], ground);
         return;
-    memset(&item, 0, sizeof(item));
-    item.obj_id = ground->obj_id;
-    item.quantity = ground->count > 0 ? ground->count : 1;
-    item.cost = ground->cost;
-    lt_clean_name(ground->name, item.name, sizeof(item.name));
-    for( int i = 0; i < g_pending[best].item_count; i++ )
-        if( g_pending[best].items[i].obj_id == item.obj_id )
-        {
-            g_pending[best].items[i].quantity += item.quantity;
-            return;
-        }
-    if( g_pending[best].item_count < LT_ITEMS_MAX )
-        g_pending[best].items[g_pending[best].item_count++] = item;
+    }
+
+    struct ToriRS_PlayerSnapshot player;
+    memset(&player, 0, sizeof(player));
+    if( !g_api->world.local_player(g_api, &player) || player.level != ground->level ||
+        abs(player.true_x - ground->tile_x) > LT_PENDING_RANGE ||
+        abs(player.true_z - ground->tile_z) > LT_PENDING_RANGE )
+        return;
+    uint64_t const now = g_api->core.frame_ms(g_api);
+    lt_recent_expire(rt, now);
+    int slot = g_recent_drop_count;
+    if( slot == LT_RECENT_DROPS_MAX )
+    {
+        slot = 0;
+        for( int i = 1; i < g_recent_drop_count; i++ )
+            if( g_recent_drops[i].at_ms < g_recent_drops[slot].at_ms ) slot = i;
+    }
+    else
+        g_recent_drop_count++;
+    g_recent_drops[slot].item = *ground;
+    g_recent_drops[slot].at_ms = now;
 }
 
 static void
@@ -1056,7 +1126,10 @@ lt_world_loaded(
     struct LootTrackerRuntime* rt = &runtime;
     (void)event;
     if( lt_infers_loot(rt) )
+    {
         g_pending_count = 0;
+        g_recent_drop_count = 0;
+    }
 }
 
 /**
@@ -2306,8 +2379,7 @@ lt_panel_draw(
             g_art_warned = true;
             g_api->core.log(
                 g_api,
-                "loot-tracker: page art did not load (the host's shared asset "
-                "table is full); drawing the log as text");
+                "loot-tracker: page art is not ready; drawing the log as text until it arrives");
         }
         lt_draw_text_only(rt, draw, &context);
         return;
@@ -2638,7 +2710,10 @@ lt_tick(
     assert(api);
 
     if( lt_infers_loot(rt) )
+    {
+        lt_recent_expire(rt, now);
         lt_pending_expire(rt, now);
+    }
 
     if( now < g_next_panel_ms )
         return;

@@ -3584,6 +3584,27 @@ mobile_owned_drop(struct MobileCall* ctx, struct MobileOwned* owned)
     owned->ref = (struct ToriRS_WidgetRef){ { 0, 0, 0 } };
 }
 
+static bool
+mobile_owned_anchor(
+    struct MobileCall* ctx, struct MobileOwned* owned, struct ToriRS_WidgetRef target,
+    enum ToriRS_WidgetRelation relation)
+{
+    assert(ctx);
+    assert(owned);
+    assert(owned->live);
+    enum ToriRS_ContractResult const result =
+        g_api->widgets.set_anchor(g_api->widgets.context, owned->ref, target, relation);
+    /* Invalid ancestry is our contract bug; a stale reference is a legitimate
+     * remount race. Never leave an unanchored opaque image over native text. */
+    assert(result != TORIRS_CONTRACT_INVALID_ARGUMENT);
+    if( result != TORIRS_CONTRACT_OK )
+    {
+        mobile_owned_drop(ctx, owned);
+        return false;
+    }
+    return true;
+}
+
 /* A picture centred in a box, as an owned image. */
 static bool
 mobile_owned_centred(
@@ -4363,10 +4384,16 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
          * neither of which accepts set_image. Hide only that decoration and
          * paint an owned band behind the whole native button-row subtree. */
         struct ToriRS_WidgetRef named_bar;
-        if( !mobile_owned_image(ctx, &state->pack_bar, bar, "pack-bar", rock,
+        struct ToriRS_WidgetRef parent;
+        /* Anchor units must be disjoint. The band is a sibling of the row,
+         * never its child, with its canvas position translated by the helper. */
+        if( ui->parent(ui->context, bar, &parent) != TORIRS_CONTRACT_OK )
+            return;
+        if( !mobile_owned_image(ctx, &state->pack_bar, parent, "pack-bar", rock,
                 bar_box.width, bar_box.height, bar_box.x, bar_box.y) )
             return;
-        (void)ui->set_anchor(ui->context, state->pack_bar.ref, bar, TORIRS_WIDGET_RELATION_BEHIND);
+        if( !mobile_owned_anchor(ctx, &state->pack_bar, bar, TORIRS_WIDGET_RELATION_BEHIND) )
+            return;
         if( ToriRS_WidgetRefValid(filter_backing) )
         {
             (void)ui->set_hidden(ui->context, filter_backing, true);
@@ -4388,17 +4415,25 @@ mobile_chat_decoration_update(struct MobileCall* ctx)
     if( ToriRS_WidgetRefValid(chat) )
     {
         int const h = backing_box.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B;
+        struct ToriRS_WidgetRef parent;
         paper = mobile_paper_art(ctx, backing_box.width, h);
-        if( paper.value != 0 &&
+        if( paper.value != 0 && ui->parent(ui->context, chat, &parent) == TORIRS_CONTRACT_OK &&
             mobile_owned_image(
-                ctx, &state->pack_sheet, chat, "pack-sheet", paper, backing_box.width, h, backing_box.x,
+                ctx, &state->pack_sheet, parent, "pack-sheet", paper, backing_box.width, h, backing_box.x,
                 backing_box.y - MOBILE_O_PAPER_PAD_T) )
         {
-            (void)ui->set_anchor(ui->context, state->pack_sheet.ref, chat, TORIRS_WIDGET_RELATION_BEHIND);
-            /* The backing keeps its box and loses its picture -- a transparent
-             * re-skin rather than a hide -- so the sheet behind the pack shows
-             * through it and every native part consumer still sees the block. */
-            (void)ui->set_image(ui->context, backing, state->blank, 0, 0);
+            if( mobile_owned_anchor(ctx, &state->pack_sheet, chat, TORIRS_WIDGET_RELATION_BEHIND) )
+            {
+                /* A native graphic can become transparent. A decorative
+                 * rectangle cannot be re-skinned, so hide only that named
+                 * background while the chat's text/input subtree stays live. */
+                enum ToriRS_ContractResult const result =
+                    ui->set_image(ui->context, backing, state->blank, 0, 0);
+                if( result == TORIRS_CONTRACT_NATIVE_BLOCKED )
+                    (void)ui->set_hidden(ui->context, backing, true);
+                else if( result != TORIRS_CONTRACT_OK )
+                    mobile_owned_drop(ctx, &state->pack_sheet);
+            }
         }
     }
     for( int i = 0; i < plate_count; i++ )

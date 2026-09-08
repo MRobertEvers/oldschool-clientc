@@ -1700,6 +1700,44 @@ test_loot_rs289_inference_and_osrs_dedup(void)
         "osrs239 reads one authoritative store record, never store plus inference");
 }
 
+static void
+test_loot_drop_before_removal(void)
+{
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    struct ToriRS_NpcSnapshot man = dying_npc("Man", 3200);
+    /* The real Lost City removal does not retain a health bar. */
+    man.health_ratio = -1;
+    man.health_scale = -1;
+    struct ToriRS_GroundItemSnapshot bones = drop_at(526, 1, 1, "Bones", 3200);
+    struct ToriRS_GroundItemSnapshot bait = drop_at(313, 1, 3, "Fishing bait", 3200);
+    dispatch_item_spawn(&bones);
+    dispatch_npc_despawn(&man);
+    dispatch_item_spawn(&bait);
+    tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(detail_source() && strcmp(detail_source(), "Man") == 0 &&
+        row_text("d_value") && strcmp(row_text("d_value"), "4") == 0,
+        "drops on both sides of one removal become one complete loot record");
+    TEST_ASSERT(row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "the two packet orders do not count the kill twice");
+
+    dispatch_npc_despawn(&man);
+    tick(1201);
+    TEST_ASSERT(row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "an already attributed arrival cannot credit a second removal");
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    dispatch_item_spawn(&bones);
+    tick(1201);
+    dispatch_npc_despawn(&man);
+    tick(1201);
+    TEST_ASSERT(!has_loot(), "an old unrelated ground item is outside the inference window");
+}
+
 /*
  * A kill in the client's store becomes a band.
  *
@@ -2134,6 +2172,7 @@ main(void)
 
     test_loot_kill_becomes_a_record();
     test_loot_rs289_inference_and_osrs_dedup();
+    test_loot_drop_before_removal();
     test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();
