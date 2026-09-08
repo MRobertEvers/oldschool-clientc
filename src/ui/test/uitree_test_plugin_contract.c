@@ -400,27 +400,62 @@ void test_live_widget_visibility(void)
 
 void test_widget_sidebar_group(void)
 {
-    struct UITree* tree=UITree_New(8);
+    struct UITree* tree=UITree_New(16);
     int root=UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x350000,0,0,300,300);
-    int modal=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350001,0,0,100,100);
+    int unrelated=UITree_TestPushXy(tree,root,UIELEM_RS_RECT,0x350010,220,0,50,50);
+    int outer=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350011,0,0,150,200);
+    tree->components[outer].no_click_through=1;
+    int modal=UITree_TestPushXy(tree,outer,UIELEM_RS_LAYER,0x350001,0,0,100,100);
     tree->components[modal].slot_tag=UITREE_SLOT_SIDE_MODAL;
-    int group=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350002,0,0,100,100);
-    int hidden=UITree_TestPushXy(tree,group,UIELEM_RS_LAYER,0x350003,0,0,100,100);
+    int inner=UITree_TestPushXy(tree,outer,UIELEM_RS_LAYER,0x350002,0,0,100,100);
+    int hidden=UITree_TestPushXy(tree,inner,UIELEM_RS_LAYER,0x350003,0,0,100,100);
     tree->components[hidden].slot_tag=UITREE_SLOT_SIDE_MODAL;
     tree->components[hidden].frame_member_plus1=2;
     UITree_SetHideAt(tree,hidden,1);
-    int active=UITree_TestPushXy(tree,group,UIELEM_RS_LAYER,0x350004,0,0,100,100);
+    int active=UITree_TestPushXy(tree,inner,UIELEM_RS_LAYER,0x350004,0,0,100,100);
     tree->components[active].slot_tag=UITREE_SLOT_SIDE_MODAL;
     tree->components[active].frame_member_plus1=1;
-    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)==group,
-                "sidebar widget resolves member parent, not modal or hidden tab");
-    UITree_WidgetSetPosition(tree,UITree_RefAt(tree,group),1,12,14);
+    int native=UITree_TestPushXy(tree,active,UIELEM_RS_TEXT,0x350005,70,70,20,20);
+    strcpy(UITree_MenuOptionsMut(&tree->components[native])->option,"Native panel action");
+    UITree_HookSet(&UITree_HooksMut(&tree->components[native])->on_op,7,NULL,0,0,NULL,0);
+    int own=UITree_WidgetCreateGraphic(tree,UITree_RefAt(tree,root),1,"moving-tab");
+    UITree_WidgetSetSize(tree,UITree_RefAt(tree,own),1,30,30);
+    UITree_WidgetSetPosition(tree,UITree_RefAt(tree,own),1,10,210);
+    UITree_WidgetSetOperation(tree,UITree_RefAt(tree,own),1,5,"Select");
+    int group=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
+    TEST_ASSERT(group==outer,"sidebar includes modal sibling and numbered tab group, without unrelated root sibling");
+    TEST_ASSERT(UITree_WidgetSetAnchor(tree,UITree_RefAt(tree,outer),1,UITree_RefAt(tree,own),
+                UITREE_WIDGET_RELATION_OVER)==UITREE_WIDGET_ANCHOR_OK,"native sidebar remains over owned tab chrome");
+    UITree_LayoutResolve(tree,0,0,300,300);
+    TEST_ASSERT(UITree_HitTestInteractive(tree,NULL,15,215)==own,"initial tab below native sidebar is interactive");
+    UITree_WidgetSetPosition(tree,UITree_RefAt(tree,own),1,10,10);
     UITree_EnsureLayout(tree);
-    TEST_ASSERT(tree->components[active].position.abs_x==12 && tree->components[hidden].position.abs_x==12,
-                "moving sidebar group moves every native tab together");
-    UITree_Reparent(tree,active,root);
-    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)<0,
-                "sidebar helper rejects incompatible member topology");
+    TEST_ASSERT(UITree_HitTestInteractive(tree,NULL,15,15)!=own,"old outer barrier blocks tab moved above the panel");
+    UITree_WidgetSetPosition(tree,UITree_RefAt(tree,group),1,80,100);
+    UITree_WidgetSetSize(tree,UITree_RefAt(tree,group),1,100,100);
+    UITree_EnsureLayout(tree);
+    TEST_ASSERT(UITree_HitTestInteractive(tree,NULL,15,15)==own,"moving complete sidebar moves its barrier away from the new tab hit box");
+    TEST_ASSERT(tree->components[active].position.abs_x==80 && tree->components[hidden].position.abs_x==80,
+                "moving sidebar group moves active and hidden native tabs together");
+    TEST_ASSERT(tree->components[unrelated].position.abs_x==220,"unrelated root sibling is not moved");
+    int32_t hits[16];int count=UITree_CollectNodesAt(tree,NULL,155,175,hits,16),found=0;
+    for(int i=0;i<count;i++) if(hits[i]==native) found=1;
+    TEST_ASSERT(found && UITree_Hooks(&tree->components[native])->on_op.script_id==7,
+                "native panel action survives the container move at its new hit position");
+    int other=UITree_TestPushXy(tree,root,UIELEM_RS_LAYER,0x350012,0,0,150,200);
+    UITree_Reparent(tree,modal,other);UITree_Reparent(tree,inner,other);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)==other,"topology generation invalidates remembered sidebar ancestor");
+    tree->components[modal].slot_tag=UITREE_SLOT_NONE;
+    UITree_FrameInvalidateSlots(tree);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)==inner,"semantic publication invalidates group after primary role removal");
+    tree->components[active].slot_tag=UITREE_SLOT_NONE;tree->components[hidden].slot_tag=UITREE_SLOT_NONE;
+    UITree_FrameInvalidateSlots(tree);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)<0,"missing sidebar declarations are unavailable");
+    tree->components[modal].slot_tag=UITREE_SLOT_SIDE_MODAL;UITree_FrameInvalidateSlots(tree);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)==modal,"sole unnumbered primary surface resolves to itself");
+    int second_root=UITree_TestPushXy(tree,-1,UIELEM_RS_LAYER,0x360000,0,0,300,300);
+    tree->components[active].slot_tag=UITREE_SLOT_SIDE_MODAL;UITree_Reparent(tree,active,second_root);
+    TEST_ASSERT(UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR)<0,"separate roots have no common sidebar container");
     UITree_Free(tree);
 }
 

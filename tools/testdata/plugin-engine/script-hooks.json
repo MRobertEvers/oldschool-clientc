@@ -48,5 +48,6 @@
     97,
     333
   ],
-  "empty_caption": "Suppresses the whole native row, including timer and edit-control siblings."
+  "empty_caption": "Suppresses the whole native row, including timer and edit-control siblings.",
+  "overlay_find_compatibility": "overlay-find-compatibility.json"
 }

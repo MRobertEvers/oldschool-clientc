@@ -39,10 +39,9 @@ LOCAL_NAMES: dict[int, str] = {
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "runelite_callback": (["STRING"], [], False),
-    # Exact rev-239 bytecode witness: 6695 pc10 OVERLAY_NPC_CREATE, pc11
-    # POP_INT_LOCAL3, pc12 PUSH_INT_LOCAL3, pc13 OVERLAY_CC_FIND. One handle
-    # selects the still-empty overlay root before listeners/children are set.
-    "overlay_cc_find": (["INT"], ["INT"], True),
+    # Pristine239:6695 selects its root with202;6677 selects child0 with203.
+    # A legacy repack renamed202 to203 and rearranged real203's two inputs.
+    "overlay_cc_find": (["NEWVAR", "INT"], ["INT"], True),
     # Native ExecuteCommand100To999 case0x67 selects the component slot using
     # its bool argument. Pristine239 script7232 has103 operands0,1,0,0,1;
     # dropping the dots makes timer text target a graphic and loses edit icons.

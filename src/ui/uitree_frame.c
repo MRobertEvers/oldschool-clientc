@@ -371,19 +371,36 @@ UITree_FrameSlotNode(
 int32_t
 UITree_FrameSlotGroupNode(struct UITree const* tree, int slot)
 {
-    if( !tree || slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ) return -1;
+    assert(tree);
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT ) return -1;
     (void)frame_slot_cache_entry(tree,slot,-1);
     if( frame_slot_cache.group[slot] >= 0 ) return frame_slot_cache.group[slot];
-    int32_t parent=-1;
+    int32_t group=-1;
     for( uint32_t i=0; i<tree->component_count; ++i )
     {
         struct UITreeComponent const* c=&tree->components[i];
-        if( c->freed || !c->frame_member_plus1 || !frame_node_is_slot(c,slot) ) continue;
-        if( c->parent < 0 || (parent >= 0 && parent != c->parent) )
-            return frame_slot_cache.group[slot]=-1;
-        parent=c->parent;
+        if( c->freed || !frame_node_is_slot(c,slot) ) continue;
+        int32_t const candidate=UITree_FrameSlotIndex(c,slot)>=0 ? c->parent : (int32_t)i;
+        if( candidate < 0 ) return -1;
+        if( group < 0 ) { group=candidate;continue; }
+        /* A side-modal and the numbered tab group can be siblings under a
+         * native click barrier. Moving only the inner group leaves that
+         * barrier at its old rectangle, over the provider's moved controls. */
+        int32_t common=-1;
+        for( int32_t a=group; a>=0 && common<0; a=tree->components[a].parent )
+            for( int32_t b=candidate; b>=0; b=tree->components[b].parent )
+                if( a==b ) { common=a;break; }
+        if( common < 0 ) return -1;
+        group=common;
     }
-    return frame_slot_cache.group[slot] = parent;
+    return frame_slot_cache.group[slot] = group;
+}
+
+void
+UITree_FrameInvalidateSlots(struct UITree const* tree)
+{
+    assert(tree);
+    if( frame_slot_cache.tree == tree ) frame_slot_cache.tree=NULL;
 }
 
 int32_t

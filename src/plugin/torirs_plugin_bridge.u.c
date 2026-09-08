@@ -4398,7 +4398,8 @@ app_plugin_frame_stamp_role(
     uint8_t tag,
     int member,
     int32_t* next,
-    int* next_count)
+    int* next_count,
+    int* changed)
 {
     uint16_t const role_id = UITree_RoleFind(&app->ui_roles, role);
     int32_t node;
@@ -4409,6 +4410,7 @@ app_plugin_frame_stamp_role(
     assert(role);
     assert(next);
     assert(next_count);
+    assert(changed);
     if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
         return;
     node = UITree_RoleNode(tree, &app->ui_roles, role_id);
@@ -4417,6 +4419,8 @@ app_plugin_frame_stamp_role(
     c = &tree->components[node];
     if( c->freed )
         return;
+    if( c->slot_tag != tag || c->frame_member_plus1 != (uint8_t)(member + 1) )
+        *changed = 1;
     c->slot_tag = tag;
     c->frame_member_plus1 = (uint8_t)(member + 1);
     next[(*next_count)++] = node;
@@ -4643,6 +4647,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
     struct App* app = (struct App*)user;
     int32_t next[APP_FRAME_STAMP_MAX];
     int next_count = 0;
+    int changed = 0;
 
     assert(tree);
     assert(app);
@@ -4667,13 +4672,13 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         if( tag == UITREE_SLOT_NONE || !name )
             continue;
         snprintf(role, sizeof(role), "frame_%s", name);
-        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count);
+        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count, &changed);
         if( !app_plugin_frame_slot_has_members(slot) )
             continue;
         for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
         {
             snprintf(role, sizeof(role), "frame_%s_%d", name, member);
-            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
+            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count, &changed);
         }
     }
 
@@ -4717,6 +4722,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             again = next[n] == idx;
         if( again )
             continue;
+        changed = 1;
         c->slot_tag = UITREE_SLOT_NONE;
         c->frame_member_plus1 = 0;
     }
@@ -4726,6 +4732,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
     }
     app->plugin_frame_stamp_count = next_count;
+    if( changed ) UITree_FrameInvalidateSlots(tree);
 }
 
 /**

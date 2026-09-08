@@ -74,5 +74,26 @@ class NativeHookTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(helper).hexdigest(),spec['source_sha256'])
         self.assertEqual(hooks.decode(helper)['fields'],spec['trailer_fields'])
 
+    def test_pristine_overlay_root_and_child_corpus(self):
+        specs=json.loads((FIXTURE/'overlay-find-compatibility.json').read_text())['scripts']
+        self.assertEqual(len(specs),33)
+        for spec in specs:
+            with self.subTest(script=spec['script_id']):
+                folder=FIXTURE/'overlay-find'
+                native=(folder/f"{spec['script_id']}-pristine.cs2b").read_bytes()
+                legacy=(folder/f"{spec['script_id']}-runtime.cs2b").read_bytes()
+                self.assertEqual(hooks.encode(hooks.decode(native)),native)
+                self.assertEqual(hooks.normalize_overlay_find(native,spec),native)
+                self.assertEqual(hooks.normalize_overlay_find(legacy,spec),native)
+                wrong=bytearray(legacy);wrong[4]^=1
+                with self.assertRaisesRegex(ValueError,'fingerprint mismatch'):
+                    hooks.normalize_overlay_find(bytes(wrong),spec)
+        # These are raw instruction witnesses from pristine cache bytes,
+        # independently of the decompiler's current names or signatures.
+        npc=hooks.decode((FIXTURE/'overlay-find/6695-pristine.cs2b').read_bytes())['ops']
+        cannon=hooks.decode((FIXTURE/'overlay-find/6677-pristine.cs2b').read_bytes())['ops']
+        self.assertEqual(npc[10:14],[(7200,0),(34,3),(33,3),(202,0)])
+        self.assertEqual(cannon[5:10],[(33,0),(0,0),(203,0),(0,1),(8,1)])
+
 
 if __name__=='__main__': unittest.main()

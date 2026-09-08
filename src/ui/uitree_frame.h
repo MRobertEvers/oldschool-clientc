@@ -95,10 +95,12 @@ UITree_FrameSlotNode(
     struct UITree const* tree,
     int slot);
 
-/* Common native parent of a slot's numbered members. Unlike SlotNode (any
- * representative), this identifies the actual content container. Unavailable
- * when the bound members do not share a parent; no ancestor guessing. */
+/* Smallest native container holding the unnumbered surface and every
+ * numbered member's parent. A sole primary surface resolves to itself;
+ * absent declarations or nodes in separate roots are unavailable. */
 int32_t UITree_FrameSlotGroupNode(struct UITree const* tree, int slot);
+/* A semantic binder changed slot tags without changing tree topology. */
+void UITree_FrameInvalidateSlots(struct UITree const* tree);
 
 /**
  * The node carrying `slot`'s role and answering to `member`, or -1.

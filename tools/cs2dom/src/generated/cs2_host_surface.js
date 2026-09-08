@@ -30,7 +30,7 @@ export const HOST_SURFACE = Object.freeze(new Map([
     ['cc_find', { opcode: 200, params: ['component', 'comsubid'], results: ['bool'], resultKinds: 'i', park: 'component', dotCapable: true }],
     ['if_find', { opcode: 201, params: ['component'], results: ['boolean'], resultKinds: 'i', park: 'component', dotCapable: true }],
     ['overlay_find', { opcode: 202, params: ['newvar'], results: ['int'], resultKinds: 'i', park: null, dotCapable: false }],
-    ['overlay_cc_find', { opcode: 203, params: ['int'], results: ['int'], resultKinds: 'i', park: null, dotCapable: true }],
+    ['overlay_cc_find', { opcode: 203, params: ['newvar', 'int'], results: ['int'], resultKinds: 'i', park: null, dotCapable: true }],
     ['cc_children_findnextid', { opcode: 204, params: [], results: ['unknownint'], resultKinds: 'i', park: null, dotCapable: true }],
     ['if_children_find', { opcode: 205, params: ['unknownint', 'unknownint2'], results: [], resultKinds: '', park: 'component', dotCapable: true }],
     ['if_children_findnextid', { opcode: 206, params: [], results: ['unknownint'], resultKinds: 'i', park: null, dotCapable: true }],

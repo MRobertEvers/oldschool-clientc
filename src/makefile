@@ -6092,6 +6092,7 @@ test-cs2-overlay-find: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		cs2vm2/test/overlay_find_test.c cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
 		cs2vm2/cs2_opcode_meta.c perf/torirs_perf.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_overlay_find_test
+	python3 $(REPO_ROOT)/tools/test_overlay_find_host.py
 
 .PHONY: test-plugin-highlight-snapshot
 test-plugin-highlight-snapshot: $(OBJ_DIR)

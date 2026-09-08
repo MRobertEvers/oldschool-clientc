@@ -28,12 +28,10 @@
 -- them readable.
 --
 
--- The refresh window's declared bounds, named because the schema is not the
--- only thing that has to honour them: a config value reaches the plugin
--- unchecked (api.config.set stores any string the INI grammar accepts, and
--- plugin_prefs.ini is a text file a user is invited to edit), so the same two
--- numbers are the row's min/max AND what the sampler clamps to. A refresh of 0
--- divides a frame count by a zero-length window.
+-- The host validates runtime writes and persisted values against the schema.
+-- Keep the sampler's defensive clamp tied to those same bounds: older hosts
+-- accepted unchecked values, and a refresh of 0 would divide the frame count
+-- by a zero-length window.
 local REFRESH_MIN_MS = 250
 local REFRESH_MAX_MS = 5000
 

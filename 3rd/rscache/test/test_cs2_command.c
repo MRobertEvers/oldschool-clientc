@@ -62,11 +62,59 @@ test_overlay_dot_roundtrip(void)
     RSCache_ClientScriptFreeInplace(&first);
 }
 
+static void
+test_overlay_find_roundtrip(void)
+{
+    /* Pristine6695 uses202 for its root;6677 uses203(handle,0) for text.
+     * Both must retain their distinct stack contracts through source export. */
+    struct RSCache_ClientScript first={0}, roundtrip={0};
+    struct RSCache_CS2_CompileOptions compile={0};
+    struct RSCache_CS2_DecompileOptions decompile={0};
+    char error[512]={0};
+    char const* source="[proc,script1](newvar $newvar0)\n"
+        "if (overlay_find($newvar0) = 1) { cc_settext(\"root\"); }\n"
+        "if (overlay_cc_find($newvar0, 0) = 1) { cc_settext(\"child\"); }\n"
+        "if (.overlay_cc_find($newvar0, 1) = 1) { .cc_settext(\"secondary\"); }\n";
+    bool ok=RSCache_CS2_Compile(source,&compile,&first,error,sizeof error);
+    RSCACHE_CHECK(ok);
+    if( !ok ) return;
+    first.script.script_id=1;decompile.scripts.user=&first.script;
+    decompile.scripts.load=overlay_script;
+    char* name=NULL;
+    char* decoded=RSCache_CS2_Decompile(1,&decompile,&name,error,sizeof error);
+    RSCACHE_CHECK(decoded!=NULL);
+    if( decoded )
+    {
+        RSCACHE_CHECK(strstr(decoded,"overlay_find(")!=NULL);
+        RSCACHE_CHECK(strstr(decoded,".overlay_cc_find(")!=NULL);
+        ok=RSCache_CS2_Compile(decoded,&compile,&roundtrip,error,sizeof error);
+        RSCACHE_CHECK(ok);
+        if( ok )
+        {
+            int roots=0,children=0;
+            RSCACHE_CHECK_EQ(first.script.op_count,roundtrip.script.op_count);
+            for( int i=0;i<first.script.op_count && i<roundtrip.script.op_count;++i )
+            {
+                RSCACHE_CHECK_EQ(first.script.opcodes[i],roundtrip.script.opcodes[i]);
+                RSCACHE_CHECK_EQ(first.script.int_operands[i],roundtrip.script.int_operands[i]);
+                roots+=roundtrip.script.opcodes[i]==202;
+                children+=roundtrip.script.opcodes[i]==203;
+            }
+            RSCACHE_CHECK_EQ(roots,1);RSCACHE_CHECK_EQ(children,2);
+            RSCache_ClientScriptFreeInplace(&roundtrip);
+        }
+        free(decoded);
+    }
+    free(name);RSCache_ClientScriptFreeInplace(&first);
+}
+
 int
 main(void)
 {
     RSCACHE_TEST_GROUP("overlay creation retains primary and secondary targets");
     test_overlay_dot_roundtrip();
+    RSCACHE_TEST_GROUP("overlay root and child selection roundtrip independently");
+    test_overlay_find_roundtrip();
     RSCACHE_TEST_GROUP("canonical names from current VM metadata");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(103), "overlay_cc_create");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(1703), "cc_getcomponentparam");

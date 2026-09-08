@@ -1,0 +1,982 @@
+{
+  "version": 1,
+  "description": "Exact normalization of known revision239 decompiler/repack damage:202 root remapped to203;203 child argument/result sequence reordered. Every complete input and output is SHA256 checked.",
+  "scripts": [
+    {
+      "script_id": 4548,
+      "canonical_sha256": "141774490ccd96499b9d9cbe4780067bf15c53bec531633fac30c88891573da2",
+      "legacy_sha256": "ea51ce2d0797db16ce37600e3cfd4f2dc1000f4d38d483f9769ea7aba38eedf3",
+      "changes": [
+        {
+          "pc": 21,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 4550,
+      "canonical_sha256": "4491eb62cfe820e720741b90e9e8625407fff20d9bb30d2a250b1d5ddd453853",
+      "legacy_sha256": "572163ecce70a4b236d0ebcfbd32046fdc33cdf8dc03316d9d01cc4df4a60945",
+      "changes": [
+        {
+          "pc": 16,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 4553,
+      "canonical_sha256": "cc6f22689ef91b9ab9b6776f511d036a6787d3707ea2c775fee87ecb4f2fcd0c",
+      "legacy_sha256": "d3bbdb8d891978938161e70c6b67cf5baeb7cdebf0ea77d690514c76ee15cb12",
+      "changes": [
+        {
+          "pc": 3,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        },
+        {
+          "pc": 349,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 4554,
+      "canonical_sha256": "e450c8fa8fa6ada4b375e4efd9d75999a40fe57e662fbf7f2d194590bda19ce3",
+      "legacy_sha256": "bf86c7ea99662fbe34c2d0e1a79faa689472a51764c2536adb0ca9bae923b6f6",
+      "changes": [
+        {
+          "pc": 131,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5474,
+      "canonical_sha256": "161f21c6dd67d20c4cb4c52b26ed5441aac32920229925a40efe3cad4dc007dc",
+      "legacy_sha256": "87e6397855a248322992a82a51ca8983940c7ae6a4fcd31a3ed4baedb7b24c87",
+      "changes": [
+        {
+          "pc": 39,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5480,
+      "canonical_sha256": "fd4d2e21d2c404b9bfda751cee974f1c829cc93ce56822f04682e7d02e2984b9",
+      "legacy_sha256": "6dde839ae24d8c63a3b28693e8894387f99d2b7189f9835b70baab539ad12f07",
+      "changes": [
+        {
+          "pc": 24,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5481,
+      "canonical_sha256": "b3e7531c4a9c96e531fda11ae85d57ef10183cccf9a1c57d8a7c0e9127fe354f",
+      "legacy_sha256": "99af10fa1d7b25106da82b72714bedda6f7d11708ccb6c012bacc8d6e6dac9fc",
+      "changes": [
+        {
+          "pc": 28,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        },
+        {
+          "pc": 42,
+          "before": [
+            [
+              0,
+              1
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        },
+        {
+          "pc": 52,
+          "before": [
+            [
+              0,
+              2
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              0,
+              2
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5719,
+      "canonical_sha256": "0f4096040ea292d68803fa9c01111b3a3cc0f1692441e33fca6acebae2085f80",
+      "legacy_sha256": "bb9f4b6336c6586708457e828778cbf86965e8ec159244ebc6172a45b009863d",
+      "changes": [
+        {
+          "pc": 27,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5721,
+      "canonical_sha256": "95f40cd8cd1e4fbad0df160341b5e1a9f94aab71c9546c40d1859f31d12c9201",
+      "legacy_sha256": "f94abb5b695ce74e62f7a165cf3553f02b26d050a02e613dcb36b72644f6f274",
+      "changes": [
+        {
+          "pc": 14,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5722,
+      "canonical_sha256": "ba3132ba159844f714a811d423ef5b7dd4ddb2ada4f56324d603c8ca87733789",
+      "legacy_sha256": "4d71083506e95c75a28899ef325ac1c20d851cab90f3df88268e25f830a5db43",
+      "changes": [
+        {
+          "pc": 5,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5724,
+      "canonical_sha256": "50ed05c198f6918418fc7638b56e499b3d8a574170bcea13c1e2751245be92de",
+      "legacy_sha256": "6db29439e52de20eaebe9c6bd6ee2f745aab7f33d9fc2ee382a5caaed925352c",
+      "changes": [
+        {
+          "pc": 27,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5725,
+      "canonical_sha256": "ec49d3f631cbe9e7575855a6f73523e1f33da3111871e1c3a8c46c55498ad427",
+      "legacy_sha256": "ac693d72fdbca5772c55100f5288355ff42a54f1d033858c5f6a5c90f17b5560",
+      "changes": [
+        {
+          "pc": 3,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5726,
+      "canonical_sha256": "4d225f394a250554263eacf0508d3c2439c04797e68a9c03a00d17dacfcea9a1",
+      "legacy_sha256": "44584662dbc72758ef980d195f4a100861e5b2b9e983edf872ef347e59c4ad4f",
+      "changes": [
+        {
+          "pc": 32,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5729,
+      "canonical_sha256": "e44cc244f149faac17523d5805c75937130c6084bc4f2e73d07bc3abafe2ac1b",
+      "legacy_sha256": "0c5f1ec775ac05530d7317140da770493b549d064926c4060afa1e7eafa67c0b",
+      "changes": [
+        {
+          "pc": 361,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5961,
+      "canonical_sha256": "727d871bfc26fa7146da80ef8b3df0972707b8cd3a1e59fc9fd11b59f25e45bd",
+      "legacy_sha256": "dfc1fa366a56b9c325f6bafda4b8d25168c646a43d1e2f789b43a5505bc5d099",
+      "changes": [
+        {
+          "pc": 13,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 5963,
+      "canonical_sha256": "c091646595db49c6222e2fa7a50eaaa97fb44687338787dbfdafa47c220ffa1f",
+      "legacy_sha256": "2aa815f3baa7785f35978ba9f26ea76fc5e8d842aaa205e37d4ea7db32faf922",
+      "changes": [
+        {
+          "pc": 29,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6527,
+      "canonical_sha256": "dcc6e57ba1e01ac5b6a9a59c38152e84a434f0475eca70f3d7329766f4a7b1d2",
+      "legacy_sha256": "41c8201d2f61232e541bc78a991f947422af87c2ea45f3f3d4718af468d998d4",
+      "changes": [
+        {
+          "pc": 16,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6542,
+      "canonical_sha256": "0bafe04cc25dc2a05be94a88aab9e7c8ec2d0571954901fa86cd0cfd8d61b4af",
+      "legacy_sha256": "b2d1a257fa6bda56b2046d2666d67840d31535ae1779be95b08943fd771a1e18",
+      "changes": [
+        {
+          "pc": 16,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6544,
+      "canonical_sha256": "760324abc7fb520e1d5820788d0fa1c933b866f6b62f1084be31ea845265fc9e",
+      "legacy_sha256": "a7de1bb9fc5ebc42536411e414ea21f539db41dcaae9fdc6342679671c99471e",
+      "changes": [
+        {
+          "pc": 15,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6619,
+      "canonical_sha256": "a02bd994b9795bf78f9322995a1646fcf4534783981072e51c1042b4c6d1c860",
+      "legacy_sha256": "ea1dc52591b5a981c2344c2a22db36bad2d02ebe1570d58db820265e21b3b409",
+      "changes": [
+        {
+          "pc": 29,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6621,
+      "canonical_sha256": "2ae9dc00e4beb215b6c76cfabd19d677066afb22e4dc1b11288805e502f76e3e",
+      "legacy_sha256": "583dfd0621f35d355439264cc86cdd36c4dfab8b4251a4365df2936da94a9e27",
+      "changes": [
+        {
+          "pc": 42,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6671,
+      "canonical_sha256": "cbbe2da26b7f4bda0d706b7d73202a4b16317f8a7302e3e747b0901e2625749d",
+      "legacy_sha256": "5e30c112a3a03b2f57f9f81f86d8c1d48bfea0d57d96f5640924ff3a73da1329",
+      "changes": [
+        {
+          "pc": 9,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6674,
+      "canonical_sha256": "06400a898804546fabe58874f4235309fbf0841ea180f8478809ef6c2d5d672a",
+      "legacy_sha256": "b0193e98e4e057fd51f3551ce2d8bced5da9660fcc1989a2b1639ac8aef5b83e",
+      "changes": [
+        {
+          "pc": 27,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6675,
+      "canonical_sha256": "98c3d129d2b618a1d6591e7d2aa1059e5d5044bf73317acf75178b0fd69b4e77",
+      "legacy_sha256": "1bfde49d29b56f8a233414c665ed8cf833f94afa8eccd0d94ba44456f2ac26e5",
+      "changes": [
+        {
+          "pc": 14,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6677,
+      "canonical_sha256": "ee0d6400b6fa4075d9ea3d84d3f6ebdf052b85c928e0f5e68f78354a43b8ca4d",
+      "legacy_sha256": "9030dbe585e30eef895457c170d2f41bc9d78e299d3ed2de2c397ec20b1630af",
+      "changes": [
+        {
+          "pc": 5,
+          "before": [
+            [
+              0,
+              0
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6695,
+      "canonical_sha256": "b4963c4db34abb9051f8f65e80ce94986b6d0c39831fb074db41bed7d98c5f27",
+      "legacy_sha256": "315d5786bdbbf74ade7feabc925346de4079049060877c11516f77e95afd6381",
+      "changes": [
+        {
+          "pc": 13,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6696,
+      "canonical_sha256": "435bd1a7ab76bd8f8be8b3fe9563bf705f3115d2694e4a88ab221abab7c5c344",
+      "legacy_sha256": "b4fd768f316dddd21b404e11ec51b047eaa8fc49946b32778067530d10abcce6",
+      "changes": [
+        {
+          "pc": 32,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6697,
+      "canonical_sha256": "b93cccfa4e3d7a8ca249f7a8093cfe01aa07cd4fad9bea7357fa70a299cb30a2",
+      "legacy_sha256": "7fb36f8cc6126b457a47e87305c024f2fc1a502748abac24bee466767ddcd469",
+      "changes": [
+        {
+          "pc": 14,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6719,
+      "canonical_sha256": "03b950dd29831112e078d5566c1bd3c1fe784555b324e5c60fda73aa8d8a3beb",
+      "legacy_sha256": "aa82e9fc3e09dbc861a326a52b90cfb2655a67cf1b04fbbca69d4120542c9517",
+      "changes": [
+        {
+          "pc": 12,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 6902,
+      "canonical_sha256": "db6665f20d6050c706c9555ff9343f15a5499c488399c440b620d84e3ef47486",
+      "legacy_sha256": "761e5f360911561c9d68805a7d021dc508c49cd0e570786e9b7ae9d1bfd572c4",
+      "changes": [
+        {
+          "pc": 6,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 7121,
+      "canonical_sha256": "d50fea4a159c3574985a3e49705028ee4258bc6d4a871c31a2eedb790fb83ddf",
+      "legacy_sha256": "57b7d3934c5428f79ea842c3d47a302e4a56b9f628606b2d27e5193b8f54dc5a",
+      "changes": [
+        {
+          "pc": 0,
+          "before": [
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 7231,
+      "canonical_sha256": "b18f43c9bd5a5f2aee8fa8b3aace8fede62189097113ca87afc7c05874002878",
+      "legacy_sha256": "6d46bf3696dc26ba0b81112c4c96cce6f7f65b8103532781a5631c9bf4293985",
+      "changes": [
+        {
+          "pc": 40,
+          "before": [
+            [
+              203,
+              0
+            ]
+          ],
+          "after": [
+            [
+              202,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "script_id": 7235,
+      "canonical_sha256": "e245b295df67b974717e94c76c8f8945bd3ab4c5c2ddc47285f4eafa6ca4a3a5",
+      "legacy_sha256": "517d6519bcb988d0d3ffa628436e93cc05f0649845c2e3b15396aeb608412cc2",
+      "changes": [
+        {
+          "pc": 56,
+          "before": [
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        },
+        {
+          "pc": 63,
+          "before": [
+            [
+              33,
+              8
+            ],
+            [
+              203,
+              1
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              33,
+              8
+            ],
+            [
+              203,
+              1
+            ]
+          ]
+        },
+        {
+          "pc": 90,
+          "before": [
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              33,
+              1
+            ],
+            [
+              203,
+              0
+            ]
+          ]
+        },
+        {
+          "pc": 97,
+          "before": [
+            [
+              33,
+              8
+            ],
+            [
+              203,
+              1
+            ],
+            [
+              38,
+              0
+            ],
+            [
+              33,
+              0
+            ]
+          ],
+          "after": [
+            [
+              33,
+              0
+            ],
+            [
+              33,
+              8
+            ],
+            [
+              203,
+              1
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
