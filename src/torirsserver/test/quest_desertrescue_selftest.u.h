@@ -11,6 +11,11 @@
  * This port is thin (Irena start, captain duel/key, camp gate, Al Shabim
  * greeting, journal). Later mine / Ana / dart / lamp leftovers are listed
  * in the ledger, not invented here.
+ *
+ * Cache-dependent steps (need cache.osrs239 maps / obj_add_private /
+ * fontmetrics): captain ai_queue3 metal_key drop, OPLOCU on
+ * miningcampgateclosedl, desertrescue_journal split_init. A C-only walk
+ * without named BMPs is a failed Gate D close.
  */
 static void
 tt_pass(const char* step)
@@ -33,6 +38,7 @@ static int
 tt_chatmenu(struct ToriRSServer* srv)
 {
     assert(srv);
+    (void)srv;
     return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
 }
 
