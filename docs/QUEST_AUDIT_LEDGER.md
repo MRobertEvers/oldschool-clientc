@@ -82,7 +82,7 @@
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
-| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-09 | cursor/throne-of-miscellania-ef78 Gate D C walk; RT Ghrim/Vargas steal at state 90 fixed (finish now writes `%misc_quest=100`); leftovers: condensed courtship, narrated 75% support, narrated emotes, Heroes'/Fremennik prereqs soft-skipped |
+| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | fixed | 2026-09-09 | cursor/throne-of-miscellania-ef78 Gate D: C walk 42/0 + 8 named BMPs in content SHA `selftest/quest_misc/`; RT steal at state 90 fixed (finish writes `%misc_quest=100`). Leftovers (not verified-modern): condensed courtship, narrated 75% support, narrated emotes, Heroes'/Fremennik prereqs soft-skipped |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | unaudited | |  |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | unaudited | |  |

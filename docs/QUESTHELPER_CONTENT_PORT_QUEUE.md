@@ -7024,5 +7024,6 @@ filed under `helpers/miniquests/` are at the end.
   Ghrim/Vargas were stolen before the 75% support / crowning talks. Finish
   queue now writes `^misc_complete`; ToM unfinished states win those three
   shared triggers; RT gate is `%misc_quest >= ^misc_complete`. Leftovers
-  listed on the row — not `verified-modern`. Named BMPs under
-  `server/scripts/selftest/quest_misc/` when the osrs239 cache is present.
+  listed on the row — not `verified-modern`. Named BMPs committed under
+  `osrs239-content/server/scripts/selftest/quest_misc/` (unique MD5s; player
+  alive; plugins off + `god 1` first). Ledger closed `fixed`.
