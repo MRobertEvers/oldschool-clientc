@@ -2106,6 +2106,68 @@ selftest_count_obj(
  * and is deliberately un-resumable, which is why this goes through IF_BUTTON1
  * on `chatmenu:options` rather than RESUME_PAUSEBUTTON.
  */
+static int
+selftest_click_choice(
+    struct ToriRSServer* srv,
+    int row)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    int uid;
+    uint8_t button[6];
+
+    if( !player->active_script || player->resume_button_count <= 0 )
+        return 0;
+    uid = player->resume_buttons[0];
+    button[0] = (uint8_t)(uid >> 24);
+    button[1] = (uint8_t)(uid >> 16);
+    button[2] = (uint8_t)(uid >> 8);
+    button[3] = (uint8_t)uid;
+    button[4] = 0;
+    button[5] = (uint8_t)row;
+    selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+    return 1;
+}
+
+/*
+ * Drain mesbox/chat continues, p_delay ticks, and p_choice menus.
+ *
+ * Each time a chatmenu is up, the next unused row from `rows` is clicked
+ * (row 1 if the list is exhausted). Interview paths need this: Q1/Q2 are
+ * row 4, and click_through would always pick "Stunning" / "Combat".
+ */
+static int
+selftest_drain_choices(
+    struct ToriRSServer* srv,
+    const int* rows,
+    int row_count,
+    int max_pages)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+    int clicks = 0;
+    int next_choice = 0;
+
+    while( clicks < max_pages && player->active_script )
+    {
+        if( player->resume_button_count <= 0 )
+        {
+            selftest_tick(srv);
+            clicks++;
+            continue;
+        }
+        if( chatmenu > 0 && player->resume_buttons[0] == chatmenu )
+        {
+            int row = (next_choice < row_count) ? rows[next_choice++] : 1;
+
+            selftest_click_choice(srv, row);
+        }
+        else
+            ToriRSServer_ScriptsResumeButton(srv, player->resume_buttons[0]);
+        clicks++;
+    }
+    return clicks;
+}
+
 /**
  * The sub-id of a charter destination's clickable pin on `sailing_menu:content`.
  *
@@ -55135,6 +55197,7 @@ ToriRSServer_WorldSelftest(void)
              * other direction, so whatever the sections above left standing is
              * not this one's input.
              */
+#include "test/quest_fenkenstrain_selftest.u.h"
             selftest_reset_world(srv, player, 402, 402);
             selftest_park_player(srv, crop_x - 1, crop_z);
             memcpy(saved_inv, player->inv, sizeof(saved_inv));

@@ -1,16 +1,13 @@
 # Creature of Fenkenstrain modernization audit
 
-Status: `audit-pending` — the native quest row, castle and dungeon maps, most
-actors/objects/items, modern dialogue choices, a journal, an organic completion
-call, the correct headline reward, and downstream quest stubs exist. The
-canonical route does not work. The implementation advances a parallel packed
-`%creatureoffenkenstrain` varbit while native morphs, Quest Helper, and
-`::complete` use `%fenk_quest` varp 399. It then reverses the grave types: the
-Mausoleum's ornate graves cannot yield the torso, arms, or legs, while arbitrary
-Haunted Woods graves can. Cavern, mausoleum, shed, furnace, conductor, and tower
-mechanics are deliberately bypassed or left to ungated generic doors. A player
-can force completion through undocumented shortcuts, but not by following the
-current quick guide. This is a legacy soft implementation, not a modern quest.
+Status: `in-progress` — 2026-09-09 re-audit remapped the critical path onto
+native `%fenk_quest` 0/1/2/3/4/5/6/9 (QH `creatureoffenkenstrain` steps.put),
+with `%creatureoffenkenstrain` written in lockstep. Sign Yes no longer hires;
+wrong interview Q1 returns before Q2; graves are coordinate-keyed; memorial
+enters the real cave tile; shed/canes/furnace/repair and a no-teleport tower
+door are live; pickpocket completion is guarded. Gate D is **open**: this VM
+has no `cache.osrs239`, so there are **0 named BMPs**. Do not stamp
+`verified-modern` / `fixed` until named unique-MD5 captures exist.
 
 Audited: 2026-08-17
 
