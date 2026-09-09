@@ -3221,6 +3221,15 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_JUNGLEPOTION_ONLY") )
+    {
+        selftest_quest_junglepotion(srv, player);
+        fprintf(stderr, "ToriRSServer junglepotion selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("junglepotion");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
