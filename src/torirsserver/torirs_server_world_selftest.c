@@ -3220,6 +3220,24 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    /*
+     * Ghosts Ahoy Gate D, on its own. The stanza also runs unconditionally
+     * just before the trailing `selftest_reset_world` so a green suite still
+     * covers it. This gate exists for the other situation: the VM has no
+     * pristine cache.osrs239 (prayer/collision stanzas abort) and the run
+     * never reaches the include. Same shape as TD_ONLY / GWD_ONLY.
+     *
+     *   TORIRSSERVER_SELFTEST_GHOSTSAHOY_ONLY=1 ./src/build_opt/torirsserver --selftest
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_GHOSTSAHOY_ONLY") )
+    {
+#include "test/quest_ghostsahoy_selftest.u.h"
+        fprintf(stderr, "ToriRSServer ghostsahoy selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("ghostsahoy");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -56882,6 +56900,13 @@ ToriRSServer_WorldSelftest(void)
             memset(who, 0, sizeof(*who));
         }
     }
+
+    /*
+     * Ghosts Ahoy Gate D. Own header so the stanza cannot leak into later
+     * checks; the reset immediately below ends its blast radius.
+     */
+#include "test/quest_ghostsahoy_selftest.u.h"
+    selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to

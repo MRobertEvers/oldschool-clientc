@@ -12219,6 +12219,20 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
      * this the floor becomes 0/0 and the first damage event is a death. */
     player->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
     ToriRSServer_CombatSyncHitpoints(player);
+    /* Gate D / quest smoke: TORIRSSERVER_GOD=1 makes a fresh player
+     * invulnerable. Dragontooth, the wreck lobster and Port Phasmatys
+     * can kill a level-3; a death teleport to Lumbridge is not a quest
+     * result. `::god 1` still toggles the same flag at runtime. */
+    {
+        const char* god = getenv("TORIRSSERVER_GOD");
+
+        if( god && god[0] && strcmp(god, "0") != 0 )
+        {
+            player->godmode = 1;
+            player->hitpoints = player->max_hitpoints > 0 ? player->max_hitpoints : 10;
+            ToriRSServer_CombatSyncHitpoints(player);
+        }
+    }
 
     player->dest_x = -1;
     player->dest_z = -1;
