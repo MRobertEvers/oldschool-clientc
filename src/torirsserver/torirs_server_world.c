@@ -12219,6 +12219,14 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
      * this the floor becomes 0/0 and the first damage event is a death. */
     player->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
     ToriRSServer_CombatSyncHitpoints(player);
+    /* Gate D / dungeon selftests: TORIRSSERVER_GOD=1 keeps a level-3 fixture
+     * alive. `::god 1` is the same flag; this just applies it at login. */
+    {
+        const char* god = getenv("TORIRSSERVER_GOD");
+
+        if( god && god[0] == '1' )
+            player->godmode = 1;
+    }
 
     player->dest_x = -1;
     player->dest_z = -1;

@@ -84,7 +84,7 @@
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | unaudited | |  |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
-| 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | unaudited | |  |
+| 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | fixed | 2026-09-09 | gp-mine-c1 re-audit: Crafting 35 moved from start to crystalcorner (wiki/dbrow); valve first unlock is OPLOCU key-on-valve and retains the key; collect-room ladder returns to L3 north (QH 2774,4540) and L3 NE ladder (2732,4529) is the lift descent; Treus huntmode=none/retaliate=no; named `[debugproc,hauntedmine_skipboss]`; C stanza `quest_hauntedmine_selftest.u.h` drives real OPNPC/OPLOC/OPHELD/OPLOCU. Leftovers: full Treus fade/crane fidelity, points-panel UI, salve combat multiplier, Tarn/NMZ/diary consumers |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | unaudited | |  |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | unaudited | |  |

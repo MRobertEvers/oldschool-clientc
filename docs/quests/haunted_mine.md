@@ -1,16 +1,12 @@
 # Haunted Mine modernization audit
 
-Status: `audit-pending` — an ideal-path player can force the local route from
-the Zealot to the completion scroll, but the result is not a valid Haunted
-Mine implementation. Crafting is checked at quest start instead of at the
-outcrop, the Zealot's key is optional and then wrongly consumed, the cart and
-valve systems collapse their native outcomes, Treus Dayth is a shared generic
-NPC without his encounter mechanics, and completion deletes the permanent
-crystal-mine key while granting no salve shard. Postquest shard cutting, the
-crystal shortcut, Tarn's Lair gating, the Morytania Diary task, Nightmare Zone
-Treus, Salve-amulet creation, and its normal-combat undead multiplier are
-absent or disconnected. Several inventory operations also report success when
-delivery failed, and completion is not replay-safe.
+Status: `fixed` (2026-09-09, gp-mine-c1) — critical path is playable through
+real OPNPC/OPLOC/OPLOCU: Zealot start (Priest only; Crafting 35 is the outcrop
+check), pickpocket, cart deposit/lever targets/send/collect, keyed valve that
+retains the Zealot's key, lift, Dayth skipboss, crystal-mine key pickup, and
+salve-shard completion that keeps the key. Remaining P1/P2: Treus fade/crane
+fidelity, native points-panel UI, salve combat multiplier, Tarn/NMZ/diary,
+dark-room damage. See §10 leftovers.
 
 Audited: 2026-08-17
 
