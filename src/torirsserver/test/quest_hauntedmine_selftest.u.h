@@ -474,14 +474,20 @@ selftest_quest_hauntedmine(
         }
 
         /* East stairs to Dayth (QH 2748,4437). */
+        SELFTEST_CHECK(hmq_inv_has(player, obj_fungus),
+                       "lift/stairs path should still be holding glowing_fungus");
         hmq_oploc1(srv, loc_stairs, 2748, 4437);
         hmq_finish_script(srv);
         {
+            int fails = g_selftest_failures;
             char line[96];
 
+            SELFTEST_CHECK(player->x != 2748 || player->z != 4437,
+                           "dayth stairs should descend, still at %d,%d",
+                           player->x, player->z);
             snprintf(line, sizeof(line), "PASS hauntedmine stairs-dayth=%d,%d",
                      player->x, player->z);
-            hmq_pass(g_selftest_failures, line);
+            hmq_pass(fails, line);
         }
 
         ToriRSServer_WorldTeleport(srv, 0, 2788, 4455);
