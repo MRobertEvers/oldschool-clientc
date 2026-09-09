@@ -87,7 +87,7 @@
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-09 | claimed by cloud `gp-mine-c1`. Player unkillable unless a death case. |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | unaudited | |  |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
-| 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | in-progress | 2026-09-09 | claimed by cloud `gp-fenk-c1`. Player unkillable unless a death case. |
+| 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | in-progress | 2026-09-09 | claimed for cloud `gp-fenk-c1` — waiting on VM slot (async cloud-agent limit is 3). Player unkillable unless a death case. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | claimed by cloud `gp-ghost-c1`. Player unkillable unless a death case. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
