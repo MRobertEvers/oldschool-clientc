@@ -12220,6 +12220,24 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
     ToriRSServer_CombatSyncHitpoints(player);
 
+    /*
+     * Gate D capture / live-encounter measurement: TORIRSSERVER_GOD=1 keeps the
+     * player unkillable from the first login tick. `::god 1` is still required
+     * in TORIRS_NET_CHEAT (it tops hitpoints after [login] overwrites them).
+     * Unset / 0 / off / no / false leave godmode off.
+     */
+    {
+        const char* god = getenv("TORIRSSERVER_GOD");
+
+        if( god && god[0] != '\0' && strcmp(god, "0") != 0 && strcmp(god, "off") != 0 &&
+            strcmp(god, "no") != 0 && strcmp(god, "false") != 0 )
+        {
+            player->godmode = 1;
+            player->hitpoints = player->max_hitpoints;
+            ToriRSServer_CombatSyncHitpoints(player);
+        }
+    }
+
     player->dest_x = -1;
     player->dest_z = -1;
     player->waypoint_index = -1;
