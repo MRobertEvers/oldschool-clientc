@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_desertrescue_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -49767,6 +49768,14 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_ScriptsFree(srv);
         }
     }
+
+    /*
+     * The Tourist Trap Gate D walk. Placed immediately before a
+     * selftest_reset_world so spawned Irena / captain / gate transforms
+     * cannot re-aim later RNG checks.
+     */
+    selftest_quest_desertrescue(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: ::shilovillagerun\n");
     {
