@@ -118,6 +118,14 @@ or named BMP with plugins on — overlays are not content evidence. The
 C `--selftest` binary has no plugin host; still export `TORIRS_PLUGINS=0`
 so any client you spawn from the same shell stays clean.
 
+**Named Gate D BMPs live in the `OSRS-Content` submodule.** Parent-verify
+with `git -C OSRS-Content ls-tree -r --name-only <gitlink-sha> --
+osrs239-content/server/scripts/selftest/<quest_dir>` and unique MD5s.
+`git ls-tree` on the parent branch only shows the gitlink — it will
+report 0 `.bmp` files even when the content SHA has them. Commit the
+BMPs in OSRS-Content **and** push that SHA, then move the parent
+gitlink.
+
 **The player is unkillable unless the step is a death test.**
 A named BMP that shows Lumbridge after `Oh dear, you are dead!` is not
 quest evidence. Level-3 logins die to Karamja snakes, Harpies, Jogres,
