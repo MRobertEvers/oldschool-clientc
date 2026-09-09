@@ -84,8 +84,8 @@
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | unaudited | |  |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
-| 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-09 | claimed by cloud `gp-mine-c1`. Player unkillable unless a death case. |
-| 05 Jan 2005 | Troll Romance | `quest_troll_love` | unaudited | |  |
+| 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-09 | cloud `gp-mine-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/haunted-mine-re-audit-e724` (no `cache.osrs239` on the VM). Do not double-claim. Gate D still open. |
+| 05 Jan 2005 | Troll Romance | `quest_troll_love` | in-progress | 2026-09-09 | claimed by cloud `gp-troll-c1`. Player unkillable unless a death case. Gate D needs named BMPs; a C-only close is a failed close. |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | in-progress | 2026-09-09 | claimed for cloud `gp-fenk-c1` — waiting on VM slot (async cloud-agent limit is 3). Player unkillable unless a death case. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
