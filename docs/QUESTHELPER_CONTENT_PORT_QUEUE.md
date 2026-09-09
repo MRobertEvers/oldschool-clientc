@@ -371,7 +371,7 @@ filed under `helpers/miniquests/` are at the end.
 | 96 | thelosttribe | `thelosttribe` | 532 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_losttribe` — see IN-LC table |
 | 97 | demonslayer | `demonslayer` | 540 | done (LC) | re-audit 2026-08-10: `quest_demon` (`delrith.rs2`; dbrow `quest_demonslayer` journal wired) |
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
-| 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | Nov 2004 — Miscellania regency, courting Brand/Astrid, Etceteria diplomacy; native varp `misc_quest` (0/10..90->100) + native varbit schema on basevar `misc_varbit_1..4` (`misc_affection`, `misc_approval`, `misc_acceptedtorule`, `misc_partner_multivar`, `misc_s1_d1..d3`/`misc_s2_d1..d3`/`misc_s3_d1..d3`/`misc_s1_give`/`misc_s2_give`/`misc_s1_emote`/`misc_s3_emote`) reused as-is, matching Quest Helper's own VarbitID names exactly; see Log |
+| 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | Nov 2004 — Miscellania regency, courting Brand/Astrid, Etceteria diplomacy; native varp `misc_quest` (0/10..90->100) + native varbit schema on basevar `misc_varbit_1..4` (`misc_affection`, `misc_approval`, `misc_acceptedtorule`, `misc_partner_multivar`, `misc_s1_d1..d3`/`misc_s2_d1..d3`/`misc_s3_d1..d3`/`misc_s1_give`/`misc_s2_give`/`misc_s1_emote`/`misc_s3_emote`) reused as-is, matching Quest Helper's own VarbitID names exactly; 2026-09-09 Gate D C walk (`quest_misc_selftest.u.h`) via real opnpc1/opnpcu/opheldu; finish now writes `%misc_quest=100` so Royal Trouble cannot steal Ghrim/Vargas at state 90. Leftovers (not verified-modern): condensed courtship, narrated 75% kingdom-work, narrated dance/kiss emotes, Heroes'/Fremennik Trials prereqs still soft-skipped. See Log |
 | 100 | thefeud | `thefeud` | 550 | done | npcs=feudalim,feudalim,shantay (helper spellings don't resolve -- cache wins, see Log) |
 | 101 | thegolem | `thegolem` | 551 | done (LC) | re-audit 2026-08-10: `quest_golem` (`golem.rs2`; dbrow `quest_golem` journal wired) |
 | 102 | theredreef | `theredreef` | 559 | done |  |
@@ -7014,3 +7014,15 @@ filed under `helpers/miniquests/` are at the end.
     every quest this queue touches against the wiki regardless of era or
     lane, and close the gaps found rather than just cataloguing them — is
     satisfied.
+
+- 2026-09-09 **#99 Throne of Miscellania** Gate D C walk (`cursor/throne-of-miscellania-ef78`):
+  existing `quest_misc` port audited in place (no duplicate triggers). Critical
+  path is real `opnpc1`/`opnpcu`/`opheldu` (Ghrim, Vargas offer + Brand court
+  + Sigrid/anthem/treaty, Derrik nib, nib-on-logs pen, Vargas sign + Ghrim
+  support + Vargas crown). Bugfix: `~quest_complete_rewards` never wrote
+  `%misc_quest=100`, and `~royaltrouble_relevant` treated 90 as "ToM done", so
+  Ghrim/Vargas were stolen before the 75% support / crowning talks. Finish
+  queue now writes `^misc_complete`; ToM unfinished states win those three
+  shared triggers; RT gate is `%misc_quest >= ^misc_complete`. Leftovers
+  listed on the row — not `verified-modern`. Named BMPs under
+  `server/scripts/selftest/quest_misc/` when the osrs239 cache is present.
