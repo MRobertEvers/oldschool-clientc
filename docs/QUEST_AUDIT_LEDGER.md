@@ -65,7 +65,7 @@
 | 14 Apr 2003 | The Tourist Trap | `quest_desertrescue` | unaudited | |  |
 | 07 May 2003 | Watchtower | `quest_itwatchtower` | unaudited | |  |
 | 27 May 2003 | Dwarf Cannon | `quest_mcannon` | unaudited | |  |
-| 09 Jun 2003 | Murder Mystery | `quest_murder` | unaudited | |  |
+| 09 Jun 2003 | Murder Mystery | `quest_murder` | in-progress | 2026-09-09 | claimed by cloud `gp-murder-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close is a failed close. |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |

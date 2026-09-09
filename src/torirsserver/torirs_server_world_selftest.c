@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_murder_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -49544,6 +49545,14 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsFree(srv);
         }
     }
+
+    /*
+     * Murder Mystery Gate D. Real opnpc/oploc/opheld on the critical path and
+     * the named BMP captures. Placed immediately before a selftest_reset_world
+     * so spawned mansion npcs cannot leak into later RNG-gated checks.
+     */
+    selftest_quest_murder(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: ::junglepotionrun\n");
     {
