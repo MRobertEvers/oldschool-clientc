@@ -5,12 +5,14 @@ offer and five-herb dialogue, all five gathering locs, generic cleaning data,
 Pothole Dungeon travel, dynamic journal, completion scroll, cheat arm, POH
 status adapter, and downstream prerequisite checks exist. The route is
 organically completable, but it is not modern or current-OSRS faithful: snake
-weed always succeeds instead of using its Herblore-scaled harvest roll, the
-rogue's-purse wall never depletes, post-quest herb sales always pay one coin
-instead of 1–4, hand-ins and completion write state before settlement, and the
-shared Trufitus owner omits the Shilo Village branches that use the same NPC.
+weed always succeeds instead of using its Herblore-scaled harvest roll,
+post-quest herb sales always pay one coin instead of 1–4, hand-ins and
+completion write state before settlement, and the shared Trufitus owner omits
+the Shilo Village branches that use the same NPC. The rogue's-purse wall now
+`loc_change`s to `rogues_purse_cave_empty`. Gate D alive-recapture 2026-09-09
+is attached in §14; leftovers remain, so this is not `verified-modern`.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; Gate D recapture 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies Gates A–D to the native state, Trufitus dialogue ownership,
@@ -473,3 +475,53 @@ Jungle Potion may move to `verified-modern` only when:
   simplification.
 
 This audit intentionally makes no gameplay changes.
+
+## 14. Gate D evidence (2026-09-09)
+
+Worker `gp-jungle-c1` recaptured every named BMP with the player alive
+(`god 1` / `TORIRSSERVER_GOD=1` / `player->godmode = 1`; `TORIRS_PLUGINS=0`;
+`SDL_VIDEODRIVER=dummy`). Dedicated C stanza
+`src/torirsserver/test/quest_junglepotion_selftest.u.h` ran immediately before
+`selftest_reset_world`. `TORIRSSERVER_SELFTEST_JUNGLEPOTION_ONLY=1` printed
+`ToriRSServer junglepotion selftest: 40 checks, 0 failures`.
+
+PASS lines: `opnpc1_trufitus_offer`, `oploc2_snake_vine_gated`,
+`oploc2_snake_vine`, `opheld1_clean_snake_weed`, `opnpcu_decline_dirty_snake`,
+`opnpcu_handin_snake_weed`, `oploc2_ardrigal_palm`, `opheld1_clean_ardrigal`,
+`opnpcu_handin_ardrigal`, `oploc2_sito_foil`, `opnpcu_handin_sito_foil`,
+`oploc2_volencia_moss`, `opnpcu_handin_volencia_moss`, `oploc2_enter_pothole`
+(2830,9520 / `0_44_148_14_48`), `oploc2_rogues_purse` (2831,9500),
+`opheld1_clean_rogues_purse`, `oploc1_climb_pothole`,
+`opnpcu_handin_rogues_purse`, `opnpc1_complete`, `opnpc1_postquest`.
+
+Mutation: `snake_vine_full` gate `<` → `<=` produced
+`FAIL searching the vine at get_snake_weed should grant unidentified_snake_weed, got count=0`
+and `FAIL picking should advance to found_snake_weed, got 1` (40 checks, 2
+failures). Restored `<` → 40/0.
+
+Named BMPs (unique MD5s) live at
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_junglepotion/`:
+
+| File | MD5 |
+| --- | --- |
+| `01_talk_trufitus.bmp` | `f8dd1229283b95ce6676b39a1d46d01e` |
+| `02_search_snake_vine.bmp` | `6d9c40ab2aa81a0dcebe503515b4ea6b` |
+| `03_clean_snake_weed.bmp` | `111b856dfede8cee5508cc37e310e8a3` |
+| `04_ardrigal_palm.bmp` | `9e719b70c0e880aaab8d4d31f4c1da52` |
+| `05_search_sito_foil.bmp` | `bdc965f44561a162817cd7f32e4c3347` |
+| `06_search_volencia_moss.bmp` | `7eeca4d51809384bd9bf6f3835e6f2e1` |
+| `07_enter_pothole.bmp` | `c970a1e3351ec6108fcfd7ccc4aad972` |
+| `08_rogues_purse.bmp` | `d8265d46090e054dc2013514dae749ed` |
+| `09_climb_out.bmp` | `f6d564ba5c51fe60f5005a734a355184` |
+| `10_handin_complete.bmp` | `68e063d6a63f2e4a9923c23e072c7ba8` |
+
+`04` is the NE peninsula with a green HP bar (not Lumbridge / "Oh dear").
+`08` is the cave wall at `0_44_148_15_28` with mesbox "You find a herb"
+(not the QH void `0_44_147_8_54`). `03` is real `OPHELD1` on grimy snake
+weed 1525.
+
+Leftovers: snake Herblore harvest always-succeed; post-quest sale always 1
+coin; no explicit Yes/No start confirm; Shilo Trufitus arms are
+`quest_zombiequeen`; `P_OPHELD` unimplemented (captures use C `::heldop`);
+sito-foil camera clips a hut interior while the mesbox still reads "You find
+a herb." `python3 tools/questhelper_extract.py junglepotion --check` exits 0.
