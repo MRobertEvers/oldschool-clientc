@@ -3221,6 +3221,25 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    /*
+     * Dwarf Cannon Gate D. The dedicated stanza also runs at the end of the
+     * full suite, immediately before selftest_reset_world. This gate exists
+     * for the same reason as TD_ONLY: without cache.osrs239 an earlier
+     * collision stanza SIGSEGVs and the walk never runs.
+     *
+     *   TORIRSSERVER_SELFTEST_MCANNON_ONLY=1 ./src/build_opt/torirsserver --selftest
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_MCANNON_ONLY") )
+    {
+        fprintf(stderr, "ToriRSServer selftest: ::mcannonrun\n");
+        selftest_quest_mcannon(srv, player);
+        selftest_reset_world(srv, player, 402, 402);
+        fprintf(stderr, "ToriRSServer Dwarf Cannon selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("mcannon");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
