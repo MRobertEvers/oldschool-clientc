@@ -89,7 +89,7 @@
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | in-progress | 2026-09-09 | claimed for cloud `gp-fenk-c1` — waiting on VM slot (async cloud-agent limit is 3). Player unkillable unless a death case. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
-| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | claimed by cloud `gp-ghost-c1`. Player unkillable unless a death case. |
+| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
