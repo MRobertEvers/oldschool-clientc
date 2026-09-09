@@ -80,11 +80,12 @@ hmq_ensure_native_varbits(void)
     for( i = 0; i < (int)(sizeof(bits) / sizeof(bits[0])); i++ )
     {
         int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, bits[i].name);
-        int defined;
 
         assert(id >= 0);
-        defined = ToriRSServer_VarbitDefine(id, base, bits[i].startbit, bits[i].startbit);
-        assert(defined == base);
+        SELFTEST_CHECK(
+            ToriRSServer_VarbitDefine(id, base, bits[i].startbit, bits[i].startbit) == base,
+            "hauntedmine varbit %s should pack into hauntedmine_bits",
+            bits[i].name);
     }
 }
 
