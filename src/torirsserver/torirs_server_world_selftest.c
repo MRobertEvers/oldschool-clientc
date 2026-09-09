@@ -3221,6 +3221,17 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_HAUNTEDMINE_ONLY") )
+    {
+        player->godmode = 1;
+        selftest_quest_hauntedmine(srv, player);
+        selftest_reset_world(srv, player, 402, 402);
+        fprintf(stderr, "ToriRSServer hauntedmine selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("hauntedmine");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and

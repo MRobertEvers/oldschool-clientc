@@ -47,6 +47,57 @@ hmq_finish_script(struct ToriRSServer* srv)
         ToriRSServer_WorldCloseModal(srv);
 }
 
+/* configs/all.varbit export for basevar hauntedmine_bits. Same numbers the
+ * cache would have loaded; installed only so POP_VARBIT can pack them when
+ * this VM has no cache.osrs239. */
+static void
+hmq_ensure_native_varbits(void)
+{
+    static const struct
+    {
+        const char* name;
+        int startbit;
+    } bits[] = {
+        { "hauntedmine_pointspuzzlestarted", 0 },
+        { "hauntedmine_lever_b", 1 },
+        { "hauntedmine_lever_a", 2 },
+        { "hauntedmine_lever_c", 3 },
+        { "hauntedmine_lever_d", 4 },
+        { "hauntedmine_lever_e", 5 },
+        { "hauntedmine_lever_i", 6 },
+        { "hauntedmine_lever_j", 7 },
+        { "hauntedmine_lever_k", 8 },
+        { "hauntedmine_liftpoweredonce", 9 },
+        { "hauntedmine_liftpowerednow", 10 },
+        { "hauntedmine_begincart_fungus", 11 },
+        { "hauntedmine_endcart_fungus", 12 },
+        { "hauntedmine_heardaboutkey", 21 },
+    };
+    int base = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hauntedmine_bits");
+    int i;
+
+    assert(base >= 0);
+    for( i = 0; i < (int)(sizeof(bits) / sizeof(bits[0])); i++ )
+    {
+        int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, bits[i].name);
+        int defined;
+
+        assert(id >= 0);
+        defined = ToriRSServer_VarbitDefine(id, base, bits[i].startbit, bits[i].startbit);
+        assert(defined == base);
+    }
+}
+
+static void
+hmq_pass(
+    int fails_before,
+    const char* line)
+{
+    assert(line);
+    if( g_selftest_failures == fails_before )
+        fprintf(stderr, "%s\n", line);
+}
+
 static int
 hmq_oploc1(
     struct ToriRSServer* srv,
@@ -85,8 +136,12 @@ selftest_quest_hauntedmine(
     }
 
     player->godmode = 1;
-    player->hitpoints = player->max_hitpoints > 0 ? player->max_hitpoints : 10;
+    player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 10;
+    player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 10;
+    player->max_hitpoints = 10;
+    player->hitpoints = 10;
     ToriRSServer_CombatSyncHitpoints(player);
+    hmq_ensure_native_varbits();
 
     {
         int varp_hm = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hauntedmine");
@@ -174,115 +229,187 @@ selftest_quest_hauntedmine(
         /* Priest incomplete: start must refuse. */
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_zealot, -1, zealot_slot);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(player->varps[varp_hm] == 0,
-                       "Zealot must refuse without Priest in Peril, got %d",
-                       player->varps[varp_hm]);
-        fprintf(stderr, "PASS hauntedmine start-refuse priest=0\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(player->varps[varp_hm] == 0,
+                           "Zealot must refuse without Priest in Peril, got %d",
+                           player->varps[varp_hm]);
+            hmq_pass(fails, "PASS hauntedmine start-refuse priest=0");
+        }
 
         /* Crafting 1 + Priest complete: start must accept. Mutation target. */
         player->varps[varp_priest] = 60; /* ^priestperil_complete */
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_zealot, -1, zealot_slot);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(player->varps[varp_hm] == 1,
-                       "OPNPC1 zealot with Priest complete and Crafting 1 must start, got %d",
-                       player->varps[varp_hm]);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_heard) == 1,
-                       "start conversation should disclose the key (heardaboutkey=1)");
-        SELFTEST_CHECK(player->stat_boosted[stat_craft] == 1,
-                       "start must not require Crafting 35, boosted=%d",
-                       player->stat_boosted[stat_craft]);
-        fprintf(stderr, "PASS hauntedmine start zealot=1 crafting=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(player->varps[varp_hm] == 1,
+                           "OPNPC1 zealot with Priest complete and Crafting 1 must start, got %d",
+                           player->varps[varp_hm]);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_heard) == 1,
+                           "start conversation should disclose the key (heardaboutkey=1)");
+            SELFTEST_CHECK(player->stat_boosted[stat_craft] == 1,
+                           "start must not require Crafting 35, boosted=%d",
+                           player->stat_boosted[stat_craft]);
+            hmq_pass(fails, "PASS hauntedmine start zealot=1 crafting=1");
+        }
 
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC3, npc_zealot, -1, zealot_slot);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(hmq_inv_has(player, obj_liftkey),
-                       "OPNPC3 pickpocket must deliver hauntedmine_lift_key");
-        fprintf(stderr, "PASS hauntedmine pickpocket key=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(hmq_inv_has(player, obj_liftkey),
+                           "OPNPC3 pickpocket must deliver hauntedmine_lift_key");
+            hmq_pass(fails, "PASS hauntedmine pickpocket key=1");
+        }
 
         ran = hmq_oploc1(srv, loc_south, 3429, 3225);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(ran == TORIRSSERVER_TRIGGER_RAN,
-                       "OPLOC1 hauntedmine_back_entrance2 should run");
-        SELFTEST_CHECK(player->x != 3429 || player->z != 3225,
-                       "south cart tunnel should move the player, still at %d,%d",
-                       player->x, player->z);
-        fprintf(stderr, "PASS hauntedmine enter south=%d,%d\n", player->x, player->z);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(ran == TORIRSSERVER_TRIGGER_RAN,
+                           "OPLOC1 hauntedmine_back_entrance2 should run");
+            SELFTEST_CHECK(player->x != 3429 || player->z != 3225,
+                           "south cart tunnel should move the player, still at %d,%d",
+                           player->x, player->z);
+            snprintf(line, sizeof(line), "PASS hauntedmine enter south=%d,%d",
+                     player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         hmq_oploc1(srv, loc_l1, 3422, 9625);
         hmq_finish_script(srv);
-        fprintf(stderr, "PASS hauntedmine ladder l1=%d,%d\n", player->x, player->z);
+        {
+            char line[96];
+
+            snprintf(line, sizeof(line), "PASS hauntedmine ladder l1=%d,%d",
+                     player->x, player->z);
+            hmq_pass(g_selftest_failures, line);
+        }
 
         hmq_oploc1(srv, loc_l2, 2798, 4567);
         hmq_finish_script(srv);
-        fprintf(stderr, "PASS hauntedmine ladder l2=%d,%d\n", player->x, player->z);
+        {
+            char line[96];
+
+            snprintf(line, sizeof(line), "PASS hauntedmine ladder l2=%d,%d",
+                     player->x, player->z);
+            hmq_pass(g_selftest_failures, line);
+        }
 
         hmq_oploc1(srv, loc_l3, 2725, 4486);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(player->x >= 2757 && player->z >= 4483,
-                       "L3 south ladder should reach the cart room, at %d,%d",
-                       player->x, player->z);
-        fprintf(stderr, "PASS hauntedmine cartroom=%d,%d\n", player->x, player->z);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(player->x >= 2757 && player->z >= 4483,
+                           "L3 south ladder should reach the cart room, at %d,%d",
+                           player->x, player->z);
+            snprintf(line, sizeof(line), "PASS hauntedmine cartroom=%d,%d",
+                     player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         hmq_oploc1(srv, loc_fungus, 2793, 4493);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(hmq_inv_has(player, obj_fungus),
-                       "OPLOC1 glowing_mushroom2 should grant glowing_fungus");
-        fprintf(stderr, "PASS hauntedmine pick fungus=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(hmq_inv_has(player, obj_fungus),
+                           "OPLOC1 glowing_mushroom2 should grant glowing_fungus");
+            hmq_pass(fails, "PASS hauntedmine pick fungus=1");
+        }
 
         hmq_oploc1(srv, loc_cart, 2778, 4506);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_begin) == 1,
-                       "deposit cart should set begincart_fungus");
-        SELFTEST_CHECK(!hmq_inv_has(player, obj_fungus),
-                       "deposit should consume the held fungus");
-        fprintf(stderr, "PASS hauntedmine cart deposit=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_begin) == 1,
+                           "deposit cart should set begincart_fungus");
+            SELFTEST_CHECK(!hmq_inv_has(player, obj_fungus),
+                           "deposit should consume the held fungus");
+            hmq_pass(fails, "PASS hauntedmine cart deposit=1");
+        }
 
         /* Targets: a/b/e/i = 1. Levers start at 0. */
         hmq_oploc1(srv, loc_lever1, 2785, 4517);
         hmq_oploc1(srv, loc_lever2, 2784, 4517);
         hmq_oploc1(srv, loc_lever5, 2785, 4515);
         hmq_oploc1(srv, loc_lever6, 2768, 4533);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_b) == 1 &&
-                           ToriRSServer_VarbitGet(player, vb_a) == 1 &&
-                           ToriRSServer_VarbitGet(player, vb_e) == 1 &&
-                           ToriRSServer_VarbitGet(player, vb_i) == 1,
-                       "QH lever targets a/b/e/i should be 1 after the four pulls");
-        fprintf(stderr, "PASS hauntedmine levers a=1 b=1 e=1 i=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_b) == 1 &&
+                               ToriRSServer_VarbitGet(player, vb_a) == 1 &&
+                               ToriRSServer_VarbitGet(player, vb_e) == 1 &&
+                               ToriRSServer_VarbitGet(player, vb_i) == 1,
+                           "QH lever targets a/b/e/i should be 1 after the four pulls");
+            hmq_pass(fails, "PASS hauntedmine levers a=1 b=1 e=1 i=1");
+        }
 
         hmq_oploc1(srv, loc_panel, 2770, 4522);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_end) == 1,
-                       "correct points start should set endcart_fungus");
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_begin) == 0,
-                       "successful send should clear begincart_fungus");
-        fprintf(stderr, "PASS hauntedmine cart send end=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_end) == 1,
+                           "correct points start should set endcart_fungus");
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_begin) == 0,
+                           "successful send should clear begincart_fungus");
+            hmq_pass(fails, "PASS hauntedmine cart send end=1");
+        }
 
         /* Collect room: QH cart at 2774,4537. Then climb back to L3 north. */
         ToriRSServer_WorldTeleport(srv, 0, 2774, 4537);
         selftest_tick(srv);
         hmq_oploc1(srv, loc_cart, 2774, 4537);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(hmq_inv_has(player, obj_fungus),
-                       "OPLOC1 collect cart should return glowing_fungus");
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_end) == 0,
-                       "collect should clear endcart_fungus");
-        fprintf(stderr, "PASS hauntedmine cart collect=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(hmq_inv_has(player, obj_fungus),
+                           "OPLOC1 collect cart should return glowing_fungus");
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_end) == 0,
+                           "collect should clear endcart_fungus");
+            hmq_pass(fails, "PASS hauntedmine cart collect=1");
+        }
 
         hmq_oploc1(srv, loc_up, 2774, 4540);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(!(player->x >= 2794 && player->x <= 2812 &&
-                         player->z >= 4489 && player->z <= 4532),
-                       "collect-room ladder must NOT skip to the lift, at %d,%d",
-                       player->x, player->z);
-        fprintf(stderr, "PASS hauntedmine collect-up=%d,%d\n", player->x, player->z);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(!(player->x >= 2794 && player->x <= 2812 &&
+                             player->z >= 4489 && player->z <= 4532),
+                           "collect-room ladder must NOT skip to the lift, at %d,%d",
+                           player->x, player->z);
+            snprintf(line, sizeof(line), "PASS hauntedmine collect-up=%d,%d",
+                     player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         /* L3 north-east ladder is the lift descent (QH 2732,4529). */
         hmq_oploc1(srv, loc_l3, 2732, 4529);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(player->x >= 2794 && player->z >= 4489,
-                       "L3 NE ladder should reach the lift room, at %d,%d",
-                       player->x, player->z);
-        fprintf(stderr, "PASS hauntedmine liftroom=%d,%d\n", player->x, player->z);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(player->x >= 2794 && player->z >= 4489,
+                           "L3 NE ladder should reach the lift room, at %d,%d",
+                           player->x, player->z);
+            snprintf(line, sizeof(line), "PASS hauntedmine liftroom=%d,%d",
+                     player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         if( loc_crate >= 0 )
         {
@@ -301,11 +428,15 @@ selftest_quest_hauntedmine(
                 inv_set(player, saved_key_slot, -1, 0);
             hmq_oploc1(srv, loc_valve, 2808, 4496);
             hmq_finish_script(srv);
-            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 0,
-                           "valve without the Zealot's key must stay closed");
+            {
+                int fails = g_selftest_failures;
+
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 0,
+                               "valve without the Zealot's key must stay closed");
+                hmq_pass(fails, "PASS hauntedmine valve-refuse key=0");
+            }
             if( saved_key_slot >= 0 )
                 inv_set(player, saved_key_slot, saved_key, 1);
-            fprintf(stderr, "PASS hauntedmine valve-refuse key=0\n");
         }
 
         /* Wiki / QH: use the key on the valve. Key is retained. */
@@ -316,34 +447,55 @@ selftest_quest_hauntedmine(
         player->last_useslot = selftest_find(player, obj_liftkey);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_valve, -1, loc_slot);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 1,
-                       "OPLOCU key-on-valve should open current flow");
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_once) == 1,
-                       "first unlock should write liftpoweredonce");
-        SELFTEST_CHECK(hmq_inv_has(player, obj_liftkey),
-                       "valve must retain the Zealot's key");
-        fprintf(stderr, "PASS hauntedmine valve now=1 key-retained=1\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 1,
+                           "OPLOCU key-on-valve should open current flow");
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_once) == 1,
+                           "first unlock should write liftpoweredonce");
+            SELFTEST_CHECK(hmq_inv_has(player, obj_liftkey),
+                           "valve must retain the Zealot's key");
+            hmq_pass(fails, "PASS hauntedmine valve now=1 key-retained=1");
+        }
 
         hmq_oploc1(srv, loc_lift, 2807, 4492);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 0,
-                       "taking the lift should spend current power");
-        fprintf(stderr, "PASS hauntedmine lift flooded=%d,%d\n", player->x, player->z);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_now) == 0,
+                           "taking the lift should spend current power");
+            snprintf(line, sizeof(line), "PASS hauntedmine lift flooded=%d,%d",
+                     player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         /* East stairs to Dayth (QH 2748,4437). */
         hmq_oploc1(srv, loc_stairs, 2748, 4437);
         hmq_finish_script(srv);
-        fprintf(stderr, "PASS hauntedmine stairs-dayth=%d,%d\n", player->x, player->z);
+        {
+            char line[96];
+
+            snprintf(line, sizeof(line), "PASS hauntedmine stairs-dayth=%d,%d",
+                     player->x, player->z);
+            hmq_pass(g_selftest_failures, line);
+        }
 
         ToriRSServer_WorldTeleport(srv, 0, 2788, 4455);
         selftest_tick(srv);
         ran = ToriRSServer_ScriptsRunDebugproc(srv, "hauntedmine_skipboss");
-        SELFTEST_CHECK(ran == TORIRSSERVER_TRIGGER_RAN,
-                       "hauntedmine_skipboss should bind");
-        SELFTEST_CHECK(player->varps[varp_hm] == 9,
-                       "skipboss should write dayth-killed state 9, got %d",
-                       player->varps[varp_hm]);
-        fprintf(stderr, "PASS hauntedmine boss=treus_dayth CHEAT-SKIP\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(ran == TORIRSSERVER_TRIGGER_RAN,
+                           "hauntedmine_skipboss should bind");
+            SELFTEST_CHECK(player->varps[varp_hm] == 9,
+                           "skipboss should write dayth-killed state 9, got %d",
+                           player->varps[varp_hm]);
+            hmq_pass(fails, "PASS hauntedmine boss=treus_dayth CHEAT-SKIP");
+        }
 
         key_slot = ToriRSServer_WorldNpcSpawn(srv, npc_key, 2788, 4455, 0);
         SELFTEST_CHECK(key_slot >= 0, "hauntedmine_boss_key should spawn for pickup");
@@ -359,24 +511,40 @@ selftest_quest_hauntedmine(
             ToriRSServer_WorldNpcFree(srv, key_slot);
             ToriRSServer_WorldNpcReap(srv);
         }
-        fprintf(stderr, "PASS hauntedmine crystal-key=1 state=10\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(hmq_inv_has(player, obj_reward) && player->varps[varp_hm] == 10,
+                           "crystal-mine key + state 10 after OPNPC1 pickup");
+            hmq_pass(fails, "PASS hauntedmine crystal-key=1 state=10");
+        }
 
         /* West stairs to crystals (QH 2694,4437). */
         if( !hmq_inv_has(player, obj_fungus) )
             inv_set(player, 11, obj_fungus, 1);
         hmq_oploc1(srv, loc_stairs, 2694, 4437);
         hmq_finish_script(srv);
-        fprintf(stderr, "PASS hauntedmine stairs-crystal=%d,%d\n", player->x, player->z);
+        {
+            char line[96];
+
+            snprintf(line, sizeof(line), "PASS hauntedmine stairs-crystal=%d,%d",
+                     player->x, player->z);
+            hmq_pass(g_selftest_failures, line);
+        }
 
         /* Crafting 34 must refuse the cut. */
         player->stat_level[stat_craft] = 34;
         player->stat_boosted[stat_craft] = 34;
         hmq_oploc1(srv, loc_crystal, 2787, 4428);
         hmq_finish_script(srv);
-        SELFTEST_CHECK(player->varps[varp_hm] == 10,
-                       "outcrop at Crafting 34 must not complete, got %d",
-                       player->varps[varp_hm]);
-        fprintf(stderr, "PASS hauntedmine cut-refuse crafting=34\n");
+        {
+            int fails = g_selftest_failures;
+
+            SELFTEST_CHECK(player->varps[varp_hm] == 10,
+                           "outcrop at Crafting 34 must not complete, got %d",
+                           player->varps[varp_hm]);
+            hmq_pass(fails, "PASS hauntedmine cut-refuse crafting=34");
+        }
 
         player->stat_level[stat_craft] = 35;
         player->stat_boosted[stat_craft] = 35;
@@ -392,31 +560,44 @@ selftest_quest_hauntedmine(
                 selftest_tick(srv);
             }
         }
-        SELFTEST_CHECK(player->varps[varp_hm] == 11,
-                       "OPLOC1 crystalcorner at Crafting 35 should complete, got %d",
-                       player->varps[varp_hm]);
-        SELFTEST_CHECK(hmq_inv_has(player, obj_shard),
-                       "completion must deliver a salve shard");
-        SELFTEST_CHECK(hmq_inv_has(player, obj_reward),
-                       "completion must retain the crystal-mine key");
-        SELFTEST_CHECK(player->stat_xp_tenths[stat_str] > xp_before,
-                       "completion should award Strength XP, %d -> %d",
-                       xp_before, player->stat_xp_tenths[stat_str]);
-        fprintf(stderr, "PASS hauntedmine complete state=11 shard=1 key=1 xp=%d\n",
-                player->stat_xp_tenths[stat_str] - xp_before);
+        {
+            int fails = g_selftest_failures;
+            char line[96];
 
-        SELFTEST_CHECK(!player->dying && player->hitpoints > 0,
-                       "player must stay alive, hp=%d dying=%d",
-                       player->hitpoints, player->dying);
-        SELFTEST_CHECK(!(player->x == 3222 && player->z == 3218) &&
-                           !(player->x == 3221 && player->z == 3218),
-                       "player must not have died to Lumbridge, at %d,%d hp=%d",
-                       player->x, player->z, player->hitpoints);
-        SELFTEST_CHECK(player->hitpoints >= hp_start || player->godmode,
-                       "godmode should keep hp from collapsing, %d -> %d god=%d",
-                       hp_start, player->hitpoints, player->godmode);
-        fprintf(stderr, "PASS hauntedmine alive hp=%d god=%d at %d,%d\n",
-                player->hitpoints, player->godmode, player->x, player->z);
+            SELFTEST_CHECK(player->varps[varp_hm] == 11,
+                           "OPLOC1 crystalcorner at Crafting 35 should complete, got %d",
+                           player->varps[varp_hm]);
+            SELFTEST_CHECK(hmq_inv_has(player, obj_shard),
+                           "completion must deliver a salve shard");
+            SELFTEST_CHECK(hmq_inv_has(player, obj_reward),
+                           "completion must retain the crystal-mine key");
+            SELFTEST_CHECK(player->stat_xp_tenths[stat_str] > xp_before,
+                           "completion should award Strength XP, %d -> %d",
+                           xp_before, player->stat_xp_tenths[stat_str]);
+            snprintf(line, sizeof(line),
+                     "PASS hauntedmine complete state=11 shard=1 key=1 xp=%d",
+                     player->stat_xp_tenths[stat_str] - xp_before);
+            hmq_pass(fails, line);
+        }
+
+        {
+            int fails = g_selftest_failures;
+            char line[96];
+
+            SELFTEST_CHECK(!player->dying && player->hitpoints > 0,
+                           "player must stay alive, hp=%d dying=%d",
+                           player->hitpoints, player->dying);
+            SELFTEST_CHECK(!(player->x == 3222 && player->z == 3218) &&
+                               !(player->x == 3221 && player->z == 3218),
+                           "player must not have died to Lumbridge, at %d,%d hp=%d",
+                           player->x, player->z, player->hitpoints);
+            SELFTEST_CHECK(player->hitpoints >= hp_start || player->godmode,
+                           "godmode should keep hp from collapsing, %d -> %d god=%d",
+                           hp_start, player->hitpoints, player->godmode);
+            snprintf(line, sizeof(line), "PASS hauntedmine alive hp=%d god=%d at %d,%d",
+                     player->hitpoints, player->godmode, player->x, player->z);
+            hmq_pass(fails, line);
+        }
 
         if( zealot_slot >= 0 )
         {

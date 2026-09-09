@@ -251,6 +251,50 @@ ToriRSServer_VarpClientCount(void)
     return g_client_varp_count;
 }
 
+int
+ToriRSServer_VarbitDefine(
+    int varbit_id,
+    int basevar,
+    int startbit,
+    int endbit)
+{
+    int i;
+
+    if( varbit_id < 0 || basevar < 0 || basevar >= TORIRSSERVER_VARP_COUNT )
+        return -1;
+    if( startbit < 0 || startbit > 31 || endbit < startbit || endbit > 31 )
+        return -1;
+
+    if( !g_varbits || varbit_id >= g_varbit_count )
+    {
+        int new_count = varbit_id + 1;
+        struct VarbitRange* grown;
+
+        if( new_count < g_varbit_count )
+            new_count = g_varbit_count;
+        grown = realloc(g_varbits, (size_t)new_count * sizeof(*grown));
+        assert(grown);
+        for( i = g_varbit_count; i < new_count; i++ )
+            grown[i].basevar = -1;
+        g_varbits = grown;
+        g_varbit_count = new_count;
+    }
+    if( !g_carrier_bits )
+    {
+        g_carrier_count = TORIRSSERVER_VARP_COUNT;
+        g_carrier_bits = calloc((size_t)g_carrier_count, sizeof(*g_carrier_bits));
+        assert(g_carrier_bits);
+    }
+    if( g_varbits[varbit_id].basevar < 0 )
+        g_carrier_bits[basevar]++;
+    g_varbits[varbit_id].basevar = basevar;
+    g_varbits[varbit_id].startbit = (uint8_t)startbit;
+    g_varbits[varbit_id].endbit = (uint8_t)endbit;
+    if( basevar > g_max_basevar )
+        g_max_basevar = basevar;
+    return basevar;
+}
+
 void
 ToriRSServer_VarbitFree(void)
 {

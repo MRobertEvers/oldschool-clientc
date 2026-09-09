@@ -4457,6 +4457,20 @@ void
 ToriRSServer_VarbitFree(void);
 
 /**
+ * Install one varbit range when the cache table is absent.
+ *
+ * The start/end/base come from `configs/all.varbit` (the same export
+ * sscompile uses for carrier checking), not from a second authored table.
+ * Returns the base varp, or -1 when the arguments are unusable.
+ */
+int
+ToriRSServer_VarbitDefine(
+    int varbit_id,
+    int basevar,
+    int startbit,
+    int endbit);
+
+/**
  * Number of varp records the active client cache can address.  This is not the
  * highest varp used as a varbit carrier: a cache can contain server-side
  * carrier ids beyond the client's varp array.  Zero means no cache is loaded.
