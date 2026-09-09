@@ -3165,10 +3165,14 @@ filed under `helpers/miniquests/` are at the end.
   wiki RAW + QH steps.put only. Closed the start-time Crafting 35 gate (wiki:
   boostable at the crystal, `requirement_check_skills_on_start=0`), the
   key-optional / key-consuming valve, the collect-room ladder skip into the
-  lift, and Treus inheriting `huntmode=aggressive`. Added
+  lift, Treus inheriting `huntmode=aggressive`, and collect-room cart Search
+  being stolen by the oversized cart-room AABB. Added
   `[debugproc,hauntedmine_skipboss]` and C stanza
   `src/torirsserver/test/quest_hauntedmine_selftest.u.h` immediately before
-  `selftest_reset_world`. Status `audited-fixed`.
+  `selftest_reset_world`. Focused `TORIRSSERVER_SELFTEST_HAUNTEDMINE_ONLY=1`:
+  55 checks, 0 failures; mutation re-adding Crafting 35 at start fails
+  `OPNPC1 ... Crafting 1 must start`. Named BMPs leftover (no cache.osrs239).
+  Status `audited-fixed`.
 - slice #80 done: Mountain Daughter -- Mar 2005, Hamal's missing daughter
   Asleif, Mountain Camp/Rellekka diplomacy, White Pearl food source, Kendal
   the bearsuited "god"; re-verified genuinely pending first (no

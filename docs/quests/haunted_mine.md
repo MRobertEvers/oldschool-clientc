@@ -2,11 +2,15 @@
 
 Status: `fixed` (2026-09-09, gp-mine-c1) — critical path is playable through
 real OPNPC/OPLOC/OPLOCU: Zealot start (Priest only; Crafting 35 is the outcrop
-check), pickpocket, cart deposit/lever targets/send/collect, keyed valve that
+check), pickpocket, cart deposit/lever targets/send/collect (collect-room
+Search is tested before the oversized cart-room AABB), keyed valve that
 retains the Zealot's key, lift, Dayth skipboss, crystal-mine key pickup, and
-salve-shard completion that keeps the key. Remaining P1/P2: Treus fade/crane
-fidelity, native points-panel UI, salve combat multiplier, Tarn/NMZ/diary,
-dark-room damage. See §10 leftovers.
+salve-shard completion that keeps the key. C stanza
+`TORIRSSERVER_SELFTEST_HAUNTEDMINE_ONLY=1` is 55 checks / 0 failures; player
+alive god=1 at the outcrop. Named `TORIRS_EXIT_BMP` shots are leftover on
+this VM (no `cache.osrs239`). Remaining P1/P2: Treus fade/crane fidelity,
+native points-panel UI, salve combat multiplier, Tarn/NMZ/diary, dark-room
+damage, `crystaledging`/`largecrystals` shard loop. See §10 leftovers.
 
 Audited: 2026-08-17
 
