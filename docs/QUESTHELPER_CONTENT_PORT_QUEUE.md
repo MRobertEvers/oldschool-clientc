@@ -408,7 +408,7 @@ filed under `helpers/miniquests/` are at the end.
 | 133 | betweenarock | `betweenarock` | 716 | done | Mar 2005 -- Dondakan the Dwarf's cannon-through-the-rock scheme uncovers a sealed Arzinian realm; dwarven lore book + 3 torn pages, a golden cannonball, four schematic fragments, a golden helmet, and an Avatar guardian boss; see Log |
 | 134 | ratcatchers | `ratcatchers` | 737 | done | 2QP, Thieving 4500xp; native dbrow+varbit schema reused; see Log |
 | 135 | dreammentor | `dreammentor` | 745 | done | 2026-08-12: unblocked -- Lunar Diplomacy (#169) landed with genuinely functional Rellekka<->Lunar Isle boat transport; re-verified end to end, ported same tick. 2QP, Hitpoints 15000xp + Magic 10000xp; native dbrow+varbit schema (`dream_prog`/`dream_health`/`dream_armament`) reused; real prereqs Combat 85 + Lunar Diplomacy FINISHED + Eadgar's Ruse FINISHED all hard-gated; see Log |
-| 136 | watchtower | `watchtower` | 758 | in_progress | 2026-09-09 cloud `gp-watch-c1` Gate D re-audit. Prior done (LC) `quest_itwatchtower`. Player unkillable unless a death case. |
+| 136 | watchtower | `watchtower` | 758 | in_progress | 2026-09-09 cloud `gp-watch-c1` FAILED CLOSE: 0 named BMPs (no `cache.osrs239` on VM; suite never reaches `::watchtowerrun`). Do not stamp done / verified-modern. Do not double-claim. Prior done (LC) `quest_itwatchtower`; see Log |
 | 137 | shadowofthestorm | `shadowofthestorm` | 759 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_shadowstorm` (3 files, 509 lines, `shadowstorm_ritual.rs2` calls `~quest_complete(quest_shadowofthestorm)`; journal wired `interface_questjournal/scripts/quest_journal.rs2:707`) already implements it — found while auditing #111's neighbours, see Log |
 | 138 | landofthegoblins | `landofthegoblins` | 760 | done | 2QP, Agility/Fishing/Thieving/Herblore 8000xp each; native dbrow+varbit schema (`%lotg`) reused; see Log |
 | 139 | elementalworkshopii | `elementalworkshopii` | 770 | done | 1QP, Smithing/Crafting 7500xp each; native dbrow+20-field varbit schema (`%elemental_quest_2_main` + sub-fields) reused, real prerequisite EW1 FINISHED; see Log |
@@ -459,7 +459,20 @@ filed under `helpers/miniquests/` are at the end.
   still put `god 1` first in `TORIRS_NET_CHEAT`). Claimed Jungle Potion
   (`gp-jungle-c1`), Fenkenstrain (`gp-fenk-c1`), Haunted Mine
   (`gp-mine-c1`), Ghosts Ahoy (`gp-ghost-c1`). Watchtower claimed
-  `gp-watch-c1` (this row only).
+  `gp-watch-c1` (this row only) and **FAILED CLOSE**: 0 named BMPs,
+  no `cache.osrs239` (dat2 225304712 / crc32 `d5d59ebb`). `--selftest`
+  dies in collision/routing before the Watchtower stanza. Landed but
+  not closable: `%itwatchtower` now reaches `^itwatchtower_found_all_crystals`
+  (11) when the wizard is talked to with all four crystals after six
+  shaman kills; C critical-path selftest
+  `src/torirsserver/test/quest_itwatchtower_selftest.u.h` (include sits
+  immediately before a `selftest_reset_world`); BMP cheats
+  `watchtowerbmp_01_wizard`…`watchtowerbmp_12_lever`. Leftovers (do not
+  mark verified-modern): crystal-on-pillar (`watchtower_pillar_1..4`),
+  `tree_ropeswing` / `loc_2299` wall climb / `ogreguardgate` swing,
+  unused state 12, native shaman/rock varbits unused (authored bits on
+  `%itwatchtower_bits`). Gorad is `PASS watchtower boss=gorad CHEAT-SKIP`
+  when the C walk can run. Next worker needs this dump on disk.
 
 - **IN-LC audit pass 8 (2026-08-12):** audited the last 4 rows of the IN-LC
   table's original assignment, one quest at a time, synchronously (no nested
