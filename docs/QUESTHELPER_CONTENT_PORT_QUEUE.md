@@ -335,7 +335,7 @@ filed under `helpers/miniquests/` are at the end.
 | 60 | thecorsaircurse | `thecorsaircurse` | 376 | done |  |
 | 61 | belowicemountain | `belowicemountain` | 377 | done |  |
 | 62 | horrorfromthedeep | `horrorfromthedeep` | 380 | done (LC) | re-audit 2026-08-10: `quest_horror` (`horror_girlfriend.rs2`, `horror_diary.rs2`; dbrow `quest_horrorfromthedeep` journal wired) |
-| 63 | dwarfcannon | `dwarfcannon` | 386 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_mcannon`) |
+| 63 | dwarfcannon | `dwarfcannon` | 386 | in_progress | 2026-09-09 cloud `gp-cannon-c1` Gate D re-audit. Prior done (LC) IN-LC dup `quest_mcannon`. |
 | 64 | familycrest | `familycrest` | 386 | done (LC) | re-audit 2026-08-10: `quest_crest` (`crest_dimintheis.rs2`, `crest_caleb.rs2`; dbrow `quest_familycrest` journal wired) |
 | 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done (LC) | re-audit 2026-08-10: `quest_routequest` (dbrow `quest_insearchofthemyreque` journal wired) -- caveat added 2026-08-11 while porting #132 In Aid of the Myreque: `quest_routequest/` only has `configs/quest_routequest.{constant,varp}` + `scripts/routequest_journal.rs2`; grepping the whole `server/scripts` tree for `%routequest` finds only the journal reading it, nothing ever writes it, and Veliaf/Ivan/Polmafi's own hideout npcs have no scripted dialogue anywhere -- this quest is not actually playable end to end despite the `done (LC)` mark. Not re-scored here (out of scope for #132); #132 soft-skips it as a prerequisite instead, same convention as Cabin Fever's Priest in Peril / King's Ransom's One Small Favour. |
 | 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done |  |
@@ -459,6 +459,9 @@ filed under `helpers/miniquests/` are at the end.
   still put `god 1` first in `TORIRS_NET_CHEAT`). Claimed Jungle Potion
   (`gp-jungle-c1`), Fenkenstrain (`gp-fenk-c1`), Haunted Mine
   (`gp-mine-c1`), Ghosts Ahoy (`gp-ghost-c1`).
+
+- **Dwarf Cannon cloud `gp-cannon-c1` (2026-09-09):** claimed row #63
+  `dwarfcannon` / `quest_mcannon` for Gate D. Close this row only.
 
 - **IN-LC audit pass 8 (2026-08-12):** audited the last 4 rows of the IN-LC
   table's original assignment, one quest at a time, synchronously (no nested

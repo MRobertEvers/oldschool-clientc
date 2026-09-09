@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_mcannon_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -56882,6 +56883,13 @@ ToriRSServer_WorldSelftest(void)
             memset(who, 0, sizeof(*who));
         }
     }
+
+    /* Dwarf Cannon Gate D. Immediately before a selftest_reset_world so a
+     * spawning walk cannot re-aim later stanzas (there are none after the
+     * reset). */
+    fprintf(stderr, "ToriRSServer selftest: ::mcannonrun\n");
+    selftest_quest_mcannon(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to
