@@ -64,7 +64,7 @@
 | 17 Mar 2003 | Observatory Quest | `quest_itgronigen` | in-progress | 2026-08-20 | dir=quest_itgronigen; matched to Observatory Quest (Gronigen redirects to Observatory professor) |
 | 14 Apr 2003 | The Tourist Trap | `quest_desertrescue` | unaudited | |  |
 | 07 May 2003 | Watchtower | `quest_itwatchtower` | unaudited | |  |
-| 27 May 2003 | Dwarf Cannon | `quest_mcannon` | in-progress | 2026-09-09 | claimed by cloud `gp-cannon-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to OSRS-Content; a C-only close is a failed close. |
+| 27 May 2003 | Dwarf Cannon | `quest_mcannon` | in-progress | 2026-09-09 | cloud `gp-cannon-c1` FAILED CLOSE on `cursor/dwarf-cannon-gate-d-2638`: content SHA OSRS-Content@bb90fd681 writes Nulodion 9→10 (notes+mould) and Lawgof 10→11 (consume notes, keep mould, 7500 Crafting, `~quest_complete_rewards`). C `TORIRSSERVER_SELFTEST_MCANNON_ONLY=1` is 30 checks / 21 failures — Lawgof start + opheld toolkit/notes/mould PASS; railings/cannon/finale abort (`varbit 2240 is not in the cache`) because **no cache.osrs239** on the VM. **0 named BMPs**. Do not stamp `fixed` / QH `done`. Do not double-claim. Gate D still open. Leftovers: IF409 toolkit puzzle; railing hammer/4-way failure table; private Lollk; start-offer wording; transactional grants; Between a Rock... prereq soft-skip; cannonball timing / Morytania diary; post-quest Nulodion 750k set vs `cannon.rs2`. |
 | 09 Jun 2003 | Murder Mystery | `quest_murder` | unaudited | |  |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |

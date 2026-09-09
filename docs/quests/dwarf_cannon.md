@@ -1,15 +1,14 @@
 # Dwarf Cannon modernization audit
 
-Status: `audit-pending` — the local tree contains the native 0–11 quest
-ladder, six per-player railing transforms, the tower/cave route, a dynamic
-journal, current cache assets for the toolkit puzzle, Nulodion's six-line
-shop, and a cannonball recipe. It is not completable through normal play and
-its permanent reward is not implemented. Nulodion never advances state 9 to
-10; Lawgof awards XP and quest points from state 9 but writes state 10 instead
-of the cache end state 11. The railing and cannon repairs preserve old
-LostCity mechanics, Lollk is a shared global NPC, item grants and hand-ins are
-not transactional, and there is no player multicannon assembly, loading,
-firing, ownership, decay, pickup, or recovery system.
+Status: `in-progress` (Gate D FAILED CLOSE 2026-09-09, `gp-cannon-c1`) —
+the 9→10→11 finale hole is fixed in OSRS-Content@bb90fd681 (Nulodion
+grants notes+mould and writes 10; Lawgof finale is 10→11). Player
+multicannon lives in `cannon/scripts/cannon.rs2`. Gate D did not close:
+this VM has no `cache.osrs239`, so railing/cannon scripts abort on
+`POP_VARBIT` and there are **0 named BMPs**. Leftovers still stand: IF409
+toolkit puzzle, old railing failure table, shared Lollk, paraphrased
+start offer, transactional grants, Between a Rock... prereq soft-skip,
+cannonball timing / Morytania diary, post-quest Nulodion 750k fidelity.
 
 Audited: 2026-08-17
 
