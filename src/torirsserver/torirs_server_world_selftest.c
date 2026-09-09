@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/trollromance_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -35896,6 +35897,14 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /*
+     * Troll Romance. Immediately before the next selftest_reset_world so the
+     * spawned Ug/Aga/Tenzing/Dunstan/Arrg and any Arrg-arena ticks cannot
+     * re-aim later shop/RNG stanzas.
+     */
+    selftest_trollromance(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
