@@ -47,9 +47,29 @@ Endstate 45 is completion (not a QH `steps.put` key).
 - Piste descent is still a single `p_teleport` (no animated cutscene / second-slope crash).
 - Ice-troll cave walk and chill-zone drain are area content, not re-authored here.
 - QH cut-gem reward names are rejected in favour of the wiki uncut table.
+- Without `cache.osrs239`, `~quest_complete_rewards` aborts on `DB_GETFIELD` for `quest_trollromance` (db row 152). Gems/XP/varp 45 are written before that call; the completion scroll/QP need the cache db tables.
 
 ## Verification
 
-C stanza: `src/torirsserver/test/trollromance_selftest.u.h`, called immediately before `selftest_reset_world`. Player `godmode = 1`. Named `TORIRS_EXIT_BMP` captures belong under this quest's selftest dir only.
+C stanza: `src/torirsserver/test/trollromance_selftest.u.h`, included at file scope then called immediately before `selftest_reset_world`. Focused gate: `TORIRSSERVER_SELFTEST_TROLLROMANCE_ONLY=1`. Player `godmode = 1`. `TORIRS_PLUGINS=0`. Packed 30078 scripts.
 
-Mutation that must go red: delete the `%troll_love = ^troll_love_waxed_sled` write in `trollromance_wax_sled` — `step 22->25 wax via opheldu` fails.
+C PASS (48 checks, 0 failures, player alive):
+
+```
+ToriRSServer selftest: trollromance PASS step 0->5 Ug accept via opnpc1
+ToriRSServer selftest: trollromance PASS step 5->10 Aga via opnpc1
+ToriRSServer selftest: trollromance PASS step 10->15 Tenzing via opnpc1
+ToriRSServer selftest: trollromance PASS step 15->20 Dunstan request via opnpc1
+ToriRSServer selftest: trollromance PASS step 20->22 Dunstan sled via opnpc1
+ToriRSServer selftest: trollromance PASS step 22->25 wax via opheldu
+ToriRSServer selftest: trollromance PASS slide via oploc1 (state stays 25)
+ToriRSServer selftest: trollromance PASS step 25->30 flower via oploc2
+ToriRSServer selftest: trollromance PASS lost-flower replacement via oploc2
+ToriRSServer selftest: trollromance PASS step 30->35 Ug flower via opnpc1
+ToriRSServer selftest: trollromance PASS step 35->40 Arrg kill via opnpc1 + combat
+ToriRSServer selftest: trollromance PASS step 40->45 complete via opnpc1
+```
+
+Mutation: delete `%troll_love = ^troll_love_waxed_sled` in `trollromance_wax_sled` → `FAIL waxing the sled should set troll_love 25, got 22` (12 failures, cascade). Restored, re-PASS 48/0.
+
+Named BMPs: **0**. This VM has no `cache.osrs239` / `main_file_cache.dat2`. Gate D stays open. Do not stamp ledger/QH `fixed`.

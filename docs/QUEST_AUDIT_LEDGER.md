@@ -85,7 +85,7 @@
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | unaudited | |  |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | unaudited | |  |
-| 05 Jan 2005 | Troll Romance | `quest_troll_love` | in-progress | 2026-09-09 | gp-troll-c1 re-audit; Gate D open until named BMPs |
+| 05 Jan 2005 | Troll Romance | `quest_troll_love` | in-progress | 2026-09-09 | gp-troll-c1 C PASS 48/0 + wax mutation red; Gate D open (0 BMPs, no cache.osrs239) |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | unaudited | |  |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
