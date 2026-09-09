@@ -6,8 +6,11 @@ with `%creatureoffenkenstrain` written in lockstep. Sign Yes no longer hires;
 wrong interview Q1 returns before Q2; graves are coordinate-keyed; memorial
 enters the real cave tile; shed/canes/furnace/repair and a no-teleport tower
 door are live; pickpocket completion is guarded. Gate D is **open**: this VM
-has no `cache.osrs239`, so there are **0 named BMPs**. Do not stamp
-`verified-modern` / `fixed` until named unique-MD5 captures exist.
+has no `cache.osrs239` (selftest boots "no cache at cache.osrs239" and
+segfaults in collision/routing before the Fenkenstrain stanza), so there are
+**0 named BMPs** and **0 C PASS lines from a live run**. Do not stamp
+`verified-modern` / `fixed` until a cache-bearing host produces named
+unique-MD5 captures and the stanza's PASS lines.
 
 Audited: 2026-08-17
 
