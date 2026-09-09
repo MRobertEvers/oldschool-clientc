@@ -1,17 +1,15 @@
 # Ghosts Ahoy modernization audit
 
-Status: `audit-pending` — the native quest row, primary state, support fields,
-actors, scenery, quest items, journal dispatch, completion adapter, and admin
-adapter exist. The implementation is not completable through its intended
-route. Velorina never advances the main state after the first Necrovarus
-conversation; the Port Phasmatys barrier cannot be used to leave and its
-post-quest child has no handler; the shipwreck route has no working gangplank
-or rock jumps; a returning player can be stranded on Dragontooth Island; and
-the ectophial reward has no teleport, empty, refill, or recovery implementation.
-Several native states and support values have also been reinterpreted, so old
-saves require reconciliation before corrected handlers are exposed.
+Status: `partial` — Gate D critical-path re-audit 2026-09-09. The public
+`[opnpc1]` / `[oploc1]` / `[oploc4]` / `[opheld1]` / `[opheldu]` route from
+state 0 through 8 is C-proven (`quest_ghostsahoy_selftest.u.h`, 63/63,
+`TORIRSSERVER_SELFTEST_GHOSTSAHOY_ONLY=1`). Mutation: omitting Velorina's
+state-3 write turns `PASS ghostsahoy velorina_crone` red (got 2). Giant
+lobster is a named `CHEAT-SKIP`. Named `TORIRS_EXIT_BMP` frames were not
+captured on this VM (no pristine `cache.osrs239`; client GL3 TU does not
+build). Leftovers below are disclosed, not claimed modern.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; re-audited 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to every Ghosts Ahoy state, dialogue,
@@ -510,20 +508,24 @@ resolved multiloc/multinpc child, not only the cache shell named in source.
 
 ### P0 — progression, travel, reward, or state-integrity failures
 
-1. Velorina never writes state 2 to state 3, so the live main route cannot
-   progress after the first Necrovarus conversation.
-2. The prequest barrier cannot provide canonical exit and the state-8 resolved
-   barrier child is unhandled, breaking both route travel and the free-passage
-   reward.
-3. Gangplank and rock-jump interactions are inert, so the canonical map route
-   is absent even where the shortened local shortcut can fabricate progress.
-4. The captain refuses return after the book is obtained, which can strand a
-   player on Dragontooth Island.
-5. The ectophial reward has no Empty, teleport, refill, or loss-recovery
-   implementation, and full inventory can lose it permanently.
-6. Local main-state 4/5 and support-counter meanings conflict with native saves;
-   corrected scripts without migration would strand or duplicate existing
-   progress.
+1. **Fixed 2026-09-09.** Velorina's state-2 arm writes `^ahoy_told_of_crone`
+   (3). The mid-quest keep-trying arm is now `> 2 & < 7` so it cannot swallow
+   the return. Mutation-proven.
+2. **Fixed 2026-09-09.** Cache multi keeps `ahoy_town_barrier` on states 1–8
+   and 10; `ahoy_town_barrier_post_quest` is state 9 only (`op4=Pass`). Both
+   children are bound. Inbound pre-complete charges 2 ecto-tokens; exit is
+   free; both ways are free after state 7.
+3. Gangplank and rock-jump interactions remain collapsed; the C stanza
+   teleports onto the wreck tiles rather than walking the authored climb.
+4. **Fixed 2026-09-09.** After the Book of Haricanto is obtained, the captain
+   return is free and lands at `^ahoy_phas_dock_coord`.
+5. **Fixed 2026-09-09.** `[opheld1,ectophial]` (`ifop1=Empty`) teleports to
+   cache dest `0_57_55_11_0` (3659,3520), auto-refills, and denies wilderness
+   >20. Velorina replaces a lost phial after complete. Full-inventory drop
+   uses `obj_add_private`.
+6. Local main-state 4 (`cup_given`) / 5 (`gathering_items`) still diverge from
+   QH (`steps.put` 3 = tea, 4 = gather, 5 = bring amulet). Disclosed; tea is
+   not kept on native state 3 + `ahoy_subquest_nettletea`. No save migration.
 
 ### P1 — major mechanics, economy, recovery, and integration gaps
 

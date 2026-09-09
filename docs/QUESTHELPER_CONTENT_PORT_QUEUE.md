@@ -418,7 +418,7 @@ filed under `helpers/miniquests/` are at the end.
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
 | 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
-| 146 | ghostsahoy | `ghostsahoy` | 821 | done | Feb 2005 -- Velorina asks the player to free the ghosts of Port Phasmatys from Necrovarus's curse; native dbrow (id 73, endstate 8) + native varbit schema on basevar `ahoy_varbits_1` reused; see Log |
+| 146 | ghostsahoy | `ghostsahoy` | 821 | done | Feb 2005 -- Velorina asks the player to free the ghosts of Port Phasmatys from Necrovarus's curse; native dbrow (id 73, endstate 8) + native varbit schema on basevar `ahoy_varbits_1` reused; **re-audit 2026-09-09** Gate D C 63/63, see Log |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
@@ -4968,6 +4968,29 @@ filed under `helpers/miniquests/` are at the end.
   ectofuntus.rs2` (+ its own `configs/ectofuntus.varp`), and wiring into
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #151 The Eyes of Glouphrie, 969 lines.
+- slice #146 re-audit 2026-09-09 (Gate D, gp-ghost-c1): shipped-but-shit
+  pass against wiki RAW (pinned oldids in `docs/quests/ghosts_ahoy.md`) and
+  QH `steps.put` 0..7 from `GhostsAhoy.java` @ `5ea99d5ea9ba3fb096ebe7b5ed02d80883e9819d`.
+  Cache wins: `ahoy_town_barrier_post_quest` is state 9 only; ectophial
+  `ifop1=Empty` dest `0_57_55_11_0` = 3659,3520. Fixes: Velorina 2→3 write
+  (keep-trying no longer swallows state 2; mutation omits the write →
+  `PASS ghostsahoy velorina_crone` got 2); bidirectional barrier (2-token
+  inbound, free exit, free both ways after 7); `[oploc4,ahoy_town_barrier_
+  post_quest]`; ectophial Empty teleport + auto-refill + wilderness>20
+  deny + post-quest replacement; petition accept writes
+  `ahoy_signaturecounter=31` (recovery requires 31, not 11); villager
+  increment to 11; independent crone book/manual/robes hand-ins; captain
+  free return after the book. Dedicated
+  `src/torirsserver/test/quest_ghostsahoy_selftest.u.h` immediately before
+  the trailing `selftest_reset_world`; `TORIRSSERVER_GOD=1` + stanza
+  `player->godmode=1`; `TORIRSSERVER_SELFTEST_GHOSTSAHOY_ONLY=1` for VMs
+  without pristine `cache.osrs239`. C result: 63 checks, 0 failures. Giant
+  lobster: `PASS ghostsahoy boss=giant_lobster CHEAT-SKIP`. Leftovers:
+  tea kept on invented state 4 vs QH 3 + `ahoy_subquest_nettletea`;
+  gathering/enchant on 5→6 vs QH 4/5; Rune-Draw one narrated win; villager
+  signatures deterministic; wreck gangplank/rocks not walked; ecto worship
+  5-token / 1000 cap; no named client BMPs (no pristine cache; GL3 client
+  TU does not build here).
 - slice #151 done: The Eyes of Glouphrie (17 Jul 2006) -- Brimstail the
   gnome researcher shows the player Oaknock the Engineer's anti-illusion
   machine; Hazelmere (mind-linked, 46 Magic) reveals that the exiled mage

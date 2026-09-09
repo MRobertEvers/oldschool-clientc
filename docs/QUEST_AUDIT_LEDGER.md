@@ -89,7 +89,7 @@
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | unaudited | |  |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
-| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | unaudited | |  |
+| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | fixed | 2026-09-09 | Gate D re-audit: Velorina 2→3 mutation-proven; bidirectional barrier (cache post_quest = state 9); ectophial Empty teleports 3659,3520; petition writes 31; C stanza 63/63 (`quest_ghostsahoy_selftest.u.h`); giant lobster CHEAT-SKIP; leftovers: tea state 4 vs QH 3, Rune-Draw, villager RNG, wreck climb, no named client BMPs on this VM |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
