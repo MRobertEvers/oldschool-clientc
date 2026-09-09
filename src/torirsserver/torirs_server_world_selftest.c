@@ -3221,6 +3221,15 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_TROLLROMANCE_ONLY") )
+    {
+        selftest_trollromance(srv, player);
+        fprintf(stderr, "ToriRSServer trollromance selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("trollromance");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
