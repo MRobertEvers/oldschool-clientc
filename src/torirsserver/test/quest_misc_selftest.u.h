@@ -116,9 +116,25 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 
     fprintf(stderr, "ToriRSServer selftest: throneofmiscellania\n");
 
+    /* Hitsplat / helper stanzas at the tail of WorldSelftest memset
+     * players[0] and leave active_player NULL. WorldTeleport and
+     * click-through both dereference the active player, so re-admit a
+     * live slot and rebuild the world before any op. */
+    if( !player || !player->active || !player->world )
+    {
+        player = ToriRSServer_WorldAddPlayer(srv, NULL);
+        assert(player);
+        assert(player->world);
+    }
+    selftest_reset_world(srv, player, 402, 402);
+    player = srv->active_player;
+    assert(player);
+    assert(player->world);
+
     player->godmode = 1;
     player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 99;
     player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
+    player->hitpoints = 99;
     ToriRSServer_CombatSyncHitpoints(player);
 
     loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
@@ -171,29 +187,26 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                    "throneofmiscellania C-side names should all resolve");
     if( varp_misc < 0 || npc_ghrim < 0 || npc_vargas < 0 || npc_brand < 0 ||
         npc_sigrid < 0 || npc_smithy < 0 )
-    {
-        ToriRSServer_ScriptsFree(srv);
         return;
-    }
 
     quest_misc_inv_clear(player);
     player->varps[varp_misc] = 0;
     if( varp_hero >= 0 )
         player->varps[varp_hero] = 15; /* ^hero_complete */
     if( bit_told >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_told, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_told, 0);
     if( bit_partner >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_partner, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_partner, 0);
     if( bit_accepted >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_accepted, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_accepted, 0);
     if( bit_approval >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_approval, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_approval, 0);
     if( bit_affection >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_affection, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_affection, 0);
     if( bit_audience >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_audience, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_audience, 0);
     if( bit_royal >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_royal, 0);
+        ToriRSServer_VarbitSetOn(srv, player, bit_royal, 0);
 
     /* Castle 1st floor -- world-spawn coords from m39_60.spawn / m40_60.spawn */
     ToriRSServer_WorldTeleport(srv, 1, 2501, 3858);
@@ -210,10 +223,7 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                    "throneofmiscellania npcs should spawn");
     if( slot_ghrim < 0 || slot_vargas < 0 || slot_brand < 0 || slot_sigrid < 0 ||
         slot_smithy < 0 || slot_guard < 0 )
-    {
-        ToriRSServer_ScriptsFree(srv);
         return;
-    }
 
     /* 1. Talk Ghrim (pre-quest kingdom status -- real opnpc1). */
     quest_misc_talk(srv, npc_ghrim, slot_ghrim);
@@ -438,9 +448,11 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     (void)qp_before;
 
     /* 18. After ToM complete, Ghrim may start Royal Trouble (do not break RT). */
-    if( stat_agility >= 0 )
+    if( stat_agility >= 0 && stat_agility < TORIRSSERVER_STAT_COUNT )
         ToriRSServer_CombatSetLevel(player, stat_agility, 40);
-    if( stat_slayer >= 0 )
+    else
+        ToriRSServer_CombatSetLevel(player, TORIRSSERVER_STAT_AGILITY, 40);
+    if( stat_slayer >= 0 && stat_slayer < TORIRSSERVER_STAT_COUNT )
         ToriRSServer_CombatSetLevel(player, stat_slayer, 40);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
@@ -464,5 +476,4 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     ToriRSServer_WorldNpcFree(srv, slot_smithy);
     ToriRSServer_WorldNpcFree(srv, slot_guard);
     ToriRSServer_WorldNpcReap(srv);
-    ToriRSServer_ScriptsFree(srv);
 }

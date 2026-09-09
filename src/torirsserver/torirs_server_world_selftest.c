@@ -3200,6 +3200,15 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_MISC_ONLY") )
+    {
+        selftest_quest_misc(srv, player);
+        fprintf(stderr, "ToriRSServer throneofmiscellania selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("throneofmiscellania");
+        return g_selftest_failures;
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
