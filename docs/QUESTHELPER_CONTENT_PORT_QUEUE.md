@@ -372,7 +372,7 @@ filed under `helpers/miniquests/` are at the end.
 | 97 | demonslayer | `demonslayer` | 540 | done (LC) | re-audit 2026-08-10: `quest_demon` (`delrith.rs2`; dbrow `quest_demonslayer` journal wired) |
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
 | 99 | throneofmiscellania | `throneofmiscellania` | 546 | in_progress | 2026-09-10 REOPENED: 8 BMPs vs 42 C checks. Recapture every interaction. |
-| 100 | thefeud | `thefeud` | 550 | in_progress | 2026-09-10 Gate D recapture (`gp-feud-img`): every Ali/barman/kebab/snake/hag/doorman/camel/urchin/boss/mayor/journal interaction. Highlight reel = failed close. |
+| 100 | thefeud | `thefeud` | 550 | done | 2026-09-10 Gate D close `gp-feud-img` / OSRS-Content@83087eac8: 104 named BMPs, 104 unique MD5s; C walk 102/0. Leftovers (not `verified-modern`): combination-lock IF, snake-charm minigame, cactus/cowardly-bandit/glove-exclusion/`feud_npc_multi`. |
 | 101 | thegolem | `thegolem` | 551 | done (LC) | re-audit 2026-08-10: `quest_golem` (`golem.rs2`; dbrow `quest_golem` journal wired) |
 | 102 | theredreef | `theredreef` | 559 | done |  |
 | 103 | misthalinmystery | `misthalinmystery` | 564 | done |  |
