@@ -100,7 +100,7 @@
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
 | 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | unaudited | |  |
 | 31 May 2005 | The Lost Tribe | `quest_losttribe` | unaudited | |  |
-| 31 May 2005 | The Giant Dwarf | `quest_giantdwarf` | unaudited | |  |
+| 31 May 2005 | The Giant Dwarf | `quest_giantdwarf` | in-progress | 2026-09-10 | claimed by cloud `gp-gdwarf-img`. Gate D = **one named BMP per interaction** (boatman start/skill-gate, Veldaban, Blasidar, clothes/librarian, boots/armour, axe/Thurgo, consortium directors, finish, journals, authored complete scroll). Highlight reel = failed close. |
 | 13 Jun 2005 | Enter the Abyss | `quest_entertheabyss` | unaudited | |  |
 | 27 Jun 2005 | Recruitment Drive | `quest_recruitmentdrive` | unaudited | |  |
 | 19 Jul 2005 | Mourning's End Part I | `quest_mourningsendparti` | unaudited | |  |
