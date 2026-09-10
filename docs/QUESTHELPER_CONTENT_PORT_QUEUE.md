@@ -326,7 +326,7 @@ filed under `helpers/miniquests/` are at the end.
 | 51 | spiritsoftheelid | `spiritsoftheelid` | 352 | done | npcs=elid_mayor,elid_ghaslor,elid_waterspirit (helper's own `elidmayor`/`elidghaslor`/`elidranging` spellings don't match the cache's `elid_`-prefixed names, `elid_ranging_target` not `elidranging` -- cache wins); see Log |
 | 52 | taleoftherighteous | `taleoftherighteous` | 353 | done |  |
 | 53 | contact | `contact` | 355 | done | Jan 2007 -- Sophanem quarantined from Menaphos, tunnels of the Sect of Scabaras, Giant Scarab boss; native dbrow `quest_contact` (id 124, endstate 130, questpoints 1, stat_xp_awarded thieving 70000=7000xp) + native varbit schema on basevar `contact_master` reused as-is, matching quest-helper's own VarbitID.CONTACT name exactly; see Log |
-| 54 | shadesofmortton | `shadesofmortton` | 355 | in_progress | 2026-09-10 claimed `gp-mortton-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 54 | shadesofmortton | `shadesofmortton` | 355 | done | 2026-09-10 parent-verified 182 unique-MD5 named BMPs on OSRS-Content@be3b1090ae. Leftovers: afflicted flavour; chat tags; Dampe/catacomb variants; Flamtaer flicker. |
 | 55 | gettingahead | `gettingahead` | 361 | done |  |
 | 56 | elementalworkshopi | `elementalworkshopi` | 362 | done | 2026-09-10 parent-verified 73 unique-MD5 named BMPs on OSRS-Content@518dc89ca. |
 | 57 | bigchompybirdhunting | `bigchompybirdhunting` | 363 | done | 2026-09-10 parent-verified 106 unique-MD5 named BMPs on OSRS-Content@35feba354. Leftovers: projectile/camera/sound, diary pet, trail clue. |
