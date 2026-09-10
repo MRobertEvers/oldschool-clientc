@@ -30,6 +30,25 @@ fluffs_close(struct ToriRSServer* srv)
     ToriRSServer_WorldCloseModal(srv);
 }
 
+/* ~mesbox parks on messagebox:continue. WorldCloseModal aborts that script
+ * before later inv_del/inv_add run — resume the button instead. */
+static void
+fluffs_resume_mesbox(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player;
+    int com;
+    int i;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+    com = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "messagebox:continue");
+    if( com > 0 && player->active_script )
+        ToriRSServer_ScriptsResumeButton(srv, com);
+    for( i = 0; i < 4; i++ )
+        selftest_tick(srv);
+}
+
 static void
 fluffs_god(struct ToriRSServerPlayer* player)
 {
@@ -354,21 +373,38 @@ selftest_quest_fluffs(
         inv_set(player, 0, obj_doogle, 1);
         inv_set(player, 1, obj_sardine, 1);
         fluffs_useon(srv, obj_doogle, 0, obj_sardine, 1);
-        fluffs_close(srv);
+        fluffs_resume_mesbox(srv);
         SELFTEST_CHECK(selftest_count_obj(player, obj_seasoned) == 1 &&
                            selftest_count_obj(player, obj_doogle) == 0 &&
                            selftest_count_obj(player, obj_sardine) == 0,
                        "opheldu doogleleaves on raw_sardine should make seasoned_sardine");
-        fluffs_pass("opheldu_doogle_sardine");
+        if( selftest_count_obj(player, obj_seasoned) == 1 )
+            fluffs_pass("opheldu_doogle_sardine");
 
         fluffs_clear_inv(player);
         inv_set(player, 0, obj_sardine, 1);
         inv_set(player, 1, obj_doogle, 1);
         fluffs_useon(srv, obj_sardine, 0, obj_doogle, 1);
-        fluffs_close(srv);
+        fluffs_resume_mesbox(srv);
         SELFTEST_CHECK(selftest_count_obj(player, obj_seasoned) == 1,
                        "opheldu raw_sardine on doogleleaves should make seasoned_sardine");
-        fluffs_pass("opheldu_sardine_doogle");
+        if( selftest_count_obj(player, obj_seasoned) == 1 )
+            fluffs_pass("opheldu_sardine_doogle");
+
+        /* ---- OPHELD5 Drop gertrudekittens (drop-recovery) ---- */
+        fluffs_clear_inv(player);
+        inv_set(player, 0, obj_kittens, 1);
+        player->varps[varp_fluffs] = 4;
+        selftest_opheld(srv, 5, 0);
+        for( i = 0; i < 12; i++ )
+            selftest_tick(srv);
+        fluffs_resume_mesbox(srv);
+        SELFTEST_CHECK(selftest_count_obj(player, obj_kittens) == 0,
+                       "opheld5 gertrudekittens should drop the kitten");
+        SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
+                       "dropping the kitten must leave the player alive");
+        if( selftest_count_obj(player, obj_kittens) == 0 )
+            fluffs_pass("opheld5_drop_kitten");
 
         /* ---- OPNPC4 Talk-to Fluffs (cache op4) ---- */
         ToriRSServer_WorldTeleport(srv, 1, 3306, 3512);
