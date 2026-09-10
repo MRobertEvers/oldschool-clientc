@@ -265,11 +265,16 @@ selftest_quest_murder(
                 SELFTEST_CHECK(ran == TORIRSSERVER_TRIGGER_RAN,
                                "oploc2 murderwindow should dispatch, got %d", ran);
                 murder_run_dialogue(srv, player, 0);
+                /* Do not fire a second window op: a parked first click plus a
+                 * second dispatch takes the "already have thread" return and
+                 * never writes the evidence bit. */
                 murder_close(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_thread) > 0,
                                "window search should grant green thread");
-                SELFTEST_CHECK((player->varps[varp_ev] & 1) != 0,
-                               "window search should set murder_found_thread");
+                /* setbit(x, 1) is 1<<1 (ss_vm_test: setbit(0,4)==16). */
+                SELFTEST_CHECK((player->varps[varp_ev] & 2) != 0,
+                               "window search should set murder_found_thread, ev=%d",
+                               player->varps[varp_ev]);
                 murder_pass("oploc2_window_thread");
             }
         }
@@ -372,8 +377,9 @@ selftest_quest_murder(
             /* Compare needs both prints in inv; useon plants both. */
             player->varps[varp_sus] = 1;
             selftest_useon(srv, obj_printa, 1, obj_print1, 1, NULL, 0);
-            SELFTEST_CHECK((player->varps[varp_ev] & 2) != 0,
-                           "matching Anna print should set murder_found_fingerprints");
+            SELFTEST_CHECK((player->varps[varp_ev] & 4) != 0,
+                           "matching Anna print should set murder_found_fingerprints, ev=%d",
+                           player->varps[varp_ev]);
             SELFTEST_CHECK(selftest_count_obj(player, obj_printfound) > 0,
                            "match should replace unknown print with murderfingerprint");
             murder_pass("opheldu_compare_anna");
@@ -501,7 +507,7 @@ selftest_quest_murder(
                 player->varps[varp_mq] = 1;
                 player->varps[varp_sus] = 1;
                 player->varps[varp_pp] = 3;
-                player->varps[varp_ev] = 3; /* thread + fingerprints */
+                player->varps[varp_ev] = 6; /* setbit thread(1) + fingerprints(2) */
                 murder_clear_inv(player);
                 if( obj_thread >= 0 )
                     selftest_give(player, obj_thread, 1);
@@ -516,10 +522,18 @@ selftest_quest_murder(
                                "opnpc1 murderguard accusation should dispatch, got %d", ran);
                 murder_pick(srv, player, chatmenu, 3);
                 murder_run_dialogue(srv, player, 0);
-                for( drain = 0; drain < 48 && player->varps[varp_mq] != 2; drain++ )
+                /* Resume every mesbox/chat first so queue(murder_quest_complete)
+                 * is armed. Close-then-tick aborts a parked script (field
+                 * guide S5) and would leave murderquest at 1 forever. */
+                for( drain = 0; drain < 64 && player->varps[varp_mq] != 2; drain++ )
                 {
-                    murder_close(srv);
-                    selftest_tick(srv);
+                    if( player->active_script != NULL )
+                        murder_run_dialogue(srv, player, 0);
+                    else
+                    {
+                        murder_close(srv);
+                        selftest_tick(srv);
+                    }
                 }
                 SELFTEST_CHECK(player->varps[varp_mq] == 2,
                                "conclusive proof should complete murderquest, got %d",
