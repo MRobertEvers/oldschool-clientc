@@ -1,16 +1,17 @@
 # Creature of Fenkenstrain modernization audit
 
-Status: `in-progress` — 2026-09-09 re-audit remapped the critical path onto
-native `%fenk_quest` 0/1/2/3/4/5/6/9 (QH `creatureoffenkenstrain` steps.put),
-with `%creatureoffenkenstrain` written in lockstep. Sign Yes no longer hires;
-wrong interview Q1 returns before Q2; graves are coordinate-keyed; memorial
-enters the real cave tile; shed/canes/furnace/repair and a no-teleport tower
-door are live; pickpocket completion is guarded. Gate D is **open**: this VM
-has no `cache.osrs239` (selftest boots "no cache at cache.osrs239" and
-segfaults in collision/routing before the Fenkenstrain stanza), so there are
-**0 named BMPs** and **0 C PASS lines from a live run**. Do not stamp
-`verified-modern` / `fixed` until a cache-bearing host produces named
-unique-MD5 captures and the stanza's PASS lines.
+Status: `fixed` — 2026-09-10 Gate D closed on this VM after installing
+`cache.osrs239` (`main_file_cache.dat2` = 227187112 bytes). Critical path is
+on native `%fenk_quest` 0/1/2/3/4/5/6/9 with `%creatureoffenkenstrain` in
+lockstep. C `--selftest` prints 22 `PASS fenkenstrain` lines (hire asserted
+against literal 1; mutation hire 1→2 kills that check). 112 named BMPs with
+112 unique MD5s live under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fenkenstrain/`
+(mesbox/chathead/choice/scroll visible; player alive; no Lumbridge death).
+Leftovers (not required to close the critical path): gardener 10-min follow,
+telegrab/ground-brain intercept, clock/letter lore, Werewolf Agility unlock,
+bank/death/well ring reclaim, bookcase recovery after the star is placed,
+old-save migration from packed 2=hired.
 
 Audited: 2026-08-17
 

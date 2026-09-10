@@ -87,7 +87,7 @@
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | unaudited | |  |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | unaudited | |  |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
-| 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | unaudited | |  |
+| 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | fixed | 2026-09-10 | remapped onto native `%fenk_quest` 0/1/2/3/4/5/6/9; C selftest 22 PASS; 112 unique-MD5 named BMPs in `selftest/quest_fenkenstrain/` |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | unaudited | |  |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |

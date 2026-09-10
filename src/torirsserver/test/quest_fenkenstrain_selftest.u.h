@@ -90,7 +90,8 @@
             const int hire_rows[] = { 1, 4, 4 };
             const int wrong_q1[] = { 1, 1 };
             const int parts_row[] = { 1 };
-            const int brain_rows[] = { 5, 1 };
+            /* Visual row 4 is "Do you sell pickled brains?" (resume value 5). */
+            const int brain_rows[] = { 4, 1 };
             int slot;
             int npc_slot;
             int i;
