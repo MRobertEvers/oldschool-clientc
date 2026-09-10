@@ -35897,6 +35897,9 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+#include "test/quest_chompybird_selftest.u.h"
+    selftest_reset_world(srv, player, 402, 402);
+
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
