@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_makingfriendswithmyarm_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_MFWMA_ONLY") )
+    {
+        selftest_quest_makingfriendswithmyarm(srv, player);
+        fprintf(stderr, "ToriRSServer mfwma selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("mfwma");
         return g_selftest_failures;
     }
 
@@ -35904,6 +35914,12 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        /* Making Friends with My Arm Gate D walk header (include-guarded).
+         * Placed immediately before this reset so spawned Burntmeat / My
+         * Arm / Larry / Mother / WOM / Snowflake cannot leak into the
+         * shop stanza. */
+#include "test/quest_makingfriendswithmyarm_selftest.u.h"
+        selftest_quest_makingfriendswithmyarm(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {
