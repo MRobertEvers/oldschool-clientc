@@ -710,6 +710,7 @@ selftest_quest_mm(
             worn_set(player, rhand, obj_gree, 1);
         if( obj_amulet > 0 && front >= 0 )
             worn_set(player, front, obj_amulet, 1);
+        ToriRSServer_ScriptsRunProc(srv, "[proc,mmbmp_gree]", NULL, 0);
         mm_set_bit(srv, "varbit_118", 0);
         slot = mm_place_loc(srv, loc_throne, 2803, 2764, 0);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_throne, -1, slot);
