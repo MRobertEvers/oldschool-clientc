@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_routequest_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_ROUTEQUEST_ONLY") )
+    {
+        selftest_quest_routequest(srv, player);
+        fprintf(stderr, "ToriRSServer routequest selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("routequest");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35906,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /*
+     * In Search of the Myreque Gate D. Dedicated header so this stanza cannot
+     * drift from the named BMP captures. Placed immediately before a
+     * selftest_reset_world so spawned Vanstrom / Cyreg / Curpile / hideout
+     * npcs cannot re-aim later RNG checks.
+     */
+    selftest_quest_routequest(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
