@@ -417,7 +417,7 @@ filed under `helpers/miniquests/` are at the end.
 | 142 | troubledtortugans | `troubledtortugans` | 803 | done |  |
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
-| 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
+| 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | in_progress | 2026-09-10 claimed `gp-doh-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
 | 146 | ghostsahoy | `ghostsahoy` | 821 | done | 2026-09-10 parent-verified 139 unique-MD5 named BMPs on OSRS-Content@fe927dc262. Leftovers: deterministic Rune-Draw/petition, lobster CHEAT-SKIP, no Wilderness/Perdu ectophial, ritual all-at-once, flag colours deterministic. |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
@@ -441,7 +441,7 @@ filed under `helpers/miniquests/` are at the end.
 | 166 | thecurseofarrav | `thecurseofarrav` | 1,665 | done |  |
 | 167 | sinsofthefather | `sinsofthefather` | 1,668 | done |  |
 | 168 | ragandboneman | `ragandboneman` | 1,729 | in_progress | 2026-09-10 claimed `gp-ragbone-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. OSRS has 4 rs2 files (not in PORT_QUEUE table) |
-| 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | in_progress | 2026-09-10 claimed `gp-lunar-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
+| 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-09-10 parent-verified 92 unique-MD5 named BMPs on OSRS-Content@8c427e6f7. Leftovers: wall-chart IF, spellbook switch, dream RNG, suqah/lunar item chain, Pauline disguise/flower. Lokar refuse chathead Someone. 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
