@@ -147,6 +147,23 @@ cw_god(struct ToriRSServerPlayer* player)
 }
 
 static void
+cw_drain(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player;
+    int t;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+    for( t = 0; t < 8 && player->active_script; t++ )
+    {
+        ToriRSServer_WorldCloseModal(srv);
+        selftest_tick(srv);
+    }
+    ToriRSServer_ScriptsProcessQueues(srv);
+}
+
+static void
 cw_finish(struct ToriRSServer* srv)
 {
     int t;
@@ -155,8 +172,8 @@ cw_finish(struct ToriRSServer* srv)
     assert(srv->active_player);
     for( t = 0; t < 96 && srv->active_player->active_script; t++ )
     {
-        if( selftest_click_through(srv, 8) <= 0 )
-            selftest_tick(srv);
+        selftest_click_through(srv, 1);
+        selftest_tick(srv);
     }
     for( t = 0; t < 8; t++ )
         selftest_tick(srv);
@@ -307,13 +324,20 @@ static void
 cw_talk(struct ToriRSServer* srv, int npc_type, int slot)
 {
     struct ToriRSServerPlayer* player;
+    int rc;
 
     assert(srv);
     assert(npc_type > 0);
     player = srv->active_player;
     assert(player);
+    cw_drain(srv);
+    assert(slot >= 0);
+    assert(srv->npcs[slot].active);
     player->last_slot = slot;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
+    rc = ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
+    SELFTEST_CHECK(rc == TORIRSSERVER_TRIGGER_RAN,
+                   "OPNPC1 type %d slot %d should run (rc=%d active=%d)",
+                   npc_type, slot, rc, srv->npcs[slot].active);
 }
 
 static void
@@ -339,6 +363,23 @@ cw_talk_rows(struct ToriRSServer* srv, int npc_type, int slot, const int* rows, 
         cw_pick_row(srv, rows[i]);
     }
     cw_finish(srv);
+}
+
+static int
+cw_fresh(struct ToriRSServer* srv, int npc_type, int x, int z, int level)
+{
+    assert(srv);
+    assert(npc_type > 0);
+    cw_drain(srv);
+    return cw_spawn(srv, npc_type, x, z, level);
+}
+
+static int
+cw_fresh_larry_zoo(struct ToriRSServer* srv, int npc_type)
+{
+    assert(srv);
+    assert(npc_type > 0);
+    return cw_fresh(srv, npc_type, CW_ZOO_X, CW_ZOO_Z, 0);
 }
 
 static void
@@ -765,14 +806,16 @@ selftest_quest_coldwar(
 
     if( npc_larry_ice > 0 )
     {
-        slot_ice = cw_spawn(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
+        slot_ice = cw_fresh(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
         SELFTEST_CHECK(slot_ice >= 0, "Larry ice should spawn");
         if( slot_ice >= 0 )
         {
+            fprintf(stderr, "CW hide=%d quest=%d before ice watch\n",
+                    cw_get_vb(player, "peng_multi_hide"), cw_quest(player));
             cw_talk_finish(srv, npc_larry_ice, slot_ice);
             SELFTEST_CHECK(cw_quest(player) == CW_EMOTES,
-                           "watching the hide should learn emotes, got %d",
-                           cw_quest(player));
+                           "watching the hide should learn emotes, got %d hide=%d",
+                           cw_quest(player), cw_get_vb(player, "peng_multi_hide"));
             cw_pass("opnpc1_larry_ice_watch_emotes");
             cw_talk_finish(srv, npc_larry_ice, slot_ice);
             SELFTEST_CHECK(cw_quest(player) == CW_AFTER_EMOTES,
@@ -789,7 +832,7 @@ selftest_quest_coldwar(
 
     if( npc_larry_rell > 0 )
     {
-        slot_rell = cw_spawn(srv, npc_larry_rell, CW_RELL_X, CW_RELL_Z, 0);
+        slot_rell = cw_fresh(srv, npc_larry_rell, CW_RELL_X, CW_RELL_Z, 0);
         if( slot_rell >= 0 )
         {
             cw_talk_finish(srv, npc_larry_rell, slot_rell);
@@ -829,7 +872,10 @@ selftest_quest_coldwar(
         cw_give(player, obj_suit, 1);
     }
 
-    cw_talk_finish(srv, npc_larry_zoo, slot_larry);
+    cw_free_npc(srv, slot_larry);
+    slot_larry = cw_fresh(srv, npc_larry_zoo, CW_ZOO_X, CW_ZOO_Z, 0);
+    if( slot_larry >= 0 )
+        cw_talk_finish(srv, npc_larry_zoo, slot_larry);
     SELFTEST_CHECK(cw_quest(player) == CW_SUIT_ICE,
                    "showing the suit at the zoo should send you to the iceberg, got %d",
                    cw_quest(player));
@@ -837,7 +883,7 @@ selftest_quest_coldwar(
 
     if( npc_larry_ice > 0 )
     {
-        slot_ice = cw_spawn(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
+        slot_ice = cw_fresh(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
         if( slot_ice >= 0 )
         {
             cw_talk_rows(srv, npc_larry_ice, slot_ice, k_accept, 1);
@@ -853,6 +899,8 @@ selftest_quest_coldwar(
         cw_vb(srv, "peng_quest", CW_ZOO_TRUST);
     }
 
+    slot_larry = cw_fresh_larry_zoo(srv, npc_larry_zoo);
+    SELFTEST_CHECK(slot_larry >= 0, "Larry zoo should respawn for tuxedo");
     cw_talk_rows(srv, npc_larry_zoo, slot_larry, k_refuse, 1);
     SELFTEST_CHECK(cw_quest(player) == CW_ZOO_TRUST,
                    "tuxedo refuse must stay zoo_trust");
@@ -871,7 +919,7 @@ selftest_quest_coldwar(
 
     if( npc_zoo > 0 )
     {
-        slot_zoo = cw_spawn(srv, npc_zoo, CW_ZOOP_X, CW_ZOOP_Z, 0);
+        slot_zoo = cw_fresh(srv, npc_zoo, CW_ZOOP_X, CW_ZOOP_Z, 0);
         if( slot_zoo >= 0 )
         {
             cw_vb(srv, "peng_emote_1", 1);
@@ -890,18 +938,21 @@ selftest_quest_coldwar(
         cw_vb(srv, "peng_quest", CW_ZOO_REPORT);
     }
 
+    slot_larry = cw_fresh_larry_zoo(srv, npc_larry_zoo);
+    SELFTEST_CHECK(slot_larry >= 0, "Larry zoo should respawn for zoo report");
     cw_talk_finish(srv, npc_larry_zoo, slot_larry);
     SELFTEST_CHECK(cw_quest(player) == CW_LUMB,
                    "zoo report to Larry should send you to Lumbridge, got %d",
                    cw_quest(player));
     cw_pass("opnpc1_larry_zoo_report");
 
+    slot_larry = cw_fresh_larry_zoo(srv, npc_larry_zoo);
     cw_talk_rows(srv, npc_larry_zoo, slot_larry, k_accept, 1);
     cw_pass("opnpc1_larry_lumb_tuxedo_yes");
 
     if( npc_thing > 0 )
     {
-        slot_thing = cw_spawn(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
+        slot_thing = cw_fresh(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
         if( slot_thing >= 0 )
         {
             cw_vb(srv, "peng_emote_1", 1);
@@ -923,7 +974,7 @@ selftest_quest_coldwar(
     if( npc_zoo > 0 && obj_cod > 0 )
     {
         cw_give(player, obj_cod, 1);
-        slot_zoo = cw_spawn(srv, npc_zoo, CW_ZOOP_X, CW_ZOOP_Z, 0);
+        slot_zoo = cw_fresh(srv, npc_zoo, CW_ZOOP_X, CW_ZOOP_Z, 0);
         if( slot_zoo >= 0 )
         {
             cw_talk_finish(srv, npc_zoo, slot_zoo);
@@ -941,7 +992,7 @@ selftest_quest_coldwar(
 
     if( npc_thing > 0 )
     {
-        slot_thing = cw_spawn(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
+        slot_thing = cw_fresh(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
         if( slot_thing >= 0 )
         {
             cw_talk_finish(srv, npc_thing, slot_thing);
@@ -959,7 +1010,7 @@ selftest_quest_coldwar(
 
     if( npc_fred > 0 )
     {
-        slot_fred = cw_spawn(srv, npc_fred, CW_FRED_X, CW_FRED_Z, 0);
+        slot_fred = cw_fresh(srv, npc_fred, CW_FRED_X, CW_FRED_Z, 0);
         if( slot_fred >= 0 )
         {
             cw_talk_rows(srv, npc_fred, slot_fred, k_refuse, 1);
@@ -994,7 +1045,7 @@ selftest_quest_coldwar(
 
     if( npc_thing > 0 )
     {
-        slot_thing = cw_spawn(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
+        slot_thing = cw_fresh(srv, npc_thing, CW_THING_X, CW_THING_Z, 0);
         if( slot_thing >= 0 )
         {
             cw_talk_finish(srv, npc_thing, slot_thing);
@@ -1009,6 +1060,8 @@ selftest_quest_coldwar(
     if( obj_report2 > 0 && !cw_inv_has(player, obj_report2) )
         cw_give(player, obj_report2, 1);
 
+    slot_larry = cw_fresh_larry_zoo(srv, npc_larry_zoo);
+    SELFTEST_CHECK(slot_larry >= 0, "Larry zoo should respawn for outpost handoff");
     cw_talk_finish(srv, npc_larry_zoo, slot_larry);
     SELFTEST_CHECK(cw_quest(player) == CW_ICEBERG_KGP,
                    "outpost handoff should write iceberg_kgp, got %d",
@@ -1025,7 +1078,7 @@ selftest_quest_coldwar(
 
     if( npc_kgp > 0 )
     {
-        slot_kgp = cw_spawn(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
+        slot_kgp = cw_fresh(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
         if( slot_kgp >= 0 )
         {
             cw_talk_finish(srv, npc_kgp, slot_kgp);
@@ -1043,7 +1096,7 @@ selftest_quest_coldwar(
 
     if( npc_noodle > 0 )
     {
-        slot_noodle = cw_spawn(srv, npc_noodle, CW_NOODLE_X, CW_NOODLE_Z, CW_NOODLE_LV);
+        slot_noodle = cw_fresh(srv, npc_noodle, CW_NOODLE_X, CW_NOODLE_Z, CW_NOODLE_LV);
         if( slot_noodle >= 0 )
         {
             cw_talk_finish(srv, npc_noodle, slot_noodle);
@@ -1074,7 +1127,7 @@ selftest_quest_coldwar(
     {
         if( obj_id > 0 && !cw_inv_has(player, obj_id) )
             cw_give(player, obj_id, 1);
-        slot_kgp = cw_spawn(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
+        slot_kgp = cw_fresh(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
         if( slot_kgp >= 0 )
         {
             cw_talk_finish(srv, npc_kgp, slot_kgp);
@@ -1116,7 +1169,7 @@ selftest_quest_coldwar(
 
     if( npc_instructor > 0 )
     {
-        slot_instr = cw_spawn(srv, npc_instructor, CW_INSTR_X, CW_INSTR_Z, 0);
+        slot_instr = cw_fresh(srv, npc_instructor, CW_INSTR_X, CW_INSTR_Z, 0);
         if( slot_instr >= 0 )
         {
             cw_talk_finish(srv, npc_instructor, slot_instr);
@@ -1134,7 +1187,7 @@ selftest_quest_coldwar(
 
     if( npc_larry_ice > 0 )
     {
-        slot_ice = cw_spawn(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
+        slot_ice = cw_fresh(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
         if( slot_ice >= 0 )
         {
             cw_talk_finish(srv, npc_larry_ice, slot_ice);
@@ -1157,7 +1210,7 @@ selftest_quest_coldwar(
 
     if( npc_kgp > 0 )
     {
-        slot_kgp = cw_spawn(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
+        slot_kgp = cw_fresh(srv, npc_kgp, CW_KGP_X, CW_KGP_Z, 0);
         if( slot_kgp >= 0 )
         {
             cw_talk_finish(srv, npc_kgp, slot_kgp);
@@ -1192,7 +1245,7 @@ selftest_quest_coldwar(
 
     if( npc_ping > 0 )
     {
-        slot_ping = cw_spawn(srv, npc_ping, CW_PING_X, CW_PING_Z, 0);
+        slot_ping = cw_fresh(srv, npc_ping, CW_PING_X, CW_PING_Z, 0);
         if( slot_ping >= 0 )
         {
             cw_talk_finish(srv, npc_ping, slot_ping);
@@ -1233,7 +1286,7 @@ selftest_quest_coldwar(
 
     if( npc_icelord > 0 )
     {
-        slot_icelord = cw_spawn(srv, npc_icelord, CW_ICELORD_X, CW_ICELORD_Z, 0);
+        slot_icelord = cw_fresh(srv, npc_icelord, CW_ICELORD_X, CW_ICELORD_Z, 0);
         if( slot_icelord >= 0 )
         {
             cw_talk_finish(srv, npc_icelord, slot_icelord);
@@ -1270,7 +1323,7 @@ selftest_quest_coldwar(
 
     if( npc_larry_ice > 0 )
     {
-        slot_ice = cw_spawn(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
+        slot_ice = cw_fresh(srv, npc_larry_ice, CW_ICE_X, CW_ICE_Z, CW_ICE_LV);
         if( slot_ice >= 0 )
         {
             cw_talk_finish(srv, npc_larry_ice, slot_ice);
@@ -1300,7 +1353,9 @@ selftest_quest_coldwar(
     cw_pass("complete_rewards");
 
     cw_journal(srv, "journal_135_complete");
-    cw_talk_finish(srv, npc_larry_zoo, slot_larry);
+    slot_larry = cw_fresh_larry_zoo(srv, npc_larry_zoo);
+    if( slot_larry >= 0 )
+        cw_talk_finish(srv, npc_larry_zoo, slot_larry);
     cw_pass("opnpc1_larry_already_complete");
 
     cw_free_npc(srv, slot_larry);
