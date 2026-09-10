@@ -1,6 +1,11 @@
 /* Dwarf Cannon Gate D. Real opnpc / oploc / opheld / opobj on the
  * critical path. Called immediately before a selftest_reset_world.
- * player->godmode = 1 for the whole walk (not a death test). */
+ * player->godmode = 1 for the whole walk (not a death test).
+ *
+ * Do not park or WorldInit here. Earlier stanzas leave a late-zone scene
+ * whose second RebuildScene / WorldInit SIGSEGVs on this image. Spawn
+ * Lawgof and Nulodion into free slots and place locs on the player's
+ * current tile (already inside the standing scene). */
 static int
 mcannon_inv_total(const struct ToriRSServerPlayer* player, int obj_id)
 {
@@ -62,24 +67,48 @@ mcannon_drain(struct ToriRSServer* srv, int max_steps)
 }
 
 static int
+mcannon_find_npc(struct ToriRSServer* srv, int type)
+{
+    int i;
+
+    assert(srv);
+    for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[i];
+
+        if( npc->active && npc->type == type )
+            return i;
+    }
+    return -1;
+}
+
+static void
+mcannon_free_roster(struct ToriRSServer* srv)
+{
+    int i;
+
+    assert(srv);
+    for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active )
+            ToriRSServer_WorldNpcFree(srv, i);
+    }
+    ToriRSServer_WorldNpcReap(srv);
+}
+
+static int
 mcannon_place_loc(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player,
-    int loc_id,
-    int x,
-    int z,
-    int level)
+    int loc_id)
 {
     int slot;
 
     assert(srv);
     assert(player);
-    selftest_park_player(srv, x, z);
-    player->level = level;
-    selftest_tick(srv);
-    slot = ToriRSServer_SceneFindLocId(x, z, level, loc_id);
+    slot = ToriRSServer_SceneFindLocId(player->x, player->z, player->level, loc_id);
     if( slot < 0 )
-        slot = ToriRSServer_SceneAddLoc(x, z, level, loc_id, 10, 0);
+        slot = ToriRSServer_SceneAddLoc(player->x, player->z, player->level, loc_id, 10, 0);
     return slot;
 }
 
@@ -129,6 +158,10 @@ selftest_quest_mcannon(
     }
 
     player->godmode = 1;
+    /* Earlier stanzas leave ~990 standing NPCs. Free the leftover roster so
+     * Lawgof/Nulodion can spawn. Do not RebuildScene / WorldInit. */
+    mcannon_free_roster(srv);
+
     varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mcannon");
     npc_lawgof = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "lawgof2");
     npc_nulodion = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "nulodion");
@@ -166,8 +199,7 @@ selftest_quest_mcannon(
     player->stat_boosted[stat_craft] = 99;
 
     /* ---- Lawgof start: real opnpc1 ---- */
-    selftest_park_player(srv, 2567, 3460);
-    lawgof_slot = ToriRSServer_WorldNpcSpawn(srv, npc_lawgof, 2567, 3460, 0);
+    lawgof_slot = ToriRSServer_WorldNpcSpawn(srv, npc_lawgof, player->x, player->z, player->level);
     SELFTEST_CHECK(lawgof_slot >= 0, "lawgof2 should spawn");
     if( lawgof_slot >= 0 )
     {
@@ -185,7 +217,7 @@ selftest_quest_mcannon(
     }
 
     /* ---- one real railing Inspect ---- */
-    loc_slot = mcannon_place_loc(srv, player, loc_rail, 2568, 3458, 0);
+    loc_slot = mcannon_place_loc(srv, player, loc_rail);
     for( tries = 0; tries < 40 && ToriRSServer_VarbitGet(player, bit_r1) != 1; tries++ )
     {
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_rail, -1, loc_slot);
@@ -210,7 +242,7 @@ selftest_quest_mcannon(
         snprintf(bit_name, sizeof(bit_name), "mcannon_railing%d_fixed", s);
         loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, loc_name);
         bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, bit_name);
-        slot = mcannon_place_loc(srv, player, loc_id, 2568 + s, 3458, 0);
+        slot = mcannon_place_loc(srv, player, loc_id);
         for( tries = 0; tries < 40 && bit >= 0 && ToriRSServer_VarbitGet(player, bit) != 1;
              tries++ )
         {
@@ -226,7 +258,6 @@ selftest_quest_mcannon(
     /* Lawgof: railings done -> watchtower (state 2). */
     if( lawgof_slot >= 0 )
     {
-        selftest_park_player(srv, 2567, 3460);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_lawgof, -1, lawgof_slot);
         mcannon_drain(srv, 80);
     }
@@ -236,9 +267,7 @@ selftest_quest_mcannon(
         fprintf(stderr, "MCANNON PASS: Lawgof assigned the watchtower\n");
 
     /* ---- remains: real opobj3 ---- */
-    selftest_park_player(srv, 2567, 3444);
-    player->level = 2;
-    ground_slot = ToriRSServer_WorldObjAdd(srv, obj_remains, 1, 2567, 3444, 2, -1);
+    ground_slot = ToriRSServer_WorldObjAdd(srv, obj_remains, 1, player->x, player->z, player->level, -1);
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, obj_remains, -1, ground_slot);
     mcannon_drain(srv, 20);
     SELFTEST_CHECK(mcannon_inv_total(player, obj_remains) >= 1,
@@ -248,7 +277,6 @@ selftest_quest_mcannon(
 
     if( lawgof_slot >= 0 )
     {
-        selftest_park_player(srv, 2567, 3460);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_lawgof, -1, lawgof_slot);
         mcannon_drain(srv, 80);
     }
@@ -258,7 +286,7 @@ selftest_quest_mcannon(
         fprintf(stderr, "MCANNON PASS: Lawgof took the remains\n");
 
     /* ---- cave then crate ---- */
-    loc_slot = mcannon_place_loc(srv, player, loc_cave, 2623, 3391, 0);
+    loc_slot = mcannon_place_loc(srv, player, loc_cave);
     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cave, -1, loc_slot);
     mcannon_drain(srv, 20);
     SELFTEST_CHECK(player->varps[varp] == 4, "entering the cave at state 3 should write 4, got %d",
@@ -266,7 +294,7 @@ selftest_quest_mcannon(
     if( player->varps[varp] == 4 )
         fprintf(stderr, "MCANNON PASS: entered the goblin cave\n");
 
-    loc_slot = mcannon_place_loc(srv, player, loc_crate, 2571, 9851, 0);
+    loc_slot = mcannon_place_loc(srv, player, loc_crate);
     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
     mcannon_drain(srv, 80);
     SELFTEST_CHECK(player->varps[varp] == 5, "searching Lollk's crate should write state 5, got %d",
@@ -277,7 +305,6 @@ selftest_quest_mcannon(
     /* Toolkit grant. */
     if( lawgof_slot >= 0 )
     {
-        selftest_park_player(srv, 2567, 3460);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_lawgof, -1, lawgof_slot);
         mcannon_drain(srv, 80);
     }
@@ -297,7 +324,7 @@ selftest_quest_mcannon(
     ToriRSServer_WorldCloseModal(srv);
 
     /* Inspect then use-toolkit-on-cannon. */
-    loc_slot = mcannon_place_loc(srv, player, loc_cannon, 2563, 3462, 0);
+    loc_slot = mcannon_place_loc(srv, player, loc_cannon);
     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cannon, -1, loc_slot);
     mcannon_drain(srv, 40);
     SELFTEST_CHECK(player->varps[varp] == 7, "first Inspect should write state 7, got %d",
@@ -326,7 +353,6 @@ selftest_quest_mcannon(
 
     if( lawgof_slot >= 0 )
     {
-        selftest_park_player(srv, 2567, 3460);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_lawgof, -1, lawgof_slot);
         mcannon_drain(srv, 80);
     }
@@ -338,8 +364,10 @@ selftest_quest_mcannon(
         fprintf(stderr, "MCANNON PASS: Lawgof sent the player to Nulodion\n");
 
     /* ---- Nulodion: real opnpc1, 9->10 ---- */
-    selftest_park_player(srv, 3011, 3453);
-    nulodion_slot = ToriRSServer_WorldNpcSpawn(srv, npc_nulodion, 3011, 3453, 0);
+    nulodion_slot = mcannon_find_npc(srv, npc_nulodion);
+    if( nulodion_slot < 0 )
+        nulodion_slot = ToriRSServer_WorldNpcSpawn(srv, npc_nulodion, player->x, player->z,
+                                                   player->level);
     SELFTEST_CHECK(nulodion_slot >= 0, "nulodion should spawn");
     if( nulodion_slot >= 0 )
     {
@@ -368,7 +396,6 @@ selftest_quest_mcannon(
     xp_before = player->stat_xp_tenths[stat_craft];
     if( lawgof_slot >= 0 )
     {
-        selftest_park_player(srv, 2567, 3460);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_lawgof, -1, lawgof_slot);
         mcannon_drain(srv, 80);
         for( tries = 0; tries < 40 && player->varps[varp] != 11; tries++ )
