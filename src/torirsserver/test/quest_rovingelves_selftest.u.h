@@ -137,7 +137,7 @@ selftest_quest_rovingelves(
         int moss_slot = -1;
         int talk_type;
         int elu_type;
-        struct SSVM_Script* journal;
+        const struct SSVM_Script* journal;
 
         /* Prefer the cache-authored multinpc shells; fall back to the rungs
          * the opnpc headers also bind. */
