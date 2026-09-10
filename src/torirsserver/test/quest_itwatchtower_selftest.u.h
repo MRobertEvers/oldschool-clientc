@@ -100,8 +100,6 @@ selftest_quest_itwatchtower(
                 int loc_slot;
                 int k;
                 int tries;
-                uint8_t payload[16];
-                struct RSAreaBuf out;
 
                 player->godmode = 1;
                 player->active_script = NULL;
@@ -414,31 +412,31 @@ selftest_quest_itwatchtower(
                     player->active_script = NULL;
                 }
 
-                /* 16. Mix -- real OPHELDU janger-on-guam then bones-on-partial. */
+                /* 16. Mix -- real OPHELDU. [opheldu,jangerberries] reads
+                 * last_useitem = guamvial; [opheldu,guamjangervial] reads
+                 * last_useitem = ground_bat_bones. Packet orientation that
+                 * clicked the vial first bound a different herblore rung. */
                 for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
                 inv_set(player, 0, obj_janger, 1);
                 inv_set(player, 1, obj_guamvial, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_guamvial);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_janger);
-                rsab_p2(&out, 0);
-                rsab_p4(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                player->last_useitem = obj_guamvial;
+                player->last_useslot = 1;
+                player->last_item = obj_janger;
+                player->last_slot = 0;
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_janger, -1, -1);
                 selftest_click_through(srv, 6);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_gjvial) > 0,
                                "jangerberries on guamvial should make guamjangervial");
-                inv_set(player, 2, obj_bonesg, 1);
-                rsab_wrap(&out, payload, sizeof(payload));
-                rsab_p2(&out, obj_gjvial);
-                rsab_p2(&out, 1);
-                rsab_p4(&out, 0);
-                rsab_p2(&out, obj_bonesg);
-                rsab_p2(&out, 2);
-                rsab_p4(&out, 0);
-                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                inv_set(player, 0, obj_gjvial, 1);
+                inv_set(player, 1, obj_bonesg, 1);
+                player->last_useitem = obj_bonesg;
+                player->last_useslot = 1;
+                player->last_item = obj_gjvial;
+                player->last_slot = 0;
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_gjvial, -1, -1);
                 selftest_click_through(srv, 6);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_ogrepot) > 0,
                                "ground bones on guamjangervial should make ogre_potion");
@@ -540,7 +538,10 @@ selftest_quest_itwatchtower(
                     player->active_script = NULL;
                 }
 
-                /* 21-22. Lever -- real oploc1 completes the quest. */
+                /* 21-22. Lever -- real oploc1 completes the quest.
+                 * [oploc1,watchleverup] writes complete, then p_delay(3), then
+                 * XP / coins / watchtowerspell. CloseModal during that park
+                 * aborts the script before rewards land. Tick the delay out. */
                 loc_slot = ToriRSServer_SceneFindLocId(tx + 1, tz + 4, 0, loc_lever);
                 if( loc_slot < 0 )
                     loc_slot = ToriRSServer_SceneAddLoc(tx + 1, tz + 4, 0, loc_lever, 10, 0);
@@ -548,20 +549,15 @@ selftest_quest_itwatchtower(
                 if( loc_slot >= 0 )
                 {
                     int drain;
-                    int xp_before = player->stat_xp_tenths[stat_magic];
+                    int xp_before;
 
+                    ToriRSServer_CombatSetLevel(player, stat_magic, 50);
+                    xp_before = player->stat_xp_tenths[stat_magic];
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_lever, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 8);
-                    for( drain = 0; drain < 40 && player->varps[varp] < 13; drain++ )
-                    {
-                        int com = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
-                                                             "messagebox:continue");
-                        if( com > 0 )
-                            ToriRSServer_ScriptsResumeButton(srv, com);
-                        ToriRSServer_WorldCloseModal(srv);
+                    for( drain = 0; drain < 8; drain++ )
                         selftest_tick(srv);
-                    }
+                    selftest_click_through(srv, 12);
                     SELFTEST_CHECK(player->varps[varp] >= 13,
                                    "lever with four crystals at state 11 should complete, got %d",
                                    player->varps[varp]);
@@ -572,7 +568,7 @@ selftest_quest_itwatchtower(
                                    "completion should grant watchtowerspell");
                     if( player->varps[varp] >= 13 )
                         fprintf(stderr, "PASS watchtower lever\n");
-                    if( player->varps[varp] >= 13 )
+                    if( selftest_count_obj(player, obj_spell) > 0 )
                         fprintf(stderr, "PASS watchtower complete\n");
                     ToriRSServer_WorldCloseModal(srv);
                     player->active_script = NULL;
