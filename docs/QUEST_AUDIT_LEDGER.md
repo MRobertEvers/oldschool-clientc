@@ -99,7 +99,7 @@
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
 | 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | unaudited | |  |
-| 31 May 2005 | The Lost Tribe | `quest_losttribe` | in-progress | 2026-09-10 | claimed by cloud `gp-lt-img`. Gate D = one named BMP per interaction (Sigmund start/skill-gate, Duke, Bob witness, brooch/Reldo, goblin generals, Mistag, HAM pickpocket/chest, treaty, journals, authored complete scroll). Highlight reel = failed close. |
+| 31 May 2005 | The Lost Tribe | `quest_losttribe` | fixed | 2026-09-10 | Gate D `gp-lt-img` on `cursor/the-lost-tribe-gate-d-429b`: C walk 46/0 immediately before sanfew `selftest_reset_world`; 96 named BMPs / 96 unique MD5s at `osrs239-content/server/scripts/selftest/quest_losttribe/` (OSRS-Content@ad5ede85d). Leftovers: signing cutscene soft-skip (dialogue+rewards kept); book IF page-turn deferred. Not verified-modern. |
 | 31 May 2005 | The Giant Dwarf | `quest_giantdwarf` | unaudited | |  |
 | 13 Jun 2005 | Enter the Abyss | `quest_entertheabyss` | unaudited | |  |
 | 27 Jun 2005 | Recruitment Drive | `quest_recruitmentdrive` | unaudited | |  |
