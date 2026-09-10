@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_mountaindaughter_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -35904,6 +35905,11 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        /* Mountain Daughter Gate D walk: immediately before this reset so
+         * spawned Hamal / Jokul / Svidi / Brundt / Kendal npcs cannot leak
+         * into shop cases. Kendal is not a death test. */
+        player->godmode = 1;
+        selftest_quest_mountaindaughter(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {
