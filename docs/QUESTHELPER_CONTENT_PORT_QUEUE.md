@@ -279,7 +279,7 @@ filed under `helpers/miniquests/` are at the end.
 | 4 | impcatcher | `impcatcher` | 187 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 5 | xmarksthespot | `xmarksthespot` | 204 | done |  |
 | 6 | tearsofguthix | `tearsofguthix` | 209 | done | 2026-09-10 parent-verified 49 unique-MD5 named BMPs on OSRS-Content@1e8b98cc85. Leftovers: weekly XP lowest-level not lowest-XP; full tears IF deferred; soft chasm tele; first-run mes reconstructed; font kerning. |
-| 7 | entertheabyss | `entertheabyss` | 212 | done |  |
+| 7 | entertheabyss | `entertheabyss` | 212 | in_progress | 2026-09-10 claimed `gp-eta-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
@@ -368,7 +368,7 @@ filed under `helpers/miniquests/` are at the end.
 | 93 | plaguecity | `plaguecity` | 514 | done (LC) | re-audit 2026-08-10: `quest_elena` (`edmond.rs2`, `alrena.rs2`; dbrow `quest_plaguecity` journal wired) |
 | 94 | piratestreasure | `piratestreasure` | 520 | done (LC) | re-audit 2026-08-10: pre-Sept-2004 quest, belongs on IN-LC list not this queue — LC's own internal codename is `quest_hunt` (not `piratestreasure`; `server/scripts/quests/quest_hunt/scripts/{redbeard_frank,luthas,dig,banana_crate,food_store,pirate_message,hunt_journal}.rs2`, 403 lines total, dbrow `quest_piratestreasure` id 16, journal wired `interface_questjournal/scripts/quest_journal.rs2:447`) |
 | 95 | shilovillage | `shilovillage` | 531 | done (LC) | re-audit 2026-08-10: `quest_zombiequeen` (`rashiliyia.rs2`, `nazastarool.rs2`, `mosol_rei.rs2`; dbrow `quest_shilovillage` journal wired) |
-| 96 | thelosttribe | `thelosttribe` | 532 | in_progress | 2026-09-10 claimed `gp-lt-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 96 | thelosttribe | `thelosttribe` | 532 | done | 2026-09-10 parent-verified 96 unique-MD5 named BMPs on OSRS-Content@ad5ede85d. Leftovers: signing cutscene soft-skip; book IF page-turn deferred; Sigmund named Someone; font kerning. |
 | 97 | demonslayer | `demonslayer` | 540 | done (LC) | re-audit 2026-08-10: `quest_demon` (`delrith.rs2`; dbrow `quest_demonslayer` journal wired) |
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
 | 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | 2026-09-10 parent-verified 143 unique-MD5 named BMPs on OSRS-Content@99d4904103. Supersedes 8-shot reel. Leftovers: kingdom collect loop, condensed courtship. |
