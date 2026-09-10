@@ -22,7 +22,6 @@
         int vb_air;
         int vb_stairs;
         int vb_leather;
-        int vb_entered;
         int vb_finished;
         int varp_qp;
         int loc_bookcase;
@@ -86,7 +85,6 @@
         vb_air = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_bellows_switch");
         vb_stairs = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_stairs");
         vb_leather = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_leather");
-        vb_entered = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_entered");
         vb_finished = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_finished");
         varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
         loc_bookcase = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_bookcase");
@@ -244,13 +242,14 @@
             SELFTEST_CHECK(loc_slot >= 0, "odd wall should resolve or place at 2709,3495");
             if( loc_slot >= 0 )
             {
-                int entered_before = vb_entered >= 0 ? ToriRSServer_VarbitGet(player, vb_entered) : 0;
+                /* QH enteredWall is bit 15 of elemental_workshop_bits (unnamed
+                 * in cache group 14; content reaches it with setbit). */
+                int entered_before = (player->varps[varp_bits] >> 15) & 1;
 
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_wall, -1, loc_slot);
                 selftest_click_through(srv, 4);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(vb_entered < 0 ||
-                                   ToriRSServer_VarbitGet(player, vb_entered) == entered_before,
+                SELFTEST_CHECK(((player->varps[varp_bits] >> 15) & 1) == entered_before,
                                "OPLOC1 wall without the key must not set entered");
                 fprintf(stderr, "ELEM1 PASS: oploc1_wall_refuses_without_key\n");
 
@@ -259,9 +258,9 @@
                 for( t = 0; t < 8 && player->active_script; t++ )
                     selftest_tick(srv);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(vb_entered < 0 || ToriRSServer_VarbitGet(player, vb_entered) == 1,
+                SELFTEST_CHECK(((player->varps[varp_bits] >> 15) & 1) == 1,
                                "OPLOC1 wall with the key should set entered-wall bit 15, got %d",
-                               vb_entered >= 0 ? ToriRSServer_VarbitGet(player, vb_entered) : -1);
+                               (player->varps[varp_bits] >> 15) & 1);
                 fprintf(stderr, "ELEM1 PASS: oploc1_wall_with_key\n");
             }
 
