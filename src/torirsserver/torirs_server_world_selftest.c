@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_troll_love_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_TROLL_LOVE_ONLY") )
+    {
+        selftest_quest_troll_love(srv, player);
+        fprintf(stderr, "ToriRSServer troll romance selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("troll-love");
         return g_selftest_failures;
     }
 
@@ -15368,6 +15378,11 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsFree(srv);
         }
     }
+
+    /* Troll Romance Gate D C walk. Immediately before a reset so spawned
+     * npcs cannot leak into later RNG-gated checks. */
+    selftest_quest_troll_love(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: sanfew p_choice junk does not refuse\n");
     {
