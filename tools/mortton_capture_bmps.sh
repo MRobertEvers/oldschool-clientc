@@ -214,6 +214,10 @@ for shot in "${shots[@]}"; do
     continue
   fi
   dest="$OUT/${name}.bmp"
+  if [[ -f "$dest" && -z "${MORTTON_RECAPTURE:-}" ]]; then
+    echo "SKIP $dest"
+    continue
+  fi
   echo "CAPTURING $name via ::$cheat -> $dest"
   TORIRS_PLUGINS=0 \
   TORIRSSERVER_GOD=1 \
