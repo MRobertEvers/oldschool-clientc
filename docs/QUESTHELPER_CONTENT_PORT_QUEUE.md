@@ -293,7 +293,7 @@ filed under `helpers/miniquests/` are at the end.
 | 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done |  |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
 | 20 | aporcineofinterest | `aporcineofinterest` | 275 | done |  |
-| 21 | deviousminds | `deviousminds` | 275 | done | npcs=devious_monk_hooded/devious_monk_dead, high_priest_of_entrana |
+| 21 | deviousminds | `deviousminds` | 275 | in_progress | 2026-09-10 claimed `gp-dm-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 22 | whatliesbelow | `whatliesbelow` | 286 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 23 | ernestthechicken | `ernestthechicken` | 288 | done (LC) | re-audit 2026-08-10: `quest_haunted` (`professor_oddenstein.rs2`, `veronica.rs2`; dbrow `quest_ernestthechicken` journal wired) |
 | 24 | atailoftwocats | `atailoftwocats` | 293 | done | 2026-09-10 parent-verified 82 unique-MD5 named BMPs on OSRS-Content@bb8da29503. Leftovers: ILH gate deferred; no enchanted amulet / Bob locator IF / travel cutscene; no hair-growth timer / museum kudos / mouse-toy pounce; plant oplocu rake>=3 quirk. |
@@ -409,7 +409,7 @@ filed under `helpers/miniquests/` are at the end.
 | 134 | ratcatchers | `ratcatchers` | 737 | in_progress | 2026-09-10 claimed `gp-ratcatch-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 135 | dreammentor | `dreammentor` | 745 | done | 2026-08-12: unblocked -- Lunar Diplomacy (#169) landed with genuinely functional Rellekka<->Lunar Isle boat transport; re-verified end to end, ported same tick. 2QP, Hitpoints 15000xp + Magic 10000xp; native dbrow+varbit schema (`dream_prog`/`dream_health`/`dream_armament`) reused; real prereqs Combat 85 + Lunar Diplomacy FINISHED + Eadgar's Ruse FINISHED all hard-gated; see Log |
 | 136 | watchtower | `watchtower` | 758 | done | 2026-09-10 parent-verified 55 unique-MD5 named BMPs on OSRS-Content@1cd8aef63. Leftovers: cave/ladder travel. |
-| 137 | shadowofthestorm | `shadowofthestorm` | 759 | in_progress | 2026-09-10 claimed `gp-sots-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 137 | shadowofthestorm | `shadowofthestorm` | 759 | done | 2026-09-10 parent-verified 103 unique-MD5 named BMPs on OSRS-Content@3fb1d864ff. Leftovers: per-player incantation permutation unused (fixed wiki reverse); Agrith TK-grab unused; lamp is 10000 HP XP no rub-UI; sigil smelt is soft opheldu; Reen auto-starts (no start p_choice); Dave infiltrate checks dyed Silverlight only; stale deferred header in shadowstorm.rs2. |
 | 138 | landofthegoblins | `landofthegoblins` | 760 | done | 2QP, Agility/Fishing/Thieving/Herblore 8000xp each; native dbrow+varbit schema (`%lotg`) reused; see Log |
 | 139 | elementalworkshopii | `elementalworkshopii` | 770 | done | 1QP, Smithing/Crafting 7500xp each; native dbrow+20-field varbit schema (`%elemental_quest_2_main` + sub-fields) reused, real prerequisite EW1 FINISHED; see Log |
 | 140 | deserttreasure | `deserttreasure` | 803 | done | 2026-09-10 parent-verified 155 unique-MD5 named BMPs on OSRS-Content@134480647a. Leftovers: pyramid maze / Dig Site / ice boots / smoke ash deferred; Ancient signet not granted; font kerning. |
