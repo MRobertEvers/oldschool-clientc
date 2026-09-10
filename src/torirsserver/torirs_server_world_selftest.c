@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_legends_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3220,6 +3221,10 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    /* Legends' Quest Gate D walk. Immediately before a reset so spawned
+     * Radimus / Gujuo / Ungadulu / Echned / warriors cannot leak. */
+    selftest_quest_legends(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
