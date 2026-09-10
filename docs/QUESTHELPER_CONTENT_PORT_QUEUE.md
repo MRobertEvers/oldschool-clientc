@@ -419,7 +419,7 @@ filed under `helpers/miniquests/` are at the end.
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
 | 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | 2026-09-10 parent-verified 133 unique-MD5 named BMPs on OSRS-Content@18748ebde. Leftovers: agility-course walls, Vyrewatch tithe, Vanstrom ambush. Telegrab implemented. Veliaf refuse chathead canoeetest. Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
 | 146 | ghostsahoy | `ghostsahoy` | 821 | done | 2026-09-10 parent-verified 139 unique-MD5 named BMPs on OSRS-Content@fe927dc262. Leftovers: deterministic Rune-Draw/petition, lobster CHEAT-SKIP, no Wilderness/Perdu ectophial, ritual all-at-once, flag colours deterministic. |
-| 147 | deathontheisle | `deathontheisle` | 827 | in_progress | 2026-09-10 claimed `gp-doti-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 147 | deathontheisle | `deathontheisle` | 827 | done | 2026-09-10 Gate D parent-verified 79 named / 79 unique-MD5 BMPs cherry-picked onto OSRS-Content@404a5e2b15 (worker SHA e49a21969b not merged wholesale). Leftovers: leftover_butler_steal_equip; leftover_guest_intro_matrix; leftover_cellar_clue_hunt; leftover_pickpocket_evidence; leftover_adala_naiatli_fights; leftover_theatre_investigation_ui; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 148 | scrambled | `scrambled` | 840 | in_progress | 2026-09-10 claimed `gp-scram-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | in_progress | 2026-09-10 claimed `gp-bcs-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 150 | regicide | `regicide` | 944 | done | 2026-09-10 parent-verified 140 unique-MD5 named BMPs on OSRS-Content@aba2690ec0. Leftover: catapult `forcewalk2` underflow. |
@@ -445,7 +445,7 @@ filed under `helpers/miniquests/` are at the end.
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
-| 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
+| 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | in_progress | 2026-09-10 claimed `gp-mm2-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 174 | recipefordisaster | `recipefordisaster` | 3,370 | done | 2026-09-10 parent-verified 178 named / 174 unique-MD5 BMPs on OSRS-Content@24772511b. Leftovers: dave hellrat spice, traiborn quizzes, mudknuckles cutscene, rohak drunk icefiend, pirate helmet burn, skrach balloon boat, amik brulee chain, monkey threegree, gelatin cycle, banquet cutscene. Agrith TK-grab implemented. Prior 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale; see Log |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
