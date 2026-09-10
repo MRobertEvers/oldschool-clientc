@@ -283,7 +283,7 @@ filed under `helpers/miniquests/` are at the end.
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
-| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 cloud `gp-runemyst-c1` FAILED CLOSE: 10-shot highlight reel (no mesbox) on `cursor/rune-mysteries-gate-d-8c5c` / OSRS-Content@9bf3c8377. Do not stamp fixed. Do not double-claim. |
+| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 claimed `gp-runemyst-img` on cache image `bld-20260910-ed0a006f`. |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
@@ -298,7 +298,7 @@ filed under `helpers/miniquests/` are at the end.
 | 23 | ernestthechicken | `ernestthechicken` | 288 | done (LC) | re-audit 2026-08-10: `quest_haunted` (`professor_oddenstein.rs2`, `veronica.rs2`; dbrow `quest_ernestthechicken` journal wired) |
 | 24 | atailoftwocats | `atailoftwocats` | 293 | done | bookkeeping fix 2026-08-10: already `done` since slice 1 (2026-08-04, see P1 row + Log) — the 2026-08-06 table rebuild re-added it as `pending` without checking the tree first |
 | 25 | fishingcontest | `fishingcontest` | 297 | done (LC) | re-audit 2026-08-10: `quest_fishingcompo` (`hemenster/bonzo.rs2`, `hemenster_fishing.rs2`; dbrow `quest_fishingcontest` journal wired) |
-| 26 | junglepotion | `junglepotion` | 298 | in_progress | 2026-09-10 REOPENED: 10 BMPs ≠ every interaction. Recapture full walk. |
+| 26 | junglepotion | `junglepotion` | 298 | in_progress | 2026-09-10 claimed `gp-jungle-img` on cache image `bld-20260910-ed0a006f`. |
 | 27 | gertrudescat | `gertrudescat` | 299 | in_progress | 2026-09-09 cloud `gp-fluffs-c1` FAILED CLOSE: 0 named BMPs on `cursor/gertrudes-cat-fluffs-542f` (no cache.osrs239). Do not double-claim. |
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
@@ -398,7 +398,7 @@ filed under `helpers/miniquests/` are at the end.
 | 123 | templeoftheeye | `templeoftheeye` | 662 | done |  |
 | 124 | thefremennikisles | `thefremennikisles` | 670 | done | Feb 2007 -- King Gjuki's jester-spy plot against Mawnis Burowgar, two rounds of Jatizso tax collection, two bridge repairs, and the Ice Troll King; native dbrow `quest_fremennikisles` (id 127, endstate 340, questpoints 1, requirement_stats agility40+construction20) + native varbit schema on basevars `fris_r1` (`fris_quest`, `fris_task` troll counter, `fris_m_b3`/`fris_m_b4`/`fris_m_b5` bridges, `fris_king` Mawnis crown swap) and `fris_r2` (six `frisd_*_taxcollected` bits, shared/reset across both tax rounds) reused as-is; npcs=fris_r_king,fris_r_burgher_crown,fris_spymaster,frisd_oremerchant,frisd_weaponmerchant,frisd_izso_landlady,frisd_cook,frisd_armourmerchant,frisd_fishmerchant,fris_troll_king_true (cache spelling matches quest-helper's own NpcID names exactly, no drama this time); see Log |
 | 125 | gardenoftranquility | `gardenoftranquility` | 684 | done | Aug 2005 -- Queen Ellamaria's hidden garden for King Roald; native dbrow `quest_gardenoftranquillity` (double-L cache spelling, id 90, endstate 60, questpoints 2, requirement_stats farming25) + native varbit schema on basevars `garden_varp_1`/`garden_varp_2` reused as-is; npcs=queen_ellamaria,elstan,lyra,kragen,dantaera,brother_althric,bernald (cache's own real names, not the queue row's stale `gardentroll`/`queenellama` hints -- see Log); see Log |
-| 126 | murdermystery | `murdermystery` | 686 | in_progress | 2026-09-10 REOPENED: 10 tele dumps ≠ every interaction. Recapture with mesbox/chat visible. |
+| 126 | murdermystery | `murdermystery` | 686 | in_progress | 2026-09-10 claimed `gp-murder-img` on cache image `bld-20260910-ed0a006f`. |
 | 127 | enakhraslament | `enakhraslament` | 688 | done | Jan 2006 -- Lazim, Enakhra's ruined desert temple, Akthanakos; native dbrow `quest_enakhraslament` (id 103, endstate 70) + native varbit schema on three basevars (`enakh_quest_expositbits`/`enakh_multivarbits`/`enakh_varbits`) reused as-is; see Log |
 | 128 | perilousmoon | `perilousmoon` | 688 | done |  |
 | 129 | theslugmenace | `theslugmenace` | 694 | done | Sept 2006 -- Sir Tiffy Cashien's Temple Knights send the player to Witchaven to investigate a Zamorakian conspiracy (Col. O'Niall/Brother Maledict/Mayor Hobb), a ruined temple, torn documents, five elemental runes, and the Slug Prince; see Log |
