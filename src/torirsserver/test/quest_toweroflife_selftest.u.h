@@ -426,20 +426,6 @@ tol_skills(struct ToriRSServerPlayer* player)
 }
 
 static void
-tol_wear_outfit(struct ToriRSServerPlayer* player, int hat, int shirt, int trousers, int boots)
-{
-    assert(player);
-    if( hat > 0 )
-        worn_set(player, TOL_WORN_HAT, hat, 1);
-    if( shirt > 0 )
-        worn_set(player, TOL_WORN_BODY, shirt, 1);
-    if( trousers > 0 )
-        worn_set(player, TOL_WORN_LEGS, trousers, 1);
-    if( boots > 0 )
-        worn_set(player, TOL_WORN_BOOTS, boots, 1);
-}
-
-static void
 tol_journal(struct ToriRSServer* srv, const char* step)
 {
     assert(srv);
@@ -714,6 +700,8 @@ selftest_quest_toweroflife(
     tol_pass("58_door_enter");
     tol_journal(srv, "journal_04_fixing_tower");
 
+    /* Materials do not all stack; collect and spend one machine at a time
+     * so 28 inv slots cannot overflow before crate08 / tools. */
     tol_clear_inv(player);
     tol_loc1(srv, loc_crate_sheets);
     SELFTEST_CHECK(tol_inv_total(player, obj_sheets) >= TOL_NEED_SHEETS, "crate06 should grant sheets");
@@ -724,22 +712,6 @@ selftest_quest_toweroflife(
     tol_loc1(srv, loc_crate_wheels);
     SELFTEST_CHECK(tol_inv_total(player, obj_wheels) >= TOL_NEED_WHEELS, "crate05 should grant wheels");
     tol_pass("64_crate_wheels");
-    tol_loc1(srv, loc_crate_pipes);
-    SELFTEST_CHECK(tol_inv_total(player, obj_pipes) >= TOL_NEED_PIPES, "crate02 should grant pipes");
-    tol_pass("66_crate_pipes");
-    tol_loc1(srv, loc_crate_rings);
-    SELFTEST_CHECK(tol_inv_total(player, obj_rings) >= TOL_NEED_RINGS, "crate03 should grant rings");
-    tol_pass("68_crate_rings");
-    tol_loc1(srv, loc_crate_rivets);
-    SELFTEST_CHECK(tol_inv_total(player, obj_rivets) >= TOL_NEED_RIVETS, "crate04 should grant rivets");
-    tol_pass("70_crate_rivets");
-    tol_loc1(srv, loc_crate_bars);
-    SELFTEST_CHECK(tol_inv_total(player, obj_bars) >= TOL_NEED_BARS, "crate10 should grant bars");
-    tol_pass("72_crate_bars");
-    tol_loc1(srv, loc_crate_fluid);
-    SELFTEST_CHECK(tol_inv_total(player, obj_fluid) >= TOL_NEED_FLUID, "crate08 should grant fluid");
-    tol_pass("74_crate_fluid");
-
     tol_give(player, obj_hammer, 1);
     tol_give(player, obj_saw, 1);
     tol_loc1_rows(srv, loc_pres, build_yes, 1);
@@ -749,6 +721,18 @@ selftest_quest_toweroflife(
     SELFTEST_CHECK(tol_get_vb(player, "tol_pres_prog") == TOL_MACHINE_FIXED, "pressure fix should set fixed=2");
     tol_pass("82_pres_calibrate");
 
+    tol_clear_inv(player);
+    tol_loc1(srv, loc_crate_pipes);
+    SELFTEST_CHECK(tol_inv_total(player, obj_pipes) >= TOL_NEED_PIPES, "crate02 should grant pipes");
+    tol_pass("66_crate_pipes");
+    tol_loc1(srv, loc_crate_rings);
+    SELFTEST_CHECK(tol_inv_total(player, obj_rings) >= TOL_NEED_RINGS, "crate03 should grant rings");
+    tol_pass("68_crate_rings");
+    tol_loc1(srv, loc_crate_rivets);
+    SELFTEST_CHECK(tol_inv_total(player, obj_rivets) >= TOL_NEED_RIVETS, "crate04 should grant rivets");
+    tol_pass("70_crate_rivets");
+    tol_give(player, obj_hammer, 1);
+    tol_give(player, obj_saw, 1);
     tol_loc1_rows(srv, loc_pipe, build_yes, 1);
     SELFTEST_CHECK(tol_get_vb(player, "tol_pipe_prog") == TOL_MACHINE_BUILT, "pipe build should set built=1");
     tol_pass("89_pipe_build");
@@ -756,6 +740,15 @@ selftest_quest_toweroflife(
     SELFTEST_CHECK(tol_get_vb(player, "tol_pipe_prog") == TOL_MACHINE_FIXED, "pipe fix should set fixed=2");
     tol_pass("90_pipe_calibrate");
 
+    tol_clear_inv(player);
+    tol_loc1(srv, loc_crate_bars);
+    SELFTEST_CHECK(tol_inv_total(player, obj_bars) >= TOL_NEED_BARS, "crate10 should grant bars");
+    tol_pass("72_crate_bars");
+    tol_loc1(srv, loc_crate_fluid);
+    SELFTEST_CHECK(tol_inv_total(player, obj_fluid) >= TOL_NEED_FLUID, "crate08 should grant fluid");
+    tol_pass("74_crate_fluid");
+    tol_give(player, obj_hammer, 1);
+    tol_give(player, obj_saw, 1);
     tol_loc1_rows(srv, loc_cage, build_yes, 1);
     SELFTEST_CHECK(tol_get_vb(player, "tol_cage_prog") == TOL_MACHINE_BUILT, "cage build should set built=1");
     tol_pass("96_cage_build");
