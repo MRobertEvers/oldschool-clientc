@@ -313,7 +313,7 @@ filed under `helpers/miniquests/` are at the end.
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | Oct 2006 -- Bert's sandpit, Sandy the corrupt slavedriver, Zavistic Rarve; native dbrow `quest_handinthesand` (id 102, endstate 160) + native varbit schema on basevar `handsand` (`%handsand_quest` 0/10/20.../150/160, question1-3, tele, serum) reused as-is; dir `quest_handinthesand` (cache-authoritative name, not the QH dir spelling) |
 | 39 | bonevoyage | `bonevoyage` | 320 | done |  |
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
-| 41 | trollromance | `trollromance` | 321 | in_progress | 2026-09-10 claimed `gp-troll-img` on cache image `bld-20260910-ed0a006f`. |
+| 41 | trollromance | `trollromance` | 321 | done | Gate D 2026-09-10: 168 unique-MD5 named BMPs on `cursor/troll-romance-gate-d-38d1` / OSRS-Content@7f5c5072f7. C walk 19 PASS. Leftovers on ledger. Not verified-modern. |
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
 | 43 | asoulsbane | `asoulsbane` | 330 | **done** | resolved 2026-08-12, see P2 row — real quest already fully implemented at `quest_soulsbane/`, audited-fixed under the mid-era table above; this row's own dead duplicate `quest_asoulsbane/` was deleted, not fixed |
 | 44 | childrenofthesun | `childrenofthesun` | 337 | done |  |
