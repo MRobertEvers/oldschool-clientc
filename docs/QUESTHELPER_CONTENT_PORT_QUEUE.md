@@ -283,7 +283,7 @@ filed under `helpers/miniquests/` are at the end.
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
-| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 claimed `gp-runemyst-img` on cache image `bld-20260910-ed0a006f`. |
+| 11 | runemysteries | `runemysteries` | 246 | done | 2026-09-10 parent-verified 33 unique-MD5 named BMPs on OSRS-Content@fa9c641ca (Duke/Sedridor/Aubury). |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
