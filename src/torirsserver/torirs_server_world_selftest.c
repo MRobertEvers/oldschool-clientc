@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_theslugmenace_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_SLUG_ONLY") || getenv("TORIRSSERVER_SELFTEST_SLUGMENACE") )
+    {
+        selftest_quest_theslugmenace(srv, player);
+        fprintf(stderr, "ToriRSServer slug menace selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("slug");
         return g_selftest_failures;
     }
 
@@ -35904,6 +35914,7 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        selftest_quest_theslugmenace(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {

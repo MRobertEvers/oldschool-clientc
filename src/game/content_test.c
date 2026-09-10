@@ -532,6 +532,13 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 if( id < 0 ) error("unknown loc");
                 else { App_SimulateLocOp(app, op, x, z, id); publish_pending = 1; }
             }
+            else if( sscanf(command, "npcop %d %511s", &op, name) == 2 )
+            {
+                int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, name);
+                if( id < 0 ) error("unknown npc");
+                else if( App_SimulateNpcOp(app, op, id) < 0 ) error("npc not in scene");
+                else publish_pending = 1;
+            }
             else if( sscanf(command, "button %511s %d %d", name, &sub, &op) == 3 )
             {
                 int idx = widget(app, name, sub);
