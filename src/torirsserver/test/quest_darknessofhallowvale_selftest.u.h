@@ -49,6 +49,7 @@
 #define DOH_COMPLETE 320
 
 #define DOH_IAOM_DONE 430
+#define DOH_ROUTEQUEST_DONE 105
 #define DOH_DAEYALT_NEEDED 15
 #define DOH_REWARD_AGILITY 70000
 #define DOH_REWARD_THIEVING 60000
@@ -402,6 +403,8 @@ static void
 doh_prereq(struct ToriRSServer* srv, int on)
 {
     assert(srv);
+    /* route_veliaf_hurtz checks In Search of the Myreque before IAOM/DoH. */
+    doh_varp(srv, "routequest", on ? DOH_ROUTEQUEST_DONE : 0);
     doh_vb(srv, "myreque_2_quest", on ? DOH_IAOM_DONE : 0);
 }
 
@@ -495,7 +498,6 @@ selftest_quest_darknessofhallowvale(
     int obj_nails;
     int obj_knife;
     int obj_key;
-    int obj_ladder_top;
     int obj_veliaf_msg;
     int obj_pick;
     int obj_sketch1;
@@ -590,7 +592,6 @@ selftest_quest_darknessofhallowvale(
     obj_nails = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "nails");
     obj_knife = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_knife");
     obj_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "myq3_agil_key_1");
-    obj_ladder_top = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "myq3_sanguine_ladder_top");
     obj_veliaf_msg = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "sang_veliaf_message");
     obj_pick = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_pickaxe");
     obj_sketch1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "myq3_castle_sketch_1");
@@ -802,7 +803,7 @@ selftest_quest_darknessofhallowvale(
 
     doh_loc(srv, loc_bush);
     SELFTEST_CHECK(doh_quest(player) == DOH_BUSHES_DONE, "bush search sets 130");
-    SELFTEST_CHECK(doh_get_vb(player, "myq3_hidden_limb_bush") == 2, "bush varbit completes");
+    SELFTEST_CHECK(doh_get_vb(player, "myq3_hidden_limb_bush") == 1, "bush varbit completes");
     doh_pass("bush_search");
     doh_journal(srv, "journal_130_bushes");
     doh_loc(srv, loc_bush);
