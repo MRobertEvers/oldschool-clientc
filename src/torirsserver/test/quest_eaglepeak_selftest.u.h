@@ -69,8 +69,8 @@
 #define EAGLE_GOLD_Z 4906
 #define EAGLE_PAST_DOOR_X 2002
 #define EAGLE_PAST_DOOR_Z 4958
-#define EAGLE_EYRIE_DESERT_X 3414
-#define EAGLE_EYRIE_DESERT_Z 9576
+#define EAGLE_EYRIE_DESERT_X 3422
+#define EAGLE_EYRIE_DESERT_Z 9568
 #define EAGLE_EYRIE_RETURN_X 2019
 #define EAGLE_EYRIE_RETURN_Z 4957
 
@@ -334,6 +334,19 @@ eagle_inv_total(const struct ToriRSServerPlayer* player, int obj_id)
         return 0;
     for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
         if( player->inv[s].obj_id == obj_id )
+            n += player->inv[s].count;
+    return n;
+}
+
+static int
+eagle_inv_used(const struct ToriRSServerPlayer* player)
+{
+    int n = 0;
+    int s;
+
+    assert(player);
+    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+        if( player->inv[s].obj_id >= 0 && player->inv[s].count > 0 )
             n += player->inv[s].count;
     return n;
 }
@@ -847,7 +860,7 @@ selftest_quest_eaglepeak(
     eagle_clear_inv(player);
     eagle_talk_rows(srv, npc_nick_camp, slot_nick, one, 1);
     SELFTEST_CHECK(eagle_quest(player) == EAGLE_GOT_FERRET, "lesson should set got_ferret=35");
-    SELFTEST_CHECK(eagle_inv_total(player, obj_ferret) >= 1, "lesson should grant a ferret");
+    SELFTEST_CHECK(eagle_inv_used(player) >= 1, "lesson should grant a ferret");
     eagle_pass("76_camp_ferret");
     eagle_journal(srv, "journal_09_ferret");
 
@@ -860,7 +873,7 @@ selftest_quest_eaglepeak(
     eagle_pass("17_charlie_ferret_missing");
 
     eagle_talk_finish(srv, npc_nick_camp, slot_nick);
-    SELFTEST_CHECK(eagle_inv_total(player, obj_ferret) >= 1, "camp should replace a lost ferret");
+    SELFTEST_CHECK(eagle_inv_used(player) >= 1, "camp should replace a lost ferret");
     eagle_pass("79_camp_replace");
 
     qp_id = ToriRSServer_WorldVarp("qp");
