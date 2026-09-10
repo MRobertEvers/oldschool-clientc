@@ -242,6 +242,22 @@ ssq_free_npc(struct ToriRSServer* srv, int slot)
 }
 
 static void
+ssq_free_type(struct ToriRSServer* srv, int npc_type)
+{
+    int i;
+
+    assert(srv);
+    if( npc_type <= 0 )
+        return;
+    for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active && srv->npcs[i].type == npc_type )
+            ToriRSServer_WorldNpcFree(srv, i);
+    }
+    ToriRSServer_WorldNpcReap(srv);
+}
+
+static void
 ssq_vb(struct ToriRSServer* srv, const char* name, int value)
 {
     int bit;
@@ -975,6 +991,7 @@ selftest_quest_swansong(
             ssq_pass("oploc1_fish_troll_blocking");
             ssq_kill(srv, npc_troll, slot_troll);
             ssq_free_npc(srv, slot_troll);
+            ssq_free_type(srv, npc_troll);
         }
 
         ssq_oploc(srv, loc_fish, fish_slot);
