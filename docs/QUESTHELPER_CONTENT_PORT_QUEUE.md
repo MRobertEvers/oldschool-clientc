@@ -278,7 +278,7 @@ filed under `helpers/miniquests/` are at the end.
 | 3 | witchspotion | `witchspotion` | 162 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 4 | impcatcher | `impcatcher` | 187 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 5 | xmarksthespot | `xmarksthespot` | 204 | done |  |
-| 6 | tearsofguthix | `tearsofguthix` | 209 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
+| 6 | tearsofguthix | `tearsofguthix` | 209 | in_progress | 2026-09-10 cloud `gp-tog-img` Gate D: one named BMP per interaction. Do not stamp other quests. |
 | 7 | entertheabyss | `entertheabyss` | 212 | done |  |
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |

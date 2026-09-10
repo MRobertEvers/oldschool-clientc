@@ -97,7 +97,7 @@
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
-| 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
+| 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | in-progress | 2026-09-10 | claimed by cloud `gp-tog-img`. Gate D = one named BMP per interaction (Juna prereq refuses, story start, what-are-the-Tears, cave/light-creature, chisel+stone→bowl, bowl hand-in, authored complete scroll, journals). Highlight reel = failed close. Leave Observatory, Death to the Dorgeshuun, The Golem, Desert Treasure I, and Icthlarin's Little Helper alone. |
 | 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | unaudited | |  |
 | 31 May 2005 | The Lost Tribe | `quest_losttribe` | unaudited | |  |
 | 31 May 2005 | The Giant Dwarf | `quest_giantdwarf` | unaudited | |  |
