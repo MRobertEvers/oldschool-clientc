@@ -1090,12 +1090,18 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                      * that declared namespace here: `shark` is both obj 385
                      * and npc 1830 in rev 239, and the generic resolver picks
                      * the npc. That made every `obj_add(..., shark, ...)`
-                     * quietly put a waterskin-shaped id on the floor. */
+                     * quietly put a waterskin-shaped id on the floor. The same
+                     * collision turns `inv_add(..., bloated_toad, ...)` into
+                     * npc 1474 (a black bead) instead of obj 2875. */
                     if( arg_index == 1 && op_name &&
                         (strcmp(op_name, "OBJ_ADD") == 0 ||
                          strcmp(op_name, "OBJ_ADDALL") == 0 ||
                          strcmp(op_name, "OBJ_ADD_PRIVATE") == 0 ||
-                         strcmp(op_name, "OBJ_FIND") == 0) )
+                         strcmp(op_name, "OBJ_FIND") == 0 ||
+                         strcmp(op_name, "INV_ADD") == 0 ||
+                         strcmp(op_name, "INV_DEL") == 0 ||
+                         strcmp(op_name, "INV_TOTAL") == 0 ||
+                         strcmp(op_name, "INV_ITEMSPACE") == 0) )
                         compiler->arg_kind_hint = SSC_SYM_OBJ;
                     /* `sound_synth(arrow_launch, ...)` names a synth, not the
                      * sequence which shares that cache name. As with the

@@ -429,6 +429,7 @@
                     if( keep_bellows == 0 )
                         inv_set(player, 0, obj_bellows3, 1);
                 }
+                selftest_park_player(srv, 2602, 2967);
                 toad_slot = npc_spawn(srv, npc_toad, 2602, 2967, 0);
                 SELFTEST_CHECK(toad_slot >= 0, "a swamp toad should spawn");
                 if( toad_slot >= 0 )
@@ -451,8 +452,7 @@
                     /* QH goInflateToad: use filled bellows on the swamp toad. */
                     ran = ToriRSServer_ScriptsRunTrigger(
                         srv, SS_TRIGGER_OPNPCU, toad_type, -1, toad_slot);
-                    fprintf(stderr, "  inflate OPNPCU type=%d slot=%d -> %d\n",
-                            toad_type, toad_slot, ran);
+                    (void)ran;
                     for( t = 0; t < 24; t++ )
                         selftest_tick(srv);
                     {
@@ -474,8 +474,7 @@
                                 /* Cache op1=Inflate. */
                                 ran = ToriRSServer_ScriptsRunTrigger(
                                     srv, SS_TRIGGER_OPNPC1, toad_type, -1, toad_slot);
-                                fprintf(stderr, "  inflate OPNPC1 type=%d slot=%d -> %d\n",
-                                        toad_type, toad_slot, ran);
+                                (void)ran;
                                 for( t = 0; t < 24; t++ )
                                     selftest_tick(srv);
                             }
