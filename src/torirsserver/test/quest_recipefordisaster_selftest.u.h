@@ -318,7 +318,10 @@ rfd_set_progress(struct ToriRSServer* srv, const char* name, int value)
     assert(srv->active_player);
     varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, name);
     if( varp >= 0 )
+    {
         srv->active_player->varps[varp] = value;
+        return;
+    }
     bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
     if( bit >= 0 )
         ToriRSServer_VarbitSet(srv, bit, value);
@@ -440,6 +443,7 @@ rfd_opheldu(struct ToriRSServer* srv, int clicked, int used)
     assert(clicked > 0);
     player = srv->active_player;
     assert(player);
+    player->last_item = clicked;
     player->last_useitem = used;
     player->last_useslot = 0;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, clicked, -1, -1);
@@ -1732,8 +1736,15 @@ selftest_quest_recipefordisaster(
     slot = rfd_spawn(srv, npc_agrith, RFD_ARENA_X, RFD_ARENA_Z, RFD_ARENA_LEVEL);
     if( slot >= 0 )
     {
-        int before_x = player->x;
-        int before_z = player->z;
+        int before_x;
+        int before_z;
+        int q;
+
+        rfd_tele(srv, RFD_ARENA_X - 3, RFD_ARENA_Z, RFD_ARENA_LEVEL);
+        for( q = 0; q < TORIRSSERVER_QUEUE_MAX; q++ )
+            player->queue[q].active = 0;
+        before_x = player->x;
+        before_z = player->z;
         ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,rfd_agrith_tk_grab]", slot);
         rfd_finish(srv);
         SELFTEST_CHECK(player->x != before_x || player->z != before_z ||
