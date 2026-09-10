@@ -123,10 +123,12 @@ for shot in "${shots[@]}"; do
   echo "CAPTURING $name via ::$cheat -> $dest"
   TORIRS_PLUGINS=0 \
   TORIRSSERVER_GOD=1 \
+  TORIRS_PAINTER_NOCULL=1 \
   TORIRS_NET_CHEAT="god 1;maxstats;$cheat" \
   TORIRS_EXIT_BMP="$dest" \
-  TORIRS_MAX_FRAMES="${TORIRS_MAX_FRAMES:-300}" \
-  "$ROOT/run-live.sh" --skip-checks "$MANIFEST" testc test || true
+  TORIRS_MAX_FRAMES="${TORIRS_MAX_FRAMES:-240}" \
+  SDL_VIDEODRIVER=dummy \
+  "$ROOT/src/torirs" --manifest "$MANIFEST" --user testc --pass test --soft3d || true
   if [[ ! -f "$dest" ]]; then
     echo "MISSING $dest" >&2
   else
