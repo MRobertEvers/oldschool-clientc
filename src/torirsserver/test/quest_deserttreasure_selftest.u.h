@@ -306,9 +306,33 @@ dt_talk_finish(struct ToriRSServer* srv, int npc_type, int slot)
 }
 
 static void
+dt_click_until_menu(struct ToriRSServer* srv, int max_pages)
+{
+    struct ToriRSServerPlayer* player;
+    int chatmenu;
+    int clicks;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+    chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+    clicks = 0;
+    while( clicks < max_pages && player->active_script )
+    {
+        if( player->resume_button_count > 0 && chatmenu > 0 &&
+            player->resume_buttons[0] == chatmenu )
+            return;
+        if( selftest_click_through(srv, 1) <= 0 )
+            break;
+        clicks++;
+    }
+}
+
+static void
 dt_prereqs(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 {
     assert(srv);
+    (void)srv;
     assert(player);
     dt_set_varp(player, "desertrescue", DT_TOURIST_COMPLETE);
     dt_set_varp(player, "ikov", DT_IKOV_COMPLETE);
@@ -641,7 +665,11 @@ selftest_quest_deserttreasure(
                            "buying the brew must set dt_bought_beer");
             dt_pass("opnpc1_bartender_buy_beer");
 
-            dt_talk_finish(srv, npc_bartender, bar);
+            /* p_choice3: treasure / four diamonds / fortress — row 2 is diamonds. */
+            dt_talk(srv, npc_bartender, bar);
+            dt_click_until_menu(srv, 16);
+            selftest_charter_choose(srv, 2);
+            dt_finish(srv);
             SELFTEST_CHECK(dt_get_bit(player, "deserttreasure") == DT_HEARD_DIAMONDS,
                            "asking about four diamonds must write heard_diamonds, got %d",
                            dt_get_bit(player, "deserttreasure"));
@@ -922,8 +950,9 @@ selftest_quest_deserttreasure(
             {
                 ToriRSServer_ScriptsRunTrigger(
                     srv, SS_TRIGGER_AI_QUEUE3, srv->npcs[dess].type, -1, dess);
-                dt_finish(srv);
             }
+            dt_finish(srv);
+            ToriRSServer_WorldCloseModal(srv);
             SELFTEST_CHECK(dt_get_varp(player, "dt_blood_stage") == DT_BLOOD_KILLED,
                            "killing Dessous must write blood_killed, got %d",
                            dt_get_varp(player, "dt_blood_stage"));
@@ -940,6 +969,7 @@ selftest_quest_deserttreasure(
         {
             dt_set_bit(srv, "deserttreasure", DT_MIRRORS_READY);
             dt_set_varp(player, "dt_blood_stage", DT_BLOOD_KILLED);
+            ToriRSServer_WorldCloseModal(srv);
             dt_talk_finish(srv, npc_malak, malak);
             SELFTEST_CHECK(dt_get_varp(player, "dt_blood_stage") == DT_BLOOD_COMPLETE,
                            "Malak after Dessous must write blood_complete, got %d",
@@ -1031,8 +1061,9 @@ selftest_quest_deserttreasure(
             {
                 ToriRSServer_ScriptsRunTrigger(
                     srv, SS_TRIGGER_AI_QUEUE3, srv->npcs[fareed].type, -1, fareed);
-                dt_finish(srv);
             }
+            dt_finish(srv);
+            ToriRSServer_WorldCloseModal(srv);
             SELFTEST_CHECK(dt_get_varp(player, "dt_smoke_stage") == DT_SMOKE_COMPLETE,
                            "killing Fareed must write smoke_complete, got %d",
                            dt_get_varp(player, "dt_smoke_stage"));
@@ -1130,8 +1161,9 @@ selftest_quest_deserttreasure(
             {
                 ToriRSServer_ScriptsRunTrigger(
                     srv, SS_TRIGGER_AI_QUEUE3, srv->npcs[kamil].type, -1, kamil);
-                dt_finish(srv);
             }
+            dt_finish(srv);
+            ToriRSServer_WorldCloseModal(srv);
             SELFTEST_CHECK(dt_get_varp(player, "dt_ice_stage") == DT_ICE_KAMIL,
                            "killing Kamil must write ice_kamil, got %d",
                            dt_get_varp(player, "dt_ice_stage"));
