@@ -15534,6 +15534,26 @@ App_SimulateNpcOp(
     return -1;
 }
 
+void
+App_SimulateIfButton(
+    struct App* app,
+    int op_num,
+    int component_id,
+    int sub)
+{
+    assert(app);
+    APP_NET_SEND(
+        app,
+        net_out_if_button_op(
+            app->net->rev,
+            app->net->random_out,
+            _nsbuf,
+            sizeof(_nsbuf),
+            op_num,
+            component_id,
+            sub));
+}
+
 int
 App_NpcScreenPosition(
     struct App* app,

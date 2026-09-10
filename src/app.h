@@ -4029,6 +4029,18 @@ App_SimulateNpcOp(
     int npc_id);
 
 /**
+ * IF_BUTTON1..10 on a named interface component. `sub` is the chatmenu row
+ * (1-based) or IF3 child; -1 is a plain widget. Used by content-test to
+ * answer ~p_choiceN the same way a real click does.
+ */
+void
+App_SimulateIfButton(
+    struct App* app,
+    int op_num,
+    int component_id,
+    int sub);
+
+/**
  * Where the first live npc of the given cache type is drawn, in canvas pixels,
  * for a headless click on it. Returns the npc's server slot, or -1 when no
  * synced npc of that type is in the scene or its body projects off screen.

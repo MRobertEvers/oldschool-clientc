@@ -539,6 +539,12 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 else if( App_SimulateNpcOp(app, op, id) < 0 ) error("npc not in scene");
                 else publish_pending = 1;
             }
+            else if( sscanf(command, "ifbutton %511s %d", name, &sub) == 2 )
+            {
+                int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+                if( id < 0 ) error("unknown component");
+                else { App_SimulateIfButton(app, 1, id, sub); publish_pending = 1; }
+            }
             else if( sscanf(command, "button %511s %d %d", name, &sub, &op) == 3 )
             {
                 int idx = widget(app, name, sub);
