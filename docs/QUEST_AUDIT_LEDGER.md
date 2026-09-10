@@ -69,7 +69,7 @@
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
-| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | in-progress | 2026-09-10 | claimed by cloud `gp-runemyst-c1`. Player unkillable unless a death case. Gate D needs named BMPs in OSRS-Content; a C-only close is a failed close. |
+| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | fixed | 2026-09-10 | parent-verified Gate D on `cursor/rune-mysteries-gate-d-8c5c`: 10 unique named BMPs in OSRS-Content@9bf3c8377 (parent gitlink — do not ls-tree the parent tree for BMPs). Player alive in every named shot (01 Duke castle + green HP; 04 Sedridor basement; 05 Aubury + research_package; 10 complete journal). C selftest PASS per step (opnpc1 Duke/Sedridor/Aubury, opheld4 talisman, oploc1 laddertop maplink, opnpcu package/notes, lost-package replace, ::complete twice). Not verified-modern (Sedridor/Aubury still LostCity/historical vs transcript oldid=15331800; wiki same-conversation notes+tea/run-energy; unused `runemysteries_secondary` varbits; 5 Varrock Museum Kudos is tree-wide). Wiki pins: article 15275863, Transcript 15331800, Journal 15331684. QH `runemysteries` steps.put 0..5 complete=6. |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | unaudited | |  |
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | unaudited | |  |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
