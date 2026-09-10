@@ -150,6 +150,10 @@ ifneq ($(filter $(PLATFORM),macos linux),)
     PLATFORM_MEMTRACE_WRAP_LDFLAGS :=
   else
     PLATFORM_LDFLAGS += -lGL
+    # glcorearb.h hides 1.x prototypes unless this is set. The GL3 renderer
+    # calls glGetError / glTexSubImage2D / glGetIntegerv as real symbols;
+    # without it those are undeclared on Linux.
+    PLATFORM_CFLAGS += -DGL_GLEXT_PROTOTYPES
     PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
         -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
         -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
