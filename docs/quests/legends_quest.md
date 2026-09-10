@@ -1,21 +1,30 @@
 # Legends' Quest modernization audit
 
-Status: `partial / blocked organic route` — the cache contains the native quest
-row, permanent state and bitfields, every principal object and actor, the full
-surface and dungeon geography, journal dispatch, completion metadata, guild
-shops, and post-quest feature rows. The 26-file, 3,006-line quest root also has
-substantial recent work on Nezikchened's three encounters and the Yommi growth
-sequence. It is nevertheless impossible to play from the real start to
-completion. The Legends' Guards have no talk handler and the outer gate refuses
-an unstarted player, so Radimus cannot be reached. Dense-jungle cutting, the
-Shaman Cave entrance, lockpick/Mining/Strength trials, rune wall, real gem
-puzzle, magic gate, winch, Viyeldi trigger, crystal furnace, dragon eye and
-heart recess are absent or claimed by incorrect generic fallbacks. Both
-canonical Viyeldi branches therefore dead-end. If states are injected around
-those blockers, the reward loop grants five 30,000 XP selections rather than
-four.
+Status: `audit-in_progress` / Gate D **failed close** (2026-09-10) — not
+`verified-modern`. Organic start is now the guards (`legends_guard.rs2`): they
+check the five prereqs + 107 QP and teleport an eligible player south of
+Radimus's hut; they do not write `%legendsquest`. Radimus still starts the
+quest (notes + state 1). The fifth 30,000 XP training is gone: state 70 talks
+to completion (75) with no extra session. A dedicated C walk
+(`src/torirsserver/test/quest_legends_selftest.u.h`,
+`TORIRSSERVER_SELFTEST_LEGENDS_ONLY=1`) fires real OPNPC/OPLOC/OPHELD on the
+critical path and prints 16 `LEGENDS PASS` lines. Named Gate D BMPs were not
+captured: this VM has no `cache.osrs239` / `main_file_cache.dat2`. Soft-skips
+stay disclosed — gem/rune shrine shortcut, one-shot Kharazi map, Gujuo gold-bar
+bowl, single fire-wall douse, unwired magic gate / winch / crystal furnace /
+dragon eye / heart recess, compressed Yommi growth, dense-jungle cutting gap,
+partial long Viyeldi path.
 
-Audited: 2026-08-17
+The cache still contains the native quest row, permanent state and bitfields,
+every principal object and actor, the full surface and dungeon geography,
+journal dispatch, completion metadata, guild shops, and post-quest feature
+rows. Dense-jungle cutting, the Shaman Cave entrance, lockpick/Mining/Strength
+trials, rune wall, real gem puzzle, magic gate, winch, Viyeldi trigger, crystal
+furnace, dragon eye and heart recess remain absent or claimed by incorrect
+generic fallbacks. Both canonical Viyeldi branches therefore still dead-end
+without state injection around those leftovers.
+
+Audited: 2026-08-17; C walk + guard start + fifth-XP fix: 2026-09-10
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies Gates A-D to requirements, guild admission, map-making, jungle

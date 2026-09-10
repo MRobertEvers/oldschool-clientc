@@ -3221,6 +3221,18 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    /* Same shape as TD_ONLY / GWD_ONLY: the monolithic suite dies on a
+     * missing cache.osrs239 before line ~49772. Answering "does Legends'
+     * critical path still hold" must not require the rest of the tree. */
+    if( getenv("TORIRSSERVER_SELFTEST_LEGENDS_ONLY") )
+    {
+        selftest_quest_legends(srv, player);
+        fprintf(stderr, "ToriRSServer legends selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("legends");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and

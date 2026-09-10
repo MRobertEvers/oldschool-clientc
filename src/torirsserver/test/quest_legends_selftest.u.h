@@ -33,10 +33,23 @@ lg_clear_inv(struct ToriRSServerPlayer* player)
 }
 
 static void
-lg_close(struct ToriRSServer* srv)
+lg_drain(struct ToriRSServer* srv, int max_steps)
 {
+    int i;
+    struct ToriRSServerPlayer* player;
+
     assert(srv);
-    ToriRSServer_WorldCloseModal(srv);
+    player = srv->active_player;
+    assert(player);
+    /* CloseModal aborts a parked writer (p_delay, post-mesbox state). Drain
+     * continue buttons and delay ticks until the script finishes on its own. */
+    for( i = 0; i < max_steps && player->active_script; i++ )
+    {
+        if( player->resume_button_count > 0 )
+            selftest_click_through(srv, 1);
+        else
+            selftest_tick(srv);
+    }
 }
 
 static void
@@ -44,7 +57,7 @@ lg_click(struct ToriRSServer* srv, int max_pages)
 {
     assert(srv);
     selftest_click_through(srv, max_pages);
-    lg_close(srv);
+    lg_drain(srv, 48);
 }
 
 static int
@@ -63,10 +76,13 @@ lg_place_loc(
     selftest_tick(srv);
     placed = ToriRSServer_WorldLocSet(srv, x + 1, z, 0, 10, loc_id, 0,
                                       TORIRSSERVER_LOC_SET_ADD);
-    if( placed < 0 )
-        return -1;
     slot = ToriRSServer_SceneFindLocId(x + 1, z, 0, loc_id);
-    return slot;
+    if( slot >= 0 )
+        return slot;
+    /* Without cache.osrs239 SceneAddLoc has no loc_config, so the ZoneMap
+     * record cannot become a scene slot. The OPLOC type trigger still runs. */
+    (void)placed;
+    return -1;
 }
 
 static void
@@ -172,7 +188,6 @@ selftest_quest_legends(
             int loc_slot;
             int attack_before;
             int attack_after_four;
-            int drain_tick;
 
             player->godmode = 1;
             player->dying = 0;
@@ -201,7 +216,8 @@ selftest_quest_legends(
                 SELFTEST_CHECK(player->z < 3360,
                                "an ineligible player must stay outside the guild, z=%d",
                                player->z);
-                lg_pass("opnpc1_guard_ineligible");
+                if( player->varps[varp_lg] == 0 && player->z < 3360 )
+                    lg_pass("opnpc1_guard_ineligible");
             }
 
             /* ---- OPNPC1 guard: eligible admission walks through the gate ---- */
@@ -224,7 +240,8 @@ selftest_quest_legends(
                 SELFTEST_CHECK(player->varps[varp_lg] == 0,
                                "guard admission must not itself start the quest, got %d",
                                player->varps[varp_lg]);
-                lg_pass("opnpc1_guard_admit");
+                if( player->z >= 3360 && player->varps[varp_lg] == 0 )
+                    lg_pass("opnpc1_guard_admit");
                 ToriRSServer_WorldNpcFree(srv, guard_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
@@ -246,7 +263,8 @@ selftest_quest_legends(
                 SELFTEST_CHECK(player->inv[0].obj_id == obj_notes,
                                "Radimus should hand thkaramjamap, got obj_id=%d",
                                player->inv[0].obj_id);
-                lg_pass("opnpc1_radimus_start");
+                if( player->varps[varp_lg] == 1 && player->inv[0].obj_id == obj_notes )
+                    lg_pass("opnpc1_radimus_start");
             }
 
             /* ---- OPHELDU map: papyrus+charcoal on notes in Kharazi ---- */
@@ -268,7 +286,8 @@ selftest_quest_legends(
             SELFTEST_CHECK(player->inv[0].obj_id == obj_map,
                            "mapping should produce thkaramjamapcomp, got obj_id=%d",
                            player->inv[0].obj_id);
-            lg_pass("opheldu_map_kharazi");
+            if( player->varps[varp_lg] == 2 && player->inv[0].obj_id == obj_map )
+                lg_pass("opheldu_map_kharazi");
 
             /* ---- OPNPCU forester: completed map grants bullroarer ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2824, 2940);
@@ -288,38 +307,38 @@ selftest_quest_legends(
                                    player->inv[1].obj_id == obj_bull ||
                                    player->inv[2].obj_id == obj_bull,
                                "forester should grant bullroarer");
-                lg_pass("opnpcu_forester_bullroarer");
+                if( player->varps[varp_lg] == 3 &&
+                    ( player->inv[0].obj_id == obj_bull || player->inv[1].obj_id == obj_bull ||
+                      player->inv[2].obj_id == obj_bull ) )
+                    lg_pass("opnpcu_forester_bullroarer");
                 ToriRSServer_WorldNpcFree(srv, forester_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
 
             /* ---- OPLOC1 gem/rune shrine shortcut grants the book ---- */
             loc_slot = lg_place_loc(srv, 2780, 2900, loc_barrier);
-            SELFTEST_CHECK(loc_slot >= 0, "legendsquest_force_barrier should place");
-            if( loc_slot >= 0 )
-            {
-                lg_clear_inv(player);
-                inv_set(player, 0, obj_soul, 1);
-                inv_set(player, 1, obj_mind, 1);
-                inv_set(player, 2, obj_earth, 1);
-                inv_set(player, 3, obj_law, 2);
-                inv_set(player, 4, obj_opal, 1);
-                inv_set(player, 5, obj_jade, 1);
-                inv_set(player, 6, obj_topaz, 1);
-                inv_set(player, 7, obj_sapp, 1);
-                inv_set(player, 8, obj_em, 1);
-                inv_set(player, 9, obj_ruby, 1);
-                inv_set(player, 10, obj_dia, 1);
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrier, -1,
-                                                    loc_slot);
-                lg_click(srv, 8);
-                SELFTEST_CHECK(player->inv[0].obj_id == obj_book ||
-                                   player->inv[1].obj_id == obj_book,
-                               "the shrine shortcut should grant book_of_binding");
+            lg_clear_inv(player);
+            inv_set(player, 0, obj_soul, 1);
+            inv_set(player, 1, obj_mind, 1);
+            inv_set(player, 2, obj_earth, 1);
+            inv_set(player, 3, obj_law, 2);
+            inv_set(player, 4, obj_opal, 1);
+            inv_set(player, 5, obj_jade, 1);
+            inv_set(player, 6, obj_topaz, 1);
+            inv_set(player, 7, obj_sapp, 1);
+            inv_set(player, 8, obj_em, 1);
+            inv_set(player, 9, obj_ruby, 1);
+            inv_set(player, 10, obj_dia, 1);
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrier, -1,
+                                                loc_slot);
+            lg_click(srv, 8);
+            SELFTEST_CHECK(player->inv[0].obj_id == obj_book ||
+                               player->inv[1].obj_id == obj_book,
+                           "the shrine shortcut should grant book_of_binding");
+            if( player->inv[0].obj_id == obj_book || player->inv[1].obj_id == obj_book )
                 lg_pass("oploc1_gem_shrine_book");
-                ToriRSServer_WorldLocSet(srv, 2781, 2900, 0, 10, -1, 0,
-                                         TORIRSSERVER_LOC_SET_ADD);
-            }
+            ToriRSServer_WorldLocSet(srv, 2781, 2900, 0, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
 
             /* ---- OPNPCU Gujuo: gold bar -> blessed bowl (disclosed soft-skip) ---- */
             player->varps[varp_lg] = 7; /* legends_spoke_ungadulu */
@@ -337,7 +356,8 @@ selftest_quest_legends(
                                "asking Gujuo about water should write asked_gujuo_holy_water, "
                                "got %d",
                                player->varps[varp_lg]);
-                lg_pass("opnpc1_gujuo_ask_water");
+                if( player->varps[varp_lg] == 8 )
+                    lg_pass("opnpc1_gujuo_ask_water");
 
                 lg_clear_inv(player);
                 inv_set(player, 0, obj_gold, 1);
@@ -349,54 +369,49 @@ selftest_quest_legends(
                                "Gujuo gold-bar soft-skip should grant goldbowlbless_empty, "
                                "got obj_id=%d",
                                player->inv[0].obj_id);
-                lg_pass("opnpcu_gujuo_gold_bowl");
+                if( player->inv[0].obj_id == obj_bowl_bless )
+                    lg_pass("opnpcu_gujuo_gold_bowl");
             }
 
             /* ---- OPLOCU sacred pool fills the blessed bowl ---- */
             player->varps[varp_lg] = 5; /* below filled_bowl so the writer can fire */
             loc_slot = lg_place_loc(srv, 2780, 2910, loc_pool);
-            SELFTEST_CHECK(loc_slot >= 0, "sacred_water should place");
-            if( loc_slot >= 0 )
-            {
-                lg_clear_inv(player);
-                inv_set(player, 0, obj_bowl_bless, 1);
-                player->last_useitem = obj_bowl_bless;
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_pool, -1,
-                                                    loc_slot);
-                lg_click(srv, 6);
-                SELFTEST_CHECK(player->inv[0].obj_id == obj_bowl_pure,
-                               "bowl on sacred_water should fill goldbowlbless_pure, "
-                               "got obj_id=%d",
-                               player->inv[0].obj_id);
-                SELFTEST_CHECK(player->varps[varp_lg] == 10,
-                               "filling the surface pool should write legends_filled_bowl, "
-                               "got %d",
-                               player->varps[varp_lg]);
+            lg_clear_inv(player);
+            inv_set(player, 0, obj_bowl_bless, 1);
+            player->last_useitem = obj_bowl_bless;
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_pool, -1,
+                                                loc_slot);
+            lg_click(srv, 6);
+            SELFTEST_CHECK(player->inv[0].obj_id == obj_bowl_pure,
+                           "bowl on sacred_water should fill goldbowlbless_pure, "
+                           "got obj_id=%d",
+                           player->inv[0].obj_id);
+            SELFTEST_CHECK(player->varps[varp_lg] == 10,
+                           "filling the surface pool should write legends_filled_bowl, "
+                           "got %d",
+                           player->varps[varp_lg]);
+            if( player->inv[0].obj_id == obj_bowl_pure && player->varps[varp_lg] == 10 )
                 lg_pass("oplocu_sacred_water");
-                ToriRSServer_WorldLocSet(srv, 2781, 2910, 0, 10, -1, 0,
-                                         TORIRSSERVER_LOC_SET_ADD);
-            }
+            ToriRSServer_WorldLocSet(srv, 2781, 2910, 0, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
 
             /* ---- OPLOCU fire wall douse (state must be below found_entrance) ---- */
             player->varps[varp_lg] = 5;
             loc_slot = lg_place_loc(srv, 2780, 2920, loc_fire);
-            SELFTEST_CHECK(loc_slot >= 0, "lqfirewall_straight should place");
-            if( loc_slot >= 0 )
-            {
-                lg_clear_inv(player);
-                inv_set(player, 0, obj_bowl_pure, 1);
-                player->last_useitem = obj_bowl_pure;
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fire, -1,
-                                                    loc_slot);
-                lg_click(srv, 6);
-                SELFTEST_CHECK(player->varps[varp_lg] == 6,
-                               "dousing the fire wall should write legends_found_entrance, "
-                               "got %d",
-                               player->varps[varp_lg]);
+            lg_clear_inv(player);
+            inv_set(player, 0, obj_bowl_pure, 1);
+            player->last_useitem = obj_bowl_pure;
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fire, -1,
+                                                loc_slot);
+            lg_click(srv, 6);
+            SELFTEST_CHECK(player->varps[varp_lg] == 6,
+                           "dousing the fire wall should write legends_found_entrance, "
+                           "got %d",
+                           player->varps[varp_lg]);
+            if( player->varps[varp_lg] == 6 )
                 lg_pass("oplocu_firewall");
-                ToriRSServer_WorldLocSet(srv, 2781, 2920, 0, 10, -1, 0,
-                                         TORIRSSERVER_LOC_SET_ADD);
-            }
+            ToriRSServer_WorldLocSet(srv, 2781, 2920, 0, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
 
             /* ---- OPHELDU book enchants an empty vial ---- */
             ToriRSServer_CombatSetLevel(player, stat_magic, 56);
@@ -413,7 +428,8 @@ selftest_quest_legends(
             SELFTEST_CHECK(player->inv[1].obj_id == obj_vial_enc ||
                                player->inv[0].obj_id == obj_vial_enc,
                            "vial on book_of_binding should produce vial_enchanted");
-            lg_pass("opheldu_book_enchant_vial");
+            if( player->inv[1].obj_id == obj_vial_enc || player->inv[0].obj_id == obj_vial_enc )
+                lg_pass("opheldu_book_enchant_vial");
 
             /* ---- OPNPCU Ungadulu: book summons first Nezikchened ---- */
             player->varps[varp_lg] = 6;
@@ -428,12 +444,13 @@ selftest_quest_legends(
                 player->last_useitem = obj_book;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_ungadulu, -1,
                                                ungadulu_slot);
-                lg_click(srv, 12);
+                lg_click(srv, 16);
                 SELFTEST_CHECK(player->varps[varp_lg] == 11,
                                "book on Ungadulu should write summoned_nezikchened_fire, "
                                "got %d",
                                player->varps[varp_lg]);
-                lg_pass("opnpcu_ungadulu_bind");
+                if( player->varps[varp_lg] == 11 )
+                    lg_pass("opnpcu_ungadulu_bind");
                 ToriRSServer_WorldNpcFree(srv, ungadulu_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
@@ -446,23 +463,20 @@ selftest_quest_legends(
             /* ---- OPLOCU lgwaterpool: sacred water after the second fight ---- */
             player->varps[varp_lg] = 22; /* defeated_nezikchened_water */
             loc_slot = lg_place_loc(srv, 2780, 2940, loc_lgpool);
-            SELFTEST_CHECK(loc_slot >= 0, "lgwaterpool should place");
-            if( loc_slot >= 0 )
-            {
-                lg_clear_inv(player);
-                inv_set(player, 0, obj_bowl_bless, 1);
-                player->last_useitem = obj_bowl_bless;
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_lgpool, -1,
-                                                    loc_slot);
-                lg_click(srv, 6);
-                SELFTEST_CHECK(player->varps[varp_lg] == 25,
-                               "bowl on lgwaterpool should write sacred_water_collected, "
-                               "got %d",
-                               player->varps[varp_lg]);
+            lg_clear_inv(player);
+            inv_set(player, 0, obj_bowl_bless, 1);
+            player->last_useitem = obj_bowl_bless;
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_lgpool, -1,
+                                                loc_slot);
+            lg_click(srv, 6);
+            SELFTEST_CHECK(player->varps[varp_lg] == 25,
+                           "bowl on lgwaterpool should write sacred_water_collected, "
+                           "got %d",
+                           player->varps[varp_lg]);
+            if( player->varps[varp_lg] == 25 )
                 lg_pass("oplocu_lgwaterpool");
-                ToriRSServer_WorldLocSet(srv, 2781, 2940, 0, 10, -1, 0,
-                                         TORIRSSERVER_LOC_SET_ADD);
-            }
+            ToriRSServer_WorldLocSet(srv, 2781, 2940, 0, 10, -1, 0,
+                                     TORIRSSERVER_LOC_SET_ADD);
 
             /* ---- OPNPC1 Radimus hand-in + four trainings + no fifth XP ---- */
             if( radimus_slot >= 0 )
@@ -480,7 +494,8 @@ selftest_quest_legends(
                 SELFTEST_CHECK(player->varps[varp_lg] == 50,
                                "hand-in should write returned_to_radimus, got %d",
                                player->varps[varp_lg]);
-                lg_pass("opnpc1_radimus_handin");
+                if( player->varps[varp_lg] == 50 )
+                    lg_pass("opnpc1_radimus_handin");
 
                 attack_before = player->stat_xp_tenths[stat_attack];
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_radimus, -1,
@@ -502,18 +517,15 @@ selftest_quest_legends(
                 SELFTEST_CHECK(attack_after_four > attack_before,
                                "four training sessions should award Attack xp, %d -> %d",
                                attack_before, attack_after_four);
-                lg_pass("opnpc1_radimus_four_trainings");
+                if( player->varps[varp_lg] == 70 && attack_after_four > attack_before )
+                    lg_pass("opnpc1_radimus_four_trainings");
 
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_radimus, -1,
                                                radimus_slot);
-                if( com_messagebox > 0 )
+                lg_click(srv, 24);
+                if( com_messagebox > 0 && player->active_script )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
-                for( drain_tick = 0; drain_tick < 40 && player->varps[varp_lg] != 75;
-                     drain_tick++ )
-                {
-                    ToriRSServer_WorldCloseModal(srv);
-                    selftest_tick(srv);
-                }
+                lg_drain(srv, 40);
                 SELFTEST_CHECK(player->varps[varp_lg] == 75,
                                "the fifth Radimus talk should complete with no extra XP "
                                "session, got %d",
@@ -521,7 +533,9 @@ selftest_quest_legends(
                 SELFTEST_CHECK(player->stat_xp_tenths[stat_attack] == attack_after_four,
                                "state 70 must not grant a fifth 30000 XP, %d -> %d",
                                attack_after_four, player->stat_xp_tenths[stat_attack]);
-                lg_pass("opnpc1_radimus_complete_no_fifth_xp");
+                if( player->varps[varp_lg] == 75 &&
+                    player->stat_xp_tenths[stat_attack] == attack_after_four )
+                    lg_pass("opnpc1_radimus_complete_no_fifth_xp");
 
                 ToriRSServer_WorldNpcFree(srv, radimus_slot);
                 ToriRSServer_WorldNpcReap(srv);
