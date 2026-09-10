@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_gardenoftranquility_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3220,6 +3221,14 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_GOT_ONLY") )
+    {
+        selftest_quest_gardenoftranquility(srv, player);
+        fprintf(stderr, "ToriRSServer gardenoftranquility selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("gardenoftranquility");
+        return g_selftest_failures;
+    }
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -15389,6 +15398,10 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(sanfew_type > 0, "npc sanfew should resolve by name");
             SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
+            /* Garden of Tranquillity Gate D C walk. Immediately before reset
+             * so spawned Ellamaria / WOM / farmers / Roald cannot leak into
+             * the sanfew p_choice stanza. */
+            selftest_quest_gardenoftranquility(srv, player);
             selftest_reset_world(srv, player, 402, 402);
             for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
             {
