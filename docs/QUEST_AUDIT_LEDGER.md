@@ -149,7 +149,7 @@
 | 24 Jul 2007 | King's Ransom | `quest_kingsransom` | fixed | 2026-09-10 | parent-verified 103 unique-MD5 named BMPs FF onto OSRS-Content@3b9b6f21ba (linear child of Olaf 876cdc3e5c). Sampled Gossip qualify-fail split (BKF / Holy Grail / Murder Mystery / Defence 65 / Magic 45), offer p_choice2, refuse/accept, authored complete scroll (1 QP, 33000 Defence / 5000 Magic XP, antique lamp 5000 XP 50+, Knight Waves), journal QUEST COMPLETE. Leftovers: leftover_tumbler_lock_widget; leftover_knight_waves. Zero same-text collisions. Cell-door Telekinetic Grab authored, not leftover. Gossip MERGE; Merlin header untouched. Not verified-modern. |
 | 06 May 2016 | Monkey Madness II | `quest_monkeymadnessii` | in-progress | 2026-09-10 | claimed `gp-mm2-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 19 May 2016 | Bear Your Soul | `quest_bearyoursoul` | in-progress | 2026-09-10 | claimed `gp-bys-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
-| 26 Jan 2017 | Misthalin Mystery | `quest_misthalinmystery` | unaudited | |  |
+| 26 Jan 2017 | Misthalin Mystery | `quest_misthalinmystery` | in-progress | 2026-09-10 | claimed `gp-mistmyst-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 20 Apr 2017 | Client of Kourend | `quest_clientofkourend` | unaudited | |  |
 | 17 Aug 2017 | Rag and Bone Man II | -- | blocked:not-ported | 2026-08-19 | no `quest_*` dir found |
 | 07 Sep 2017 | Bone Voyage | `quest_bonevoyage` | unaudited | |  |
@@ -193,7 +193,7 @@
 | 25 Sep 2024 | Ethically Acquired Antiquities | `quest_ethicallyacquiredantiquities` | unaudited | |  |
 | 06 Nov 2024 | The Curse of Arrav | `quest_curseofarrav` | unaudited | |  |
 | 23 Jul 2025 | The Final Dawn | `quest_finaldawn` | unaudited | |  |
-| 23 Jul 2025 | Scrambled! | `quest_scrambled` | in-progress | 2026-09-10 | claimed `gp-scram-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 23 Jul 2025 | Scrambled! | `quest_scrambled` | fixed | 2026-09-10 | parent-verified 51 named / 51 unique-MD5 BMPs cherry-picked from stale-base `cursor/scram-gate-d-content-3f28` onto OSRS-Content@f708a67b38 (BCS/DoTI/PMoon retained; worker SHA 60a90c8976 not merged wholesale). Sampled Alan qualify-fail split (Children of the Sun / Construction 38 / Cooking 36 / Smithing 35), offer p_choice2 Yes/Not now (auto-start removed), refuse/accept, authored complete scroll (1 QP, Con/Cook/Smith tenths 50000 each, An egg), journal QUEST COMPLETE. Leftovers: leftover_egg_collect_axe; leftover_egg_collect_tea; leftover_egg_collect_jaguar; leftover_egg_judge_if; leftover_put_egg_together_puzzle; leftover_pet_egg_unlock_ui; leftover_extra_refuse_trees. No unique MERGE hunks. INV_ADD/DEL/TOTAL obj-namespace hint + SSC_MAX_SCRIPTS 65536 landed on parent so egg obj names compile. Not verified-modern. |
 | 23 Jul 2025 | Shadows of Custodia | `quest_shadowsofcustodia` | unaudited | |  |
 | 22 Oct 2025 | Learning the Ropes | -- | blocked:not-ported | 2026-08-19 | no `quest_*` dir found |
 | 19 Nov 2025 | Pandemonium | `quest_pandemonium` | unaudited | |  |

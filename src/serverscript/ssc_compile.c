@@ -1095,7 +1095,10 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                         (strcmp(op_name, "OBJ_ADD") == 0 ||
                          strcmp(op_name, "OBJ_ADDALL") == 0 ||
                          strcmp(op_name, "OBJ_ADD_PRIVATE") == 0 ||
-                         strcmp(op_name, "OBJ_FIND") == 0) )
+                         strcmp(op_name, "OBJ_FIND") == 0 ||
+                         strcmp(op_name, "INV_ADD") == 0 ||
+                         strcmp(op_name, "INV_DEL") == 0 ||
+                         strcmp(op_name, "INV_TOTAL") == 0) )
                         compiler->arg_kind_hint = SSC_SYM_OBJ;
                     /* `sound_synth(arrow_launch, ...)` names a synth, not the
                      * sequence which shares that cache name. As with the
