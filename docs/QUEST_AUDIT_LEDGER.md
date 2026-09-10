@@ -95,7 +95,7 @@
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
-| 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
+| 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | in-progress | 2026-09-10 | claimed by cloud `gp-dt-img`. Gate D = **one named BMP per interaction** (Asgarnia, Terry, bartender, Eblis/mirrors, all four diamonds, pyramid, journals, complete scroll). Highlight reel = failed close. Leave Observatory and Desert Treasure II alone. |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
 | 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | unaudited | |  |
