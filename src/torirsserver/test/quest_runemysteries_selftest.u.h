@@ -50,6 +50,15 @@
             int drain;
             int qp_before;
             int varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+            int varp_dragonquest =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "dragonquest");
+            int varp_dragon_shield =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "dragon_shield");
+            int vb_tote = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "tote");
+            int vb_cowquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "cowquest");
+            int vb_lost_tribe =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "lost_tribe_quest");
+            int vb_dttd = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "dttd_main");
 
             player->godmode = 1;
 
@@ -67,6 +76,18 @@
                 for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
                 player->varps[varp_rm] = 0;
+                if( varp_dragonquest >= 0 )
+                    player->varps[varp_dragonquest] = 0;
+                if( varp_dragon_shield >= 0 )
+                    player->varps[varp_dragon_shield] = 0;
+                if( vb_tote >= 0 )
+                    ToriRSServer_VarbitSet(srv, vb_tote, 0);
+                if( vb_cowquest >= 0 )
+                    ToriRSServer_VarbitSet(srv, vb_cowquest, 0);
+                if( vb_lost_tribe >= 0 )
+                    ToriRSServer_VarbitSet(srv, vb_lost_tribe, 0);
+                if( vb_dttd >= 0 )
+                    ToriRSServer_VarbitSet(srv, vb_dttd, 0);
                 if( vb_package >= 0 )
                     ToriRSServer_VarbitSet(srv, vb_package, 0);
                 if( vb_notes >= 0 )
@@ -84,9 +105,17 @@
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_duke, -1,
                                                    duke_slot);
                     biohazard_run_dialogue(srv, player, chatmenu);
-                    selftest_charter_choose(srv, 1); /* Have you any quests for me? */
+                    if( player->active_script && chatmenu > 0 )
+                    {
+                        player->last_slot = 1; /* Have you any quests for me? */
+                        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                    }
                     biohazard_run_dialogue(srv, player, chatmenu);
-                    selftest_charter_choose(srv, 1); /* Yes. */
+                    if( player->active_script && chatmenu > 0 )
+                    {
+                        player->last_slot = 1; /* Yes. */
+                        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                    }
                     biohazard_run_dialogue(srv, player, chatmenu);
                     if( com_messagebox > 0 && player->active_script )
                         ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
@@ -98,7 +127,9 @@
                     SELFTEST_CHECK(selftest_count_obj(player, obj_talisman) == 1,
                                    "Duke should hand over air_talisman, got count %d",
                                    selftest_count_obj(player, obj_talisman));
-                    fprintf(stderr, "  PASS  opnpc1 duke starts the quest (step 0->1)\n");
+                    if( player->varps[varp_rm] == 1 &&
+                        selftest_count_obj(player, obj_talisman) == 1 )
+                        fprintf(stderr, "  PASS  opnpc1 duke starts the quest (step 0->1)\n");
                 }
 
                 /* ---- OPHELD4 Locate on the air talisman (critical-path item) ---- */
@@ -110,10 +141,14 @@
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_talisman) == 1,
                                "OPHELD4 Locate must not consume the air talisman");
-                fprintf(stderr, "  PASS  opheld4 air_talisman Locate\n");
+                if( selftest_count_obj(player, obj_talisman) == 1 )
+                    fprintf(stderr, "  PASS  opheld4 air_talisman Locate\n");
 
-                /* ---- OPLOC1 wizards_tower_laddertop (maplink into the basement) ---- */
-                ToriRSServer_WorldTeleport(srv, 0, 3104, 3162);
+                /* ---- OPLOC1 wizards_tower_laddertop (maplink into the basement) ----
+                 * maplink.dbrow is keyed on the PLAYER tile, not the loc tile.
+                 * 3104,3162 is the loc; the harvested stand tiles are
+                 * 3103,3162 / 3104,3161 / 3104,3163. */
+                ToriRSServer_WorldTeleport(srv, 0, 3104, 3161);
                 selftest_tick(srv);
                 loc_slot = ToriRSServer_SceneFindLocId(3104, 3162, 0, loc_ladder);
                 if( loc_slot < 0 )
@@ -124,14 +159,19 @@
                 {
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
                                                         loc_slot);
-                    for( drain = 0; drain < 8 && player->active_script; drain++ )
+                    for( drain = 0; drain < 24 && player->z < 9500; drain++ )
+                    {
+                        if( player->active_script && player->resume_button_count > 0 )
+                            ToriRSServer_ScriptsResumeButton(srv, player->resume_buttons[0]);
                         selftest_tick(srv);
-                    ToriRSServer_WorldCloseModal(srv);
+                    }
                     SELFTEST_CHECK(player->z >= 9500,
                                    "OPLOC1 wizards_tower_laddertop should maplink into "
                                    "the basement, got z=%d",
                                    player->z);
-                    fprintf(stderr, "  PASS  oploc1 wizards_tower_laddertop (step 1 travel)\n");
+                    if( player->z >= 9500 )
+                        fprintf(stderr,
+                                "  PASS  oploc1 wizards_tower_laddertop (step 1 travel)\n");
                 }
 
                 /* ---- step 1+2: OPNPC1 Sedridor, give talisman, take package ---- */
@@ -144,14 +184,26 @@
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_sedridor, -1,
                                                    sed_slot);
                     biohazard_run_dialogue(srv, player, chatmenu);
-                    selftest_charter_choose(srv, 3); /* I'm looking for the head wizard. */
+                    if( player->active_script && chatmenu > 0 )
+                    {
+                        player->last_slot = 3; /* I'm looking for the head wizard. */
+                        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                    }
                     biohazard_run_dialogue(srv, player, chatmenu);
-                    selftest_charter_choose(srv, 1); /* Ok, here you are. */
+                    if( player->active_script && chatmenu > 0 )
+                    {
+                        player->last_slot = 1; /* Ok, here you are. */
+                        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                    }
                     biohazard_run_dialogue(srv, player, chatmenu);
                     if( com_messagebox > 0 && player->active_script )
                         ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                     biohazard_run_dialogue(srv, player, chatmenu);
-                    selftest_charter_choose(srv, 1); /* Yes, certainly. */
+                    if( player->active_script && chatmenu > 0 )
+                    {
+                        player->last_slot = 1; /* Yes, certainly. */
+                        ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                    }
                     biohazard_run_dialogue(srv, player, chatmenu);
                     if( com_messagebox > 0 && player->active_script )
                         ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
@@ -168,7 +220,10 @@
                     if( vb_package >= 0 )
                         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_package) == 1,
                                        "runemysteries_package should be 1 after the hand-out");
-                    fprintf(stderr, "  PASS  opnpc1 sedridor talisman+package (step 1->3)\n");
+                    if( player->varps[varp_rm] == 3 &&
+                        selftest_count_obj(player, obj_package) == 1 )
+                        fprintf(stderr,
+                                "  PASS  opnpc1 sedridor talisman+package (step 1->3)\n");
                 }
 
                 /* ---- step 3: OPNPCU research_package on Aubury ---- */
@@ -195,7 +250,9 @@
                     if( vb_package >= 0 )
                         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_package) == 0,
                                        "runemysteries_package should clear on delivery");
-                    fprintf(stderr, "  PASS  opnpcu research_package on aubury (step 3->4)\n");
+                    if( player->varps[varp_rm] == 4 )
+                        fprintf(stderr,
+                                "  PASS  opnpcu research_package on aubury (step 3->4)\n");
 
                     /* ---- step 4: OPNPC1 Aubury again for notes ---- */
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_aubury, -1,
@@ -214,7 +271,9 @@
                     if( vb_notes >= 0 )
                         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_notes) == 1,
                                        "runemysteries_notes should be 1 after the hand-out");
-                    fprintf(stderr, "  PASS  opnpc1 aubury notes (step 4->5)\n");
+                    if( player->varps[varp_rm] == 5 &&
+                        selftest_count_obj(player, obj_notes) == 1 )
+                        fprintf(stderr, "  PASS  opnpc1 aubury notes (step 4->5)\n");
                 }
 
                 /* ---- step 5: OPNPCU research_notes on Sedridor, complete ---- */
@@ -265,7 +324,9 @@
                                    (varp_qp >= 0) ? player->varps[varp_qp] : -1);
                     SELFTEST_CHECK(player->hitpoints > 0 && player->godmode == 1,
                                    "player must stay alive (godmode) through the walk");
-                    fprintf(stderr, "  PASS  opnpcu research_notes on sedridor (step 5->6)\n");
+                    if( player->varps[varp_rm] == 6 )
+                        fprintf(stderr,
+                                "  PASS  opnpcu research_notes on sedridor (step 5->6)\n");
                 }
 
                 /* ---- lost-item replacement: package ---- */
