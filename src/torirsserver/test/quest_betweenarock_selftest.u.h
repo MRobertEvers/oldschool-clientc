@@ -1021,7 +1021,20 @@ selftest_quest_betweenarock(
     if( slot >= 0 )
     {
         bar_set_bit(srv, "dwarfrock_quest", BAR_AVATAR_DEFEATED);
-        bar_talk_finish(srv, npc_dondakan, slot);
+        /* Avatar death parks a mesbox; closing it first lets the authored
+         * chatplayer/chatnpc reach ~dwarfrock_quest_complete. CloseModal
+         * during that chain drops the reward before the varbit write. */
+        ToriRSServer_WorldCloseModal(srv);
+        bar_talk(srv, npc_dondakan, slot);
+        {
+            int t;
+
+            for( t = 0; t < 64 && player->active_script; t++ )
+            {
+                selftest_click_through(srv, 1);
+                selftest_tick(srv);
+            }
+        }
         quest = bar_get_bit(player, "dwarfrock_quest");
         SELFTEST_CHECK(quest == BAR_COMPLETE,
                        "Dondakan finale must complete the quest at 110, got %d", quest);
