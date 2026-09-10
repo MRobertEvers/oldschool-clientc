@@ -384,11 +384,25 @@ static void
 dttd_oploc(struct ToriRSServer* srv, int loc_id, int loc_slot)
 {
     assert(srv);
-    if( loc_slot >= 0 )
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_id, -1, loc_slot);
-    else
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_id, -1, -1);
+    (void)loc_slot;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_id, -1, -1);
     dttd_finish(srv);
+}
+
+static void
+dttd_oploc_npc(struct ToriRSServer* srv, int loc_id, int npc_type, int x, int z, int level)
+{
+    int slot;
+
+    assert(srv);
+    slot = -1;
+    if( npc_type > 0 )
+        slot = dttd_spawn(srv, npc_type, x, z, level);
+    /* Bind the speaker so ~chatnpc_specific can resolve NPC_COORD before the
+     * loc script writes progress. */
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_id, -1, slot);
+    dttd_finish(srv);
+    dttd_free_npc(srv, slot);
 }
 
 static void
@@ -531,6 +545,7 @@ selftest_quest_deathtothedorgeshuun(
     int npc_g5;
     int npc_mill_guard;
     int npc_sigmund;
+    int npc_juna_dummy;
     int loc_trapdoor;
     int loc_listen;
     int loc_body;
@@ -617,6 +632,7 @@ selftest_quest_deathtothedorgeshuun(
     npc_g5 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dttd_ham_guard_5");
     npc_mill_guard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dttd_ham_guard_mill");
     npc_sigmund = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dttd_sigmund_melee");
+    npc_juna_dummy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "tog_juna_dummy");
     loc_trapdoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "dttd_ham_trapdoor_closed");
     loc_listen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "dttd_doorl_listenat");
     loc_body = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "dttd_zanik_dead_body");
@@ -775,11 +791,15 @@ selftest_quest_deathtothedorgeshuun(
     dttd_vb(srv, "dttd_main", DTTD_ZANIK_RECRUITED);
     dttd_vb(srv, "dttd_tour_duke", 1);
     dttd_vb(srv, "dttd_tour_sun", 0);
+    slot_follower = (npc_follower > 0)
+                        ? dttd_spawn(srv, npc_follower, DTTD_SUN_X, DTTD_SUN_Z, 0)
+                        : -1;
     ToriRSServer_ScriptsRunProc(srv, "[walktrigger,dttd_lumbridge_tour_step]", NULL, 0);
     dttd_finish(srv);
     SELFTEST_CHECK(dttd_get_vb(player, "dttd_tour_sun") == 1,
                    "sun walktrigger must flip dttd_tour_sun");
     dttd_pass("walktrigger_tour_sun");
+    dttd_free_npc(srv, slot_follower);
 
     if( npc_citizen > 0 )
     {
@@ -811,11 +831,15 @@ selftest_quest_deathtothedorgeshuun(
     dttd_vb(srv, "dttd_main", DTTD_ZANIK_RECRUITED);
     dttd_vb(srv, "dttd_tour_priest", 1);
     dttd_vb(srv, "dttd_tour_goblins", 0);
+    slot_follower = (npc_follower > 0)
+                        ? dttd_spawn(srv, npc_follower, DTTD_GOBLIN_X, DTTD_GOBLIN_Z, 0)
+                        : -1;
     ToriRSServer_ScriptsRunProc(srv, "[walktrigger,dttd_lumbridge_tour_step]", NULL, 0);
     dttd_finish(srv);
     SELFTEST_CHECK(dttd_get_vb(player, "dttd_tour_goblins") == 1,
                    "goblin walktrigger must flip dttd_tour_goblins");
     dttd_pass("walktrigger_tour_goblins");
+    dttd_free_npc(srv, slot_follower);
 
     if( npc_shopkeep > 0 )
     {
@@ -971,11 +995,11 @@ selftest_quest_deathtothedorgeshuun(
     {
         dttd_vb(srv, "dttd_main", DTTD_HAM_MEETING_FOUND);
         dttd_vb(srv, "dttd_guard_5_dead", 0);
-        dttd_oploc(srv, loc_listen, loc_slot);
+        dttd_oploc_npc(srv, loc_listen, npc_johanhus, DTTD_LISTEN_X, DTTD_LISTEN_Z, 0);
         dttd_pass("oploc1_listen_too_early");
 
         dttd_vb(srv, "dttd_guard_5_dead", 1);
-        dttd_oploc(srv, loc_listen, loc_slot);
+        dttd_oploc_npc(srv, loc_listen, npc_johanhus, DTTD_LISTEN_X, DTTD_LISTEN_Z, 0);
         SELFTEST_CHECK(dttd_quest(player) == DTTD_ZANIK_SAVED,
                        "listen must write zanik_saved, got %d",
                        dttd_quest(player));
@@ -983,7 +1007,7 @@ selftest_quest_deathtothedorgeshuun(
                        "listen must reveal Zanik's body");
         dttd_pass("oploc1_listen_meeting");
 
-        dttd_oploc(srv, loc_listen, loc_slot);
+        dttd_oploc_npc(srv, loc_listen, npc_johanhus, DTTD_LISTEN_X, DTTD_LISTEN_Z, 0);
         dttd_pass("oploc1_listen_silent");
     }
     dttd_journal(srv, "journal_06_saved");
@@ -1051,17 +1075,17 @@ selftest_quest_deathtothedorgeshuun(
         dttd_vb(srv, "dttd_main", DTTD_ZANIK_SAVED);
         dttd_vb(srv, "lost_tribe_hole_2_dug", 1);
         dttd_vb(srv, "dttd_collecting_tears", 0);
-        dttd_oploc(srv, loc_juna, loc_slot);
+        dttd_oploc_npc(srv, loc_juna, npc_juna_dummy, DTTD_JUNA_X, DTTD_JUNA_Z, DTTD_JUNA_LEVEL);
         dttd_pass("oploc1_juna_hands_busy");
 
         worn_set(player, TORIRSSERVER_WEAR_WEAPON, -1, 0);
         worn_set(player, TORIRSSERVER_WEAR_SHIELD, -1, 0);
-        dttd_oploc(srv, loc_juna, loc_slot);
+        dttd_oploc_npc(srv, loc_juna, npc_juna_dummy, DTTD_JUNA_X, DTTD_JUNA_Z, DTTD_JUNA_LEVEL);
         SELFTEST_CHECK(dttd_get_vb(player, "dttd_collecting_tears") == 1,
                        "Juna revival must start tear collection");
         dttd_pass("oploc1_juna_revival");
 
-        dttd_oploc(srv, loc_juna, loc_slot);
+        dttd_oploc_npc(srv, loc_juna, npc_juna_dummy, DTTD_JUNA_X, DTTD_JUNA_Z, DTTD_JUNA_LEVEL);
         dttd_pass("oploc1_juna_collecting");
     }
 
@@ -1085,7 +1109,7 @@ selftest_quest_deathtothedorgeshuun(
     if( loc_juna > 0 )
     {
         dttd_vb(srv, "dttd_main", DTTD_TEARS_COLLECTED);
-        dttd_oploc(srv, loc_juna, loc_slot);
+        dttd_oploc_npc(srv, loc_juna, npc_juna_dummy, DTTD_JUNA_X, DTTD_JUNA_Z, DTTD_JUNA_LEVEL);
         SELFTEST_CHECK(dttd_quest(player) == DTTD_ZANIK_STORY,
                        "Juna story must write zanik_story, got %d",
                        dttd_quest(player));
@@ -1100,7 +1124,7 @@ selftest_quest_deathtothedorgeshuun(
         dttd_pass("oploc1_crate_too_early");
 
         dttd_vb(srv, "dttd_main", DTTD_ZANIK_STORY);
-        dttd_oploc(srv, loc_crate, loc_slot);
+        dttd_oploc_npc(srv, loc_crate, npc_zanik, DTTD_CRATE_X, DTTD_CRATE_Z, 0);
         SELFTEST_CHECK(dttd_quest(player) == DTTD_MILL_ENTERED,
                        "crate hide must write mill_entered, got %d",
                        dttd_quest(player));
@@ -1188,7 +1212,7 @@ selftest_quest_deathtothedorgeshuun(
         ranged_before = (stat_ranged >= 0) ? player->stat_xp_tenths[stat_ranged] : 0;
         qp_before = (varp_qp >= 0) ? player->varps[varp_qp] : 0;
         dttd_vb(srv, "dttd_main", DTTD_DRILL_SMASHED);
-        dttd_oploc(srv, loc_exit, loc_slot);
+        dttd_oploc_npc(srv, loc_exit, npc_zanik, DTTD_EXIT_X, DTTD_EXIT_Z, 0);
         SELFTEST_CHECK(dttd_quest(player) == DTTD_COMPLETE,
                        "southern exit must complete the quest, got %d",
                        dttd_quest(player));
