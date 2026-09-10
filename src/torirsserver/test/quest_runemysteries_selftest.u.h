@@ -49,6 +49,7 @@
             int loc_slot;
             int drain;
             int qp_before;
+            int varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
 
             player->godmode = 1;
 
@@ -223,18 +224,30 @@
 
                     ToriRSServer_WorldTeleport(srv, 0, 3104, 9571);
                     selftest_tick(srv);
-                    qp_before = player->questpoints;
+                    qp_before = (varp_qp >= 0) ? player->varps[varp_qp] : 0;
                     player->last_useitem = obj_notes;
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_sedridor, -1,
                                                    sed_slot);
-                    biohazard_run_dialogue(srv, player, chatmenu);
-                    if( com_mb > 0 && player->active_script )
-                        ToriRSServer_ScriptsResumeButton(srv, com_mb);
-                    for( drain = 0; drain < 40 && player->varps[varp_rm] != 6; drain++ )
+                    /* Long Sedridor reveal: click every pause, including the
+                     * notes mesbox that arms queue(rune_mysteries_complete).
+                     * WorldCloseModal aborts a parked script, so do not close
+                     * until the queue has written complete=6. */
+                    biohazard_run_dialogue(srv, player, 0);
+                    selftest_click_through(srv, 80);
+                    for( drain = 0; drain < 80 && player->varps[varp_rm] != 6; drain++ )
                     {
-                        ToriRSServer_WorldCloseModal(srv);
+                        if( player->active_script && player->resume_button_count > 0 )
+                        {
+                            int uid = player->resume_buttons[0];
+
+                            if( com_mb > 0 && uid == com_mb )
+                                ToriRSServer_ScriptsResumeButton(srv, com_mb);
+                            else
+                                ToriRSServer_ScriptsResumeButton(srv, uid);
+                        }
                         selftest_tick(srv);
                     }
+                    ToriRSServer_WorldCloseModal(srv);
                     SELFTEST_CHECK(player->varps[varp_rm] == 6,
                                    "OPNPCU notes on Sedridor should complete "
                                    "runemysteries=6, got %d",
@@ -246,9 +259,10 @@
                     if( vb_notes_given >= 0 )
                         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_notes_given) == 1,
                                        "runemysteries_notes_given should be 1 after hand-in");
-                    SELFTEST_CHECK(player->questpoints > qp_before,
+                    SELFTEST_CHECK(varp_qp >= 0 && player->varps[varp_qp] > qp_before,
                                    "completion should award quest points, %d -> %d",
-                                   qp_before, player->questpoints);
+                                   qp_before,
+                                   (varp_qp >= 0) ? player->varps[varp_qp] : -1);
                     SELFTEST_CHECK(player->hitpoints > 0 && player->godmode == 1,
                                    "player must stay alive (godmode) through the walk");
                     fprintf(stderr, "  PASS  opnpcu research_notes on sedridor (step 5->6)\n");
@@ -283,12 +297,13 @@
                     SELFTEST_CHECK(player->varps[varp_rm] == 6,
                                    "::complete quest_runemysteries should write 6, got %d",
                                    player->varps[varp_rm]);
-                    qp_after_first = player->questpoints;
+                    qp_after_first = (varp_qp >= 0) ? player->varps[varp_qp] : 0;
                     handle_cheat(srv, complete_cmd, (int)sizeof(complete_cmd) - 1);
-                    SELFTEST_CHECK(player->varps[varp_rm] == 6 &&
-                                       player->questpoints == qp_after_first,
+                    SELFTEST_CHECK(player->varps[varp_rm] == 6 && varp_qp >= 0 &&
+                                       player->varps[varp_qp] == qp_after_first,
                                    "second ::complete must be a no-op, state %d qp %d->%d",
-                                   player->varps[varp_rm], qp_after_first, player->questpoints);
+                                   player->varps[varp_rm], qp_after_first,
+                                   (varp_qp >= 0) ? player->varps[varp_qp] : -1);
                     fprintf(stderr, "  PASS  ::complete quest_runemysteries twice\n");
                 }
 
