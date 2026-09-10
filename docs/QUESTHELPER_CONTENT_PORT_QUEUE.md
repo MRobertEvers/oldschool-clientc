@@ -418,7 +418,7 @@ filed under `helpers/miniquests/` are at the end.
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
 | 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
-| 146 | ghostsahoy | `ghostsahoy` | 821 | in_progress | 2026-09-09 cloud `gp-ghost-c1` shipped-but-shit re-audit. Prior done Feb 2005 — Velorina / Necrovarus; dbrow id 73 endstate 8; see Log |
+| 146 | ghostsahoy | `ghostsahoy` | 821 | done | 2026-09-10 cloud `gp-ghost-img` Gate D: 139 named BMPs (unique MD5s) + C walk 41 PASS / 0 FAIL. P0 Velorina state-2 deadlock fixed. Leftovers: Rune-Draw collapsed; petition deterministic; lobster CHEAT-SKIP; no ectophial Wilderness/Perdu; ritual bits all-at-once. See Log |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
@@ -4976,6 +4976,22 @@ filed under `helpers/miniquests/` are at the end.
   ectofuntus.rs2` (+ its own `configs/ectofuntus.varp`), and wiring into
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #151 The Eyes of Glouphrie, 969 lines.
+- slice #146 Gate D (2026-09-10, cloud `gp-ghost-img`, branch
+  `cursor/ghosts-ahoy-gate-d-a8b2`): named BMP of every authored player
+  interaction (139 files, 139 unique MD5s) in
+  `osrs239-content/server/scripts/selftest/quest_ghostsahoy/`. C walk
+  `quest_ghostsahoy_selftest.u.h` 41 PASS / 0 FAIL on cache image
+  `bld-20260910-ed0a006f`. P0 Velorina mid-quest deadlock: state 2
+  (`ahoy_talked_necrovarus`) now writes state 3 (`ahoy_told_of_crone`)
+  with Crone-direction dialogue. Energy barrier is directional (toll
+  inbound, free exit, walk-free after curse). Shared `ahoy_crone` ANMA
+  fallback left intact (`What do you want?` when Ahoy is not in range).
+  Status `done`/`fixed` -- leftovers not expanded: Rune-Draw one
+  deterministic win; petition deterministic free signatures; giant
+  lobster combat CHEAT-SKIP; no ectophial Wilderness / empty-item-pair /
+  Perdu recovery; ritual hand-ins still all-at-once at state 5; flag
+  colours deterministic; wind timer not modelled. `skill_construction/`
+  and `minigames/minigame_mta/` left live.
 - slice #151 done: The Eyes of Glouphrie (17 Jul 2006) -- Brimstail the
   gnome researcher shows the player Oaknock the Engineer's anti-illusion
   machine; Hazelmere (mind-linked, 46 Magic) reveals that the exiled mage
