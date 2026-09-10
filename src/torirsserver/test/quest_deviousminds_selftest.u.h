@@ -5,8 +5,8 @@
  * and invoked immediately before a selftest_reset_world so spawned monk /
  * Tiffy / High Priest / whetstone / altar cannot leak. Real OPNPC1 / OPLOC1 /
  * OPLOCU / OPHELDU on the authored path. player->godmode = 1 for the whole
- * walk (not a death test). Completion goes through Tiffy
- * queue(deviousminds_quest_complete) -> ~quest_complete_rewards.
+ * walk (not a death test). Completion goes through Tiffy OPNPC1
+ * ~deviousminds_do_complete -> ~quest_complete_rewards.
  *
  * Gate: TORIRSSERVER_SELFTEST_DM_ONLY=1
  *
@@ -87,13 +87,18 @@ dm_finish(struct ToriRSServer* srv)
     assert(srv);
     assert(srv->active_player);
     /* Drain resume buttons only. Do not WorldCloseModal -- that aborts the
-     * active script and can drop Tiffy's queue(deviousminds_quest_complete). */
+     * active script and can drop Tiffy's ~deviousminds_do_complete mid-talk.
+     * Tick after every page: a burst of RESUME_PAUSEBUTTON without a world
+     * tick leaves the script parked. */
     for( t = 0; t < 96 && srv->active_player->active_script; t++ )
     {
         if( selftest_click_through(srv, 8) <= 0 )
             selftest_tick(srv);
     }
-    for( t = 0; t < 8; t++ )
+    for( t = 0; t < 16; t++ )
+        selftest_tick(srv);
+    ToriRSServer_ScriptsProcessQueues(srv);
+    for( t = 0; t < 4; t++ )
         selftest_tick(srv);
 }
 
@@ -107,20 +112,20 @@ static void
 dm_pick_row(struct ToriRSServer* srv, int row)
 {
     struct ToriRSServerPlayer* player;
-    int chatmenu;
+    int uid;
     uint8_t button[6];
 
     assert(srv);
     player = srv->active_player;
     assert(player);
-    chatmenu = dm_chatmenu();
-    if( chatmenu <= 0 )
+    uid = (player->resume_button_count > 0) ? player->resume_buttons[0] : dm_chatmenu();
+    if( uid <= 0 )
         return;
-    button[0] = (uint8_t)(chatmenu >> 24);
-    button[1] = (uint8_t)(chatmenu >> 16);
-    button[2] = (uint8_t)(chatmenu >> 8);
-    button[3] = (uint8_t)chatmenu;
-    button[4] = 0;
+    button[0] = (uint8_t)(uid >> 24);
+    button[1] = (uint8_t)(uid >> 16);
+    button[2] = (uint8_t)(uid >> 8);
+    button[3] = (uint8_t)uid;
+    button[4] = (uint8_t)(row >> 8);
     button[5] = (uint8_t)row;
     selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
     selftest_tick(srv);
@@ -232,8 +237,15 @@ dm_varp(struct ToriRSServer* srv, const char* name, int value)
 static void
 dm_talk(struct ToriRSServer* srv, int npc_type, int slot)
 {
+    struct ToriRSServerPlayer* player;
+
     assert(srv);
     assert(npc_type > 0);
+    player = srv->active_player;
+    assert(player);
+    /* ~p_choice2 returns immediately when last_slot is already 1 or 2 from a
+     * prior talk. Clear it so each OPNPC1 opens a fresh menu. */
+    player->last_slot = 0;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
 }
 
@@ -965,12 +977,6 @@ selftest_quest_deviousminds(
         rc_before = (stat_rc >= 0) ? player->stat_xp_tenths[stat_rc] : 0;
         fletch_before = (stat_fletch >= 0) ? player->stat_xp_tenths[stat_fletch] : 0;
         dm_talk_pick(srv, npc_tiffy, slot, 1);
-        {
-            int t;
-
-            for( t = 0; t < 12; t++ )
-                selftest_tick(srv);
-        }
         SELFTEST_CHECK(dm_get_vb(player, "devious_main") == DM_COMPLETE,
                        "Devious Minds topic must complete, got %d",
                        dm_get_vb(player, "devious_main"));
