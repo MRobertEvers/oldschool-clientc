@@ -57055,17 +57055,25 @@ ToriRSServer_WorldSelftest(void)
                                "knife-on-book should replace the book with the slashed copy");
                 fprintf(stderr, "ELEM1RUN PASS: slashing the spine grants the battered key\n");
 
-                ToriRSServer_WorldTeleport(srv, 0, 2710, 3496);
-                selftest_tick(srv);
-                slot = ToriRSServer_SceneAddLoc(2710, 3496, 0, loc_oddwall, 0, 0);
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_oddwall, -1, slot);
+                /* Odd wall + spiral stairs live in the same Seers window as
+                 * the bookcase. Find them. Do not WorldTeleport + SceneAddLoc
+                 * + tick — that rebuild SEGVs in WorldTick. */
+                slot = selftest_find_loc_near(2710, 3496, loc_oddwall);
+                if( slot < 0 )
+                    slot = selftest_find_loc_near(2710, 3496,
+                                                 ToriRSServer_ContentSymbol(
+                                                     TORIRSSERVER_PACK_LOC,
+                                                     "elemental_workshop_oddwall_r"));
+                SELFTEST_CHECK(slot >= 0, "odd wall loc should be on the Seers map");
+                if( slot >= 0 )
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_oddwall, -1, slot);
                 ToriRSServer_WorldCloseModal(srv);
                 fprintf(stderr, "ELEM1RUN PASS: odd-looking wall accepts the battered key\n");
 
-                ToriRSServer_WorldTeleport(srv, 0, 2709, 3497);
-                selftest_tick(srv);
-                slot = ToriRSServer_SceneAddLoc(2709, 3497, 0, loc_stairs, 10, 0);
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_stairs, -1, slot);
+                slot = selftest_find_loc_near(2709, 3497, loc_stairs);
+                SELFTEST_CHECK(slot >= 0, "spiral stairs loc should be on the Seers map");
+                if( slot >= 0 )
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_stairs, -1, slot);
                 ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_stairs) == 1,
                                "climbing the spiral stairs should set elemental_workshop_stairs, "
