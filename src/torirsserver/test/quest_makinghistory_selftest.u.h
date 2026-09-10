@@ -98,13 +98,15 @@ mh_finish(struct ToriRSServer* srv)
 
     assert(srv);
     assert(srv->active_player);
-    for( t = 0; t < 64 && srv->active_player->active_script; t++ )
+    /* Drain resume buttons only. Do not WorldCloseModal -- that aborts the
+     * active script and drops a finish talk before ~makinghistory_do_complete. */
+    for( t = 0; t < 96 && srv->active_player->active_script; t++ )
     {
-        selftest_click_through(srv, 8);
-        selftest_tick(srv);
+        if( selftest_click_through(srv, 8) <= 0 )
+            selftest_tick(srv);
     }
-    if( srv->active_player->active_script )
-        ToriRSServer_WorldCloseModal(srv);
+    for( t = 0; t < 8; t++ )
+        selftest_tick(srv);
 }
 
 static int
