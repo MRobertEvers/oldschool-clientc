@@ -303,7 +303,7 @@ filed under `helpers/miniquests/` are at the end.
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
 | 30 | theascentofarceuus | `theascentofarceuus` | 310 | done |  |
-| 31 | trollstronghold | `trollstronghold` | 311 | done (LC) | re-audit 2026-08-10: `quest_death` (shared dir w/ Death Plateau; `death_tenzing.rs2`, `death_saba_eohric.rs2`; dbrow `quest_trollstronghold` journal wired) |
+| 31 | trollstronghold | `trollstronghold` | 311 | in_progress | 2026-09-10 claimed `gp-stronghold-img`. Gate D recapture of `quest_troll` (Denulth/Dunstan shared with Death Plateau — do not stamp `quest_death`). |
 | 32 | lostcity | `lostcity` | 312 | done (LC) | re-audit 2026-08-10: `quest_zanaris` (`shamus.rs2`, `tree_spirit.rs2`, `zanaris_camp.rs2`; dbrow `quest_lostcity` journal wired) |
 | 33 | ethicallyacquiredantiquities | `ethicallyacquiredantiquities` | 313 | done |  |
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |

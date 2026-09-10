@@ -75,7 +75,7 @@
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
-| 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
+| 24 Aug 2004 | Troll Stronghold | `quest_troll` | in-progress | 2026-09-10 | claimed `gp-stronghold-img`. Gate D = one named BMP per interaction. |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
