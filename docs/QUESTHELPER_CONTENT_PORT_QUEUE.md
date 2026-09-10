@@ -440,13 +440,13 @@ filed under `helpers/miniquests/` are at the end.
 | 165 | theheartofdarkness | `theheartofdarkness` | 1,582 | done |  |
 | 166 | thecurseofarrav | `thecurseofarrav` | 1,665 | done |  |
 | 167 | sinsofthefather | `sinsofthefather` | 1,668 | done |  |
-| 168 | ragandboneman | `ragandboneman` | 1,729 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
+| 168 | ragandboneman | `ragandboneman` | 1,729 | in_progress | 2026-09-10 claimed `gp-ragbone-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
-| 174 | recipefordisaster | `recipefordisaster` | 3,370 | in_progress | 2026-09-10 claimed `gp-rfd-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale, across two ticks; see Log |
+| 174 | recipefordisaster | `recipefordisaster` | 3,370 | done | 2026-09-10 parent-verified 178 named / 174 unique-MD5 BMPs on OSRS-Content@24772511b. Leftovers: dave hellrat spice, traiborn quizzes, mudknuckles cutscene, rohak drunk icefiend, pirate helmet burn, skrach balloon boat, amik brulee chain, monkey threegree, gelatin cycle, banquet cutscene. Agrith TK-grab implemented. Prior 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale; see Log |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
