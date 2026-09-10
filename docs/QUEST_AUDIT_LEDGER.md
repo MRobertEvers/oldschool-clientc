@@ -67,9 +67,9 @@
 | 27 May 2003 | Dwarf Cannon | `quest_mcannon` | in-progress | 2026-09-09 | cloud `gp-cannon-c1` FAILED CLOSE: 0 named BMPs on `cursor/dwarf-cannon-gate-d-2638` / OSRS-Content@bb90fd681 (no cache.osrs239). Do not double-claim. |
 | 09 Jun 2003 | Murder Mystery | `quest_murder` | in-progress | 2026-09-09 | claimed by cloud `gp-murder-c1`. Player unkillable unless a death case. Gate D needs named BMPs in the OSRS-Content SHA. |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | in-progress | 2026-09-09 | cloud `gp-digsite-c1` FAILED CLOSE: 0 named BMPs on `cursor/the-dig-site-9058` / OSRS-Content@9fe90dd2d (no cache.osrs239). Do not double-claim. |
-| 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | in-progress | 2026-09-09 | claimed by cloud `gp-fluffs-c1`. Player unkillable unless a death case. Gate D needs named BMPs in the OSRS-Content SHA. |
+| 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | in-progress | 2026-09-09 | cloud `gp-fluffs-c1` FAILED CLOSE: 0 named BMPs on `cursor/gertrudes-cat-fluffs-542f` / OSRS-Content@00677666a (no cache.osrs239). Do not double-claim. |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | in-progress | 2026-09-10 | claimed by cloud `gp-legends-c1`. Player unkillable unless a death case. Gate D needs named BMPs in the OSRS-Content SHA. |
-| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | unaudited | |  |
+| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | in-progress | 2026-09-10 | claimed by cloud `gp-runemyst-c1`. Player unkillable unless a death case. Gate D needs named BMPs in the OSRS-Content SHA. |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | unaudited | |  |
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | unaudited | |  |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
