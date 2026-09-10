@@ -74,7 +74,7 @@
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | fixed | 2026-09-10 | parent-verified 73 unique-MD5 named BMPs on `cursor/elem1-full-gate-d-bmps-afd5` / OSRS-Content@518dc89ca. Sampled bookcase find + complete scroll. Not verified-modern. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | in-progress | 2026-09-10 | claimed `gp-peril-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | in-progress | 2026-09-10 | claimed `gp-spirit-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
-| 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
+| 09 Aug 2004 | Death Plateau | `quest_death` | in-progress | 2026-09-10 | claimed `gp-plateau-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Shared dir with Troll Stronghold start on Denulth — capture Death Plateau only. |
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
@@ -89,7 +89,7 @@
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | fixed | 2026-09-10 | parent-verified 112 unique-MD5 named BMPs on `cursor/creature-of-fenkenstrain-352d` / OSRS-Content@8285fb174 (sign/interview/Roavar/grave/sew/gardener/Rologarth/complete). C walk 22 PASS. Roavar pickled-brain option was visual row 4 (resume 5). Leftovers: gardener follow, telegrab intercept, Werewolf Agility unlock, ring reclaim. Not verified-modern. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
-| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-10 | claimed `gp-ghost-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Prior 0 BMPs on `cursor/ghosts-ahoy-reaudit-d85a` are a failed close. |
+| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | fixed | 2026-09-10 | parent-verified 139 unique-MD5 named BMPs on `cursor/ghosts-ahoy-gate-d-a8b2` / OSRS-Content@fe927dc262. Sampled barrier toll, Velorina start/choice/hand-in, Necrovarus, Gravingas, ship repair, complete scroll. Leftovers: deterministic Rune-Draw and petition, lobster CHEAT-SKIP, no Wilderness/Perdu ectophial, ritual all-at-once, flag colours deterministic. Not verified-modern. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |

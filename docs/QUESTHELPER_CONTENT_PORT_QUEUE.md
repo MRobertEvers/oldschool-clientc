@@ -317,7 +317,7 @@ filed under `helpers/miniquests/` are at the end.
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
 | 43 | asoulsbane | `asoulsbane` | 330 | **done** | resolved 2026-08-12, see P2 row — real quest already fully implemented at `quest_soulsbane/`, audited-fixed under the mid-era table above; this row's own dead duplicate `quest_asoulsbane/` was deleted, not fixed |
 | 44 | childrenofthesun | `childrenofthesun` | 337 | done |  |
-| 45 | deathplateau | `deathplateau` | 337 | done (LC) | re-audit 2026-08-10: `quest_death` (shared dir w/ Troll Stronghold; `death_denulth.rs2`, `death_dunstan.rs2`; dbrow `quest_deathplateau` journal wired) |
+| 45 | deathplateau | `deathplateau` | 337 | in_progress | 2026-09-10 claimed `gp-plateau-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. Capture Death Plateau only (do not stamp Troll Stronghold). |
 | 46 | seaslug | `seaslug` | 338 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 47 | thegardenofdeath | `thegardenofdeath` | 346 | done |  |
 | 48 | atfirstlight | `atfirstlight` | 348 | done |  |
@@ -418,7 +418,7 @@ filed under `helpers/miniquests/` are at the end.
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
 | 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
-| 146 | ghostsahoy | `ghostsahoy` | 821 | in_progress | 2026-09-10 claimed `gp-ghost-img` on cache image `bld-20260910-ed0a006f`. |
+| 146 | ghostsahoy | `ghostsahoy` | 821 | done | 2026-09-10 parent-verified 139 unique-MD5 named BMPs on OSRS-Content@fe927dc262. Leftovers: deterministic Rune-Draw/petition, lobster CHEAT-SKIP, no Wilderness/Perdu ectophial, ritual all-at-once, flag colours deterministic. |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
