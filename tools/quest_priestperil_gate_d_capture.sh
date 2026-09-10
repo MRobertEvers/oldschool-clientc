@@ -127,7 +127,7 @@ for shot in "${SHOTS[@]}"; do
   TORIRSSERVER_GOD=1 \
   TORIRS_MAX_FRAMES="${TORIRS_MAX_FRAMES:-420}" \
   TORIRS_EXIT_BMP="$dest" \
-  TORIRS_NET_CHEAT="god 1;priestperilbmp ${shot}" \
+  TORIRS_NET_CHEAT="god 1;priestperilbmp_${shot}" \
     "$CLIENT" --manifest "$MANIFEST" --soft3d >/tmp/gp-peril-img-"$shot".log 2>&1 || true
   if [[ ! -s "$dest" ]]; then
     echo "FAIL $shot (no bmp)" >&2
