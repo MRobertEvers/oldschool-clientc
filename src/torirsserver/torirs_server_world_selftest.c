@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_elementalworkshopii_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_ELEM2_ONLY") || getenv("TORIRSSERVER_SELFTEST_EW2") ||
+        getenv("TORIRSSERVER_SELFTEST_ELEMENTALWORKSHOPII") )
+    {
+        selftest_quest_elementalworkshopii(srv, player);
+        fprintf(stderr, "ToriRSServer elemental workshop ii selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("elem2");
         return g_selftest_failures;
     }
 
@@ -35904,6 +35915,11 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        /* Elemental Workshop II Gate D walk header (include-guarded). Placed
+         * immediately before this reset so spawned earth elementals / jig
+         * cart NPCs cannot leak into the shop stanza. */
+#include "test/quest_elementalworkshopii_selftest.u.h"
+        selftest_quest_elementalworkshopii(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {
