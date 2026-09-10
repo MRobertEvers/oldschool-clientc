@@ -92,7 +92,7 @@
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
-| 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | in-progress | 2026-09-10 | cloud `gp-bar-img` Gate D: C walk + named BMP of every player interaction. Do not stamp other quests. |
+| 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | fixed | 2026-09-10 | cloud `gp-bar-img` Gate D close on `cursor/between-a-rock-gate-d-cbc4` / OSRS-Content@5a0787a04: C walk 60/0 + 103 unique named BMPs (Dondakan prereq/offer/cannon, Rolad/pages, both engineers, schematics, gold helmet/cannonball, ferrymen, Avatar, complete scroll, journals not-started/mid/complete). Leftovers (not verified-modern): schematic widget collapsed to one Use; pages auto-combine; Dwarf Cannon soft-skip; ferry toll 5 vs wiki 2; Avatar no ore-absorption / no 75-vs-125 split; RoW teleport / music / ore-hauler banking not operational. Observatory left alone. |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
