@@ -74,7 +74,7 @@
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | cloud `gp-elem1-c1` (original) FAILED CLOSE: 0 named BMPs on `cursor/elemental-workshop-i-36db` / OSRS-Content@81854cdb8 (no cache.osrs239). Full-BMP retarget still live — do not double-claim. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
-| 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
+| 09 Aug 2004 | Death Plateau | `quest_death` | fixed | 2026-09-10 | Gate D: 88 named BMPs (unique MD5s=88) on `cursor/death-plateau-gate-d-cdc9` / OSRS-Content@36fe7819f — Denulth offer/decline/accept/place/White Knights/remind, Saba/Eohric, Harold ale/dice/IOU/Blurberry, combo unlock, Tenzing boots/secret way, Dunstan spikes/supplies, scout/map/combo hand-in, real `~quest_complete_rewards` scroll (3000 Attack / steel claws), journals. C walk 52 PASS / 0 fail. Leftovers (not verified-modern): death_dice IF1 + dice anim/jingles deferred to inline mes+p_countdialog; combination messagescroll stubbed as mesbox; dangersign cam cinematic stubbed; Troll Stronghold start on Denulth and Troll Romance sled arms on Dunstan/Tenzing out of scope. |
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |

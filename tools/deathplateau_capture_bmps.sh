@@ -108,7 +108,7 @@ if [[ ! -x "$CLIENT" ]]; then
   exit 1
 fi
 
-frames="${DP_MAX_FRAMES:-420}"
+frames="${DP_MAX_FRAMES:-500}"
 for spec in "${shots[@]}"; do
   name="${spec%%:*}"
   cheat="${spec##*:}"

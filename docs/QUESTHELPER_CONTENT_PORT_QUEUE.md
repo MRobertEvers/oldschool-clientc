@@ -317,7 +317,7 @@ filed under `helpers/miniquests/` are at the end.
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
 | 43 | asoulsbane | `asoulsbane` | 330 | **done** | resolved 2026-08-12, see P2 row — real quest already fully implemented at `quest_soulsbane/`, audited-fixed under the mid-era table above; this row's own dead duplicate `quest_asoulsbane/` was deleted, not fixed |
 | 44 | childrenofthesun | `childrenofthesun` | 337 | done |  |
-| 45 | deathplateau | `deathplateau` | 337 | done (LC) | re-audit 2026-08-10: `quest_death` (shared dir w/ Troll Stronghold; `death_denulth.rs2`, `death_dunstan.rs2`; dbrow `quest_deathplateau` journal wired) |
+| 45 | deathplateau | `deathplateau` | 337 | done | 2026-09-10 Gate D close `gp-plateau-img` / `cursor/death-plateau-gate-d-cdc9`: 88 named BMPs (unique MD5s=88), C walk 52 PASS / 0 fail, real `~quest_complete_rewards` scroll. Leftovers stay (dice IF1 deferred, combo mesbox stub, dangersign cam stub, Troll Stronghold/Romance arms in shared files). Prior done (LC) re-audit 2026-08-10: `quest_death` (shared dir w/ Troll Stronghold; `death_denulth.rs2`, `death_dunstan.rs2`; dbrow `quest_deathplateau` journal wired) |
 | 46 | seaslug | `seaslug` | 338 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 47 | thegardenofdeath | `thegardenofdeath` | 346 | done |  |
 | 48 | atfirstlight | `atfirstlight` | 348 | done |  |
