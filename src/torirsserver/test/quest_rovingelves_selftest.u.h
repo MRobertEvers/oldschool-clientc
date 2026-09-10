@@ -531,53 +531,34 @@ selftest_quest_rovingelves(
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, talk_type, -1, isl_slot);
         re_drain_to_choice(srv, player, chatmenu);
         re_choose(srv, 2);
-        re_drain_to_choice(srv, player, 0);
-        {
-            int t;
-
-            for( t = 0; t < 12 && player->varps[varp_re] != 60; t++ )
-            {
-                if( com_messagebox_continue > 0 )
-                    ToriRSServer_ScriptsResumeButton(srv, com_messagebox_continue);
-                selftest_click_through(srv, 4);
-                selftest_tick(srv);
-            }
-        }
+        biohazard_run_dialogue(srv, player, 0);
         SELFTEST_CHECK(selftest_count_obj(player, obj_shield) == 1,
                        "shield choice should grant crystal_shield");
         re_pass("islwyn_shield_choice");
-        /* The queue completes after the choice. Reset to re-run the bow path
-         * if the shield path already completed. */
-        if( player->varps[varp_re] == 60 )
-        {
-            re_pass("islwyn_complete_scroll");
-            player->varps[varp_re] = 50;
-            re_clear_inv(player);
-            if( obj_shield >= 0 )
-            {
-                /* Drop the granted shield so the bow path is a clean grant. */
-            }
-        }
+        /* Abort before the complete queue so the bow path can finish the
+         * quest once, through the real `rovingelves_quest_complete` queue. */
         re_close(srv);
-
         player->varps[varp_re] = 50;
+
         re_clear_inv(player);
         player->chatmodal_group = 0;
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, talk_type, -1, isl_slot);
         re_drain_to_choice(srv, player, chatmenu);
         re_choose(srv, 1); /* bow */
-        re_drain_to_choice(srv, player, 0);
+        biohazard_run_dialogue(srv, player, 0);
         SELFTEST_CHECK(selftest_count_obj(player, obj_bow) == 1,
                        "bow choice should grant crystal_bow");
         re_pass("islwyn_bow_choice");
         {
             int t;
 
-            for( t = 0; t < 16 && player->varps[varp_re] != 60; t++ )
+            for( t = 0; t < 24 && player->varps[varp_re] != 60; t++ )
             {
+                if( player->active_script )
+                    biohazard_run_dialogue(srv, player, 0);
                 if( com_messagebox_continue > 0 )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox_continue);
-                selftest_click_through(srv, 6);
+                selftest_click_through(srv, 8);
                 selftest_tick(srv);
             }
         }
@@ -587,7 +568,6 @@ selftest_quest_rovingelves(
         SELFTEST_CHECK(if_questscroll <= 0 || player->mainmodal_group == if_questscroll ||
                            player->varps[varp_re] == 60,
                        "completion should arm the real quest scroll");
-        re_close(srv);
         re_pass("islwyn_complete_scroll");
 
         /* ---- postquest trade ---- */
