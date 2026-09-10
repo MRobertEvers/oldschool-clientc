@@ -262,7 +262,7 @@ These are the only remaining QH dirs that implement OSRS content released after 
 |---|---|---|---:|---|---|
 | P1 | A Tail of Two Cats | `atailoftwocats` | 293 | done | Apr 2016 — TzTok-Jad + TzKal-Zad lore; two cats, timeline split; extract clean (39 gamevals resolve); scripts twocats.rs2 with all chapters + chore tracking via osrs239 varbits (twocats_quest id 1028, chores ids 1029–1036); sscompile.exe zero errors; wiki [Quick guide](https://oldschool.runescape.wiki/w/A_Tail_of_Two_Cats/Quick_guide) + [Transcript](https://oldschool.runescape.wiki/w/Transcript:A_Tail_of_Two_Cats); deferred ICTHLARIN's Little Helper gate (not yet ported), catspeak amulet e variant doesn't exist in osrs239 (only `twocats_amuletofcatspeak` id 6544) |
 | P2 | Asoul's Bane | `asoulsbane` | 330 | **resolved (2026-08-12), see Log** | this row and #43 were a stale duplicate-tracking bug, not real open work. "A Soul's Bane" is a real, distinct, 2005 mid-era quest, already fully implemented at `quest_soulsbane/` (not `quest_asoulsbane/`) — see the mid-era audit table above. The `quest_asoulsbane/scripts/soulbaine.rs2` this row described was a dead, abandoned 193-line duplicate that silently shadowed three of `quest_soulsbane/`'s real triggers and called `~quest_complete` on a dbrow that never existed; deleted during the 2026-08-12 mid-era audit pass. Nothing further to do here. |
-| P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | done | Dec 2013 — Elid, spirit world, Khazard war; native dbrow `quest_spiritsoftheelid` (id 100, endstate 60) + native varbit schema on basevar `elid_main` reused as-is; see Log |
+| P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | in_progress | 2026-09-10 claimed `gp-elid-img` on cache image `bld-20260910-ed0a006f`. Same quest as row #51; Gate D recapture. |
 | P4 | Another Slice of Ham | `anothersliceofham` | 485 | done | Oct 2012 — Ham cult, Dorgesh-Kaan/Goblin Village/Sigmund; native dbrow `quest_anothersliceofham` (id 133, endstate 11) + native varbit schema on basevar `slice_base` reused as-is; see Log |
 | P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | done | Sept 2006 — Drakan's descendant, vampire theme; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` reused as-is; see Log |
 
@@ -309,7 +309,7 @@ filed under `helpers/miniquests/` are at the end.
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |
 | 35 | insearchofknowledge | `insearchofknowledge` | 317 | done |  |
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
-| 37 | makinghistory | `makinghistory` | 319 | in_progress | 2026-09-10 claimed `gp-mh-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 37 | makinghistory | `makinghistory` | 319 | done | 2026-09-10 parent-verified 93 unique-MD5 named BMPs on OSRS-Content@36c53e3ccf. Leftovers: Port Phasmatys entry toll unused; inter-area travel not modelled; scroll QP tenths display. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | Oct 2006 -- Bert's sandpit, Sandy the corrupt slavedriver, Zavistic Rarve; native dbrow `quest_handinthesand` (id 102, endstate 160) + native varbit schema on basevar `handsand` (`%handsand_quest` 0/10/20.../150/160, question1-3, tele, serum) reused as-is; dir `quest_handinthesand` (cache-authoritative name, not the QH dir spelling) |
 | 39 | bonevoyage | `bonevoyage` | 320 | done |  |
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
@@ -323,7 +323,7 @@ filed under `helpers/miniquests/` are at the end.
 | 48 | atfirstlight | `atfirstlight` | 348 | done |  |
 | 49 | tribaltotem | `tribaltotem` | 349 | done (LC) | re-audit 2026-08-10: `quest_totem` (dbrow `quest_tribaltotem` journal wired) |
 | 50 | witchshouse | `witchshouse` | 350 | done (LC) | re-audit 2026-08-10: `quest_ball` (`ball_journal.rs2`, `quest_ball_locs.rs2`; dbrow `quest_witchshouse` journal wired) |
-| 51 | spiritsoftheelid | `spiritsoftheelid` | 352 | done | npcs=elid_mayor,elid_ghaslor,elid_waterspirit (helper's own `elidmayor`/`elidghaslor`/`elidranging` spellings don't match the cache's `elid_`-prefixed names, `elid_ranging_target` not `elidranging` -- cache wins); see Log |
+| 51 | spiritsoftheelid | `spiritsoftheelid` | 352 | in_progress | 2026-09-10 claimed `gp-elid-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 52 | taleoftherighteous | `taleoftherighteous` | 353 | done |  |
 | 53 | contact | `contact` | 355 | done | Jan 2007 -- Sophanem quarantined from Menaphos, tunnels of the Sect of Scabaras, Giant Scarab boss; native dbrow `quest_contact` (id 124, endstate 130, questpoints 1, stat_xp_awarded thieving 70000=7000xp) + native varbit schema on basevar `contact_master` reused as-is, matching quest-helper's own VarbitID.CONTACT name exactly; see Log |
 | 54 | shadesofmortton | `shadesofmortton` | 355 | done | 2026-09-10 parent-verified 182 unique-MD5 named BMPs on OSRS-Content@be3b1090ae. Leftovers: afflicted flavour; chat tags; Dampe/catacomb variants; Flamtaer flicker. |
