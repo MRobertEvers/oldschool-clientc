@@ -696,7 +696,7 @@ selftest_quest_routequest(
 
             rq_give_weapons(player, obj_long, obj_sword, obj_mace, obj_hammer_w, obj_dagger);
             {
-                struct ToriRSServerCapture cap;
+                static struct ToriRSServerCapture cap;
 
                 ToriRSServer_CaptureBegin(srv, &cap);
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_curpile, -1, curpile);
@@ -724,7 +724,7 @@ selftest_quest_routequest(
                 rq_click_until_menu(srv, 8);
                 for( q = 0; q < 3 && player->active_script; q++ )
                 {
-                    struct ToriRSServerCapture cap;
+                    static struct ToriRSServerCapture cap;
                     int row;
 
                     ToriRSServer_CaptureBegin(srv, &cap);
