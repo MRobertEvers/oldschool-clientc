@@ -8142,6 +8142,37 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "choice", 6) == 0 )
+    {
+        /* `::choice <row>` — IF_BUTTON1 on chatmenu:options. Rows are 1-based
+         * (`~p_choiceN` reads last_slot). The mailbox `button` command only
+         * queues a client CS2 trigger and never answers p_pausebutton. */
+        int row = 1;
+        int chatmenu;
+
+        (void)sscanf(text, "choice %d", &row);
+        if( row < 1 || row > 5 )
+            row = 1;
+        chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+        if( chatmenu <= 0 )
+        {
+            say(srv, "No chatmenu:options component.");
+            return;
+        }
+        {
+            uint8_t button[6];
+
+            button[0] = (uint8_t)(chatmenu >> 24);
+            button[1] = (uint8_t)(chatmenu >> 16);
+            button[2] = (uint8_t)(chatmenu >> 8);
+            button[3] = (uint8_t)chatmenu;
+            button[4] = 0;
+            button[5] = (uint8_t)row;
+            handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, button, 6);
+        }
+        return;
+    }
+
     if( strncmp(text, "opheld", 6) == 0 )
     {
         /*
