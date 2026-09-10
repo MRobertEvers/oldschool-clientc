@@ -208,6 +208,7 @@ viking_talk(
 {
     assert(srv);
     assert(player);
+    (void)player;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, npc_slot);
     viking_finish(srv);
 }
@@ -280,7 +281,6 @@ selftest_quest_viking(
     int obj_talisman;
     int obj_charged;
     int obj_keg;
-    int obj_sword;
     int obj_flower;
     int obj_lyre_e;
     int obj_lyre_s;
@@ -376,7 +376,6 @@ selftest_quest_viking(
     obj_talisman = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_draugen_talisman_uncharged");
     obj_charged = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_draugen_talisman");
     obj_keg = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_low_alcahol_beerkeg");
-    obj_sword = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_sword");
     obj_flower = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_rare_flower");
     obj_lyre_e = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_enchanted_strung_lyre");
     obj_lyre_s = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "viking_strung_lyre");
@@ -417,32 +416,44 @@ selftest_quest_viking(
         return;
     }
 
-    /* Greet / place / no-one / hat / decline / accept. */
+    /* Greet / place / no-one / hat / decline / accept.
+     * finish() click-through always picks menu row 1, which from the place
+     * submenu is "Do you have any quests?" then accept. Stop after the
+     * intended branch and reset %viking so later not-started talks stay clean. */
+    player->varps[varp] = VIKING_NOT_STARTED;
     rows[0] = 1;
-    viking_talk_choices(srv, player, npc_brundt, brundt, rows, 1);
+    rows[1] = 4;
+    viking_talk_choices(srv, player, npc_brundt, brundt, rows, 2);
+    ToriRSServer_WorldCloseModal(srv);
     fails = g_selftest_failures;
     SELFTEST_CHECK(player->varps[varp] == VIKING_NOT_STARTED,
                    "place talk must not start the quest, got %d", player->varps[varp]);
     viking_pass(fails, "brundt-place");
     viking_god(player);
 
+    player->varps[varp] = VIKING_NOT_STARTED;
     rows[0] = 2;
     rows[1] = 2;
     viking_talk_choices(srv, player, npc_brundt, brundt, rows, 2);
+    ToriRSServer_WorldCloseModal(srv);
     fails = g_selftest_failures;
     SELFTEST_CHECK(player->varps[varp] == VIKING_NOT_STARTED,
                    "no-one + decline must leave not-started, got %d", player->varps[varp]);
     viking_pass(fails, "brundt-noone-decline");
     viking_god(player);
 
+    player->varps[varp] = VIKING_NOT_STARTED;
     rows[0] = 4;
     viking_talk_choices(srv, player, npc_brundt, brundt, rows, 1);
+    ToriRSServer_WorldCloseModal(srv);
     viking_pass(g_selftest_failures, "brundt-hat");
     viking_god(player);
 
+    player->varps[varp] = VIKING_NOT_STARTED;
     rows[0] = 3;
     rows[1] = 2;
     viking_talk_choices(srv, player, npc_brundt, brundt, rows, 2);
+    ToriRSServer_WorldCloseModal(srv);
     fails = g_selftest_failures;
     SELFTEST_CHECK(player->varps[varp] == VIKING_NOT_STARTED,
                    "quests decline must leave not-started, got %d", player->varps[varp]);
@@ -902,7 +913,11 @@ selftest_quest_viking(
             player->varps[varp] = VIKING_STARTED;
             player->varps[bits] = viking_bit_set(player->varps[bits], 0, VIKING_PEER_START,
                                                  VIKING_PEER_END);
-            viking_talk(srv, player, npc_peer, peer);
+            /* First talk both starts the trial and presents the riddle.
+             * Choose WITS so click-through cannot accidentally accept MIND. */
+            rows[0] = 2;
+            viking_talk_choices(srv, player, npc_peer, peer, rows, 1);
+            ToriRSServer_WorldCloseModal(srv);
             viking_pass(g_selftest_failures, "peer-start");
             viking_god(player);
 
