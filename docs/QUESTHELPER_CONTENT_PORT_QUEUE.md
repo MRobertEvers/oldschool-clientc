@@ -289,7 +289,7 @@ filed under `helpers/miniquests/` are at the end.
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
 | 16 | thequeenofthieves | `thequeenofthieves` | 259 | done |  |
-| 17 | rovingelves | `rovingelves` | 263 | done | npcs=roving_islwyn_2ops,eluned_prif,roving_mossgiant |
+| 17 | rovingelves | `rovingelves` | 263 | in_progress | 2026-09-10 claimed `gp-roving-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done |  |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
 | 20 | aporcineofinterest | `aporcineofinterest` | 275 | done |  |
@@ -431,7 +431,7 @@ filed under `helpers/miniquests/` are at the end.
 | 156 | enlightenedjourney | `enlightenedjourney` | 1,168 | done | Nov 2006 -- Auguste (`zep_piccard`) on Entrana asks the player to help build and fly a hot air balloon (papyrus/wool/candle test models, a flash-mob mishap, then sandbags/dye/silk/bowl/willow-branch basket/logs for the real one), landing in Taverley; native dbrow `quest_enlightenedjourney` (id 121, startnpc 4715=`zep_piccard`, endstate 200, questpoints 1) + native varbit `zep_quest` (basevar `zep_var`) reused on quest-helper's own 0/10/20/40/60/70/80/90 scale, jumping straight to 200 for the true finish; also unlocks the native 6-node balloon transport network (Entrana/Taverley/Castle Wars/Grand Tree/Crafting Guild/Varrock); see Log |
 | 157 | onesmallfavour | `onesmallfavour` | 1,244 | done | Feb 2005 -- Yanni Salika's red-mahogany request unravels into a long relay of favours across Kandarin/Misthalin/Karamja; native dbrow `quest_onesmallfavour` (id 74, endstate 285, startnpc 5361=`shiloantiques`) + native top-level varp `onesmallfavour` (unpacked, no independent multiloc/multivarp cross-validation beyond quest-helper's own steps.put keys) + native `onesmallfavourmulti` sub-fields (weathervane/landing-light puzzle) reused as-is; see Log |
 | 158 | legendsquest | `legendsquest` | 1,261 | done | 2026-09-10 parent-verified 132 unique-MD5 named BMPs on OSRS-Content@81cca45eef. Leftovers: shrine shortcut, bowl smithing, Yommi timing. |
-| 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | in_progress | 2026-09-10 claimed `gp-viking-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | done | 2026-09-10 parent-verified 99 unique-MD5 named BMPs on OSRS-Content@fded1b361d. Leftovers: Brundt named Someone; maze/house/chop-carve/Sigmund/Manni soft-skips; name stub. |
 | 160 | thefinaldawn | `thefinaldawn` | 1,274 | done |  |
 | 161 | secretsofthenorth | `secretsofthenorth` | 1,293 | done |  |
 | 162 | theforsakentower | `theforsakentower` | 1,353 | done |  |
