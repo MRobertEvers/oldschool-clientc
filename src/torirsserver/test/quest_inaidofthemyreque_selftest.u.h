@@ -316,19 +316,6 @@ ia_varp(struct ToriRSServer* srv, const char* name, int value)
 }
 
 static int
-ia_get_varp(struct ToriRSServerPlayer* player, const char* name)
-{
-    int varp;
-
-    assert(player);
-    assert(name);
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, name);
-    if( varp < 0 )
-        return -1;
-    return player->varps[varp];
-}
-
-static int
 ia_quest(struct ToriRSServerPlayer* player)
 {
     return ia_get_vb(player, "myreque_2_quest");
