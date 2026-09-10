@@ -296,7 +296,7 @@ filed under `helpers/miniquests/` are at the end.
 | 21 | deviousminds | `deviousminds` | 275 | done | npcs=devious_monk_hooded/devious_monk_dead, high_priest_of_entrana |
 | 22 | whatliesbelow | `whatliesbelow` | 286 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 23 | ernestthechicken | `ernestthechicken` | 288 | done (LC) | re-audit 2026-08-10: `quest_haunted` (`professor_oddenstein.rs2`, `veronica.rs2`; dbrow `quest_ernestthechicken` journal wired) |
-| 24 | atailoftwocats | `atailoftwocats` | 293 | in_progress | 2026-09-10 claimed `gp-t2c-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 24 | atailoftwocats | `atailoftwocats` | 293 | done | 2026-09-10 parent-verified 82 unique-MD5 named BMPs on OSRS-Content@bb8da29503. Leftovers: ILH gate deferred; no enchanted amulet / Bob locator IF / travel cutscene; no hair-growth timer / museum kudos / mouse-toy pounce; plant oplocu rake>=3 quirk. |
 | 25 | fishingcontest | `fishingcontest` | 297 | done (LC) | re-audit 2026-08-10: `quest_fishingcompo` (`hemenster/bonzo.rs2`, `hemenster_fishing.rs2`; dbrow `quest_fishingcontest` journal wired) |
 | 26 | junglepotion | `junglepotion` | 298 | done | 2026-09-10 parent-verified 100 named BMPs (95 unique MD5s) on OSRS-Content@aa0b89b835. |
 | 27 | gertrudescat | `gertrudescat` | 299 | done | 2026-09-10 parent-verified 90 unique-MD5 named BMPs on OSRS-Content@d325ac547d. |
@@ -309,7 +309,7 @@ filed under `helpers/miniquests/` are at the end.
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |
 | 35 | insearchofknowledge | `insearchofknowledge` | 317 | done |  |
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
-| 37 | makinghistory | `makinghistory` | 319 | done | native dbrow `quest_makinghistory` (id 97, endstate 4) + native varbit schema on basevar `makinghistory` (prog/trader_prog/warr_prog/ghost_prog/melina_pres/droalak_pres) reused as-is |
+| 37 | makinghistory | `makinghistory` | 319 | in_progress | 2026-09-10 claimed `gp-mh-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | Oct 2006 -- Bert's sandpit, Sandy the corrupt slavedriver, Zavistic Rarve; native dbrow `quest_handinthesand` (id 102, endstate 160) + native varbit schema on basevar `handsand` (`%handsand_quest` 0/10/20.../150/160, question1-3, tele, serum) reused as-is; dir `quest_handinthesand` (cache-authoritative name, not the QH dir spelling) |
 | 39 | bonevoyage | `bonevoyage` | 320 | done |  |
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
