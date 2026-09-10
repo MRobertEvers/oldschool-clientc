@@ -49769,6 +49769,12 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    /* Murder Mystery Gate D. Dedicated .u.h immediately before a
+     * selftest_reset_world so spawned npcs cannot leak into later RNG
+     * checks (Shilo Village is next). */
+    selftest_quest_murder(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
+
     fprintf(stderr, "ToriRSServer selftest: ::shilovillagerun\n");
     {
         /*
@@ -56883,12 +56889,6 @@ ToriRSServer_WorldSelftest(void)
             memset(who, 0, sizeof(*who));
         }
     }
-
-    /* Murder Mystery Gate D. Dedicated .u.h immediately before a
-     * selftest_reset_world so spawned npcs cannot leak into later RNG
-     * checks. */
-    selftest_quest_murder(srv, player);
-    selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to

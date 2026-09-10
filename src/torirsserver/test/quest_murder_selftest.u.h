@@ -129,6 +129,10 @@ selftest_quest_murder(
 
     fprintf(stderr, "ToriRSServer selftest: ::murdermysteryrun\n");
 
+    /* WorldTeleport reads srv->active_player, not the stanza argument. */
+    srv->active_player = player;
+    assert(srv->active_player);
+
     loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
     if( !loaded )
         loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
