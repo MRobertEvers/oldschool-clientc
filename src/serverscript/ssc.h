@@ -63,8 +63,12 @@ enum
      *
      * Content growing past a compiler ceiling is expected here, not
      * exceptional, so the number is raised with headroom rather than to the
-     * exact count observed — 4096->16384 wasn't a tight fit either. */
-    SSC_MAX_SCRIPTS = 32768,
+     * exact count observed — 4096->16384 wasn't a tight fit either.
+     *
+     * Raised again for Gate D named-BMP debugprocs (Grim Tales and siblings
+     * each add ~100 [debugproc] scripts). 32768 overflowed on the first
+     * grim_bmp.rs2 compile. */
+    SSC_MAX_SCRIPTS = 65536,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
     SSC_MAX_SWITCH_TABLES = 32,
