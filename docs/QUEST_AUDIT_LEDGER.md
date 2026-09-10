@@ -92,7 +92,7 @@
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
-| 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
+| 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | in-progress | 2026-09-10 | cloud `gp-bar-img` Gate D: C walk + named BMP of every player interaction. Do not stamp other quests. |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
