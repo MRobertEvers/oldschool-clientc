@@ -173,7 +173,7 @@
 | 03 Jun 2021 | A Night at the Theatre | `quest_nightatthetheatre` | unaudited | |  |
 | 16 Jun 2021 | A Kingdom Divided | `quest_kingdomdivided` | unaudited | |  |
 | 09 Feb 2022 | Land of the Goblins | `quest_landofthegoblins` | fixed | 2026-09-10 | parent-verified 107 named / 101 unique-MD5 BMPs cherry-picked from stale-base `cursor/lotg-gate-d-b66e` onto OSRS-Content@6120cf7f23 (Dream/Grim/KR retained; worker SHA bc59ffc486 not merged wholesale). Sampled Grubfoot qualify-fail split (ASH / Fishing Contest / Agility 38 / Fishing 40 / Thieving 45 / Herblore 48), offer p_choice2, refuse/accept, authored complete scroll (2 QP, 8000 Agility/Fishing/Thieving/Herblore XP, Goblin Temple altar, Yu'biusk BLQ), journal QUEST COMPLETE. Leftovers: leftover_priest_combat_flavour; leftover_dye_cycle_cosmetics. Honest collisions: colour-guard pass lines; colour-priest pickpockets. Qualify-fail split in-dir. Not verified-modern. |
-| 23 Mar 2022 | Temple of the Eye | `quest_templeoftheeye` | in-progress | 2026-09-10 | claimed `gp-toe-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 23 Mar 2022 | Temple of the Eye | `quest_templeoftheeye` | fixed | 2026-09-10 | parent-verified 64 named / 64 unique-MD5 BMPs cherry-picked from stale-base `cursor/temple-of-the-eye-gate-d-e834` onto OSRS-Content@48af1dc06a (MFWMA/LotG/Dream/Grim retained; worker SHA d0e4d71123 not merged wholesale). Sampled Persten qualify-fail split (Enter the Abyss / Runecraft 10), offer p_choice2 Yes/No, refuse/accept, authored complete scroll (1 QP, 9210 Runecraft XP, Medium pouch, Guardians of the Rift), journal QUEST COMPLETE. Leftovers: leftover_abyss_run_energy_touch_matrix; leftover_traiborn_puzzle_if; leftover_temple_cutscene; leftover_gotr_tutorial_instance; leftover_amulet_teleport_ui. No unique MERGE hunks (tea seller / Traiborn / Zammy mage / Sedridor / Dark Mage already in-tree). Not verified-modern. |
 | 27 Apr 2022 | Beneath Cursed Sands | `quest_beneathcursedsands` | unaudited | |  |
 | 08 Jun 2022 | Sleeping Giants | `quest_sleepinggiants` | unaudited | |  |
 | 30 Nov 2022 | The Garden of Death | `quest_gardenofdeath` | unaudited | |  |
@@ -199,7 +199,7 @@
 | 19 Nov 2025 | Pandemonium | `quest_pandemonium` | unaudited | |  |
 | 19 Nov 2025 | Prying Times | `quest_pryingtimes` | unaudited | |  |
 | 19 Nov 2025 | Current Affairs | `quest_currentaffairs` | unaudited | |  |
-| 19 Nov 2025 | Troubled Tortugans | `quest_troubledtortugans` | unaudited | |  |
+| 19 Nov 2025 | Troubled Tortugans | `quest_troubledtortugans` | in-progress | 2026-09-10 | claimed `gp-ttq-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 25 Feb 2026 | The Ides of Milk | `quest_idesofmilk` | unaudited | |  |
 | 20 May 2026 | The Red Reef | `quest_redreef` | unaudited | |  |
 | 30 Jun 2026 | The Blood Moon Rises | -- | blocked:not-ported | 2026-08-19 | no `quest_*` dir found |
