@@ -398,7 +398,7 @@ filed under `helpers/miniquests/` are at the end.
 | 123 | templeoftheeye | `templeoftheeye` | 662 | done |  |
 | 124 | thefremennikisles | `thefremennikisles` | 670 | done | Feb 2007 -- King Gjuki's jester-spy plot against Mawnis Burowgar, two rounds of Jatizso tax collection, two bridge repairs, and the Ice Troll King; native dbrow `quest_fremennikisles` (id 127, endstate 340, questpoints 1, requirement_stats agility40+construction20) + native varbit schema on basevars `fris_r1` (`fris_quest`, `fris_task` troll counter, `fris_m_b3`/`fris_m_b4`/`fris_m_b5` bridges, `fris_king` Mawnis crown swap) and `fris_r2` (six `frisd_*_taxcollected` bits, shared/reset across both tax rounds) reused as-is; npcs=fris_r_king,fris_r_burgher_crown,fris_spymaster,frisd_oremerchant,frisd_weaponmerchant,frisd_izso_landlady,frisd_cook,frisd_armourmerchant,frisd_fishmerchant,fris_troll_king_true (cache spelling matches quest-helper's own NpcID names exactly, no drama this time); see Log |
 | 125 | gardenoftranquility | `gardenoftranquility` | 684 | done | Aug 2005 -- Queen Ellamaria's hidden garden for King Roald; native dbrow `quest_gardenoftranquillity` (double-L cache spelling, id 90, endstate 60, questpoints 2, requirement_stats farming25) + native varbit schema on basevars `garden_varp_1`/`garden_varp_2` reused as-is; npcs=queen_ellamaria,elstan,lyra,kragen,dantaera,brother_althric,bernald (cache's own real names, not the queue row's stale `gardentroll`/`queenellama` hints -- see Log); see Log |
-| 126 | murdermystery | `murdermystery` | 686 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (Dec 2003), belongs on IN-LC list not this queue — LC's own `quest_murder` (20 files, 1580 lines, dbrow `quest_murdermystery` journal wired `interface_questjournal/scripts/quest_journal.rs2:491`) already fully implements it; found + directly reused by this tick's King's Ransom slice (#115), see Log |
+| 126 | murdermystery | `murdermystery` | 686 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (Dec 2003), belongs on IN-LC list not this queue — LC's own `quest_murder` (20 files, 1580 lines, dbrow `quest_murdermystery` journal wired `interface_questjournal/scripts/quest_journal.rs2:491`) already fully implements it; found + directly reused by this tick's King's Ransom slice (#115), see Log. 2026-09-09 parent-verified Gate D: 10 unique named BMPs in OSRS-Content@e8689e343 (`cursor/murder-mystery-gate-d-2d65`). C 17/17. Not verified-modern. |
 | 127 | enakhraslament | `enakhraslament` | 688 | done | Jan 2006 -- Lazim, Enakhra's ruined desert temple, Akthanakos; native dbrow `quest_enakhraslament` (id 103, endstate 70) + native varbit schema on three basevars (`enakh_quest_expositbits`/`enakh_multivarbits`/`enakh_varbits`) reused as-is; see Log |
 | 128 | perilousmoon | `perilousmoon` | 688 | done |  |
 | 129 | theslugmenace | `theslugmenace` | 694 | done | Sept 2006 -- Sir Tiffy Cashien's Temple Knights send the player to Witchaven to investigate a Zamorakian conspiracy (Col. O'Niall/Brother Maledict/Mayor Hobb), a ruined temple, torn documents, five elemental runes, and the Slug Prince; see Log |
@@ -451,6 +451,14 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **#126 Murder Mystery Gate D (2026-09-09, `gp-murder-c1`):** parent-verified
+  10 unique named BMPs in OSRS-Content@e8689e343 (parent gitlink on
+  `cursor/murder-mystery-gate-d-2d65`; do not ls-tree the parent tree for
+  BMPs). Player alive + green HP in every shot; C selftest 17/17 PASS on
+  real opnpc/oploc/opheld. Wiki RAW oldids 15315154 / 15078493 / 15263270.
+  Not verified-modern (Anna-pinned culprit walks; leftover transcript
+  branches; KR is another quest). Ledger row closed `fixed`.
 
 - **Cloud agents + unkillable player (2026-09-09):** Quest-repair workers
   now run as cloud agents off `v3`. Gate D / C selftest must leave the

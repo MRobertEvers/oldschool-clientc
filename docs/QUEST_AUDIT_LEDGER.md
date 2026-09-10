@@ -65,7 +65,7 @@
 | 14 Apr 2003 | The Tourist Trap | `quest_desertrescue` | unaudited | |  |
 | 07 May 2003 | Watchtower | `quest_itwatchtower` | unaudited | |  |
 | 27 May 2003 | Dwarf Cannon | `quest_mcannon` | unaudited | |  |
-| 09 Jun 2003 | Murder Mystery | `quest_murder` | in-progress | 2026-09-09 | claimed by cloud `gp-murder-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close is a failed close. |
+| 09 Jun 2003 | Murder Mystery | `quest_murder` | fixed | 2026-09-09 | parent-verified Gate D on `cursor/murder-mystery-gate-d-2d65`: 10 unique named BMPs in OSRS-Content@e8689e343 (parent gitlink — do not ls-tree the parent tree for BMPs). Player alive in every named shot (green HP; 01 mansion path + godmode; 07 Seers pub salesman; 08 compost heap; 09 guard on path). C selftest 17/17 PASS (real opnpc/oploc/opheld). Wiki oldids 2026-09-09: article 15315154, quick guide 15078493, transcript 15263270. Not verified-modern (culprit pinned to Anna in C/BMP walks; not every transcript side branch walked; KR follow-up is another quest; OpenRS2 2644 cache ≠ repo d5d59ebb dump; journal wiki page missing). |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
