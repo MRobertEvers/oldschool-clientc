@@ -12,6 +12,9 @@ typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
     GLbitfield flags);
 #endif
 #else
+#ifndef GL_GLEXT_PROTOTYPES
+#define GL_GLEXT_PROTOTYPES 1
+#endif
 #include <GL/glcorearb.h>
 #endif
 
