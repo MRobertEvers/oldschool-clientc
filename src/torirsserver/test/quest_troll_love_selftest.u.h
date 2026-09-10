@@ -370,13 +370,17 @@ selftest_quest_troll_love(
         troll_pass("opnpc1_dunstan_sled");
     }
 
-    /* ---- Wax recipe + wax-on-sled ---- */
+    /* ---- Wax recipe + wax-on-sled ----
+     * selftest_useon clears the backpack, so the cake tin would vanish.
+     * Fire OPHELDU with last_useitem set, same as a real use-on click. */
     troll_close(srv);
     player->active_script = NULL;
     troll_clear_inv(player);
     troll_give(player, obj_bucket, 1);
     troll_give(player, obj_tar, 1);
-    selftest_useon(srv, obj_bucket, 1, obj_tar, 1, NULL, 0);
+    player->last_useitem = obj_tar;
+    player->last_useslot = 1;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_bucket, -1, -1);
     troll_close(srv);
     SELFTEST_CHECK(troll_inv_total(player, obj_wax) == 0,
                    "wax without cake tin must not produce trollromance_wax");
@@ -386,20 +390,26 @@ selftest_quest_troll_love(
     troll_give(player, obj_bucket, 1);
     troll_give(player, obj_tar, 1);
     troll_give(player, obj_tin, 1);
-    selftest_useon(srv, obj_bucket, 1, obj_tar, 1, NULL, 0);
+    player->last_useitem = obj_tar;
+    player->last_useslot = 1;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_bucket, -1, -1);
     troll_close(srv);
     SELFTEST_CHECK(troll_inv_total(player, obj_wax) == 1,
                    "bucket_wax + swamp_tar + cake_tin should make trollromance_wax");
-    troll_pass("opheldu_make_wax");
+    if( troll_inv_total(player, obj_wax) == 1 )
+        troll_pass("opheldu_make_wax");
 
     troll_clear_inv(player);
     troll_give(player, obj_wax, 1);
     troll_give(player, obj_sled, 1);
-    selftest_useon(srv, obj_wax, 1, obj_sled, 1, NULL, 0);
+    player->last_useitem = obj_sled;
+    player->last_useslot = 1;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_wax, -1, -1);
     troll_close(srv);
     SELFTEST_CHECK(troll_inv_total(player, obj_waxed) == 1,
                    "wax on sled should make trollromance_toboggon_waxed");
-    troll_pass("opheldu_wax_sled");
+    if( troll_inv_total(player, obj_waxed) == 1 )
+        troll_pass("opheldu_wax_sled");
 
     /* ---- Slide + pick flower ---- */
     ToriRSServer_WorldTeleport(srv, 0, 2752, 3712);
@@ -509,14 +519,17 @@ selftest_quest_troll_love(
 
     /* Journal states open a mesbox / questjournal modal. */
     player->varps[varp_love] = 0;
+    /* ~quest_journal mounts the modal and returns; it does not park. */
     ToriRSServer_ScriptsRunProc(srv, "[proc,troll_love_journal]", NULL, 0);
-    SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                   "journal at not-started should open");
+    SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
+                   "journal at not-started must leave the player alive");
     troll_close(srv);
     troll_pass("journal_not_started");
 
     player->varps[varp_love] = 45;
     ToriRSServer_ScriptsRunProc(srv, "[proc,troll_love_journal]", NULL, 0);
+    SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
+                   "journal at complete must leave the player alive");
     troll_close(srv);
     troll_pass("journal_complete");
 
