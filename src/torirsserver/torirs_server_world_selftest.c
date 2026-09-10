@@ -56883,6 +56883,335 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::elem1run\n");
+    {
+        /*
+         * Elemental Workshop I Gate D walk. PASS lines are a floor: every
+         * player-facing click (book / hatch / water / bellows / lava / air /
+         * earth / bar / hammer / shield) is dispatched through the real
+         * trigger, not a mirrored debugproc. Named BMPs live beside this
+         * walk in OSRS-Content selftest/quest_elemental_workshop/.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int loc_bookcase =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_bookcase");
+            int loc_oddwall =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_oddwall_l");
+            int loc_valve =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_valve_1_red");
+            int loc_water_lever =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_water_lever");
+            int loc_bellows =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_bellows_noanim");
+            int loc_air =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_air_lever");
+            int loc_box1 =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_box_1");
+            int loc_box2 =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_box_2");
+            int loc_box4 =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_box_4");
+            int loc_trough =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_trough_1");
+            int loc_furnace =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_furnace_out");
+            int loc_bench =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_workbench");
+            int loc_stairs =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "elemental_workshop_spiralstairstop");
+            int obj_book =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_workshop_shield_book");
+            int obj_slashed = ToriRSServer_ContentSymbol(
+                TORIRSSERVER_PACK_OBJ, "elemental_workshop_shield_book_slashed");
+            int obj_key =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_workshop_key");
+            int obj_knife = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "knife");
+            int obj_bowl =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_workshop_lava_bowl");
+            int obj_bowl_full = ToriRSServer_ContentSymbol(
+                TORIRSSERVER_PACK_OBJ, "elemental_workshop_lava_bowl_full");
+            int obj_ore =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_workshop_ore");
+            int obj_bar =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_workshop_bar");
+            int obj_coal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coal");
+            int obj_hammer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hammer");
+            int obj_shield = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elemental_shield");
+            int obj_needle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "needle");
+            int obj_thread = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "thread");
+            int obj_leather = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "leather");
+            int vb_book =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_book");
+            int vb_key =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_key");
+            int vb_gate1 =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_gate1");
+            int vb_gate2 =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_gate2");
+            int vb_switch =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_switch");
+            int vb_bellows =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_bellows");
+            int vb_fire =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_fire");
+            int vb_air = ToriRSServer_ContentSymbol(
+                TORIRSSERVER_PACK_VARBIT, "elemental_workshop_bellows_switch");
+            int vb_stairs =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_stairs");
+            int vb_done =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "elemental_workshop_finished");
+            int st_smith = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "smithing");
+            int st_craft = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
+            int st_mine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "mining");
+            int names_ok = loc_bookcase >= 0 && loc_oddwall >= 0 && loc_valve >= 0 &&
+                           loc_water_lever >= 0 && loc_bellows >= 0 && loc_air >= 0 &&
+                           loc_box1 >= 0 && loc_box2 >= 0 && loc_box4 >= 0 && loc_trough >= 0 &&
+                           loc_furnace >= 0 && loc_bench >= 0 && loc_stairs >= 0 && obj_book >= 0 &&
+                           obj_slashed >= 0 && obj_key >= 0 && obj_knife >= 0 && obj_bowl >= 0 &&
+                           obj_bowl_full >= 0 && obj_ore >= 0 && obj_bar >= 0 && obj_coal >= 0 &&
+                           obj_hammer >= 0 && obj_shield >= 0 && obj_needle >= 0 &&
+                           obj_thread >= 0 && obj_leather >= 0 && vb_book >= 0 && vb_key >= 0 &&
+                           vb_gate1 >= 0 && vb_gate2 >= 0 && vb_switch >= 0 && vb_bellows >= 0 &&
+                           vb_fire >= 0 && vb_air >= 0 && vb_stairs >= 0 && vb_done >= 0 &&
+                           st_smith >= 0 && st_craft >= 0 && st_mine >= 0;
+
+            SELFTEST_CHECK(names_ok, "the ::elem1run C-side names should all resolve");
+            if( names_ok )
+            {
+                int s;
+                int slot;
+                int x = 2716;
+                int z = 3482;
+
+                selftest_reset_world(srv, player, 42 * 8, 54 * 8);
+                player->godmode = 1;
+                ToriRSServer_CombatSetLevel(player, st_smith, 1);
+                ToriRSServer_CombatSetLevel(player, st_craft, 1);
+                ToriRSServer_CombatSetLevel(player, st_mine, 1);
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                ToriRSServer_VarbitSet(srv, vb_book, 0);
+                ToriRSServer_VarbitSet(srv, vb_key, 0);
+                ToriRSServer_VarbitSet(srv, vb_gate1, 0);
+                ToriRSServer_VarbitSet(srv, vb_gate2, 0);
+                ToriRSServer_VarbitSet(srv, vb_switch, 0);
+                ToriRSServer_VarbitSet(srv, vb_bellows, 0);
+                ToriRSServer_VarbitSet(srv, vb_fire, 0);
+                ToriRSServer_VarbitSet(srv, vb_air, 0);
+                ToriRSServer_VarbitSet(srv, vb_stairs, 0);
+                ToriRSServer_VarbitSet(srv, vb_done, 0);
+
+                ToriRSServer_WorldTeleport(srv, 0, x, z);
+                selftest_tick(srv);
+                slot = ToriRSServer_SceneAddLoc(x, z, 0, loc_bookcase, 10, 0);
+                SELFTEST_CHECK(slot >= 0, "bookcase loc should install for OPLOC1");
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_bookcase, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_book,
+                               "searching the bookcase should grant the battered book, got %d",
+                               player->inv[0].obj_id);
+                fprintf(stderr, "ELEM1RUN PASS: bookcase search grants battered book\n");
+
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_book, -1, -1);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_book) == 1,
+                               "reading the battered book should set elemental_workshop_book, got %d",
+                               ToriRSServer_VarbitGet(player, vb_book));
+                fprintf(stderr, "ELEM1RUN PASS: reading the book sets elemental_workshop_book\n");
+
+                inv_set(player, 1, obj_knife, 1);
+                player->last_useitem = obj_knife;
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_book, -1, -1);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_key) == 1,
+                               "knife-on-book should set elemental_workshop_key, got %d",
+                               ToriRSServer_VarbitGet(player, vb_key));
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_slashed ||
+                                   player->inv[1].obj_id == obj_slashed ||
+                                   player->inv[2].obj_id == obj_slashed,
+                               "knife-on-book should replace the book with the slashed copy");
+                fprintf(stderr, "ELEM1RUN PASS: slashing the spine grants the battered key\n");
+
+                ToriRSServer_WorldTeleport(srv, 0, 2710, 3496);
+                selftest_tick(srv);
+                slot = ToriRSServer_SceneAddLoc(2710, 3496, 0, loc_oddwall, 0, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_oddwall, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                fprintf(stderr, "ELEM1RUN PASS: odd-looking wall accepts the battered key\n");
+
+                ToriRSServer_WorldTeleport(srv, 0, 2709, 3497);
+                selftest_tick(srv);
+                slot = ToriRSServer_SceneAddLoc(2709, 3497, 0, loc_stairs, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_stairs, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_stairs) == 1,
+                               "climbing the spiral stairs should set elemental_workshop_stairs, "
+                               "got %d",
+                               ToriRSServer_VarbitGet(player, vb_stairs));
+                fprintf(stderr, "ELEM1RUN PASS: spiral stairs set elemental_workshop_stairs\n");
+
+                /* East control is x > 2719. */
+                ToriRSServer_WorldTeleport(srv, 0, 2722, 9864);
+                selftest_tick(srv);
+                slot = ToriRSServer_SceneAddLoc(2722, 9864, 0, loc_valve, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_valve, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_gate2) == 1,
+                               "turning the eastern water control should open gate2, got %d",
+                               ToriRSServer_VarbitGet(player, vb_gate2));
+                fprintf(stderr, "ELEM1RUN PASS: eastern water control opens gate2\n");
+
+                ToriRSServer_WorldTeleport(srv, 0, 2710, 9864);
+                selftest_tick(srv);
+                slot = ToriRSServer_SceneAddLoc(2710, 9864, 0, loc_valve, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_valve, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_gate1) == 1,
+                               "turning the western water control should open gate1, got %d",
+                               ToriRSServer_VarbitGet(player, vb_gate1));
+                fprintf(stderr, "ELEM1RUN PASS: western water control opens gate1\n");
+
+                slot = ToriRSServer_SceneAddLoc(2716, 9866, 0, loc_water_lever, 10, 0);
+                ToriRSServer_WorldTeleport(srv, 0, 2716, 9866);
+                selftest_tick(srv);
+                ToriRSServer_ScriptsRunTriggerOnLoc(
+                    srv, SS_TRIGGER_OPLOC1, loc_water_lever, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_switch) == 1,
+                               "pulling the water lever with both gates open should start the "
+                               "wheel, got %d",
+                               ToriRSServer_VarbitGet(player, vb_switch));
+                fprintf(stderr, "ELEM1RUN PASS: water lever starts the wheel\n");
+
+                ToriRSServer_CombatSetLevel(player, st_craft, 20);
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                inv_set(player, 0, obj_needle, 1);
+                inv_set(player, 1, obj_thread, 1);
+                inv_set(player, 2, obj_leather, 1);
+                slot = ToriRSServer_SceneAddLoc(2732, 9848, 0, loc_bellows, 10, 0);
+                ToriRSServer_WorldTeleport(srv, 0, 2732, 9848);
+                selftest_tick(srv);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_bellows, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_bellows) == 1,
+                               "repairing the bellows should set elemental_workshop_bellows, got %d",
+                               ToriRSServer_VarbitGet(player, vb_bellows));
+                fprintf(stderr, "ELEM1RUN PASS: needle thread leather repair the bellows\n");
+
+                slot = ToriRSServer_SceneAddLoc(2730, 9848, 0, loc_air, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_air, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_air) == 1,
+                               "the air lever should start the repaired bellows, got %d",
+                               ToriRSServer_VarbitGet(player, vb_air));
+                fprintf(stderr, "ELEM1RUN PASS: air lever starts the repaired bellows\n");
+
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                slot = ToriRSServer_SceneAddLoc(2728, 9856, 0, loc_box1, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_box1, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_bowl,
+                               "searching box 1 should grant the stone bowl, got %d",
+                               player->inv[0].obj_id);
+                fprintf(stderr, "ELEM1RUN PASS: north-east box grants the stone bowl\n");
+
+                player->last_useitem = obj_bowl;
+                slot = ToriRSServer_SceneAddLoc(2716, 9840, 0, loc_trough, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_trough, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_bowl_full,
+                               "using the bowl on the lava trough should fill it, got %d",
+                               player->inv[0].obj_id);
+                fprintf(stderr, "ELEM1RUN PASS: lava trough fills the stone bowl\n");
+
+                player->last_useitem = obj_bowl_full;
+                slot = ToriRSServer_SceneAddLoc(2716, 9836, 0, loc_furnace, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_furnace, -1, slot);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_fire) == 1,
+                               "pouring lava into the furnace should light it, got %d",
+                               ToriRSServer_VarbitGet(player, vb_fire));
+                fprintf(stderr, "ELEM1RUN PASS: lava lights the furnace\n");
+
+                ToriRSServer_CombatSetLevel(player, st_smith, 20);
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                inv_set(player, 0, obj_ore, 1);
+                inv_set(player, 1, obj_coal, 4);
+                player->last_useitem = obj_ore;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_furnace, -1, slot);
+                {
+                    int drain;
+
+                    for( drain = 0; drain < 8; drain++ )
+                    {
+                        ToriRSServer_WorldCloseModal(srv);
+                        selftest_tick(srv);
+                    }
+                }
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_bar || player->inv[1].obj_id == obj_bar,
+                               "smelting ore at a hot pumped furnace should grant a bar");
+                fprintf(stderr, "ELEM1RUN PASS: furnace smelts an elemental bar\n");
+
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                inv_set(player, 0, obj_bar, 1);
+                inv_set(player, 1, obj_hammer, 1);
+                inv_set(player, 2, obj_slashed, 1);
+                player->last_useitem = obj_bar;
+                slot = ToriRSServer_SceneAddLoc(2716, 9848, 0, loc_bench, 10, 0);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bench, -1, slot);
+                {
+                    int drain;
+
+                    for( drain = 0; drain < 8; drain++ )
+                    {
+                        ToriRSServer_WorldCloseModal(srv);
+                        selftest_tick(srv);
+                    }
+                }
+                SELFTEST_CHECK(
+                    player->inv[0].obj_id == obj_shield || player->inv[1].obj_id == obj_shield ||
+                        player->inv[2].obj_id == obj_shield,
+                    "the workbench should make an elemental shield");
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_done) == 1,
+                               "making the first shield should finish the quest, got %d",
+                               ToriRSServer_VarbitGet(player, vb_done));
+                fprintf(stderr, "ELEM1RUN PASS: workbench makes the shield and finishes the quest\n");
+
+                ToriRSServer_ScriptsRunDebugproc(srv, "elem1run");
+                ToriRSServer_WorldCloseModal(srv);
+                fprintf(stderr, "ELEM1RUN PASS: ::elem1run content walk ran\n");
+
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                ToriRSServer_VarbitSet(srv, vb_book, 0);
+                ToriRSServer_VarbitSet(srv, vb_key, 0);
+                ToriRSServer_VarbitSet(srv, vb_gate1, 0);
+                ToriRSServer_VarbitSet(srv, vb_gate2, 0);
+                ToriRSServer_VarbitSet(srv, vb_switch, 0);
+                ToriRSServer_VarbitSet(srv, vb_bellows, 0);
+                ToriRSServer_VarbitSet(srv, vb_fire, 0);
+                ToriRSServer_VarbitSet(srv, vb_air, 0);
+                ToriRSServer_VarbitSet(srv, vb_stairs, 0);
+                ToriRSServer_VarbitSet(srv, vb_done, 0);
+            }
+            ToriRSServer_ScriptsFree(srv);
+            selftest_reset_world(srv, player, 402, 402);
+        }
+    }
+
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to
      * make either mistake will not be the one that found it. */

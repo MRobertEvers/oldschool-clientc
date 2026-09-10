@@ -71,7 +71,7 @@
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | in-progress | 2026-09-10 | cloud `gp-legends-c1` FAILED CLOSE: 0 named BMPs on `cursor/legends-quest-gate-d-6416` / OSRS-Content@dde2e8e69 (no cache.osrs239). Do not double-claim. |
 | 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | in-progress | 2026-09-10 | claimed by cloud `gp-runemyst-c1`. Gate D = **one named BMP per interaction** (every Duke/Sedridor/Aubury talk and item use), mesbox visible. Highlight reel = failed close. |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | in-progress | 2026-09-10 | claimed by cloud `gp-chompy-c1`. Gate D = **one named BMP per interaction** (Rantz, kids, arrows, bellows, toads, bird, spit). Highlight reel = failed close. |
-| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | claimed by cloud `gp-elem1-c1`. Gate D = **one named BMP per interaction** (book, hatch, bellows, lava, water, air, earth, bar, shield). Highlight reel = failed close. |
+| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | cloud `gp-elem1-c1` full Gate D recapture: **73 named BMPs** (every book/hatch/water/bellows/lava/air/earth/bar/hammer/shield click and every journal/complete beat). Highlight reel = failed close. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
