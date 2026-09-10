@@ -293,29 +293,6 @@ sc_talk_rows(struct ToriRSServer* srv, int npc_type, int slot, const int* rows, 
     sc_finish(srv);
 }
 
-static void
-sc_give(struct ToriRSServerPlayer* player, int obj_id, int count)
-{
-    int s;
-
-    assert(player);
-    assert(obj_id > 0);
-    assert(count > 0);
-    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-    {
-        if( player->inv[s].obj_id < 0 )
-        {
-            inv_set(player, s, obj_id, count);
-            return;
-        }
-        if( player->inv[s].obj_id == obj_id )
-        {
-            inv_set(player, s, obj_id, player->inv[s].count + count);
-            return;
-        }
-    }
-}
-
 static int
 sc_inv_total(const struct ToriRSServerPlayer* player, int obj_id)
 {
