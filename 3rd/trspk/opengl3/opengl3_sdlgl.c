@@ -80,6 +80,8 @@ PFNGLTEXIMAGE2DPROC trspk_glTexImage2D;
 PFNGLTEXPARAMETERIPROC trspk_glTexParameteri;
 PFNGLUNIFORM1IPROC trspk_glUniform1i;
 PFNGLUNIFORM1FPROC trspk_glUniform1f;
+PFNGLUNIFORM4FPROC trspk_glUniform4f;
+PFNGLTEXSUBIMAGE2DPROC trspk_glTexSubImage2D;
 PFNGLUNIFORMMATRIX4FVPROC trspk_glUniformMatrix4fv;
 PFNGLBUFFERSTORAGEPROC trspk_glBufferStorage;
 PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
@@ -152,6 +154,8 @@ trspk_sdlgl_init(void)
     O3L(glTexParameteri, PFNGLTEXPARAMETERIPROC, trspk_glTexParameteri);
     O3L(glUniform1i, PFNGLUNIFORM1IPROC, trspk_glUniform1i);
     O3L(glUniform1f, PFNGLUNIFORM1FPROC, trspk_glUniform1f);
+    O3L(glUniform4f, PFNGLUNIFORM4FPROC, trspk_glUniform4f);
+    O3L(glTexSubImage2D, PFNGLTEXSUBIMAGE2DPROC, trspk_glTexSubImage2D);
     O3L(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC, trspk_glUniformMatrix4fv);
     O3L_OPT(glBufferStorage, PFNGLBUFFERSTORAGEPROC, trspk_glBufferStorage);
     O3L(glMapBufferRange, PFNGLMAPBUFFERRANGEPROC, trspk_glMapBufferRange);

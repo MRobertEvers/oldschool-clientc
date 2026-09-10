@@ -71,6 +71,8 @@ extern PFNGLTEXIMAGE2DPROC trspk_glTexImage2D;
 extern PFNGLTEXPARAMETERIPROC trspk_glTexParameteri;
 extern PFNGLUNIFORM1IPROC trspk_glUniform1i;
 extern PFNGLUNIFORM1FPROC trspk_glUniform1f;
+extern PFNGLUNIFORM4FPROC trspk_glUniform4f;
+extern PFNGLTEXSUBIMAGE2DPROC trspk_glTexSubImage2D;
 extern PFNGLUNIFORMMATRIX4FVPROC trspk_glUniformMatrix4fv;
 extern PFNGLBUFFERSTORAGEPROC trspk_glBufferStorage;
 extern PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
@@ -140,6 +142,8 @@ trspk_sdlgl_init(void);
 #define glTexParameteri trspk_glTexParameteri
 #define glUniform1i trspk_glUniform1i
 #define glUniform1f trspk_glUniform1f
+#define glUniform4f trspk_glUniform4f
+#define glTexSubImage2D trspk_glTexSubImage2D
 #define glUniformMatrix4fv trspk_glUniformMatrix4fv
 #define glBufferStorage trspk_glBufferStorage
 #define glMapBufferRange trspk_glMapBufferRange
