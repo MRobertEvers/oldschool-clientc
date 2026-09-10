@@ -158,7 +158,7 @@
 | 07 Dec 2017 | The Corsair Curse | `quest_corsaircurse` | unaudited | |  |
 | 04 Jan 2018 | Dragon Slayer II | `quest_dragonslayer2` | unaudited | |  |
 | 19 Apr 2018 | Tale of the Righteous | `quest_taleoftherighteous` | unaudited | |  |
-| 24 May 2018 | A Taste of Hope | `quest_tasteofhope` | unaudited | |  |
+| 24 May 2018 | A Taste of Hope | `quest_tasteofhope` | in-progress | 2026-09-10 | claimed `gp-toh-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 06 Sep 2018 | Making Friends with My Arm | `quest_makingfriendswithmyarm` | in-progress | 2026-09-10 | claimed `gp-mfwma-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 10 Jan 2019 | The Forsaken Tower | `quest_forsakentower` | unaudited | |  |
 | 10 Jan 2019 | The Ascent of Arceuus | `quest_ascentofarceuus` | unaudited | |  |
@@ -172,7 +172,7 @@
 | 14 Apr 2021 | Below Ice Mountain | `quest_belowicemountain` | unaudited | |  |
 | 03 Jun 2021 | A Night at the Theatre | `quest_nightatthetheatre` | unaudited | |  |
 | 16 Jun 2021 | A Kingdom Divided | `quest_kingdomdivided` | unaudited | |  |
-| 09 Feb 2022 | Land of the Goblins | `quest_landofthegoblins` | in-progress | 2026-09-10 | claimed `gp-lotg-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 09 Feb 2022 | Land of the Goblins | `quest_landofthegoblins` | fixed | 2026-09-10 | parent-verified 107 named / 101 unique-MD5 BMPs cherry-picked from stale-base `cursor/lotg-gate-d-b66e` onto OSRS-Content@6120cf7f23 (Dream/Grim/KR retained; worker SHA bc59ffc486 not merged wholesale). Sampled Grubfoot qualify-fail split (ASH / Fishing Contest / Agility 38 / Fishing 40 / Thieving 45 / Herblore 48), offer p_choice2, refuse/accept, authored complete scroll (2 QP, 8000 Agility/Fishing/Thieving/Herblore XP, Goblin Temple altar, Yu'biusk BLQ), journal QUEST COMPLETE. Leftovers: leftover_priest_combat_flavour; leftover_dye_cycle_cosmetics. Honest collisions: colour-guard pass lines; colour-priest pickpockets. Qualify-fail split in-dir. Not verified-modern. |
 | 23 Mar 2022 | Temple of the Eye | `quest_templeoftheeye` | in-progress | 2026-09-10 | claimed `gp-toe-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 27 Apr 2022 | Beneath Cursed Sands | `quest_beneathcursedsands` | unaudited | |  |
 | 08 Jun 2022 | Sleeping Giants | `quest_sleepinggiants` | unaudited | |  |
