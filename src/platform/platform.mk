@@ -112,7 +112,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   # silently ignored on a host that cannot do it.
   PLATFORM_CFLAGS_EXTRA := -DTORIRS_HAVE_GL3=1
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) $(PLATFORM_CFLAGS_EXTRA) $(SDL_CFLAGS)
-  PLATFORM_LDFLAGS := -lm $(SDL_LIBS)
+  PLATFORM_LDFLAGS := -lm $(SDL_LIBS) -lGL
 
   # A traced binary must not share ./torirs with an untraced one: MEMTRACE is a
   # long-running capture and `make -C src all` in another terminal would
