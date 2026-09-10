@@ -283,7 +283,7 @@ filed under `helpers/miniquests/` are at the end.
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
-| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 cloud `gp-runemyst-c1` FAILED CLOSE: 10-shot highlight reel (no mesbox) on `cursor/rune-mysteries-gate-d-8c5c` / OSRS-Content@9bf3c8377. Do not stamp fixed. Do not double-claim. |
+| 11 | runemysteries | `runemysteries` | 246 | fixed | 2026-09-10 cloud `gp-runemyst-img`: 33 named BMPs / 33 unique MD5s on `cursor/rune-mysteries-gate-d-full-b726` / OSRS-Content@fa9c641ca1 (`selftest/quest_runemysteries/`). Chathead/mesbox visible on every Duke/Sedridor/Aubury talk and item use. Not verified-modern. Leftovers: unused cache varbits `runemysteries_package`/`notes`/`notes_given`; LostCity-era lines vs 2026 wiki; museum 5 Kudos; essence-tele tea/run-energy. |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
