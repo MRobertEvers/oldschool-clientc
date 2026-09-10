@@ -523,6 +523,8 @@ selftest_quest_mourningsendpartii(
 
         /* ---- Missing-item gates at the collapsed temple interaction ---- */
         mep2_clear_inv(player);
+        SELFTEST_CHECK(mep2_worn_total(player, obj_mask) == 0,
+                       "disguise gate starts with no gasmask worn");
         mep2_talk_finish(srv, npc_arianwyn, slot);
         SELFTEST_CHECK(mep2_get_bit(player, "mourning_quest_main") == MEP2_CRYSTAL_GIVEN,
                        "missing disguise must not advance the temple collapse");
