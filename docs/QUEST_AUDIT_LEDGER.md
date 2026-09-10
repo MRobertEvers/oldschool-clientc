@@ -71,7 +71,7 @@
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
 | 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | unaudited | |  |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | unaudited | |  |
-| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | claimed by cloud `gp-elem1-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close or disk-only BMP list is a failed close. |
+| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | cloud `gp-elem1-c1` FAILED CLOSE: **0 named BMPs** on `cursor/elemental-workshop-i-36db` (no `cache.osrs239` / `main_file_cache.dat2` on the VM; `--selftest` SIGSEGV before the ELEM1 stanza). Content+C walk is landed (QH crate map, water shells, entered-wall `setbit` 15, `::complete` arm, BMP debugprocs, C stanza immediately before `selftest_reset_world`). Do not mark `fixed` or `verified-modern`. Do not double-claim. Gate D still open. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |

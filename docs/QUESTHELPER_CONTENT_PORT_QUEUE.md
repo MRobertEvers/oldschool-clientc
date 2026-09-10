@@ -452,6 +452,13 @@ filed under `helpers/miniquests/` are at the end.
 
 ## Log
 
+- **Elemental Workshop I Gate D (2026-09-10):** cloud `gp-elem1-c1` on
+  `cursor/elemental-workshop-i-36db`. QH `elementalworkshopi --check` clean
+  (ComplexStateQuestHelper, no `steps.put`). Script pack compiled 30097.
+  No `cache.osrs239` on the VM — **0 named BMPs**, FAILED CLOSE. Leftovers
+  (journal uses stairs, not entered-wall bit 15; book-read has no Yes
+  confirm) so not verified-modern. Row #56 stays `done`.
+
 - **Cloud agents + unkillable player (2026-09-09):** Quest-repair workers
   now run as cloud agents off `v3`. Gate D / C selftest must leave the
   player unkillable unless the step is a death test (`TORIRS_EXIT_BMP` /
