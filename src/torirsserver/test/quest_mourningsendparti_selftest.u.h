@@ -216,21 +216,6 @@ mep1_inv_total(const struct ToriRSServerPlayer* player, int obj_id)
     return n;
 }
 
-static int
-mep1_worn_total(const struct ToriRSServerPlayer* player, int obj_id)
-{
-    int n = 0;
-    int s;
-
-    assert(player);
-    if( obj_id <= 0 )
-        return 0;
-    for( s = 0; s < TORIRSSERVER_WORN_SLOTS; s++ )
-        if( player->worn[s].obj_id == obj_id )
-            n += player->worn[s].count;
-    return n;
-}
-
 static void
 mep1_give(struct ToriRSServerPlayer* player, int obj_id, int count)
 {
@@ -772,6 +757,7 @@ selftest_quest_mourningsendparti(
         mep1_pass("oploc1_tegid_wrong_state");
 
         mep1_set_var(srv, "mourning_quest", MEP1_GATHERING);
+        mep1_clear_inv(player);
         mep1_oploc_finish(srv, loc_basket, loc_slot);
         SELFTEST_CHECK(mep1_inv_total(player, obj_soap) == 0,
                        "Tegid basket without bloody top must not grant soap");
@@ -1266,6 +1252,8 @@ selftest_quest_mourningsendparti(
         mep1_pass("oploc1_food1_too_early");
 
         mep1_set_var(srv, "mourning_quest", MEP1_POISON_TASK);
+        mep1_clear_inv(player);
+        mep1_set_bit(srv, "mourning_food_poison1", 0);
         mep1_oploc_finish(srv, loc_food1, loc_slot);
         SELFTEST_CHECK(mep1_get_bit(player, "mourning_food_poison1") == 0,
                        "food1 without powder must refuse");
@@ -1284,6 +1272,8 @@ selftest_quest_mourningsendparti(
     if( loc_food2 >= 0 )
     {
         loc_slot = mep1_place_loc(srv, loc_food2, 2532, 3280, 0);
+        mep1_clear_inv(player);
+        mep1_set_bit(srv, "mourning_food_poison2", 0);
         mep1_oploc_finish(srv, loc_food2, loc_slot);
         SELFTEST_CHECK(mep1_get_bit(player, "mourning_food_poison2") == 0,
                        "food2 without powder must refuse");
