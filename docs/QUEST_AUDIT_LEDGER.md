@@ -158,7 +158,7 @@
 | 07 Dec 2017 | The Corsair Curse | `quest_corsaircurse` | unaudited | |  |
 | 04 Jan 2018 | Dragon Slayer II | `quest_dragonslayer2` | unaudited | |  |
 | 19 Apr 2018 | Tale of the Righteous | `quest_taleoftherighteous` | unaudited | |  |
-| 24 May 2018 | A Taste of Hope | `quest_tasteofhope` | in-progress | 2026-09-10 | claimed `gp-toh-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 24 May 2018 | A Taste of Hope | `quest_tasteofhope` | fixed | 2026-09-10 | parent-verified 59 named / 59 unique-MD5 BMPs cherry-picked from stale-base `cursor/toh-gate-d-ec33` onto OSRS-Content@eed639ca30 (ToE/MFWMA/LotG retained; worker SHA f24e5bea68 not merged wholesale). Sampled Garth qualify-fail split (DoH / Crafting 48 / Agility 45 / Attack 40 / Herblore 40 / Slayer 38), offer p_choice2 Yes/No, refuse/accept, authored complete scroll (1 QP, Ivandis flail, Drakan's medallion, tome 3x 2500 XP), journal QUEST COMPLETE. Leftovers: leftover_meiyerditch_agility_spy; leftover_serafina_potion_matrix; leftover_abomination_fight_flavour; leftover_flail_crafting_if; leftover_ranis_phases; leftover_medallion_teleport_ui; leftover_tome_rub. No unique MERGE hunks (Safalaan headers stay in-dir; DoH mid-quest via ~doh_safalaan_talk). Not verified-modern. |
 | 06 Sep 2018 | Making Friends with My Arm | `quest_makingfriendswithmyarm` | fixed | 2026-09-10 | parent-verified 81 named / 81 unique-MD5 BMPs cherry-picked from stale-base `cursor/mfwma-gate-d-content-792b` onto OSRS-Content@ec63b7e13a (LotG/Dream/Grim/KR retained; worker SHA 51be9c555f not merged wholesale). Sampled Burntmeat qualify-fail split (My Arm / Construction 35 / Firemaking 66 / Mining 72 / Agility 68), offer p_choice2 Yes/Not now, refuse/accept, My Arm roof p_choice2, authored complete scroll (2 QP, Construction/Firemaking/Mining/Agility tenths 100000|400000|500000|500000, Weiss salt mines, disease-free herb patch), journal QUEST COMPLETE. Leftovers: leftover_troll_stronghold_pathing; leftover_larry_boat_instance; leftover_weiss_cliff_rope; leftover_cave_sneak_pathing; leftover_coffin_build_if; leftover_dontknowwhat_mother_fight; leftover_goat_dung_gather; leftover_firepit_unlock_ui; leftover_extra_refuse_trees. No unique MERGE hunks (Eadgar cook / My Arm / Larry / Apoth / WOM already in-tree). Not verified-modern. |
 | 10 Jan 2019 | The Forsaken Tower | `quest_forsakentower` | unaudited | |  |
 | 10 Jan 2019 | The Ascent of Arceuus | `quest_ascentofarceuus` | unaudited | |  |
@@ -188,7 +188,7 @@
 | 20 Mar 2024 | The Ribbiting Tale of a Lily Pad Labour Dispute | `quest_ribbitingtale` | unaudited | |  |
 | 10 Jul 2024 | While Guthix Sleeps | `quest_whileguthixsleeps` | unaudited | |  |
 | 25 Sep 2024 | The Heart of Darkness | `quest_heartofdarkness` | unaudited | |  |
-| 25 Sep 2024 | Death on the Isle | `quest_deathontheisle` | unaudited | |  |
+| 25 Sep 2024 | Death on the Isle | `quest_deathontheisle` | in-progress | 2026-09-10 | claimed `gp-doti-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 25 Sep 2024 | Meat and Greet | `quest_meatandgreet` | unaudited | |  |
 | 25 Sep 2024 | Ethically Acquired Antiquities | `quest_ethicallyacquiredantiquities` | unaudited | |  |
 | 06 Nov 2024 | The Curse of Arrav | `quest_curseofarrav` | unaudited | |  |
