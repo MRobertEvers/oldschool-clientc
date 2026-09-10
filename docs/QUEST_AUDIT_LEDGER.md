@@ -73,7 +73,7 @@
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | in-progress | 2026-09-10 | claimed by cloud `gp-chompy-c1`. Gate D = **one named BMP per interaction** (Rantz, kids, arrows, bellows, toads, bird, spit). Highlight reel = failed close. |
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | cloud `gp-elem1-c1` (original) FAILED CLOSE: 0 named BMPs on `cursor/elemental-workshop-i-36db` / OSRS-Content@81854cdb8 (no cache.osrs239). Full-BMP retarget still live — do not double-claim. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
-| 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
+| 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | fixed | 2026-09-10 | cloud `gp-spirit-img` Gate D HOLD: 128 named BMPs, 128 unique MD5s on `cursor/nature-spirit-gate-d-1728`. Real `~quest_complete_rewards(quest_naturespirit, ...)`. Leftover: Drezel never writes `%druidspirit = ^druidspirit_blessed` (40). |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
