@@ -8039,7 +8039,7 @@ handle_cheat(
         return;
     }
 
-    if( strncmp(text, "useon", 5) == 0 )
+    if( strncmp(text, "useonloc", 8) != 0 && strncmp(text, "useon", 5) == 0 )
     {
         /*
          * `::useon <a> <b>` — "use A on B", where B is the one clicked second,
@@ -8138,6 +8138,200 @@ handle_cheat(
             fprintf(stderr, "torirsserver: ::useon %s(%d,slot %d) on %s(%d,slot %d)\n", arg_a, a,
                     slot_a, arg_b, b, slot_b);
             ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, body, (int)rsab_len(&out));
+        }
+        return;
+    }
+
+    if( strncmp(text, "opheld", 6) == 0 )
+    {
+        /*
+         * `::opheld <item> [op]` — backpack OPHELD1..5, the same synthesised
+         * path `::wield` uses. Headless captures cannot aim an inventory cell.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int op_num = 1;
+        int obj_id;
+        int slot = -1;
+
+        if( sscanf(text, "opheld %63s %d", arg, &op_num) < 1 || !arg[0] )
+        {
+            say(srv, "Usage: ::opheld <item_name> [op]");
+            return;
+        }
+        if( op_num < 1 || op_num > 5 )
+            op_num = 1;
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return;
+        }
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+            if( player->inv[i].obj_id == obj_id )
+            {
+                slot = i;
+                break;
+            }
+        if( slot < 0 )
+        {
+            say(srv, "No %s in the backpack.", arg);
+            return;
+        }
+        {
+            uint8_t held[8];
+            struct RSAreaBuf out;
+
+            rsab_wrap(&out, held, sizeof(held));
+            rsab_p2(&out, obj_id);
+            rsab_p2(&out, slot);
+            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
+            handle_opheld(srv, op_num, held, (int)rsab_len(&out));
+        }
+        return;
+    }
+
+    if( strncmp(text, "useonloc", 8) == 0 )
+    {
+        /* `::useonloc <item> <x> <z> <loc>` — real OPLOCU (item used on loc). */
+        char arg[64] = { 0 };
+        char locname[64] = { 0 };
+        char suggest[256] = { 0 };
+        int tile_x = 0;
+        int tile_z = 0;
+        int obj_id;
+        int loc_id;
+        int slot = -1;
+
+        if( sscanf(text, "useonloc %63s %d %d %63s", arg, &tile_x, &tile_z, locname) != 4 )
+        {
+            say(srv, "Usage: ::useonloc <item> <x> <z> <loc_name>");
+            return;
+        }
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return;
+        }
+        loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, locname);
+        if( loc_id < 0 )
+        {
+            say(srv, "No loc named '%s'.", locname);
+            return;
+        }
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+            if( player->inv[i].obj_id == obj_id )
+            {
+                slot = i;
+                break;
+            }
+        if( slot < 0 )
+        {
+            say(srv, "No %s in the backpack.", arg);
+            return;
+        }
+        {
+            uint8_t body[16];
+            struct RSAreaBuf out;
+
+            rsab_wrap(&out, body, sizeof(body));
+            rsab_p2(&out, tile_x);
+            rsab_p2(&out, tile_z);
+            rsab_p2(&out, loc_id);
+            rsab_p2(&out, obj_id);
+            rsab_p2(&out, slot);
+            rsab_p2(&out, 0);
+            handle_oplocu(srv, body, (int)rsab_len(&out));
+        }
+        return;
+    }
+
+    if( strncmp(text, "opobj", 5) == 0 )
+    {
+        /* `::opobj <op> <x> <z> <obj>` — ground-item OP1..5. */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int op_num = 3;
+        int tile_x = 0;
+        int tile_z = 0;
+        int obj_id;
+
+        if( sscanf(text, "opobj %d %d %d %63s", &op_num, &tile_x, &tile_z, arg) != 4 )
+        {
+            say(srv, "Usage: ::opobj <op> <x> <z> <obj_name>");
+            return;
+        }
+        if( op_num < 1 || op_num > 5 )
+            op_num = 3;
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return;
+        }
+        {
+            uint8_t body[8];
+            struct RSAreaBuf out;
+
+            rsab_wrap(&out, body, sizeof(body));
+            rsab_p2(&out, tile_x);
+            rsab_p2(&out, tile_z);
+            rsab_p2(&out, obj_id);
+            handle_opobj(srv, op_num, body, (int)rsab_len(&out));
+        }
+        return;
+    }
+
+    if( strncmp(text, "telegrab", 8) == 0 )
+    {
+        /* `::telegrab <x> <z> <obj>` — real OPOBJT on magic_spellbook:telegrab. */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int tile_x = 0;
+        int tile_z = 0;
+        int obj_id;
+        int spell;
+
+        if( sscanf(text, "telegrab %d %d %63s", &tile_x, &tile_z, arg) != 3 )
+        {
+            say(srv, "Usage: ::telegrab <x> <z> <obj_name>");
+            return;
+        }
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return;
+        }
+        spell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "magic_spellbook:telegrab");
+        if( spell <= 0 )
+        {
+            say(srv, "No magic_spellbook:telegrab component.");
+            return;
+        }
+        {
+            uint8_t body[12];
+            struct RSAreaBuf out;
+
+            rsab_wrap(&out, body, sizeof(body));
+            rsab_p2(&out, tile_x);
+            rsab_p2(&out, tile_z);
+            rsab_p2(&out, obj_id);
+            rsab_p4(&out, spell);
+            handle_opobjt(srv, body, (int)rsab_len(&out));
         }
         return;
     }

@@ -349,16 +349,6 @@ elid_talk_finish(struct ToriRSServer* srv, int npc_type, int slot)
 }
 
 static void
-elid_talk_pick(struct ToriRSServer* srv, int npc_type, int slot, int row)
-{
-    assert(srv);
-    elid_talk(srv, npc_type, slot);
-    elid_click_until_menu(srv, 16);
-    elid_pick_row(srv, row);
-    elid_finish(srv);
-}
-
-static void
 elid_talk_picks(
     struct ToriRSServer* srv,
     int npc_type,
@@ -804,7 +794,10 @@ selftest_quest_spiritsoftheelid(
             elid_finish(srv);
             elid_pass("opobj3_elid_key_too_early_take");
 
-            if( spell_telegrab > 0 && obj_air > 0 && obj_law > 0 )
+            /* Re-drop: the too-early Take may have consumed the pile. */
+            ground = ToriRSServer_WorldObjAdd(
+                srv, obj_key, 1, ELID_KEY_X, ELID_KEY_Z, 0, -1);
+            if( spell_telegrab > 0 && obj_air > 0 && obj_law > 0 && ground >= 0 )
             {
                 elid_set_req_stats(player, 1);
                 elid_give(player, obj_air, 5);
