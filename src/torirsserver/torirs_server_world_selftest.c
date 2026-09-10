@@ -3221,6 +3221,20 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_MORTTON_ONLY") )
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( loaded )
+            selftest_seed_new_player(srv);
+        selftest_quest_mortton(srv, player);
+        fprintf(stderr, "ToriRSServer mortton-only selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("mortton");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and

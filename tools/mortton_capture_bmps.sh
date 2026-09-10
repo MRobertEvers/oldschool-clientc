@@ -4,7 +4,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/OSRS-Content/osrs239-content/server/scripts/selftest/quest_mortton"
-MANIFEST="${MORTTON_MANIFEST:-$ROOT/manifests/manifest_osrs239_torirs.ini}"
+# sailing.ini is embed + cache.osrs239 (the boot image). torirs.ini points at
+# the composed rs2012-summoning-curses cache, which this image does not ship.
+MANIFEST="${MORTTON_MANIFEST:-$ROOT/manifests/manifest_osrs239_sailing.ini}"
 if [[ ! -f "$MANIFEST" ]]; then
   MANIFEST="$ROOT/manifests/manifest_osrs239.ini"
 fi
