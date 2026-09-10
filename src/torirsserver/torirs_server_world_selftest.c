@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_priestperil_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -15389,6 +15390,7 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(sanfew_type > 0, "npc sanfew should resolve by name");
             SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
+            selftest_quest_priestperil(srv, player);
             selftest_reset_world(srv, player, 402, 402);
             for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
             {
