@@ -56883,6 +56883,9 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+#include "test/quest_elemental_workshop_selftest.u.h"
+    selftest_reset_world(srv, player, 402, 402);
+
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to
      * make either mistake will not be the one that found it. */

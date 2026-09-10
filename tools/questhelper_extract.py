@@ -87,6 +87,7 @@ QUEST_DBROW_HINTS = {
     "childrenofthesun": "quest_childrenofthesun",
     "currentaffairs": "quest_currentaffairs",
     "deathontheisle": "quest_deathontheisle",
+    "elementalworkshopi": "quest_elementalworkshop1",
     "entertheabyss": "quest_entertheabyss",
     "gettingahead": "quest_gettingahead",
     "insearchofknowledge": "quest_insearchofknowledge",
