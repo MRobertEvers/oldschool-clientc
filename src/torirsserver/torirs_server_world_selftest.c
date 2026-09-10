@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_royaltrouble_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_ROYAL_ONLY") )
+    {
+        selftest_quest_royaltrouble(srv, player);
+        fprintf(stderr, "ToriRSServer royal selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("royal");
         return g_selftest_failures;
     }
 
@@ -15389,6 +15399,11 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(sanfew_type > 0, "npc sanfew should resolve by name");
             SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
+            /* Royal Trouble Gate D walk (include-guarded). Placed
+             * immediately before this reset so spawned Ghrim / Vargas /
+             * Sigrid / dungeon actors cannot leak into the sanfew stanza. */
+#include "test/quest_royaltrouble_selftest.u.h"
+            selftest_quest_royaltrouble(srv, player);
             selftest_reset_world(srv, player, 402, 402);
             for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
             {
