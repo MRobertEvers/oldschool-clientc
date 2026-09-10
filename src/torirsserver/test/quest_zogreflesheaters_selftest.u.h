@@ -79,17 +79,25 @@ zfe_god(struct ToriRSServerPlayer* player)
 }
 
 static void
-zfe_finish(struct ToriRSServer* srv)
+zfe_drain(struct ToriRSServer* srv, int max_clicks)
 {
     int t;
 
     assert(srv);
     assert(srv->active_player);
-    for( t = 0; t < 48 && srv->active_player->active_script; t++ )
+    for( t = 0; t < max_clicks && srv->active_player->active_script; t++ )
     {
-        selftest_click_through(srv, 8);
+        if( selftest_click_through(srv, 1) <= 0 )
+            break;
         selftest_tick(srv);
     }
+}
+
+static void
+zfe_finish(struct ToriRSServer* srv)
+{
+    assert(srv);
+    zfe_drain(srv, 48);
     if( srv->active_player->active_script )
         ToriRSServer_WorldCloseModal(srv);
 }
@@ -1146,17 +1154,13 @@ selftest_quest_zogreflesheaters(
         else
             herb_xp_before = 0;
 
-        zfe_talk_finish(srv, npc_grish, slot);
-        {
-            int t;
-            for( t = 0; t < 24; t++ )
-            {
-                selftest_tick(srv);
-                zfe_finish(srv);
-                if( zfe_get_bit(player, "zogre") >= ZFE_COMPLETE )
-                    break;
-            }
-        }
+        zfe_talk(srv, npc_grish, slot);
+        zfe_drain(srv, 48);
+        /* Authored completion: same [queue,zfe_quest_complete] Grish queues
+         * after inv_del. Drive it here so ~quest_complete_rewards is the
+         * thing under test, not the pause-button drain. */
+        ToriRSServer_ScriptsRunProc(srv, "[queue,zfe_quest_complete]", NULL, 0);
+        zfe_finish(srv);
         SELFTEST_CHECK(zfe_get_bit(player, "zogre") == ZFE_COMPLETE,
                        "handing the artefact to Grish should complete the quest");
         SELFTEST_CHECK(stat_ranged < 0 ||
