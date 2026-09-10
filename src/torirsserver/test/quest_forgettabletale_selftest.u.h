@@ -673,16 +673,18 @@ selftest_quest_forgettabletale(
             ft_pass("opnpc1_khorvak_too_early");
 
             ft_set_bit(srv, "forget_quest", FT_KELDA);
-            ft_talk_refuse(srv, npc_khorvak, khorvak);
-            SELFTEST_CHECK(ft_get_bit(player, "forget_seed3_given") == 0,
-                           "Khorvak refuse must not grant a seed");
-            ft_pass("opnpc1_khorvak_refuse");
-
             ft_talk_finish(srv, npc_khorvak, khorvak);
             SELFTEST_CHECK(ft_get_bit(player, "forget_seed3_given") == 0,
                            "Khorvak with no stout must not grant a seed");
             ft_pass("opnpc1_khorvak_no_stout");
 
+            ft_clear_inv(player);
+            ft_talk_refuse(srv, npc_khorvak, khorvak);
+            SELFTEST_CHECK(ft_get_bit(player, "forget_seed3_given") == 0,
+                           "Khorvak refuse must not grant a seed");
+            ft_pass("opnpc1_khorvak_refuse");
+
+            ft_clear_inv(player);
             if( obj_stout_dwarf > 0 )
                 ft_give(player, obj_stout_dwarf, 1);
             ft_talk_finish(srv, npc_khorvak, khorvak);
