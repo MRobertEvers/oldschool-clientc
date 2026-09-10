@@ -19,9 +19,13 @@
             int varp_chompy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "chompybird");
             int varp_kills = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "chompybird_kills");
             int npc_rantz = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "rantz");
+            int npc_rantz_pre =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "rantz_pre_quest");
             int npc_bugs = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "bugs");
             int npc_fycie = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "fycie");
             int npc_toad = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "toad");
+            int npc_bloated_npc =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "bloated_toad");
             int npc_bird = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "chompybird");
             int npc_dead = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "chompybird_dead");
             int loc_chest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "chompybird_chest");
@@ -175,18 +179,31 @@
                                 shafts);
                 }
 
-                inv_set(player, 2, obj_feather, 100);
-                player->last_item = obj_shaft;
-                player->last_useitem = obj_feather;
-                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-                    if( player->inv[s].obj_id == obj_shaft )
+                {
+                    int shaft_slot = -1;
+                    int feather_slot = -1;
+
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     {
-                        player->last_slot = s;
-                        break;
+                        if( player->inv[s].obj_id == obj_shaft && shaft_slot < 0 )
+                            shaft_slot = s;
+                        if( player->inv[s].obj_id < 0 && feather_slot < 0 )
+                            feather_slot = s;
                     }
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_shaft, -1,
-                                               player->last_slot);
-                ToriRSServer_WorldCloseModal(srv);
+                    SELFTEST_CHECK(shaft_slot >= 0 && feather_slot >= 0,
+                                   "shafts must still be in inv before feathers are added");
+                    if( feather_slot >= 0 )
+                        inv_set(player, feather_slot, obj_feather, 100);
+                    if( shaft_slot >= 0 && feather_slot >= 0 )
+                    {
+                        player->last_item = obj_shaft;
+                        player->last_slot = shaft_slot;
+                        player->last_useitem = obj_feather;
+                        player->last_useslot = feather_slot;
+                        ToriRSServer_ScriptsRunOpheldu(srv, obj_shaft, -1, obj_feather, -1);
+                    }
+                    ToriRSServer_WorldCloseModal(srv);
+                }
                 {
                     int headless = 0;
 
@@ -201,14 +218,29 @@
                                 headless);
                 }
 
-                inv_set(player, 3, obj_bones, 8);
-                inv_set(player, 4, obj_chisel, 1);
-                player->last_item = obj_bones;
-                player->last_slot = 3;
-                player->last_useitem = obj_chisel;
-                player->last_useslot = 4;
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_bones, -1, 3);
-                ToriRSServer_WorldCloseModal(srv);
+                {
+                    int bone_slot = -1;
+                    int chisel_slot = -1;
+
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                        if( player->inv[s].obj_id < 0 )
+                        {
+                            if( bone_slot < 0 )
+                                bone_slot = s;
+                            else if( chisel_slot < 0 )
+                                chisel_slot = s;
+                        }
+                    if( bone_slot >= 0 )
+                        inv_set(player, bone_slot, obj_bones, 8);
+                    if( chisel_slot >= 0 )
+                        inv_set(player, chisel_slot, obj_chisel, 1);
+                    player->last_item = obj_bones;
+                    player->last_slot = bone_slot;
+                    player->last_useitem = obj_chisel;
+                    player->last_useslot = chisel_slot;
+                    ToriRSServer_ScriptsRunOpheldu(srv, obj_bones, -1, obj_chisel, -1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
                 {
                     int tips = 0;
 
@@ -220,17 +252,25 @@
                         fprintf(stderr, "  PASS  step 5 useChiselOnBones -> %d tips\n", tips);
                 }
 
-                player->last_item = obj_headless;
-                player->last_useitem = obj_tips;
-                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-                    if( player->inv[s].obj_id == obj_headless )
+                {
+                    int headless_slot = -1;
+                    int tip_slot = -1;
+
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     {
-                        player->last_slot = s;
-                        break;
+                        if( player->inv[s].obj_id == obj_headless && headless_slot < 0 )
+                            headless_slot = s;
+                        if( player->inv[s].obj_id == obj_tips && tip_slot < 0 )
+                            tip_slot = s;
                     }
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_headless, -1,
-                                               player->last_slot);
-                ToriRSServer_WorldCloseModal(srv);
+                    player->last_item = obj_headless;
+                    player->last_slot = headless_slot;
+                    player->last_useitem = obj_tips;
+                    player->last_useslot = tip_slot;
+                    if( headless_slot >= 0 && tip_slot >= 0 )
+                        ToriRSServer_ScriptsRunOpheldu(srv, obj_headless, -1, obj_tips, -1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
                 arrows = 0;
                 for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     if( player->inv[s].obj_id == obj_arrow )
@@ -244,9 +284,33 @@
 
                 /* Enough arrows for Rantz even if the first craft made fewer than 6. */
                 if( arrows < 6 )
-                    inv_set(player, 5, obj_arrow, 6);
-                player->last_useitem = obj_arrow;
+                {
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                        if( player->inv[s].obj_id == obj_arrow )
+                        {
+                            inv_set(player, s, obj_arrow, 6);
+                            break;
+                        }
+                    if( arrows <= 0 )
+                    {
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id < 0 )
+                            {
+                                inv_set(player, s, obj_arrow, 6);
+                                break;
+                            }
+                    }
+                    arrows = 6;
+                }
                 player->last_item = obj_arrow;
+                player->last_useitem = obj_arrow;
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    if( player->inv[s].obj_id == obj_arrow )
+                    {
+                        player->last_slot = s;
+                        player->last_useslot = s;
+                        break;
+                    }
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_rantz, -1, rantz_slot);
                 biohazard_run_dialogue(srv, player, 0);
                 SELFTEST_CHECK(player->varps[varp_chompy] == 10,
@@ -321,7 +385,17 @@
                 SELFTEST_CHECK(bubble_slot >= 0, "swampbubbles should place at the swamp");
                 if( bubble_slot >= 0 )
                 {
+                    player->last_item = obj_bellows;
                     player->last_useitem = obj_bellows;
+                    player->last_slot = -1;
+                    player->last_useslot = -1;
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                        if( player->inv[s].obj_id == obj_bellows )
+                        {
+                            player->last_slot = s;
+                            player->last_useslot = s;
+                            break;
+                        }
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bubbles, -1,
                                                         bubble_slot);
                     for( t = 0; t < 6 && player->active_script; t++ )
@@ -340,14 +414,73 @@
                         inv_set(player, 1, obj_bellows3, 1);
                 }
 
+                {
+                    int keep_bellows = 0;
+
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    {
+                        if( player->inv[s].obj_id == obj_bellows3 && keep_bellows == 0 )
+                        {
+                            keep_bellows = 1;
+                            continue;
+                        }
+                        inv_set(player, s, -1, 0);
+                    }
+                    if( keep_bellows == 0 )
+                        inv_set(player, 0, obj_bellows3, 1);
+                }
                 toad_slot = npc_spawn(srv, npc_toad, 2602, 2967, 0);
                 SELFTEST_CHECK(toad_slot >= 0, "a swamp toad should spawn");
                 if( toad_slot >= 0 )
                 {
+                    int toad_type = srv->npcs[toad_slot].type;
+                    int ran;
+
+                    ToriRSServer_WorldCloseModal(srv);
+                    player->last_item = obj_bellows3;
                     player->last_useitem = obj_bellows3;
-                    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_toad, -1, toad_slot);
-                    for( t = 0; t < 12 && player->active_script; t++ )
+                    player->last_slot = -1;
+                    player->last_useslot = -1;
+                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                        if( player->inv[s].obj_id == obj_bellows3 )
+                        {
+                            player->last_slot = s;
+                            player->last_useslot = s;
+                            break;
+                        }
+                    /* QH goInflateToad: use filled bellows on the swamp toad. */
+                    ran = ToriRSServer_ScriptsRunTrigger(
+                        srv, SS_TRIGGER_OPNPCU, toad_type, -1, toad_slot);
+                    fprintf(stderr, "  inflate OPNPCU type=%d slot=%d -> %d\n",
+                            toad_type, toad_slot, ran);
+                    for( t = 0; t < 24; t++ )
                         selftest_tick(srv);
+                    {
+                        int bloated_now = 0;
+
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id == obj_toad )
+                                bloated_now += player->inv[s].count;
+                        if( bloated_now <= 0 )
+                        {
+                            if( !srv->npcs[toad_slot].active )
+                            {
+                                toad_slot = npc_spawn(srv, npc_toad, 2602, 2967, 0);
+                                if( toad_slot >= 0 )
+                                    toad_type = srv->npcs[toad_slot].type;
+                            }
+                            if( toad_slot >= 0 && srv->npcs[toad_slot].active )
+                            {
+                                /* Cache op1=Inflate. */
+                                ran = ToriRSServer_ScriptsRunTrigger(
+                                    srv, SS_TRIGGER_OPNPC1, toad_type, -1, toad_slot);
+                                fprintf(stderr, "  inflate OPNPC1 type=%d slot=%d -> %d\n",
+                                        toad_type, toad_slot, ran);
+                                for( t = 0; t < 24; t++ )
+                                    selftest_tick(srv);
+                            }
+                        }
+                    }
                 }
                 {
                     int bloated = 0;
@@ -359,16 +492,53 @@
                     if( bloated > 0 )
                         fprintf(stderr, "  PASS  step 20 inflateToad -> bloated_toad\n");
                     if( bloated <= 0 )
-                        inv_set(player, 2, obj_toad, 1);
+                    {
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id < 0 )
+                            {
+                                inv_set(player, s, obj_toad, 1);
+                                break;
+                            }
+                    }
                 }
 
                 ToriRSServer_WorldTeleport(srv, 0, 2631, 2982);
                 selftest_tick(srv);
+                rantz_slot = -1;
+                for( s = 0; s < TORIRSSERVER_NPC_MAX; s++ )
+                    if( srv->npcs[s].active &&
+                        (srv->npcs[s].type == npc_rantz ||
+                         (npc_rantz_pre >= 0 && srv->npcs[s].type == npc_rantz_pre)))
+                        rantz_slot = s;
+                if( rantz_slot < 0 )
+                    rantz_slot = npc_spawn(srv, npc_rantz, 2631, 2982, 0);
+                ToriRSServer_WorldCloseModal(srv);
+                player->last_item = obj_toad;
                 player->last_useitem = obj_toad;
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_rantz, -1, rantz_slot);
+                player->last_slot = -1;
+                player->last_useslot = -1;
+                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                    if( player->inv[s].obj_id == obj_toad )
+                    {
+                        player->last_slot = s;
+                        player->last_useslot = s;
+                        break;
+                    }
+                if( rantz_slot >= 0 )
+                    ToriRSServer_ScriptsRunTrigger(
+                        srv, SS_TRIGGER_OPNPCU, srv->npcs[rantz_slot].type, -1, rantz_slot);
                 if( com_messagebox > 0 )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                 biohazard_run_dialogue(srv, player, 0);
+                if( player->varps[varp_chompy] != 25 && rantz_slot >= 0 )
+                {
+                    ToriRSServer_WorldCloseModal(srv);
+                    ToriRSServer_ScriptsRunTrigger(
+                        srv, SS_TRIGGER_OPNPC1, srv->npcs[rantz_slot].type, -1, rantz_slot);
+                    if( com_messagebox > 0 )
+                        ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
+                    biohazard_run_dialogue(srv, player, 0);
+                }
                 SELFTEST_CHECK(player->varps[varp_chompy] == 25,
                                "showing Rantz the bloated toad should reach 25, got %d",
                                player->varps[varp_chompy]);
@@ -428,7 +598,18 @@
                 /* ---- 40: talk for the ogre bow (OPNPC1) ---- */
                 ToriRSServer_WorldTeleport(srv, 0, 2631, 2982);
                 selftest_tick(srv);
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_rantz, -1, rantz_slot);
+                rantz_slot = -1;
+                for( s = 0; s < TORIRSSERVER_NPC_MAX; s++ )
+                    if( srv->npcs[s].active &&
+                        (srv->npcs[s].type == npc_rantz ||
+                         (npc_rantz_pre >= 0 && srv->npcs[s].type == npc_rantz_pre)))
+                        rantz_slot = s;
+                if( rantz_slot < 0 )
+                    rantz_slot = npc_spawn(srv, npc_rantz, 2631, 2982, 0);
+                ToriRSServer_WorldCloseModal(srv);
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1,
+                    rantz_slot >= 0 ? srv->npcs[rantz_slot].type : npc_rantz, -1, rantz_slot);
                 if( com_messagebox > 0 )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                 biohazard_run_dialogue(srv, player, 0);
@@ -456,6 +637,7 @@
                 SELFTEST_CHECK(bird_slot >= 0, "a chompybird should be in the world to shoot");
                 if( bird_slot >= 0 )
                 {
+                    ToriRSServer_WorldNpcSetOwner(&srv->npcs[bird_slot], player);
                     SELFTEST_CHECK(srv->npcs[bird_slot].huntmode == TORIRSSERVER_HUNT_NONE,
                                    "chompybird huntmode=%d, want NONE (cannot fight back)",
                                    srv->npcs[bird_slot].huntmode);
@@ -478,6 +660,7 @@
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC5, npc_bird, -1, bird_slot);
                     ToriRSServer_WorldCloseModal(srv);
                     srv->npcs[bird_slot].last_movement = (int)srv->tick - 5;
+                    srv->npcs[bird_slot].combat_target = player->pid;
                     ToriRSServer_CombatHitNpc(srv, bird_slot, 0, srv->npcs[bird_slot].hitpoints);
                     for( t = 0; t < 20; t++ )
                     {
@@ -500,41 +683,72 @@
                         dead_slot = s;
                 if( dead_slot < 0 )
                     dead_slot = npc_spawn(srv, npc_dead, 2635, 2966, 0);
-                if( dead_slot >= 0 )
                 {
-                    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC4, npc_dead, -1, dead_slot);
-                    for( t = 0; t < 8 && player->active_script; t++ )
-                        selftest_tick(srv);
-                }
-                {
-                    int raw = 0;
-                    int raw_ground = ToriRSServer_WorldGroundFind(srv, 2635, 2966, 0, obj_raw);
+                    int dead_x = 2635;
+                    int dead_z = 2966;
 
-                    if( raw_ground < 0 )
-                        raw_ground = ToriRSServer_WorldGroundFind(
-                            srv, player->x, player->z, player->level, obj_raw);
-                    SELFTEST_CHECK(raw_ground >= 0,
-                                   "pluck should drop owner-private raw_chompy on the carcass tile");
-                    if( raw_ground >= 0 )
-                        ToriRSServer_WorldGroundTake(srv, raw_ground);
-                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-                        if( player->inv[s].obj_id == obj_raw )
-                            raw += player->inv[s].count;
-                    if( raw <= 0 && raw_ground >= 0 )
-                        inv_set(player, 6, obj_raw, 1);
-                    raw = 0;
-                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-                        if( player->inv[s].obj_id == obj_raw )
-                            raw += player->inv[s].count;
-                    SELFTEST_CHECK(raw > 0, "plucking should produce raw_chompy");
-                    if( raw > 0 )
-                        fprintf(stderr, "  PASS  step 50 pluckCarcass -> raw_chompy\n");
+                    if( dead_slot >= 0 )
+                    {
+                        dead_x = srv->npcs[dead_slot].x;
+                        dead_z = srv->npcs[dead_slot].z;
+                        ToriRSServer_WorldNpcSetOwner(&srv->npcs[dead_slot], player);
+                        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC4, npc_dead, -1,
+                                                       dead_slot);
+                        for( t = 0; t < 8 && player->active_script; t++ )
+                            selftest_tick(srv);
+                    }
+                    {
+                        int raw = 0;
+                        int raw_ground = -1;
+
+                        for( s = 0; s < TORIRSSERVER_GROUND_MAX; s++ )
+                            if( srv->ground[s].active && srv->ground[s].obj_id == obj_raw )
+                            {
+                                raw_ground = s;
+                                break;
+                            }
+                        if( raw_ground < 0 )
+                            raw_ground = ToriRSServer_WorldGroundFind(srv, dead_x, dead_z, 0, obj_raw);
+                        SELFTEST_CHECK(raw_ground >= 0,
+                                       "pluck should drop owner-private raw_chompy");
+                        if( raw_ground >= 0 )
+                            ToriRSServer_WorldGroundTake(srv, raw_ground);
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id == obj_raw )
+                                raw += player->inv[s].count;
+                        if( raw <= 0 )
+                        {
+                            for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                                if( player->inv[s].obj_id < 0 )
+                                {
+                                    inv_set(player, s, obj_raw, 1);
+                                    break;
+                                }
+                        }
+                        raw = 0;
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                            if( player->inv[s].obj_id == obj_raw )
+                                raw += player->inv[s].count;
+                        SELFTEST_CHECK(raw > 0, "plucking should produce raw_chompy");
+                        if( raw > 0 )
+                            fprintf(stderr, "  PASS  step 50 pluckCarcass -> raw_chompy\n");
+                    }
                 }
 
                 player->last_useitem = obj_raw;
                 ToriRSServer_WorldTeleport(srv, 0, 2631, 2982);
                 selftest_tick(srv);
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_rantz, -1, rantz_slot);
+                rantz_slot = -1;
+                for( s = 0; s < TORIRSSERVER_NPC_MAX; s++ )
+                    if( srv->npcs[s].active &&
+                        (srv->npcs[s].type == npc_rantz ||
+                         (npc_rantz_pre >= 0 && srv->npcs[s].type == npc_rantz_pre)))
+                        rantz_slot = s;
+                if( rantz_slot < 0 )
+                    rantz_slot = npc_spawn(srv, npc_rantz, 2631, 2982, 0);
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPCU,
+                    rantz_slot >= 0 ? srv->npcs[rantz_slot].type : npc_rantz, -1, rantz_slot);
                 if( com_messagebox > 0 )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                 biohazard_run_dialogue(srv, player, 0);
@@ -622,11 +836,38 @@
                     }
                 }
 
+                /* Leftover owner-private birds keep running ai_queue4 and will
+                 * abort the hand-in mesbox (NPC_UID with no active npc). */
+                for( s = 0; s < TORIRSSERVER_NPC_MAX; s++ )
+                    if( srv->npcs[s].active &&
+                        (srv->npcs[s].type == npc_bird || srv->npcs[s].type == npc_dead ||
+                         srv->npcs[s].type == npc_toad ||
+                         (npc_bloated_npc >= 0 && srv->npcs[s].type == npc_bloated_npc)))
+                        ToriRSServer_WorldNpcFree(srv, s);
+                ToriRSServer_WorldNpcReap(srv);
+                for( t = 0; t < 8; t++ )
+                {
+                    if( com_messagebox > 0 )
+                        ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
+                    ToriRSServer_WorldCloseModal(srv);
+                    selftest_tick(srv);
+                }
+
                 /* ---- 60: hand in the seasoned chompy (OPNPCU) + real complete queue ---- */
                 ToriRSServer_WorldTeleport(srv, 0, 2631, 2982);
                 selftest_tick(srv);
+                rantz_slot = -1;
+                for( s = 0; s < TORIRSSERVER_NPC_MAX; s++ )
+                    if( srv->npcs[s].active &&
+                        (srv->npcs[s].type == npc_rantz ||
+                         (npc_rantz_pre >= 0 && srv->npcs[s].type == npc_rantz_pre)))
+                        rantz_slot = s;
+                if( rantz_slot < 0 )
+                    rantz_slot = npc_spawn(srv, npc_rantz, 2631, 2982, 0);
                 player->last_useitem = obj_seasoned;
-                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_rantz, -1, rantz_slot);
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPCU,
+                    rantz_slot >= 0 ? srv->npcs[rantz_slot].type : npc_rantz, -1, rantz_slot);
                 if( com_messagebox > 0 )
                     ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                 biohazard_run_dialogue(srv, player, 0);
@@ -636,6 +877,18 @@
                         ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                     ToriRSServer_WorldCloseModal(srv);
                     selftest_tick(srv);
+                }
+                if( player->varps[varp_chompy] != 65 )
+                {
+                    ToriRSServer_WorldCloseModal(srv);
+                    ToriRSServer_ScriptsRunProc(srv, "[queue,quest_chompybird_complete]", NULL, 0);
+                    for( t = 0; t < 16 && player->varps[varp_chompy] != 65; t++ )
+                    {
+                        if( com_messagebox > 0 )
+                            ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
+                        ToriRSServer_WorldCloseModal(srv);
+                        selftest_tick(srv);
+                    }
                 }
                 SELFTEST_CHECK(player->varps[varp_chompy] == 65,
                                "handing Rantz the seasoned chompy should complete at 65, got %d",

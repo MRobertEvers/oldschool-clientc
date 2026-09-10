@@ -1825,7 +1825,7 @@ def check_big_chompy() -> None:
                  ("[oploc1,chompybird_chest]", "inv_add(inv, empty_ogre_bellows, 1);"),
                  "Big Chompy Bird Hunting bellows chest")
     require_text(CHOMPY_TOAD.read_text(),
-                 ("[opnpcu,toad]", "inv_total(inv, bloated_toad) >= 3",
+                 ("[opnpc1,toad]", "[opnpcu,toad]", "inv_total(inv, bloated_toad) >= 3",
                   "~reduce_ogre_bellows($used_bellow);"),
                  "Big Chompy Bird Hunting toad inflation")
     require_text(CHOMPY_CAVES.read_text(),
