@@ -289,7 +289,7 @@ filed under `helpers/miniquests/` are at the end.
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
 | 16 | thequeenofthieves | `thequeenofthieves` | 259 | done |  |
-| 17 | rovingelves | `rovingelves` | 263 | done | npcs=roving_islwyn_2ops,eluned_prif,roving_mossgiant |
+| 17 | rovingelves | `rovingelves` | 263 | done | Gate D 2026-09-10: 46 named BMPs / 46 unique MD5s OSRS-Content@`5c626c570fd434533171a3666b79f650453e559a`. C walk 52/0. Leftovers: font kerning, chathead names, welcome/godmode chat under journal/scroll, seed objbox icon, moss start in-world. Not verified-modern. npcs=roving_islwyn_2ops,eluned_prif,roving_mossgiant |
 | 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done |  |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
 | 20 | aporcineofinterest | `aporcineofinterest` | 275 | done |  |
@@ -451,6 +451,14 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **Roving Elves Gate D close (2026-09-10):** #17 `rovingelves` /
+  `quest_rovingelves` stamped `done` (not verified-modern). 46 named
+  interaction BMPs, 46 unique MD5s, OSRS-Content@`5c626c570fd434533171a3666b79f650453e559a`.
+  C walk 52 checks / 0 failures. Leftovers: client font kerning, chathead
+  name rendering, welcome/godmode chat under journal/scroll, seed objbox
+  icon, moss start in-world + forbidden mes, plant success is mes()
+  wrapped for capture.
 
 - **Cloud agents + unkillable player (2026-09-09):** Quest-repair workers
   now run as cloud agents off `v3`. Gate D / C selftest must leave the
