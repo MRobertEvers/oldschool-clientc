@@ -340,7 +340,7 @@ filed under `helpers/miniquests/` are at the end.
 | 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done (LC) | re-audit 2026-08-10: `quest_routequest` (dbrow `quest_insearchofthemyreque` journal wired) -- caveat added 2026-08-11 while porting #132 In Aid of the Myreque: `quest_routequest/` only has `configs/quest_routequest.{constant,varp}` + `scripts/routequest_journal.rs2`; grepping the whole `server/scripts` tree for `%routequest` finds only the journal reading it, nothing ever writes it, and Veliaf/Ivan/Polmafi's own hideout npcs have no scripted dialogue anywhere -- this quest is not actually playable end to end despite the `done (LC)` mark. Not re-scored here (out of scope for #132); #132 soft-skips it as a prerequisite instead, same convention as Cabin Fever's Priest in Peril / King's Ransom's One Small Favour. |
 | 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done |  |
 | 67 | currentaffairs | `currentaffairs` | 407 | done |  |
-| 68 | zogreflesheaters | `zogreflesheaters` | 410 | in_progress | 2026-09-10 cloud `gp-zfe-img`. Gate D = one named BMP per interaction (Grish/guard/crypt/Zavistic/Sithik/Slash Bash/journals/complete). Highlight reel = failed close. Do not double-claim. |
+| 68 | zogreflesheaters | `zogreflesheaters` | 410 | done | 2026-09-10 cloud `gp-zfe-img` Gate D close. C walk 82/0. 88 named BMPs / 88 unique at content `749c212455`. Leftovers: barricade smash anim, always-good portrait, unwired disease bite, human Sithik chathead after transform. |
 | 69 | treegnomevillage | `treegnomevillage` | 418 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_tree`) |
 | 70 | templeofikov | `templeofikov` | 419 | done (LC) | re-audit 2026-08-10: `quest_ikov` (`ikov_firewarrior.rs2`, `ikov_lucien.rs2`; dbrow `quest_templeofikov` journal wired) |
 | 71 | observatoryquest | `observatoryquest` | 424 | done (LC) | re-audit 2026-08-10: `quest_itgronigen` (`observatory_professor.rs2`, `observatory_assistant.rs2`, `goblin_guard.rs2`; dbrow `quest_observatory` journal wired) |
@@ -451,6 +451,13 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **Zogre Flesh Eaters Gate D (2026-09-10):** cloud `gp-zfe-img` closed
+  `#68` / `quest_zogreflesheaters` on worker
+  `cursor/zogre-flesh-eaters-gate-d-1bf5` only (no PR to v3/master; parent
+  gitlink moved on that branch only). C walk 82 checks / 0 failures.
+  88 named BMPs, 88 unique MD5s, content SHA `749c212455`. Leftovers
+  kept the row at ledger `fixed` / QH `done`, not `verified-modern`.
 
 - **Cloud agents + unkillable player (2026-09-09):** Quest-repair workers
   now run as cloud agents off `v3`. Gate D / C selftest must leave the

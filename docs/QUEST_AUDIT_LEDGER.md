@@ -98,7 +98,7 @@
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
-| 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | in-progress | 2026-09-10 | claimed by cloud `gp-zfe-img`. Gate D = **one named BMP per interaction** (Grish start/sickies/zogres, guard/barricade, crypt clues, Zavistic/Sithik including post-transform quiz, Slash Bash, journals, authored complete scroll). Highlight reel = failed close. |
+| 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | fixed | 2026-09-10 | cloud `gp-zfe-img` Gate D close on `cursor/zogre-flesh-eaters-gate-d-1bf5`. C walk 82/0 (`quest_zogreflesheaters_selftest.u.h` before sanfew reset). 88 named BMPs / 88 unique MD5s at content `749c212455` (`selftest/quest_zogreflesheaters`). Leftovers (not verified-modern): barricade smash anim deferred; portrait crafting always-good; zogre disease bite unwired; transformed Sithik chathead still human. Do not stamp siblings. |
 | 31 May 2005 | The Lost Tribe | `quest_losttribe` | unaudited | |  |
 | 31 May 2005 | The Giant Dwarf | `quest_giantdwarf` | unaudited | |  |
 | 13 Jun 2005 | Enter the Abyss | `quest_entertheabyss` | unaudited | |  |
