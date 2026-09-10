@@ -94,7 +94,7 @@
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
-| 11 Apr 2005 | The Golem | `quest_golem` | in-progress | 2026-09-10 | claimed by cloud `gp-golem-img`. Gate D = one named BMP per interaction (golem talks, notes/feather/statuette, portal, program, journals, authored complete scroll). Highlight reel = failed close. Leave Observatory and Shadow of the Storm alone except additive Golem-only branches. |
+| 11 Apr 2005 | The Golem | `quest_golem` | fixed | 2026-09-10 | cloud `gp-golem-img` Gate D close: 67 unique named BMPs on `cursor/the-golem-gate-d-1a94` / OSRS-Content@40f9cf07a. C walk 82/0 immediately before selftest_reset_world. Leftovers (not verified-modern): no live `golem_letter` pickup (debug grant only); display-case Open / museum IF 534 unwired (key is `opheldu`); statuette-turn puzzle soft-skipped (place opens portal); Shantay-to-Uzer carpet ride is reward text only. Observatory and Shadow of the Storm untouched except existing additive Golem branches. |
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |

@@ -373,7 +373,7 @@ filed under `helpers/miniquests/` are at the end.
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
 | 99 | throneofmiscellania | `throneofmiscellania` | 546 | in_progress | 2026-09-10 REOPENED: 8 BMPs vs 42 C checks. Recapture every interaction. |
 | 100 | thefeud | `thefeud` | 550 | done | npcs=feudalim,feudalim,shantay (helper spellings don't resolve -- cache wins, see Log) |
-| 101 | thegolem | `thegolem` | 551 | in_progress | 2026-09-10 cloud `gp-golem-img` Gate D: one named BMP per interaction. Do not stamp other quests. |
+| 101 | thegolem | `thegolem` | 551 | done | 2026-09-10 Gate D close `gp-golem-img`: 67 unique BMPs on OSRS-Content@40f9cf07a / `cursor/the-golem-gate-d-1a94`. Leftovers disclosed (not verified-modern): letter pickup debug-only; museum IF/turn-puzzle soft; carpet ride text-only. |
 | 102 | theredreef | `theredreef` | 559 | done |  |
 | 103 | misthalinmystery | `misthalinmystery` | 564 | done |  |
 | 104 | thefremennikexiles | `thefremennikexiles` | 573 | done |  |
