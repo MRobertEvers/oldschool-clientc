@@ -291,9 +291,10 @@ selftest_quest_legends(
             return;
         }
 
-        /* Prereq fail: talk without the five quests + 107 QP. */
+        /* Prereq fail: talk without the five quests + 107 QP. last_slot is
+         * 1-based (~p_choice2 re-opens while last_slot < 1). */
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_radimus, -1, radimus_slot);
-        lg_choose(srv, player, 0);
+        lg_choose(srv, player, 1);
         lg_drain(srv, player);
         lg_close(srv, player);
         SELFTEST_CHECK(player->varps[varp_quest] == 0,
@@ -304,7 +305,7 @@ selftest_quest_legends(
         /* Decline: prereqs met, choose "No, not really." */
         lg_set_prereqs(player, varp_hero, varp_crest, varp_shilo, varp_upass, varp_water, varp_qp);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_radimus, -1, radimus_slot);
-        lg_choose(srv, player, 1);
+        lg_choose(srv, player, 2);
         lg_drain(srv, player);
         lg_close(srv, player);
         SELFTEST_CHECK(player->varps[varp_quest] == 0,
@@ -312,10 +313,10 @@ selftest_quest_legends(
                        player->varps[varp_quest]);
         lg_pass("radimus_decline");
 
-        /* Accept. */
+        /* Accept, then "I'll get started right away." */
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_radimus, -1, radimus_slot);
-        lg_choose(srv, player, 0);
         lg_choose(srv, player, 1);
+        lg_choose(srv, player, 2);
         lg_drain(srv, player);
         lg_close(srv, player);
         SELFTEST_CHECK(player->varps[varp_quest] == started,
@@ -351,7 +352,7 @@ selftest_quest_legends(
             player->last_useitem = obj_mapcomp;
             ToriRSServer_ScriptsRunTrigger(
                 srv, SS_TRIGGER_OPNPCU, npc_forester, -1, forester_slot);
-            lg_choose(srv, player, 0);
+            lg_choose(srv, player, 1);
             lg_drain(srv, player);
             lg_close(srv, player);
             SELFTEST_CHECK(lg_inv_has(player, obj_bull), "forester copy should grant bullroarer");
@@ -369,8 +370,8 @@ selftest_quest_legends(
         if( gujuo_slot >= 0 )
         {
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_gujuo, -1, gujuo_slot);
-            lg_choose(srv, player, 0);
-            lg_choose(srv, player, 0);
+            lg_choose(srv, player, 1);
+            lg_choose(srv, player, 1);
             lg_drain(srv, player);
             lg_close(srv, player);
             SELFTEST_CHECK(player->varps[varp_quest] == accepted,
@@ -482,11 +483,11 @@ selftest_quest_legends(
         if( echned_slot >= 0 )
         {
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_echned, -1, echned_slot);
-            lg_choose(srv, player, 0); /* Er... me? */
-            lg_choose(srv, player, 0); /* Yes, I need it for my quest. */
-            lg_choose(srv, player, 1); /* What can I do about that? */
-            lg_choose(srv, player, 0); /* I'll do what I must */
-            lg_choose(srv, player, 0); /* Ok, I'll do it. */
+            lg_choose(srv, player, 1); /* Er... me? */
+            lg_choose(srv, player, 1); /* Yes, I need it for my quest. */
+            lg_choose(srv, player, 2); /* What can I do about that? */
+            lg_choose(srv, player, 1); /* I'll do what I must */
+            lg_choose(srv, player, 1); /* Ok, I'll do it. */
             lg_drain(srv, player);
             lg_close(srv, player);
             SELFTEST_CHECK(lg_inv_has(player, obj_dagger), "Echned should grant deathdagger");
@@ -556,8 +557,8 @@ selftest_quest_legends(
             {
                 ToriRSServer_ScriptsRunTrigger(
                     srv, SS_TRIGGER_OPNPC1, npc_radimus, -1, radimus_slot);
-                lg_choose(srv, player, 0); /* Combat skills */
-                lg_choose(srv, player, 0); /* Attack */
+                lg_choose(srv, player, 1); /* Combat skills */
+                lg_choose(srv, player, 1); /* Attack */
                 lg_drain(srv, player);
                 lg_close(srv, player);
                 SELFTEST_CHECK(player->varps[varp_quest] == want[i],
