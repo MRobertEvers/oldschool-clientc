@@ -68,7 +68,7 @@
 | 09 Jun 2003 | Murder Mystery | `quest_murder` | unaudited | |  |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |
-| 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
+| 20 Aug 2003 | Legends' Quest | `quest_legends` | in-progress | 2026-09-10 | claimed by cloud `gp-legends-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close is a failed close. Soft-skips stay disclosed (not verified-modern). |
 | 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | unaudited | |  |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | unaudited | |  |
 | 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | unaudited | |  |

@@ -104,6 +104,7 @@ QUEST_DBROW_HINTS = {
     "thefinaldawn": "quest_finaldawn",
     "theforsakentower": "quest_forsakentower",
     "thefremennikexiles": "quest_fremennikexiles",
+    "legendsquest": "quest_legends",
     "thegardenofdeath": "quest_gardenofdeath",
     "theheartofdarkness": "quest_heartofdarkness",
     "theredreef": "quest_redreef",
