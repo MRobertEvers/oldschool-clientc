@@ -330,7 +330,7 @@ filed under `helpers/miniquests/` are at the end.
 | 55 | gettingahead | `gettingahead` | 361 | done |  |
 | 56 | elementalworkshopi | `elementalworkshopi` | 362 | done | 2026-09-10 parent-verified 73 unique-MD5 named BMPs on OSRS-Content@518dc89ca. |
 | 57 | bigchompybirdhunting | `bigchompybirdhunting` | 363 | done | 2026-09-10 parent-verified 106 unique-MD5 named BMPs on OSRS-Content@35feba354. Leftovers: projectile/camera/sound, diary pet, trail clue. |
-| 58 | animalmagnetism | `animalmagnetism` | 366 | done (LC) | OSRS has 5 rs2 files (not in PORT_QUEUE table) |
+| 58 | animalmagnetism | `animalmagnetism` | 366 | in_progress | 2026-09-10 claimed `gp-anma-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. OSRS has 5 rs2 files (not in PORT_QUEUE table) |
 | 59 | scorpioncatcher | `scorpioncatcher` | 374 | done (LC) | re-audit 2026-08-10: `quest_scorpcatcher` (`thormac.rs2`; dbrow `quest_scorpioncatcher` journal wired) |
 | 60 | thecorsaircurse | `thecorsaircurse` | 376 | done |  |
 | 61 | belowicemountain | `belowicemountain` | 377 | done |  |
@@ -362,7 +362,7 @@ filed under `helpers/miniquests/` are at the end.
 | 87 | clocktower | `clocktower` | 486 | done (LC) | re-audit 2026-08-10: `quest_cog` (LC's own internal codename, not `clocktower`; `server/scripts/quests/quest_cog/{quest_cog,brother_kojo,cogs,cog_journal,quest_cog_gates_and_levers,quest_cog_spindles,quest_cog_food_trough}.rs2`, 538 lines total, full cellar-cogs + gates/levers + spindles + food-trough + Brother Kojo dialogue tree + completion queue; dbrow `quest_clocktower` id 29 endstate 8, journal wired `if ($row = quest_clocktower)` in `interface_questjournal/scripts/quest_journal.rs2:519`) |
 | 88 | anightatthetheatre | `anightatthetheatre` | 490 | done |  |
 | 89 | merlinscrystal | `merlinscrystal` | 490 | done (LC) | re-audit 2026-08-10: `quest_arthur` (`thrantax_altar.rs2`, `sir_mordred.rs2`; dbrow `quest_merlinscrystal` journal wired) |
-| 90 | eaglespeak | `eaglespeak` | 504 | in_progress | 2026-09-10 claimed `gp-eagle-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. IN-LC duplicate row — see IN-LC table (`quest_eaglepeak`) |
+| 90 | eaglespeak | `eaglespeak` | 504 | done | 2026-09-10 parent-verified 149 named / 148 unique-MD5 BMPs on OSRS-Content@283731d220. Leftovers: leftover_tracking_tile_trail; leftover_postquest_eyrie_flavour. IN-LC duplicate row — see IN-LC table (`quest_eaglepeak`) |
 | 91 | defenderofvarrock | `defenderofvarrock` | 508 | done | found 2026-08-10 already fully scripted (`server/scripts/quests/quest_defenderofvarrock/scripts/{dov_elias,dov_rovin,dov_invasion,dov_camdozaal,dov_journal}.rs2`, 775 lines incl. config, by an untracked earlier tick, not logged here before now) — `%dov` progress on 0..56 covers Jolly Boar Inn offer, six hunting-trail clues, armoured-zombie dungeon (bottles/mist soft-kept to one hand-spawned zombie per gate), invasion + candidate/Aeonisig sigil check, Camdozaal barronite/golem-core forge, `~quest_complete(quest_defenderofvarrock)`; dbrow id 188 endstate 56, journal wired `interface_questjournal/scripts/quest_journal.rs2:903`; see Log |
 | 92 | priestinperil | `priestinperil` | 511 | done | 2026-09-10 parent-verified 62 unique-MD5 named BMPs on OSRS-Content@c60760532. Leftovers: monument TOSTRING underflow, spawned Drezel named Someone. |
 | 93 | plaguecity | `plaguecity` | 514 | done (LC) | re-audit 2026-08-10: `quest_elena` (`edmond.rs2`, `alrena.rs2`; dbrow `quest_plaguecity` journal wired) |
