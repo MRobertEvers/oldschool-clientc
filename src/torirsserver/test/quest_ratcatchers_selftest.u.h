@@ -60,8 +60,8 @@
 #define RATCATCH_FELK_Z 9639
 #define RATCATCH_SARIM_X 3019
 #define RATCATCH_SARIM_Z 3231
-#define RATCATCH_CHARM_X 3355
-#define RATCATCH_CHARM_Z 3171
+#define RATCATCH_CHARM_X 3354
+#define RATCATCH_CHARM_Z 2953
 
 #define RATCATCH_RAT1_X 2832
 #define RATCATCH_RAT1_Z 5098
@@ -201,6 +201,18 @@ ratcatch_spawn(struct ToriRSServer* srv, int npc_type, int x, int z, int level)
     assert(npc_type > 0);
     ratcatch_tele(srv, x, z, level);
     slot = ToriRSServer_WorldNpcSpawn(srv, npc_type, x + 1, z, level);
+    return slot;
+}
+
+static int
+ratcatch_spawn_at(struct ToriRSServer* srv, int npc_type, int x, int z, int level)
+{
+    int slot;
+
+    assert(srv);
+    assert(npc_type > 0);
+    ratcatch_tele(srv, x > 0 ? x - 1 : x, z, level);
+    slot = ToriRSServer_WorldNpcSpawn(srv, npc_type, x, z, level);
     return slot;
 }
 
@@ -450,6 +462,7 @@ selftest_quest_ratcatchers(
     int npc_joe;
     int npc_face;
     int npc_felk;
+    int npc_charm;
     int obj_kitten;
     int obj_amulet;
     int obj_directions;
@@ -581,6 +594,7 @@ selftest_quest_ratcatchers(
     npc_joe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "vc_smokin_joe");
     npc_face = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "vc_face");
     npc_felk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "vc_felkrash_the_bard");
+    npc_charm = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "feud_snakecharmer");
     obj_kitten = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "kittenobject");
     obj_amulet = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ics_little_amulet_of_catspeak");
     obj_directions = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ratcatchers_party_directions");
@@ -804,7 +818,7 @@ selftest_quest_ratcatchers(
         ratcatch_set_bit(srv, "ratcatch_var", RATCATCH_MANSION_CATCHING);
         for( i = 0; i < 6; i++ )
         {
-            int party = ratcatch_spawn(
+            int party = ratcatch_spawn_at(
                 srv, npc_party, k_party[i].x, k_party[i].z, k_party[i].level);
 
             SELFTEST_CHECK(party >= 0, "mansion party rat %d should spawn", i + 1);
@@ -1081,7 +1095,14 @@ selftest_quest_ratcatchers(
     /* ---- Snake charmer pay fail + ok + flute leftover ---- */
     if( loc_bowl >= 0 && obj_coins > 0 )
     {
+        int charm_slot = -1;
+
         loc_slot = ratcatch_place_loc(srv, loc_bowl, RATCATCH_CHARM_X, RATCATCH_CHARM_Z, 0);
+        if( npc_charm > 0 )
+            charm_slot = ratcatch_spawn_at(
+                srv, npc_charm, RATCATCH_CHARM_X, RATCATCH_CHARM_Z, 0);
+        SELFTEST_CHECK(charm_slot >= 0, "feud_snakecharmer should spawn at the money bowl");
+        (void)charm_slot;
         ratcatch_set_bit(srv, "ratcatch_var", RATCATCH_FACE);
         ratcatch_clear_inv(player);
         ratcatch_give(player, obj_kitten, 1);
