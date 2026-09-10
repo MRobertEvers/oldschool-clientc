@@ -298,7 +298,7 @@ filed under `helpers/miniquests/` are at the end.
 | 23 | ernestthechicken | `ernestthechicken` | 288 | done (LC) | re-audit 2026-08-10: `quest_haunted` (`professor_oddenstein.rs2`, `veronica.rs2`; dbrow `quest_ernestthechicken` journal wired) |
 | 24 | atailoftwocats | `atailoftwocats` | 293 | done | bookkeeping fix 2026-08-10: already `done` since slice 1 (2026-08-04, see P1 row + Log) — the 2026-08-06 table rebuild re-added it as `pending` without checking the tree first |
 | 25 | fishingcontest | `fishingcontest` | 297 | done (LC) | re-audit 2026-08-10: `quest_fishingcompo` (`hemenster/bonzo.rs2`, `hemenster_fishing.rs2`; dbrow `quest_fishingcontest` journal wired) |
-| 26 | junglepotion | `junglepotion` | 298 | in_progress | 2026-09-10 REOPENED: 10 BMPs ≠ every interaction. Recapture full walk. |
+| 26 | junglepotion | `junglepotion` | 298 | done | 2026-09-10 Gate D: 100 named BMPs (every interaction) OSRS-Content@aa0b89b835. Not a 10-shot reel. |
 | 27 | gertrudescat | `gertrudescat` | 299 | in_progress | 2026-09-09 cloud `gp-fluffs-c1` FAILED CLOSE: 0 named BMPs on `cursor/gertrudes-cat-fluffs-542f` (no cache.osrs239). Do not double-claim. |
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
