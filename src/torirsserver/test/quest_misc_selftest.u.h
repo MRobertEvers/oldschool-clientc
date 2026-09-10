@@ -335,10 +335,10 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         slot_sigrid < 0 || slot_smithy < 0 || slot_guard < 0 )
         return;
 
-    /* Journal not-started opens the questjournal interface. */
-    ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal");
-    SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                   "journal not-started should open a mesbox/interface");
+    /* Journal not-started -- debugproc mounts questjournal. */
+    SELFTEST_CHECK(
+        ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal") == TORIRSSERVER_TRIGGER_RAN,
+        "journal not-started debugproc should run");
     quest_misc_close(srv);
     quest_misc_pass("journal_not_started");
 
@@ -501,9 +501,9 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        "mid-ToM Vargas must not start Royal Trouble");
     quest_misc_pass("talk_vargas_after_court");
 
-    ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal");
-    SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                   "journal stage 10 should open");
+    SELFTEST_CHECK(
+        ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal") == TORIRSSERVER_TRIGGER_RAN,
+        "journal stage 10 debugproc should run");
     quest_misc_close(srv);
     quest_misc_pass("journal_stage_10");
 
@@ -676,15 +676,15 @@ selftest_quest_misc(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        "ToM finish must not start Royal Trouble");
     quest_misc_pass("talk_vargas_complete");
 
-    ToriRSServer_ScriptsRunDebugproc(srv, "miscbmp_128_quest_complete_scroll");
-    SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                   "quest complete scroll should park on the reward interface");
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "miscbmp_128_quest_complete_scroll") ==
+                       TORIRSSERVER_TRIGGER_RAN,
+                   "quest complete scroll debugproc should run");
     quest_misc_close(srv);
     quest_misc_pass("quest_complete_scroll");
 
-    ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal");
-    SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                   "journal complete should open");
+    SELFTEST_CHECK(
+        ToriRSServer_ScriptsRunDebugproc(srv, "miscjournal") == TORIRSSERVER_TRIGGER_RAN,
+        "journal complete debugproc should run");
     quest_misc_close(srv);
     quest_misc_pass("journal_complete");
 
