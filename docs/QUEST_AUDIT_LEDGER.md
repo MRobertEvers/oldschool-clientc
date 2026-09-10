@@ -80,7 +80,7 @@
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
-| 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
+| 02 Nov 2004 | The Fremennik Trials | `quest_viking` | fixed | 2026-09-10 | Gate D: 99 named BMPs / 99 unique MD5s on `cursor/fremennik-trials-gate-d-fb0b` / OSRS-Content@fded1b361d. C walk 43 checks / 0 failures. Leftovers (not verified-modern): client font kerning; Swensen maze / Peer house / Olaf chop-carve / Sigmund two-pass / Manni keg-swap soft-skips; `~get_viking_name` stub. |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-10 | REOPENED: 8 named BMPs is a highlight reel (C walk had 42 checks). Recapture every Ghrim/Vargas/Brand/Astrid/Sigrid/Derrik interaction. Prior 8 files remain on OSRS-Content@a07820392. |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
