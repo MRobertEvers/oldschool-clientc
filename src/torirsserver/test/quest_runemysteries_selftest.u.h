@@ -157,8 +157,15 @@
                                "wizards_tower_laddertop should stand at 3104,3162");
                 if( loc_slot >= 0 )
                 {
-                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
-                                                        loc_slot);
+                    int ladder_cat = ToriRSServer_LocCategory(loc_ladder);
+                    int climb_rc;
+
+                    climb_rc = ToriRSServer_ScriptsRunTriggerOnLoc(
+                        srv, SS_TRIGGER_OPLOC1, loc_ladder, ladder_cat, loc_slot);
+                    SELFTEST_CHECK(climb_rc == TORIRSSERVER_TRIGGER_RAN,
+                                   "OPLOC1 wizards_tower_laddertop should bind "
+                                   "climb_down_ladder, got trigger %d cat %d",
+                                   climb_rc, ladder_cat);
                     for( drain = 0; drain < 24 && player->z < 9500; drain++ )
                     {
                         if( player->active_script && player->resume_button_count > 0 )
