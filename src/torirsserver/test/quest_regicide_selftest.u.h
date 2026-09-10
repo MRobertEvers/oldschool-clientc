@@ -237,7 +237,6 @@ selftest_quest_regicide(
     obj_sulphur_dust = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_sulphar_dust");
     obj_naphtha = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_barrel_naphtha");
     obj_qmix = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_barrel_naphtha_quicklime_mix");
-    obj_smix = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_barrel_naphtha_sulphar_mix");
     obj_oil = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_barrel_lid");
     obj_cloth = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_cloth");
     obj_bomb = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "regicide_barrel_lid_fused");

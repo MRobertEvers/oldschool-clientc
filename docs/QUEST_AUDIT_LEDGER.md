@@ -77,7 +77,7 @@
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
-| 20 Sep 2004 | Regicide | `quest_regicide` | in-progress | 2026-09-10 | claimed by cloud `gp-regicide-img`. Gate D = **one named BMP per interaction** (Lathas, Koftik, Iorwerth, tracker, camp, bomb, Arianwyn, complete scroll). Highlight reel = failed close. |
+| 20 Sep 2004 | Regicide | `quest_regicide` | fixed | 2026-09-10 | Gate D: 140 named BMPs, 140 unique MD5s on `cursor/regicide-gate-d-a062`. C walk 44 checks / 0 failures via authored OPNPC/OPLOC/OPLOCU/OPHELDU. Real complete scroll (13750 Agility / 15000 coins). Leftover: catapult `~forcewalk2` stack underflow in `regicide_bombcraft.rs2` (walk still completes). |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
