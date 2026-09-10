@@ -3077,6 +3077,8 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 #include "test/sailing_lifecycle_selftest.u.h"
 
 int
+#include "test/quest_troubledtortugans_selftest.u.h"
+
 ToriRSServer_WorldSelftest(void)
 {
     /*
@@ -3198,6 +3200,15 @@ ToriRSServer_WorldSelftest(void)
     }
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
+
+    if( getenv("TORIRSSERVER_SELFTEST_TTQ_ONLY") )
+    {
+        selftest_quest_troubledtortugans(srv, player);
+        fprintf(stderr, "ToriRSServer TTQ selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("ttq");
+        return g_selftest_failures;
+    }
 
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
@@ -35904,6 +35915,11 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        /* Troubled Tortugans Gate D walk header (include-guarded). Placed
+         * immediately before this reset so spawned Blunn / Floopa / Korel /
+         * Raley / gryphons cannot leak into the shop stanza. */
+#include "test/quest_troubledtortugans_selftest.u.h"
+        selftest_quest_troubledtortugans(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {
