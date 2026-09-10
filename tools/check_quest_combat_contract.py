@@ -1716,8 +1716,8 @@ def check_big_chompy() -> None:
     require_text(
         npc,
         (
-            "[chompybird]", "hitpoints=10", "attack=5", "strength=5",
-            "defence=3", "magic=0", "ranged=0", "respawnrate=500",
+            "[chompybird]", "hitpoints=10", "attack=5", "strength=3",
+            "defence=5", "magic=0", "ranged=0", "respawnrate=500",
             "param=attackrate,0", "param=death_drop,null",
             "[chompybird_dead]",
         ),
@@ -1801,6 +1801,7 @@ def check_big_chompy() -> None:
     require_text(
         recipe,
         (
+            "[oplocu,multi_chompybird_spitroast_entity]",
             "[oplocu,chompybird_spitroast_empty]", "stat(cooking) < 30",
             "[label,cook_chompy_quest]",
             "^chompybird_varbit_bugs_flavour_start",
