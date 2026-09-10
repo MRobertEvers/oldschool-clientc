@@ -283,7 +283,7 @@ filed under `helpers/miniquests/` are at the end.
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
-| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 cloud `gp-runemyst-c1` shipped-but-shit re-audit. Prior done (LC) / `quest_runemysteries`. |
+| 11 | runemysteries | `runemysteries` | 246 | in_progress | 2026-09-10 cloud `gp-runemyst-c1` FAILED CLOSE: 10-shot highlight reel (no mesbox) on `cursor/rune-mysteries-gate-d-8c5c` / OSRS-Content@9bf3c8377. Do not stamp fixed. Do not double-claim. |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | done |  |
@@ -328,7 +328,7 @@ filed under `helpers/miniquests/` are at the end.
 | 53 | contact | `contact` | 355 | done | Jan 2007 -- Sophanem quarantined from Menaphos, tunnels of the Sect of Scabaras, Giant Scarab boss; native dbrow `quest_contact` (id 124, endstate 130, questpoints 1, stat_xp_awarded thieving 70000=7000xp) + native varbit schema on basevar `contact_master` reused as-is, matching quest-helper's own VarbitID.CONTACT name exactly; see Log |
 | 54 | shadesofmortton | `shadesofmortton` | 355 | done (LC) | found 2026-08-11 while auditing row #80's neighbours: LostCity already has a proc for this (`server/scripts/quests/quest_mortton/`, both files' own header comments say "Ported from LostCity quests/quest_mortton/..."; dbrow `quest_shadesofmortton` id 63, journal wired `interface_questjournal/scripts/quest_journal.rs2:659`) -- this queue's ownership rule is presence of an LC proc, not its completion state, so it belongs on `CONTENT_PORT_QUEUE.md`, not here, same as every other "IN-LC" row. Flagging for that queue: the LC port itself is only a stub (dbrow + journal text + the diary-reading step alone, `%morttonquest` never set past `^mortton_read_diary` anywhere in the tree -- shade combat, the serum, Razmire/Ulsquire dialogue, temple rebuild, altar, and pyre are all unimplemented), not finished end-to-end; not fixed here, out of scope for this queue's own slice budget |
 | 55 | gettingahead | `gettingahead` | 361 | done |  |
-| 56 | elementalworkshopi | `elementalworkshopi` | 362 | in_progress | 2026-09-10 cloud `gp-elem1-c1` shipped-but-shit re-audit. Prior done / `quest_elemental_workshop`. |
+| 56 | elementalworkshopi | `elementalworkshopi` | 362 | in_progress | 2026-09-10 original `gp-elem1-c1` FAILED CLOSE: 0 BMPs (no cache). Full-BMP retarget still live — do not double-claim. |
 | 57 | bigchompybirdhunting | `bigchompybirdhunting` | 363 | in_progress | 2026-09-10 cloud `gp-chompy-c1` shipped-but-shit re-audit. Prior done (LC) / `quest_chompybird`. |
 | 58 | animalmagnetism | `animalmagnetism` | 366 | done (LC) | OSRS has 5 rs2 files (not in PORT_QUEUE table) |
 | 59 | scorpioncatcher | `scorpioncatcher` | 374 | done (LC) | re-audit 2026-08-10: `quest_scorpcatcher` (`thormac.rs2`; dbrow `quest_scorpioncatcher` journal wired) |

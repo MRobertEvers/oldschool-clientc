@@ -69,9 +69,9 @@
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | in-progress | 2026-09-09 | cloud `gp-digsite-c1` FAILED CLOSE: 0 named BMPs on `cursor/the-dig-site-9058` / OSRS-Content@9fe90dd2d (no cache.osrs239). Do not double-claim. |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | in-progress | 2026-09-09 | cloud `gp-fluffs-c1` FAILED CLOSE: 0 named BMPs on `cursor/gertrudes-cat-fluffs-542f` / OSRS-Content@00677666a (no cache.osrs239). Do not double-claim. |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | in-progress | 2026-09-10 | cloud `gp-legends-c1` FAILED CLOSE: 0 named BMPs on `cursor/legends-quest-gate-d-6416` / OSRS-Content@dde2e8e69 (no cache.osrs239). Do not double-claim. |
-| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | in-progress | 2026-09-10 | claimed by cloud `gp-runemyst-c1`. Gate D = **one named BMP per interaction** (every Duke/Sedridor/Aubury talk and item use), mesbox visible. Highlight reel = failed close. |
+| 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | in-progress | 2026-09-10 | REOPENED: 10 named BMPs on `cursor/rune-mysteries-gate-d-8c5c` / OSRS-Content@9bf3c8377 are a highlight reel (debug `rmbmpNN` chat, no mesbox/chathead). Recapture every Duke/Sedridor/Aubury talk and item use with the dialogue visible. Do not stamp fixed. |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | in-progress | 2026-09-10 | claimed by cloud `gp-chompy-c1`. Gate D = **one named BMP per interaction** (Rantz, kids, arrows, bellows, toads, bird, spit). Highlight reel = failed close. |
-| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | claimed by cloud `gp-elem1-c1`. Gate D = **one named BMP per interaction** (book, hatch, bellows, lava, water, air, earth, bar, shield). Highlight reel = failed close. |
+| 02 Jun 2004 | Elemental Workshop I | `quest_elemental_workshop` | in-progress | 2026-09-10 | cloud `gp-elem1-c1` (original) FAILED CLOSE: 0 named BMPs on `cursor/elemental-workshop-i-36db` / OSRS-Content@81854cdb8 (no cache.osrs239). Full-BMP retarget still live — do not double-claim. |
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
