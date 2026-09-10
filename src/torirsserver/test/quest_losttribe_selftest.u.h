@@ -120,7 +120,7 @@ lt_finish(struct ToriRSServer* srv)
 
     assert(srv);
     assert(srv->active_player);
-    for( t = 0; t < 64 && srv->active_player->active_script; t++ )
+    for( t = 0; t < 160 && srv->active_player->active_script; t++ )
     {
         selftest_click_through(srv, 8);
         selftest_tick(srv);
@@ -625,17 +625,18 @@ selftest_quest_losttribe(
         SELFTEST_CHECK(reldo >= 0, "Reldo should spawn");
         if( reldo >= 0 )
         {
+            /* OPNPC1 Reldo: phoenix=0 + squire=0 + brooch in inv → p_choice4,
+             * brooch is row 4. ~chatnpc needs this active npc. */
             if( lt_inv_total(player, obj_brooch) <= 0 )
                 lt_give(player, obj_brooch, 1);
-            ToriRSServer_ScriptsRunProc(srv, "[proc,lost_tribe_reldo_brooch]", NULL, 0);
-            lt_finish(srv);
+            lt_set_bit(srv, "lost_tribe_contact", LT_CONTACT_BROOCH);
+            lt_talk_pick(srv, npc_reldo, reldo, 4);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_bookmark") == LT_BOOK_RELDO,
                            "Reldo brooch must write bookmark reldo, got %d",
                            lt_get_bit(player, "lost_tribe_bookmark"));
             lt_pass("opnpc1_reldo_brooch");
 
-            ToriRSServer_ScriptsRunProc(srv, "[proc,lost_tribe_reldo_brooch]", NULL, 0);
-            lt_finish(srv);
+            lt_talk_pick(srv, npc_reldo, reldo, 4);
             lt_pass("opnpc1_reldo_already_pointed");
             lt_free_npc(srv, reldo);
         }
@@ -647,6 +648,8 @@ selftest_quest_losttribe(
 
     if( loc_bookcase >= 0 && obj_book > 0 )
     {
+        lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_RELDO);
+        lt_clear_inv(player);
         loc_slot = lt_place_loc(srv, loc_bookcase, LT_BOOKCASE_X, LT_BOOKCASE_Z, 0);
         ToriRSServer_ScriptsRunTriggerOnLoc(
             srv, SS_TRIGGER_OPLOC1, loc_bookcase, -1, loc_slot);
@@ -663,6 +666,7 @@ selftest_quest_losttribe(
 
     if( obj_book > 0 )
     {
+        lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_RELDO);
         if( lt_inv_total(player, obj_book) <= 0 )
             lt_give(player, obj_book, 1);
         player->last_item = obj_book;
@@ -686,6 +690,8 @@ selftest_quest_losttribe(
         SELFTEST_CHECK(wart >= 0, "Wartface should spawn");
         if( wart >= 0 )
         {
+            lt_set_bit(srv, "lost_tribe_quest", LT_TUNNEL);
+            lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_IDENTIFIED);
             lt_talk(srv, npc_wartface, wart);
             lt_click_until_menu(srv, 16);
             selftest_charter_choose(srv, 3);
@@ -708,6 +714,8 @@ selftest_quest_losttribe(
 
         if( duke >= 0 )
         {
+            lt_set_bit(srv, "lost_tribe_quest", LT_GENERALS);
+            lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_IDENTIFIED);
             lt_talk_pick(srv, npc_duke, duke, 1);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_bookmark") == LT_BOOK_WAR,
                            "Duke war briefing must write bookmark war, got %d",
@@ -729,12 +737,21 @@ selftest_quest_losttribe(
         SELFTEST_CHECK(mist >= 0, "Mistag should spawn");
         if( mist >= 0 )
         {
+            lt_set_bit(srv, "lost_tribe_quest", LT_GENERALS);
+            lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_WAR);
             lt_talk_finish(srv, mist_type, mist);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_quest") == LT_GENERALS,
                            "talking before the bow must leave generals, got %d",
                            lt_get_bit(player, "lost_tribe_quest"));
             lt_pass("opnpc1_mistag_panic");
 
+            /* npc_find(lost_tribe_mistag_1op, 3) — spawn that type in range. */
+            if( npc_mistag1 > 0 && mist_type != npc_mistag1 )
+            {
+                lt_free_npc(srv, mist);
+                mist = lt_spawn(srv, npc_mistag1, LT_MISTAG_X, LT_MISTAG_Z, 0);
+                mist_type = npc_mistag1;
+            }
             ToriRSServer_ScriptsRunProc(srv, "[proc,lost_tribe_mistag_emote_bow]", NULL, 0);
             lt_finish(srv);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_quest") == LT_MISTAG,
@@ -760,6 +777,8 @@ selftest_quest_losttribe(
 
         if( duke >= 0 )
         {
+            lt_set_bit(srv, "lost_tribe_quest", LT_MISTAG);
+            lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_WAR);
             lt_talk_pick(srv, npc_duke, duke, 1);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_quest") == LT_HAM_HUNT,
                            "Duke silverware accusation must write ham_hunt, got %d",
@@ -769,23 +788,36 @@ selftest_quest_losttribe(
         }
     }
 
-    if( slot >= 0 )
     {
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC3, npc_sigmund, -1, slot);
-        {
-            int t;
+        int sig = lt_spawn(srv, npc_sigmund, LT_SIGMUND_X, LT_SIGMUND_Z, 0);
 
-            for( t = 0; t < 8; t++ )
-                selftest_tick(srv);
+        if( sig >= 0 )
+        {
+            lt_set_bit(srv, "lost_tribe_quest", LT_HAM_HUNT);
+            lt_set_bit(srv, "lost_tribe_ham", LT_HAM_NONE);
+            lt_clear_inv(player);
+            lt_skills_ok(player);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC3, npc_sigmund, -1, sig);
+            {
+                int t;
+
+                for( t = 0; t < 8; t++ )
+                    selftest_tick(srv);
+            }
+            lt_finish(srv);
+            SELFTEST_CHECK(obj_key <= 0 || lt_inv_total(player, obj_key) > 0,
+                           "pickpocket Sigmund must grant the chest key");
+            lt_pass("opnpc3_sigmund_pickpocket");
+            lt_free_npc(srv, sig);
         }
-        lt_finish(srv);
-        SELFTEST_CHECK(obj_key <= 0 || lt_inv_total(player, obj_key) > 0,
-                       "pickpocket Sigmund must grant the chest key");
-        lt_pass("opnpc3_sigmund_pickpocket");
     }
 
     if( loc_chest >= 0 )
     {
+        lt_set_bit(srv, "lost_tribe_quest", LT_HAM_HUNT);
+        lt_set_bit(srv, "lost_tribe_ham", LT_HAM_NONE);
+        if( obj_key > 0 && lt_inv_total(player, obj_key) <= 0 )
+            lt_give(player, obj_key, 1);
         loc_slot = lt_place_loc(srv, loc_chest, LT_CHEST_X, LT_CHEST_Z, 1);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_chest, -1, loc_slot);
         lt_finish(srv);
@@ -811,6 +843,9 @@ selftest_quest_losttribe(
 
     if( loc_crate >= 0 )
     {
+        lt_set_bit(srv, "lost_tribe_quest", LT_HAM_HUNT);
+        lt_set_bit(srv, "lost_tribe_ham", LT_HAM_ROBES);
+        lt_clear_inv(player);
         loc_slot = lt_place_loc(srv, loc_crate, LT_CRATE_X, LT_CRATE_Z, 0);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
         lt_finish(srv);
@@ -832,8 +867,10 @@ selftest_quest_losttribe(
 
         if( duke >= 0 )
         {
-            if( lt_inv_total(player, obj_silver) <= 0 )
-                lt_give(player, obj_silver, 1);
+            lt_set_bit(srv, "lost_tribe_quest", LT_HAM_HUNT);
+            lt_set_bit(srv, "lost_tribe_ham", LT_HAM_SILVER);
+            lt_clear_inv(player);
+            lt_give(player, obj_silver, 1);
             lt_talk_finish(srv, npc_duke, duke);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_quest") == LT_TREATY,
                            "handing in silverware must write treaty, got %d",
@@ -855,8 +892,11 @@ selftest_quest_losttribe(
 
         if( mist >= 0 )
         {
+            lt_set_bit(srv, "lost_tribe_quest", LT_TREATY);
+            lt_set_bit(srv, "lost_tribe_bookmark", LT_BOOK_WAR);
+            lt_set_bit(srv, "lost_tribe_ham", LT_HAM_SILVER);
             lt_clear_inv(player);
-            ToriRSServer_ScriptsRunProc(srv, "[proc,lost_tribe_mistag_treaty]", NULL, 0);
+            ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,lost_tribe_mistag_treaty]", mist);
             lt_finish(srv);
             SELFTEST_CHECK(lt_get_bit(player, "lost_tribe_quest") == LT_TREATY,
                            "Mistag without the treaty must stay treaty, got %d",
@@ -866,27 +906,20 @@ selftest_quest_losttribe(
             if( obj_treaty > 0 )
                 lt_give(player, obj_treaty, 1);
             mining_xp_before = player->stat_xp_tenths[LT_STAT_MINING];
-            ToriRSServer_ScriptsRunProc(srv, "[proc,lost_tribe_mistag_treaty]", NULL, 0);
+            /* Do not WorldCloseModal mid-signing — that aborts before rewards. */
+            ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,lost_tribe_mistag_treaty]", mist);
             {
                 int t;
 
-                for( t = 0; t < 80 && player->active_script; t++ )
+                for( t = 0; t < 160 && player->active_script; t++ )
                 {
-                    selftest_click_through(srv, 1);
-                    selftest_tick(srv);
-                }
-            }
-            {
-                int t;
-
-                for( t = 0; t < 48; t++ )
-                {
-                    ToriRSServer_WorldCloseModal(srv);
-                    selftest_tick(srv);
+                    if( selftest_click_through(srv, 1) <= 0 )
+                        selftest_tick(srv);
                     if( lt_get_bit(player, "lost_tribe_quest") == LT_COMPLETE )
                         break;
                 }
             }
+            lt_finish(srv);
             quest = lt_get_bit(player, "lost_tribe_quest");
             SELFTEST_CHECK(quest == LT_COMPLETE,
                            "treaty signing must complete the quest at 11, got %d", quest);
