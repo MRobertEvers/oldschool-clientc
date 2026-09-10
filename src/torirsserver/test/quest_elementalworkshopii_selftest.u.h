@@ -354,6 +354,21 @@ elem2_loc1(struct ToriRSServer* srv, int loc_type)
     elem2_finish(srv);
 }
 
+/* Priming levers / valves / corkscrew only `mes()` -- no pause button.
+ * Draining pages + eight idle ticks after a mes() can let a leftover
+ * resume from an earlier mesbox re-fire the same loc. */
+static void
+elem2_loc1_mes(struct ToriRSServer* srv, int loc_type)
+{
+    int t;
+
+    assert(srv);
+    assert(loc_type > 0);
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_type, -1, -1);
+    for( t = 0; t < 2; t++ )
+        selftest_tick(srv);
+}
+
 static void
 elem2_locu(struct ToriRSServer* srv, int loc_type, int obj_id)
 {
@@ -942,17 +957,17 @@ selftest_quest_elementalworkshopii(
                    "raised crane cannot take a claw");
     elem2_pass("crane_need_lower");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_LOWERED,
                    "SW lever should lower the broken crane");
     elem2_pass("fire_lever2_lower_for_claw");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_RAISED,
                    "SW lever should raise the broken crane");
     elem2_pass("fire_lever2_raise_broken");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     elem2_locu(srv, loc_crane, obj_claw);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_state") == ELEM2_FIRE_EMPTY,
                    "fitting the claw should repair fire_state");
@@ -1050,134 +1065,137 @@ selftest_quest_elementalworkshopii(
         elem2_pass("cart_place_bar");
     }
 
-    elem2_loc1(srv, loc_lever1);
+    elem2_loc1_mes(srv, loc_lever1);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_RAISED,
                    "wrong-state SE lever is a no-op");
     elem2_pass("priming_wrong_state");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_LOWERED,
                    "SW lever lowers onto the bar");
     elem2_pass("fire_lever2_lower_onto_bar");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_state") == ELEM2_FIRE_HOLDING_COLD,
                    "SW lever lifts the cold bar");
     elem2_pass("fire_lever2_lift_bar");
 
-    elem2_loc1(srv, loc_lever1);
+    elem2_loc1_mes(srv, loc_lever1);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_ABOVE_LAVA,
                    "SE lever rotates over lava");
     elem2_pass("fire_lever1_rotate_lava");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_IN_LAVA,
                    "SW lever lowers into lava");
     elem2_pass("fire_lever2_lower_into_lava");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_state") == ELEM2_FIRE_HOLDING_HOT,
                    "SW lever lifts the hot bar");
     elem2_pass("fire_lever2_lift_hot");
 
-    elem2_loc1(srv, loc_lever1);
+    elem2_loc1_mes(srv, loc_lever1);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_RAISED,
                    "SE lever rotates back over the jig");
     elem2_pass("fire_lever1_rotate_jig");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_fire_pos") == ELEM2_FIRE_LOWERED,
                    "SW lever lowers the hot bar to the jig");
     elem2_pass("fire_lever2_lower_hot_to_jig");
 
-    elem2_loc1(srv, loc_lever2);
+    elem2_loc1_mes(srv, loc_lever2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_state") == ELEM2_JIG_BAR_HOT,
                    "SW lever releases the hot bar");
     elem2_pass("fire_lever2_release_hot");
 
-    elem2_loc1(srv, loc_3way);
+    elem2_loc1_mes(srv, loc_3way);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_pos") == ELEM2_JIG_POS_PRESS,
                    "3-way trundles to the press");
     elem2_pass("3way_to_press");
 
-    elem2_loc1(srv, loc_earth);
+    elem2_loc1_mes(srv, loc_earth);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_state") == ELEM2_JIG_BAR_FLAT_HOT,
                    "earth lever flattens the hot bar");
     elem2_pass("earth_lever_press");
 
-    elem2_loc1(srv, loc_3way);
+    elem2_loc1_mes(srv, loc_3way);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_pos") == ELEM2_JIG_POS_TANK,
                    "3-way trundles to the tank");
     elem2_pass("3way_to_tank");
 
-    elem2_loc1(srv, loc_water);
+    elem2_loc1_mes(srv, loc_water);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_TANK_OPEN,
                    "water lever opens the tank");
     elem2_pass("water_lever_open");
 
-    elem2_loc1(srv, loc_corkscrew);
+    elem2_loc1_mes(srv, loc_corkscrew);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_GRABBER_OUT,
-                   "corkscrew extends the grabber");
+                   "corkscrew extends the grabber (door=%d)",
+                   elem2_get_vb(player, "elemental_quest_2_water_door"));
     elem2_pass("corkscrew_extend");
 
-    elem2_loc1(srv, loc_corkscrew);
+    elem2_loc1_mes(srv, loc_corkscrew);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_GRABBER_IN_HOT_OPEN,
-                   "corkscrew retracts with the hot bar");
+                   "corkscrew retracts with the hot bar (door=%d)",
+                   elem2_get_vb(player, "elemental_quest_2_water_door"));
     elem2_pass("corkscrew_retract_hot");
 
-    elem2_loc1(srv, loc_water);
+    elem2_loc1_mes(srv, loc_water);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_GRABBER_IN_HOT_CLOSED,
-                   "water lever seals the grabber");
+                   "water lever seals the grabber (door=%d)",
+                   elem2_get_vb(player, "elemental_quest_2_water_door"));
     elem2_pass("water_lever_shut_hot");
 
-    elem2_loc1(srv, loc_valve1);
+    elem2_loc1_mes(srv, loc_valve1);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_valve_1") == 1, "NW valve opens");
     elem2_pass("valve1_open");
 
-    elem2_loc1(srv, loc_valve2);
+    elem2_loc1_mes(srv, loc_valve2);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_state") == ELEM2_JIG_BAR_FLAT_COOL,
                    "NE valve quenches the bar");
     elem2_pass("valve2_quench");
 
-    elem2_loc1(srv, loc_valve1);
+    elem2_loc1_mes(srv, loc_valve1);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_valve_1") == 0, "NW valve shuts");
     elem2_pass("valve1_shut");
 
-    elem2_loc1(srv, loc_water);
+    elem2_loc1_mes(srv, loc_water);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_GRABBER_IN_COOL_OPEN,
                    "water lever opens on the cooled bar");
     elem2_pass("water_lever_open_cool");
 
-    elem2_loc1(srv, loc_corkscrew);
+    elem2_loc1_mes(srv, loc_corkscrew);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_GRABBER_OUT_COOL,
                    "corkscrew extends with the cooled bar");
     elem2_pass("corkscrew_extend_cool");
 
-    elem2_loc1(srv, loc_corkscrew);
+    elem2_loc1_mes(srv, loc_corkscrew);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_TANK_OPEN,
                    "corkscrew releases the cooled bar");
     elem2_pass("corkscrew_release");
 
-    elem2_loc1(srv, loc_water);
+    elem2_loc1_mes(srv, loc_water);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_water_door") == ELEM2_DOOR_TANK_CLOSED,
                    "water lever shuts the empty tank");
     elem2_pass("water_lever_shut_cool");
 
-    elem2_loc1(srv, loc_3way);
+    elem2_loc1_mes(srv, loc_3way);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_pos") == ELEM2_JIG_POS_TUNNEL,
                    "3-way trundles to the wind tunnel");
     elem2_pass("3way_to_tunnel");
 
-    elem2_loc1(srv, loc_air);
+    elem2_loc1_mes(srv, loc_air);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_air_fan_state") == 1, "air lever starts the fan");
     elem2_pass("air_lever_fan_on");
 
-    elem2_loc1(srv, loc_air);
+    elem2_loc1_mes(srv, loc_air);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_state") == ELEM2_JIG_BAR_DRY,
                    "air lever dries the bar");
     elem2_pass("air_lever_fan_off_dry");
 
-    elem2_loc1(srv, loc_3way);
+    elem2_loc1_mes(srv, loc_3way);
     SELFTEST_CHECK(elem2_get_vb(player, "elemental_quest_2_jig_pos") == ELEM2_JIG_POS_LAVA,
                    "3-way returns to the start");
     elem2_pass("3way_back_start");
