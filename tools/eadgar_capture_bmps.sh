@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/OSRS-Content/osrs239-content/server/scripts/selftest/quest_eadgar}"
 CLIENT="${TORIRS_CLIENT:-}"
 if [[ -z "$CLIENT" ]]; then
-  for c in /tmp/gp-eadgar-img-obj_opt_es/torirs /tmp/gp-eadgar-img-obj_opt/torirs "$ROOT/src/torirs"; do
+  for c in /tmp/gp-eadgar-img-obj_opt_es/torirs /tmp/gp-eadgar-img-obj_opt/torirs /tmp/chompy_torirs "$ROOT/src/torirs"; do
     if [[ -x "$c" ]]; then
       CLIENT="$c"
       break

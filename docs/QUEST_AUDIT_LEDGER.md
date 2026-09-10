@@ -78,7 +78,7 @@
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | unaudited | |  |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
-| 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
+| 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | fixed | 2026-09-10 | Gate D named BMPs (136 unique MD5) + C walk 57/0 on `cursor/eadgars-ruse-gate-d-d127` / OSRS-Content@6953dfcad. Real `~quest_complete_rewards` scroll. Leftovers: storeroom patrol is a random crate hit; Pete clue bits unused; Trollheim spell ungated; tablet/diary/cultivation/Sanfew herb-exchange incomplete; start still gates on `%troll_freed_eadgar`. Troll Stronghold (`quest_troll`) not stamped. |
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
