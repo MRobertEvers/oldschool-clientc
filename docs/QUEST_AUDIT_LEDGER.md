@@ -95,7 +95,7 @@
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
-| 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | in-progress | 2026-09-10 | claimed by cloud `gp-dt-img`. Gate D = **one named BMP per interaction** (Asgarnia, Terry, bartender, Eblis/mirrors, all four diamonds, pyramid, journals, complete scroll). Highlight reel = failed close. Leave Observatory and Desert Treasure II alone. |
+| 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | fixed | 2026-09-10 | cloud `gp-dt-img` Gate D close on `cursor/desert-treasure-i-gate-d-7269` / OSRS-Content@134480647: C walk 63/0 + 155 unique named BMPs (Asgarnia start, Terry, bartender, Eblis/mirrors, blood/smoke/ice/shadow diamonds, pyramid, journals, authored complete scroll). Leftovers (not verified-modern): pyramid maze deferred; Dig Site `%itexam` prereq deferred; ice spiked-boots path deferred; smoke ranged-ash deferred; ancient signet listed on the complete scroll but no `ancient_signet` item grant. Observatory and Desert Treasure II left alone. |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
 | 04 May 2005 | Tears of Guthix | `quest_tearsofguthix` | unaudited | |  |
 | 17 May 2005 | Zogre Flesh Eaters | `quest_zogreflesheaters` | unaudited | |  |

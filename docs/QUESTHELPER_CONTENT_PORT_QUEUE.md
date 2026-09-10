@@ -412,7 +412,7 @@ filed under `helpers/miniquests/` are at the end.
 | 137 | shadowofthestorm | `shadowofthestorm` | 759 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_shadowstorm` (3 files, 509 lines, `shadowstorm_ritual.rs2` calls `~quest_complete(quest_shadowofthestorm)`; journal wired `interface_questjournal/scripts/quest_journal.rs2:707`) already implements it — found while auditing #111's neighbours, see Log |
 | 138 | landofthegoblins | `landofthegoblins` | 760 | done | 2QP, Agility/Fishing/Thieving/Herblore 8000xp each; native dbrow+varbit schema (`%lotg`) reused; see Log |
 | 139 | elementalworkshopii | `elementalworkshopii` | 770 | done | 1QP, Smithing/Crafting 7500xp each; native dbrow+20-field varbit schema (`%elemental_quest_2_main` + sub-fields) reused, real prerequisite EW1 FINISHED; see Log |
-| 140 | deserttreasure | `deserttreasure` | 803 | in_progress | 2026-09-10 cloud `gp-dt-img` Gate D: one named BMP per interaction (Asgarnia start, four diamonds, Eblis/mirrors, pyramid, journals, authored complete). Highlight reel = failed close. Leave Observatory and DT2 alone. |
+| 140 | deserttreasure | `deserttreasure` | 803 | done | 2026-09-10 cloud `gp-dt-img` Gate D close on `cursor/desert-treasure-i-gate-d-7269` / OSRS-Content@134480647: C walk 63 checks 0 failures + 155 unique named BMPs. Leftovers (not verified-modern): pyramid maze; Dig Site `%itexam` prereq; ice spiked-boots; smoke ranged-ash; ancient signet listed on scroll with no item grant. Observatory and Desert Treasure II left alone. |
 | 141 | thedigsite | `thedigsite` | 803 | in_progress | 2026-09-09 cloud `gp-digsite-c1` FAILED CLOSE: 0 named BMPs on `cursor/the-dig-site-9058` (no cache.osrs239). Do not double-claim. |
 | 142 | troubledtortugans | `troubledtortugans` | 803 | done |  |
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
@@ -451,6 +451,13 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **Desert Treasure I Gate D close (2026-09-10):** cloud `gp-dt-img` on
+  `cursor/desert-treasure-i-gate-d-7269` / OSRS-Content@134480647. C walk
+  63/0 immediately before shop `selftest_reset_world`. 155 unique named
+  BMPs (Asgarnia, Terry, bartender, Eblis/mirrors, all four diamonds,
+  pyramid, journals, authored complete scroll). Leftovers disclosed;
+  not `verified-modern`. Observatory and Desert Treasure II left alone.
 
 - **Desert Treasure I Gate D claim (2026-09-10):** cloud `gp-dt-img` on
   `cursor/desert-treasure-i-gate-d-7269`. One named BMP per player
