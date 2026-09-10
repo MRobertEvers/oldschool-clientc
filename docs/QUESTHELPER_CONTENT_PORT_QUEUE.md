@@ -303,7 +303,7 @@ filed under `helpers/miniquests/` are at the end.
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
 | 30 | theascentofarceuus | `theascentofarceuus` | 310 | done |  |
-| 31 | trollstronghold | `trollstronghold` | 311 | done (LC) | re-audit 2026-08-10: `quest_death` (shared dir w/ Death Plateau; `death_tenzing.rs2`, `death_saba_eohric.rs2`; dbrow `quest_trollstronghold` journal wired) |
+| 31 | trollstronghold | `trollstronghold` | 311 | in_progress | 2026-09-10 claimed `gp-stronghold-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. Body is `quest_troll/`; start on Denulth. Do not stamp Death Plateau. |
 | 32 | lostcity | `lostcity` | 312 | done (LC) | re-audit 2026-08-10: `quest_zanaris` (`shamus.rs2`, `tree_spirit.rs2`, `zanaris_camp.rs2`; dbrow `quest_lostcity` journal wired) |
 | 33 | ethicallyacquiredantiquities | `ethicallyacquiredantiquities` | 313 | done |  |
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |
@@ -364,7 +364,7 @@ filed under `helpers/miniquests/` are at the end.
 | 89 | merlinscrystal | `merlinscrystal` | 490 | done (LC) | re-audit 2026-08-10: `quest_arthur` (`thrantax_altar.rs2`, `sir_mordred.rs2`; dbrow `quest_merlinscrystal` journal wired) |
 | 90 | eaglespeak | `eaglespeak` | 504 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_eaglepeak`) |
 | 91 | defenderofvarrock | `defenderofvarrock` | 508 | done | found 2026-08-10 already fully scripted (`server/scripts/quests/quest_defenderofvarrock/scripts/{dov_elias,dov_rovin,dov_invasion,dov_camdozaal,dov_journal}.rs2`, 775 lines incl. config, by an untracked earlier tick, not logged here before now) — `%dov` progress on 0..56 covers Jolly Boar Inn offer, six hunting-trail clues, armoured-zombie dungeon (bottles/mist soft-kept to one hand-spawned zombie per gate), invasion + candidate/Aeonisig sigil check, Camdozaal barronite/golem-core forge, `~quest_complete(quest_defenderofvarrock)`; dbrow id 188 endstate 56, journal wired `interface_questjournal/scripts/quest_journal.rs2:903`; see Log |
-| 92 | priestinperil | `priestinperil` | 511 | in_progress | 2026-09-10 claimed `gp-peril-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 92 | priestinperil | `priestinperil` | 511 | done | 2026-09-10 parent-verified 62 unique-MD5 named BMPs on OSRS-Content@c60760532. Leftovers: monument TOSTRING underflow, spawned Drezel named Someone. |
 | 93 | plaguecity | `plaguecity` | 514 | done (LC) | re-audit 2026-08-10: `quest_elena` (`edmond.rs2`, `alrena.rs2`; dbrow `quest_plaguecity` journal wired) |
 | 94 | piratestreasure | `piratestreasure` | 520 | done (LC) | re-audit 2026-08-10: pre-Sept-2004 quest, belongs on IN-LC list not this queue — LC's own internal codename is `quest_hunt` (not `piratestreasure`; `server/scripts/quests/quest_hunt/scripts/{redbeard_frank,luthas,dig,banana_crate,food_store,pirate_message,hunt_journal}.rs2`, 403 lines total, dbrow `quest_piratestreasure` id 16, journal wired `interface_questjournal/scripts/quest_journal.rs2:447`) |
 | 95 | shilovillage | `shilovillage` | 531 | done (LC) | re-audit 2026-08-10: `quest_zombiequeen` (`rashiliyia.rs2`, `nazastarool.rs2`, `mosol_rei.rs2`; dbrow `quest_shilovillage` journal wired) |
