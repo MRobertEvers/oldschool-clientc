@@ -369,6 +369,13 @@ selftest_quest_fluffs(
                            "climbing the lumber-yard ladder must leave the player alive");
             fluffs_pass("oploc1_lumberyard_ladder");
         }
+        /* Fence/ladder park on p_delay. WorldCloseModal aborts a parked
+         * script; leave none sitting on the one player slot before OPHELDU
+         * or the seasoning mesbox is dropped ("suspended while oploc1 waits"). */
+        fluffs_close(srv);
+        player->active_script = NULL;
+        for( i = 0; i < 4; i++ )
+            selftest_tick(srv);
 
         /* ---- OPHELDU doogle + raw sardine both directions ---- */
         fluffs_clear_inv(player);
