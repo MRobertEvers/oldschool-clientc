@@ -120,7 +120,7 @@ for spec in "${shots[@]}"; do
   TORIRS_NET_CHEAT="god 1;$cheat" \
   TORIRS_MAX_FRAMES="$frames" \
   TORIRS_EXIT_BMP="$dest" \
-  "$CLIENT" --manifest "$MANIFEST" --user dplateau --pass a || true
+  "$CLIENT" --manifest "$MANIFEST" --user dplateau --pass a --soft3d || true
   if [[ ! -s "$dest" ]]; then
     echo "WARN missing $dest" >&2
   fi
