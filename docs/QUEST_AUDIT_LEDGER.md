@@ -79,7 +79,7 @@
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
-| 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
+| 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | fixed | 2026-09-10 | Gate D: 182 named BMPs (182 unique MD5/blobs) on `cursor/shades-of-mortton-gate-d-c930` / OSRS-Content@be3b1090ae. C walk 12 checks, 0 failures. Leftovers: random afflicted flavour words; client font kerning on scroll/chatheads; Dampe coffin lock/repair variants; most catacomb chest-key mes; Flamtaer overlay numeric flicker; mes()-only chat boxed for evidence. Not verified-modern. |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-10 | REOPENED: 8 named BMPs is a highlight reel (C walk had 42 checks). Recapture every Ghrim/Vargas/Brand/Astrid/Sigrid/Derrik interaction. Prior 8 files remain on OSRS-Content@a07820392. |

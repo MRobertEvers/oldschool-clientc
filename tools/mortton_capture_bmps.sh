@@ -205,6 +205,7 @@ CLIENT="${MORTTON_CLIENT:-$ROOT/src/torirs}"
 if [[ ! -x "$CLIENT" ]]; then
   CLIENT="$ROOT/src/torirs"
 fi
+USER="${MORTTON_USER:-testc}"
 
 only="${1:-}"
 for shot in "${shots[@]}"; do
@@ -226,7 +227,7 @@ for shot in "${shots[@]}"; do
   TORIRS_EXIT_BMP="$dest" \
   TORIRS_MAX_FRAMES="${TORIRS_MAX_FRAMES:-240}" \
   SDL_VIDEODRIVER=dummy \
-  "$CLIENT" --manifest "$MANIFEST" --user testc --pass test --soft3d || true
+  "$CLIENT" --manifest "$MANIFEST" --user "$USER" --pass test --soft3d || true
   if [[ ! -f "$dest" ]]; then
     echo "MISSING $dest" >&2
   else
