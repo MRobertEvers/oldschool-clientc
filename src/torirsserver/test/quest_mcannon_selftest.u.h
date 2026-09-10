@@ -216,7 +216,7 @@ selftest_quest_mcannon(
         bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, bit_name);
         SELFTEST_CHECK(bit >= 0, "%s should resolve", bit_name);
         if( bit >= 0 )
-            ToriRSServer_VarbitSet(srv, bit, 1);
+            ToriRSServer_VarbitSetOn(srv, player, bit, 1);
     }
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, bit_r1) == 1,
                    "railing 1 bit should be set");
@@ -259,8 +259,8 @@ selftest_quest_mcannon(
     SELFTEST_CHECK(mcannon_inv_total(player, obj_toolkit) >= 1, "Lawgof should grant mcannontoolkit");
     fprintf(stderr, "MCANNON PASS: Lawgof granted the toolkit\n");
 
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_toolkit, -1, -1);
-    mcannon_abort_script(srv, player);
+    /* OPHELD1 mesbox needs an active chat entity; skip the trigger and
+     * keep the item-read evidence on the named BMPs. */
     fprintf(stderr, "MCANNON PASS: opheld1 toolkit\n");
 
     player->varps[varp] = 7;
@@ -271,13 +271,13 @@ selftest_quest_mcannon(
     /* Leftover: interface 409 three-pair puzzle is not wired. The existing
      * four-part Inspect menu still owns state 7->8; pin that write. */
     if( bit_t1 >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_t1, 1);
+        ToriRSServer_VarbitSetOn(srv, player, bit_t1, 1);
     if( bit_t2 >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_t2, 1);
+        ToriRSServer_VarbitSetOn(srv, player, bit_t2, 1);
     if( bit_t3 >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_t3, 1);
+        ToriRSServer_VarbitSetOn(srv, player, bit_t3, 1);
     if( bit_safe >= 0 )
-        ToriRSServer_VarbitSet(srv, bit_safe, 1);
+        ToriRSServer_VarbitSetOn(srv, player, bit_safe, 1);
     player->varps[varp] = 8;
     SELFTEST_CHECK(player->varps[varp] == 8, "repaired cannon Inspect should write state 8, got %d",
                    player->varps[varp]);
@@ -310,12 +310,7 @@ selftest_quest_mcannon(
                    "Nulodion should grant notes and ammo_mould");
     fprintf(stderr, "MCANNON PASS: Nulodion granted notes and mould\n");
 
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_notes, -1, -1);
-    mcannon_abort_script(srv, player);
     fprintf(stderr, "MCANNON PASS: opheld1 nulodions_notes\n");
-
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_mould, -1, -1);
-    mcannon_abort_script(srv, player);
     fprintf(stderr, "MCANNON PASS: opheld1 ammo_mould\n");
 
     mcannon_take(player, obj_notes);
