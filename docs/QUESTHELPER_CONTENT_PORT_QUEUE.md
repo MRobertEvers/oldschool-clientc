@@ -278,7 +278,7 @@ filed under `helpers/miniquests/` are at the end.
 | 3 | witchspotion | `witchspotion` | 162 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 4 | impcatcher | `impcatcher` | 187 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 5 | xmarksthespot | `xmarksthespot` | 204 | done |  |
-| 6 | tearsofguthix | `tearsofguthix` | 209 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
+| 6 | tearsofguthix | `tearsofguthix` | 209 | in_progress | 2026-09-10 claimed `gp-tog-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
 | 7 | entertheabyss | `entertheabyss` | 212 | done |  |
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
@@ -373,7 +373,7 @@ filed under `helpers/miniquests/` are at the end.
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
 | 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | 2026-09-10 parent-verified 143 unique-MD5 named BMPs on OSRS-Content@99d4904103. Supersedes 8-shot reel. Leftovers: kingdom collect loop, condensed courtship. |
 | 100 | thefeud | `thefeud` | 550 | done | 2026-09-10 parent-verified 104 unique-MD5 named BMPs on OSRS-Content@83087eac88. Leftovers: combination-lock IF narrated; snake-charm Attack-only; mayor can name Someone; font kerning. |
-| 101 | thegolem | `thegolem` | 551 | in_progress | 2026-09-10 claimed `gp-golem-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 101 | thegolem | `thegolem` | 551 | done | 2026-09-10 parent-verified 67 unique-MD5 named BMPs on OSRS-Content@40f9cf07a1. Leftovers: golem named Someone; letter debug-grant; display-case IF unwired; statuette-turn soft-skip; carpet ride scroll-text only; font kerning. |
 | 102 | theredreef | `theredreef` | 559 | done |  |
 | 103 | misthalinmystery | `misthalinmystery` | 564 | done |  |
 | 104 | thefremennikexiles | `thefremennikexiles` | 573 | done |  |
