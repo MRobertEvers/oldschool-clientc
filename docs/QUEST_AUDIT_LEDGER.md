@@ -75,7 +75,7 @@
 | 29 Jun 2004 | Priest in Peril | `quest_priestperil` | unaudited | |  |
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | unaudited | |  |
 | 09 Aug 2004 | Death Plateau | `quest_death` | unaudited | |  |
-| 24 Aug 2004 | Troll Stronghold | `quest_troll` | in-progress | 2026-09-10 | claimed `gp-stronghold-img`. Gate D = one named BMP per interaction. |
+| 24 Aug 2004 | Troll Stronghold | `quest_troll` | fixed | 2026-09-10 | Gate D named BMPs (107 unique MD5) + C walk 48/0 on `cursor/troll-stronghold-gate-d-2037` / OSRS-Content@9705435dc. Real `~quest_complete_rewards` scroll. Leftovers: Eadgar's Ruse stew/goutweed in `troll_eadgar.rs2` (sibling); journal complete still prints some mid-quest lines when `troll_entered_stronghold` is unset. Death Plateau (`quest_death` / `%death_equiproom`) not stamped. |
 | 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | unaudited | |  |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
