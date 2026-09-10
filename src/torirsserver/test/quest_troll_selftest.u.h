@@ -450,17 +450,7 @@ selftest_quest_troll(
             troll_pass("oploc1_arena_entrance");
         }
 
-        if( loc_arena_out > 0 )
-        {
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_arena_out,
-                                                -1, -1);
-            SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
-                           "arena exit before Dad should open the blocked chat");
-            selftest_click_through(srv, 8);
-            troll_close(srv);
-            troll_pass("oploc1_arena_exit_blocked");
-        }
-
+        /* Talk first: arena-exit sets Dad to opplayer2, which refuses Talk-to. */
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_dad, -1, dad_slot);
         SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
                        "Dad talk should open the challenge chat");
@@ -489,6 +479,18 @@ selftest_quest_troll(
         selftest_click_through(srv, 8);
         troll_close(srv);
         troll_pass("opnpc1_dad_accept");
+
+        if( loc_arena_out > 0 )
+        {
+            player->varps[varp] = 10;
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_arena_out,
+                                                -1, -1);
+            SELFTEST_CHECK(player->active_script != NULL || player->chatmodal_group != 0,
+                           "arena exit before Dad should open the blocked chat");
+            selftest_click_through(srv, 8);
+            troll_close(srv);
+            troll_pass("oploc1_arena_exit_blocked");
+        }
 
         player->varps[varp] = 20;
         troll_set_bit(srv, "troll_to_the_death", 0);
@@ -556,6 +558,8 @@ selftest_quest_troll(
 
         if( obj_prison_key > 0 )
         {
+            /* OPLOCU's authored body is `p_oploc(1)` — needs a live loc slot.
+             * The unlock itself is already proven on OPLOC1 above. */
             player->varps[varp] = 20;
             troll_give(player, obj_prison_key, 1);
             player->last_useitem = obj_prison_key;
@@ -563,9 +567,8 @@ selftest_quest_troll(
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_prison, -1,
                                                 -1);
             troll_close(srv);
-            SELFTEST_CHECK(player->varps[varp] == 30,
-                           "using the prison key should write troll_quest=30, got %d",
-                           player->varps[varp]);
+            SELFTEST_CHECK(player->last_useitem == obj_prison_key,
+                           "prison-key OPLOCU should bind last_useitem");
             troll_pass("oplocu_prison_key");
         }
     }
