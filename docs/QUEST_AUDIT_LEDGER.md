@@ -91,7 +91,7 @@
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
-| 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | in-progress | 2026-09-10 | claimed by cloud `gp-md-img`. Gate D = **one named BMP per interaction** (Hamal offer/diplomacy/food/corpse, Jokul/Svidi, rope/rockslide, lake/mud/pole, spirit pool, Kendal, Ragnar/burial, Brundt diplomacy, journals, authored complete scroll). Highlight reel = failed close. |
+| 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | fixed | 2026-09-10 | cloud `gp-md-img` Gate D: 89 named BMPs / 89 unique MD5s on `cursor/mountain-daughter-gate-d-56e1` / OSRS-Content@983d39b77. C walk all PASS. Leftovers: Asleif loc-voice is mesbox (no cache chathead); pole=`mdaughter_stick` only; planks=four woods; gloves=any hands slot; return flatstone always succeeds; burial is island-3 zone. Not verified-modern. |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
