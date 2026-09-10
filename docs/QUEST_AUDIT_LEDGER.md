@@ -76,7 +76,7 @@
 | 13 Jul 2004 | Nature Spirit | `quest_druidspirit` | fixed | 2026-09-10 | parent-verified 128 unique-MD5 named BMPs on `cursor/nature-spirit-gate-d-1728` / OSRS-Content@0bbfa2f30. Sampled Drezel offer/choice, gate warning, Filliman apparition, fungi, sickle bless, complete scroll, journal. Leftover: Drezel never writes `%druidspirit = ^druidspirit_blessed`. Not verified-modern. |
 | 09 Aug 2004 | Death Plateau | `quest_death` | in-progress | 2026-09-10 | claimed `gp-plateau-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Shared dir with Troll Stronghold start on Denulth — capture Death Plateau only. |
 | 24 Aug 2004 | Troll Stronghold | `quest_troll` | in-progress | 2026-09-10 | claimed `gp-stronghold-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Start is Denulth after Death Plateau; do not stamp Death Plateau. |
-| 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | in-progress | 2026-09-10 | claimed `gp-tbwt-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 14 Sep 2004 | Tai Bwo Wannai Trio | `quest_tbwt` | fixed | 2026-09-10 | Gate D: 160 unique-MD5 named BMPs on `cursor/tai-bwo-wannai-trio-gate-d-9796`. Sampled Timfraku title/start-choice, Jungle Potion prereq, decline/accept, Tamayu spear, Tinsay rum, Lubufu apprentice, 2000-coin mesbox, authored complete scroll, journal complete. Leftovers: Tamayu/Tinsay random flavour lines not fully enumerated; client font kerning runs words together. Not verified-modern. |
 | 20 Sep 2004 | Regicide | `quest_regicide` | unaudited | |  |
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
