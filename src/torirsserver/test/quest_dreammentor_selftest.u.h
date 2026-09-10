@@ -270,19 +270,6 @@ dream_varp(struct ToriRSServer* srv, const char* name, int value)
 }
 
 static int
-dream_get_varp(struct ToriRSServerPlayer* player, const char* name)
-{
-    int varp;
-
-    assert(player);
-    assert(name);
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, name);
-    if( varp < 0 )
-        return -1;
-    return player->varps[varp];
-}
-
-static int
 dream_prog(struct ToriRSServerPlayer* player)
 {
     return dream_get_vb(player, "dream_prog");
@@ -392,11 +379,8 @@ dream_place_loc(struct ToriRSServer* srv, int loc_id, int x, int z, int level)
 static void
 dream_oploc(struct ToriRSServer* srv, int loc_id, int loc_slot)
 {
-    struct ToriRSServerPlayer* player;
-
     assert(srv);
-    player = srv->active_player;
-    assert(player);
+    assert(srv->active_player);
     if( loc_slot >= 0 )
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_id, -1, loc_slot);
     else
