@@ -93,7 +93,7 @@
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
-| 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
+| 04 Apr 2005 | The Feud | `quest_thefeud` | in-progress | 2026-09-10 | claimed by cloud `gp-feud-img`. Gate D = **one named BMP per interaction** (Ali offer/decline/thieving-gate/finish, barman, kebab man, snake charmer, hag, doormen, camel seller, street urchin, both bosses, mayor, journals, authored complete scroll). Highlight reel = failed close. |
 | 11 Apr 2005 | The Golem | `quest_golem` | unaudited | |  |
 | 18 Apr 2005 | Desert Treasure I | `quest_deserttreasure` | unaudited | |  |
 | 26 Apr 2005 | Icthlarin's Little Helper | `quest_icthlarin` | unaudited | |  |
