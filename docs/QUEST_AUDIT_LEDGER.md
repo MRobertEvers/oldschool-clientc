@@ -90,7 +90,7 @@
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | in-progress | 2026-09-09 | cloud `gp-fenk-c1` FAILED CLOSE: **0 named BMPs** on `cursor/creature-of-fenkenstrain-352d` / OSRS-Content@f432a463 (no cache.osrs239). Do not double-claim. Gate D still open. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
 | 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
-| 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | in-progress | 2026-09-10 | claimed by cloud `gp-osf-img`. Gate D C walk + named BMPs in progress. |
+| 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | fixed | 2026-09-10 | Gate D close on `cursor/one-small-favour-gate-d-71f8` / OSRS-Content@ddc0603c9c: 136 named BMPs (136 unique MD5s), C walk 97 checks 0 failures (`TORIRSSERVER_SELFTEST_OSF_ONLY`). Leftovers (not verified-modern): Shilo Village prereq soft-skipped (body deferred); 8-lamp puzzle collapsed to one Gnormadium action; vane search/hammer/search collapsed to one search; gnome glider Feldip unlock narrated only; lost-item repurchase deferred; authored dialogue is original wording. |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |
 | 04 Apr 2005 | The Feud | `quest_thefeud` | unaudited | |  |
