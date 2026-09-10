@@ -3221,6 +3221,15 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_PRIESTPERIL_ONLY") )
+    {
+        selftest_quest_priestperil(srv, player);
+        fprintf(stderr, "ToriRSServer priestperil selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("priestperil");
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and

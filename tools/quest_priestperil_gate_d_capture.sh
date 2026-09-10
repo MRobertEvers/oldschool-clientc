@@ -27,7 +27,7 @@ epoch=dat2
 game=oldschool
 revision=239
 quirks=none
-dir=../cache.osrs239
+dir=/workspace/cache.osrs239
 spawn=50,50
 
 [net:boot]
@@ -38,7 +38,7 @@ port=43595
 client_version=239
 user=testc
 pass=test
-scripts=../OSRS-Content/osrs239-content/server/scripts/build
+scripts=/workspace/OSRS-Content/osrs239-content/server/scripts/build
 rsa_exp=10001
 rsa_mod=c30fcbc01e071ff224ea1a6508052d1140f87abaf8f40f7004efa59926708e5d99e2bc832fdca8276482dd0d690f644156850f47886f8032b3e9aa52508d24e8c9b7c50b8d8b8716fb8c3993bb6ce15e2124883edb7aaa7241a8b530f806c61cd1345879413fc105980a4f5fcdb3f0d743b14b16228b4d1496c83d3755a78a19
 
@@ -128,7 +128,7 @@ for shot in "${SHOTS[@]}"; do
   TORIRS_MAX_FRAMES="${TORIRS_MAX_FRAMES:-420}" \
   TORIRS_EXIT_BMP="$dest" \
   TORIRS_NET_CHEAT="god 1;priestperilbmp ${shot}" \
-    "$CLIENT" --manifest "$MANIFEST" >/tmp/gp-peril-img-"$shot".log 2>&1 || true
+    "$CLIENT" --manifest "$MANIFEST" --soft3d >/tmp/gp-peril-img-"$shot".log 2>&1 || true
   if [[ ! -s "$dest" ]]; then
     echo "FAIL $shot (no bmp)" >&2
   fi
