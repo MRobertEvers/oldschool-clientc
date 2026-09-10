@@ -371,7 +371,7 @@ filed under `helpers/miniquests/` are at the end.
 | 96 | thelosttribe | `thelosttribe` | 532 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_losttribe` — see IN-LC table |
 | 97 | demonslayer | `demonslayer` | 540 | done (LC) | re-audit 2026-08-10: `quest_demon` (`delrith.rs2`; dbrow `quest_demonslayer` journal wired) |
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
-| 99 | throneofmiscellania | `throneofmiscellania` | 546 | in_progress | 2026-09-10 REOPENED: 8 BMPs vs 42 C checks. Recapture every interaction. |
+| 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | 2026-09-10 Gate D: 143 unique named BMPs; C walk 96/0. Leftovers: kingdom collect loop narrated 75% set; courtship condensed; Fremennik Trials journal-only. |
 | 100 | thefeud | `thefeud` | 550 | done | npcs=feudalim,feudalim,shantay (helper spellings don't resolve -- cache wins, see Log) |
 | 101 | thegolem | `thegolem` | 551 | done (LC) | re-audit 2026-08-10: `quest_golem` (`golem.rs2`; dbrow `quest_golem` journal wired) |
 | 102 | theredreef | `theredreef` | 559 | done |  |

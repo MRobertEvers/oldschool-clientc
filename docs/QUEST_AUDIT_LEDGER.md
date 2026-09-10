@@ -82,7 +82,7 @@
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
-| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-10 | REOPENED: 8 named BMPs is a highlight reel (C walk had 42 checks). Recapture every Ghrim/Vargas/Brand/Astrid/Sigrid/Derrik interaction. Prior 8 files remain on OSRS-Content@a07820392. |
+| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | done | 2026-09-10 | Gate D recapture: 143 unique named BMPs (every guard/Vargas/Brand/Astrid/Ghrim/Sigrid/Derrik/journal/scroll beat). C walk 96/0. Leftovers: Managing Miscellania collect loop still one narrated 75% set; courtship condensed (emotes narrated); Fremennik Trials journal-only. Not verified-modern. |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-09 | cloud `gp-mine-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/haunted-mine-re-audit-e724` (no `cache.osrs239` on the VM). Do not double-claim. Gate D still open. |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | in-progress | 2026-09-09 | cloud `gp-troll-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/troll-romance-reaudit-1691` / OSRS-Content@bbc11065. Do not double-claim. Gate D still open. |
