@@ -159,7 +159,7 @@
 | 04 Jan 2018 | Dragon Slayer II | `quest_dragonslayer2` | unaudited | |  |
 | 19 Apr 2018 | Tale of the Righteous | `quest_taleoftherighteous` | unaudited | |  |
 | 24 May 2018 | A Taste of Hope | `quest_tasteofhope` | in-progress | 2026-09-10 | claimed `gp-toh-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
-| 06 Sep 2018 | Making Friends with My Arm | `quest_makingfriendswithmyarm` | in-progress | 2026-09-10 | claimed `gp-mfwma-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 06 Sep 2018 | Making Friends with My Arm | `quest_makingfriendswithmyarm` | fixed | 2026-09-10 | parent-verified 81 named / 81 unique-MD5 BMPs cherry-picked from stale-base `cursor/mfwma-gate-d-content-792b` onto OSRS-Content@ec63b7e13a (LotG/Dream/Grim/KR retained; worker SHA 51be9c555f not merged wholesale). Sampled Burntmeat qualify-fail split (My Arm / Construction 35 / Firemaking 66 / Mining 72 / Agility 68), offer p_choice2 Yes/Not now, refuse/accept, My Arm roof p_choice2, authored complete scroll (2 QP, Construction/Firemaking/Mining/Agility tenths 100000|400000|500000|500000, Weiss salt mines, disease-free herb patch), journal QUEST COMPLETE. Leftovers: leftover_troll_stronghold_pathing; leftover_larry_boat_instance; leftover_weiss_cliff_rope; leftover_cave_sneak_pathing; leftover_coffin_build_if; leftover_dontknowwhat_mother_fight; leftover_goat_dung_gather; leftover_firepit_unlock_ui; leftover_extra_refuse_trees. No unique MERGE hunks (Eadgar cook / My Arm / Larry / Apoth / WOM already in-tree). Not verified-modern. |
 | 10 Jan 2019 | The Forsaken Tower | `quest_forsakentower` | unaudited | |  |
 | 10 Jan 2019 | The Ascent of Arceuus | `quest_ascentofarceuus` | unaudited | |  |
 | 07 Feb 2019 | X Marks the Spot | `quest_xmarksthespot` | unaudited | |  |
@@ -183,7 +183,7 @@
 | 10 Jan 2024 | Children of the Sun | `quest_childrenofthesun` | unaudited | |  |
 | 21 Feb 2024 | Defender of Varrock | `quest_defenderofvarrock` | unaudited | |  |
 | 20 Mar 2024 | Twilight's Promise | `quest_twilightspromise` | unaudited | |  |
-| 20 Mar 2024 | Perilous Moons | `quest_perilousmoons` | unaudited | |  |
+| 20 Mar 2024 | Perilous Moons | `quest_perilousmoons` | in-progress | 2026-09-10 | claimed `gp-pmoon-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 20 Mar 2024 | At First Light | `quest_atfirstlight` | unaudited | |  |
 | 20 Mar 2024 | The Ribbiting Tale of a Lily Pad Labour Dispute | `quest_ribbitingtale` | unaudited | |  |
 | 10 Jul 2024 | While Guthix Sleeps | `quest_whileguthixsleeps` | unaudited | |  |
