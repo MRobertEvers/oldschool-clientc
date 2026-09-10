@@ -175,6 +175,7 @@ selftest_quest_itexam(
         int obj_tablet = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zarosstonetablet");
         int obj_gold = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "gold_bar");
         int obj_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "digchestkey");
+        int obj_opal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "opal");
         int stat_agility = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "agility");
         int stat_herblore = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "herblore");
         int stat_thieving = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "thieving");
@@ -193,7 +194,7 @@ selftest_quest_itexam(
                 obj_powder >= 0 && obj_nitrate >= 0 && obj_charcoal >= 0 &&
                 obj_pestle >= 0 && obj_ground >= 0 && obj_pre >= 0 && obj_post >= 0 &&
                 obj_root >= 0 && obj_compound >= 0 && obj_tinder >= 0 && obj_tablet >= 0 &&
-                obj_gold >= 0 && obj_key >= 0 && stat_agility >= 0 && stat_herblore >= 0 &&
+                obj_gold >= 0 && obj_key >= 0 && obj_opal >= 0 && stat_agility >= 0 && stat_herblore >= 0 &&
                 stat_thieving >= 0 && stat_mining >= 0,
             "the ::itexamrun C-side names should all resolve");
 
@@ -360,21 +361,59 @@ selftest_quest_itexam(
         player->varps[varp_errands] = 0;
         {
             int s1 = npc_spawn(srv, npc_student1, 3362, 3398, 0);
+            int s2 = npc_spawn(srv, npc_student2, 3345, 3425, 0);
+            int s3 = npc_spawn(srv, npc_student3, 3369, 3419, 0);
 
             ToriRSServer_WorldTeleport(srv, 0, 3362, 3398);
             selftest_tick(srv);
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student1, -1, s1);
             biohazard_run_dialogue(srv, player, 0);
-            SELFTEST_CHECK((player->varps[varp_errands] & 3) == 2,
-                           "student1 second-exam tips should mark errand 0 answered, bits=%d",
+            ToriRSServer_WorldTeleport(srv, 0, 3345, 3425);
+            selftest_tick(srv);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student2, -1, s2);
+            biohazard_run_dialogue(srv, player, 0);
+            ToriRSServer_WorldTeleport(srv, 0, 3369, 3419);
+            selftest_tick(srv);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student3, -1, s3);
+            biohazard_run_dialogue(srv, player, 0);
+            SELFTEST_CHECK(player->varps[varp_errands] == 42,
+                           "all three second-exam tips should mark errands answered, got %d",
                            player->varps[varp_errands]);
-            if( (player->varps[varp_errands] & 3) == 2 )
-                fprintf(stderr, "  PASS  itexam step 3: student1 second-exam tips\n");
+            if( player->varps[varp_errands] == 42 )
+                fprintf(stderr, "  PASS  itexam step 3: second-exam student tips\n");
+
+            player->varps[varp_level] = 4; /* third_exam */
+            player->varps[varp_errands] = 0;
+            inv_set(player, 5, obj_opal, 1);
+            ToriRSServer_WorldTeleport(srv, 0, 3362, 3398);
+            selftest_tick(srv);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student1, -1, s1);
+            biohazard_run_dialogue(srv, player, 0);
+            ToriRSServer_WorldTeleport(srv, 0, 3369, 3419);
+            selftest_tick(srv);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student3, -1, s3);
+            biohazard_run_dialogue(srv, player, 0);
+            /* student2 third-exam: first talk starts the opal errand. */
+            ToriRSServer_WorldTeleport(srv, 0, 3345, 3425);
+            selftest_tick(srv);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student2, -1, s2);
+            biohazard_run_dialogue(srv, player, 0);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_student2, -1, s2);
+            biohazard_run_dialogue(srv, player, 0);
+            SELFTEST_CHECK(player->varps[varp_errands] == 42,
+                           "all three third-exam tips should mark errands answered, got %d",
+                           player->varps[varp_errands]);
+            SELFTEST_CHECK(!itexam_inv_has(player, obj_opal),
+                           "student2 third-exam tips should consume the opal");
+            if( player->varps[varp_errands] == 42 )
+                fprintf(stderr, "  PASS  itexam step 4: third-exam student tips + opal\n");
             if( s1 >= 0 )
-            {
                 ToriRSServer_WorldNpcFree(srv, s1);
-                ToriRSServer_WorldNpcReap(srv);
-            }
+            if( s2 >= 0 )
+                ToriRSServer_WorldNpcFree(srv, s2);
+            if( s3 >= 0 )
+                ToriRSServer_WorldNpcFree(srv, s3);
+            ToriRSServer_WorldNpcReap(srv);
         }
 
         /* ---- step 5: tea + panning loc, then talisman on expert (opnpcu) ---- */

@@ -66,7 +66,7 @@
 | 07 May 2003 | Watchtower | `quest_itwatchtower` | unaudited | |  |
 | 27 May 2003 | Dwarf Cannon | `quest_mcannon` | unaudited | |  |
 | 09 Jun 2003 | Murder Mystery | `quest_murder` | unaudited | |  |
-| 09 Jul 2003 | The Dig Site | `quest_itexam` | in-progress | 2026-09-09 | claimed by cloud `gp-digsite-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close or disk-only BMP list is a failed close. |
+| 09 Jul 2003 | The Dig Site | `quest_itexam` | in-progress | 2026-09-09 | cloud `gp-digsite-c1` FAILED CLOSE: leftover expansion + C walk on `cursor/the-dig-site-9058` but **0 named BMPs** (no `cache.osrs239` / `main_file_cache.dat2` on the VM; selftest dies at collision before `::itexamrun`). Do not double-claim. Gate D still open. Wiki article oldid `15166737`, transcript `15029162`, quick guide `15161272`. QH `thedigsite` `--check` OK (dbrow guess `quest_thedigsite` is pack `quest_digsite`). Expanded: exam 2/3 student-tip gating/scoring, level-1 dig no longer requires leather gloves/boots (wiki items + QH), `cam_shake`/`cam_reset` on blast and drop, trowel bank replace, barrel-vial transcript, ASCII mes dashes. Remaining leftovers: no pack certificate IF; QH display names teddy/cup/skull still `rock_sample*` ItemIDs (pack wins); full 3-question exam not driven in C; `::complete quest_digsite` twice not run. |
 | 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | unaudited | |  |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
 | 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | unaudited | |  |
