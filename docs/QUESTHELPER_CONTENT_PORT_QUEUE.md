@@ -340,7 +340,7 @@ filed under `helpers/miniquests/` are at the end.
 | 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done | 2026-09-10 parent-verified 82 unique-MD5 named BMPs on OSRS-Content@c0502dbec0. Leftovers: Curpile named Someone; font kerning. |
 | 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done |  |
 | 67 | currentaffairs | `currentaffairs` | 407 | done |  |
-| 68 | zogreflesheaters | `zogreflesheaters` | 410 | in_progress | 2026-09-10 claimed `gp-zfe-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
+| 68 | zogreflesheaters | `zogreflesheaters` | 410 | done | 2026-09-10 parent-verified 88 unique-MD5 named BMPs on OSRS-Content@749c212455. Leftovers: barricade smash anim deferred; portrait crafting always-good; zogre disease bite unwired; transformed Sithik keeps human chathead; font kerning. |
 | 69 | treegnomevillage | `treegnomevillage` | 418 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_tree`) |
 | 70 | templeofikov | `templeofikov` | 419 | done (LC) | re-audit 2026-08-10: `quest_ikov` (`ikov_firewarrior.rs2`, `ikov_lucien.rs2`; dbrow `quest_templeofikov` journal wired) |
 | 71 | observatoryquest | `observatoryquest` | 424 | done (LC) | re-audit 2026-08-10: `quest_itgronigen` (`observatory_professor.rs2`, `observatory_assistant.rs2`, `goblin_guard.rs2`; dbrow `quest_observatory` journal wired) |
@@ -435,7 +435,7 @@ filed under `helpers/miniquests/` are at the end.
 | 160 | thefinaldawn | `thefinaldawn` | 1,274 | done |  |
 | 161 | secretsofthenorth | `secretsofthenorth` | 1,293 | done |  |
 | 162 | theforsakentower | `theforsakentower` | 1,353 | done |  |
-| 163 | recruitmentdrive | `recruitmentdrive` | 1,425 | done (LC) | OSRS has 9 rs2 files (not in PORT_QUEUE table) |
+| 163 | recruitmentdrive | `recruitmentdrive` | 1,425 | in_progress | 2026-09-10 claimed `gp-rd-img` on cache image `bld-20260910-ed0a006f`. Prior done (LC); Gate D recapture. |
 | 164 | akingdomdivided | `akingdomdivided` | 1,560 | done |  |
 | 165 | theheartofdarkness | `theheartofdarkness` | 1,582 | done |  |
 | 166 | thecurseofarrav | `thecurseofarrav` | 1,665 | done |  |
