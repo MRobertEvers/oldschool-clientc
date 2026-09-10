@@ -126,6 +126,10 @@ report 0 `.bmp` files even when the content SHA has them. Commit the
 BMPs in OSRS-Content **and** push that SHA, then move the parent
 gitlink.
 
+**Workers must install `cache.osrs239` before any capture.**
+`tools/fetch_cache_osrs239.sh` (OpenRS2 live b239 `#2644` →
+`cache.osrs239/main_file_cache.*`). No cache = no Gate D. Do not close.
+
 **One named BMP per player interaction. A highlight reel is a failed close.**
 Gate D is not "8–10 shots of the critical path." Capture **every**
 player-facing interaction on the quest: every `opnpc` / `oploc` /
