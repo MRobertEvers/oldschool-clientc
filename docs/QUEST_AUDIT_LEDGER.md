@@ -81,7 +81,7 @@
 | 05 Oct 2004 | Eadgar's Ruse | `quest_eadgar` | unaudited | |  |
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
-| 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
+| 17 Nov 2004 | Horror from the Deep | `quest_horror` | fixed | 2026-09-10 | Gate D: 155 named BMPs (155 unique blobs) on OSRS-Content@27971964fd916d20f30fb6685bf94acf57e28165 `selftest/quest_horror/`. C walk 44 checks / 0 failures (`quest_horror_selftest.u.h`). Authored complete via `[queue,horror_quest_complete]`. Leftovers (not verified-modern): client font kerning collapses spaces; mother colour cycle has no authored per-colour mesboxes (BMP restates the six forms); combat walk is godmode; Jr/mother findhero may skip to the authored complete queue; Gunnjorn key lives in area_barbarian_outpost; horror_rockcrab.rs2 stays under quest_viking; basalt slip is agility-random; disclosed combat simplifications. |
 | 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-10 | REOPENED: 8 named BMPs is a highlight reel (C walk had 42 checks). Recapture every Ghrim/Vargas/Brand/Astrid/Sigrid/Derrik interaction. Prior 8 files remain on OSRS-Content@a07820392. |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-09 | cloud `gp-mine-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/haunted-mine-re-audit-e724` (no `cache.osrs239` on the VM). Do not double-claim. Gate D still open. |
