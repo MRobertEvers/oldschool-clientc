@@ -200,6 +200,7 @@ rt_tele(struct ToriRSServer* srv, int x, int z, int level)
     player->level = level;
     rt_god(player);
     selftest_tick(srv);
+    selftest_ack_scene(srv);
 }
 
 static int
@@ -290,6 +291,7 @@ rt_talk(struct ToriRSServer* srv, int npc_type, int slot)
     player = srv->active_player;
     assert(player);
     player->last_slot = 0;
+    selftest_ack_scene(srv);
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
 }
 
@@ -358,6 +360,7 @@ rt_oploc1(struct ToriRSServer* srv, int loc_id, int x, int z, int level)
     slot = ToriRSServer_SceneFindLocId(x, z, level, loc_id);
     if( slot < 0 )
         slot = ToriRSServer_SceneFindLoc(x, z, level, loc_id);
+    selftest_ack_scene(srv);
     if( slot >= 0 )
         ToriRSServer_ScriptsRunTriggerOnLoc(
             srv, SS_TRIGGER_OPLOC1, loc_id, ToriRSServer_LocCategory(loc_id), slot);
@@ -389,6 +392,7 @@ rt_oplocu(struct ToriRSServer* srv, int loc_id, int x, int z, int level, int use
     slot = ToriRSServer_SceneFindLocId(x, z, level, loc_id);
     if( slot < 0 )
         slot = ToriRSServer_SceneFindLoc(x, z, level, loc_id);
+    selftest_ack_scene(srv);
     if( slot >= 0 )
         ToriRSServer_ScriptsRunTriggerOnLoc(
             srv, SS_TRIGGER_OPLOCU, loc_id, ToriRSServer_LocCategory(loc_id), slot);
@@ -404,6 +408,7 @@ rt_opheld1(struct ToriRSServer* srv, int obj_id)
 {
     assert(srv);
     assert(obj_id > 0);
+    selftest_ack_scene(srv);
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_id, -1, -1);
     rt_finish(srv);
 }
@@ -422,6 +427,7 @@ rt_opheldu(struct ToriRSServer* srv, int obj_id, int use_obj)
     use_slot = rt_find_inv_slot(player, use_obj);
     player->last_useitem = use_obj;
     player->last_useslot = use_slot;
+    selftest_ack_scene(srv);
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELDU, obj_id, -1, -1);
     rt_finish(srv);
     player->last_useitem = -1;
@@ -544,12 +550,27 @@ selftest_quest_royaltrouble(
     int slayer_before;
     int hp_before;
     int i;
+    int loaded;
 
     assert(srv);
     assert(player);
     checks_before = (int)g_selftest_checks;
     fails_before = g_selftest_failures;
     fprintf(stderr, "ToriRSServer selftest: Royal Trouble Gate D walk\n");
+
+    loaded = srv->scripts_ok;
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+    SELFTEST_CHECK(loaded, "Royal Trouble walk needs a compiled script pack");
+    if( !loaded )
+    {
+        fprintf(stderr, "ToriRSServer royal selftest: %d checks, %d failures\n",
+                (int)g_selftest_checks - checks_before,
+                g_selftest_failures - fails_before);
+        return;
+    }
 
     player->godmode = 1;
     rt_god(player);
