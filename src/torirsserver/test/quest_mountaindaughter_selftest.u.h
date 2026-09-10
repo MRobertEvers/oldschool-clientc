@@ -47,11 +47,21 @@
 #define MDQ_KENDAL_LEVEL 0
 #define MDQ_HANDS 9
 
+static int mdq_fails_mark;
+
+static void
+mdq_begin(void)
+{
+    mdq_fails_mark = g_selftest_failures;
+}
+
 static void
 mdq_pass(const char* step)
 {
     assert(step);
-    fprintf(stderr, "MOUNTAINDAUGHTER PASS: %s\n", step);
+    if( g_selftest_failures == mdq_fails_mark )
+        fprintf(stderr, "MOUNTAINDAUGHTER PASS: %s\n", step);
+    mdq_fails_mark = g_selftest_failures;
 }
 
 static void
@@ -409,6 +419,7 @@ selftest_quest_mountaindaughter(
 
     player->godmode = 1;
     player->dying = 0;
+    mdq_begin();
     mdq_clear_inv(player);
     mdq_reset_bits(srv);
     ToriRSServer_CombatSetLevel(player, stat_agility, 1);
@@ -777,6 +788,7 @@ selftest_quest_mountaindaughter(
                    "eating the White Pearl should leave its seed");
     mdq_pass("opheld3_eat_pearl");
 
+    mdq_clear_inv(player);
     mdq_set_bit(srv, "mdaughter_food_var", 0);
     hamal_slot = mdq_spawn(srv, npc_hamal, MDQ_HAMAL_X, MDQ_HAMAL_Z, 0);
     mdq_set_bit(srv, "mdaughter_relations_var", MDQ_REL_GIVEN);
