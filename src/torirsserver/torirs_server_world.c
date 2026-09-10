@@ -7933,6 +7933,34 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "heldop", 6) == 0 )
+    {
+        /* `::heldop [op]` — backpack slot 0 through the same OPHELD path a
+         * real Clean/Eat/Drink/Plant click takes. Gate D captures cannot aim
+         * TORIRS_SIM_CLICK_AT at a cell that moves. Default op is 1. */
+        int op = 1;
+        int held_obj;
+        uint8_t held[8];
+        struct RSAreaBuf out;
+
+        (void)sscanf(text, "heldop %d", &op);
+        if( op < 1 || op > 5 )
+            op = 1;
+        held_obj = player->inv[0].obj_id;
+        if( held_obj < 0 )
+        {
+            say(srv, "heldop: backpack slot 0 is empty.");
+            return;
+        }
+        rsab_wrap(&out, held, sizeof(held));
+        rsab_p2(&out, held_obj);
+        rsab_p2(&out, 0);
+        rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
+        handle_opheld(srv, op, held, (int)rsab_len(&out));
+        say(srv, "OPHELD%d on %d in slot 0.", op, held_obj);
+        return;
+    }
+
     if( strncmp(text, "equipstats", 10) == 0 )
     {
         /* `::equipstats` opens the bonus screen without walking the sidebar —

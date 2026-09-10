@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_rovingelves_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3220,6 +3221,14 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_ROVINGELVES_ONLY") )
+    {
+        selftest_quest_rovingelves(srv, player);
+        fprintf(stderr, "ToriRSServer rovingelves selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("rovingelves");
+        return g_selftest_failures;
+    }
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -49767,6 +49776,11 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_ScriptsFree(srv);
         }
     }
+
+    /* Roving Elves Gate D walk. Immediately before a reset so spawned
+     * npcs and ticks cannot re-aim later RNG-gated stanzas. */
+    selftest_quest_rovingelves(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     fprintf(stderr, "ToriRSServer selftest: ::shilovillagerun\n");
     {
