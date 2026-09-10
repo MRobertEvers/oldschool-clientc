@@ -82,14 +82,14 @@
 | 18 Oct 2004 | Shades of Mort'ton | `quest_mortton` | unaudited | |  |
 | 02 Nov 2004 | The Fremennik Trials | `quest_viking` | unaudited | | dir=quest_viking; matched to The Fremennik Trials via constant comment |
 | 17 Nov 2004 | Horror from the Deep | `quest_horror` | unaudited | |  |
-| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | in-progress | 2026-09-10 | claimed `gp-throne-img` on cache image `bld-20260910-ed0a006f`. Recapture every Ghrim/Vargas/Brand/Astrid/Sigrid/Derrik interaction (mesbox visible). Prior 8-shot reel on OSRS-Content@a07820392 is a failed close. |
+| 29 Nov 2004 | Throne of Miscellania | `quest_misc` | fixed | 2026-09-10 | parent-verified 143 unique-MD5 named BMPs on `cursor/throne-of-miscellania-gate-d-f4e9` / OSRS-Content@99d4904103. Sampled guard, Vargas Brand/Astrid choice, Sigrid treaty, Derrik anvil, Ghrim work, Vargas signs, complete scroll. Supersedes 8-shot reel on @a07820392. Leftovers: kingdom collect loop, condensed courtship. Not verified-modern. |
 | 06 Dec 2004 | Monkey Madness I | `quest_mm` | unaudited | |  |
 | 21 Dec 2004 | Haunted Mine | `quest_hauntedmine` | in-progress | 2026-09-10 | claimed `gp-mine-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Prior 0 BMPs on `cursor/haunted-mine-re-audit-e724` are a failed close. |
 | 05 Jan 2005 | Troll Romance | `quest_troll_love` | in-progress | 2026-09-10 | claimed `gp-troll-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Prior 0 BMPs on `cursor/troll-romance-reaudit-1691` are a failed close. |
 | 10 Jan 2005 | In Search of the Myreque | `quest_routequest` | unaudited | | dir=quest_routequest; matched to In Search of the Myreque via Cyreg Paddlehorn NPC |
 | 31 Jan 2005 | Creature of Fenkenstrain | `quest_fenkenstrain` | fixed | 2026-09-10 | parent-verified 112 unique-MD5 named BMPs on `cursor/creature-of-fenkenstrain-352d` / OSRS-Content@8285fb174 (sign/interview/Roavar/grave/sew/gardener/Rologarth/complete). C walk 22 PASS. Roavar pickled-brain option was visual row 4 (resume 5). Leftovers: gardener follow, telegrab intercept, Werewolf Agility unlock, ring reclaim. Not verified-modern. |
 | 07 Feb 2005 | Roving Elves | `quest_rovingelves` | unaudited | |  |
-| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-09 | cloud `gp-ghost-c1` FAILED CLOSE: C walk claimed green but **0 named BMPs** on `cursor/ghosts-ahoy-reaudit-d85a`. Do not double-claim. Gate D still open. |
+| 15 Feb 2005 | Ghosts Ahoy | `quest_ghostsahoy` | in-progress | 2026-09-10 | claimed `gp-ghost-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). Prior 0 BMPs on `cursor/ghosts-ahoy-reaudit-d85a` are a failed close. |
 | 28 Feb 2005 | One Small Favour | `quest_onesmallfavour` | unaudited | |  |
 | 07 Mar 2005 | Mountain Daughter | `quest_mountaindaughter` | unaudited | |  |
 | 21 Mar 2005 | Between a Rock... | `quest_betweenarock` | unaudited | |  |

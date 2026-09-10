@@ -371,7 +371,7 @@ filed under `helpers/miniquests/` are at the end.
 | 96 | thelosttribe | `thelosttribe` | 532 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_losttribe` — see IN-LC table |
 | 97 | demonslayer | `demonslayer` | 540 | done (LC) | re-audit 2026-08-10: `quest_demon` (`delrith.rs2`; dbrow `quest_demonslayer` journal wired) |
 | 98 | holygrail | `holygrail` | 543 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_holygrail` — see IN-LC table (`quest_grail`) |
-| 99 | throneofmiscellania | `throneofmiscellania` | 546 | in_progress | 2026-09-10 claimed `gp-throne-img` on cache image `bld-20260910-ed0a006f`. |
+| 99 | throneofmiscellania | `throneofmiscellania` | 546 | done | 2026-09-10 parent-verified 143 unique-MD5 named BMPs on OSRS-Content@99d4904103. Supersedes 8-shot reel. Leftovers: kingdom collect loop, condensed courtship. |
 | 100 | thefeud | `thefeud` | 550 | done | npcs=feudalim,feudalim,shantay (helper spellings don't resolve -- cache wins, see Log) |
 | 101 | thegolem | `thegolem` | 551 | done (LC) | re-audit 2026-08-10: `quest_golem` (`golem.rs2`; dbrow `quest_golem` journal wired) |
 | 102 | theredreef | `theredreef` | 559 | done |  |
@@ -418,7 +418,7 @@ filed under `helpers/miniquests/` are at the end.
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
 | 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
-| 146 | ghostsahoy | `ghostsahoy` | 821 | in_progress | 2026-09-09 cloud `gp-ghost-c1` shipped-but-shit re-audit. Prior done Feb 2005 — Velorina / Necrovarus; dbrow id 73 endstate 8; see Log |
+| 146 | ghostsahoy | `ghostsahoy` | 821 | in_progress | 2026-09-10 claimed `gp-ghost-img` on cache image `bld-20260910-ed0a006f`. |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
