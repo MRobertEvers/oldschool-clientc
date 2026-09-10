@@ -1035,10 +1035,13 @@ selftest_quest_onesmallfavour(
         }
     }
 
-    /* Isolated anvil repair (steel / bronze / iron). */
+    /* Isolated anvil repair (steel / bronze / iron). Category `_anvil`
+     * is the authored entry in smithing.rs2 — pass LocCategory so the
+     * [oplocu,_anvil] trigger actually fires. */
     if( obj_dir_broken > 0 && obj_steel > 0 && obj_hammer > 0 )
     {
         int loc_anvil = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "anvil");
+        int cat_anvil;
         int loc_slot;
 
         osf_clear_inv(player);
@@ -1048,8 +1051,10 @@ selftest_quest_onesmallfavour(
         player->last_useitem = obj_dir_broken;
         if( loc_anvil >= 0 )
         {
+            cat_anvil = ToriRSServer_LocCategory(loc_anvil);
             loc_slot = osf_place_loc(srv, loc_anvil, 2712, 3495, 0);
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_anvil, -1, loc_slot);
+            ToriRSServer_ScriptsRunTriggerOnLoc(
+                srv, SS_TRIGGER_OPLOCU, loc_anvil, cat_anvil, loc_slot);
             osf_finish(srv);
             SELFTEST_CHECK(osf_inv_total(player, obj_dir_broken) > 0,
                            "anvil without a steel bar must refuse the directionals");
@@ -1057,11 +1062,39 @@ selftest_quest_onesmallfavour(
 
             osf_give(player, obj_steel, 1);
             player->last_useitem = obj_dir_broken;
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_anvil, -1, loc_slot);
+            ToriRSServer_ScriptsRunTriggerOnLoc(
+                srv, SS_TRIGGER_OPLOCU, loc_anvil, cat_anvil, loc_slot);
             osf_finish(srv);
             SELFTEST_CHECK(obj_dir_fixed <= 0 || osf_inv_total(player, obj_dir_fixed) > 0,
                            "anvil + steel should repair the directionals");
             osf_pass("oplocu_anvil_repair_directionals");
+
+            if( obj_orn_broken > 0 && obj_bronze > 0 && obj_orn_fixed > 0 )
+            {
+                osf_clear_inv(player);
+                osf_give(player, obj_orn_broken, 1);
+                osf_give(player, obj_hammer, 1);
+                osf_give(player, obj_bronze, 1);
+                player->last_useitem = obj_orn_broken;
+                ToriRSServer_ScriptsRunTriggerOnLoc(
+                    srv, SS_TRIGGER_OPLOCU, loc_anvil, cat_anvil, loc_slot);
+                osf_finish(srv);
+                SELFTEST_CHECK(osf_inv_total(player, obj_orn_fixed) > 0,
+                               "anvil + bronze should repair the ornament");
+            }
+            if( obj_pil_broken > 0 && obj_iron > 0 && obj_pil_fixed > 0 )
+            {
+                osf_clear_inv(player);
+                osf_give(player, obj_pil_broken, 1);
+                osf_give(player, obj_hammer, 1);
+                osf_give(player, obj_iron, 1);
+                player->last_useitem = obj_pil_broken;
+                ToriRSServer_ScriptsRunTriggerOnLoc(
+                    srv, SS_TRIGGER_OPLOCU, loc_anvil, cat_anvil, loc_slot);
+                osf_finish(srv);
+                SELFTEST_CHECK(osf_inv_total(player, obj_pil_fixed) > 0,
+                               "anvil + iron should repair the rotating pillar");
+            }
         }
     }
 
@@ -1333,27 +1366,21 @@ selftest_quest_onesmallfavour(
         }
     }
 
-    /* ---- Authored complete scroll ---- */
+    /* ---- Authored complete scroll ----
+     * CloseModal aborts the parked ~chatnpc before ~quest_complete_rewards
+     * and the %onesmallfavour = ^osf_complete assignment. Click through
+     * the authored dialogue instead. Respawn Yanni so the start-of-walk
+     * slot cannot go stale after later WorldNpcFree/Reap. */
+    osf_free_npc(srv, yanni_slot);
+    yanni_slot = osf_spawn(srv, npc_yanni, 2836, 2983, 0);
+    SELFTEST_CHECK(yanni_slot >= 0, "yanni should respawn for the mahogany hand-in");
     if( yanni_slot >= 0 )
     {
-        int drain_tick;
-        int com_messagebox =
-            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "messagebox:continue");
-
-        osf_tele(srv, 2836, 2983, 0);
+        osf_clear_inv(player);
         player->varps[varp] = OSF_FORESTER_DONE;
         if( obj_mahogany > 0 )
             osf_give(player, obj_mahogany, 1);
-        osf_talk(srv, npc_yanni, yanni_slot);
-        if( com_messagebox > 0 )
-            ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
-        for( drain_tick = 0; drain_tick < 48 && player->varps[varp] != OSF_COMPLETE;
-             drain_tick++ )
-        {
-            ToriRSServer_WorldCloseModal(srv);
-            selftest_tick(srv);
-            osf_finish(srv);
-        }
+        osf_talk_finish(srv, npc_yanni, yanni_slot);
         SELFTEST_CHECK(player->varps[varp] == OSF_COMPLETE,
                        "Yanni mahogany hand-in should complete OSF (285), got %d",
                        player->varps[varp]);
