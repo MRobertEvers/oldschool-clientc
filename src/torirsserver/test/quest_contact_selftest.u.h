@@ -445,7 +445,6 @@ selftest_quest_contact(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     int qp_before;
     static const int k_refuse[] = { 2 };
     static const int k_accept[] = { 1 };
-    static const int k_wedge[] = { 3 };
     static const int k_wrong_then_wedge[] = { 1, 3 };
 
     assert(srv);
