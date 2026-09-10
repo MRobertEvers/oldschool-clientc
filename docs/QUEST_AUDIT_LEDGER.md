@@ -146,7 +146,7 @@
 | 24 Apr 2007 | Another Slice of H.A.M. | `quest_anothersliceofham` | fixed | 2026-09-10 | parent-verified 114 unique-MD5 named BMPs fast-forwarded from `cursor/another-slice-of-ham-gate-d-97fb` onto OSRS-Content@04791bfde0 (linear child of GBR 85a8f6ae94). Sampled Ur-tag qualify-fail (DtD, named Ur-tag), argue p_choice2, accept ("I'd love to help!"), authored complete scroll (1 QP, 3000 Mining / 3000 Prayer XP as widget tenths 30000/30000), journal QUEST COMPLETE. Leftovers: leftover_ham_corridor_stealth; leftover_sigmund_prayer_special; leftover_oldak_sphere_imprecise. Zero same-text collisions. Qualify-fail split; no Diplomacy/LotG header collisions. Not verified-modern. |
 | 15 May 2007 | Dream Mentor | `quest_dreammentor` | in-progress | 2026-09-10 | claimed `gp-dream-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 04 Jun 2007 | Grim Tales | `quest_grimtales` | in-progress | 2026-09-10 | claimed `gp-grim-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
-| 24 Jul 2007 | King's Ransom | `quest_kingsransom` | in-progress | 2026-09-10 | claimed `gp-kr-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 24 Jul 2007 | King's Ransom | `quest_kingsransom` | fixed | 2026-09-10 | parent-verified 103 unique-MD5 named BMPs FF onto OSRS-Content@3b9b6f21ba (linear child of Olaf 876cdc3e5c). Sampled Gossip qualify-fail split (BKF / Holy Grail / Murder Mystery / Defence 65 / Magic 45), offer p_choice2, refuse/accept, authored complete scroll (1 QP, 33000 Defence / 5000 Magic XP, antique lamp 5000 XP 50+, Knight Waves), journal QUEST COMPLETE. Leftovers: leftover_tumbler_lock_widget; leftover_knight_waves. Zero same-text collisions. Cell-door Telekinetic Grab authored, not leftover. Gossip MERGE; Merlin header untouched. Not verified-modern. |
 | 06 May 2016 | Monkey Madness II | `quest_monkeymadnessii` | unaudited | |  |
 | 19 May 2016 | Bear Your Soul | `quest_bearyoursoul` | unaudited | |  |
 | 26 Jan 2017 | Misthalin Mystery | `quest_misthalinmystery` | unaudited | |  |
@@ -172,7 +172,7 @@
 | 14 Apr 2021 | Below Ice Mountain | `quest_belowicemountain` | unaudited | |  |
 | 03 Jun 2021 | A Night at the Theatre | `quest_nightatthetheatre` | unaudited | |  |
 | 16 Jun 2021 | A Kingdom Divided | `quest_kingdomdivided` | unaudited | |  |
-| 09 Feb 2022 | Land of the Goblins | `quest_landofthegoblins` | unaudited | |  |
+| 09 Feb 2022 | Land of the Goblins | `quest_landofthegoblins` | in-progress | 2026-09-10 | claimed `gp-lotg-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 23 Mar 2022 | Temple of the Eye | `quest_templeoftheeye` | unaudited | |  |
 | 27 Apr 2022 | Beneath Cursed Sands | `quest_beneathcursedsands` | unaudited | |  |
 | 08 Jun 2022 | Sleeping Giants | `quest_sleepinggiants` | unaudited | |  |
