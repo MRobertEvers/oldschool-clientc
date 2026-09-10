@@ -55135,6 +55135,7 @@ ToriRSServer_WorldSelftest(void)
              * other direction, so whatever the sections above left standing is
              * not this one's input.
              */
+#include "test/quest_runemysteries_selftest.u.h"
             selftest_reset_world(srv, player, 402, 402);
             selftest_park_player(srv, crop_x - 1, crop_z);
             memcpy(saved_inv, player->inv, sizeof(saved_inv));
