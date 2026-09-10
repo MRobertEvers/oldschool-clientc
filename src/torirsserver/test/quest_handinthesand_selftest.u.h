@@ -222,6 +222,47 @@ hs_inv_total(const struct ToriRSServerPlayer* player, int obj_id)
     return n;
 }
 
+static int
+hs_bank_total(const struct ToriRSServerPlayer* player, int obj_id)
+{
+    int n = 0;
+    int s;
+
+    assert(player);
+    if( obj_id <= 0 || !player->bank.slots )
+        return 0;
+    for( s = 0; s < player->bank.size; s++ )
+        if( player->bank.slots[s].obj_id == obj_id )
+            n += player->bank.slots[s].count;
+    return n;
+}
+
+static void
+hs_set_varp(struct ToriRSServer* srv, const char* name, int value)
+{
+    int varp;
+
+    assert(srv);
+    assert(name);
+    assert(srv->active_player);
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, name);
+    if( varp >= 0 )
+        srv->active_player->varps[varp] = value;
+}
+
+static int
+hs_get_varp(const struct ToriRSServerPlayer* player, const char* name)
+{
+    int varp;
+
+    assert(player);
+    assert(name);
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, name);
+    if( varp < 0 )
+        return 0;
+    return player->varps[varp];
+}
+
 static void
 hs_give(struct ToriRSServerPlayer* player, int obj_id, int count)
 {
@@ -459,6 +500,7 @@ hs_reset_quest(struct ToriRSServer* srv)
     hs_set_bit(srv, "handsand_sandy_multi", HS_SANDY_NORMAL);
     hs_set_bit(srv, "handsand_coffee_multi", 0);
     hs_set_bit(srv, "handsand_counter_multi", HS_COUNTER_EMPTY);
+    hs_set_varp(srv, "handsand_sand_day", 0);
 }
 
 static void
@@ -1282,8 +1324,27 @@ selftest_quest_handinthesand(
     slot = hs_spawn(srv, npc_bert, HS_BERT_X, HS_BERT_Z, 0);
     if( slot >= 0 )
     {
+        int sand_before;
+        int sand_day;
+
+        hs_set_varp(srv, "handsand_sand_day", 0);
+        sand_before = hs_bank_total(player, obj_bucket_sand);
         hs_talk_finish(srv, npc_bert, slot);
-        hs_pass("opnpc1_bert_post_complete");
+        SELFTEST_CHECK(hs_bank_total(player, obj_bucket_sand) ==
+                           sand_before + 84,
+                       "first-of-day Bert must bank 84 buckets of sand");
+        sand_day = hs_get_varp(player, "handsand_sand_day");
+        SELFTEST_CHECK(sand_day != 0,
+                       "first-of-day must stamp %handsand_sand_day");
+        hs_pass("opnpc1_bert_daily_sand_first");
+
+        hs_talk_finish(srv, npc_bert, slot);
+        SELFTEST_CHECK(hs_bank_total(player, obj_bucket_sand) ==
+                           sand_before + 84,
+                       "same-day Bert must not send another 84 buckets");
+        SELFTEST_CHECK(hs_get_varp(player, "handsand_sand_day") == sand_day,
+                       "same-day refuse must leave handsand_sand_day");
+        hs_pass("opnpc1_bert_daily_sand_same_day");
     }
     hs_free_npc(srv, slot);
     slot = hs_spawn(srv, npc_guard, HS_GUARD_X, HS_GUARD_Z, 0);
