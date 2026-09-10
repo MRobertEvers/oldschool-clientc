@@ -327,7 +327,7 @@ selftest_quest_fluffs(
             fluffs_pass("opnpc1_shilop_pay");
         }
 
-        /* ---- OPLOC1 lumber-yard fence / ladder if the cache placed them ---- */
+        /* ---- OPLOC1 lumber-yard fence / ladder (place if cache did not) ---- */
         ToriRSServer_WorldTeleport(srv, 0, 3310, 3509);
         selftest_tick(srv);
         if( loc_fence >= 0 )
@@ -343,6 +343,9 @@ selftest_quest_fluffs(
                         fence_slot = ToriRSServer_SceneFindLocId(3310 + dx, 3492 + dz, 0,
                                                                 loc_fence);
             }
+            if( fence_slot < 0 )
+                fence_slot = ToriRSServer_SceneAddLoc(3310, 3492, 0, loc_fence, 10, 0);
+            SELFTEST_CHECK(fence_slot >= 0, "gertrudefence should be on the lumber-yard tile");
             if( fence_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fence, -1,
@@ -357,6 +360,9 @@ selftest_quest_fluffs(
         {
             int ladder_slot = ToriRSServer_SceneFindLocId(3310, 3509, 0, loc_ladder);
 
+            if( ladder_slot < 0 )
+                ladder_slot = ToriRSServer_SceneAddLoc(3310, 3509, 0, loc_ladder, 10, 0);
+            SELFTEST_CHECK(ladder_slot >= 0, "the lumber-yard ladder should be placeable");
             if( ladder_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
