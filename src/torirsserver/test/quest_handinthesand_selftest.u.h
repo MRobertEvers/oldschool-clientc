@@ -363,6 +363,22 @@ hs_place_loc(struct ToriRSServer* srv, int loc_id, int x, int z, int level)
     return slot;
 }
 
+/* Shared bell needs Rarve in range: ~chatnpc_anim aborts the splice before
+ * the varbit write if npc_find fails. */
+static int
+hs_place_bell(struct ToriRSServer* srv, int loc_bell, int npc_rarve, int* rarve_slot)
+{
+    int bell_slot;
+
+    assert(srv);
+    assert(rarve_slot);
+    bell_slot = hs_place_loc(srv, loc_bell, HS_BELL_X, HS_BELL_Z, 0);
+    *rarve_slot = -1;
+    if( npc_rarve > 0 )
+        *rarve_slot = ToriRSServer_WorldNpcSpawn(srv, npc_rarve, HS_BELL_X + 1, HS_BELL_Z, 0);
+    return bell_slot;
+}
+
 static void
 hs_oploc(struct ToriRSServer* srv, int loc_id, int loc_slot)
 {
@@ -497,7 +513,7 @@ selftest_quest_handinthesand(
     int stat_craft;
     int stat_thieve;
     int slot;
-    int loc_slot;
+    int rarve_bell;
     int bell_slot;
     int desk_slot;
     int coffee_slot;
@@ -521,7 +537,6 @@ selftest_quest_handinthesand(
     static const int k_sandy_q3[] = { 3 };
     static const int k_sandy_done[] = { 4 };
     static const int k_mazion_refuse[] = { 2 };
-    static const int k_mazion_take[] = { 1, 1, 2 };
     static const int k_mazion_hair[] = { 1, 1, 1 };
 
     assert(srv);
@@ -546,6 +561,7 @@ selftest_quest_handinthesand(
     hs_god(player);
     hs_reset_quest(srv);
     hs_clear_inv(player);
+    rarve_bell = -1;
 
     npc_bert = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "handsand_bert");
     npc_guard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "handsand_guard_captain");
@@ -709,7 +725,7 @@ selftest_quest_handinthesand(
     hs_journal(srv, "journal_20_beer_given");
 
     /* Shared bell: not-started falls through to Zogre Flesh Eaters. */
-    bell_slot = hs_place_loc(srv, loc_bell, HS_BELL_X, HS_BELL_Z, 0);
+    bell_slot = hs_place_bell(srv, loc_bell, npc_rarve, &rarve_bell);
     hs_set_bit(srv, "handsand_quest", HS_NOT_STARTED);
     if( loc_bell >= 0 && bell_slot >= 0 )
     {
@@ -849,7 +865,8 @@ selftest_quest_handinthesand(
     }
     hs_journal(srv, "journal_60_have_scroll");
 
-    bell_slot = hs_place_loc(srv, loc_bell, HS_BELL_X, HS_BELL_Z, 0);
+    hs_free_npc(srv, rarve_bell);
+    bell_slot = hs_place_bell(srv, loc_bell, npc_rarve, &rarve_bell);
     if( loc_bell >= 0 && bell_slot >= 0 )
     {
         hs_clear_inv(player);
@@ -1153,7 +1170,8 @@ selftest_quest_handinthesand(
     }
     hs_journal(srv, "journal_120_interrogation_done");
 
-    bell_slot = hs_place_loc(srv, loc_bell, HS_BELL_X, HS_BELL_Z, 0);
+    hs_free_npc(srv, rarve_bell);
+    bell_slot = hs_place_bell(srv, loc_bell, npc_rarve, &rarve_bell);
     if( loc_bell >= 0 && bell_slot >= 0 )
     {
         hs_clear_inv(player);
@@ -1220,7 +1238,8 @@ selftest_quest_handinthesand(
     }
     hs_journal(srv, "journal_150_wizard_head");
 
-    bell_slot = hs_place_loc(srv, loc_bell, HS_BELL_X, HS_BELL_Z, 0);
+    hs_free_npc(srv, rarve_bell);
+    bell_slot = hs_place_bell(srv, loc_bell, npc_rarve, &rarve_bell);
     if( loc_bell >= 0 && bell_slot >= 0 )
     {
         hs_clear_inv(player);
