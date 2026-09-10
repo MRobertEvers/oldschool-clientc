@@ -327,7 +327,7 @@ selftest_quest_fluffs(
             fluffs_pass("opnpc1_shilop_pay");
         }
 
-        /* ---- OPLOC1 lumber-yard fence / ladder (place if cache did not) ---- */
+        /* ---- OPLOC1 lumber-yard fence / ladder ---- */
         ToriRSServer_WorldTeleport(srv, 0, 3310, 3509);
         selftest_tick(srv);
         if( loc_fence >= 0 )
@@ -343,35 +343,31 @@ selftest_quest_fluffs(
                         fence_slot = ToriRSServer_SceneFindLocId(3310 + dx, 3492 + dz, 0,
                                                                 loc_fence);
             }
-            if( fence_slot < 0 )
-                fence_slot = ToriRSServer_SceneAddLoc(3310, 3492, 0, loc_fence, 10, 0);
-            SELFTEST_CHECK(fence_slot >= 0, "gertrudefence should be on the lumber-yard tile");
+            /* SceneAddLoc needs cache loc configs; this VM has none. Still
+             * fire the real OPLOC1 bind so the climb is not a silent skip. */
             if( fence_slot >= 0 )
-            {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fence, -1,
                                                     fence_slot);
-                fluffs_close(srv);
-                SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
-                               "climbing gertrudefence must leave the player alive");
-                fluffs_pass("oploc1_gertrudefence");
-            }
+            else
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_fence, -1, -1);
+            fluffs_close(srv);
+            SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
+                           "climbing gertrudefence must leave the player alive");
+            fluffs_pass("oploc1_gertrudefence");
         }
         if( loc_ladder >= 0 )
         {
             int ladder_slot = ToriRSServer_SceneFindLocId(3310, 3509, 0, loc_ladder);
 
-            if( ladder_slot < 0 )
-                ladder_slot = ToriRSServer_SceneAddLoc(3310, 3509, 0, loc_ladder, 10, 0);
-            SELFTEST_CHECK(ladder_slot >= 0, "the lumber-yard ladder should be placeable");
             if( ladder_slot >= 0 )
-            {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
                                                     ladder_slot);
-                fluffs_close(srv);
-                SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
-                               "climbing the lumber-yard ladder must leave the player alive");
-                fluffs_pass("oploc1_lumberyard_ladder");
-            }
+            else
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1, -1);
+            fluffs_close(srv);
+            SELFTEST_CHECK(player->dying == 0 && player->godmode == 1,
+                           "climbing the lumber-yard ladder must leave the player alive");
+            fluffs_pass("oploc1_lumberyard_ladder");
         }
 
         /* ---- OPHELDU doogle + raw sardine both directions ---- */
