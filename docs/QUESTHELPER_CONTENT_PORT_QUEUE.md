@@ -299,7 +299,7 @@ filed under `helpers/miniquests/` are at the end.
 | 24 | atailoftwocats | `atailoftwocats` | 293 | done | bookkeeping fix 2026-08-10: already `done` since slice 1 (2026-08-04, see P1 row + Log) — the 2026-08-06 table rebuild re-added it as `pending` without checking the tree first |
 | 25 | fishingcontest | `fishingcontest` | 297 | done (LC) | re-audit 2026-08-10: `quest_fishingcompo` (`hemenster/bonzo.rs2`, `hemenster_fishing.rs2`; dbrow `quest_fishingcontest` journal wired) |
 | 26 | junglepotion | `junglepotion` | 298 | done | 2026-09-09 parent-verified Gate D: 10 unique named BMPs in OSRS-Content@529f923 (`cursor/jungle-potion-gate-d-2f05`). Player alive (04 peninsula + green HP; 08 cave herb). C 40/0. Not verified-modern. |
-| 27 | gertrudescat | `gertrudescat` | 299 | in_progress | 2026-09-09 cloud `gp-fluffs-c1`. Prior done (LC). Gate D needs named BMPs in OSRS-Content; a C-only close is a failed close. |
+| 27 | gertrudescat | `gertrudescat` | 299 | in_progress | 2026-09-09 cloud `gp-fluffs-c1` FAILED CLOSE: C 45/0 on `cursor/gertrudes-cat-fluffs-542f`, **0 named BMPs** (no `cache.osrs239` on VM). Do not double-claim. Prior done (LC). Not verified-modern. |
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
 | 30 | theascentofarceuus | `theascentofarceuus` | 310 | done |  |
@@ -459,7 +459,8 @@ filed under `helpers/miniquests/` are at the end.
   still put `god 1` first in `TORIRS_NET_CHEAT`). Claimed Jungle Potion
   (`gp-jungle-c1`), Fenkenstrain (`gp-fenk-c1`), Haunted Mine
   (`gp-mine-c1`), Ghosts Ahoy (`gp-ghost-c1`), Gertrude's Cat
-  (`gp-fluffs-c1`).
+  (`gp-fluffs-c1`). Gertrude's Cat `gp-fluffs-c1` FAILED CLOSE: C 45/0,
+  0 named BMPs, no `cache.osrs239` on the VM.
 
 - **IN-LC audit pass 8 (2026-08-12):** audited the last 4 rows of the IN-LC
   table's original assignment, one quest at a time, synchronously (no nested

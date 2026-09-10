@@ -67,7 +67,7 @@
 | 27 May 2003 | Dwarf Cannon | `quest_mcannon` | unaudited | |  |
 | 09 Jun 2003 | Murder Mystery | `quest_murder` | unaudited | |  |
 | 09 Jul 2003 | The Dig Site | `quest_itexam` | unaudited | |  |
-| 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | in-progress | 2026-09-09 | claimed by cloud `gp-fluffs-c1`. Player unkillable unless a death case. Gate D needs named BMPs committed to git; a C-only close or disk-only BMP list is a failed close. |
+| 28 Jul 2003 | Gertrude's Cat | `quest_fluffs` | in-progress | 2026-09-09 | cloud `gp-fluffs-c1` FAILED CLOSE: C walk 45/0 on `cursor/gertrudes-cat-fluffs-542f` (real opnpc/oploc/opheld) but **0 named BMPs** — no `cache.osrs239` / `main_file_cache.dat2` on the VM. Do not double-claim. Gate D still open. Not verified-modern. |
 | 20 Aug 2003 | Legends' Quest | `quest_legends` | unaudited | |  |
 | 01 Dec 2003 | Rune Mysteries | `quest_runemysteries` | unaudited | |  |
 | 18 May 2004 | Big Chompy Bird Hunting | `quest_chompybird` | unaudited | |  |
