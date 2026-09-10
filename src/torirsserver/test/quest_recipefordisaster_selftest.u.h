@@ -172,6 +172,7 @@ rfd_finish(struct ToriRSServer* srv)
         if( selftest_click_through(srv, 8) <= 0 )
             selftest_tick(srv);
     }
+    ToriRSServer_WorldCloseModal(srv);
     for( t = 0; t < 8; t++ )
         selftest_tick(srv);
 }
@@ -1741,6 +1742,7 @@ selftest_quest_recipefordisaster(
         int q;
 
         rfd_tele(srv, RFD_ARENA_X - 3, RFD_ARENA_Z, RFD_ARENA_LEVEL);
+        ToriRSServer_WorldCloseModal(srv);
         for( q = 0; q < TORIRSSERVER_QUEUE_MAX; q++ )
             player->queue[q].active = 0;
         before_x = player->x;
