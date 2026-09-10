@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_beneathcursedsands_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3198,6 +3199,15 @@ ToriRSServer_WorldSelftest(void)
     }
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
+
+    if( getenv("TORIRSSERVER_SELFTEST_BCS_ONLY") )
+    {
+        selftest_quest_beneathcursedsands(srv, player);
+        fprintf(stderr, "ToriRSServer BCS selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("bcs");
+        return g_selftest_failures;
+    }
 
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
@@ -35904,6 +35914,12 @@ ToriRSServer_WorldSelftest(void)
         if( !loaded )
             loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        /* Beneath Cursed Sands Gate D walk header (include-guarded).
+         * Placed immediately before this reset so spawned Jamila /
+         * Maisa / Zahur / High Priest / Osman / tomb NPCs cannot
+         * leak into the shop stanza. */
+#include "test/quest_beneathcursedsands_selftest.u.h"
+        selftest_quest_beneathcursedsands(srv, player);
         selftest_reset_world(srv, player, 402, 402);
         if( !loaded )
         {
