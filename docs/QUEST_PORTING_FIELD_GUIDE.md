@@ -126,6 +126,19 @@ report 0 `.bmp` files even when the content SHA has them. Commit the
 BMPs in OSRS-Content **and** push that SHA, then move the parent
 gitlink.
 
+**One named BMP per player interaction. A highlight reel is a failed close.**
+Gate D is not "8–10 shots of the critical path." Capture **every**
+player-facing interaction on the quest: every `opnpc` / `oploc` /
+`opheld` / `opobj` that a player clicks, every dialogue beat that
+advances or branches (offer, refuse, accept, clue, wrong-item, hand-in,
+complete), every search/pickup/climb/craft/use. The filename names the
+interaction (`14_trufitus_refuse_dirty_ardrigal.bmp`). The pixels must
+show **that** mesbox, chathead, or interface — a washed-out teleport
+with only `godmode on` in the chat is not a capture of the step.
+`PASS` line count is a floor, not a target; most quests need far more
+named BMPs than C assertions. Parent rejects any close whose BMP set
+is a subset of the walk.
+
 **The player is unkillable unless the step is a death test.**
 A named BMP that shows Lumbridge after `Oh dear, you are dead!` is not
 quest evidence. Level-3 logins die to Karamja snakes, Harpies, Jogres,
