@@ -193,13 +193,13 @@
 | 25 Sep 2024 | Ethically Acquired Antiquities | `quest_ethicallyacquiredantiquities` | unaudited | |  |
 | 06 Nov 2024 | The Curse of Arrav | `quest_curseofarrav` | unaudited | |  |
 | 23 Jul 2025 | The Final Dawn | `quest_finaldawn` | unaudited | |  |
-| 23 Jul 2025 | Scrambled! | `quest_scrambled` | unaudited | |  |
+| 23 Jul 2025 | Scrambled! | `quest_scrambled` | in-progress | 2026-09-10 | claimed `gp-scram-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
 | 23 Jul 2025 | Shadows of Custodia | `quest_shadowsofcustodia` | unaudited | |  |
 | 22 Oct 2025 | Learning the Ropes | -- | blocked:not-ported | 2026-08-19 | no `quest_*` dir found |
 | 19 Nov 2025 | Pandemonium | `quest_pandemonium` | unaudited | |  |
 | 19 Nov 2025 | Prying Times | `quest_pryingtimes` | unaudited | |  |
 | 19 Nov 2025 | Current Affairs | `quest_currentaffairs` | unaudited | |  |
-| 19 Nov 2025 | Troubled Tortugans | `quest_troubledtortugans` | in-progress | 2026-09-10 | claimed `gp-ttq-img` on cache image `bld-20260910-ed0a006f`. Recapture every interaction (mesbox visible). |
+| 19 Nov 2025 | Troubled Tortugans | `quest_troubledtortugans` | fixed | 2026-09-10 | parent-verified 59 named / 59 unique-MD5 BMPs cherry-picked from stale-base `cursor/ttq-gate-d-content-8f50` onto OSRS-Content@0df26ae804 (ToH/ToE/MFWMA retained; worker SHA 63c0468dd0 not merged wholesale). Sampled Blunn qualify-fail split (Pandemonium / Slayer 51 / Construction 48 / Sailing 45 / Hunter 45 / Woodcutting 40 / Crafting 34), offer p_choice2 Yes/Not now, refuse/accept, authored complete scroll (1 QP, Slayer/Sailing tenths 80000|100000, Great Conch, gryphon access), journal QUEST COMPLETE. Leftovers: leftover_sailing_to_great_conch; leftover_town_repair_matrix; leftover_hunting_trail; leftover_shellbane_gryphon_combat; leftover_the_little_pearl_instance; leftover_extra_refuse_trees. No unique MERGE hunks (sailing oploc1 / seaweed opheldu stay in-dir). Not verified-modern. |
 | 25 Feb 2026 | The Ides of Milk | `quest_idesofmilk` | unaudited | |  |
 | 20 May 2026 | The Red Reef | `quest_redreef` | unaudited | |  |
 | 30 Jun 2026 | The Blood Moon Rises | -- | blocked:not-ported | 2026-08-19 | no `quest_*` dir found |
