@@ -335,7 +335,7 @@ filed under `helpers/miniquests/` are at the end.
 | 60 | thecorsaircurse | `thecorsaircurse` | 376 | done |  |
 | 61 | belowicemountain | `belowicemountain` | 377 | done |  |
 | 62 | horrorfromthedeep | `horrorfromthedeep` | 380 | done (LC) | re-audit 2026-08-10: `quest_horror` (`horror_girlfriend.rs2`, `horror_diary.rs2`; dbrow `quest_horrorfromthedeep` journal wired) |
-| 63 | dwarfcannon | `dwarfcannon` | 386 | in_progress | 2026-09-09 cloud `gp-cannon-c1` FAILED CLOSE: 0 named BMPs on `cursor/dwarf-cannon-gate-d-2638` (no cache.osrs239). Do not double-claim. |
+| 63 | dwarfcannon | `dwarfcannon` | 386 | in_progress | 2026-09-10 cloud `gp-cannon-img` recapture on `cursor/dwarf-cannon-gate-d-8549`. One named BMP per interaction. Prior failed close: 0 BMPs @bb90fd681 (no cache). |
 | 64 | familycrest | `familycrest` | 386 | done (LC) | re-audit 2026-08-10: `quest_crest` (`crest_dimintheis.rs2`, `crest_caleb.rs2`; dbrow `quest_familycrest` journal wired) |
 | 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done (LC) | re-audit 2026-08-10: `quest_routequest` (dbrow `quest_insearchofthemyreque` journal wired) -- caveat added 2026-08-11 while porting #132 In Aid of the Myreque: `quest_routequest/` only has `configs/quest_routequest.{constant,varp}` + `scripts/routequest_journal.rs2`; grepping the whole `server/scripts` tree for `%routequest` finds only the journal reading it, nothing ever writes it, and Veliaf/Ivan/Polmafi's own hideout npcs have no scripted dialogue anywhere -- this quest is not actually playable end to end despite the `done (LC)` mark. Not re-scored here (out of scope for #132); #132 soft-skips it as a prerequisite instead, same convention as Cabin Fever's Priest in Peril / King's Ransom's One Small Favour. |
 | 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done |  |
@@ -451,6 +451,15 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **Dwarf Cannon Gate D recapture (2026-09-10):** cloud `gp-cannon-img` on
+  `cursor/dwarf-cannon-gate-d-8549`. Prior close failed with 0 BMPs on
+  OSRS-Content@bb90fd681 (empty-cache VM). This pass parks one named BMP
+  per Lawgof / railing / cave / Nulodion / toolkit / mould / complete
+  click. Dedicated `quest_mcannon_selftest.u.h` sits immediately before
+  `selftest_reset_world`. Leftovers: IF409 3-pair toolkit puzzle, modern
+  railing failure table, private Lollk, start-offer wording, post-quest
+  multicannon.
 
 - **Cloud agents + unkillable player (2026-09-09):** Quest-repair workers
   now run as cloud agents off `v3`. Gate D / C selftest must leave the
