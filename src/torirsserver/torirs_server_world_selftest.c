@@ -3199,6 +3199,9 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_DOD_ONLY") )
+        goto selftest_dod_only;
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
@@ -35895,6 +35898,17 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+selftest_dod_only:
+#include "test/quest_depthsofdespair_selftest.u.h"
+    if( getenv("TORIRSSERVER_SELFTEST_DOD_ONLY") )
+    {
+        fprintf(stderr,
+                "ToriRSServer Depths of Despair selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("depthsofdespair");
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
