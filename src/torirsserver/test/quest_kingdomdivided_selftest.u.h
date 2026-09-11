@@ -130,7 +130,6 @@
                            "missing Depths of Despair must not write %%akd, got %d",
                            akd_bit >= 0 ? ToriRSServer_VarbitGet(player, akd_bit) : -1);
             (void)pages;
-            ToriRSServer_ScriptsFree(srv);
             ToriRSServer_WorldNpcFree(srv, slot);
             ToriRSServer_WorldNpcReap(srv);
         }
@@ -182,7 +181,6 @@
                            "boosted Agility must not start AKD, got %d",
                            akd_bit >= 0 ? ToriRSServer_VarbitGet(player, akd_bit) : -1);
             (void)pages;
-            ToriRSServer_ScriptsFree(srv);
             ToriRSServer_WorldNpcFree(srv, slot);
             ToriRSServer_WorldNpcReap(srv);
         }
@@ -245,7 +243,6 @@
                            "refusing Martin must not write %%akd, got %d",
                            akd_bit >= 0 ? ToriRSServer_VarbitGet(player, akd_bit) : -1);
             (void)pages;
-            ToriRSServer_ScriptsFree(srv);
             ToriRSServer_WorldNpcFree(srv, slot);
             ToriRSServer_WorldNpcReap(srv);
         }
@@ -294,7 +291,6 @@
                            "accepting Martin writes %%akd = ^akd_fullore (4), got %d",
                            akd_bit >= 0 ? ToriRSServer_VarbitGet(player, akd_bit) : -1);
             (void)pages;
-            ToriRSServer_ScriptsFree(srv);
             ToriRSServer_WorldNpcFree(srv, slot);
             ToriRSServer_WorldNpcReap(srv);
         }
@@ -324,7 +320,6 @@
         SELFTEST_CHECK(player->godmode == 1, "AKD complete still leaves the player unkillable");
         SELFTEST_CHECK(player->hitpoints > 0, "AKD walk must not kill the player");
         (void)pages;
-        ToriRSServer_ScriptsFree(srv);
 
         fprintf(stderr,
                 "ToriRSServer selftest: A Kingdom Divided %lu checks, %d failures\n",
