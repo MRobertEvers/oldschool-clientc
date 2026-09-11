@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_childrenofthesun_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_COTS_ONLY") )
+    {
+        player->godmode = 1;
+        selftest_quest_childrenofthesun(srv, player);
+        fprintf(stderr, "ToriRSServer Children of the Sun selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("childrenofthesun");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35907,13 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /*
+     * Children of the Sun Gate D C-walk. Placed immediately before the next
+     * selftest_reset_world so spawned npcs cannot leak into later RNG-gated
+     * shop checks. Worker-branch only; parent will not merge the .u.h.
+     */
+    selftest_quest_childrenofthesun(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
