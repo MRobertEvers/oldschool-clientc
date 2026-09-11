@@ -3220,6 +3220,9 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_POG_ONLY") )
+        goto pog_selftest;
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35895,6 +35898,17 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+pog_selftest:
+#include "test/quest_pathofglouphrie_selftest.u.h"
+    if( getenv("TORIRSSERVER_SELFTEST_POG_ONLY") )
+    {
+        fprintf(stderr,
+                "ToriRSServer Path of Glouphrie selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("pog");
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
