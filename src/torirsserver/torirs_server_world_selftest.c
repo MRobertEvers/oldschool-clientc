@@ -3327,6 +3327,24 @@ ToriRSServer_WorldSelftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
+    /*
+     * Misthalin Mystery Gate D, on its own.
+     *
+     *   TORIRSSERVER_SELFTEST_MISTMYST_ONLY=1 ./src/build_opt/torirsserver --selftest
+     *
+     * Same shape as TD_ONLY / GWD_ONLY: the dedicated stanza is also included
+     * immediately before the shop `selftest_reset_world`. This early gate
+     * exists so a broken tree elsewhere cannot hide a mistmyst regression.
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_MISTMYST_ONLY") )
+    {
+#include "test/quest_misthalinmystery_selftest.u.h"
+        fprintf(stderr, "ToriRSServer mistmyst selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("mistmyst");
+        return g_selftest_failures;
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_TD_ONLY") )
     {
         static struct ToriRSServerCapture td_only_capture;
@@ -35896,6 +35914,13 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /*
+     * Misthalin Mystery Gate D. Placed immediately before a
+     * `selftest_reset_world`, deliberately — spawned Abigale / Mandy and
+     * progress writes must not leak into the shop stanza.
+     */
+#include "test/quest_misthalinmystery_selftest.u.h"
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
