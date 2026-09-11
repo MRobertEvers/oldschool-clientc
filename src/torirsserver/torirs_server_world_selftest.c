@@ -3199,6 +3199,9 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_DOV_ONLY") )
+        goto dov_selftest_only;
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
@@ -35897,6 +35900,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+dov_selftest_only:
 #include "test/quest_defenderofvarrock_selftest.u.h"
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
