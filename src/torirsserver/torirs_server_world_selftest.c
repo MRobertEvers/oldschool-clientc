@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_corsaircurse_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,20 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_CC_ONLY") )
+    {
+        int cc_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !cc_loaded )
+            cc_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        (void)cc_loaded;
+        selftest_quest_corsaircurse(srv, player);
+        fprintf(stderr, "ToriRSServer Corsair Curse selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("corsaircurse");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35911,8 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    selftest_quest_corsaircurse(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
