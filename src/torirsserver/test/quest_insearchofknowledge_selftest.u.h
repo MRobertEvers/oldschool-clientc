@@ -28,6 +28,7 @@ isok_selftest_click_to_choice(struct ToriRSServer* srv, struct ToriRSServerPlaye
 
     assert(srv);
     assert(player);
+    (void)srv;
     for( clicks = 0; clicks < 16 && player->active_script; clicks++ )
     {
         int uid;
