@@ -3328,6 +3328,16 @@ ToriRSServer_WorldSelftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
+    if( getenv("TORIRSSERVER_SELFTEST_SOTE_ONLY") )
+    {
+        player->godmode = 1;
+        selftest_quest_songoftheelves(srv, player);
+        fprintf(stderr, "ToriRSServer SOTE selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("sote");
+        return g_selftest_failures;
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_TD_ONLY") )
     {
         static struct ToriRSServerCapture td_only_capture;
