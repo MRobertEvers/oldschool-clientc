@@ -83,9 +83,9 @@ selftest_tgod_only:;
     if_gold = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "crafting_gold");
     if_silver = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "silver_crafting");
     if_flute = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "ratcatcher_flute");
-    spell_telegrab = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "law_rune");
+    spell_telegrab = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "lawrune");
     if( spell_telegrab < 0 )
-        spell_telegrab = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "air_rune");
+        spell_telegrab = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "airrune");
     com_messagebox = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "messagebox:continue");
     com_chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
 
@@ -187,8 +187,9 @@ selftest_tgod_only:;
     SELFTEST_CHECK(selftest_count(player, obj_journal) == 1,
                    "accept grants tgod_journal");
 
-    /* Journal read advances to ^god_t1 = 4. */
+    /* Journal read advances to ^god_t1 = 4. mesbox parks before the write. */
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_journal, -1, -1);
+    selftest_click_through(srv, 8);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_tgod) == 4,
@@ -199,6 +200,7 @@ selftest_tgod_only:;
     if( loc_camp >= 0 )
     {
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_camp, -1, -1);
+        selftest_click_through(srv, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
         SELFTEST_CHECK(selftest_count(player, obj_secateurs) == 1,
@@ -214,6 +216,7 @@ selftest_tgod_only:;
                 inv_set(player, s, -1, 0);
         }
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_g1_entry, -1, -1);
+        selftest_click_through(srv, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_tgod) == 4,
@@ -221,6 +224,7 @@ selftest_tgod_only:;
                        ToriRSServer_VarbitGet(player, vb_tgod));
         selftest_give(player, obj_secateurs, 1);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_g1_entry, -1, -1);
+        selftest_click_through(srv, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_tgod) == 6,
@@ -232,6 +236,7 @@ selftest_tgod_only:;
     if( loc_g1_table >= 0 && obj_tablet1 >= 0 )
     {
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_g1_table, -1, -1);
+        selftest_click_through(srv, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
         SELFTEST_CHECK(selftest_count(player, obj_tablet1) == 1, "garden 1 table grants tablet 1");
@@ -260,6 +265,7 @@ selftest_tgod_only:;
     {
         ToriRSServer_VarbitSet(srv, vb_tgod, 18);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_vines_inspect, -1, -1);
+        selftest_click_through(srv, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_tgod) == 22,
@@ -270,6 +276,7 @@ selftest_tgod_only:;
             if( selftest_count(player, obj_secateurs) < 1 )
                 selftest_give(player, obj_secateurs, 1);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_vines_cut, -1, -1);
+            selftest_click_through(srv, 8);
             ToriRSServer_WorldCloseModal(srv);
             player->active_script = NULL;
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_tgod) == 24,
@@ -343,8 +350,8 @@ selftest_tgod_only:;
     SELFTEST_CHECK(player->stat_xp_tenths[stat_farming] >= xp_before + 100000,
                    "completion awards 10000 Farming XP (100000 tenths), %d -> %d",
                    xp_before, player->stat_xp_tenths[stat_farming]);
-    if( obj_coins >= 0 )
-        SELFTEST_CHECK(selftest_count(player, obj_coins) > 0, "completion grants coins");
+    /* coins is the complete-scroll icon argument, not an inventory grant. */
+    SELFTEST_CHECK(obj_coins >= 0, "coins icon for ~quest_complete_rewards resolves");
     if( vb_translated >= 0 )
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_translated) == 1,
                        "completion sets tgod_fully_translated");
