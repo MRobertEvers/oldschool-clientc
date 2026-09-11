@@ -3220,6 +3220,9 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_TOR_ONLY") )
+        goto selftest_tor_only;
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35895,6 +35898,15 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+selftest_tor_only:
+    if( getenv("TORIRSSERVER_SELFTEST_TOR_ONLY") )
+    {
+#include "test/quest_taleoftherighteous_selftest.u.h"
+        fprintf(stderr, "ToriRSServer Tale of the Righteous: %lu check(s), %d failure(s)\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
