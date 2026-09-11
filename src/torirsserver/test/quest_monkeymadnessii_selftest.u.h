@@ -659,15 +659,11 @@ selftest_quest_monkeymadnessii(
         mm2_pass("27_glough_house_clues");
     }
 
-    slot_anita = mm2_spawn(srv, npc_anita, MM2_NARNODE_X, MM2_NARNODE_Z, 0);
-    SELFTEST_CHECK(slot_anita >= 0, "Anita should spawn");
-    mm2_talk_finish(srv, npc_anita, slot_anita);
-    SELFTEST_CHECK(mm2_quest(player) == MM2_NARNODE_NOTE, "Anita should set narnode_note=8");
-    mm2_pass("29_anita_translation");
-
     mm2_talk_finish(srv, npc_narnode, slot_narnode);
-    if( obj_note > 0 && mm2_inv_total(player, obj_note) < 1 )
-        mm2_pass("17_narnode_bring_translation");
+    SELFTEST_CHECK(mm2_quest(player) == MM2_ANITA,
+                   "missing translation at anita=7 must not skip Anita");
+    mm2_pass("17_narnode_bring_translation");
+
     if( obj_note > 0 )
     {
         int s;
@@ -681,10 +677,16 @@ selftest_quest_monkeymadnessii(
         }
     }
     mm2_talk_finish(srv, npc_narnode, slot_narnode);
-    SELFTEST_CHECK(mm2_quest(player) == MM2_ENTRANA, "note hand-in should set entrana=9");
+    SELFTEST_CHECK(mm2_quest(player) == MM2_ENTRANA, "note hand-in at anita=7 should set entrana=9");
     mm2_pass("18_narnode_dire_entrana");
 
-    mm2_vb(srv, "mm2_progress", MM2_NARNODE_NOTE);
+    mm2_vb(srv, "mm2_progress", MM2_ANITA);
+    slot_anita = mm2_spawn(srv, npc_anita, MM2_NARNODE_X, MM2_NARNODE_Z, 0);
+    SELFTEST_CHECK(slot_anita >= 0, "Anita should spawn");
+    mm2_talk_finish(srv, npc_anita, slot_anita);
+    SELFTEST_CHECK(mm2_quest(player) == MM2_NARNODE_NOTE, "Anita should set narnode_note=8");
+    mm2_pass("29_anita_translation");
+
     mm2_talk_finish(srv, npc_narnode, slot_narnode);
     SELFTEST_CHECK(mm2_quest(player) == MM2_ENTRANA, "Auguste brief should set entrana=9");
     mm2_pass("19_narnode_speak_auguste");
