@@ -3220,6 +3220,9 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_TGOD_ONLY") )
+        goto selftest_tgod_only;
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35897,6 +35900,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+#include "test/quest_gardenofdeath_selftest.u.h"
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
