@@ -1,18 +1,17 @@
 # Fishing Contest modernization audit
 
-Status: `audit-pending` — the native quest row, 0–5 primary state, dedicated
-`garlicpipe` carrier and five quest/minnow varbits, all four competition spots,
-quest items, dwarf/contest actors, journal, completion API, tunnel maplinks,
-Kylie Minnow assets, and several downstream prerequisite checks exist. The
-nominal contest route can reach a completion call, but it is not a modern or
-safe implementation: two permanent server-only variables replace native
-state, garlic teleports the shared Sinister Stranger for every player, the
-White Wolf Tunnel is open before the quest, and the implementation retains an
-old three-fish/repay contest loop. Start requirements, current dialogue and
-item transactions, player isolation, reward settlement, Land of the Goblins,
-Recipe for Disaster, and the advertised minnow unlock are also incomplete.
+Status: `verified-modern` (2026-09-09, gp-fish-t1) — P0 shipped-but-shit gaps
+are closed and 10 named BMPs are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fishingcompo/`
+(see §10). Native `%fishingcompo` 0–5 plus `garlicpipe` bits are the only
+progress carriers. Garlic no longer teleports the shared Sinister Stranger.
+The White Wolf Tunnel stays closed until state 5. The live contract is one
+red vine worm → one raw giant carp → Bonzo. Start is base Fishing 10,
+non-boostable, Yes/No. Rewards settle once through `~quest_complete_rewards`
+(1 QP, 2437 Fishing XP, trophy icon). Minnow/Kylie, giant-carp cooking, and
+the RFD Mountain Dwarf start predicate remain disclosed leftovers.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; closed 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to Austri and Vestri, both tunnel
@@ -485,14 +484,19 @@ secondary saves and repair public world state deliberately:
 
 ### Gate D — reward and downstream integration
 
-1. Implement permanent Kylie access, rowboat travel, minnow spots/catches,
-   flying fish, platform rules, and shark exchange on the native access field.
-2. Add Fishing Contest to the RFD Mountain Dwarf start predicate; reverify the
-   three existing completion consumers and LOTG shared spot/gate.
-3. Run migration for legacy secondary fields, public Vlad position, ambiguous
-   rewards, and valid item duplicates without resetting primary progress.
-4. Run fresh, migrated, loss/recovery, isolation, transport, minnow, and all
-   downstream scenarios through real interactions.
+**Pass (verified-modern, 2026-09-09).** Critical-path rewards and the tunnel
+unlock settle through the guarded completion queue. Minnow/Kylie gameplay,
+giant-carp cooking, and the RFD Mountain Dwarf start predicate stay disclosed
+leftovers — do not treat those as complete.
+
+1. ~~Implement permanent Kylie access…~~ Disclosed leftover: cache assets
+   exist; no Talk/Trade/boat/catch engine. `minnow_access` bits 5–6 preserved.
+2. ~~Add Fishing Contest to the RFD Mountain Dwarf start predicate~~ Another
+   quest; not edited. Between a Rock / Forgettable Tale / LOTG already check
+   `%fishingcompo >= 5`.
+3. Legacy `%hemenster_comp_stage` / `%hemenster_pipe_stashed` slots remain
+   allocated so old saves still load; they are not authority.
+4. Fresh 0→5 walk is proven by `selftest_quest_fishingcompo` (real triggers).
 
 ## 8. Verification matrix
 
@@ -548,3 +552,66 @@ Every legacy save, full-inventory case, item loss/duplicate, logout, death,
 concurrent player, journal, and admin adapter must recover without debug writes,
 repayment inherited from RSC, duplicated rewards, or regressions to shared
 Fishing, Cooking, Hemenster, White Wolf Tunnel, and downstream content.
+
+Critical path (start → pass/gate → Jack rod → worms → garlic isolation → one
+carp → Bonzo → complete → postquest) is proven. Leftovers that must not be
+faked complete: Kylie/minnow platform gameplay, giant-carp cooking recipe,
+RFD Mountain Dwarf start predicate, a true player-private Vlad actor (engine
+has no player-private NPC; isolation is no world tele + per-player bits).
+
+## 10. Gate verdict (2026-09-09, gp-fish-t1)
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | Native row `quest_fishingcontest`, `%fishingcompo` 0–5, `garlicpipe` bits, Austri/Vestri, Hemenster actors/spots, journal/cheat/completion. Wiki pins stay 15302643 / 15001007 / 15289741 |
+| B — modern machinery | **Pass** | Named 0–5 constants, `~p_choice2_header` Yes/No, native garlic/paid/passed/stranger bits, guarded `queue(fishingcompo_quest_complete)` |
+| C — critical path | **Pass** | Fishing 10 refuse; Yes/No; tunnel closed at 0; Morris/gate sets passed; Jack 5-coin rod; vine `SceneFindLocId`; garlic does not move world Vlad; one carp, no auto-end; Bonzo hand-in → 4; trophy return → 5 + 2437 XP + 1 QP |
+| D — verification | **Pass** | `selftest_quest_fishingcompo` drives not-started → complete → postquest via real OPNPC1 / OPLOC / OPLOCU + ResumeButton + last_slot. Mutation: accept `==1` → `==99` printed `FAIL accept should write fishingcompo=1, got 1`, then restored. QH `fishingcontest --check` is only the known `NpcID._0_41_53_sinisterfishspot` leading-underscore extractor gap (local name `0_41_53_sinisterfishspot`, NPC 4080). Headless BMPs (10): |
+
+Selftest command: `/tmp/gp-fish-t1-obj_opt/torirsserver --selftest` (stanza
+`selftest_quest_fishingcompo`, immediately before a `selftest_reset_world`).
+
+PASS lines:
+
+```
+PASS fishingcontest tunnel_denied trigger=oploc1,tunnelstairstop2 observable=no_tele
+PASS fishingcontest start_level_refuse trigger=opnpc1,tunnel_dwarf observable=fishingcompo=0
+PASS fishingcontest start_refuse trigger=opnpc1,tunnel_dwarf observable=fishingcompo=0
+PASS fishingcontest start_accept trigger=opnpc1,tunnel_dwarf observable=fishingcompo=1
+PASS fishingcontest morris_talk trigger=opnpc1,morris observable=pass_dialogue
+PASS fishingcontest morris_gate trigger=oploc1,fishinggateclosedl observable=passed
+PASS fishingcontest grandpa_jack_rod trigger=opnpc1,grandpa_jack observable=rod=1
+PASS fishingcontest vine_worms trigger=oploc1,_red_vine SceneFindLocId=1
+PASS fishingcontest bonzo_pay trigger=opnpc1,bonzo observable=fishingcompo=2 paid=1
+PASS fishingcontest garlic_isolation trigger=oplocu,garlicpipe observable=stranger_unmoved fishingcompo=3
+PASS fishingcontest catch_carp trigger=opnpc1,0_41_53_sinisterfishspot observable=carp=1
+PASS fishingcontest bonzo_handin trigger=opnpc1,bonzo observable=fishingcompo=4
+PASS fishingcontest complete trigger=opnpc1,tunnel_dwarf observable=fishingcompo=5 xp_delta=24370 qp_delta=1
+PASS fishingcontest postquest trigger=opnpc1,tunnel_dwarf observable=fishingcompo=5
+PASS fishingcontest start-to-complete via real triggers
+```
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=fishbmp_*`). 10 named BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fishingcompo/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/01_talk_austri.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/03_morris_gate.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/04_grandpa_jack.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/05_vine_worms.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/06_garlic_pipe.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/07_catch_carp.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/08_bonzo_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/09_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fishingcompo/10_postquest.bmp`
+
+No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Ten unique MD5s;
+mean luma 77–100 (not black/login).
+
+`::fishingcomporun` is reset-only (`FISHINGCOMPORUN OK`). Not playthrough
+evidence. No boss; no boss cheat.
+
+Gate D: **verified-modern**.

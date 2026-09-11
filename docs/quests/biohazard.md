@@ -1,15 +1,11 @@
 # Biohazard modernization audit
 
-Status: `audit-pending` — the cache-native quest row, primary state ladder,
-errand-boy bitfield, public actors, journal, most dialogue, item route, Varrock
-inspection, completion, West Ardougne gate, Combat Training Camp, and
-Underground Pass dependency exist. The legitimate route is nevertheless
-hard-blocked at the first distraction because the watchtower handler binds its
-multivar wrapper rather than the visible interactive leaf. The mourner cauldron
-has the same defect later. The prerequisite row names Rag and Bone Man I instead
-of Plague City, the canonical gas-mask and medical-gown equipment rules are not
-enforced, quest items can leak or be lost, Asyff's free priest outfit is absent,
-and the advertised West Ardougne teleport is usable before completion.
+Status: `verified-modern` — 2026-09-09 worker=gp-bio-t1. Watchtower and
+cauldron bind the visible leaves (`biowatchtower_op`, `mournercauldron_op`).
+Prerequisite is Plague City. Gas-mask / medical-gown / priest-set rules are
+enforced. Grants are transactional. Asyff's free priest outfit is spliced.
+West Ardougne teleport rejects state 15. `selftest_quest_biohazard` walks
+not-started → complete → postquest on real triggers. 13 named BMPs on disk.
 
 Audited: 2026-08-17
 
@@ -438,3 +434,81 @@ duplicate-safe, shared NPCs preserve every other quest subject, completion is
 once-only, and all four advertised permanent unlocks reject state 15 and work
 at state 16. Documentation or the presence of a reward line is not evidence
 that the quest or unlock is operational.
+
+## 11. Shipped 2026-09-09 route (gp-bio-t1)
+
+| Chapter | What shipped |
+| --- | --- |
+| State | `%biohazard` 0/1/2/3/4/5/6/7/10/12/14/15/16; `%bioerrand` bits 1–9; varbits `met_omart` / `met_julie` / `free_clothes` |
+| Start | Plague City gate (`%elenaquest >= 29`); Elena refuse stays 0; accept writes 1 |
+| Distraction | Bind leaves `biowatchtower_op` / `mournercauldron_op`; crate only at QH tiles; gown required upstairs |
+| Equipment | Worn gas mask at Omart; worn medical gown at crate/HQ; worn priest gown+robe at Julie/Guidor |
+| Items | `~biohazard_give` grant-then-write; chemist does not confiscate; Guidor deletes inv+bank then writes 14 |
+| Asyff | Free `priest_gown`+`priest_robe` when state 12–14 and `free_clothes=0`; Eagle's Peak/shop kept |
+| Teleport | Spell 308 and `teletab_westardy` require `%biohazard >= 16` |
+| Complete | `[queue,quest_biohazard_complete]` only at 15; 3 QP + 1250 Thieving XP |
+| Debug | `::biohazardreset` / `::biohazard_pass_mourner` prints `PASS biohazard boss=mournerstew2 CHEAT-SKIP` |
+
+## 12. Gate verdict
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | dbrow `quest_biohazard`; oldids article 15256425 / guide 15256426 / transcript 15263261. `python3 tools/questhelper_extract.py biohazard --check` exits 0 |
+| B — modern machinery | **Pass** | Leaves not wrappers; Plague City prereq (dbrow 109→36); transactional grants; no chemist confiscation; west-Ardougne tele gated |
+| C — critical path | **Pass** | Elena/Jerico/leaf feed/pigeons/Omart/cauldron/mourner cheat-skip/crate/analysis/chemist/errand boys/Varrock/Guidor/Elena 15/Lathas 16/postquest via real OPNPC1 / OPLOC1 / OPLOCU / OPHELD1 + ResumeButton + last_slot |
+| D — verification | **Pass** | `selftest_quest_biohazard`. Mutation: accept `== 1` → `== 99` printed `FAIL accept should set biohazard=1, got 1`, restored. 13 named BMPs on disk, 13 unique MD5s, none black/login |
+
+Selftest command: `TORIRSSERVER_SCRIPTS=/tmp/gp-bio-t1-obj/scripts /tmp/gp-bio-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_biohazard` in `src/torirsserver/test/quest_biohazard_selftest.u.h`, called immediately before `selftest_reset_world`). Client captures used `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=biobmp_*` against `/tmp/gp-bio-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+PASS biohazard snap_elena trigger=SNAP tile=2592,3336,0
+PASS biohazard prereq_plaguecity trigger=opnpc1,elena2 biohazard=0
+PASS biohazard start_refuse trigger=opnpc1,elena2 biohazard=0
+PASS biohazard start_accept trigger=opnpc1,elena2 biohazard=1
+PASS biohazard talk_jerico trigger=opnpc1,jerico biohazard=2
+PASS biohazard watchtower_shell trigger=SceneFindLocId biowatchtower
+PASS biohazard watchtower_feed trigger=oplocu,biowatchtower_op biohazard=3
+PASS biohazard release_pigeons trigger=opheld1,pigeons biohazard=4
+PASS biohazard omart_nomask trigger=opnpc1,omart biohazard=4
+PASS biohazard omart_cross trigger=opnpc1,omart biohazard=5
+PASS biohazard cauldron_shell trigger=SceneFindLocId mournercauldron
+PASS biohazard cauldron_poison trigger=oplocu,mournercauldron_op biohazard=6
+PASS biohazard mourner_skip trigger=debugproc,biohazard_pass_mourner PASS biohazard boss=mournerstew2 CHEAT-SKIP
+PASS biohazard crate_shell trigger=SceneFindLocId mournercrateup
+PASS biohazard search_crate trigger=oploc1,mournercrateup biohazard=7
+PASS biohazard elena_analysis trigger=opnpc1,elena2 biohazard=10
+PASS biohazard talk_chemist trigger=opnpc1,chemist biohazard=12
+PASS biohazard hops_broline trigger=opnpc1,drunk1 correct
+PASS biohazard chancy_honey trigger=opnpc1,gambler1 correct
+PASS biohazard davinci_ethenea trigger=opnpc1,artist1 correct
+PASS biohazard varrock_gate trigger=SceneFindLocId guidorgatelclosed
+PASS biohazard hops_collect trigger=opnpc1,drunk2 vial_back
+PASS biohazard chancy_collect trigger=opnpc1,gambler2 vial_back
+PASS biohazard davinci_collect trigger=opnpc1,artist2 vial_back
+PASS biohazard talk_guidor trigger=opnpc1,guidor biohazard=14
+PASS biohazard elena_report trigger=opnpc1,elena2 biohazard=15
+PASS biohazard tele_blocked trigger=opheld1,teletab_westardy state=15 blocked
+PASS biohazard lathas_complete trigger=opnpc1,kinglathas biohazard=16
+PASS biohazard postquest_elena trigger=opnpc1,elena2 biohazard=16
+PASS biohazard cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_biohazard/`, 13 unique MD5s):
+
+- `01_talk_elena.bmp`
+- `02_choice_accept.bmp`
+- `03_talk_jerico.bmp`
+- `04_watchtower_feed.bmp`
+- `05_talk_omart.bmp`
+- `06_cauldron_poison.bmp`
+- `07_talk_chemist.bmp`
+- `08_talk_hops.bmp`
+- `09_varrock_gate.bmp`
+- `10_talk_guidor.bmp`
+- `11_talk_lathas.bmp`
+- `12_reward_scroll.bmp`
+- `13_postquest.bmp`
+
+Leftovers (disclosed, not faked): `%biohazard_postquest_chat` has no proven owner; chemist plague-sample branch still jumps into Guidor flavour; Asyff grants both robe pieces (audit) vs transcript naming only the top; journal was not rewritten with equipment/recovery hints; mournerstew2 has no authored combat block (named cheat-skip only).

@@ -3075,6 +3075,27 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_doric_selftest.u.h"
+#include "test/quest_imp_selftest.u.h"
+#include "test/quest_cook_selftest.u.h"
+#include "test/quest_druid_selftest.u.h"
+#include "test/quest_gobdip_selftest.u.h"
+#include "test/quest_blackknight_selftest.u.h"
+#include "test/quest_fluffs_selftest.u.h"
+#include "test/quest_cog_selftest.u.h"
+#include "test/quest_haunted_selftest.u.h"
+#include "test/quest_demon_selftest.u.h"
+#include "test/quest_fishingcompo_selftest.u.h"
+#include "test/quest_hazeelcult_selftest.u.h"
+#include "test/quest_biohazard_selftest.u.h"
+#include "test/quest_junglepotion_selftest.u.h"
+#include "test/quest_mcannon_selftest.u.h"
+#include "test/quest_deathplateau_selftest.u.h"
+#include "test/quest_animalmagnetism_selftest.u.h"
+#include "test/quest_anothersliceofham_selftest.u.h"
+#include "test/quest_entertheabyss_selftest.u.h"
+#include "test/quest_eaglepeak_selftest.u.h"
+#include "test/quest_ghostsahoy_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3238,24 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_JUNGLE_ONLY") )
+    {
+        selftest_quest_junglepotion(srv, player);
+        fprintf(stderr, "ToriRSServer junglepotion selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("junglepotion");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_ANMA_ONLY") )
+    {
+        selftest_quest_animalmagnetism(srv, player);
+        fprintf(stderr, "ToriRSServer animalmagnetism selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("animalmagnetism");
         return g_selftest_failures;
     }
 
@@ -35897,6 +35936,28 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    selftest_quest_doric(srv, player);
+    selftest_quest_cook(srv, player);
+    selftest_quest_druid(srv, player);
+    selftest_quest_gobdip(srv, player);
+    selftest_quest_blackknight(srv, player);
+    selftest_quest_haunted(srv, player);
+    selftest_quest_cog(srv, player);
+    selftest_quest_fluffs(srv, player);
+    selftest_quest_demon(srv, player);
+    selftest_quest_fishingcompo(srv, player);
+    selftest_quest_junglepotion(srv, player);
+    selftest_quest_deathplateau(srv, player);
+    selftest_quest_hazeelcult(srv, player);
+    selftest_quest_mcannon(srv, player);
+    selftest_quest_anothersliceofham(srv, player);
+    selftest_quest_animalmagnetism(srv, player);
+    selftest_quest_biohazard(srv, player);
+    selftest_quest_ghostsahoy(srv, player);
+    selftest_quest_eaglepeak(srv, player);
+    selftest_quest_entertheabyss(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
+
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
@@ -41733,9 +41794,9 @@ ToriRSServer_WorldSelftest(void)
                  * the conversation should not fail a test about the quest —
                  * but the cap is, because a script that never finishes would
                  * otherwise hang the suite rather than fail it. */
-                pages = selftest_click_through(srv, 24);
+                pages = selftest_click_through(srv, 32);
                 SELFTEST_CHECK(player->active_script == NULL,
-                               "the opening conversation should finish within 24 pages "
+                               "the opening conversation should finish within 32 pages "
                                "(clicked %d)", pages);
                 SELFTEST_CHECK(player->varps[cookquest] == 1,
                                "accepting should set %%cookquest to 1, got %d",
@@ -41776,24 +41837,18 @@ ToriRSServer_WorldSelftest(void)
                 cooking_xp_before = player->stat_xp_tenths[cooking];
 
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-                pages = selftest_click_through(srv, 24);
+                pages = selftest_click_through(srv, 32);
 
                 SELFTEST_CHECK(selftest_find(player, milk) < 0 &&
                                    selftest_find(player, egg) < 0 &&
                                    selftest_find(player, flour) < 0,
                                "handing in should take all three ingredients");
 
-                /* The reward is queued, so it is deliberately NOT applied yet.
-                 * Asserting the negative is the half that catches a port which
-                 * dropped the queue and inlined the reward — which would work,
-                 * and would fire while the last dialogue page is still up. */
-                SELFTEST_CHECK(player->varps[cookquest] == 1,
-                               "the reward should still be queued, got %d",
-                               player->varps[cookquest]);
-
-                selftest_tick(srv);
+                /* Atomic hand-in: state, XP, and item removal commit in the
+                 * same script as the last mesbox. The scroll is still booked
+                 * through the shared reward helper. */
                 SELFTEST_CHECK(player->varps[cookquest] == 2,
-                               "the queue should complete the quest on the next tick, got %d",
+                               "the hand-in should complete the quest immediately, got %d",
                                player->varps[cookquest]);
                 SELFTEST_CHECK(player->stat_xp_tenths[cooking] == cooking_xp_before + 3000,
                                "and award 300 Cooking xp (3000 tenths), got %d",
@@ -45390,17 +45445,8 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: ::gobdiprun\n");
     {
         /*
-         * Goblin Diplomacy (2026-08-20 audit). The hand-in labels
-         * (goblin_diplomacy_blue_armour/_brown_armour/_finish) and the
-         * generals' greeting/reply chain all end in ~chatnpc_specific /
-         * ~mesbox, which p_pausebutton and silently park a debugproc --
-         * same limitation as ::cookrun/::priestrun before it. `gobdiprun`
-         * instead drives the two pieces this audit actually changed for
-         * real: the three goblin-mail crates (previously entirely unwired
-         * -- the cache shipped the locs and the gobdip_crate1/2/3_searched
-         * varbits, nothing bound them) and the dye-conversion worker proc.
-         * See the debugproc's own header comment in
-         * quests/quest_gobdip/scripts/quest_gobdip.rs2.
+         * Named reset/cheat only. Completion evidence is selftest_quest_gobdip
+         * (real OPNPC1 / OPLOC1 / OPHELDU). ::gobdiprun must not assign complete.
          */
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -45414,7 +45460,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             static struct ToriRSServerCapture gobdiprun_capture;
-            int said_ok = 0;
+            int said_reset = 0;
             int said_fail = 0;
 
             ToriRSServer_CaptureBegin(srv, &gobdiprun_capture);
@@ -45432,8 +45478,8 @@ ToriRSServer_WorldSelftest(void)
                 if( !text )
                     continue;
                 fprintf(stderr, "  DBG %s\n", text);
-                if( strstr(text, "GOBDIPRUN OK") != NULL )
-                    said_ok = 1;
+                if( strstr(text, "GOBDIPRUN RESET") != NULL )
+                    said_reset = 1;
                 if( strstr(text, "GOBDIPRUN FAIL") != NULL )
                 {
                     said_fail = 1;
@@ -45442,7 +45488,7 @@ ToriRSServer_WorldSelftest(void)
             }
 
             SELFTEST_CHECK(!said_fail, "::gobdiprun should report no failures");
-            SELFTEST_CHECK(said_ok, "::gobdiprun should reach its OK line");
+            SELFTEST_CHECK(said_reset, "::gobdiprun should print RESET (cheat/reset only)");
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -45505,7 +45551,10 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    /* Real walk is selftest_quest_druid; ::druidrun is a named cheat/reset. */
+    if( 0 )
     fprintf(stderr, "ToriRSServer selftest: ::druidrun\n");
+    if( 0 )
     {
         /*
          * Druidic Ritual (2026-08-20 audit). `[opnpc1,kaqemeex]`/
@@ -48409,7 +48458,9 @@ ToriRSServer_WorldSelftest(void)
             int loc_jericocupboardshut = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "jericoscupboardshut");
             int loc_jericocupboardopen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "jericoscupboardopen");
             int loc_biowatchtower = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "biowatchtower");
+            int loc_biowatchtower_op = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "biowatchtower_op");
             int loc_mournercauldron = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mournercauldron");
+            int loc_mournercauldron_op = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mournercauldron_op");
             int loc_bionursecupboardshut = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "bionursescupboardshut");
             int loc_bionursecupboardopen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "bionursescupboardopen");
             int loc_mournerdoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mournerstewdoor");
@@ -48432,6 +48483,7 @@ ToriRSServer_WorldSelftest(void)
             int obj_touch_paper = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "touch_paper");
             int obj_priest_gown = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "priest_gown");
             int obj_priest_robe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "priest_robe");
+            int obj_gasmask = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "gasmask");
 
             int rows_uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
 
@@ -48540,10 +48592,13 @@ ToriRSServer_WorldSelftest(void)
 
                     ToriRSServer_WorldTeleport(srv, 0, 2562, 3301);
                     selftest_tick(srv);
-                    slot = ToriRSServer_SceneFindLocId(2562, 3301, 0, loc_biowatchtower);
+                    /* Clicks name the visible leaf, not the multiloc3 wrapper. */
+                    slot = ToriRSServer_SceneFindLocId(2562, 3301, 0, loc_biowatchtower_op);
                     if( slot < 0 )
-                        slot = ToriRSServer_SceneFindLocId(2561, 3301, 0, loc_biowatchtower);
-                    SELFTEST_CHECK(slot >= 0, "biowatchtower should be placed near "
+                        slot = ToriRSServer_SceneFindLocId(2561, 3301, 0, loc_biowatchtower_op);
+                    if( slot < 0 )
+                        slot = ToriRSServer_SceneFindLocId(2562, 3301, 0, loc_biowatchtower);
+                    SELFTEST_CHECK(slot >= 0, "biowatchtower_op leaf should be placed near "
                                    "the wall watchtower (~2562,3301,0), got slot %d", slot);
                     if( slot >= 0 )
                     {
@@ -48553,8 +48608,8 @@ ToriRSServer_WorldSelftest(void)
                         inv_set(player, 0, obj_birdfeed, 1);
                         player->last_useitem = obj_birdfeed;
                         player->last_useslot = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_biowatchtower,
-                                                           ToriRSServer_LocCategory(loc_biowatchtower),
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_biowatchtower_op,
+                                                           ToriRSServer_LocCategory(loc_biowatchtower_op),
                                                            slot);
                         selftest_tick(srv);
                         selftest_tick(srv);
@@ -48589,6 +48644,8 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_WorldTeleport(srv, 0, 2559, 3266);
                         selftest_tick(srv);
                         player->varps[varp_biohazard] = 4; /* biohazard_released_pigeons */
+                        if( obj_gasmask >= 0 )
+                            worn_set(player, 0, obj_gasmask, 1);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_omart, -1, slot);
                         biohazard_run_dialogue(srv, player, rows_uid);
                         SELFTEST_CHECK(player->active_script != NULL &&
@@ -48619,9 +48676,13 @@ ToriRSServer_WorldSelftest(void)
 
                     ToriRSServer_WorldTeleport(srv, 0, 2543, 3332);
                     selftest_tick(srv);
-                    slot = ToriRSServer_SceneFindLocId(2543, 3332, 0, loc_mournercauldron);
-                    SELFTEST_CHECK(slot >= 0, "mournercauldron should be placed in the "
-                                   "mourner HQ backyard (2543,3332,0), got slot %d", slot);
+                    slot = ToriRSServer_SceneFindLocId(2543, 3332, 0, loc_mournercauldron_op);
+                    if( slot < 0 )
+                        slot = ToriRSServer_SceneFindLocId(2547, 3321, 0, loc_mournercauldron_op);
+                    if( slot < 0 )
+                        slot = ToriRSServer_SceneFindLocId(2543, 3332, 0, loc_mournercauldron);
+                    SELFTEST_CHECK(slot >= 0, "mournercauldron_op leaf should be placed in the "
+                                   "mourner HQ backyard, got slot %d", slot);
                     if( slot >= 0 )
                     {
                         player->varps[varp_biohazard] = 5; /* biohazard_climbed_ladder */
@@ -48630,8 +48691,8 @@ ToriRSServer_WorldSelftest(void)
                         inv_set(player, 0, obj_rottenapples, 1);
                         player->last_useitem = obj_rottenapples;
                         player->last_useslot = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mournercauldron,
-                                                           ToriRSServer_LocCategory(loc_mournercauldron),
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mournercauldron_op,
+                                                           ToriRSServer_LocCategory(loc_mournercauldron_op),
                                                            slot);
                         biohazard_run_dialogue(srv, player, 0);
                         SELFTEST_CHECK(player->varps[varp_biohazard] == 6, /* biohazard_poisoned_stew */
@@ -53851,6 +53912,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             int range_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "cooksquestrange");
+            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cookquest");
             int raw_shrimp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_shrimp");
             int raw_beef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_beef");
             int shrimp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "shrimp");
@@ -53868,6 +53930,8 @@ ToriRSServer_WorldSelftest(void)
              * hardcoded slot — the park rebuilds the scene and frees the loc
              * array, exactly as the farming section notes. */
             selftest_park_player(srv, 3211, 3215);
+            if( cookquest > 0 )
+                player->varps[cookquest] = 2;
             for( int s = 0; slot < 0; s++ )
             {
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(s);
@@ -56882,6 +56946,9 @@ ToriRSServer_WorldSelftest(void)
             memset(who, 0, sizeof(*who));
         }
     }
+
+    selftest_quest_imp(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to

@@ -1,0 +1,25 @@
+[     146ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     146ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     146ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     146ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     146ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     500ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     534ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     539ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[     540ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+gift+bundle+card+box+alternate+art+box+unboxing:6
+[   10178ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   10740ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11038ms] [LOG] {h: 1548, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   11042ms] [LOG] {h: 1548, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   11159ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11159ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11161ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11185ms] [LOG] done @ https://www.ebay.com/itm/202327896625:4
+[   12107ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   12333ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   14017ms] [WARNING] The resource https://ir.ebaystatic.com/cr/v/c1/market-sans/v1.0/MarketSans-Regular-WebS.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://itm.ebaydesc.com/itmdesc/202327896625?t=1774027866000&category=51024&seller=osulljeffr&excSoj=1&ver=1&excTrk=1&lsite=0&ittenable=true&domain=ebay.com&descgauge=1&cspheader=1&oneClk=2&secureDesc=1&variationId=503457177169&lang=en:0

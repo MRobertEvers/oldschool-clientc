@@ -1,0 +1,785 @@
+- generic [active] [ref=f234e1]:
+  - banner [ref=f234e2]:
+    - generic [ref=f234e3]:
+      - link [ref=f234e4] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=f234e5]
+      - search [ref=f234e6]:
+        - button "Search" [ref=f234e9] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=f234e10]: "\"rivals of ixalan\" empty bundle box fat pack card box"
+        - button "Search using voice" [ref=f234e14] [cursor=pointer]
+        - button "Search using an image" [ref=f234e17] [cursor=pointer]
+    - complementary "Account Rewards and Preferences" [ref=f234e18]:
+      - button "Microsoft Rewards" [ref=f234e19] [cursor=pointer]:
+        - generic [ref=f234e20]: Rewards
+      - link [ref=f234e36] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - button "Sign in" [ref=f234e39]
+      - button "Settings and quick links" [ref=f234e40] [cursor=pointer]
+    - navigation "Search Filter" [ref=f234e41]:
+      - list [ref=f234e42]:
+        - listitem [ref=f234e43]:
+          - link "All" [ref=f234e44] [cursor=pointer]:
+            - /url: /search?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=HDRSC1
+        - listitem [ref=f234e45]:
+          - link "Search" [ref=f234e46] [cursor=pointer]:
+            - /url: /copilotsearch?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=CSSCOP
+        - listitem [ref=f234e49]:
+          - link "Images" [ref=f234e50] [cursor=pointer]:
+            - /url: /images?FORM=HDRSC3
+        - listitem [ref=f234e51]:
+          - list [ref=f234e52]:
+            - listitem [ref=f234e53]:
+              - link "Create" [ref=f234e54] [cursor=pointer]:
+                - /url: /images/create/ai-image-generator?FORM=IRPGEN
+            - listitem [ref=f234e59]:
+              - link "Collections" [ref=f234e60] [cursor=pointer]:
+                - /url: /saves?FORM=IRPCOL
+        - listitem [ref=f234e64]:
+          - link "Videos" [ref=f234e65] [cursor=pointer]:
+            - /url: /videos/search?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=HDRSC4
+        - listitem [ref=f234e66]:
+          - link "Maps" [ref=f234e67] [cursor=pointer]:
+            - /url: /maps?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=HDRSC6
+        - listitem [ref=f234e68]:
+          - link "News" [ref=f234e69] [cursor=pointer]:
+            - /url: /news/search?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=HDRSC7
+        - listitem [ref=f234e70]:
+          - link "Shopping" [ref=f234e71] [cursor=pointer]:
+            - /url: /shop/topics?q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=SHOPTB
+        - listitem [ref=f234e72]:
+          - button [ref=f234e73] [cursor=pointer]
+      - generic [ref=f234e77]:
+        - generic [ref=f234e78]:
+          - list:
+            - listitem [ref=f234e79]:
+              - generic [ref=f234e80]: "SafeSearch:"
+            - listitem [ref=f234e81]:
+              - button "Moderate SafeSearch:" [ref=f234e82] [cursor=pointer]:
+                - generic [ref=f234e83]: Moderate
+        - button "Filter" [ref=f234e86] [cursor=pointer]
+  - main [ref=f234e89]:
+    - navigation [aria-hidden] [ref=f234e90]:
+      - generic [ref=f234e91]:
+        - generic [ref=f234e94]:
+          - link [ref=f234e96] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Booster+Box&FORM=IRMHRS
+            - generic [ref=f234e98]:
+              - strong [ref=f234e99]: Magic The Gathering
+              - text: Ixalan Booster Box
+          - link [ref=f234e101] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Fat+Pack+Box&FORM=IRMHRS
+            - generic [ref=f234e103]:
+              - strong [ref=f234e104]: Mtg
+              - text: Fat Pack Box
+          - link [ref=f234e106] [cursor=pointer]:
+            - /url: /images/search?q=Ixalan+Booster+Box&FORM=IRMHRS
+            - generic [ref=f234e108]:
+              - text: Ixalan
+              - strong [ref=f234e109]: Booster Box
+          - link [ref=f234e111] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f234e113]:
+              - strong [ref=f234e114]: Mtg
+              - text: Bundle Box
+          - link [ref=f234e116] [cursor=pointer]:
+            - /url: /images/search?q=Lost+Caverns+Of+Ixalan+Collector+Booster&FORM=IRMHRS
+            - generic [ref=f234e118]:
+              - text: Lost Caverns Of Ixalan
+              - strong [ref=f234e119]: Collector Booster
+          - link [ref=f234e121] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f234e123]:
+              - strong [ref=f234e124]: Magic The Gathering
+              - text: Bundle Box
+          - link [ref=f234e126] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Beginner+Box&FORM=IRMHRS
+            - generic [ref=f234e128]:
+              - strong [ref=f234e129]: Mtg Beginner
+              - text: Box
+          - link [ref=f234e131] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Box&FORM=IRMHRS
+            - generic [ref=f234e133]:
+              - strong [ref=f234e134]: Mtg
+              - text: Card Box
+          - link [ref=f234e136] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=IRMHRS
+            - generic [ref=f234e138]:
+              - strong [ref=f234e139]: Magic The Gathering
+              - text: Card Box
+          - link [ref=f234e141] [cursor=pointer]:
+            - /url: /images/search?q=Innistrad+Booster+Box&FORM=IRMHRS
+            - generic [ref=f234e143]:
+              - strong [ref=f234e144]: Innistrad Booster
+              - text: Box
+        - switch [ref=f234e146] [cursor=pointer]:
+          - generic [ref=f234e147]: New Version
+    - generic [ref=f234e151]:
+      - generic "Suggested searches" [ref=f234e153]:
+        - navigation [ref=f234e154]:
+          - region "Carousel" [ref=f234e155]:
+            - list [ref=f234e159]:
+              - listitem [ref=f234e160]:
+                - link [ref=f234e161] [cursor=pointer]:
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Booster+Box&FORM=RESTAB
+                  - img "Magic The Gathering Ixalan Booster Box" [ref=f234e163]
+                  - generic [aria-hidden] [ref=f234e165]:
+                    - strong [ref=f234e166]: Magic The Gathering
+                    - text: Ixalan Booster Box
+              - listitem [ref=f234e167]:
+                - link [ref=f234e168] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Fat+Pack+Box&FORM=RESTAB
+                  - img "Mtg Fat Pack Box" [ref=f234e170]
+                  - generic [aria-hidden] [ref=f234e172]:
+                    - strong [ref=f234e173]: Mtg
+                    - text: Fat Pack Box
+              - listitem [ref=f234e174]:
+                - link [ref=f234e175] [cursor=pointer]:
+                  - /url: /images/search?q=Ixalan+Booster+Box&FORM=RESTAB
+                  - img "Ixalan Booster Box" [ref=f234e177]
+                  - generic [aria-hidden] [ref=f234e179]:
+                    - text: Ixalan
+                    - strong [ref=f234e180]: Booster Box
+              - listitem [ref=f234e181]:
+                - link [ref=f234e182] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Bundle+Box&FORM=RESTAB
+                  - img "Mtg Bundle Box" [ref=f234e184]
+                  - generic [aria-hidden] [ref=f234e186]:
+                    - strong [ref=f234e187]: Mtg
+                    - text: Bundle Box
+              - listitem [ref=f234e188]:
+                - link [ref=f234e189] [cursor=pointer]:
+                  - /url: /images/search?q=Lost+Caverns+Of+Ixalan+Collector+Booster&FORM=RESTAB
+                  - img "Lost Caverns Of Ixalan Collector Booster" [ref=f234e191]
+                  - generic [aria-hidden] [ref=f234e193]:
+                    - text: Lost Caverns Of Ixalan
+                    - strong [ref=f234e194]: Collector Booster
+              - listitem [ref=f234e195]:
+                - 'link "Search for: Magic The Gathering Bundle Box" [ref=f234e196] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Bundle+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f234e199]:
+                    - strong [ref=f234e200]: Magic The Gathering
+                    - text: Bundle Box
+              - listitem [ref=f234e201]:
+                - 'link "Search for: Mtg Beginner Box" [ref=f234e202] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Beginner+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f234e205]:
+                    - strong [ref=f234e206]: Mtg Beginner
+                    - text: Box
+              - listitem [ref=f234e207]:
+                - 'link "Search for: Mtg Card Box" [ref=f234e208] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f234e211]:
+                    - strong [ref=f234e212]: Mtg
+                    - text: Card Box
+              - listitem [ref=f234e213]:
+                - 'link "Search for: Magic The Gathering Card Box" [ref=f234e214] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f234e217]:
+                    - strong [ref=f234e218]: Magic The Gathering
+                    - text: Card Box
+              - listitem [ref=f234e219]:
+                - 'link "Search for: Innistrad Booster Box" [ref=f234e220] [cursor=pointer]':
+                  - /url: /images/search?q=Innistrad+Booster+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f234e223]:
+                    - strong [ref=f234e224]: Innistrad Booster
+                    - text: Box
+            - button "Scroll right" [ref=f234e225] [cursor=pointer]
+      - switch "New Version" [ref=f234e229] [cursor=pointer]
+    - region "Shop \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e234]:
+      - generic [ref=f234e235]:
+        - generic [ref=f234e236]:
+          - heading "Shop \"rivals of ixalan\" empty bundle box fat pack card box" [level=2] [ref=f234e237]
+          - generic [ref=f234e238]:
+            - text: Sponsored
+            - link "Why this ad" [ref=f234e239] [cursor=pointer]:
+              - /url: javascript:void(0)
+              - img "About our ads" [ref=f234e241]
+        - list [ref=f234e248]:
+          - listitem [ref=f234e249]:
+            - generic [ref=f234e251]:
+              - link "Magic Rivals OF Ixalan Bundle FAT Pack BOX" [ref=f234e252] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e8kopjaQyAf2xn2G10ndd3dzVUCUwm_7Y3HUdcgDlT1BsYgfc2fdjrLStvV-Z79yfT5hHcEMzhJLAz7hcXSM7yiVjFbgUMP5VZcEiS22LCyoM_qi2-QgoAQYXdwv3jTxq9xX8BvIFhFia71ovK2cNvBxU_7hpdecRfBo0pG6f2oNJrknTVKRW-qAHsiUu2n1zA05mEKm6N7Arq0s0Zj52BPcnQJ1mG5-FQpRYSzv87DT6p_h6Q&u=aHR0cHMlM2ElMmYlMmZ3d3cud2FsbWFydC5jb20lMmZpcCUyZk1BR0lDLVJJVkFMUy1PRi1JWEFMQU4tQlVORExFLUZBVC1QQUNLLUJPWCUyZjg3Mzk3MTg2OCUzZndtbHNwYXJ0bmVyJTNkd2xwYSUyNnNlbGVjdGVkU2VsbGVySWQlM2QxMDEwNzA5NTYlMjZhZGlkJTNkMjIyMjIyMjIyOTI4NzM5NzE4NjhfMTAwMDEwOTAzMjdfMDAwMDAwMDAwMF81Njk1MTYyMTclMjZ3bWxzcGFydG5lciUzZHdtdGxhYnMlMjZ3bDAlM2RlJTI2d2wxJTNkbyUyNndsMiUzZGMlMjZ3bDMlM2Q3Mjg0MzExMTcxNDQyMiUyNndsNCUzZHBsYS0yMzI0NjQyNDYwOTE4MTIwJTI2d2w1JTNkOTE4NDklMjZ3bDYlM2QlMjZ3bDclM2QlMjZ3bDEwJTNkV2FsbWFydCUyNndsMTElM2RPbmxpbmUlMjZ3bDEyJTNkODczOTcxODY4XzEwMDAxMDkwMzI3JTI2d2wxNCUzZCUyNTIycml2YWxzJTI1MjBvZiUyNTIwaXhhbGFuJTI1MjIlMjUyMGVtcHR5JTI1MjBidW5kbGUlMjUyMGJveCUyNTIwZmF0JTI1MjBwYWNrJTI1MjBjYXJkJTI1MjBib3glMjZ2ZWglM2RzZW0lMjZnY2xpZCUzZGRhMGJiOGM5OTAxYTExNDI3YTliZDI2ODQwNTc0MDRlJTI2Z2Nsc3JjJTNkM3AuZHMlMjZtc2Nsa2lkJTNkZGEwYmI4Yzk5MDFhMTE0MjdhOWJkMjY4NDA1NzQwNGU&rlid=da0bb8c9901a11427a9bd2684057404e
+              - generic [ref=f234e260]:
+                - generic [ref=f234e261]: Walmart
+                - generic [ref=f234e265]: Magic Rivals OF Ixalan Bundle FAT Pack BOX
+                - generic [ref=f234e266]: $89.99
+                - generic [ref=f234e268]: Free shipping
+          - listitem [ref=f234e269]:
+            - generic [ref=f234e271]:
+              - link "Magic Gathering Empty Rivals Ixalan Fat Pack Bundle Box MTG Wizards" [ref=f234e272] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e8NvygzB2www3-ut3LF9d_7TVUCUyKwp7FpzpgS1xV1p8pN8lTeO9sPh6g2zF9mvIE4_vYcF_nEc0_tQGhvFtF8YImf9di9cCX1240ljgW2Fd6k-awiunoMMgHxonsFMWtJb7hgs3nbVvYcLSbDinGFPALgPOoaM6DVkhPkdnbDfiyLtP9F05QRtQasqBMehgKTsH-ptSqmaHfhLX_PvVqLhwUOFgg2CqXSBp0FvdEThKUjU_e&u=aHR0cHMlM2ElMmYlMmZ3d3cuaXNhdmVpdC5jb20lMmZjbyUzZnUlM2RaRDFpZFhsamFHVmhjSEl1WTI5dEptczlUV0ZuYVdNclIyRjBhR1Z5YVc1bkswVnRjSFI1SzFKcGRtRnNjeXRKZUdGc1lXNHJSbUYwSzFCaFkyc3JRblZ1Wkd4bEswSnZlQ3ROVkVjclYybDZZWEprY3k0clYybDZZWEprY3l0dlppc21jejFuY3laalBXVmlKbkE5TUNaMVBXaDBkSEJ6SlROQkpUSkdKVEpHZDNkM0xtVmlZWGt1WTI5dEpUSkdhWFJ0SlRKR01qZzFPREUxTVRjd05USXhKVE5HWDNWc0pUTkVWVk1sTWpadGEyVjJkQ1V6UkRFbE1qWnRhMk5wWkNVelJERWxNalp0YTNKcFpDVXpSRGN4TVMwMU16SXdNQzB4T1RJMU5TMHdKVEkyWTJGdGNHbGtKVE5FTlRNek9UQTBOalkwT0NVeU5uUnZiMnhwWkNVelJERXdNREF4SlRJMlkzVnpkRzl0YVdRbE0wUWxOMEpIUTB4SlJDVTNSQ1poUFRBdU16Y21aVDEyYlhNbE0wRmxZaVV6UVhBbE0wRXlPRFU0TVRVeE56QTFNakUlM2QlMjZycGdpZHMlM2QwYTUxMTY5OTRhZDkxZjdkOGEzNzdjMzg5YTk0Nzk0MCUyNTdDJTI1N0MlMjZsb2NfcGh5c2ljYWxfbXMlM2Q5MTg0OSUyNmxvY19pbnRlcmVzdF9tcyUzZCUyNm1zY2xraWQlM2QwYTUxMTY5OTRhZDkxZjdkOGEzNzdjMzg5YTk0Nzk0MA&rlid=0a5116994ad91f7d8a377c389a947940
+              - generic [ref=f234e280]:
+                - generic [ref=f234e281]: eBay
+                - generic [ref=f234e282]: Magic Gathering Empty Rivals Ixalan Fat Pack Bundle Box MTG Wizards
+                - generic [ref=f234e283]: $9.99
+                - generic [ref=f234e285]: Free shipping
+          - listitem [ref=f234e286]:
+            - generic [ref=f234e288]:
+              - link "Rivals Of Ixalan Bundle English Factory Sealed Brand NEW Magic Fat Pack Box. Wizards Of The Coast. CCG Sealed Packs. 630509550982." [ref=f234e289] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e8qLOQuk8ipQ43BSwl4asFzzVUCUzB6BONQPkmXF74sgZyiu13zc-OAtnokscFl6TTIDQxz6bkNolZhP3KoMNXKb2S7Fp0wnLSFaukpVKhPkX_UXxokZvapa1uCZoAH4ZqgKuTSaX9KcrC3F1mbWtrDR-0G-Ll3PSv6GcYQ29RmW505E4e4XAQJCtQWVL9vZXEuNNjScamL7WMYZ5qdOQO-T74z35-LHw-xXqsi_PFM_g38Jw9&u=aHR0cHMlM2ElMmYlMmZjby5idXljaGVhcHIuY29tJTJmY28lM2Z1JTNkWkQxaWRYbGphR1ZoY0hJdVkyOXRKbXM5VW1sMllXeHpLMjltSzBsNFlXeGhiaXRDZFc1a2JHVXJSVzVuYkdsemFDdEdZV04wYjNKNUsxTmxZV3hsWkN0Q2NtRnVaQ3RPUlZjclRXRm5hV01yUm1GMEsxQmhZMnNyUW05NExpdFhhWG9tY3oxbmN5WmpQV1ZpSm5BOU1DWjFQV2gwZEhCekpUTkJKVEpHSlRKR2QzZDNMbVZpWVhrdVkyOXRKVEpHYVhSdEpUSkdNekUwTWpBek5EZzBOemd6SlROR1gzVnNKVE5FVlZNbE1qWnRhMlYyZENVelJERWxNalp0YTJOcFpDVXpSREVsTWpadGEzSnBaQ1V6UkRjeE1TMDFNekl3TUMweE9USTFOUzB3SlRJMlkyRnRjR2xrSlRORU5UTXpPVEEwTmpZME9DVXlOblJ2YjJ4cFpDVXpSREV3TURBeEpUSTJZM1Z6ZEc5dGFXUWxNMFFsTjBKSFEweEpSQ1UzUkNaaFBUTW1aVDEyYlhNbE0wRmxZaVV6UVhBbE0wRXpNVFF5TURNME9EUTNPRE0lM2QlMjZycGdpZHMlM2RlZTgzNGI0OTAxYjkxMzRlN2JhYzIxZThkMWY0ZjRiZCUyNTdDJTI1N0MlMjZsb2NfcGh5c2ljYWxfbXMlM2Q5MTg0OSUyNmxvY19pbnRlcmVzdF9tcyUzZCUyNm1zY2xraWQlM2RlZTgzNGI0OTAxYjkxMzRlN2JhYzIxZThkMWY0ZjRiZCUyNnV0bV9zb3VyY2UlM2RiaW5nJTI2dXRtX21lZGl1bSUzZGNwYyUyNnV0bV9jYW1wYWlnbiUzZFBNYXglMjUyMFVTJTI2dXRtX3Rlcm0lM2QyMzI0NTA1MDIxMDY0NDQwJTI2dXRtX2NvbnRlbnQlM2RQTWF4JTI1MjBBc3NldHM&rlid=ee834b4901b9134e7bac21e8d1f4f4bd
+              - generic [ref=f234e290]:
+                - generic [ref=f234e291]:
+                  - generic [ref=f234e292]:
+                    - generic "Click to scroll left" [ref=f234e301]
+                    - generic "Click to scroll right" [ref=f234e302]
+                  - generic [ref=f234e303]:
+                    - generic [ref=f234e304] [cursor=pointer]
+                    - generic [ref=f234e305] [cursor=pointer]
+                    - generic [ref=f234e306] [cursor=pointer]
+                    - generic [ref=f234e307] [cursor=pointer]
+                - generic [ref=f234e309]:
+                  - generic [ref=f234e310]: eBay
+                  - generic [ref=f234e311]: Rivals Of Ixalan Bundle English Factory Sealed Brand NEW Magic Fat Pack Box. Wizards Of The Coast. CCG Sealed Packs. 630509550982.
+                  - generic [ref=f234e312]: $79.99
+          - listitem [ref=f234e314]:
+            - generic [ref=f234e316]:
+              - link "Ixalan Empty Bundle/Fat Pack Box Magic The Gathering MTG. Wizards Of The Coast. Wrappers & Empty Card Boxes." [ref=f234e317] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e8RTU6npATsNRqyi2vgFG9BTVUCUxs16E5TSrdG93eFZasEWfUFgk-EzJ9eG42QGPwxlSWyVLKEHX3ePnHAPG9VQPAHblE72A39IRzJpZTCb7J8fJJDU9ps5eQlrF1yftZoWLH_e98Maw3nNRTdfPxFYby8bksCu3Q87aWSTsOPFv1DB92MxWe8h0CUt2sQ7Gc6YXnoZfJLbZsmnEALEsU58ECh4udRyYw8LHPhXuJwvGOY8yH&u=aHR0cHMlM2ElMmYlMmZ3d3cubG93ZXN0LXByaWNlLmNvbSUyZmNvJTNmdSUzZFpEMWlkWGxqYUdWaGNISXVZMjl0Sm1zOVNYaGhiR0Z1SzBWdGNIUjVLMEoxYm1Sc1pTVXlSa1poZEN0UVlXTnJLMEp2ZUN0TllXZHBZeXQwYUdVclIyRjBhR1Z5YVc1bkswMVVSeTRyVjJsNllYSmtjeXR2Wml0MGFHVXJRMjloYzNRdUt5WnpQV2R6Sm1NOVpXSW1jRDB3Sm5VOWFIUjBjSE1sTTBFbE1rWWxNa1ozZDNjdVpXSmhlUzVqYjIwbE1rWnBkRzBsTWtZek1UY3dNamMzTVRjeE9EQWxNMFpmZFd3bE0wUlZVeVV5Tm0xclpYWjBKVE5FTVNVeU5tMXJZMmxrSlRORU1TVXlObTFyY21sa0pUTkVOekV4TFRVek1qQXdMVEU1TWpVMUxUQWxNalpqWVcxd2FXUWxNMFExTXpNNU1EUTJOalE0SlRJMmRHOXZiR2xrSlRORU1UQXdNREVsTWpaamRYTjBiMjFwWkNVelJDVTNRa2REVEVsRUpUZEVKbUU5TUM0Mk9DWmxQWFp0Y3lVelFXVmlKVE5CY0NVelFUTXhOekF5TnpjeE56RTRNQSUzZCUzZCUyNnJwZ2lkcyUzZDk2ZTA5MDlkMDhlYzExNmUyNjRhZmEzY2Q4YTEyZWI5JTI1N0MlMjU3QyUyNmxvY19waHlzaWNhbF9tcyUzZDkxODQ5JTI2bG9jX2ludGVyZXN0X21zJTNkJTI2bXNjbGtpZCUzZDk2ZTA5MDlkMDhlYzExNmUyNjRhZmEzY2Q4YTEyZWI5&rlid=96e0909d08ec116e264afa3cd8a12eb9
+              - generic [ref=f234e325]:
+                - generic [ref=f234e326]: eBay
+                - generic [ref=f234e327]: Ixalan Empty Bundle/Fat Pack Box Magic The Gathering MTG. Wizards Of The Coast. Wrappers & Empty Card Boxes.
+                - generic [ref=f234e328]: $18.00
+                - generic [ref=f234e330]: Free shipping
+          - listitem [ref=f234e331]:
+            - generic [ref=f234e333]:
+              - link "Ixalan Fat Pack Bundle Box Empty Magic The Gathering MTG Bundle LP" [ref=f234e334] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e81lQUe2e8oqixnDSRzJCsWDVUCUyLTx71Hv9r38T6ItRqp1LLOnnCri22UoR_w2XF73UfFFM2NQsj-HFiBt_sp2nvhnQQ8IbWBflIgywDhGdQnk7zFgfI2MlBChMJejTlH_yCV7GtcdWEaPw0t9bYDkH6sS2xxcNrenonMDmqET4ASh7QyaGXcDoJrG9_q04zC7yQWgagPgBbrbJfNLIETgR3Vy2pikmnrlQ4gTMRWaiwuCUd&u=aHR0cHMlM2ElMmYlMmZ3d3cuaXNhdmVpdC5jb20lMmZjbyUzZnUlM2RaRDFpZFhsamFHVmhjSEl1WTI5dEptczlTWGhoYkdGdUswWmhkQ3RRWVdOcksySjFibVJzWlN0Q2IzZ3JSVzF3ZEhrclRXRm5hV01yZEdobEsyZGhkR2hsY21sdVp5dE5WRWNyUW5WdVpHeGxLMHhRSzFCUFJDNHJWMmw2WVhKa2N5c21jejFuY3laalBXVmlKbkE5TUNaMVBXaDBkSEJ6SlROQkpUSkdKVEpHZDNkM0xtVmlZWGt1WTI5dEpUSkdhWFJ0SlRKR01qTTJNell5TnpNMU5EVTFKVE5HWDNWc0pUTkVWVk1sTWpadGEyVjJkQ1V6UkRFbE1qWnRhMk5wWkNVelJERWxNalp0YTNKcFpDVXpSRGN4TVMwMU16SXdNQzB4T1RJMU5TMHdKVEkyWTJGdGNHbGtKVE5FTlRNek9UQTBOalkwT0NVeU5uUnZiMnhwWkNVelJERXdNREF4SlRJMlkzVnpkRzl0YVdRbE0wUWxOMEpIUTB4SlJDVTNSQ1poUFRBdU5UWW1aVDEyYlhNbE0wRmxZaVV6UVhBbE0wRXlNell6TmpJM016VTBOVFUlM2QlMjZycGdpZHMlM2Q3ZDRmYzNkNDE1MGUxYjgyYzVmYmE5NzVjNTQzMDI1MiUyNTdDJTI1N0MlMjZsb2NfcGh5c2ljYWxfbXMlM2Q5MTg0OSUyNmxvY19pbnRlcmVzdF9tcyUzZCUyNm1zY2xraWQlM2Q3ZDRmYzNkNDE1MGUxYjgyYzVmYmE5NzVjNTQzMDI1Mg&rlid=7d4fc3d4150e1b82c5fba975c5430252
+              - generic [ref=f234e342]:
+                - generic [ref=f234e343]: eBay
+                - generic [ref=f234e344]: Ixalan Fat Pack Bundle Box Empty Magic The Gathering MTG Bundle LP
+                - generic [ref=f234e345]: $14.99
+                - generic [ref=f234e347]: Free shipping
+          - listitem [ref=f234e348]:
+            - generic [ref=f234e350]:
+              - link "Rivals Of Ixalan Fat Pack Bundle Box Magic The Gathering MTG Bundle LP POD. Wizards Of The Coast. Multicolor. Other CCG Items." [ref=f234e351] [cursor=pointer]:
+                - /url: https://www.bing.com/aclick?ld=e8c_fEcAhTJG4HcjfL5wqrcDVUCUxVoLT3nzNnRc5h847Grz83BzSh1EuDJt8u8n9m6nGX1FRLCqOhJB2vjck0wUd9dB0h8QhY53jLAIWCSIiDURoQkyFcFGgrqdPw7lxyMHMw1o8rFqE6CB_qT8tmhJJesIXbd5LMQLDjMYKK4l8qAww9aNp7jkbbG3iEizgVvWbvjgDziN2TPVsyYGakErit_TyF3cjYtWx1B_7-s7eKsqQP&u=aHR0cHMlM2ElMmYlMmZjby5idXljaGVhcHIuY29tJTJmY28lM2Z1JTNkWkQxaWRYbGphR1ZoY0hJdVkyOXRKbXM5VW1sMllXeHpLMjltSzBsNFlXeGhiaXRHWVhRclVHRmpheXRpZFc1a2JHVXJRbTk0SzAxaFoybGpLM1JvWlN0bllYUm9aWEpwYm1jclRWUkhLMEoxYm1Sc1pTdE1VQ3RRVDBRdUsxZHBlbUVtY3oxbmN5WmpQV1ZpSm5BOU1DWjFQV2gwZEhCekpUTkJKVEpHSlRKR2QzZDNMbVZpWVhrdVkyOXRKVEpHYVhSdEpUSkdNek0yTWpFd09EY3hPVE14SlROR1gzVnNKVE5FVlZNbE1qWnRhMlYyZENVelJERWxNalp0YTJOcFpDVXpSREVsTWpadGEzSnBaQ1V6UkRjeE1TMDFNekl3TUMweE9USTFOUzB3SlRJMlkyRnRjR2xrSlRORU5UTXpPVEEwTmpZME9DVXlOblJ2YjJ4cFpDVXpSREV3TURBeEpUSTJZM1Z6ZEc5dGFXUWxNMFFsTjBKSFEweEpSQ1UzUkNaaFBUQXVOVFltWlQxMmJYTWxNMEZsWWlVelFYQWxNMEV6TXpZeU1UQTROekU1TXpFJTNkJTI2cnBnaWRzJTNkOWZlMmQ2NGRiNTk4MWI0ODFlYzZiY2VjNjVkNTBhN2ElMjU3QyUyNTdDJTI2bG9jX3BoeXNpY2FsX21zJTNkOTE4NDklMjZsb2NfaW50ZXJlc3RfbXMlM2QlMjZtc2Nsa2lkJTNkOWZlMmQ2NGRiNTk4MWI0ODFlYzZiY2VjNjVkNTBhN2ElMjZ1dG1fc291cmNlJTNkYmluZyUyNnV0bV9tZWRpdW0lM2RjcGMlMjZ1dG1fY2FtcGFpZ24lM2RQTWF4JTI1MjBVUyUyNnV0bV90ZXJtJTNkMjMyNDUwNTAyMTA2NDQ0MCUyNnV0bV9jb250ZW50JTNkUE1heCUyNTIwQXNzZXRz&rlid=9fe2d64db5981b481ec6bcec65d50a7a
+              - generic [ref=f234e359]:
+                - generic [ref=f234e360]: eBay
+                - generic [ref=f234e361]: Rivals Of Ixalan Fat Pack Bundle Box Magic The Gathering MTG Bundle LP POD. Wizards Of The Coast. Multicolor. Other CCG Items.
+                - generic [ref=f234e362]: $14.99
+                - generic [ref=f234e364]: Free shipping
+    - generic [ref=f234e367]:
+      - list [ref=f234e368]:
+        - listitem [ref=f234e369]:
+          - generic [ref=f234e370]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e372] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=0&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e374]
+            - generic [ref=f234e375]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f234e376] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=0&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY S…" [ref=f234e377] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=0&itb=0
+        - listitem [ref=f234e378]:
+          - generic [ref=f234e379]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e381] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=I2TGoGi4&id=D5126ABA8262E207E2B2669B45F961462F18F30B&thid=OIP.I2TGoGi42yLEEWYmmG8BRgAAAA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f48581%2fixalan-empty-fat-pack-bundle-box-ixalan.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2364c6a068b8db22c4116626986f0146%3frik%3dC%252fMYL0Zh%252bUWbZg%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=9897981F84C3E59ECBFABDA7903D8483&selectedIndex=1&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e383]
+            - generic [ref=f234e384]:
+              - 'link "Ixalan: Caja \"Fat Pack Bundle\" vacia Ixalan | Magic | CardTrader" [ref=f234e385] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=I2TGoGi4&id=D5126ABA8262E207E2B2669B45F961462F18F30B&thid=OIP.I2TGoGi42yLEEWYmmG8BRgAAAA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f48581%2fixalan-empty-fat-pack-bundle-box-ixalan.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2364c6a068b8db22c4116626986f0146%3frik%3dC%252fMYL0Zh%252bUWbZg%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=9897981F84C3E59ECBFABDA7903D8483&selectedIndex=1&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Ixalan: Caja \"Fat Pack Bundle\" vacia Ixalan | Ma…" [ref=f234e386] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=I2TGoGi4&id=D5126ABA8262E207E2B2669B45F961462F18F30B&thid=OIP.I2TGoGi42yLEEWYmmG8BRgAAAA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f48581%2fixalan-empty-fat-pack-bundle-box-ixalan.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2364c6a068b8db22c4116626986f0146%3frik%3dC%252fMYL0Zh%252bUWbZg%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=9897981F84C3E59ECBFABDA7903D8483&selectedIndex=1&itb=0
+        - listitem [ref=f234e387]:
+          - generic [ref=f234e388]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e390] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=2&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e392]
+            - generic [ref=f234e393]:
+              - link "MAGIC RIVALS OF IXALAN BUNDLE FAT PACK BOX - Walmart.com" [ref=f234e394] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=2&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MAGIC RIVALS OF IXALAN BUNDLE FAT PACK BOX …" [ref=f234e395] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=2&itb=0
+        - listitem [ref=f234e396]:
+          - generic [ref=f234e397]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e399] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=xT8jqdQ1&id=F19E7B2217C4EAC41BBC446DFDFB1C6D025D00E6&thid=OIP.xT8jqdQ10BWb6YUNpYpaewHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fall_20171228094953.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c53f23a9d435d0159be9850da58a5a7b%3frik%3d5gBdAm0c%252b%252f1tRA%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEAF2C4E6A7C2B07A964F0D56358C7EE&selectedIndex=3&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e401]
+            - generic [ref=f234e402]:
+              - link "Rivals of Ixalan Booster Box + Fat-Pack | MTG | MTG Booster Boxes | Drop" [ref=f234e403] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=xT8jqdQ1&id=F19E7B2217C4EAC41BBC446DFDFB1C6D025D00E6&thid=OIP.xT8jqdQ10BWb6YUNpYpaewHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fall_20171228094953.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c53f23a9d435d0159be9850da58a5a7b%3frik%3d5gBdAm0c%252b%252f1tRA%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEAF2C4E6A7C2B07A964F0D56358C7EE&selectedIndex=3&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Booster Box + Fat-Pack | MTG | MTG Booster Boxes | Drop" [ref=f234e404] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=xT8jqdQ1&id=F19E7B2217C4EAC41BBC446DFDFB1C6D025D00E6&thid=OIP.xT8jqdQ10BWb6YUNpYpaewHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fall_20171228094953.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c53f23a9d435d0159be9850da58a5a7b%3frik%3d5gBdAm0c%252b%252f1tRA%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEAF2C4E6A7C2B07A964F0D56358C7EE&selectedIndex=3&itb=0
+        - listitem [ref=f234e405]:
+          - generic [ref=f234e406]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e408] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=2N2K5EsG&id=1D35C259B19947E7494DE0FD650F0509BE09B618&thid=OIP.2N2K5EsGJleYJB47iKa_AAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fNMsAAOSwmiJi12M1%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d8dd8ae44b06265798241e3b88a6bf00%3frik%3dGLYJvgkFD2X94A%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=231AAEE593F7B7FF47E6DC2B88B1AD5D&selectedIndex=4&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e410]
+            - generic [ref=f234e411]:
+              - 'link "Magic the Gathering MTG: Rivals of Ixalan Bundle Fat Pack | eBay" [ref=f234e412] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=2N2K5EsG&id=1D35C259B19947E7494DE0FD650F0509BE09B618&thid=OIP.2N2K5EsGJleYJB47iKa_AAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fNMsAAOSwmiJi12M1%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d8dd8ae44b06265798241e3b88a6bf00%3frik%3dGLYJvgkFD2X94A%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=231AAEE593F7B7FF47E6DC2B88B1AD5D&selectedIndex=4&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic the Gathering MTG: Rivals of Ixalan Bundle Fat Pack | eBay" [ref=f234e413] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=2N2K5EsG&id=1D35C259B19947E7494DE0FD650F0509BE09B618&thid=OIP.2N2K5EsGJleYJB47iKa_AAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fNMsAAOSwmiJi12M1%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d8dd8ae44b06265798241e3b88a6bf00%3frik%3dGLYJvgkFD2X94A%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=231AAEE593F7B7FF47E6DC2B88B1AD5D&selectedIndex=4&itb=0
+      - list [ref=f234e414]:
+        - listitem [ref=f234e415]:
+          - generic [ref=f234e416]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e418] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=5&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e420]
+            - generic [ref=f234e421]:
+              - 'link "Amazon.com: Magic: The Gathering Rivals of Ixalan Booster Box | 36 ..." [ref=f234e422] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=5&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Amazon.com: Magic: The Gathering Rivals of Ixal…" [ref=f234e423] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=5&itb=0
+        - listitem [ref=f234e424]:
+          - generic [ref=f234e425]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e427] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=C6bjwvoz&id=672705FEF27409885E77CA129E24940D234557C8&thid=OIP.C6bjwvozHqW-tXXNqylq_AHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-fat-pack%2fMTGRIX_EN_Bundle_03_20171228095057.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0ba6e3c2fa331ea5beb575cdab296afc%3frik%3dyFdFIw2UJJ4Syg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=68A3B8590EE2F1261DF15BF9ADE9006C&selectedIndex=6&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e429]
+            - generic [ref=f234e430]:
+              - link "Rivals of Ixalan Fat-Pack | MTG | MTG Packs | Drop" [ref=f234e431] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=C6bjwvoz&id=672705FEF27409885E77CA129E24940D234557C8&thid=OIP.C6bjwvozHqW-tXXNqylq_AHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-fat-pack%2fMTGRIX_EN_Bundle_03_20171228095057.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0ba6e3c2fa331ea5beb575cdab296afc%3frik%3dyFdFIw2UJJ4Syg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=68A3B8590EE2F1261DF15BF9ADE9006C&selectedIndex=6&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Fat-Pack | MTG | MTG Packs | Drop" [ref=f234e432] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=C6bjwvoz&id=672705FEF27409885E77CA129E24940D234557C8&thid=OIP.C6bjwvozHqW-tXXNqylq_AHaE8&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-fat-pack%2fMTGRIX_EN_Bundle_03_20171228095057.jpg%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d1080%26bg%3df0f0f0%26dpr%3d1%26chromasub%3d444%26q%3d70&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0ba6e3c2fa331ea5beb575cdab296afc%3frik%3dyFdFIw2UJJ4Syg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1080&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=68A3B8590EE2F1261DF15BF9ADE9006C&selectedIndex=6&itb=0
+        - listitem [ref=f234e433]:
+          - generic [ref=f234e434]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e436] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=R%2fEj8sEt&id=3F554D8D2871D8D8E124D1C823E7E62A9F41978F&thid=OIP.R_Ej8sEttM6JWV0qE7vX8AHaEK&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fAiwAAOSw6gRlC3BS%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.47f123f2c12db4ce89595d2a13bbd7f0%3frik%3dj5dBnyrm5yPI0Q%26pid%3dImgRaw%26r%3d0&exph=900&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CE8C9975883BD4B8DB9344C377FD5C6&selectedIndex=7&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e438]
+            - generic [ref=f234e439]:
+              - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e440] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=R%2fEj8sEt&id=3F554D8D2871D8D8E124D1C823E7E62A9F41978F&thid=OIP.R_Ej8sEttM6JWV0qE7vX8AHaEK&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fAiwAAOSw6gRlC3BS%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.47f123f2c12db4ce89595d2a13bbd7f0%3frik%3dj5dBnyrm5yPI0Q%26pid%3dImgRaw%26r%3d0&exph=900&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CE8C9975883BD4B8DB9344C377FD5C6&selectedIndex=7&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e441] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=R%2fEj8sEt&id=3F554D8D2871D8D8E124D1C823E7E62A9F41978F&thid=OIP.R_Ej8sEttM6JWV0qE7vX8AHaEK&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fAiwAAOSw6gRlC3BS%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.47f123f2c12db4ce89595d2a13bbd7f0%3frik%3dj5dBnyrm5yPI0Q%26pid%3dImgRaw%26r%3d0&exph=900&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CE8C9975883BD4B8DB9344C377FD5C6&selectedIndex=7&itb=0
+        - listitem [ref=f234e442]:
+          - generic [ref=f234e443]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e445] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=8&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e447]
+            - generic [ref=f234e448]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f234e449] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=8&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY …" [ref=f234e450] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=8&itb=0
+        - listitem [ref=f234e451]:
+          - generic [ref=f234e452]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e454] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=9&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e456]
+            - generic [ref=f234e457]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f234e458] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=9&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY …" [ref=f234e459] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=9&itb=0
+      - list [ref=f234e460]:
+        - listitem [ref=f234e461]:
+          - generic [ref=f234e462]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e464] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=XLZVz6vF&id=130FC1F66E7906B487BCF819050D360EC02C18A5&thid=OIP.XLZVz6vF9Hnz7uJWIHKc0gHaHU&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5cb655cfabc5f479f3eee25620729cd2%3frik%3dpRgswA42DQUZ%252bA%26riu%3dhttp%253a%252f%252fmtgwebshop.dk%252fcdn%252fshop%252ffiles%252fa6.jpg%253fv%253d1733687065%26ehk%3dK6TmeOT%252fAbLIh1iQNmaZ1pJclznIJUnSdhT12lNOkSw%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1480&expw=1497&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEE105271B83DCCEB9A360DBD77B24F4&selectedIndex=10&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e466]
+            - generic [ref=f234e467]:
+              - link "Ixalan Bundle Fat Pack – MtgwebshopDK" [ref=f234e468] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=XLZVz6vF&id=130FC1F66E7906B487BCF819050D360EC02C18A5&thid=OIP.XLZVz6vF9Hnz7uJWIHKc0gHaHU&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5cb655cfabc5f479f3eee25620729cd2%3frik%3dpRgswA42DQUZ%252bA%26riu%3dhttp%253a%252f%252fmtgwebshop.dk%252fcdn%252fshop%252ffiles%252fa6.jpg%253fv%253d1733687065%26ehk%3dK6TmeOT%252fAbLIh1iQNmaZ1pJclznIJUnSdhT12lNOkSw%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1480&expw=1497&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEE105271B83DCCEB9A360DBD77B24F4&selectedIndex=10&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan Bundle Fat Pack – MtgwebshopDK" [ref=f234e469] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=XLZVz6vF&id=130FC1F66E7906B487BCF819050D360EC02C18A5&thid=OIP.XLZVz6vF9Hnz7uJWIHKc0gHaHU&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5cb655cfabc5f479f3eee25620729cd2%3frik%3dpRgswA42DQUZ%252bA%26riu%3dhttp%253a%252f%252fmtgwebshop.dk%252fcdn%252fshop%252ffiles%252fa6.jpg%253fv%253d1733687065%26ehk%3dK6TmeOT%252fAbLIh1iQNmaZ1pJclznIJUnSdhT12lNOkSw%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1480&expw=1497&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CEE105271B83DCCEB9A360DBD77B24F4&selectedIndex=10&itb=0
+        - listitem [ref=f234e470]:
+          - generic [ref=f234e471]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e473] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=X61jT2dy&id=F19E7B2217C4EAC41BBC13DB17B8DCAEABE77518&thid=OIP.X61jT2dyR3L_7sBqXBsBdQHaD4&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fMD_66880_20180726_172806.png%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d600%26h%3d315%26dpr%3d1%26bg%3df0f0f0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5fad634f67724772ffeec06a5c1b0175%3frik%3dGHXnq67cuBfbEw%26pid%3dImgRaw%26r%3d0&exph=315&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=18D4D32D526B3E8820CF7C9E1029928E&selectedIndex=11&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e475]
+            - generic [ref=f234e476]:
+              - link "Rivals of Ixalan Booster Box + Fat-Pack | MTG | MTG Booster Boxes | Drop" [ref=f234e477] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=X61jT2dy&id=F19E7B2217C4EAC41BBC13DB17B8DCAEABE77518&thid=OIP.X61jT2dyR3L_7sBqXBsBdQHaD4&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fMD_66880_20180726_172806.png%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d600%26h%3d315%26dpr%3d1%26bg%3df0f0f0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5fad634f67724772ffeec06a5c1b0175%3frik%3dGHXnq67cuBfbEw%26pid%3dImgRaw%26r%3d0&exph=315&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=18D4D32D526B3E8820CF7C9E1029928E&selectedIndex=11&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Booster Box + Fat-Pack | MTG | MTG Booster Boxes | Drop" [ref=f234e478] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=X61jT2dy&id=F19E7B2217C4EAC41BBC13DB17B8DCAEABE77518&thid=OIP.X61jT2dyR3L_7sBqXBsBdQHaD4&mediaurl=https%3a%2f%2fmassdrop-s3.imgix.net%2fproduct-images%2frivals-of-ixalan-booster-box-fat-pack%2fMD_66880_20180726_172806.png%3fauto%3dformat%26fm%3djpg%26fit%3dcrop%26w%3d600%26h%3d315%26dpr%3d1%26bg%3df0f0f0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5fad634f67724772ffeec06a5c1b0175%3frik%3dGHXnq67cuBfbEw%26pid%3dImgRaw%26r%3d0&exph=315&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=18D4D32D526B3E8820CF7C9E1029928E&selectedIndex=11&itb=0
+        - listitem [ref=f234e479]:
+          - generic [ref=f234e480]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e482] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=12&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e484]
+            - generic [ref=f234e485]:
+              - link "Magic the Gathering Rivals of Ixalan Bundle Box | Steel City Collectibles" [ref=f234e486] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=12&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Bundl…" [ref=f234e487] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=12&itb=0
+        - listitem [ref=f234e488]:
+          - generic [ref=f234e489]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e491] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=13&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e493]
+            - generic [ref=f234e494]:
+              - link "Rivals of Ixalan Bundle Box MTG Unboxing (4K) - YouTube" [ref=f234e495] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=13&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle Box MTG Unboxing (4K) - YouTube" [ref=f234e496] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=13&itb=0
+        - listitem [ref=f234e497]:
+          - generic [ref=f234e498]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e500] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=14&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e502]
+            - generic [ref=f234e503]:
+              - link "MTG / Rivals Of Ixalan" [ref=f234e504] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=14&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG / Rivals Of Ixalan" [ref=f234e505] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=14&itb=0
+      - list [ref=f234e506]:
+        - listitem [ref=f234e507]:
+          - generic [ref=f234e508]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e510] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=15&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e512]
+            - generic [ref=f234e513]:
+              - link "MTG Rivals of Ixalan Bundle Box Opening - YouTube" [ref=f234e514] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=15&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Box Opening - YouTube" [ref=f234e515] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=15&itb=0
+        - listitem [ref=f234e516]:
+          - generic [ref=f234e517]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e519] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=16&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e521]
+            - generic [ref=f234e522]:
+              - link "MAGIC MTG RIVALS OF IXALAN BOOSTER BOX FACTORY SEALED CARD GAME ..." [ref=f234e523] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=16&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MAGIC MTG RIVALS OF IXALAN BOOSTER BO…" [ref=f234e524] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=16&itb=0
+        - listitem [ref=f234e525]:
+          - generic [ref=f234e526]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e528] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=17&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e530]
+            - generic [ref=f234e531]:
+              - link "Magic The Gathering - Rivals of Ixalan - Booster Box & Bundle" [ref=f234e532] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=17&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering - Rivals of Ixalan - Boo…" [ref=f234e533] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=17&itb=0
+        - listitem [ref=f234e534]:
+          - generic [ref=f234e535]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e537] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=0oNIJA8%2f&id=3F554D8D2871D8D8E124BB1FF0E8B4E44FB37DB9&thid=OIP.0oNIJA8_M53a299SR_QmJwAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feMoAAOSwmS9lC3BC%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d28348240f3f339ddadbdf5247f42627%3frik%3duX2zT%252bS06PAfuw%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=77499572C8FE79853AF3C71ABFDCEE79&selectedIndex=18&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e539]
+            - generic [ref=f234e540]:
+              - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e541] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=0oNIJA8%2f&id=3F554D8D2871D8D8E124BB1FF0E8B4E44FB37DB9&thid=OIP.0oNIJA8_M53a299SR_QmJwAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feMoAAOSwmS9lC3BC%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d28348240f3f339ddadbdf5247f42627%3frik%3duX2zT%252bS06PAfuw%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=77499572C8FE79853AF3C71ABFDCEE79&selectedIndex=18&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e542] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=0oNIJA8%2f&id=3F554D8D2871D8D8E124BB1FF0E8B4E44FB37DB9&thid=OIP.0oNIJA8_M53a299SR_QmJwAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feMoAAOSwmS9lC3BC%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d28348240f3f339ddadbdf5247f42627%3frik%3duX2zT%252bS06PAfuw%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=77499572C8FE79853AF3C71ABFDCEE79&selectedIndex=18&itb=0
+        - listitem [ref=f234e543]:
+          - generic [ref=f234e544]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e546] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=19&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e548]
+            - generic [ref=f234e549]:
+              - link "MTG Rivals of Ixalan Booster Box Magic The Gathering - Imperial Numismatics" [ref=f234e550] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=19&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Booster Box Magic The Gathering - Imperial Nu…" [ref=f234e551] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=19&itb=0
+      - list [ref=f234e552]:
+        - listitem [ref=f234e553]:
+          - generic [ref=f234e554]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e556] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=TCaQhxWW&id=CAA4F9B08CCF9CBD7EC941D4F4D7FBAD421D6836&thid=OIP.TCaQhxWWYfqVJ2kNQc4srgAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2flxkAAeSwH8RonqRP%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c269087159661fa9527690d41ce2cae%3frik%3dNmgdQq371%252fTUQQ%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CBE1EB268CE003D6AF41A9473B81C5A9&selectedIndex=20&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e558]
+            - generic [ref=f234e559]:
+              - link "BUNDLE (Fat Pack) ~ IXALAN sealed MtG Magic card Box counter 10 Booster ..." [ref=f234e560] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=TCaQhxWW&id=CAA4F9B08CCF9CBD7EC941D4F4D7FBAD421D6836&thid=OIP.TCaQhxWWYfqVJ2kNQc4srgAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2flxkAAeSwH8RonqRP%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c269087159661fa9527690d41ce2cae%3frik%3dNmgdQq371%252fTUQQ%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CBE1EB268CE003D6AF41A9473B81C5A9&selectedIndex=20&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "BUNDLE (Fat Pack) ~ IXALAN sealed MtG Magi…" [ref=f234e561] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=TCaQhxWW&id=CAA4F9B08CCF9CBD7EC941D4F4D7FBAD421D6836&thid=OIP.TCaQhxWWYfqVJ2kNQc4srgAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2flxkAAeSwH8RonqRP%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c269087159661fa9527690d41ce2cae%3frik%3dNmgdQq371%252fTUQQ%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=CBE1EB268CE003D6AF41A9473B81C5A9&selectedIndex=20&itb=0
+        - listitem [ref=f234e562]:
+          - generic [ref=f234e563]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e565] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=vrcfxhOy&id=3F554D8D2871D8D8E1247C9250AD82970B8D6C2A&thid=OIP.vrcfxhOyMoNsXQEbnsmfHgHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGxoAAOSwTUxlC3BE%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.beb71fc613b232836c5d011b9ec99f1e%3frik%3dKmyNC5eCrVCSfA%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=AD73D2D0D187101BA9BD33C7BE3A4BAF&selectedIndex=21&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e567]
+            - generic [ref=f234e568]:
+              - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e569] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=vrcfxhOy&id=3F554D8D2871D8D8E1247C9250AD82970B8D6C2A&thid=OIP.vrcfxhOyMoNsXQEbnsmfHgHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGxoAAOSwTUxlC3BE%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.beb71fc613b232836c5d011b9ec99f1e%3frik%3dKmyNC5eCrVCSfA%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=AD73D2D0D187101BA9BD33C7BE3A4BAF&selectedIndex=21&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e570] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=vrcfxhOy&id=3F554D8D2871D8D8E1247C9250AD82970B8D6C2A&thid=OIP.vrcfxhOyMoNsXQEbnsmfHgHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGxoAAOSwTUxlC3BE%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.beb71fc613b232836c5d011b9ec99f1e%3frik%3dKmyNC5eCrVCSfA%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=AD73D2D0D187101BA9BD33C7BE3A4BAF&selectedIndex=21&itb=0
+        - listitem [ref=f234e571]:
+          - generic [ref=f234e572]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e574] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=22&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e576]
+            - generic [ref=f234e577]:
+              - link "Magic The Gathering MTG - Rivals of Ixalan Booster Box Factory Sealed ..." [ref=f234e578] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=22&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering MTG - Rivals of Ixalan Booster Box Factory Sealed ..." [ref=f234e579] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=22&itb=0
+        - listitem [ref=f234e580]:
+          - generic [ref=f234e581]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e583] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Gxzz6dJZ&id=6E68A6D7D17C7F6F79B3FF98E546B22E8A44F86A&thid=OIP.Gxzz6dJZVyiG_8VWTZ_OpwHaGL&mediaurl=https%3a%2f%2fi.otto.de%2fi%2fotto%2fc3698fb7-fc68-55b1-a48b-115a05746b99%2fwizards-of-the-coast-sammelkarte-rivals-of-ixalan-fat-pack-bundle-englisch-magic-the-gathering.jpg%3f%24formatz%24&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b1cf3e9d259572886ffc5564d9fcea7%3frik%3davhEii6yRuWY%252fw%26pid%3dImgRaw%26r%3d0&exph=800&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A491C6A3C8766B2EE62CCF28A4BFFA6&selectedIndex=23&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e585]
+            - generic [ref=f234e586]:
+              - link "Wizards of the Coast Sammelkarte Rivals of Ixalan Fat Pack Bundle ..." [ref=f234e587] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Gxzz6dJZ&id=6E68A6D7D17C7F6F79B3FF98E546B22E8A44F86A&thid=OIP.Gxzz6dJZVyiG_8VWTZ_OpwHaGL&mediaurl=https%3a%2f%2fi.otto.de%2fi%2fotto%2fc3698fb7-fc68-55b1-a48b-115a05746b99%2fwizards-of-the-coast-sammelkarte-rivals-of-ixalan-fat-pack-bundle-englisch-magic-the-gathering.jpg%3f%24formatz%24&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b1cf3e9d259572886ffc5564d9fcea7%3frik%3davhEii6yRuWY%252fw%26pid%3dImgRaw%26r%3d0&exph=800&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A491C6A3C8766B2EE62CCF28A4BFFA6&selectedIndex=23&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Wizards of the Coast Sammelkarte Rivals of Ixalan …" [ref=f234e588] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Gxzz6dJZ&id=6E68A6D7D17C7F6F79B3FF98E546B22E8A44F86A&thid=OIP.Gxzz6dJZVyiG_8VWTZ_OpwHaGL&mediaurl=https%3a%2f%2fi.otto.de%2fi%2fotto%2fc3698fb7-fc68-55b1-a48b-115a05746b99%2fwizards-of-the-coast-sammelkarte-rivals-of-ixalan-fat-pack-bundle-englisch-magic-the-gathering.jpg%3f%24formatz%24&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b1cf3e9d259572886ffc5564d9fcea7%3frik%3davhEii6yRuWY%252fw%26pid%3dImgRaw%26r%3d0&exph=800&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A491C6A3C8766B2EE62CCF28A4BFFA6&selectedIndex=23&itb=0
+        - listitem [ref=f234e589]:
+          - generic [ref=f234e590]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e592] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=qNi%2fean6&id=BC16768BF79F4CC68404A7689CB8EC610F6A9E71&thid=OIP.qNi_ean6cwQR-4SkmyQt_gHaGx&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1.jpg%3fv%3d8DC8C15C8470FF0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a8d8bf79a9fa730411fb84a49b242dfe%3frik%3dcZ5qD2HsuJxopw%26pid%3dImgRaw%26r%3d0&exph=650&expw=710&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A55E8CB2433B62E1E9D75BA2C8DA080&selectedIndex=24&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e594]
+            - generic [ref=f234e595]:
+              - link "MTG Rivals of Ixalan Bundle" [ref=f234e596] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=qNi%2fean6&id=BC16768BF79F4CC68404A7689CB8EC610F6A9E71&thid=OIP.qNi_ean6cwQR-4SkmyQt_gHaGx&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1.jpg%3fv%3d8DC8C15C8470FF0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a8d8bf79a9fa730411fb84a49b242dfe%3frik%3dcZ5qD2HsuJxopw%26pid%3dImgRaw%26r%3d0&exph=650&expw=710&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A55E8CB2433B62E1E9D75BA2C8DA080&selectedIndex=24&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle" [ref=f234e597] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=qNi%2fean6&id=BC16768BF79F4CC68404A7689CB8EC610F6A9E71&thid=OIP.qNi_ean6cwQR-4SkmyQt_gHaGx&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1.jpg%3fv%3d8DC8C15C8470FF0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a8d8bf79a9fa730411fb84a49b242dfe%3frik%3dcZ5qD2HsuJxopw%26pid%3dImgRaw%26r%3d0&exph=650&expw=710&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=0A55E8CB2433B62E1E9D75BA2C8DA080&selectedIndex=24&itb=0
+      - list [ref=f234e598]:
+        - listitem [ref=f234e599]:
+          - generic [ref=f234e600]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e602] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=25&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e604]
+            - generic [ref=f234e605]:
+              - 'link "MTG Magic: the Gathering Rivals of Ixalan (RIX) - Booster Box | Shopee ..." [ref=f234e606] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=25&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "MTG Magic: the Gathering Rivals of Ix…" [ref=f234e607] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=25&itb=0
+        - listitem [ref=f234e608]:
+          - generic [ref=f234e609]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e611] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Ge1R9SR%2b&id=A66DF68575798A28EABE95D14F3EA8974D35A585&thid=OIP.Ge1R9SR-4JBvfH2ychO3eQHaEb&mediaurl=https%3a%2f%2ficv2.com%2fimages%2farticle_thumbs%2f650x650_ecba61469cbaa122bcab7397799b92413f5f99c6400f8d776128f6bd.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.19ed51f5247ee0906f7c7db27213b779%3frik%3dhaU1TZeoPk%252fRlQ%26pid%3dImgRaw%26r%3d0&exph=389&expw=650&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CC138F1C667AB33F72131B73DAAF7A1&selectedIndex=26&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e613]
+            - generic [ref=f234e614]:
+              - 'link "ICv2: Preview: ''Magic: The Gathering - Rivals of Ixalan''" [ref=f234e615] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=Ge1R9SR%2b&id=A66DF68575798A28EABE95D14F3EA8974D35A585&thid=OIP.Ge1R9SR-4JBvfH2ychO3eQHaEb&mediaurl=https%3a%2f%2ficv2.com%2fimages%2farticle_thumbs%2f650x650_ecba61469cbaa122bcab7397799b92413f5f99c6400f8d776128f6bd.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.19ed51f5247ee0906f7c7db27213b779%3frik%3dhaU1TZeoPk%252fRlQ%26pid%3dImgRaw%26r%3d0&exph=389&expw=650&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CC138F1C667AB33F72131B73DAAF7A1&selectedIndex=26&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "ICv2: Preview: ''Magic: The Gathering - Rivals of Ixalan''" [ref=f234e616] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=Ge1R9SR%2b&id=A66DF68575798A28EABE95D14F3EA8974D35A585&thid=OIP.Ge1R9SR-4JBvfH2ychO3eQHaEb&mediaurl=https%3a%2f%2ficv2.com%2fimages%2farticle_thumbs%2f650x650_ecba61469cbaa122bcab7397799b92413f5f99c6400f8d776128f6bd.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.19ed51f5247ee0906f7c7db27213b779%3frik%3dhaU1TZeoPk%252fRlQ%26pid%3dImgRaw%26r%3d0&exph=389&expw=650&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=5CC138F1C667AB33F72131B73DAAF7A1&selectedIndex=26&itb=0
+        - listitem [ref=f234e617]:
+          - generic [ref=f234e618]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e620] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=W1XgbNkc&id=AC0B500C442B4DE9D6FEE2D4563CAF016AA3703F&thid=OIP.W1XgbNkcwAoPiJGvjRhXkQAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-pack-36705-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5b55e06cd91cc00a0f8891af8d185791%3frik%3dP3CjagGvPFbU4g%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D18274AF9E7667D8C85138A850EDBD62&selectedIndex=27&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e622]
+            - generic [ref=f234e623]:
+              - link "MTG / Rivals Of Ixalan" [ref=f234e624] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=W1XgbNkc&id=AC0B500C442B4DE9D6FEE2D4563CAF016AA3703F&thid=OIP.W1XgbNkcwAoPiJGvjRhXkQAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-pack-36705-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5b55e06cd91cc00a0f8891af8d185791%3frik%3dP3CjagGvPFbU4g%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D18274AF9E7667D8C85138A850EDBD62&selectedIndex=27&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG / Rivals Of Ixalan" [ref=f234e625] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=W1XgbNkc&id=AC0B500C442B4DE9D6FEE2D4563CAF016AA3703F&thid=OIP.W1XgbNkcwAoPiJGvjRhXkQAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-pack-36705-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.5b55e06cd91cc00a0f8891af8d185791%3frik%3dP3CjagGvPFbU4g%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D18274AF9E7667D8C85138A850EDBD62&selectedIndex=27&itb=0
+        - listitem [ref=f234e626]:
+          - generic [ref=f234e627]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e629] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=28&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e631]
+            - generic [ref=f234e632]:
+              - 'link "Download Rivals Of Ixalan Variety Pack - Magic The Gathering: Rivals Of ..." [ref=f234e633] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=28&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Download Rivals Of Ixalan Variety Pack - M…" [ref=f234e634] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=28&itb=1
+        - listitem [ref=f234e635]:
+          - generic [ref=f234e636]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e638] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=29&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e640]
+            - generic [ref=f234e641]:
+              - link "MTG. Rivals of Ixalan. Bundle | Купить настольную игру в магазинах ..." [ref=f234e642] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=29&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG. Rivals of Ixalan. Bundle | Купить наст…" [ref=f234e643] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=29&itb=0
+        - listitem [ref=f234e644]:
+          - generic [ref=f234e645]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e647] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=30&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e649]
+            - generic [ref=f234e650]:
+              - link "Rivals of Ixalan - Variety Pack" [ref=f234e651] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=30&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan - Variety Pack" [ref=f234e652] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=30&itb=0
+      - list [ref=f234e653]:
+        - listitem [ref=f234e654]:
+          - generic [ref=f234e655]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e657] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=31&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e659]
+            - generic [ref=f234e660]:
+              - 'link "Magic: The Gathering Rivals of Ixalan Booster Box, 36/Pack" [ref=f234e661] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=31&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Rivals of Ixalan Boos…" [ref=f234e662] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=31&itb=1
+        - listitem [ref=f234e663]:
+          - generic [ref=f234e664]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e666] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=32&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e668]
+            - generic [ref=f234e669]:
+              - link "Magic the Gathering Rivals of Ixalan Bundle Box" [ref=f234e670] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=32&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Bundle …" [ref=f234e671] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=32&itb=0
+        - listitem [ref=f234e672]:
+          - generic [ref=f234e673]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e675] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2bpsBsYa5&id=3F554D8D2871D8D8E12427C14502A92802653BE6&thid=OIP.-psBsYa5O8tP1ta2Ctlg7wHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feNIAAOSwmS9lC3BH%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fa9b01b186b93bcb4fd6d6b60ad960ef%3frik%3d5jtlAiipAkXBJw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=05CD73255A274D5BDC8B3B6DF21252F2&selectedIndex=33&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e677]
+            - generic [ref=f234e678]:
+              - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e679] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=%2bpsBsYa5&id=3F554D8D2871D8D8E12427C14502A92802653BE6&thid=OIP.-psBsYa5O8tP1ta2Ctlg7wHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feNIAAOSwmS9lC3BH%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fa9b01b186b93bcb4fd6d6b60ad960ef%3frik%3d5jtlAiipAkXBJw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=05CD73255A274D5BDC8B3B6DF21252F2&selectedIndex=33&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Fat Pack New Sealed English | eBay" [ref=f234e680] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=%2bpsBsYa5&id=3F554D8D2871D8D8E12427C14502A92802653BE6&thid=OIP.-psBsYa5O8tP1ta2Ctlg7wHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2feNIAAOSwmS9lC3BH%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fa9b01b186b93bcb4fd6d6b60ad960ef%3frik%3d5jtlAiipAkXBJw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=05CD73255A274D5BDC8B3B6DF21252F2&selectedIndex=33&itb=0
+        - listitem [ref=f234e681]:
+          - generic [ref=f234e682]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e684] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=34&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box fat pack card box" [ref=f234e686]
+            - generic [ref=f234e687]:
+              - link "MTG Rivals of Ixalan Bundle Opened But Never Played 460 cards total ..." [ref=f234e688] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=34&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle O…" [ref=f234e689] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+fat+pack+card+box&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=34&itb=0
+  - button "Feedback" [ref=f234e692] [cursor=pointer]
+  - contentinfo [ref=f234e694]:
+    - generic [ref=f234e695]:
+      - generic [ref=f234e696]: © 2026 Microsoft
+      - list:
+        - listitem [ref=f234e697]:
+          - link "Privacy" [ref=f234e698] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+        - listitem [ref=f234e699]:
+          - link "Terms" [ref=f234e700] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=246338
+        - listitem [ref=f234e701]:
+          - link "Advertise" [ref=f234e702] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=868922
+        - listitem [ref=f234e703]:
+          - link "About our ads" [ref=f234e704] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=286759
+        - listitem [ref=f234e705]:
+          - link "Help" [ref=f234e706] [cursor=pointer]:
+            - /url: https://support.microsoft.com/topic/82d20721-2d6f-4012-a13d-d1910ccf203f
+        - listitem [ref=f234e707]:
+          - button "Feedback" [ref=f234e708] [cursor=pointer]
+        - listitem [ref=f234e709]:
+          - link "Consumer Health Privacy" [ref=f234e710] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=2259814
+  - dialog "Quick Search"

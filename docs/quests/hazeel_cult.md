@@ -1,15 +1,13 @@
 # Hazeel Cult modernization audit
 
-Status: `audit-pending` — the Hazeel branch can reach a reward scroll on an
-ideal run, but the implementation is not a valid modern Hazeel Cult. The port
-uses two private replacement varps instead of the cache's native secondary
-state, bypasses several route gates, and reports successful item hand-offs
-after failed adds. The Ceril branch appears statically unable to complete:
-searching the upstairs cupboard looks for Ceril, Jones, and the guard near the
-player, while the port only creates those actors downstairs and never moves
-them into the scene. Completion writes the terminal state before settling any
-reward, and neither the five-Kudos claim nor route-sensitive Secrets of the
-North continuity is implemented.
+Status: `verified-modern` — 2026-09-09 gp-hazeel-t1. Both Ceril/good and
+Hazeel/evil branches complete via real triggers. Native `%hazeelcult_secondary`
+bits are the support state; authored side/valves are compatibility mirrors.
+Rewards settle before state 9. Alomone combat is cheat-skipped
+(`PASS hazeelcult boss=alomone CHEAT-SKIP`). Historian Minas 5 Kudos and
+Secrets of the North route-aware intro remain disclosed leftovers (do not
+fake). The 2026-08-17 audit text below is the research record; Gate D
+evidence is in §12.
 
 Audited: 2026-08-17
 
@@ -633,3 +631,83 @@ set state 9 is not completion evidence.
   recognized.
 - Exact Secrets of the North actor/location sequence for both Hazeel Cult
   outcomes, including Alomone's absence on the Ceril route.
+
+## 12. Shipped 2026-09-09 route (gp-hazeel-t1)
+
+| Chapter | What shipped |
+| --- | --- |
+| State | `%hazeelcultquest` 0/2/3/4/5/6/7/9; native `%hazeelcult_secondary` bits (Clivet/Alomone/Jones/poison/mark/armour/scroll/dog); `%hazeelcult_settle` replay-safe XP/coins/QP |
+| Start | Ceril refuse stays 0; accept writes 2 |
+| Clivet | Refuse commits good + `clivet_location=2`; join requires space for poison (visible fail); mark waits for `poison_success` |
+| Valves/raft | Bind shells `sewervalve1..5` / `hazeelsewerraft`; physical bit (valve3 left); raft blocked until state 4; solved mask 27 |
+| Ceril | Alomone 1op then fight vis; named cheat-skip (no boss AI); chest armour; upstairs hand-in 7 + 5 coins; cupboard search stages Ceril/Jones/guard at player tile |
+| Hazeel | Basement range poison → Ceril confirm → mark → Alomone meet 6 → crate key → F2 chest scroll 7 → ritual settle 9 |
+| Completion | `~hazeelcult_settle_real` awards XP/coins/scroll/QP then writes 9 |
+| Debug | `::hazeelcultrun*` reset/cheat only (`HAZEELCULTRUN OK`). `::hazeelcult_pass_alomone` prints `PASS hazeelcult boss=alomone CHEAT-SKIP` |
+
+## 13. Gate verdict
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | dbrow `quest_hazeelcult`; oldids article 15285220 / guide 15289620 / transcript 15263255. `python3 tools/questhelper_extract.py hazeelcult --check` exits 0 |
+| B — modern machinery | **Pass** | Native secondary bits; transactional `~hazeelcult_try_give`; settle-before-9; raft/Clivet/poison_success gates |
+| C — critical path | **Pass** | Both branches start → complete → postquest via real OPNPC1 / OPLOC1 / OPLOCU + ResumeButton + last_slot. Cupboard stages actors upstairs. Valve/raft shells via `SceneFindLocId` |
+| D — verification | **Pass** | `selftest_quest_hazeelcult`. Mutation: cupboard `== 9` → `== 99` printed `FAIL cupboard evidence should complete, got 9`, restored. 18 named BMPs on disk, 18 unique MD5s, none black/login |
+
+Selftest command: `TORIRSSERVER_SCRIPTS=/tmp/gp-hazeel-t1-obj/scripts /tmp/gp-hazeel-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_hazeelcult` in `src/torirsserver/test/quest_hazeelcult_selftest.u.h`, called immediately before `selftest_reset_world`). Client captures used `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=hazeelbmp_*` against `/tmp/gp-hazeel-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+PASS hazeelcult snap_mansion trigger=SNAP tile=2566,3270,0
+PASS hazeelcult start_refuse trigger=opnpc1,sir_ceril_carnillean hazeelcultquest=0
+PASS hazeelcult start_accept trigger=opnpc1,sir_ceril_carnillean hazeelcultquest=2
+PASS hazeelcult cave_shell trigger=SceneFindLocId hazeelcultcave
+PASS hazeelcult raft_shell trigger=SceneFindLocId hazeelsewerraft
+PASS hazeelcult raft_gate trigger=oploc1,hazeelsewerraft blocked_until_decision
+PASS hazeelcult clivet_refuse trigger=opnpc1,clivet_hazeel_cultist state=4 good
+PASS hazeelcult valve3_shell trigger=SceneFindLocId sewervalve3
+PASS hazeelcult valve3_left trigger=oploc1,sewervalve3 physical_left
+PASS hazeelcult valve1_shell trigger=SceneFindLocId sewervalve1
+PASS hazeelcult raft_solved trigger=oploc1,hazeelsewerraft hideout_prefix
+PASS hazeelcult alomone_talk trigger=opnpc1,alomone_hazeel_cultist_1op vis=fight
+PASS hazeelcult alomone_skip trigger=debugproc,hazeelcult_pass_alomone PASS hazeelcult boss=alomone CHEAT-SKIP
+PASS hazeelcult chest_armour trigger=oploc1,hazeel_chest_closed inv_armour=1
+PASS hazeelcult handin_ceril trigger=opnpc1,sir_ceril_carnillean state=7 coins+5
+PASS hazeelcult cupboard_complete trigger=oploc1,hazeelcbshut state=9 qp+1 coins+2000
+PASS hazeelcult postquest_ceril trigger=opnpc1,sir_ceril_carnillean state=9
+PASS hazeelcult poison_full trigger=opnpc1,clivet_hazeel_cultist no_false_success
+PASS hazeelcult clivet_evil trigger=opnpc1,clivet_hazeel_cultist state=4 poison=1
+PASS hazeelcult poison_range trigger=oplocu,carnilleanrange state=5
+PASS hazeelcult clivet_wait_ceril trigger=opnpc1,clivet_hazeel_cultist no_mark_yet
+PASS hazeelcult ceril_poison trigger=opnpc1,sir_ceril_carnillean poison_success=1
+PASS hazeelcult mark_clivet trigger=opnpc1,clivet_hazeel_cultist mark=1
+PASS hazeelcult alomone_meet_evil trigger=opnpc1,alomone_hazeel_cultist_1op state=6
+PASS hazeelcult crate_key trigger=oploc1,carnilleancrate key=1
+PASS hazeelcult scroll_chest trigger=oplocu+oploc1,carnilleanshutchest state=7 scroll=1
+PASS hazeelcult ritual_complete trigger=opnpc1,alomone_hazeel_cultist_1op state=9 after rewards
+PASS hazeelcult cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_hazeelcult/`, 18 unique MD5s):
+
+- `01_talk_ceril.bmp`
+- `02_choice_accept.bmp`
+- `03_talk_clivet.bmp`
+- `04_choice_refuse.bmp`
+- `05_valve_turn.bmp`
+- `06_raft_board.bmp`
+- `07_alomone_pre.bmp`
+- `08_alomone_skip.bmp`
+- `09_chest_armour.bmp`
+- `10_handin_ceril.bmp`
+- `11_cupboard_evidence.bmp`
+- `12_reward_scroll.bmp`
+- `13_poison_range.bmp`
+- `14_mark_clivet.bmp`
+- `15_scroll_chest.bmp`
+- `16_ritual_hazeel.bmp`
+- `17_reward_scroll_evil.bmp`
+- `18_postquest.bmp`
+
+Leftovers (disclosed, not faked): Historian Minas 5 Kudos (museum system missing); Secrets of the North route-aware Alomone-vs-Clivet intro; full 2026 transcript / Henryeta / combat-10 warning.

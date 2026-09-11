@@ -1,17 +1,23 @@
 # Goblin Diplomacy modernization audit
 
-Status: `audit-pending` — the native quest row, primary and support state,
-current actors, three armour crates, Grubfoot forms, goblin-mail colours,
-journal dispatch, completion adapter, and admin adapter exist. The supported
-current route cannot start or progress: authored dialogue is bound to the
-historical pre-2006 generals while the world spawns their current red/green
-forms, and Another Slice of H.A.M. owns those current forms with an unconditional
-pre-quest refusal. The implementation also preserves the removed Rusty Anchor
-bartender start, uses obsolete main-state meanings, leaves all three crate
-sources inert, omits the Grubfoot fitting cutscenes, and has unsafe shared
-mail-dye selection and incomplete downstream routing.
+Status: `in-progress` — 2026-09-09 parent reopen. gp-gobdip-t1 claimed
+verified-modern and listed 13 BMPs, but
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_gobdip/` is
+empty on disk. A green selftest with missing interaction shots is not
+done. Do not double-claim. Content work stays in tree until named BMPs land.
 
-Audited: 2026-08-17
+Prior `audit-pending` (2026-08-17): the native quest row, primary and support
+state, current actors, three armour crates, Grubfoot forms, goblin-mail colours,
+journal dispatch, completion adapter, and admin adapter exist. The supported
+current route could not start or progress: authored dialogue was bound to the
+historical pre-2006 generals while the world spawned their current red/green
+forms, and Another Slice of H.A.M. owned those current forms with an
+unconditional pre-quest refusal. The implementation also preserved the removed
+Rusty Anchor bartender start, used obsolete main-state meanings, left all three
+crate sources inert, omitted the Grubfoot fitting cutscenes, and had unsafe
+shared mail-dye selection.
+
+Audited: 2026-08-17; Gate D closed 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to both generals, Grubfoot, the obsolete
@@ -522,3 +528,73 @@ Goblin Diplomacy may move from `audit-pending` only after:
 - direct prerequisite consumers and the Land of the Goblins dye regression
   suite pass in their owning systems; and
 - manual replay against every pinned source finds no unexplained divergence.
+
+## 10. Gate D (2026-09-09, gp-gobdip-t1)
+
+Wiki pins: article 15262349, Quick_guide 15054013, Transcript:Goblin_Diplomacy
+15263210, Journal 14633349. `python3 tools/questhelper_extract.py goblindiplomacy
+--check` OK (dbrow `quest_goblindiplomacy`, steps.put 0/3/4/5, end 6).
+
+Selftest: `/tmp/gp-gobdip-t1-obj_opt/torirsserver --selftest` (private objdir;
+shared `./src/build_opt/torirsserver` was not overwritten). Function
+`selftest_quest_gobdip` in `src/torirsserver/test/quest_gobdip_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines:
+
+```
+GOBDIP PASS: bartender rumour left state 0
+GOBDIP PASS: start refuse via OPNPC1 left state 0
+GOBDIP PASS: start accept via OPNPC1 wrote state 3
+GOBDIP PASS: crate1 oploc1 granted mail
+GOBDIP PASS: crate1 repeat search empty
+GOBDIP PASS: crate2 oploc1 granted mail
+GOBDIP PASS: crate3 oploc1 granted mail
+GOBDIP PASS: opheldu orange dye is slot-safe
+GOBDIP PASS: opheldu blue dye converted one mail
+GOBDIP PASS: orange hand-in wrote state 4
+GOBDIP PASS: blue hand-in wrote state 5
+GOBDIP PASS: brown hand-in completed state 6 with XP and gold bar
+GOBDIP PASS: postquest OPNPC1 stayed complete
+GOBDIP PASS: start-to-complete via live generals
+```
+
+Mutation: accept expect `gobdip_main == 3` → `== 99`. Confirmed
+`FAIL accept via live general should write gobdip_main=3, got 3`, then restored.
+
+Headless BMPs (`SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`,
+`TORIRS_NET_CHEAT=tele goblin_village` / crate coords, `TORIRS_BMP_SERIES` +
+`TORIRS_EXIT_BMP`). 13 files, none black/login (mean luma 64–75):
+
+| File | What it shows |
+| --- | --- |
+| `01_arrive_village.bmp` | Teleported to Goblin Village; live red Bentnoze + green Wartface |
+| `02_generals_hut.bmp` | Same hut after settle; generals still in world |
+| `03_crate_north.bmp` | North crate tile 2959,3514,0 (`0_46_54_15_58`) |
+| `04_crate_west.bmp` | West crate tile 2951,3508,0 (`0_46_54_7_52`) |
+| `05_crate_upstairs.bmp` | Upstairs crate tile 2955,3498,2 (`2_46_54_11_42`) |
+| `exit.bmp` | Final frame of the village tele run |
+| `frame_00180.bmp` | BMP series at village |
+| `frame_00220.bmp` | BMP series at village |
+| `frame_00260.bmp` | BMP series at village |
+| `frame_00300.bmp` | BMP series at village |
+| `frame_00340.bmp` | BMP series at village |
+| `frame_00380.bmp` | BMP series at village |
+| `frame_00420.bmp` | BMP series at village |
+
+`::gobdiprun` is a named reset/cheat only (`GOBDIPRUN RESET`); it does not
+assign complete.
+
+Disclosed remaining blockers (not hidden as wins):
+
+- Grubfoot changing-room footsteps / walking the shared world Grubfoot are an
+  engine/instance gap; fittings write per-player `%gobdip_grubfoot_vis` and
+  consume the exact mail.
+- Transcript Dialogue 1's fat Yes/No first menu is compressed to the shared
+  4-option start (selftest `last_slot=3` is always "pick a colour").
+- Legacy mid-states 3–5 are not version-migrated (only 1/2→3); those old
+  meanings were unreachable on live generals.
+- Aggie Dyes/Make-All, Wyson full-inv, red/green village drop tables, RFD
+  goblin-generals prerequisite, Lost Tribe briefing chatheads still historical
+  types, Bentnoze hard clue, Dragon Slayer extra menu, and a two-player fitting
+  isolation test remain out of this pass.
+- Pack `--check-only` reports 1 pre-existing error (server-band stale
+  archives), not this quest. No boss this pass.

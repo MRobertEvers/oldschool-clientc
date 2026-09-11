@@ -1,0 +1,20 @@
+- generic [active] [ref=f463e1]:
+  - main [ref=f463e2]:
+    - generic [ref=f463e3]:
+      - heading "www.gamerbraves.com" [level=1] [ref=f463e5]
+      - heading "Performing security verification" [level=2] [ref=f463e6]
+      - paragraph [ref=f463e7]: This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.
+  - contentinfo [ref=f463e14]:
+    - generic [ref=f463e16]:
+      - generic [ref=f463e18]:
+        - text: "Ray ID:"
+        - code [ref=f463e19]: a38945554c7acf64
+      - generic [ref=f463e20]:
+        - generic [ref=f463e21]:
+          - text: Performance and Security by
+          - link "Cloudflare, opens in a new tab" [ref=f463e22] [cursor=pointer]:
+            - /url: https://www.cloudflare.com?utm_source=challenge&utm_campaign=m
+            - text: Cloudflare
+        - link "Privacy, opens in a new tab" [ref=f463e24] [cursor=pointer]:
+          - /url: https://www.cloudflare.com/privacypolicy/
+          - text: Privacy

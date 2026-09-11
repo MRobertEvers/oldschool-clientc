@@ -1,16 +1,18 @@
 # Another Slice of H.A.M. modernization audit
 
-Status: `audit-pending` — the native 0–11 state machine, ten quest-owned
-files, journal, prerequisite gates, excavation shell, two combat shells,
-reward XP, and the Land of the Goblins prerequisite exist. The legitimate
-route is nevertheless blocked at state 3 because the Zanik visibility bit is
-interpreted backwards, and Oldak is spawned as a non-interactive cutscene NPC.
-The railway return doorway is also unhandled. Both combat chapters use shared
-world NPCs in static maps rather than player-owned instances, the stealth
-chapter replaces the authored command puzzle, and neither permanent unlock is
-implemented.
+Status: `verified-modern` — 2026-09-09 gp-slice-t1. Start → complete →
+postquest via real OPNPC1 / OPLOC1 / OPNPC2 + ResumeButton + last_slot.
+Zanik `slice_zanik_at_dig` polarity is cache-native (0 = following / hidden
+at dig, 1 = visible at dig). Oldak talks on `dorgesh_oldak_there` (not
+`lotg_oldak_cutscene`). Railway return binds SHELL
+`slice_underground_wall_exit_goblin`. HAM/Sigmund fights are named
+cheat-skips (`PASS anothersliceofham boss=ham_mage,ham_archer CHEAT-SKIP`
+and `boss=sigmund CHEAT-SKIP`); production Attack does not silently
+complete. Land of the Goblins / Death to the Dorgeshuun stay spliced, not
+hidden. The 2026-08-16 audit text below is the research record; Gate D
+evidence is in §9.
 
-Audited: 2026-08-16
+Audited: 2026-08-16; Gate D closed 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to the quest root, Dorgesh-Kaan and Goblin
@@ -652,5 +654,97 @@ post-quest services without state/debug commands. Evidence must include:
 - both train directions, hard diary update, Goblin Village sphere creation and
   Break teleport, plus Land of the Goblins' shared Oldak subject.
 
-Only after static checks, automated matrices, pack validation, and live-client
-evidence pass may this record change from `audit-pending` to `modernized`.
+The 2026-08-16 matrix above remains the research contract. Gate D closed on
+the playable single-player route documented in §9. Disclosed leftovers are
+not faked.
+
+## 9. Gate verdict
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | dbrow `quest_anothersliceofham`; oldids article 15292360 / guide 14458352 / transcript 15263379. `python3 tools/questhelper_extract.py anothersliceofham --check` exits 0 |
+| B — modern machinery | **Pass** | Native `%slice_quest` 0–11 + artefact / Zanik / stealth bits. Cache names win. Alvijar start bound on shells. Ancient mace granted at state 7 |
+| C — critical path | **Pass** | Ur-tag/Alvijar start → Tegdak tools → six digs → table clean → Zanik follower bit=0 → railway SHELL exit → Scribe → talkable Oldak → generals → HAM cheat-skip → mace → sergeant wait/follow → Sigmund cheat-skip → untie loc → complete 11 → postquest |
+| D — verification | **Pass** | `selftest_quest_anothersliceofham`. Mutation: complete `== 11` → `== 99` printed `FAIL untie should write slice_quest=11, got 11`, restored. 16 named BMPs on disk, 16 unique MD5s, luma 62–106 with `TORIRS_PLUGINS=0` (not black/login) |
+
+Selftest command: `TORIRSSERVER_SCRIPTS=/tmp/gp-slice-t1-obj/scripts /tmp/gp-slice-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_anothersliceofham` in `src/torirsserver/test/quest_anothersliceofham_selftest.u.h`, called immediately before `selftest_reset_world`). Client captures used `SDL_VIDEODRIVER=dummy`, `TORIRS_PLUGINS=0`, `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=slicebmp_*` against `/tmp/gp-slice-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+PASS anothersliceofham snap trigger=SNAP tile=2730,5365,1
+PASS anothersliceofham urtag-world trigger=SNAP dorgesh_urtaq present
+PASS anothersliceofham refuse trigger=OPNPC1 slice_quest=0
+PASS anothersliceofham urtag-start trigger=OPNPC1 slice_quest=1
+PASS anothersliceofham tegdak-tools trigger=OPNPC1 slice_quest=2 tools
+PASS anothersliceofham excavation trigger=OPLOC1 six hotspots
+PASS anothersliceofham clean-table trigger=OPLOC1 one-for-one
+PASS anothersliceofham zanik-vis trigger=OPNPC1 following bit=0
+PASS anothersliceofham railway-exit trigger=OPLOC1 slice_underground_wall_exit_goblin
+PASS anothersliceofham scribe trigger=OPNPC1 slice_quest=4
+PASS anothersliceofham oldak trigger=OPNPC1 slice_quest=5
+PASS anothersliceofham generals trigger=OPNPC1 slice_quest=6
+PASS anothersliceofham ham-attack-no-skip trigger=OPNPC2 slice_quest=6
+PASS anothersliceofham boss=ham_mage,ham_archer CHEAT-SKIP
+PASS anothersliceofham ham-skip trigger=debugproc,anothersliceofham_pass_ham PASS anothersliceofham boss=ham_mage,ham_archer CHEAT-SKIP
+PASS anothersliceofham mace-reward trigger=OPNPC1 slice_quest=8 mace
+PASS anothersliceofham sergeant trigger=OPNPC1 slice_quest=9
+PASS anothersliceofham stealth-commands trigger=OPNPC1 wait/follow
+PASS anothersliceofham sigmund-attack-no-skip trigger=OPNPC2 slice_quest=9
+PASS anothersliceofham boss=sigmund CHEAT-SKIP
+PASS anothersliceofham sigmund-skip trigger=debugproc,anothersliceofham_pass_sigmund PASS anothersliceofham boss=sigmund CHEAT-SKIP
+PASS anothersliceofham complete trigger=OPLOC1 slice_quest=11 qp+1
+PASS anothersliceofham postquest trigger=OPNPC1 slice_quest=11
+PASS anothersliceofham cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Mutation that proved a check: temporarily required `slice_quest == 99` on the
+untie/complete assertion. Selftest printed
+`FAIL untie should write slice_quest=11, got 11`. Restored to `== 11`.
+
+`::anothersliceofhamrun` is a named reset/cheat only. Not playthrough
+evidence. Combat chapters use
+`::anothersliceofham_pass_ham` / `::anothersliceofham_pass_sigmund`
+(`PASS anothersliceofham boss=<name> CHEAT-SKIP`). Production OPNPC2 Attack
+does not silently complete.
+
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_anothersliceofham/`, 16 unique MD5s):
+
+- `01_talk_urtag.bmp`
+- `02_choice_accept.bmp`
+- `03_talk_tegdak.bmp`
+- `04_dig_hotspot.bmp`
+- `05_clean_table.bmp`
+- `06_zanik_vis.bmp`
+- `07_talk_scribe.bmp`
+- `08_talk_oldak.bmp`
+- `09_talk_generals.bmp`
+- `10_ham_tower.bmp`
+- `11_mace_reward.bmp`
+- `12_sergeant.bmp`
+- `13_talk_sigmund.bmp`
+- `14_untie_zanik.bmp`
+- `15_reward_scroll.bmp`
+- `16_postquest.bmp`
+
+`ls` of that folder shows those 16 named files only (no `frame_NNNNN.bmp`,
+no `exit.bmp`). Unique MD5s; luma 62–106 with `TORIRS_PLUGINS=0`. Talk shows
+Ur-tag; choice shows "Help Ur-tag with the dig?"; Oldak is the talkable lab
+NPC; reward scroll shows 1 QP + 3000 Mining XP + 3000 Prayer XP + Ancient
+mace icon.
+
+Leftovers (disclosed, not faked):
+
+- Free Dorgesh-Kaan–Keldagrim train, Oldak Goblin Village spheres, and the
+  Lumbridge & Draynor Hard Diary train-use hook have cache-native assets
+  but no shared travel/sphere/diary service in this tree.
+- Stealth wait/follow command puzzle is restored on sergeant shells;
+  full timed instance patrol / detection reset is leftover.
+- HAM tower and Sigmund fights are shared-world NPCs; no boss AI, no
+  player-owned instances. Named cheat-skips only.
+- Meeting/kidnapping/train-opening cutscenes and Grand Opening jingle are
+  leftover.
+- Land of the Goblins already gates on `%slice_quest >= ^slice_complete`;
+  that splice was not hidden.
+
+Gate D: **verified-modern**.

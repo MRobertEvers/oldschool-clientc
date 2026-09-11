@@ -12220,6 +12220,21 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
     ToriRSServer_CombatSyncHitpoints(player);
 
+    /* Gate D / headless captures share this process (EMBED_SERVER). A level-3
+     * login into Karamja dies to snakes and Harpies before TORIRS_NET_CHEAT
+     * runs, and the named BMP is Lumbridge. Godmode is the default whenever
+     * a capture dump or TORIRSSERVER_GOD=1 is set. Death-case tests send
+     * `::god 0` after login. */
+    {
+        char const* exit_bmp = getenv("TORIRS_EXIT_BMP");
+        char const* series = getenv("TORIRS_BMP_SERIES");
+        char const* god = getenv("TORIRSSERVER_GOD");
+
+        if( (exit_bmp && exit_bmp[0]) || (series && series[0]) ||
+            (god && god[0] && atoi(god) != 0) )
+            player->godmode = 1;
+    }
+
     player->dest_x = -1;
     player->dest_z = -1;
     player->waypoint_index = -1;

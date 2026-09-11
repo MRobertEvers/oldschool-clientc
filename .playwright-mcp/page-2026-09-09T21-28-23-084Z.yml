@@ -1,0 +1,1421 @@
+- generic [active] [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - link "MTG Spoiler" [ref=f4e4] [cursor=pointer]:
+      - /url: http://www.magicspoiler.com/
+    - navigation [ref=f4e8]:
+      - list [ref=f4e10]:
+        - listitem [ref=f4e11]:
+          - link "Reality Fracture" [ref=f4e12] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-set/reality-fracture/
+        - listitem [ref=f4e13]:
+          - link "Secret Lair x MSCHF" [ref=f4e14] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-set/secret-lair-x-mschf-the-zeta-set/
+        - listitem [ref=f4e15]:
+          - link "MtG Sets 2027" [ref=f4e16] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-news/upcoming-mtg-sets-in-2027/
+        - listitem [ref=f4e17]:
+          - link "Mystery Commander" [ref=f4e18] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-set/mystery-booster-commander-edition/
+        - listitem [ref=f4e19]:
+          - link "Star Trek" [ref=f4e20] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-set/star-trek/
+        - listitem [ref=f4e21]:
+          - link "The Hobbit" [ref=f4e22] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-set/the-hobbit/
+        - listitem [ref=f4e23]:
+          - link "…" [ref=f4e24] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e25]:
+          - link "|" [ref=f4e26] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f4e27]:
+          - link "MTG Spoilers" [ref=f4e28] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/mtg-spoilers/
+        - listitem [ref=f4e29]:
+          - link "Spoiler News" [ref=f4e30] [cursor=pointer]:
+            - /url: https://www.magicspoiler.com/spoiler-news/
+  - iframe [ref=f4e33]:
+    - iframe [ref=f26e6]:
+      - generic [ref=f72e1]:
+        - generic [ref=f72e2]:
+          - iframe [ref=f72e3] [cursor=pointer]
+          - link [ref=f72e4] [cursor=pointer]:
+            - /url: https://insight.adsrvr.org/track/clk?imp=640347fa-5981-4ee7-b78f-ed6fedd12d29&ag=7y7dn7k&sfe=1cd94f73&sig=C84pq_5mXlNGER3tGwAOkGPEAf9MhJ4wcIAqLW8hRSM.&crid=z3nro48e&cf=11186161&fq=0&t=1&td_s=www.magicspoiler.com&rcats=&mste=&mfld=2&mssi=&mfsi=&sv=nitro&uhow=88&agsa=&wp=0.5210625&rgz=64119&dt=PC&osf=OSX&os=OSX1015&br=Chrome&svpid=621&rlangs=en,os&mlang=&did=&rcxt=Other&tmpc=23.600000000000023&vrtd=&osi=&osv=&daid=&dnr=0&vpb=&crrelr=&npt=&cc=3~KLUv_WPYfRZoYgJNDgBkEHgybjY4bCCkUCoPMTBkZWE0Y2H6RwNkgVnnThG3j-1v7dEtKUIHN3k3ZG43a0jTnKsOUPHfqgVaCHozbnJvNDhlYI2x_RphZ2ljWAM2Mpnfzqe1-Wd6NnluN2rAApHcK2l0MDh10AKS3JkDVy1DUk00LYOfz-mwxz8gNi_0mMSs_e_RBxC87KO-Djg3ZmE2ZmQzYWIwNjMxZDI5ZWFkZTI_L210ZC1yYWd3CqFYwI4Dkx58ncDr4U5BrEIRoM7zCWXSvaeYoofXKwMjsAyc7P_g_-CQeHZkbGlkFKX8MbytUguoEzzQEwD9EwcIhj-AFAGgFACwFAC4FADIFADqFPAUkQHYFQA3_NXhxbKYOi7_6VL2Y5TUF7Y1Su6SCtqCtA1Jf8izJ1ETDCQYLbXJ7EC9HRjfazOCBJmNVuTCIBghD-dPMPxPTQT9QH5YSroQRMeFzrgXVVp4x-njTeMJ2nQ5iilJKOh9LhjwabGmqpHV5dTN5bTCa0IrmGApnMbtgCN_hADxLijJPjNNqkNy6Jw7AxmXaXVIxCvlUDvHXGXZodNHg2hYSYFFczwodowuxsGYghPNIEmy3p0lzUvlspDYX_qahD8M&dur=2~KLUv_SMNLtZUVsUAAFgyYnNobjlZDD5YAQL8Il8pBLgxZLwQHg..&durs=oqeo0L&bdc=144&mk=Apple&testid=-CRM4-&fpa=737&pcm=3&ict=CellularNetwork4G&said=87fa6fd3ab0639&auct=1&us_privacy=1---&tail=1&r=https://grandfortuneclub.onelink.me/LN2i?pid=thetradedesk_int&af_siteid=www.magicspoiler.com&c=TTD_71011_Grand Fortune Club_ROAS_display_0907&af_c_id=8iit08u&af_adset_id=7y7dn7k&af_ad_id=z3nro48e&af_click_lookback=7d&af_os_version=3&af_model=&clickid=640347fa-5981-4ee7-b78f-ed6fedd12d29&idfa=&af_sig=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0aGV0cmFkZWRlc2tfaW50IiwiYXVkIjpbImNsaWNrIl0sInZlciI6InYxIiwiaWF0IjoxNzg4OTg5Mjk5LCJleHAiOjE3ODg5OTI4OTksImp0aSI6IjY0MDM0N2ZhLTU5ODEtNGVlNy1iNzhmLWVkNmZlZGQxMmQyOSIsInN1YiI6IkxOMmkiLCJwYXJhbXMiOnsicGlkIjoidGhldHJhZGVkZXNrX2ludCIsImMiOiJUVERfNzEwMTFfR3JhbmQgRm9ydHVuZSBDbHViX1JPQVNfZGlzcGxheV8wOTA3IiwiYWZfc2l0ZWlkIjoid3d3Lm1hZ2ljc3BvaWxlci5jb20ifX0.TF-9z_eu2vium_8D1dqtVYUpxYztBwcwLgUKZiMtFaY
+        - button [ref=f72e7]
+  - generic [ref=f4e34]:
+    - main [ref=f4e36]:
+      - heading "Dragons of Tarkir Packaging" [level=1] [ref=f4e37]
+      - generic [ref=f4e38]: March 2nd, 2015
+      - paragraph [ref=f4e39]:
+        - strong [ref=f4e40]:
+          - link "Dragons of Tarkir" [ref=f4e41] [cursor=pointer]:
+            - /url: http://www.magicspoiler.com/dragons-tarkir-spoiler/
+          - text: "Booster Packs:"
+      - paragraph [ref=f4e42]:
+        - img "Dragons of Tarkir Booster 5" [ref=f4e43]
+      - paragraph [ref=f4e44]:
+        - img "Dragons of Tarkir Booster 4" [ref=f4e45]
+      - paragraph [ref=f4e46]:
+        - img "Dragons of Tarkir Booster 3" [ref=f4e47]
+      - paragraph [ref=f4e48]:
+        - img "Dragons of Tarkir Booster 2" [ref=f4e49]
+      - paragraph [ref=f4e50]:
+        - img "Dragons of Tarkir Booster 1" [ref=f4e51]
+      - paragraph [ref=f4e52]:
+        - strong [ref=f4e53]: Dragons of Tarkir Booster Box
+      - paragraph [ref=f4e54]:
+        - img "Dragons of Tarkir Booster Box" [ref=f4e55]
+      - paragraph [ref=f4e56]:
+        - strong [ref=f4e57]: Dragons of Tarkir Fat Pack
+        - text: (contains nine booster packs and a Spindown™ life counter)
+      - paragraph [ref=f4e58]:
+        - img "Dragons of Tarkir Fat Pack" [ref=f4e59]
+      - paragraph [ref=f4e60]:
+        - strong [ref=f4e61]: All Dragons of Tarkir Products
+      - paragraph [ref=f4e62]:
+        - img "Dragons of Tarkir Products" [ref=f4e63]
+      - generic [ref=f4e64]:
+        - link "Megamorph Confirmed in Dragons of Tarkir" [ref=f4e66] [cursor=pointer]:
+          - /url: https://www.magicspoiler.com/mtg-news/megamorph-confirmed-dragon-tarkir/
+        - link "Dragons of Tarkir Prerelease Info" [ref=f4e68] [cursor=pointer]:
+          - /url: https://www.magicspoiler.com/mtg-news/dragons-of-tarkir-prerelease-info/
+    - iframe [ref=f4e74]:
+      - iframe [ref=f35e6]:
+        - generic [ref=f69e1]:
+          - generic [ref=f69e3]:
+            - generic [ref=f69e6]:
+              - insertion [ref=f69e8]:
+                - iframe [ref=f69e9]:
+                  - iframe [ref=f73e5]:
+                    - generic [ref=f79e4] [cursor=pointer]:
+                      - generic [ref=f79e10]: The powerful POS that moves with you.
+                      - generic [ref=f79e11]: Get Square
+              - link [ref=f69e10] [cursor=pointer]:
+                - /url: https://pixel.quantcount.com/r?a=p-9fYuixa7g_Hm2;rand=1653977003;labels=_click.creative.iab,_qc.iab.clk.p-e9KDqb0WIZVj6.0.10946981;redirecturl2=http://www.quantcast.com/adchoices
+            - iframe
+            - iframe
+          - iframe
+  - iframe [ref=f4e79]:
+    - generic [ref=f9e1]:
+      - status [ref=f9e2]
+      - generic [ref=f9e7]:
+        - banner [ref=f9e8]:
+          - navigation [ref=f9e10]:
+            - list:
+              - listitem [ref=f9e11]:
+                - generic [ref=f9e12]: 28 comments
+              - listitem [ref=f9e14]:
+                - list:
+                  - listitem [ref=f9e15]:
+                    - link "1" [ref=f9e16] [cursor=pointer]:
+                      - /url: https://disqus.com/home/notifications/
+                      - generic [aria-hidden] [ref=f9e17]: 
+                  - listitem [ref=f9e19]:
+                    - button "Login" [ref=f9e20] [cursor=pointer]
+        - generic [ref=f9e24]:
+          - generic [ref=f9e27]:
+            - alert
+            - generic [ref=f9e28]:
+              - generic [ref=f9e29]: G
+              - generic [ref=f9e34]:
+                - generic [ref=f9e35]: Join the discussion…
+                - textbox [ref=f9e36]
+            - generic [ref=f9e41]:
+              - generic [ref=f9e42]:
+                - heading "Log in with" [level=6] [ref=f9e43]
+                - list [ref=f9e44]:
+                  - listitem [ref=f9e45]:
+                    - button "Login with Disqus" [ref=f9e46] [cursor=pointer]:
+                      - generic [ref=f9e47]: d
+                  - listitem [ref=f9e48]:
+                    - button "Login with Facebook" [ref=f9e49] [cursor=pointer]:
+                      - generic [ref=f9e50]: F
+                  - listitem [ref=f9e51]:
+                    - button "Login with X (Twitter)" [ref=f9e52] [cursor=pointer]:
+                      - generic [ref=f9e53]: 
+                  - listitem [ref=f9e54]:
+                    - button "Login with Google" [ref=f9e55] [cursor=pointer]:
+                      - generic [ref=f9e56]: G
+                  - listitem [ref=f9e57]:
+                    - button "Login with Microsoft" [ref=f9e58] [cursor=pointer]
+                  - listitem [ref=f9e59]:
+                    - button "Login with Apple" [ref=f9e60] [cursor=pointer]
+              - generic [ref=f9e61]:
+                - generic [ref=f9e62]:
+                  - heading "or sign up with Disqus" [level=6] [ref=f9e63]
+                  - button "?" [ref=f9e65] [cursor=pointer]
+                - paragraph [ref=f9e66]:
+                  - textbox "name" [ref=f9e67]:
+                    - /placeholder: Name
+                - text: →
+          - list [ref=f9e70]:
+            - listitem [ref=f9e71]:
+              - link "Favorite this discussion" [ref=f9e75] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=f9e76]: 
+                - text: 
+              - link "Share" [ref=f9e82] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=f9e83]:
+              - list [ref=f9e84]:
+                - listitem [ref=f9e85]:
+                  - link "Best" [ref=f9e86] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f9e87]:
+                  - link "Newest" [ref=f9e88] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f9e89]:
+                  - link "Oldest" [ref=f9e90] [cursor=pointer]:
+                    - /url: "#"
+          - list [ref=f9e91]:
+            - listitem [ref=f9e92]:
+              - alert
+              - article "Comment by SWish , I want the fap pack." [ref=f9e93]:
+                - list [ref=f9e95]:
+                  - listitem [ref=f9e96]:
+                    - link "−" [ref=f9e97] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e98]:
+                    - button "Post menu" [ref=f9e100] [cursor=pointer]
+                - button "Avatar for SWish, profile card button" [ref=f9e103] [cursor=pointer]:
+                  - img "Avatar for SWish" [ref=f9e104]
+                - generic [ref=f9e105]:
+                  - generic [ref=f9e106]:
+                    - generic [ref=f9e108]:
+                      - link "View profile for SWish" [ref=f9e110] [cursor=pointer]:
+                        - /url: https://disqus.com/by/disqus_93oweLR8y8/
+                        - text: SWish
+                      - generic "Follow" [ref=f9e112] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e114] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1889170197
+                  - generic [ref=f9e117]:
+                    - paragraph [ref=f9e120]: I want the fap pack.
+                    - generic:
+                      - list
+                  - list [ref=f9e122]:
+                    - listitem [ref=f9e123]:
+                      - generic [ref=f9e124]:
+                        - button "Vote up, 0 votes" [ref=f9e125] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e127]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e128] [cursor=pointer]:
+                          - generic [ref=f9e130]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e131]:
+                      - link "Reply" [ref=f9e132] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e133]:
+                      - link "Share ›" [ref=f9e134] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e136]:
+              - alert
+              - article "Comment by Squirrel Lover , Ok. I want that fat pack box." [ref=f9e137]:
+                - list [ref=f9e139]:
+                  - listitem [ref=f9e140]:
+                    - link "−" [ref=f9e141] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e142]:
+                    - button "Post menu" [ref=f9e144] [cursor=pointer]
+                - button "Avatar for Squirrel Lover, profile card button" [ref=f9e147] [cursor=pointer]:
+                  - img "Avatar for Squirrel Lover" [ref=f9e148]
+                - generic [ref=f9e149]:
+                  - generic [ref=f9e150]:
+                    - link "View profile for Squirrel Lover" [ref=f9e154] [cursor=pointer]:
+                      - /url: https://disqus.com/by/squirrel_lover/
+                      - text: Squirrel Lover
+                    - link "12 years ago" [ref=f9e156] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1885785909
+                  - generic [ref=f9e159]:
+                    - paragraph [ref=f9e162]: Ok. I want that fat pack box.
+                    - generic:
+                      - list
+                  - list [ref=f9e164]:
+                    - listitem [ref=f9e165]:
+                      - generic [ref=f9e166]:
+                        - button "Vote up, 0 votes" [ref=f9e167] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e169]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e170] [cursor=pointer]:
+                          - generic [ref=f9e172]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e173]:
+                      - link "Reply" [ref=f9e174] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e175]:
+                      - link "Share ›" [ref=f9e176] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e178]:
+              - alert
+              - article "Comment by Andy Dondes , I dont think Sarkhan will return. I just think hes gonna have a spell with his name on it like Sarkhan's Fury or something like that. I believe Narset will be a UWR Planeswalker and i think Nicol Bolas will return." [ref=f9e179]:
+                - list [ref=f9e181]:
+                  - listitem [ref=f9e182]:
+                    - link "−" [ref=f9e183] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e184]:
+                    - button "Post menu" [ref=f9e186] [cursor=pointer]
+                - button "Avatar for Andy Dondes, profile card button" [ref=f9e189] [cursor=pointer]:
+                  - img "Avatar for Andy Dondes" [ref=f9e190]
+                - generic [ref=f9e191]:
+                  - generic [ref=f9e192]:
+                    - generic [ref=f9e194]:
+                      - link "View profile for Andy Dondes" [ref=f9e196] [cursor=pointer]:
+                        - /url: https://disqus.com/by/andydondes/
+                        - text: Andy Dondes
+                      - generic "Follow" [ref=f9e198] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e200] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1885654889
+                  - generic [ref=f9e203]:
+                    - paragraph [ref=f9e206]: I dont think Sarkhan will return. I just think hes gonna have a spell with his name on it like Sarkhan's Fury or something like that. I believe Narset will be a UWR Planeswalker and i think Nicol Bolas will return.
+                    - generic:
+                      - list
+                  - list [ref=f9e208]:
+                    - listitem [ref=f9e209]:
+                      - generic [ref=f9e210]:
+                        - button "Vote up, 0 votes" [ref=f9e211] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e213]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e214] [cursor=pointer]:
+                          - generic [ref=f9e216]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e217]:
+                      - link "Reply" [ref=f9e218] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e219]:
+                      - link "Share ›" [ref=f9e220] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e223]:
+                - listitem [ref=f9e224]:
+                  - alert
+                  - article "Comment by Davepowa , in reply to Andy Dondes well sir youve been proove wrong" [ref=f9e225]:
+                    - list [ref=f9e227]:
+                      - listitem [ref=f9e228]:
+                        - link "−" [ref=f9e229] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e230]:
+                        - button "Post menu" [ref=f9e232] [cursor=pointer]
+                    - button "Avatar for Davepowa, profile card button" [ref=f9e235] [cursor=pointer]:
+                      - img "Avatar for Davepowa" [ref=f9e236]
+                    - generic [ref=f9e237]:
+                      - generic [ref=f9e238]:
+                        - generic [ref=f9e239]:
+                          - generic [ref=f9e240]:
+                            - link "View profile for Davepowa" [ref=f9e242] [cursor=pointer]:
+                              - /url: https://disqus.com/by/Davepowa/
+                              - text: Davepowa
+                            - generic "Follow" [ref=f9e244] [cursor=pointer]
+                          - link "in reply to Andy Dondes" [ref=f9e246] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1885654889
+                            - generic "in reply to" [ref=f9e247]: ">"
+                            - text: Andy Dondes
+                        - link "12 years ago" [ref=f9e249] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1892830053
+                      - generic [ref=f9e252]:
+                        - paragraph [ref=f9e255]: well sir youve been proove wrong
+                        - generic:
+                          - list
+                      - list [ref=f9e257]:
+                        - listitem [ref=f9e258]:
+                          - generic [ref=f9e259]:
+                            - button "Vote up, 0 votes" [ref=f9e260] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e262]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e263] [cursor=pointer]:
+                              - generic [ref=f9e265]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e266]:
+                          - link "Reply" [ref=f9e267] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e268]:
+                          - link "Share ›" [ref=f9e269] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+            - listitem [ref=f9e271]:
+              - alert
+              - article "Comment by Klackles , I believe Sarkhan is going to be blue since time is a blue thing and Sarkhan completely wrote himself out of time. R/U/G? then maybe Narset would be U/W/R." [ref=f9e272]:
+                - list [ref=f9e274]:
+                  - listitem [ref=f9e275]:
+                    - link "−" [ref=f9e276] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e277]:
+                    - button "Post menu" [ref=f9e279] [cursor=pointer]
+                - generic [ref=f9e281]: K
+                - generic [ref=f9e284]:
+                  - generic [ref=f9e285]:
+                    - generic [ref=f9e286]: Klackles
+                    - link "12 years ago" [ref=f9e288] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884744227
+                  - generic [ref=f9e291]:
+                    - paragraph [ref=f9e294]: I believe Sarkhan is going to be blue since time is a blue thing and Sarkhan completely wrote himself out of time. R/U/G? then maybe Narset would be U/W/R.
+                    - generic:
+                      - list
+                  - list [ref=f9e296]:
+                    - listitem [ref=f9e297]:
+                      - generic [ref=f9e298]:
+                        - button "Vote up, 0 votes" [ref=f9e299] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e301]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 1 votes" [ref=f9e302] [cursor=pointer]:
+                          - generic [ref=f9e304]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e305]:
+                      - link "Reply" [ref=f9e306] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e307]:
+                      - link "Share ›" [ref=f9e308] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e310]:
+              - alert
+              - article "Comment by kmk888 , It certainly looks like you're getting your Narset PW. The question is U, U/W, or U/W/R? I suspect U/W. Now as for what color(s) besides red Sarkhan is, I have no idea. And it doesn't really work to guess color based on the art, as otherwise Xenagos would have been Jund and Sarkhan would have been Mardu. I doubt they would print him twice as a monored walker in the same block though. So then R/B? Or R/G?" [ref=f9e311]:
+                - list [ref=f9e313]:
+                  - listitem [ref=f9e314]:
+                    - link "−" [ref=f9e315] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e316]:
+                    - button "Post menu" [ref=f9e318] [cursor=pointer]
+                - button "Avatar for kmk888, profile card button" [ref=f9e321] [cursor=pointer]:
+                  - img "Avatar for kmk888" [ref=f9e322]
+                - generic [ref=f9e323]:
+                  - generic [ref=f9e324]:
+                    - generic [ref=f9e326]:
+                      - link "View profile for kmk888" [ref=f9e328] [cursor=pointer]:
+                        - /url: https://disqus.com/by/kmk888/
+                        - text: kmk888
+                      - generic "Follow" [ref=f9e330] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e332] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884670432
+                  - generic [ref=f9e335]:
+                    - generic [ref=f9e337]:
+                      - paragraph [ref=f9e338]: It certainly looks like you're getting your Narset PW. The question is U, U/W, or U/W/R? I suspect U/W.
+                      - paragraph [ref=f9e339]: Now as for what color(s) besides red Sarkhan is, I have no idea. And it doesn't really work to guess color based on the art, as otherwise Xenagos would have been Jund and Sarkhan would have been Mardu. I doubt they would print him twice as a monored walker in the same block though. So then R/B? Or R/G?
+                    - generic:
+                      - list
+                  - list [ref=f9e341]:
+                    - listitem [ref=f9e342]:
+                      - generic [ref=f9e343]:
+                        - button "Vote up, 0 votes" [ref=f9e344] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e346]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e347] [cursor=pointer]:
+                          - generic [ref=f9e349]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e350]:
+                      - link "Reply" [ref=f9e351] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e352]:
+                      - link "Share ›" [ref=f9e353] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e355]:
+              - alert
+              - article "Comment by BigBoss , The design looks too much like Khans for my liking, what is the need for banners if there are no more clans? That fat pack literally looks just like the KTK fat pack but with a different creature on it and instead of the word \"Khans\" it says \"Dragons\"" [ref=f9e356]:
+                - list [ref=f9e358]:
+                  - listitem [ref=f9e359]:
+                    - link "−" [ref=f9e360] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e361]:
+                    - button "Post menu" [ref=f9e363] [cursor=pointer]
+                - button "Avatar for BigBoss, profile card button" [ref=f9e366] [cursor=pointer]:
+                  - img "Avatar for BigBoss" [ref=f9e367]
+                - generic [ref=f9e368]:
+                  - generic [ref=f9e369]:
+                    - generic [ref=f9e371]:
+                      - link "View profile for BigBoss" [ref=f9e373] [cursor=pointer]:
+                        - /url: https://disqus.com/by/disqus_9k1JXqCihE/
+                        - text: BigBoss
+                      - generic "Follow" [ref=f9e375] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e377] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884598824
+                  - generic [ref=f9e380]:
+                    - paragraph [ref=f9e383]: The design looks too much like Khans for my liking, what is the need for banners if there are no more clans? That fat pack literally looks just like the KTK fat pack but with a different creature on it and instead of the word "Khans" it says "Dragons"
+                    - generic:
+                      - list
+                  - list [ref=f9e385]:
+                    - listitem [ref=f9e386]:
+                      - generic [ref=f9e387]:
+                        - button "Vote up, 1 votes" [ref=f9e388] [cursor=pointer]:
+                          - text: "1"
+                          - generic [ref=f9e390]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e391] [cursor=pointer]:
+                          - generic [ref=f9e393]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e394]:
+                      - link "Reply" [ref=f9e395] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e396]:
+                      - link "Share ›" [ref=f9e397] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e400]:
+                - listitem [ref=f9e401]:
+                  - alert
+                  - article "Comment by Jandro , in reply to BigBoss I think that's intentional" [ref=f9e402]:
+                    - list [ref=f9e404]:
+                      - listitem [ref=f9e405]:
+                        - link "−" [ref=f9e406] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e407]:
+                        - button "Post menu" [ref=f9e409] [cursor=pointer]
+                    - button "Avatar for Jandro, profile card button" [ref=f9e412] [cursor=pointer]:
+                      - img "Avatar for Jandro" [ref=f9e413]
+                    - generic [ref=f9e414]:
+                      - generic [ref=f9e415]:
+                        - generic [ref=f9e416]:
+                          - generic [ref=f9e417]:
+                            - link "View profile for Jandro" [ref=f9e419] [cursor=pointer]:
+                              - /url: https://disqus.com/by/disqus_ZJkNJafZE3/
+                              - text: Jandro
+                            - generic "Follow" [ref=f9e421] [cursor=pointer]
+                          - link "in reply to BigBoss" [ref=f9e423] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884598824
+                            - generic "in reply to" [ref=f9e424]: ">"
+                            - text: BigBoss
+                        - link "12 years ago" [ref=f9e426] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1885812620
+                      - generic [ref=f9e429]:
+                        - paragraph [ref=f9e432]: I think that's intentional
+                        - generic:
+                          - list
+                      - list [ref=f9e434]:
+                        - listitem [ref=f9e435]:
+                          - generic [ref=f9e436]:
+                            - button "Vote up, 0 votes" [ref=f9e437] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e439]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e440] [cursor=pointer]:
+                              - generic [ref=f9e442]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e443]:
+                          - link "Reply" [ref=f9e444] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e445]:
+                          - link "Share ›" [ref=f9e446] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+                - listitem [ref=f9e448]:
+                  - alert
+                  - article "Comment by Gareth Martin , in reply to BigBoss So you are saying the box art and theme is also telling the story of the sets? It's even better then I thought!" [ref=f9e449]:
+                    - list [ref=f9e451]:
+                      - listitem [ref=f9e452]:
+                        - link "−" [ref=f9e453] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e454]:
+                        - button "Post menu" [ref=f9e456] [cursor=pointer]
+                    - button "Avatar for Gareth Martin, profile card button" [ref=f9e459] [cursor=pointer]:
+                      - img "Avatar for Gareth Martin" [ref=f9e460]
+                    - generic [ref=f9e461]:
+                      - generic [ref=f9e462]:
+                        - generic [ref=f9e463]:
+                          - link "View profile for Gareth Martin" [ref=f9e466] [cursor=pointer]:
+                            - /url: https://disqus.com/by/disqus_97yPvRA1P1/
+                            - text: Gareth Martin
+                          - link "in reply to BigBoss" [ref=f9e468] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884598824
+                            - generic "in reply to" [ref=f9e469]: ">"
+                            - text: BigBoss
+                        - link "12 years ago" [ref=f9e471] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884760210
+                      - generic [ref=f9e474]:
+                        - paragraph [ref=f9e477]: So you are saying the box art and theme is also telling the story of the sets? It's even better then I thought!
+                        - generic:
+                          - list
+                      - list [ref=f9e479]:
+                        - listitem [ref=f9e480]:
+                          - generic [ref=f9e481]:
+                            - button "Vote up, 1 votes" [ref=f9e482] [cursor=pointer]:
+                              - text: "1"
+                              - generic [ref=f9e484]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e485] [cursor=pointer]:
+                              - generic [ref=f9e487]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e488]:
+                          - link "Reply" [ref=f9e489] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e490]:
+                          - link "Share ›" [ref=f9e491] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+            - listitem [ref=f9e493]:
+              - alert
+              - article "Comment by BigBoss , fourth card; second dragon... is that kolaghan?" [ref=f9e494]:
+                - list [ref=f9e496]:
+                  - listitem [ref=f9e497]:
+                    - link "−" [ref=f9e498] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e499]:
+                    - button "Post menu" [ref=f9e501] [cursor=pointer]
+                - button "Avatar for BigBoss, profile card button" [ref=f9e504] [cursor=pointer]:
+                  - img "Avatar for BigBoss" [ref=f9e505]
+                - generic [ref=f9e506]:
+                  - generic [ref=f9e507]:
+                    - generic [ref=f9e509]:
+                      - link "View profile for BigBoss" [ref=f9e511] [cursor=pointer]:
+                        - /url: https://disqus.com/by/disqus_9k1JXqCihE/
+                        - text: BigBoss
+                      - generic "Follow" [ref=f9e513] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e515] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884595196
+                  - generic [ref=f9e518]:
+                    - paragraph [ref=f9e521]: fourth card; second dragon... is that kolaghan?
+                    - generic:
+                      - list
+                  - list [ref=f9e523]:
+                    - listitem [ref=f9e524]:
+                      - generic [ref=f9e525]:
+                        - button "Vote up, 0 votes" [ref=f9e526] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e528]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e529] [cursor=pointer]:
+                          - generic [ref=f9e531]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e532]:
+                      - link "Reply" [ref=f9e533] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e534]:
+                      - link "Share ›" [ref=f9e535] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e538]:
+                - listitem [ref=f9e539]:
+                  - article "This comment was deleted. ," [ref=f9e540]:
+                    - list [ref=f9e542]:
+                      - listitem [ref=f9e543]:
+                        - link "−" [ref=f9e544] [cursor=pointer]:
+                          - /url: "#"
+                    - img "Avatar" [ref=f9e546]
+                    - generic [ref=f9e547]:
+                      - paragraph [ref=f9e549]: This comment was deleted.
+                      - list [ref=f9e550]:
+                        - listitem [ref=f9e551]:
+                          - link "−" [ref=f9e552] [cursor=pointer]:
+                            - /url: "#"
+                  - list [ref=f9e554]:
+                    - listitem [ref=f9e555]:
+                      - alert
+                      - article "Comment by Antares , in reply to Guest Nope. Niv-Mizzet is bound to Ravnica. We will never see him outside of Ravnica. :) That is Kolaghan." [ref=f9e556]:
+                        - list [ref=f9e558]:
+                          - listitem [ref=f9e559]:
+                            - link "−" [ref=f9e560] [cursor=pointer]:
+                              - /url: "#"
+                          - listitem [ref=f9e561]:
+                            - button "Post menu" [ref=f9e563] [cursor=pointer]
+                        - generic [ref=f9e565]: A
+                        - generic [ref=f9e568]:
+                          - generic [ref=f9e569]:
+                            - generic [ref=f9e570]:
+                              - text: Antares
+                              - link "in reply to Guest" [ref=f9e572] [cursor=pointer]:
+                                - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884843971
+                                - generic "in reply to" [ref=f9e573]: ">"
+                                - text: Guest
+                            - link "12 years ago" [ref=f9e575] [cursor=pointer]:
+                              - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1885936535
+                          - generic [ref=f9e578]:
+                            - generic [ref=f9e580]:
+                              - paragraph [ref=f9e581]: Nope. Niv-Mizzet is bound to Ravnica. We will never see him outside of Ravnica. :)
+                              - paragraph [ref=f9e582]: That is Kolaghan.
+                            - generic:
+                              - list
+                          - list [ref=f9e584]:
+                            - listitem [ref=f9e585]:
+                              - generic [ref=f9e586]:
+                                - button "Vote up, 0 votes" [ref=f9e587] [cursor=pointer]:
+                                  - text: "0"
+                                  - generic [ref=f9e589]: Press the down arrow key to see users who liked this
+                                - button "Vote down, 0 votes" [ref=f9e590] [cursor=pointer]:
+                                  - generic [ref=f9e592]: Press the down arrow key to see users who disliked this
+                            - listitem [ref=f9e593]:
+                              - link "Reply" [ref=f9e594] [cursor=pointer]:
+                                - /url: "#"
+                            - listitem [ref=f9e595]:
+                              - link "Share ›" [ref=f9e596] [cursor=pointer]:
+                                - /url: "#"
+                                - text: ⥅
+                            - listitem: ✏
+                      - generic:
+                        - list
+            - listitem [ref=f9e598]:
+              - alert
+              - article "Comment by Chowda bagel , UW NARSET PW, RG Sarkhan pw, calling it chowda bagel" [ref=f9e599]:
+                - list [ref=f9e601]:
+                  - listitem [ref=f9e602]:
+                    - link "−" [ref=f9e603] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e604]:
+                    - button "Post menu" [ref=f9e606] [cursor=pointer]
+                - generic [ref=f9e608]: CB
+                - generic [ref=f9e611]:
+                  - generic [ref=f9e612]:
+                    - generic [ref=f9e613]: Chowda bagel
+                    - link "12 years ago" [ref=f9e615] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884351161
+                  - generic [ref=f9e618]:
+                    - paragraph [ref=f9e621]: UW NARSET PW, RG Sarkhan pw, calling it chowda bagel
+                    - generic:
+                      - list
+                  - list [ref=f9e623]:
+                    - listitem [ref=f9e624]:
+                      - generic [ref=f9e625]:
+                        - button "Vote up, 0 votes" [ref=f9e626] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e628]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e629] [cursor=pointer]:
+                          - generic [ref=f9e631]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e632]:
+                      - link "Reply" [ref=f9e633] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e634]:
+                      - link "Share ›" [ref=f9e635] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e638]:
+                - listitem [ref=f9e639]:
+                  - alert
+                  - article "Comment by Adam Watson , in reply to Chowda bagel sarkhan will be black/red. hes part of mardu." [ref=f9e640]:
+                    - list [ref=f9e642]:
+                      - listitem [ref=f9e643]:
+                        - link "−" [ref=f9e644] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e645]:
+                        - button "Post menu" [ref=f9e647] [cursor=pointer]
+                    - button "Avatar for Adam Watson, profile card button" [ref=f9e650] [cursor=pointer]:
+                      - img "Avatar for Adam Watson" [ref=f9e651]
+                    - generic [ref=f9e652]:
+                      - generic [ref=f9e653]:
+                        - generic [ref=f9e654]:
+                          - generic [ref=f9e655]:
+                            - link "View profile for Adam Watson" [ref=f9e657] [cursor=pointer]:
+                              - /url: https://disqus.com/by/disqus_VUFfZYBtOC/
+                              - text: Adam Watson
+                            - generic "Follow" [ref=f9e659] [cursor=pointer]
+                          - link "in reply to Chowda bagel" [ref=f9e661] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884351161
+                            - generic "in reply to" [ref=f9e662]: ">"
+                            - text: Chowda bagel
+                        - link "12 years ago" [ref=f9e664] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884645063
+                      - generic [ref=f9e667]:
+                        - paragraph [ref=f9e670]: sarkhan will be black/red. hes part of mardu.
+                        - generic:
+                          - list
+                      - list [ref=f9e672]:
+                        - listitem [ref=f9e673]:
+                          - generic [ref=f9e674]:
+                            - button "Vote up, 1 votes" [ref=f9e675] [cursor=pointer]:
+                              - text: "1"
+                              - generic [ref=f9e677]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e678] [cursor=pointer]:
+                              - generic [ref=f9e680]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e681]:
+                          - link "Reply" [ref=f9e682] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e683]:
+                          - link "Share ›" [ref=f9e684] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - list [ref=f9e687]:
+                    - listitem [ref=f9e688]:
+                      - alert
+                      - article "Comment by Joe , in reply to Adam Watson but it was yasova that passed on the story of him saving ugin because zurgo says vol is an temur name" [ref=f9e689]:
+                        - list [ref=f9e691]:
+                          - listitem [ref=f9e692]:
+                            - link "−" [ref=f9e693] [cursor=pointer]:
+                              - /url: "#"
+                          - listitem [ref=f9e694]:
+                            - button "Post menu" [ref=f9e696] [cursor=pointer]
+                        - generic [ref=f9e698]: J
+                        - generic [ref=f9e701]:
+                          - generic [ref=f9e702]:
+                            - generic [ref=f9e703]:
+                              - text: Joe
+                              - link "in reply to Adam Watson" [ref=f9e705] [cursor=pointer]:
+                                - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884645063
+                                - generic "in reply to" [ref=f9e706]: ">"
+                                - text: Adam Watson
+                            - link "12 years ago" [ref=f9e708] [cursor=pointer]:
+                              - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1887102892
+                          - generic [ref=f9e711]:
+                            - paragraph [ref=f9e714]: but it was yasova that passed on the story of him saving ugin because zurgo says vol is an temur name
+                            - generic:
+                              - list
+                          - list [ref=f9e716]:
+                            - listitem [ref=f9e717]:
+                              - generic [ref=f9e718]:
+                                - button "Vote up, 0 votes" [ref=f9e719] [cursor=pointer]:
+                                  - text: "0"
+                                  - generic [ref=f9e721]: Press the down arrow key to see users who liked this
+                                - button "Vote down, 0 votes" [ref=f9e722] [cursor=pointer]:
+                                  - generic [ref=f9e724]: Press the down arrow key to see users who disliked this
+                            - listitem [ref=f9e725]:
+                              - link "Reply" [ref=f9e726] [cursor=pointer]:
+                                - /url: "#"
+                            - listitem [ref=f9e727]:
+                              - link "Share ›" [ref=f9e728] [cursor=pointer]:
+                                - /url: "#"
+                                - text: ⥅
+                            - listitem: ✏
+                      - generic:
+                        - list
+            - listitem [ref=f9e730]:
+              - alert
+              - article "Comment by Takio18 , The second one is Surrak. He is the next planeswalker. Probably mono-green." [ref=f9e731]:
+                - list [ref=f9e733]:
+                  - listitem [ref=f9e734]:
+                    - link "−" [ref=f9e735] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e736]:
+                    - button "Post menu" [ref=f9e738] [cursor=pointer]
+                - button "Avatar for Takio18, profile card button" [ref=f9e741] [cursor=pointer]:
+                  - img "Avatar for Takio18" [ref=f9e742]
+                - generic [ref=f9e743]:
+                  - generic [ref=f9e744]:
+                    - generic [ref=f9e746]:
+                      - link "View profile for Takio18" [ref=f9e748] [cursor=pointer]:
+                        - /url: https://disqus.com/by/takio18/
+                        - text: Takio18
+                      - generic "Follow" [ref=f9e750] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e752] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884193841
+                  - generic [ref=f9e755]:
+                    - paragraph [ref=f9e758]: The second one is Surrak. He is the next planeswalker. Probably mono-green.
+                    - generic:
+                      - list
+                  - list [ref=f9e760]:
+                    - listitem [ref=f9e761]:
+                      - generic [ref=f9e762]:
+                        - button "Vote up, 0 votes" [ref=f9e763] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e765]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e766] [cursor=pointer]:
+                          - generic [ref=f9e768]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e769]:
+                      - link "Reply" [ref=f9e770] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e771]:
+                      - link "Share ›" [ref=f9e772] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e775]:
+                - listitem [ref=f9e776]:
+                  - alert
+                  - article "Comment by BigBoss , in reply to Takio18 The staff is what gives it away. It's not Surrak, it's Sarkhan, and hopefully he's finally living up to his name \"sky-khan!\"" [ref=f9e777]:
+                    - list [ref=f9e779]:
+                      - listitem [ref=f9e780]:
+                        - link "−" [ref=f9e781] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e782]:
+                        - button "Post menu" [ref=f9e784] [cursor=pointer]
+                    - button "Avatar for BigBoss, profile card button" [ref=f9e787] [cursor=pointer]:
+                      - img "Avatar for BigBoss" [ref=f9e788]
+                    - generic [ref=f9e789]:
+                      - generic [ref=f9e790]:
+                        - generic [ref=f9e791]:
+                          - generic [ref=f9e792]:
+                            - link "View profile for BigBoss" [ref=f9e794] [cursor=pointer]:
+                              - /url: https://disqus.com/by/disqus_9k1JXqCihE/
+                              - text: BigBoss
+                            - generic "Follow" [ref=f9e796] [cursor=pointer]
+                          - link "in reply to Takio18" [ref=f9e798] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884193841
+                            - generic "in reply to" [ref=f9e799]: ">"
+                            - text: Takio18
+                        - link "12 years ago" [ref=f9e801] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884593652
+                      - generic [ref=f9e804]:
+                        - paragraph [ref=f9e807]: The staff is what gives it away. It's not Surrak, it's Sarkhan, and hopefully he's finally living up to his name "sky-khan!"
+                        - generic:
+                          - list
+                      - list [ref=f9e809]:
+                        - listitem [ref=f9e810]:
+                          - generic [ref=f9e811]:
+                            - button "Vote up, 0 votes" [ref=f9e812] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e814]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e815] [cursor=pointer]:
+                              - generic [ref=f9e817]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e818]:
+                          - link "Reply" [ref=f9e819] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e820]:
+                          - link "Share ›" [ref=f9e821] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - list [ref=f9e824]:
+                    - listitem [ref=f9e825]:
+                      - alert
+                      - article "Comment by Nathen Ritterson , in reply to BigBoss In the stories, Sarkhan is mentioned as having a staff. I definitely think it's Sarkhan." [ref=f9e826]:
+                        - list [ref=f9e828]:
+                          - listitem [ref=f9e829]:
+                            - link "−" [ref=f9e830] [cursor=pointer]:
+                              - /url: "#"
+                          - listitem [ref=f9e831]:
+                            - button "Post menu" [ref=f9e833] [cursor=pointer]
+                        - button "Avatar for Nathen Ritterson, profile card button" [ref=f9e836] [cursor=pointer]:
+                          - img "Avatar for Nathen Ritterson" [ref=f9e837]
+                        - generic [ref=f9e838]:
+                          - generic [ref=f9e839]:
+                            - generic [ref=f9e840]:
+                              - generic [ref=f9e841]:
+                                - link "View profile for Nathen Ritterson" [ref=f9e843] [cursor=pointer]:
+                                  - /url: https://disqus.com/by/nathenritterson/
+                                  - text: Nathen Ritterson
+                                - generic "Follow" [ref=f9e845] [cursor=pointer]
+                              - link "in reply to BigBoss" [ref=f9e847] [cursor=pointer]:
+                                - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884593652
+                                - generic "in reply to" [ref=f9e848]: ">"
+                                - text: BigBoss
+                            - link "12 years ago" [ref=f9e850] [cursor=pointer]:
+                              - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1887322586
+                          - generic [ref=f9e853]:
+                            - paragraph [ref=f9e856]: In the stories, Sarkhan is mentioned as having a staff. I definitely think it's Sarkhan.
+                            - generic:
+                              - list
+                          - list [ref=f9e858]:
+                            - listitem [ref=f9e859]:
+                              - generic [ref=f9e860]:
+                                - button "Vote up, 0 votes" [ref=f9e861] [cursor=pointer]:
+                                  - text: "0"
+                                  - generic [ref=f9e863]: Press the down arrow key to see users who liked this
+                                - button "Vote down, 0 votes" [ref=f9e864] [cursor=pointer]:
+                                  - generic [ref=f9e866]: Press the down arrow key to see users who disliked this
+                            - listitem [ref=f9e867]:
+                              - link "Reply" [ref=f9e868] [cursor=pointer]:
+                                - /url: "#"
+                            - listitem [ref=f9e869]:
+                              - link "Share ›" [ref=f9e870] [cursor=pointer]:
+                                - /url: "#"
+                                - text: ⥅
+                            - listitem: ✏
+                      - generic:
+                        - list
+                - listitem [ref=f9e872]:
+                  - alert
+                  - article "Comment by Seregios MH , in reply to Takio18 Nope it's definitely Sarkhan" [ref=f9e873]:
+                    - list [ref=f9e875]:
+                      - listitem [ref=f9e876]:
+                        - link "−" [ref=f9e877] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e878]:
+                        - button "Post menu" [ref=f9e880] [cursor=pointer]
+                    - button "Avatar for Seregios MH, profile card button" [ref=f9e883] [cursor=pointer]:
+                      - img "Avatar for Seregios MH" [ref=f9e884]
+                    - generic [ref=f9e885]:
+                      - generic [ref=f9e886]:
+                        - generic [ref=f9e887]:
+                          - generic [ref=f9e888]:
+                            - link "View profile for Seregios MH" [ref=f9e890] [cursor=pointer]:
+                              - /url: https://disqus.com/by/seregiosmh/
+                              - text: Seregios MH
+                            - generic "Follow" [ref=f9e892] [cursor=pointer]
+                          - link "in reply to Takio18" [ref=f9e894] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884193841
+                            - generic "in reply to" [ref=f9e895]: ">"
+                            - text: Takio18
+                        - link "12 years ago" [ref=f9e897] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884252093
+                      - generic [ref=f9e900]:
+                        - paragraph [ref=f9e903]: Nope it's definitely Sarkhan
+                        - generic:
+                          - list
+                      - list [ref=f9e905]:
+                        - listitem [ref=f9e906]:
+                          - generic [ref=f9e907]:
+                            - button "Vote up, 0 votes" [ref=f9e908] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e910]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e911] [cursor=pointer]:
+                              - generic [ref=f9e913]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e914]:
+                          - link "Reply" [ref=f9e915] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e916]:
+                          - link "Share ›" [ref=f9e917] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+            - listitem [ref=f9e919]:
+              - alert
+              - article "Comment by Lord of the Never-there , sweet mama slama, these looks like its going to have some insaaaaaane cards in it." [ref=f9e920]:
+                - list [ref=f9e922]:
+                  - listitem [ref=f9e923]:
+                    - link "−" [ref=f9e924] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e925]:
+                    - button "Post menu" [ref=f9e927] [cursor=pointer]
+                - button "Avatar for Lord of the Never-there, profile card button" [ref=f9e930] [cursor=pointer]:
+                  - img "Avatar for Lord of the Never-there" [ref=f9e931]
+                - generic [ref=f9e932]:
+                  - generic [ref=f9e933]:
+                    - generic [ref=f9e935]:
+                      - link "View profile for Lord of the Never-there" [ref=f9e937] [cursor=pointer]:
+                        - /url: https://disqus.com/by/danielhargadine/
+                        - text: Lord of the Never-there
+                      - generic "Follow" [ref=f9e939] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e941] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884191307
+                  - generic [ref=f9e944]:
+                    - paragraph [ref=f9e947]: sweet mama slama, these looks like its going to have some insaaaaaane cards in it.
+                    - generic:
+                      - list
+                  - list [ref=f9e949]:
+                    - listitem [ref=f9e950]:
+                      - generic [ref=f9e951]:
+                        - button "Vote up, 0 votes" [ref=f9e952] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e954]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e955] [cursor=pointer]:
+                          - generic [ref=f9e957]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e958]:
+                      - link "Reply" [ref=f9e959] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e960]:
+                      - link "Share ›" [ref=f9e961] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e963]:
+              - alert
+              - article "Comment by sani , I might want that fatpack unless the actual box has that dragon too, I love orange stuff but ferocious dragons aren't my thing." [ref=f9e964]:
+                - list [ref=f9e966]:
+                  - listitem [ref=f9e967]:
+                    - link "−" [ref=f9e968] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e969]:
+                    - button "Post menu" [ref=f9e971] [cursor=pointer]
+                - generic [ref=f9e973]: S
+                - generic [ref=f9e976]:
+                  - generic [ref=f9e977]:
+                    - generic [ref=f9e978]: sani
+                    - link "12 years ago" [ref=f9e980] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883979769
+                  - generic [ref=f9e983]:
+                    - paragraph [ref=f9e986]: I might want that fatpack unless the actual box has that dragon too, I love orange stuff but ferocious dragons aren't my thing.
+                    - generic:
+                      - list
+                  - list [ref=f9e988]:
+                    - listitem [ref=f9e989]:
+                      - generic [ref=f9e990]:
+                        - button "Vote up, 0 votes" [ref=f9e991] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e993]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e994] [cursor=pointer]:
+                          - generic [ref=f9e996]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e997]:
+                      - link "Reply" [ref=f9e998] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e999]:
+                      - link "Share ›" [ref=f9e1000] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e1003]:
+                - listitem [ref=f9e1004]:
+                  - alert
+                  - article "Comment by BigBoss , in reply to sani It looks extremely similar to the KTK fat pack /:" [ref=f9e1005]:
+                    - list [ref=f9e1007]:
+                      - listitem [ref=f9e1008]:
+                        - link "−" [ref=f9e1009] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e1010]:
+                        - button "Post menu" [ref=f9e1012] [cursor=pointer]
+                    - button "Avatar for BigBoss, profile card button" [ref=f9e1015] [cursor=pointer]:
+                      - img "Avatar for BigBoss" [ref=f9e1016]
+                    - generic [ref=f9e1017]:
+                      - generic [ref=f9e1018]:
+                        - generic [ref=f9e1019]:
+                          - generic [ref=f9e1020]:
+                            - link "View profile for BigBoss" [ref=f9e1022] [cursor=pointer]:
+                              - /url: https://disqus.com/by/disqus_9k1JXqCihE/
+                              - text: BigBoss
+                            - generic "Follow" [ref=f9e1024] [cursor=pointer]
+                          - link "in reply to sani" [ref=f9e1026] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883979769
+                            - generic "in reply to" [ref=f9e1027]: ">"
+                            - text: sani
+                        - link "12 years ago" [ref=f9e1029] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884596598
+                      - generic [ref=f9e1032]:
+                        - paragraph [ref=f9e1035]: "It looks extremely similar to the KTK fat pack /:"
+                        - generic:
+                          - list
+                      - list [ref=f9e1037]:
+                        - listitem [ref=f9e1038]:
+                          - generic [ref=f9e1039]:
+                            - button "Vote up, 0 votes" [ref=f9e1040] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e1042]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e1043] [cursor=pointer]:
+                              - generic [ref=f9e1045]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e1046]:
+                          - link "Reply" [ref=f9e1047] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e1048]:
+                          - link "Share ›" [ref=f9e1049] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+            - listitem [ref=f9e1051]:
+              - alert
+              - article "Comment by RM_Horeeh , So that's probably Narset. The second looks like Sarkhan. Maybe the Kolaghan general will be an alternative sarkhan with a different name? Next is an Ojutai dragon (probably not Ojutai himself). It may look confusing, but it clearly breathes ice, as all Ojutai dragons should. The fourth one seems to be Elder Dragon Kolaghan. The final one is a dragon from the Atarka brood or Atarka herself." [ref=f9e1052]:
+                - list [ref=f9e1054]:
+                  - listitem [ref=f9e1055]:
+                    - link "−" [ref=f9e1056] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1057]:
+                    - button "Post menu" [ref=f9e1059] [cursor=pointer]
+                - button "Avatar for RM_Horeeh, profile card button" [ref=f9e1062] [cursor=pointer]:
+                  - img "Avatar for RM_Horeeh" [ref=f9e1063]
+                - generic [ref=f9e1064]:
+                  - generic [ref=f9e1065]:
+                    - generic [ref=f9e1067]:
+                      - link "View profile for RM_Horeeh" [ref=f9e1069] [cursor=pointer]:
+                        - /url: https://disqus.com/by/rm_horeeh/
+                        - text: RM_Horeeh
+                      - generic "Follow" [ref=f9e1071] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e1073] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883896218
+                  - generic [ref=f9e1076]:
+                    - paragraph [ref=f9e1079]: So that's probably Narset. The second looks like Sarkhan. Maybe the Kolaghan general will be an alternative sarkhan with a different name? Next is an Ojutai dragon (probably not Ojutai himself). It may look confusing, but it clearly breathes ice, as all Ojutai dragons should. The fourth one seems to be Elder Dragon Kolaghan. The final one is a dragon from the Atarka brood or Atarka herself.
+                    - generic:
+                      - list
+                  - list [ref=f9e1081]:
+                    - listitem [ref=f9e1082]:
+                      - generic [ref=f9e1083]:
+                        - button "Vote up, 0 votes" [ref=f9e1084] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1086]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1087] [cursor=pointer]:
+                          - generic [ref=f9e1089]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1090]:
+                      - link "Reply" [ref=f9e1091] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1092]:
+                      - link "Share ›" [ref=f9e1093] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e1095]:
+              - alert
+              - article "Comment by Name , What about that white dragon ? Looks kinda like Bolas and Ugin had a child. I don't remember seeing that kind of dragon on any Fate Reforged art." [ref=f9e1096]:
+                - list [ref=f9e1098]:
+                  - listitem [ref=f9e1099]:
+                    - link "−" [ref=f9e1100] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1101]:
+                    - button "Post menu" [ref=f9e1103] [cursor=pointer]
+                - generic [ref=f9e1105]: "N"
+                - generic [ref=f9e1108]:
+                  - generic [ref=f9e1109]:
+                    - generic [ref=f9e1110]: Name
+                    - link "12 years ago" [ref=f9e1112] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883832560
+                  - generic [ref=f9e1115]:
+                    - paragraph [ref=f9e1118]: What about that white dragon ? Looks kinda like Bolas and Ugin had a child.I don't remember seeing that kind of dragon on any Fate Reforged art.
+                    - generic:
+                      - list
+                  - list [ref=f9e1120]:
+                    - listitem [ref=f9e1121]:
+                      - generic [ref=f9e1122]:
+                        - button "Vote up, 0 votes" [ref=f9e1123] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1125]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1126] [cursor=pointer]:
+                          - generic [ref=f9e1128]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1129]:
+                      - link "Reply" [ref=f9e1130] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1131]:
+                      - link "Share ›" [ref=f9e1132] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - list [ref=f9e1135]:
+                - listitem [ref=f9e1136]:
+                  - alert
+                  - article "Comment by Seregios MH , in reply to Name Probably a normal dragon. They usually have common or uncommon cards on the packs." [ref=f9e1137]:
+                    - list [ref=f9e1139]:
+                      - listitem [ref=f9e1140]:
+                        - link "−" [ref=f9e1141] [cursor=pointer]:
+                          - /url: "#"
+                      - listitem [ref=f9e1142]:
+                        - button "Post menu" [ref=f9e1144] [cursor=pointer]
+                    - button "Avatar for Seregios MH, profile card button" [ref=f9e1147] [cursor=pointer]:
+                      - img "Avatar for Seregios MH" [ref=f9e1148]
+                    - generic [ref=f9e1149]:
+                      - generic [ref=f9e1150]:
+                        - generic [ref=f9e1151]:
+                          - generic [ref=f9e1152]:
+                            - link "View profile for Seregios MH" [ref=f9e1154] [cursor=pointer]:
+                              - /url: https://disqus.com/by/seregiosmh/
+                              - text: Seregios MH
+                            - generic "Follow" [ref=f9e1156] [cursor=pointer]
+                          - link "in reply to Name" [ref=f9e1158] [cursor=pointer]:
+                            - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883832560
+                            - generic "in reply to" [ref=f9e1159]: ">"
+                            - text: Name
+                        - link "12 years ago" [ref=f9e1161] [cursor=pointer]:
+                          - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1884254818
+                      - generic [ref=f9e1164]:
+                        - paragraph [ref=f9e1167]: Probably a normal dragon. They usually have common or uncommon cards on the packs.
+                        - generic:
+                          - list
+                      - list [ref=f9e1169]:
+                        - listitem [ref=f9e1170]:
+                          - generic [ref=f9e1171]:
+                            - button "Vote up, 0 votes" [ref=f9e1172] [cursor=pointer]:
+                              - text: "0"
+                              - generic [ref=f9e1174]: Press the down arrow key to see users who liked this
+                            - button "Vote down, 0 votes" [ref=f9e1175] [cursor=pointer]:
+                              - generic [ref=f9e1177]: Press the down arrow key to see users who disliked this
+                        - listitem [ref=f9e1178]:
+                          - link "Reply" [ref=f9e1179] [cursor=pointer]:
+                            - /url: "#"
+                        - listitem [ref=f9e1180]:
+                          - link "Share ›" [ref=f9e1181] [cursor=pointer]:
+                            - /url: "#"
+                            - text: ⥅
+                        - listitem: ✏
+                  - generic:
+                    - list
+            - listitem [ref=f9e1183]:
+              - alert
+              - article "Comment by Leonardo Duarte , Another Sarkan planeswalker?" [ref=f9e1184]:
+                - list [ref=f9e1186]:
+                  - listitem [ref=f9e1187]:
+                    - link "−" [ref=f9e1188] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1189]:
+                    - button "Post menu" [ref=f9e1191] [cursor=pointer]
+                - button "Avatar for Leonardo Duarte, profile card button" [ref=f9e1194] [cursor=pointer]:
+                  - img "Avatar for Leonardo Duarte" [ref=f9e1195]
+                - generic [ref=f9e1196]:
+                  - generic [ref=f9e1197]:
+                    - generic [ref=f9e1199]:
+                      - link "View profile for Leonardo Duarte" [ref=f9e1201] [cursor=pointer]:
+                        - /url: https://disqus.com/by/disqus_hsJqHXTb9I/
+                        - text: Leonardo Duarte
+                      - generic "Follow" [ref=f9e1203] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e1205] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883757007
+                  - generic [ref=f9e1208]:
+                    - paragraph [ref=f9e1211]: Another Sarkan planeswalker?
+                    - generic:
+                      - list
+                  - list [ref=f9e1213]:
+                    - listitem [ref=f9e1214]:
+                      - generic [ref=f9e1215]:
+                        - button "Vote up, 0 votes" [ref=f9e1216] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1218]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1219] [cursor=pointer]:
+                          - generic [ref=f9e1221]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1222]:
+                      - link "Reply" [ref=f9e1223] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1224]:
+                      - link "Share ›" [ref=f9e1225] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e1227]:
+              - alert
+              - article "Comment by Daniel Gilmore , THAT'S NARSET! NARSET LIIIIIIIIIIIIIIIIIIIIIIVES! [cries in spanish]" [ref=f9e1228]:
+                - list [ref=f9e1230]:
+                  - listitem [ref=f9e1231]:
+                    - link "−" [ref=f9e1232] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1233]:
+                    - button "Post menu" [ref=f9e1235] [cursor=pointer]
+                - button "Avatar for Daniel Gilmore, profile card button" [ref=f9e1238] [cursor=pointer]:
+                  - img "Avatar for Daniel Gilmore" [ref=f9e1239]
+                - generic [ref=f9e1240]:
+                  - generic [ref=f9e1241]:
+                    - generic [ref=f9e1243]:
+                      - link "View profile for Daniel Gilmore" [ref=f9e1245] [cursor=pointer]:
+                        - /url: https://disqus.com/by/disqus_dIfSAnR8gk/
+                        - text: Daniel Gilmore
+                      - generic "Follow" [ref=f9e1247] [cursor=pointer]
+                    - link "12 years ago" [ref=f9e1249] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883668278
+                  - generic [ref=f9e1252]:
+                    - paragraph [ref=f9e1255]: THAT'S NARSET! NARSET LIIIIIIIIIIIIIIIIIIIIIIVES! [cries in spanish]
+                    - generic:
+                      - list
+                  - list [ref=f9e1257]:
+                    - listitem [ref=f9e1258]:
+                      - generic [ref=f9e1259]:
+                        - button "Vote up, 0 votes" [ref=f9e1260] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1262]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1263] [cursor=pointer]:
+                          - generic [ref=f9e1265]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1266]:
+                      - link "Reply" [ref=f9e1267] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1268]:
+                      - link "Share ›" [ref=f9e1269] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e1271]:
+              - alert
+              - article "Comment by Danny , I'm getting some Halloween-Vibes here. ;) Nevertheless, I like it. Looks fine." [ref=f9e1272]:
+                - list [ref=f9e1274]:
+                  - listitem [ref=f9e1275]:
+                    - link "−" [ref=f9e1276] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1277]:
+                    - button "Post menu" [ref=f9e1279] [cursor=pointer]
+                - generic [ref=f9e1281]: D
+                - generic [ref=f9e1284]:
+                  - generic [ref=f9e1285]:
+                    - generic [ref=f9e1286]: Danny
+                    - link "12 years ago" [ref=f9e1288] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883595802
+                  - generic [ref=f9e1291]:
+                    - paragraph [ref=f9e1294]: I'm getting some Halloween-Vibes here. ;)Nevertheless, I like it. Looks fine.
+                    - generic:
+                      - list
+                  - list [ref=f9e1296]:
+                    - listitem [ref=f9e1297]:
+                      - generic [ref=f9e1298]:
+                        - button "Vote up, 0 votes" [ref=f9e1299] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1301]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1302] [cursor=pointer]:
+                          - generic [ref=f9e1304]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1305]:
+                      - link "Reply" [ref=f9e1306] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1307]:
+                      - link "Share ›" [ref=f9e1308] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+            - listitem [ref=f9e1310]:
+              - alert
+              - article "Comment by Adnorap , Love the Orange" [ref=f9e1311]:
+                - list [ref=f9e1313]:
+                  - listitem [ref=f9e1314]:
+                    - link "−" [ref=f9e1315] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f9e1316]:
+                    - button "Post menu" [ref=f9e1318] [cursor=pointer]
+                - button "Avatar for Adnorap, profile card button" [ref=f9e1321] [cursor=pointer]:
+                  - img "Avatar for Adnorap" [ref=f9e1322]
+                - generic [ref=f9e1323]:
+                  - generic [ref=f9e1324]:
+                    - link "View profile for Adnorap" [ref=f9e1328] [cursor=pointer]:
+                      - /url: https://disqus.com/by/EddyKen/
+                      - text: Adnorap
+                    - link "12 years ago" [ref=f9e1330] [cursor=pointer]:
+                      - /url: https://www.magicspoiler.com/mtg-news/dragons-tarkir-packaging/#comment-1883549067
+                  - generic [ref=f9e1333]:
+                    - paragraph [ref=f9e1336]: Love the Orange
+                    - generic:
+                      - list
+                  - list [ref=f9e1338]:
+                    - listitem [ref=f9e1339]:
+                      - generic [ref=f9e1340]:
+                        - button "Vote up, 0 votes" [ref=f9e1341] [cursor=pointer]:
+                          - text: "0"
+                          - generic [ref=f9e1343]: Press the down arrow key to see users who liked this
+                        - button "Vote down, 0 votes" [ref=f9e1344] [cursor=pointer]:
+                          - generic [ref=f9e1346]: Press the down arrow key to see users who disliked this
+                    - listitem [ref=f9e1347]:
+                      - link "Reply" [ref=f9e1348] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=f9e1349]:
+                      - link "Share ›" [ref=f9e1350] [cursor=pointer]:
+                        - /url: "#"
+                        - text: ⥅
+                    - listitem: ✏
+              - generic:
+                - list
+        - contentinfo [ref=f9e1352]:
+          - generic [ref=f9e1354]:
+            - list [ref=f9e1355]:
+              - listitem [ref=f9e1356]:
+                - link "Subscribe" [ref=f9e1358] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=f9e1362]:
+                - link "Privacy" [ref=f9e1363] [cursor=pointer]:
+                  - /url: https://disqus.com/privacy-policy
+              - listitem [ref=f9e1367]:
+                - link "Do Not Sell My Data" [ref=f9e1368] [cursor=pointer]:
+                  - /url: https://disqus.com/data-sharing-settings/
+            - link "Powered by Disqus" [ref=f9e1373] [cursor=pointer]:
+              - /url: https://disqus.com
+      - generic:
+        - listbox
+  - contentinfo [ref=f4e82]:
+    - generic [ref=f4e83]:
+      - heading [level=3] [ref=f4e84]:
+        - link "MTG Spoilers" [ref=f4e85] [cursor=pointer]:
+          - /url: http://www.magicspoiler.com/mtg-spoilers/
+      - list [ref=f4e86]:
+        - listitem [ref=f4e87]:
+          - heading [level=4] [ref=f4e88]:
+            - link "Duskmourn Spoiler" [ref=f4e89] [cursor=pointer]:
+              - /url: https://www.magicspoiler.com/mtg-set/duskmourn/
+        - listitem [ref=f4e90]:
+          - heading [level=4] [ref=f4e91]:
+            - link "Fallout Spoiler" [ref=f4e92] [cursor=pointer]:
+              - /url: https://www.magicspoiler.com/mtg-set/fallout/
+        - listitem [ref=f4e93]:
+          - heading [level=4] [ref=f4e94]:
+            - link "March of the Machine Spoiler" [ref=f4e95] [cursor=pointer]:
+              - /url: https://www.magicspoiler.com/mtg-set/march-of-the-machine/
+        - listitem [ref=f4e96]:
+          - heading [level=4] [ref=f4e97]:
+            - 'link "Phyrexia: All Will Be One Spoiler" [ref=f4e98] [cursor=pointer]':
+              - /url: https://www.magicspoiler.com/mtg-set/phyrexia-all-will-be-one/
+        - listitem [ref=f4e99]:
+          - heading [level=4] [ref=f4e100]:
+            - link "Jumpstart 2022 Spoiler" [ref=f4e101] [cursor=pointer]:
+              - /url: http://www.magicspoiler.com/mtg-set/jumpstart-2022/
+    - heading [level=3] [ref=f4e103]:
+      - link "MTG Spoiler News" [ref=f4e104] [cursor=pointer]:
+        - /url: http://www.magicspoiler.com/spoiler-news/
+    - generic [ref=f4e106]:
+      - paragraph [ref=f4e108]: © 2011 - 2026 MagicSpoiler
+      - paragraph [ref=f4e110]: MTG - Magic the Gathering collectible trading card game site featuring new card spoilers, visual spoilers, new art, deck lists and magic news.
+      - paragraph [ref=f4e112]:
+        - link "Privacy & Cookies Policy" [ref=f4e113] [cursor=pointer]:
+          - /url: http://www.magicspoiler.com/privacy-policy/
+  - paragraph [ref=f4e115]: Magic the Gathering is TM and copyright Wizards of the Coast, Inc, a subsidiary of Hasbro, Inc. All rights reserved. All art is property of their respective artists and/or Wizards of the Coast. This site is not produced, affiliated or endorsed by Wizards of the Coast, Inc.

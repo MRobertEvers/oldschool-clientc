@@ -1,13 +1,15 @@
 # Doric's Quest modernization audit
 
-Status: `audit-pending` — the native three-state route, dynamic journal,
-completion scroll, Mining XP, coin reward, and anvil unlock are recognisable and
-normally reachable with pre-obtained materials. The current implementation
-omits the bronze pickaxe, current dialogue and immediate-ready route, exposes a
-non-atomic completion window, and has no quest-specific regression coverage. It
-is not `verified-modern`.
+Status: `verified-modern` — 2026-09-09 gp-doric-t1. Talk-to accept grants the
+bronze pickaxe (blocked if the backpack is full and no pickaxe is already
+held), the current 5-option transcript and ready-now coincidence route work,
+completion is one guarded `~doric_commit`, prequest anvil use opens Doric's
+offer, the whetstone prints the canonical ask-first line, and Falador Easy
+blurite-limb smithing on `dorics_anvil` awards diary task 11. Covered by
+`selftest_quest_doric` (OPNPC1 + ResumeButton, not `::doricrun`) and 8 headless
+BMPs listed under Gate D.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; closed 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to the native quest, Doric's actor, both
@@ -84,9 +86,9 @@ must not introduce a parallel progress carrier or duplicate metadata policy.
 
 | State | Canonical phase | Current implementation |
 | ---: | --- | --- |
-| 0 | Not started; full Doric conversation and accept/refuse | Four-option legacy dialogue; acceptance writes 10 |
-| 10 | Accepted; collect or present all materials | Inventory re-talk and all-at-once hand-in exist |
-| 100 | Complete; anvils unlocked and ordinary Doric dialogue | Shared completion queue reaches 100; anvil gate reads it |
+| 0 | Not started; full Doric conversation and accept/refuse | Five-option transcript; accept writes 10 only after the pickaxe is delivered (or already held) |
+| 10 | Accepted; collect or present all materials | Re-talk + directions; ready-now coincidence completes in the same talk |
+| 100 | Complete; anvils unlocked and ordinary Doric dialogue | `~doric_commit` writes 100 once; anvil gate and journal require `>= 100` |
 
 These values agree across the native dbrow, Quest Helper, quest scripts, dynamic
 journal, smithing gate, Devious Minds prerequisite, and debug adapter. No state
@@ -422,13 +424,40 @@ smithing, and diary machinery.
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| A — source coverage | **Pass for audit** | Native row/varp, four quest files, Doric spawn, journal/cheat/completion, mining/smithing/whetstone, Devious, and diary surfaces are inventoried; Wiki revisions are pinned |
-| B — modern machinery | **Partial** | Symbolic names, modern choices, native journal, shared completion, and permanent varp exist; the player queue is not transactionally safe and shared anvil dialogue is reduced to a generic gate |
-| C — critical path | **Fail** | Missing bronze pickaxe and current dialogue/ready-now route; split hand-in/reward mutations; incomplete anvil/whetstone behavior and Falador Diary hook |
-| D — verification | **Fail** | Quest Helper alias prevents a clean checker result, no quest transition/reconnect/headless tests or captures exist, and global skill tests do not prove this quest |
+| A — source coverage | **Pass** | Native row/varp, four quest files, Doric spawn `m46_53.spawn`, journal/cheat/completion, mining/smithing/whetstone, Devious, and diary surfaces are inventoried; Wiki revisions stay pinned (article 15240932, guide 14457895, transcript 15263205) |
+| B — modern machinery | **Pass** | Named 0/10/100 constants, `~p_choice5` / `~p_choice2_header`, native journal, one guarded `~doric_commit` + shared scroll, transmitted permanent varp |
+| C — critical path | **Pass** | Talk-to accept grants the bronze pickaxe; 5-option + ready-now transcript; atomic hand-in; prequest anvil → Doric offer; whetstone ask-first mes; Falador Easy blurite-limb hook on `dorics_anvil` |
+| D — verification | **Pass** | `selftest_quest_doric` drives not-started → refuse → accept (pickaxe) → re-talk → hand-in → complete → postquest / anvil via real OPNPC1 + ResumeButton. Mutation: pickaxe `== 1` → `== 99` printed `FAIL Talk-to accept should grant exactly 1 bronze pickaxe, have 1`, then restored. QH `doricsquest --check` is only the known `quest_doricsquest` vs `quest_dorics` alias FP. Headless BMPs (8): |
 
-Release classification remains `audit-pending`. The quest can become
-`verified-modern` only after the current transcript and acceptance item are
-implemented, the final transaction is replay-safe, both permanent consumers
-are verified, the Quest Helper alias/check is resolved, and the full matrix has
-replayable evidence.
+Headless command (worker private server + existing client; `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES` temp dir, never `3draster build/`):
+
+`/tmp/gp-doric-t1-obj_opt/torirsserver --selftest` (stanza prints the PASS lines below). Client captures used `TORIRS_EXIT_BMP` / `TORIRS_BMP_SERIES` against that world.
+
+Selftest PASS lines:
+
+```
+DORIC PASS: refuse left state 0 and no pickaxe
+DORIC PASS: accept via OPNPC1 granted bronze pickaxe, state 10
+DORIC PASS: mid-quest re-talk stayed at 10, no duplicate pickaxe
+DORIC PASS: hand-in consumed ores, +180 coins, +1300 Mining XP, state 100
+DORIC PASS: post-quest OPNPC1 stayed complete
+DORIC PASS: post-quest anvil OPLOC1 left state 100 (loc_slot=3123)
+DORIC PASS: ready-now accept granted pickaxe and completed atomically
+DORIC PASS: full inventory blocked accept without losing the pickaxe
+DORIC PASS: start-to-complete via OPNPC1
+```
+
+BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_doric/`):
+
+| File | What it shows |
+| --- | --- |
+| `01_arrive_hut.bmp` | Teleported to Doric's hut |
+| `02_greeting.bmp` | Talk-to: "Hello traveller, what brings you to my humble smithy?" |
+| `03_start_options.bmp` | Five-option start menu (anvils / whetstone / insult / landscape / what do you make) |
+| `04_accept_pickaxe.bmp` | Accept grant line: 6 clay / 4 copper / 2 iron + "Take this pickaxe with you..." |
+| `05_midquest_materials.bmp` | Re-talk: "Have you got my materials yet, traveller?" |
+| `06_handin.bmp` | Hand-in: "Many thanks. Pass them here, please." |
+| `07_complete_scroll.bmp` | Modern scroll: 1 QP, 180 coins, 1300 Mining XP, use of Doric's anvils |
+| `08_anvil.bmp` | Post-quest OPLOC1 on `dorics_anvil` opens the bar picker (incl. blurite) |
+
+Release classification is `verified-modern`. `::doricrun` remains a named cheat/reset only and is not completion evidence. The Quest Helper extractor alias is an audit-tool defect, not a missing dbrow.

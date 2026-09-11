@@ -1,15 +1,14 @@
 # Druidic Ritual modernization audit
 
-Status: `audit-pending` — the local quest has the correct native 0–4 ladder,
-unique symbolic triggers, all four meat conversions, Sanfew's all-items check,
-a dynamic journal, the shared completion scroll, and an accessible Taverley
-Dungeon route. It is playable in outline but is not verified modern. Its start
-and Herblore lesson preserve obsolete LostCity dialogue, completion occurs
-before the lesson instead of after it, the completion queue has no
-duplicate-delivery guard,
-item hand-offs are not transactional, the two suits of armour mutate shared
-world state, the reward scroll shows coins that are not a reward, and most
-Herblore training paths work before the quest that is supposed to unlock them.
+Status: `in-progress` — 2026-09-09 parent reopen. gp-druid-t1 selftest
+claimed 14 PASS lines, but Gate D is not closed: the nine listed BMPs are
+absent from
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_druid/`
+(directory empty / missing). A green selftest with missing interaction
+shots is not done. Do not double-claim; leave this row until a later
+worker writes named BMPs (`NN_<verb>_<subject>.bmp`) that actually show
+the talk/cauldron/lesson/scroll. Prior gp-druid-t1 content work (lesson
+proc, Herblore lock, atomic hand-offs) stays in tree.
 
 Audited: 2026-08-17
 
@@ -506,3 +505,55 @@ completion.
 Herblore boundary to pass. The obsolete offer/lesson, unsafe completion queue,
 shared suits, transaction gaps, false reward model, and missing skill gates are
 critical; they cannot be waived as cosmetic deviations.
+
+## Gate D (2026-09-09, gp-druid-t1)
+
+Wiki pins (unchanged): article 15240944, Quick_guide 14458277,
+Transcript:Druidic_Ritual 15263231. `python3 tools/questhelper_extract.py
+druidicritual --check` OK (dbrow `quest_druidicritual`, all named gamevals).
+
+Selftest: `/tmp/gp-druid-t1-obj_opt/torirsserver --selftest` (private objdir;
+shared `./src/build_opt/torirsserver` was not overwritten). Function
+`selftest_quest_druid` in `src/torirsserver/test/quest_druid_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines:
+
+- `quest_druid PASS herblore-locked-clean`
+- `quest_druid PASS herblore-locked-brew`
+- `quest_druid PASS herblore-locked-grind`
+- `quest_druid PASS kaqemeex-refuse`
+- `quest_druid PASS kaqemeex-accept`
+- `quest_druid PASS sanfew-assign`
+- `quest_druid PASS cauldron-refuse`
+- `quest_druid PASS cauldron-four-meats`
+- `quest_druid PASS sanfew-handin`
+- `quest_druid PASS lesson-then-complete`
+- `quest_druid PASS postquest-idempotent`
+- `quest_druid PASS herblore-unlocked-clean`
+- `quest_druid PASS suit-no-loot`
+- `quest_druid PASS cleanup`
+
+Mutation: `accept must write druidquest=1` expected `1` → `99`. Confirmed
+`FAIL accept must write druidquest=1` (`== 99` at
+`quest_druid_selftest.u.h:337`). Restored.
+
+Pack: `ToriRSServer_Pack --check-only` 1 pre-existing error (server band 3
+mismatched archives — not this quest). Scripts compiled 30104 to the absolute
+pack path.
+
+Headless BMPs (`SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`,
+`TORIRS_NET_CHEAT=tele 0_45_54_45_30`, `TORIRS_BMP_SERIES` + `TORIRS_EXIT_BMP`):
+9 files under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_druid/`
+
+- `frame_00150.bmp`
+- `frame_00190.bmp`
+- `frame_00230.bmp`
+- `frame_00270.bmp`
+- `frame_00310.bmp`
+- `frame_00350.bmp`
+- `frame_00390.bmp`
+- `frame_00430.bmp`
+- `exit.bmp`
+
+Suit cheat: none. Optional avoidable combat; production Attack does not write
+completion. Static suit locs remain (honest engine limit). `::druidrun` reset
+only.

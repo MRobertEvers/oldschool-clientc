@@ -1,15 +1,19 @@
 # Black Knights' Fortress modernization audit
 
-Status: `audit-pending` — the cache-native quest row, complete 0–4 primary
-state ladder, 12-quest-point start gate, Sir Amik dialogue, disguise entrance,
-fortress map, navigation, grill conversation, cabbage discrimination, journal,
-reward call, cheat arm, and downstream prerequisite checks exist. The normal
-route is nevertheless hard-blocked after the grill: the banquet door searches
-for an unplaced base `fortressguard`, while the map contains only four numbered
-variants. The port also omits the dossier and its recovery/read lifecycle, all
-modern alternative disguises, the native sabotage cutscene and cauldron
-transform, post-sabotage grill dialogue, safe coin delivery, and quest
-speedrunning support.
+Status: `verified-modern` (2026-09-09, gp-bkf-t1) — P0 shipped-but-shit gaps
+are closed and 7 named BMPs are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_blackknight/`
+(see §12). Banquet/entrance doors bind placed `fortressguard_01`–`_04` and
+run authoritative dialogue even when no guard is live. Start is 12 QP +
+explicit Yes/No with atomic `bk_dossier` grant. Disguise accepts bronze med
+helm + iron chainbody and complete black / elite / Dark Squall families.
+Ordinary cabbage sabotages the correct hole (Draynor cabbage rejected);
+`%spy_cauldron_multi` and the Ruined Potion jingle fire together with state
+3. Post-sabotage grill uses the ruined-potion conversation. Hand-in delivers
+2500 coins safely then `~quest_complete_rewards`. `::blackknightrun` is
+reset/cheat only. Remaining disclosed leftovers: native speedrun service,
+full throw/camera/projectile sabotage staging, and interruptible dossier
+wieldable/explosion animation.
 
 Audited: 2026-08-17
 
@@ -442,3 +446,67 @@ and the cache-advertised speedrun contract is either operational through the
 shared service or explicitly tracked as an unresolved release dependency. A
 state-4 write or reward-scroll call alone is not evidence that the quest is
 modern or playable.
+
+## 11. Shipped 2026-09-09 route (gp-bkf-t1)
+
+| Chapter | What shipped |
+| --- | --- |
+| Start | 11 QP reject; looking-around refuse; explicit `Start the Black Knights' Fortress quest?` Yes/No; dossier grant before `%spy=1` |
+| Dossier | Grant / Sir Amik recovery / Read (three mesboxes then delete) / Destroy confirm (no ground-drop) |
+| Entrance | `~blackknight_disguised` for bronze+iron, black/trim/gold, elite, Dark Squall; doors do not `npc_find` the unplaced base `fortressguard` |
+| Guards | `[opnpc1,fortressguard_01]`–`_04` share `@blackknight_guard_talk` |
+| Grill | Loc-safe `~blackknight_scene_say` (shared `~chatnpc_specific_anim` aborts without an active npc); state 1→2; ruined-potion branch at ≥3 |
+| Cabbage | Ordinary cabbage consumed at state 2 only; `magic_cabbage` rejected; `%spy_cauldron_multi=1` + jingle + state 3 |
+| Finale | Queue rechecks state 3; coins to inv or ground; `%spy=4` then shared reward scroll |
+| Debug | `::blackknightrun` resets to 0 and prints `BLACKKNIGHTRUN OK`. Not completion evidence |
+
+## 12. Gate verdict
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | Native row `quest_blackknightsfortress`, `%spy` 0–4, `spy_cauldron` overlay, Sir Amik `m46_52.spawn` 2960,3336,2, fortress `m47_54.spawn`, journal/cheat/completion. Wiki revisions stay pinned (article 15290630, guide 14710393, transcript 15289971, dossier 15185327 / transcript 14902387) |
+| B — modern machinery | **Pass** | Named 0–4 constants, `~p_choice2_header`, native journal, guarded `~blackknight_advance`, transmitted permanent `%spy` / `%spy_cauldron` |
+| C — critical path | **Pass** | Talk-to accept grants dossier; both disguises open the door; banquet/grill/cauldron/hole locs exist; cabbage discrimination; post-sabotage grill; safe coins + 3 QP |
+| D — verification | **Pass** | `selftest_quest_blackknight` drives not-started → refuse/accept → disguise door → grill → cabbage → complete → postquest via real OPNPC1 / OPLOC / OPHELD + ResumeButton. Mutation: dossier `== 1` → `== 99` printed `FAIL Talk-to accept should grant exactly 1 dossier, have 1`, then restored. QH `blackknightfortress --check` is only the known `quest_blackknightfortress` vs `quest_blackknightsfortress` alias FP. Headless BMPs (7): |
+
+Headless command (worker private pack + existing embed client; `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES` temp dir, never `3draster build/`):
+
+`/tmp/gp-bkf-t1-obj_opt/torirsserver --selftest` (stanza prints the PASS lines below). Client captures used `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=bkfbmp_*` against `/tmp/gp-bkf-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+BKF PASS: 11 QP left state 0 and no dossier
+BKF PASS: refuse left state 0 and no dossier
+BKF PASS: start No left state 0 and no dossier
+BKF PASS: accept via OPNPC1 granted dossier, state 1
+BKF PASS: OPHELD1 Read destroyed the dossier
+BKF PASS: SceneFindLocId bkfortressdoor1
+BKF PASS: disguise door OPLOC1 in bronze med helm + iron chainbody
+BKF PASS: disguise door OPLOC1 in black full helm + plate
+BKF PASS: SceneFindLocId bkfortressdoor2
+BKF PASS: SceneFindLocId witchgrill
+BKF PASS: grill OPLOC1 advanced to state 2
+BKF PASS: SceneFindLocId bkf_cauldron_multi
+BKF PASS: SceneFindLocId blackknighthole
+BKF PASS: magic_cabbage on hole rejected, state 2
+BKF PASS: cabbage OPLOCU sabotaged, state 3
+BKF PASS: post-sabotage grill OPLOC1 stayed at 3
+BKF PASS: complete via OPNPC1 +2500 coins +3 QP, state 4
+BKF PASS: post-quest OPNPC1 stayed complete
+BKF PASS: start-to-complete via real triggers
+```
+
+BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_blackknight/`):
+
+| File | What it shows |
+| --- | --- |
+| `01_talk_amik.bmp` | Sir Amik: "I am the leader of the White Knights of Falador. Why do you seek my audience?" |
+| `02_choice_accept.bmp` | `Start the Black Knights' Fortress quest?` Yes / No |
+| `03_disguise_door.bmp` | Fortress sturdy door + Fortress Guard entrance warning |
+| `04_grill.bmp` | Listen-at: Black Knight Captain "So... how's the secret weapon coming along?" |
+| `05_cabbage.bmp` | Witch: "Where has Greldo got to with that magic cabbage!" |
+| `06_handin.bmp` | Sir Amik: "Absolutely right. Please accept this reward." |
+| `07_reward_scroll.bmp` | Modern scroll: 3 QP, 2500 coins |
+
+Release classification is `verified-modern`. `::blackknightrun` remains a named cheat/reset only and is not completion evidence. The Quest Helper extractor alias is an audit-tool defect, not a missing dbrow. Native speedrun loadout/timer/trophy remains an unresolved shared-service dependency (Package 4).

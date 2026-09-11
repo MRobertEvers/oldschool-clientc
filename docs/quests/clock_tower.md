@@ -1,16 +1,16 @@
 # Clock Tower modernization audit
 
-Status: `audit-pending` — Brother Kojo, all four cog spawns, rat poison, the
-Clock Tower and dungeon maps, correct and decoy spindles, ladders, stairs,
-secret wall, levers, gates, trough, rats, ogres, journal, completion call, and
-broad 0–8 route exist. A clean player can plausibly complete the intended
-route, but the implementation remains a legacy port rather than a verified
-modern quest. Native finish states 6 and 7 are silent, the primary progress
-counter can diverge from a second authored colour bitfield, spindle and reward
-transactions are not atomic, completion can lose coins or duplicate coins and
-quest points, the black-cog interaction omits a confirmed glove alternative,
-only five of eleven poison-pen rats receive the death sequence, and Kojo's
-watch/Treasure Trails dialogue is shadowed by the quest-only Talk-to handler.
+Status: `verified-modern` (2026-09-09, gp-cog-t1) — P0 shipped-but-shit gaps
+are closed and 12 named BMPs are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cog/` (see §13
+Gate D). Native 6/7 resume Kojo's finale; `%cogquest` low bits are derived
+from placed colour bits; lever/gate snapshot `loc_*` before `loc_del`; four
+coloured cogs/spindles/poison/trough/secret wall use real oploc/opheld;
+Brother Kojo start/hand-in/complete is OPNPC1 + `~quest_complete_rewards`;
+`selftest_quest_cog` walks not-started → complete on real triggers. Remaining
+disclosed leftovers: jug-of-water cooling (main article; QH omits it),
+hard-clue "22" (trails workstream), world-shared 500-tick lever/gate locs,
+and unverified dungeon `Alone` playback.
 
 Audited: 2026-08-17
 
@@ -665,32 +665,93 @@ P2 after state, item, reward, and multiplayer correctness.
 - Nonmember Kojo interaction and every Kojo precedence combination involving
   chart, sextant, watch, clue, quest state, and no inventory space.
 
-### Gate D — evidence required before `verified-modern`
+### Gate D — verified-modern (2026-09-09, gp-cog-t1)
 
-- `make -C src torirsserver-scripts` and intended-cache
-  `ToriRSServer_Pack --check-only` results.
-- Passing targeted state, spindle, black-cog, rat-scene, loc-concurrency,
-  completion-idempotence, reward-space, Kojo-dispatch, journal, and cheat tests.
-- Real-client clean-route capture from Kojo through scroll and post-quest talk.
-- Real-client captures for all navigation origins, `Alone`, every black-cog
-  method, eleven-rat scene, two-player loc behavior, watch grant, and state 6/7
-  recovery.
-- State/item/quest-point/completed-count deltas proving exact-once completion.
-- Updated dossier status and a precise record of any remaining cosmetic
-  deviation.
+Wiki oldids (unchanged pins from §1): article **15166584**, Quick_guide
+**15117400**, Transcript:Clock_Tower **15263249**, Transcript:Brother Kojo
+**15081152**.
+`python3 tools/questhelper_extract.py clocktower --check` exits 0.
+
+Selftest command (private scratch):
+
+```sh
+make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-cog-t1-obj
+/tmp/gp-cog-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+  --out $PWD/OSRS-Content/osrs239-content/server/scripts/build \
+  --content-root OSRS-Content/osrs239-content
+make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-cog-t1-obj
+TORIRSSERVER_SAVES=$(mktemp -d) /tmp/gp-cog-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_cog` in `src/torirsserver/test/quest_cog_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines observed:
+
+- `PASS clocktower snap trigger=SNAP tile=2569,3249,0`
+- `PASS clocktower start_refuse trigger=OPNPC1 progress=0`
+- `PASS clocktower start_accept trigger=OPNPC1 last_slot=1 progress=1`
+- `PASS clocktower take_red trigger=OPOBJ3 inv_red=1`
+- `PASS clocktower place_red trigger=OPLOCU progress=2`
+- `PASS clocktower take_blue trigger=OPOBJ3 inv_blue=1`
+- `PASS clocktower secret_wall trigger=SceneFindLocId secretdoor2`
+- `PASS clocktower place_blue trigger=OPLOCU progress=3`
+- `PASS clocktower take_black trigger=OPOBJ3 ice_gloves cool+take`
+- `PASS clocktower place_black trigger=OPLOCU progress=4`
+- `PASS clocktower take_black_smiths trigger=OPOBJ3 smithing_uniform_gloves_ice`
+- `PASS clocktower lever_cage trigger=OPLOC1 ctlevera2 + cage open`
+- `PASS clocktower poison_trough trigger=OPLOCU rat_door_bit`
+- `PASS clocktower west_gate trigger=OPLOC1 ctratgatec`
+- `PASS clocktower take_white trigger=OPOBJ3 inv_white=1`
+- `PASS clocktower place_white trigger=OPLOCU progress=5`
+- `PASS clocktower handin_complete trigger=OPNPC1 progress=8 coins+500 qp+1`
+- `PASS clocktower resume_state6 trigger=OPNPC1 progress=8 no second reward`
+- `PASS clocktower resume_state7 trigger=OPNPC1 progress=8 no second reward`
+- `PASS clocktower postquest_retalk trigger=OPNPC1 progress=8`
+- `PASS clocktower cleanup trigger=WorldNpcFree spawns reaped`
+
+Mutation that proved a check: temporarily required `progress == 99` on the
+Kojo finish assertion. Selftest printed
+`FAIL Kojo finish should set progress=8, got 8`. Restored to `== 8`.
+
+`::cogrun` is a named reset/cheat only (`COGRUN OK: reset/cheat only`). Not
+playthrough evidence. No required kill; no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=cogbmp_*`). 12 BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cog/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_cog/01_talk_kojo.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/03_red_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/04_red_spindle.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/05_blue_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/06_black_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/07_lever_cage.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/08_poison_trough.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/09_white_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cog/12_postquest.bmp`
+
+`ls` of that folder shows those 12 named files only (no `frame_NNNNN.bmp`).
+Unique MD5s; luma 72–106 (not black/login). Talk shows Brother Kojo; choice
+shows "Start the Clock Tower quest?"; reward scroll shows 1 QP + 500 coins.
+
+Remaining disclosed deviations (not Gate D blockers):
+
+- Jug of water cools+takes the black cog (main article). QH names only
+  bucket / ice gloves / Smiths gloves (i).
+- Hard-clue coordinate "22" is not implemented (trails workstream).
+- Lever/gate loc mutations stay world-shared 500-tick.
+- Dungeon `Alone` playback has not been captured in a real client.
+
+Gate D: **verified-modern**.
 
 ## 14. Exit criteria
 
-Clock Tower may move from `audit-pending` to `verified-modern` only when the
-real map route works from Kojo through all four cogs; native states 0–8 and the
-authored colour facts remain consistent and resumable; black-cog alternatives
-match current live behavior; the rat/lever/gate scene works for every native
-rat variant and concurrent players; correct spindle and completion transactions
-are atomic/idempotent; exactly 500 coins and 1 quest point are awarded once;
-souvenir cogs and extra rat poison retain their documented behavior; Kojo's
-watch/clue services coexist with quest dialogue; the journal and music are
-correct; and all Gate D evidence is recorded.
-
-Until then, the present implementation should be treated as a broadly playable
-legacy outline with unverified completion and shared-world safety, not as a
-modernized quest.
+Clock Tower is `verified-modern` for the clean single-player route: Kojo
+start through all four cogs (including lever/cage/poison/trough), atomic
+completion (500 coins + 1 QP once), native 6/7 resume, and postquest re-talk.
+Shared-world lever concurrency, hard-clue service, and area-music capture
+remain disclosed leftovers.

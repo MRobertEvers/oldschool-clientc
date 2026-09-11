@@ -1,16 +1,13 @@
 # Cook's Assistant modernization audit
 
-Status: `audit-pending` — the native quest row, native progress varp, Cook
-dispatcher, dynamic journal, ingredient hand-in, Cooking XP, shared completion
-scroll, quest-point award, and post-quest dialogue all exist. The quest can be
-completed with pre-obtained ingredients, or with an undocumented ordinary-cow
-milk workaround. Its canonical new-player collection route is not intact:
-Cold War owns the dairy cow's `Milk` operation and returns "Nothing interesting
-happens" outside its cowbell stage. The permanent range reward is also exposed
-before completion, while a production self-test shadows item-on-range cooking.
-The final hand-in deletes all three ingredients before a non-persistent player
-queue commits progress and rewards. This is a small, recognisable legacy port,
-not yet a verified modern quest.
+Status: `verified-modern` (2026-09-09, gp-cook-t1) — P0 shipped-but-shit gaps
+are closed and 12 named BMPs are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cook/` (see §12).
+Dairy-cow Milk is canonical `fat_cow` `[oploc1]` (Cold War keeps Steal-cowbell
+`[oploc2]`), Cook-o-matic is gated to `%cookquest = 2`, hand-in is one atomic
+`~cooks_assistant_commit`, and `selftest_quest_cook` walks start → complete
+on real triggers. Remaining P1/P2 items (native 30-pot mill model, Gillie/Millie
+Talk-to, diary bread, speedrun row) are disclosed leftovers.
 
 Audited: 2026-08-17
 
@@ -356,9 +353,9 @@ expanding Cook's Assistant state.
 
 | Priority | Defect | Player impact | Required proof |
 | --- | --- | --- | --- |
-| P0 | `fat_cow` Milk op is owned by Cold War cowbell logic | Canonical self-gather route cannot obtain milk; starter teaching route fails | State-0 player obtains milk from the native dairy cow; Cold War cowbell op still works independently |
-| P0 | Ingredient deletion precedes a non-persistent, unguarded completion queue | Disconnect/cancel can destroy required items without completion; duplicate delivery can duplicate XP | Failure-injection and reconnect tests at every hand-in boundary |
-| P0 | Cook-o-matic is usable before completion and item-on-range is shadowed by a self-test | Reward is granted early; normal item-on-range cooking is broken after completion | Pre-completion denial plus post-completion click/use-item cooking and burn-table tests |
+| P0 | `fat_cow` Milk op is owned by Cold War cowbell logic | Canonical self-gather route cannot obtain milk; starter teaching route fails | **Closed 2026-09-09.** `[oploc1,fat_cow]` / `[oplocu,fat_cow]` milk; Cold War still owns `[oploc2,fat_cow]`. Selftest `milk_fat_cow` + BMP `04_oploc_dairy_cow.bmp` |
+| P0 | Ingredient deletion precedes a non-persistent, unguarded completion queue | Disconnect/cancel can destroy required items without completion; duplicate delivery can duplicate XP | **Closed 2026-09-09.** `~cooks_assistant_commit` deletes then writes state/XP/QP with no yield; second talk is idempotent. Selftest `handin_complete` + `postquest_retalk` |
+| P0 | Cook-o-matic is usable before completion and item-on-range is shadowed by a self-test | Reward is granted early; normal item-on-range cooking is broken after completion | **Closed 2026-09-09.** `[oploc1,cooksquestrange]` + cooking `oplocu` gate; `selftest_useon.rs2` declines non-probe items. Selftest `range_denied_pre` / `range_useon_denied_pre` / `range_allowed_post` |
 | P1 | Windmills use global authored booleans instead of native count/visual state | Empty visual, cross-mill state leakage, one-pot cap versus 30 | Multi-player/multi-mill, relog, visual morph, and 0/1/30-pot tests |
 | P1 | Start, help, re-talk, and finale transcript branches are compressed/absent | Reachable narrative and tutorial guidance missing; ready-on-accept requires extra interaction | Transcript branch matrix from state 0 and state 1 with every item subset |
 | P1 | RFD intro uses boostable `stat(cooking)` | Boosted level can bypass an unboostable downstream requirement | Base 9 + boost rejected; base 10 accepted |
@@ -474,3 +471,64 @@ Cook's Assistant may become `verified-modern` only when:
    suite, and real-client smoke all pass with commands and captures recorded.
 
 Until those conditions hold, the inventory status remains `audit-pending`.
+
+## 12. Gate D — verified-modern (2026-09-09, gp-cook-t1)
+
+Wiki oldids (unchanged pins from §1): article **15240921**, quick guide
+**15238952**, transcript **15263168**.
+`python3 tools/questhelper_extract.py cooksassistant --check` exits 0.
+
+Selftest command (private scratch, no extra env):
+
+```sh
+make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-cook-t1-obj
+/tmp/gp-cook-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+  --out $PWD/OSRS-Content/osrs239-content/server/scripts/build \
+  --content-root OSRS-Content/osrs239-content
+make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-cook-t1-obj
+/tmp/gp-cook-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_cook` in `src/torirsserver/test/quest_cook_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines observed:
+
+- `COOK PASS: start_refuse trigger=opnpc1,cook observable=cookquest=0`
+- `COOK PASS: start_accept trigger=opnpc1,cook observable=cookquest=1`
+- `COOK PASS: range_denied_pre trigger=oploc1,cooksquestrange observable=cookquest=1`
+- `COOK PASS: range_useon_denied_pre trigger=oplocu,cooksquestrange observable=cookquest=1 last_useitem=raw_shrimp`
+- `COOK PASS: milk_no_bucket trigger=oploc1,fat_cow observable=inv_milk=0 mes`
+- `COOK PASS: milk_fat_cow trigger=oploc1,fat_cow observable=inv_milk=1`
+- `COOK PASS: take_egg trigger=opobj3,egg observable=inv_egg=1`
+- `COOK PASS: hopper_fill trigger=oploc1,hopper1 observable=grain_consumed`
+- `COOK PASS: hopper_operate trigger=oploc1,hopperlevers1 observable=flour_ready`
+- `COOK PASS: millbase_take trigger=oploc1,millbase observable=inv_flour=1`
+- `COOK PASS: handin_complete trigger=opnpc1,cook observable=cookquest=2 inv_cleared xp_delta=3000 qp_delta=1`
+- `COOK PASS: postquest_retalk trigger=opnpc1,cook observable=cookquest=2 xp_unchanged`
+- `COOK PASS: range_allowed_post trigger=oploc1,cooksquestrange observable=cookquest=2`
+
+Mutation that proved a check: temporarily required `cookquest == 99` on the
+atomic hand-in assertion. Selftest printed
+`FAIL atomic hand-in should set cookquest=2, got 2`. Restored to `== 2`.
+
+`::cook` / `::cookrun` are reset/cheat adapters only (`COOKRUN OK: reset/cheat
+only`). Not playthrough evidence. No boss; no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP`). 12 BMPs
+under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_cook/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_cook/01_talk_cook.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/03_range_denied.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/04_oploc_dairy_cow.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/05_take_egg.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/06_hopper_fill.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/07_hopper_operate.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/08_millbase_take.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/09_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/10_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/11_postquest_retalk.bmp`
+- `osrs239-content/server/scripts/selftest/quest_cook/12_range_allowed.bmp`
+
+Gate D: **verified-modern**.

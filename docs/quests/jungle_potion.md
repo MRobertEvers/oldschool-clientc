@@ -1,14 +1,14 @@
 # Jungle Potion modernization audit
 
-Status: `audit-pending` — the native quest dbrow, 0–13 cache varp, Trufitus
-offer and five-herb dialogue, all five gathering locs, generic cleaning data,
-Pothole Dungeon travel, dynamic journal, completion scroll, cheat arm, POH
-status adapter, and downstream prerequisite checks exist. The route is
-organically completable, but it is not modern or current-OSRS faithful: snake
-weed always succeeds instead of using its Herblore-scaled harvest roll, the
-rogue's-purse wall never depletes, post-quest herb sales always pay one coin
-instead of 1–4, hand-ins and completion write state before settlement, and the
-shared Trufitus owner omits the Shilo Village branches that use the same NPC.
+Status: `verified-modern` (2026-09-09, gp-jungle-t1) — P0 shipped-but-shit
+gaps are closed and 11 named BMPs are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_junglepotion/`
+(see §14 Gate D). Native varp 175 / `%junglepotion` 0–13; snake-weed
+Herblore-scaled harvest roll; rogue's-purse wall depletes to
+`rogues_purse_cave_empty` for 100 ticks; post-quest herb sales pay
+`1 + random(4)` coins; hand-ins and completion grant-then-write; shared
+Trufitus keeps Shilo Wampum/artifact arms first. `selftest_quest_junglepotion`
+walks not-started → complete → postquest on real triggers.
 
 Audited: 2026-08-17
 
@@ -454,22 +454,83 @@ handoff.
 
 ## 13. Exit criteria
 
-Jungle Potion may move to `verified-modern` only when:
+Critical path (start → five gather+clean+hand-in → Pothole → complete →
+postquest sale + Shilo Wampum) is proven. Leftovers that must not be faked
+complete: two-player loc depletion, Jogre/Harpie/poison combat stats, banked
+or grounded herb recovery, TBWT/Zogre/My Arm/Legends/Fairytale live
+re-walks, and `::complete quest_junglepotion` admin (organic complete is
+proven; cheat arm is reset-only).
 
-- the real Trufitus route completes organically from state 0 to state 12 and
-  the follow-up reaches 13;
-- all five sources, exact clue gates, snake roll, depleted locs, cleaning,
-  freshness, loss/recovery, and hazards match the pinned contract;
-- hand-ins, state-11 recovery, completion, and herb sales are atomic and
-  replay-safe;
-- one QP, 775 Herblore XP, completed count, jingle, journal, and completion
-  scroll are correct exactly once;
-- the shared Trufitus owner exposes every required Jungle and Shilo branch;
-- TBWT, Shilo, Zogre, My Arm, Legends, Fairytale, drops, and post-quest herb
-  economy remain functional at states 12 and 13;
-- static, deterministic, multiplayer, reconnect/death, admin, and real-client
-  verification evidence is recorded; and
-- this record and the generated manifest contain no undisclosed critical
-  simplification.
+## 14. Gate D evidence (2026-09-09)
 
-This audit intentionally makes no gameplay changes.
+Selftest command:
+
+```sh
+TORIRSSERVER_SCRIPTS=/tmp/gp-jungle-t1-scripts \
+TORIRSSERVER_SELFTEST_JUNGLE_ONLY=1 \
+  /tmp/gp-jungle-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_junglepotion` in
+`src/torirsserver/test/quest_junglepotion_selftest.u.h`, called immediately
+before `selftest_reset_world`. 43 checks, 0 failures. PASS lines observed:
+
+- `PASS junglepotion start_refuse trigger=opnpc1,trufitus junglepotion=0`
+- `PASS junglepotion start_druid_refuse trigger=opnpc1,trufitus junglepotion=0`
+- `PASS junglepotion start_confirm_no trigger=opnpc1,trufitus junglepotion=0`
+- `PASS junglepotion start_accept trigger=opnpc1,trufitus junglepotion=1`
+- `PASS junglepotion gate_ardrigal trigger=oploc2,ardrigal_palm_full no_item`
+- `PASS junglepotion snake_roll_fail trigger=oploc2,snake_vine_full herblore1_miss`
+- `PASS junglepotion gather_snake trigger=oploc2,snake_vine_full junglepotion=2`
+- `PASS junglepotion clean_snake trigger=opheld1,unidentified_snake_weed inv_snake_weed`
+- `PASS junglepotion handin_snake trigger=opnpc1,trufitus junglepotion=3`
+- `PASS junglepotion gather_ardrigal trigger=oploc2,ardrigal_palm_full junglepotion=4`
+- `PASS junglepotion clean_ardrigal trigger=opheld1,unidentified_ardrigal inv_ardrigal`
+- `PASS junglepotion handin_ardrigal trigger=opnpc1,trufitus junglepotion=5`
+- `PASS junglepotion gather_sito trigger=oploc2,sito_soil_full junglepotion=6`
+- `PASS junglepotion clean_sito trigger=opheld1,unidentified_sito_foil inv_sito_foil`
+- `PASS junglepotion handin_sito trigger=opnpc1,trufitus junglepotion=7`
+- `PASS junglepotion gather_volencia trigger=oploc2,volencia_moss_rock_full junglepotion=8`
+- `PASS junglepotion clean_volencia trigger=opheld1,unidentified_volencia_moss inv_volencia_moss`
+- `PASS junglepotion handin_volencia trigger=opnpc1,trufitus junglepotion=9`
+- `PASS junglepotion cave_enter trigger=oploc2,pothole_cave_entrance tele_pothole`
+- `PASS junglepotion gather_purse trigger=oploc2,rogues_purse_cave_full junglepotion=10`
+- `PASS junglepotion purse_deplete trigger=oploc2,rogues_purse_cave_full empty_100t`
+- `PASS junglepotion clean_purse trigger=opheld1,unidentified_rogues_purse inv_rogues_purse`
+- `PASS junglepotion cave_exit trigger=oploc1,jp_caverocksout tele_surface`
+- `PASS junglepotion complete trigger=opnpc1,trufitus junglepotion=12 qp+1 xp+775`
+- `PASS junglepotion postquest trigger=opnpc1,trufitus junglepotion=13`
+- `PASS junglepotion herb_sale trigger=opnpcu,trufitus coins_1to4`
+- `PASS junglepotion shilo_wampum trigger=opnpcu,trufitus zombiequeen=1`
+
+Mutation that proved a check: temporarily required `junglepotion == 99` on
+the completion assertion. Selftest printed
+`FAIL completion should write junglepotion=12, got 12`. Restored to `== 12`.
+
+`::junglepotionrun` is a named reset/cheat only
+(`JUNGLEPOTIONRUN OK: reset/cheat only`). Not playthrough evidence. No
+required kill; no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=junglebmp_*`). 11 BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_junglepotion/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/01_talk_trufitus.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/03_snake_vine.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/04_ardrigal_palm.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/05_sito_earth.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/06_volencia_rock.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/07_pothole_enter.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/08_rogues_purse.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/09_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/10_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_junglepotion/11_postquest.bmp`
+
+No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Eleven unique
+MD5s; mean luma 60.7–99.0 (not black/login). `python3 tools/questhelper_extract.py
+junglepotion --check` exits 0.
+
+Gate D: **verified-modern**.

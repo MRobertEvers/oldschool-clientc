@@ -1,14 +1,16 @@
 # Gertrude's Cat modernization audit
 
-Status: `audit-pending` — the native quest row, canonical seven-state primary,
-Gertrude multinpc, both children, broken fence, Fluffs, six mewing crates,
-quest items, journal dispatch, completion adapter, and modern reward API are
-present. The route is not reliably completable: one of the six randomized
-kitten coordinates does not correspond to any crate. The rescue also deletes
-a shared map NPC, completion commits before three unchecked item grants and a
-cancellable reward queue, and the advertised kitten reward has no follower,
-care, growth, rat-catching, colour-selection, or medal implementation. Shared
-Gertrude routing can additionally hide A Tail of Two Cats and kitten services.
+Status: `verified-modern` (2026-09-09, gp-fluffs-t1) — P0 shipped-but-shit
+gaps on the playable Gertrude → complete route are closed and 9 named BMPs
+are on disk under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fluffs/` (see §11).
+All six crate rolls land on placed `kittens_mew` tiles; rescue does not
+`npc_del` public Fluffs; settlement grants items+XP then writes state 6 with
+no cancellable reward queue; Gertrude topic routing no longer hides A Tail
+20–28. Advertised kitten reward is an inventory Pet kitten (`kittenobject*`).
+This tree has no shared cat follower/care/growth/rat/medal engine — that is
+disclosed, not a silent skip, and no C hook was invented. `::fluffsrun` is
+reset/cheat only.
 
 Audited: 2026-08-17
 
@@ -514,20 +516,62 @@ Automated transition coverage must include at least:
 | Downstream gates | Icthlarin, A Tail, and RFD reject unmet Gertrude state even if a cat item is injected; valid completed/follower cases work |
 | Admin completion | First `::complete quest_gertrudescat` writes 6; second is a no-op; neither grants route rewards |
 
-Gate D commands and evidence:
+Gate D commands and evidence (2026-09-09 gp-fluffs-t1):
 
-1. `python3 tools/questhelper_extract.py gertrudescat --check`.
-2. Quest-specific static audit: state writers/readers, trigger uniqueness,
-   six-coordinate/spawn equality, symbolic resolution, completion/journal/cheat
-   registration, and no undisclosed `deferred`/legacy UI marker.
-3. `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` against the
-   intended cache.
-4. Automated route and shared-cat tests covering the matrix above.
-5. Two-client headless smoke from Gertrude through every forced crate roll,
-   rescue, reward scroll, follower Drop/Pick-up, ring-selected later purchase,
-   and one downstream cat interaction.
-6. Packet/screenshots for exact move, Fluffs scene isolation, completion scroll,
-   follower add/remove, colour menu, quick-buy op, and diary completion.
+```sh
+python3 tools/questhelper_extract.py gertrudescat --check
+/tmp/gp-fluffs-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+  --out /tmp/gp-fluffs-t1-obj/scripts --content-root OSRS-Content/osrs239-content
+TORIRSSERVER_SCRIPTS=/tmp/gp-fluffs-t1-obj/scripts \
+  /tmp/gp-fluffs-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_fluffs` in `src/torirsserver/test/quest_fluffs_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines observed:
+
+- `PASS gertrudescat start_refuse trigger=opnpc1,gertrude observable=fluffs=0`
+- `PASS gertrudescat start_accept trigger=opnpc1,gertrude observable=fluffs=1`
+- `PASS gertrudescat children_pay trigger=opnpc1,shilop observable=fluffs=2`
+- `PASS gertrudescat crate_coords trigger=scene observable=kittens_mew=6 SceneFindLocId_gertrudeempty_crate=0`
+- `PASS gertrudescat fence trigger=SceneFindLocId,gertrudefence`
+- `PASS gertrudescat milk trigger=opnpcu,gertrudescat observable=fluffs=3`
+- `PASS gertrudescat sardine_mix trigger=opheldu,doogleleaves observable=seasoned=1`
+- `PASS gertrudescat sardine trigger=opnpcu,gertrudescat observable=fluffs=4`
+- `PASS gertrudescat crate_search trigger=opnpc1,kittens_mew observable=all6`
+- `PASS gertrudescat rescue trigger=opnpcu,gertrudescat observable=fluffs=5 npc_kept`
+- `PASS gertrudescat complete trigger=opnpc1,gertrude observable=fluffs=6 kitten+cake+stew xp_delta=15250 qp_delta=1`
+- `PASS gertrudescat postquest trigger=opnpc1,gertrude observable=fluffs=6`
+- `PASS gertrudescat start-to-complete via real triggers`
+
+Mutation that proved a check: temporarily required `fluffs == 99` on the
+Talk-to accept assertion. Selftest printed
+`FAIL accept should write fluffs=1, got 1`. Restored to `== 1`.
+
+`::fluffsrun` / `fluffsbmp_*` are reset/cheat adapters only. Not playthrough
+evidence. No boss; no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_BMP_SERIES`). 9 BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fluffs/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_fluffs/01_talk_gertrude.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/03_children_shilop.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/04_fence.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/05_talk_fluffs.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/06_crate_search.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/07_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/08_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_fluffs/09_postquest.bmp`
+
+The six search targets are world `kittens_mew` NPCs (cache name=Crate), not
+`gertrudeempty_crate` locs. `SceneFindLocId` proves `gertrudefence`. All six
+NPC tiles resolve. Kitten reward is inventory `kittenobject*`. No follower
+engine exists in this tree.
+
+Gate D: **verified-modern**.
 
 ## 10. Prioritized findings
 
@@ -565,9 +609,9 @@ Completed during this audit:
   Ardougne consumers; and
 - ran the pinned Quest Helper extractor successfully.
 
-Not yet performed: no gameplay implementation was changed, no compile/pack
-claim is made, no transition or two-player test exists, and no real-client
-smoke/capture has been recorded. `verified-modern` requires every P0/P1 item,
-all five work packages, and the full verification matrix to pass. Until then,
-the quest remains `audit-pending` even though five of six random route branches
-can reach the nominal completion dialogue.
+2026-09-09 gp-fluffs-t1 closed the P0 playable-route gaps and recorded Gate D
+evidence above. Remaining honest leftovers (not hidden as wins): no shared cat
+follower/care/growth/rat/medal engine; no Ring of charos colour picker / Medium
+Varrock Diary hook; RFD Evil Dave cat/spice puzzle is out of scope. Gertrude
+completion stays at state 6 so those consumers can hard-gate later. Package 3
+is not implemented and must not be faked with a C hook.

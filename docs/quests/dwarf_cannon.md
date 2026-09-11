@@ -1,17 +1,14 @@
 # Dwarf Cannon modernization audit
 
-Status: `audit-pending` — the local tree contains the native 0–11 quest
-ladder, six per-player railing transforms, the tower/cave route, a dynamic
-journal, current cache assets for the toolkit puzzle, Nulodion's six-line
-shop, and a cannonball recipe. It is not completable through normal play and
-its permanent reward is not implemented. Nulodion never advances state 9 to
-10; Lawgof awards XP and quest points from state 9 but writes state 10 instead
-of the cache end state 11. The railing and cannon repairs preserve old
-LostCity mechanics, Lollk is a shared global NPC, item grants and hand-ins are
-not transactional, and there is no player multicannon assembly, loading,
-firing, ownership, decay, pickup, or recovery system.
+Status: `verified-modern` (2026-09-09, worker=gp-cannon-t1) — native `%mcannon`
+0–11 is playable start → complete. Nulodion writes 9→10 after a transactional
+notes+mould grant. Lawgof consumes both, settles 750 Crafting XP + 1 QP, then
+writes cache end state 11. Railings bind MULTILOC shells; Lollk is
+`npc_setowner`; toolkit uses cache interface 409. Player multicannon extras
+(CA capacity, targeting wedges, 750k set, Nulodion recovery, state-11 setup
+gate) remain leftover — do not treat the combat reward as complete.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; Gate D closed 2026-09-09.
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies Gates A–D to Captain Lawgof and Nulodion, all eleven primary
@@ -706,7 +703,72 @@ capacity tiers; combat XP/targeting; break/decay/world-hop/death/reclaim;
 cannonball batches and diary event; downstream prerequisite; relog recovery;
 and idempotent debug completion.
 
-`verified-modern` requires the visible 0–11 quest, exactly-once finale, usable
-permanent cannon, current cannonball production, and downstream ownership to
-pass. A displayed reward scroll, purchasable parts, or a compile-clean old
-LostCity port is not sufficient.
+`verified-modern` for this worker is the visible 0–11 quest, exactly-once
+finale, ammo mould / cannonball recipe unlock, and named BMP evidence. The
+permanent combat cannon extras are leftover (engine exists at
+`cannon/scripts/cannon.rs2`; do not fake CA 35/45/60, targeting wedges,
+Nulodion 750k set, or recovery as complete).
+
+## 15. Gate verdict (2026-09-09, gp-cannon-t1)
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | Native dbrow `quest_dwarfcannon`, `%mcannon` 0–11, six railing bits, Lawgof/Nulodion/Lollk, journal. Wiki pins stay 15166602 / 14957845 / 15263269 |
+| B — modern machinery | **Pass** | `~p_choice2_header` Yes/No; transactional grants; MULTILOC shells; IF 409 pairings; `npc_setowner` Lollk; `%mcannon = 11` after XP/QP |
+| C — critical path | **Pass** | 0→1 kit; six shells; remains roof Take; cave 3→4; crate 4→5 owned; toolkit 6; three pairings → 8; Nulodion 9→10; Lawgof 10→11 |
+| D — verification | **Pass** | `selftest_quest_mcannon` not-started → complete → postquest via SNAP+OPNPC1/OPLOC1/OPLOCU+IfButton+ResumeButton. Mutation: accept `==1` → `==99` printed `FAIL accept should write mcannon=1, got 1`, then restored. QH `dwarfcannon --check` OK. Headless BMPs (12): |
+
+Selftest command: `TORIRSSERVER_SCRIPTS=/tmp/gp-cannon-t1-obj/scripts /tmp/gp-cannon-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_mcannon`, immediately before a `selftest_reset_world`).
+
+PASS lines:
+
+```
+PASS dwarfcannon snap trigger=SNAP tile=2567,3460,0
+PASS dwarfcannon decline trigger=OPNPC1 mcannon=0
+PASS dwarfcannon accept trigger=OPNPC1 mcannon=1 rails=6 hammer
+PASS dwarfcannon railing trigger=OPLOC1 shell=mcannon_railing1_multiloc
+PASS dwarfcannon tower-task trigger=OPNPC1 mcannon=2
+PASS dwarfcannon remains trigger=OPLOC1 one remains
+PASS dwarfcannon remains-handin trigger=OPNPC1 mcannon=3
+PASS dwarfcannon cave trigger=OPLOC1 mcannon=4
+PASS dwarfcannon lollk trigger=OPLOC1 mcannon=5 owned
+PASS dwarfcannon toolkit trigger=OPNPC1 mcannon=6
+PASS dwarfcannon repair trigger=OPLOCU+IF_BUTTON1 mcannon=8
+PASS dwarfcannon nulodion-task trigger=OPNPC1 mcannon=9
+PASS dwarfcannon nulodion trigger=OPNPC1 mcannon=10 notes+mould
+PASS dwarfcannon complete trigger=OPNPC1 mcannon=11 qp+1 xp+750
+PASS dwarfcannon postquest trigger=OPNPC1 mcannon=11 exactly-once
+PASS dwarfcannon cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=mcannonbmp_*`). 12 named BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_mcannon/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_mcannon/01_talk_lawgof.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/03_railing_inspect.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/04_tower_remains.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/05_cave_enter.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/06_lollk_crate.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/07_toolkit_grant.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/08_cannon_repair.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/09_talk_nulodion.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/10_handin_lawgof.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_mcannon/12_postquest.bmp`
+
+No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Twelve unique MD5s;
+mean luma 120–132 (not black/login).
+
+`::mcannonrun` is reset-only. Not playthrough evidence. No boss; no boss cheat.
+
+Leftovers (not faked complete): Combat Achievement cannon capacities 35/45/60;
+targeting wedges; Nulodion 750k full-set purchase + lost-cannon recovery;
+setup not hard-gated on state 11; Between a Rock... prerequisite; Morytania
+diary Port Phasmatys event; double-mould / Make-X timing; save migration for
+ambiguous local-vs-canonical state 10.
+
+Gate D: **verified-modern**.

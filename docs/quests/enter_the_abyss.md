@@ -1,18 +1,8 @@
 # Enter the Abyss modernization audit
 
-Status: `audit-pending` — the native miniquest row, canonical 0–4 state
-carrier, five permanent essence-source bits, both Mage of Zamorak actors,
-scrying orbs, rewards, all five essence-mine teleport services, Abyss map,
-12-layout loc system, five passage families, eleven older rifts, Dark Mage,
-essence-pouch runtime, and aggressive abyssal creatures exist. The direct
-miniquest can be completed, but its permanent unlock is wired backwards: the
-Wilderness mage never teleports while the safe Varrock mage does. Entry then
-lands at a fixed inner-ring tile, bypassing skulling, bracelet consumption,
-the randomized outer ring, monsters, and passages. Reward settlement can lose
-both items, orb recovery duplicates banked quest items, passage success never
-moves the player, rifts ignore quest/equipment gates, pouch drops and recovery
-are absent, and Wanted!, Temple of the Eye, Wilderness Diary, and Slayer task
-contracts are incomplete or incorrect.
+Status: `verified-modern` — playable 0→4 route, Wilderness-only Teleport,
+randomized outer-ring landing, passage movement, and Cosmic rift gate are
+proven by real-trigger selftest. Leftovers below are disclosed, not faked.
 
 Audited: 2026-08-17
 
@@ -478,3 +468,103 @@ sequential pouch drops, pouch contents/degradation/death, bank-aware Dark Mage
 repair/recovery, Battle Runes, journal, migration, Wanted!, Devious Minds,
 Temple of the Eye, Wilderness Diary, and current Slayer assignment semantics
 must all remain correct without debug commands or player-facing soft skips.
+
+## 9. Gate D verification (2026-09-09, gp-abyss-t1)
+
+Wiki oldids (unchanged pins from §1): article **15292255**, Quick guide
+**15292365**, Transcript:Enter_the_Abyss **15263217**, Abyss **15228428**,
+Mage of Zamorak **15225428**.
+`python3 tools/questhelper_extract.py entertheabyss --check` exits 0.
+
+Selftest command (private scratch):
+
+```sh
+make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-abyss-t1-obj
+/tmp/gp-abyss-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+  --out /tmp/gp-abyss-t1-obj/scripts \
+  --content-root OSRS-Content/osrs239-content
+make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-abyss-t1-obj
+TORIRSSERVER_SCRIPTS=/tmp/gp-abyss-t1-obj/scripts TORIRSSERVER_SAVES=$(mktemp -d) \
+  /tmp/gp-abyss-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_entertheabyss` in
+`src/torirsserver/test/quest_entertheabyss_selftest.u.h`, called immediately
+before `selftest_reset_world`. PASS lines observed:
+
+- `PASS entertheabyss snap trigger=SNAP tile=3106,3558,0`
+- `PASS entertheabyss refuse_rm trigger=OPNPC1 state=0`
+- `PASS entertheabyss god_block trigger=OPNPC1 cape blocked Talk`
+- `PASS entertheabyss wildy_start trigger=OPNPC1 state=1`
+- `PASS entertheabyss varrock_refuse trigger=OPNPC1 state=1 no orb`
+- `PASS entertheabyss varrock_accept trigger=OPNPC1 state=2 empty orb`
+- `PASS entertheabyss orb_nodup trigger=OPNPC1 still one empty`
+- `PASS entertheabyss orb_banked trigger=OPNPC1 no duplicate`
+- `PASS entertheabyss orb_charged trigger=OPNPC4/OPNPC3 charged orb`
+- `PASS entertheabyss handover trigger=OPNPC1 state=3`
+- `PASS entertheabyss reward_full trigger=OPNPC1 state stayed 3`
+- `PASS entertheabyss complete trigger=OPNPC1 state=4 book+pouch+xp`
+- `PASS entertheabyss complete_once trigger=OPNPC1 no XP replay`
+- `PASS entertheabyss varrock_no_tele trigger=OPNPC1 stayed put`
+- `PASS entertheabyss wildy_teleport trigger=OPNPC4 outer ring`
+- `PASS entertheabyss shell_loc trigger=SceneFindLocId rcu_outer_multi1`
+- `PASS entertheabyss passage_move trigger=OPLOC1 inward`
+- `PASS entertheabyss rift_cosmic_gate trigger=OPLOC1 blocked`
+- `PASS entertheabyss cleanup trigger=WorldNpcFree spawns reaped`
+
+Mutation that proved a check: temporarily required `abyssal_miniquest == 99`
+on the Varrock accept assertion. Selftest printed
+`FAIL accept via live mage should write state 2, got 2`. Restored to `== 2`.
+
+`::entertheabyss` / `::etarun` are named reset/cheats only. Not playthrough
+evidence. No required kill; no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`, `TORIRS_PLUGINS=0`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=etabmp_*`). 9 BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_entertheabyss/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/01_talk_mage.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/02_wildy_start.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/03_varrock_offer.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/04_accept_orb.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/05_charged_orb.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/06_handover.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/07_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/08_varrock_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quest_entertheabyss/09_wildy_teleport.bmp`
+
+`ls` of that folder shows those 9 named files only (no `frame_NNNNN.bmp`).
+Unique MD5s; luma ~69–97 (not black/login). Talk shows the Wilderness Mage
+redirect to Varrock; accept shows the scrying-orb grant; reward scroll shows
+1000 Runecraft XP + book + pouch + Wilderness access; teleport shows the
+Abyss outer ring (`Into the Abyss` music) under `::god 1`.
+
+Remaining disclosed leftovers (not Gate D blockers for the direct 0→4 route):
+
+- Battle Runes shop stock / generated Trade shop
+- Pouch/talisman creature drops; pouch degradation/death/bank repair beyond
+  existing `runecraft_pouch.rs2`
+- Wanted! still treats ETA complete as a hard start (partial meet-the-Mage
+  route not rewritten)
+- Temple of the Eye centre teleport remains a `Soft-skip` and must not skull
+  or count the Wilderness diary
+- Wilderness Diary easy-task fact (no per-task identity)
+- Slayer abyssal-demon assignment: Priest in Peril / Fairytale II, not this
+  miniquest
+- PK skull expiry / headicon
+- Entrana prohibited-item check on the Law rift
+- Soul rift unlock beyond refuse
+- Dark Mage small-pouch / book replacement owner (wiki conflict)
+
+Gate D: **verified-modern**.
+
+## 10. Exit criteria
+
+Enter the Abyss is `verified-modern` for the clean single-player miniquest:
+Wilderness start after Rune Mysteries, Varrock offer/refuse/orb, three-source
+charge, handover, capacity-safe rewards once, Wilderness-only Teleport onto
+a randomized outer ring with skull when unbraceleted, passage shells that
+move, and Cosmic rift quest gate. Shop, pouch drops, Wanted!/diary/Slayer
+consumers, and TOE's distinct centre teleport remain disclosed leftovers.

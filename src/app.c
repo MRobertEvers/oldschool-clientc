@@ -17234,8 +17234,24 @@ app_logic_tick(struct App* app)
                 static int cheat_index = 0;
                 int rotate;
                 int part_i;
+                char const* exit_bmp = getenv("TORIRS_EXIT_BMP");
+                char const* series = getenv("TORIRS_BMP_SERIES");
 
                 app->net_cheat_sent = 1;
+                /* Named / series dumps must not die into Lumbridge. `::god 1`
+                 * first; a death-case capture sends `god 0` in NET_CHEAT. */
+                if( (exit_bmp && exit_bmp[0]) || (series && series[0]) )
+                {
+                    if( !app_client_cheat(app, "god 1") )
+                        APP_NET_SEND(
+                            app,
+                            net_out_client_cheat(
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                "god 1"));
+                }
                 if( cheat_rotate < 0 )
                     cheat_rotate = getenv("TORIRS_NET_CHEAT_ROTATE") != NULL;
                 rotate = cheat_rotate;

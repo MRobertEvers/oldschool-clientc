@@ -1,12 +1,9 @@
 # Animal Magnetism modernization audit
 
-Status: `audit-pending` — a seven-file quest implementation, native quest row,
-journal, completion call, puzzle shell, reward XP, and portions of every route
-chapter exist. The legitimate route is nevertheless blocked: Malcolm has no
-world spawn, and the first post-magnet write uses state 151 even though the
-cache transform requires state 150. Earlier farm states and the chicken
-cutscene are skipped, several quest-item transactions contradict the
-transcript, and the post-quest device system is largely absent.
+Status: `verified-modern` — 2026-09-09 worker=gp-anma-t1. Malcolm has a
+world SHELL spawn; first post-magnet write is cache state 150; farm 30–60
+and the chicken chapter run (cutscene leftover disclosed); item grants are
+atomic; post-quest device engine is leftover and not faked. See Gate D.
 
 Audited: 2026-08-16
 
@@ -647,3 +644,104 @@ The old queue's `audited-fixed` label is contradicted by production
 reachability, native transform indexing, its own soft-skip comments, and the
 missing defining reward services. It is historical evidence to inspect, not a
 modernization verdict.
+
+## 11. Gate D evidence (2026-09-09, gp-anma-t1)
+
+Critical path (Ava refuse/accept → farm 10→76 → chicken stand-in → magnet
+150 → trees/Turael → notes → container → 240 → postquest) is proven on real
+triggers. Leftovers that must not be faked complete:
+
+- native chicken-cutscene actors / "Here Chicky Chicky!" / camera (dialogue
+  stand-in advances 80/90 → 100);
+- magnet facing-north query (zone + hammer + selected iron still required;
+  no `facesquare`);
+- post-quest Ava device recovery / accumulator upgrade / ammo attraction /
+  metallic torso / Commune;
+- Alice farming-shop inv (Talk-to leftover mes; op3 Trade left unbound);
+- research-notes random/complete model layers;
+- Dragon Slayer II prerequisite and Lumbridge & Draynor Medium Diary upgrade
+  task (other quests);
+- WGS Turael weapon-broken forms (Aya + base Turael are spliced).
+
+Selftest command:
+
+```sh
+TORIRSSERVER_SCRIPTS=/tmp/gp-anma-t1-obj/scripts \
+TORIRSSERVER_SELFTEST_ANMA_ONLY=1 \
+  /tmp/gp-anma-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_animalmagnetism` in
+`src/torirsserver/test/quest_animalmagnetism_selftest.u.h`, called immediately
+before `selftest_reset_world`. 50 checks, 0 failures. PASS lines observed:
+
+- `PASS animalmagnetism snap trigger=SNAP tile=3093,3357,0`
+- `PASS animalmagnetism start_refuse trigger=OPNPC1 anma_main=0`
+- `PASS animalmagnetism start_accept trigger=OPNPC1 anma_main=10`
+- `PASS animalmagnetism talk_malcolm trigger=OPNPC1 anma_main=20`
+- `PASS animalmagnetism talk_alice trigger=OPNPC1 anma_main=30`
+- `PASS animalmagnetism return_malcolm trigger=OPNPC1 anma_main=40`
+- `PASS animalmagnetism return_alice trigger=OPNPC1 anma_main=50`
+- `PASS animalmagnetism return_malcolm2 trigger=OPNPC1 anma_main=60`
+- `PASS animalmagnetism return_alice2 trigger=OPNPC1 anma_main=70`
+- `PASS animalmagnetism talk_crone trigger=OPNPC1 anma_main=73`
+- `PASS animalmagnetism crone_mirror trigger=OPNPC1 anma_main=76 ghostspeak kept`
+- `PASS animalmagnetism give_amulet trigger=OPNPC1 anma_main>=80`
+- `PASS animalmagnetism chicken_scene trigger=OPNPC1 anma_main=100 leftover-cutscene`
+- `PASS animalmagnetism buy_chickens trigger=OPNPC1 anma_main=110`
+- `PASS animalmagnetism give_chickens trigger=OPNPC1 anma_main=120`
+- `PASS animalmagnetism talk_witch trigger=OPNPC1 anma_main=130`
+- `PASS animalmagnetism witch_bars trigger=OPNPC1 anma_main=140`
+- `PASS animalmagnetism hammer_magnet trigger=OPHELDU magnet=1 state=140 no-rotate`
+- `PASS animalmagnetism give_magnet trigger=OPNPC1 anma_main=150`
+- `PASS animalmagnetism chop_bounce trigger=OPNPC1 anma_main=160`
+- `PASS animalmagnetism report_bounce trigger=OPNPC1 anma_main=170`
+- `PASS animalmagnetism turael_intro trigger=OPNPC1 anma_main=170`
+- `PASS animalmagnetism turael_axe trigger=OPNPC1 anma_main=180`
+- `PASS animalmagnetism cut_twigs trigger=OPNPC1 anma_main=190`
+- `PASS animalmagnetism give_twigs trigger=OPNPC1 anma_main=200`
+- `PASS animalmagnetism notes_solve trigger=IF_BUTTON anma_main=210`
+- `PASS animalmagnetism give_translated trigger=OPNPC1 anma_main=220`
+- `PASS animalmagnetism make_container trigger=OPHELDU anma_main=230`
+- `PASS animalmagnetism complete trigger=OPNPC1 anma_main=240 attractor`
+- `PASS animalmagnetism postquest trigger=OPNPC1 anma_main=240 leftover-devices`
+- `PASS animalmagnetism cleanup trigger=WorldNpcFree spawns reaped`
+
+Mutation that proved a check: temporarily required `anma_main == 99` on the
+accept assertion. Selftest printed
+`FAIL accept should write anma_main=10, got 10`. Restored to `== 10`.
+
+`::anma` / `::anmareset` are named reset/cheats only
+(`ANMA OK: reset/cheat only`). Not playthrough evidence. No required kill;
+no boss cheat.
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=anmabmp_*` against `/tmp/gp-anma-t1-obj/scripts`). 15 named
+BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_animalmagnetism/`
+(paths relative to `OSRS-Content/`; 15 unique MD5s; no `frame_*.bmp` /
+`exit.bmp`):
+
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/01_talk_ava.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/03_talk_malcolm.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/04_talk_alice.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/05_talk_crone.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/06_give_amulet.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/07_buy_chickens.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/08_talk_witch.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/09_hammer_magnet.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/10_give_magnet.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/11_chop_tree.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/12_talk_turael.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/13_notes.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/14_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_animalmagnetism/15_postquest.bmp`
+
+Pinned oldids: article 15292390, guide 15126950, transcript 15263367, Ava
+15153599, device 15271380, attractor 15270656, accumulator 15186234, blessed
+axe 15254568, crone-made amulet 15183398, Malcolm 15287765, research notes
+15185530. `python3 tools/questhelper_extract.py animalmagnetism --check` OK.
+
+Gate D: **verified-modern**.

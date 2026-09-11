@@ -1,0 +1,861 @@
+- generic [active] [ref=f169e1]:
+  - banner [ref=f169e2]:
+    - generic [ref=f169e3]:
+      - link [ref=f169e4] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=f169e5]
+      - search [ref=f169e6]:
+        - button "Search" [ref=f169e9] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=f169e10]: "\"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage"
+        - generic [ref=f169e11] [cursor=pointer]
+        - button "Search using an image" [ref=f169e16] [cursor=pointer]
+    - complementary "Account Rewards and Preferences" [ref=f169e17]:
+      - button "Microsoft Rewards" [ref=f169e18] [cursor=pointer]:
+        - generic [ref=f169e19]: Rewards
+      - link [ref=f169e35] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - button "Sign in" [ref=f169e38]
+      - button "Settings and quick links" [ref=f169e39] [cursor=pointer]
+    - navigation "Search Filter" [ref=f169e40]:
+      - list [ref=f169e41]:
+        - listitem [ref=f169e42]:
+          - link "All" [ref=f169e43] [cursor=pointer]:
+            - /url: /search?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=HDRSC1
+        - listitem [ref=f169e44]:
+          - link "Search" [ref=f169e45] [cursor=pointer]:
+            - /url: /copilotsearch?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=CSSCOP
+        - listitem [ref=f169e48]:
+          - link "Images" [ref=f169e49] [cursor=pointer]:
+            - /url: /images?FORM=HDRSC3
+        - listitem [ref=f169e50]:
+          - list [ref=f169e51]:
+            - listitem [ref=f169e52]:
+              - link "Create" [ref=f169e53] [cursor=pointer]:
+                - /url: /images/create/ai-image-generator?FORM=IRPGEN
+            - listitem [ref=f169e58]:
+              - link "Collections" [ref=f169e59] [cursor=pointer]:
+                - /url: /saves?FORM=IRPCOL
+        - listitem [ref=f169e63]:
+          - link "Videos" [ref=f169e64] [cursor=pointer]:
+            - /url: /videos/search?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=HDRSC4
+        - listitem [ref=f169e65]:
+          - link "Maps" [ref=f169e66] [cursor=pointer]:
+            - /url: /maps?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=HDRSC6
+        - listitem [ref=f169e67]:
+          - link "News" [ref=f169e68] [cursor=pointer]:
+            - /url: /news/search?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=HDRSC7
+        - listitem [ref=f169e69]:
+          - link "Shopping" [ref=f169e70] [cursor=pointer]:
+            - /url: /shop/topics?q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=SHOPTB
+        - listitem [ref=f169e71]:
+          - button [ref=f169e72] [cursor=pointer]
+      - generic [ref=f169e76]:
+        - generic [ref=f169e77]:
+          - list:
+            - listitem [ref=f169e78]:
+              - generic [ref=f169e79]: "SafeSearch:"
+            - listitem [ref=f169e80]:
+              - button "Moderate SafeSearch:" [ref=f169e81] [cursor=pointer]:
+                - generic [ref=f169e82]: Moderate
+        - button "Filter" [ref=f169e85] [cursor=pointer]
+  - main [ref=f169e88]:
+    - navigation [aria-hidden] [ref=f169e89]:
+      - generic [ref=f169e90]:
+        - generic [ref=f169e93]:
+          - link [ref=f169e95] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Fat+Pack+Box&FORM=IRMHRS
+            - generic [ref=f169e97]:
+              - strong [ref=f169e98]: Mtg
+              - text: Fat Pack Box
+          - link [ref=f169e100] [cursor=pointer]:
+            - /url: /images/search?q=Lorcana+Storage+Box&FORM=IRMHRS
+            - generic [ref=f169e102]:
+              - strong [ref=f169e103]: Lorcana
+              - text: Storage Box
+          - link [ref=f169e105] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Booster+Box&FORM=IRMHRS
+            - generic [ref=f169e107]:
+              - strong [ref=f169e108]: Magic The Gathering
+              - text: Ixalan Booster Box
+          - link [ref=f169e110] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Storage+Box&FORM=IRMHRS
+            - generic [ref=f169e112]:
+              - strong [ref=f169e113]: Mtg
+              - text: Storage Box
+          - link [ref=f169e115] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Storage+Box&FORM=IRMHRS
+            - generic [ref=f169e117]:
+              - text: Magic
+              - strong [ref=f169e118]: The Gathering Storage Box
+          - link [ref=f169e120] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Box+Storage&FORM=IRMHRS
+            - generic [ref=f169e122]:
+              - strong [ref=f169e123]: Mtg Card
+              - text: Box Storage
+          - link [ref=f169e125] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f169e127]:
+              - strong [ref=f169e128]: Mtg
+              - text: Bundle Box
+          - link [ref=f169e130] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=IRMHRS
+            - generic [ref=f169e132]:
+              - text: Magic
+              - strong [ref=f169e133]: The Gathering Card Box
+          - link [ref=f169e135] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Bulk+Storage&FORM=IRMHRS
+            - generic [ref=f169e137]:
+              - strong [ref=f169e138]: Mtg Bulk
+              - text: Storage
+          - link [ref=f169e140] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Box&FORM=IRMHRS
+            - generic [ref=f169e142]:
+              - strong [ref=f169e143]: Mtg Card
+              - text: Box
+          - link [ref=f169e145] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Draft+Box&FORM=IRMHRS
+            - generic [ref=f169e147]:
+              - strong [ref=f169e148]: Mtg Draft
+              - text: Box
+          - link [ref=f169e150] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Beginner+Box&FORM=IRMHRS
+            - generic [ref=f169e152]:
+              - strong [ref=f169e153]: Mtg Beginner
+              - text: Box
+          - link [ref=f169e155] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Deck+Box+Storage&FORM=IRMHRS
+            - generic [ref=f169e157]:
+              - strong [ref=f169e158]: Mtg Deck
+              - text: Box Storage
+          - link [ref=f169e160] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Storage&FORM=IRMHRS
+            - generic [ref=f169e162]:
+              - strong [ref=f169e163]: Mtg
+              - text: Storage
+          - link [ref=f169e165] [cursor=pointer]:
+            - /url: /images/search?q=Tcg+Storage+Box&FORM=IRMHRS
+            - generic [ref=f169e167]:
+              - strong [ref=f169e168]: Tcg
+              - text: Storage Box
+          - link [ref=f169e170] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Organizer+Box&FORM=IRMHRS
+            - generic [ref=f169e172]:
+              - strong [ref=f169e173]: Mtg Card Organizer
+              - text: Box
+          - link [ref=f169e175] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Cases&FORM=IRMHRS
+            - generic [ref=f169e177]:
+              - text: Magic
+              - strong [ref=f169e178]: The Gathering Cases
+          - link [ref=f169e180] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f169e182]:
+              - text: Magic
+              - strong [ref=f169e183]: The Gathering Bundle Box
+          - link [ref=f169e185] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Bulk+Storage&FORM=IRMHRS
+            - generic [ref=f169e187]:
+              - strong [ref=f169e188]: Mtg Card Bulk
+              - text: Storage
+          - link [ref=f169e190] [cursor=pointer]:
+            - /url: /images/search?q=Mana+Box+Mtg&FORM=IRMHRS
+            - generic [ref=f169e192]:
+              - text: Mana Box
+              - strong [ref=f169e193]: Mtg
+        - switch [ref=f169e195] [cursor=pointer]:
+          - generic [ref=f169e196]: New Version
+    - generic [ref=f169e200]:
+      - generic "Suggested searches" [ref=f169e202]:
+        - navigation [ref=f169e203]:
+          - region "Carousel" [ref=f169e204]:
+            - list [ref=f169e208]:
+              - listitem [ref=f169e209]:
+                - link [ref=f169e210] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Fat+Pack+Box&FORM=RESTAB
+                  - img "Mtg Fat Pack Box" [ref=f169e212]
+                  - generic [aria-hidden] [ref=f169e214]:
+                    - strong [ref=f169e215]: Mtg
+                    - text: Fat Pack Box
+              - listitem [ref=f169e216]:
+                - link [ref=f169e217] [cursor=pointer]:
+                  - /url: /images/search?q=Lorcana+Storage+Box&FORM=RESTAB
+                  - img "Lorcana Storage Box" [ref=f169e219]
+                  - generic [aria-hidden] [ref=f169e221]:
+                    - strong [ref=f169e222]: Lorcana
+                    - text: Storage Box
+              - listitem [ref=f169e223]:
+                - link [ref=f169e224] [cursor=pointer]:
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Booster+Box&FORM=RESTAB
+                  - img "Magic The Gathering Ixalan Booster Box" [ref=f169e226]
+                  - generic [aria-hidden] [ref=f169e228]:
+                    - strong [ref=f169e229]: Magic The Gathering
+                    - text: Ixalan Booster Box
+              - listitem [ref=f169e230]:
+                - link [ref=f169e231] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Storage+Box&FORM=RESTAB
+                  - img "Mtg Storage Box" [ref=f169e233]
+                  - generic [aria-hidden] [ref=f169e235]:
+                    - strong [ref=f169e236]: Mtg
+                    - text: Storage Box
+              - listitem [ref=f169e237]:
+                - link [ref=f169e238] [cursor=pointer]:
+                  - /url: /images/search?q=Magic+The+Gathering+Storage+Box&FORM=RESTAB
+                  - img "Magic The Gathering Storage Box" [ref=f169e240]
+                  - generic [aria-hidden] [ref=f169e242]:
+                    - text: Magic
+                    - strong [ref=f169e243]: The Gathering Storage Box
+              - listitem [ref=f169e244]:
+                - 'link "Search for: Mtg Card Box Storage" [ref=f169e245] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Box+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e248]:
+                    - strong [ref=f169e249]: Mtg Card
+                    - text: Box Storage
+              - listitem [ref=f169e250]:
+                - 'link "Search for: Mtg Bundle Box" [ref=f169e251] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Bundle+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e254]:
+                    - strong [ref=f169e255]: Mtg
+                    - text: Bundle Box
+              - listitem [ref=f169e256]:
+                - 'link "Search for: Magic The Gathering Card Box" [ref=f169e257] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e260]:
+                    - text: Magic
+                    - strong [ref=f169e261]: The Gathering Card Box
+              - listitem [ref=f169e262]:
+                - 'link "Search for: Mtg Bulk Storage" [ref=f169e263] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Bulk+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e266]:
+                    - strong [ref=f169e267]: Mtg Bulk
+                    - text: Storage
+              - listitem [ref=f169e268]:
+                - 'link "Search for: Mtg Card Box" [ref=f169e269] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e272]:
+                    - strong [ref=f169e273]: Mtg Card
+                    - text: Box
+              - listitem [ref=f169e274]:
+                - 'link "Search for: Mtg Draft Box" [ref=f169e275] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Draft+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e278]:
+                    - strong [ref=f169e279]: Mtg Draft
+                    - text: Box
+              - listitem [ref=f169e280]:
+                - 'link "Search for: Mtg Beginner Box" [ref=f169e281] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Beginner+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e284]:
+                    - strong [ref=f169e285]: Mtg Beginner
+                    - text: Box
+              - listitem [ref=f169e286]:
+                - 'link "Search for: Mtg Deck Box Storage" [ref=f169e287] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Deck+Box+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e290]:
+                    - strong [ref=f169e291]: Mtg Deck
+                    - text: Box Storage
+              - listitem [ref=f169e292]:
+                - 'link "Search for: Mtg Storage" [ref=f169e293] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e296]:
+                    - strong [ref=f169e297]: Mtg
+                    - text: Storage
+              - listitem [ref=f169e298]:
+                - 'link "Search for: Tcg Storage Box" [ref=f169e299] [cursor=pointer]':
+                  - /url: /images/search?q=Tcg+Storage+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e302]:
+                    - strong [ref=f169e303]: Tcg
+                    - text: Storage Box
+              - listitem [ref=f169e304]:
+                - 'link "Search for: Mtg Card Organizer Box" [ref=f169e305] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Organizer+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e308]:
+                    - strong [ref=f169e309]: Mtg Card Organizer
+                    - text: Box
+              - listitem [ref=f169e310]:
+                - 'link "Search for: Magic The Gathering Cases" [ref=f169e311] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Cases&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e314]:
+                    - text: Magic
+                    - strong [ref=f169e315]: The Gathering Cases
+              - listitem [ref=f169e316]:
+                - 'link "Search for: Magic The Gathering Bundle Box" [ref=f169e317] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Bundle+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e320]:
+                    - text: Magic
+                    - strong [ref=f169e321]: The Gathering Bundle Box
+              - listitem [ref=f169e322]:
+                - 'link "Search for: Mtg Card Bulk Storage" [ref=f169e323] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Bulk+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e326]:
+                    - strong [ref=f169e327]: Mtg Card Bulk
+                    - text: Storage
+              - listitem [ref=f169e328]:
+                - 'link "Search for: Mana Box Mtg" [ref=f169e329] [cursor=pointer]':
+                  - /url: /images/search?q=Mana+Box+Mtg&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f169e332]:
+                    - text: Mana Box
+                    - strong [ref=f169e333]: Mtg
+      - switch "New Version" [ref=f169e336] [cursor=pointer]
+    - generic [ref=f169e342]:
+      - list [ref=f169e343]:
+        - listitem [ref=f169e344]:
+          - generic [ref=f169e345]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e347] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=fLqggt2R&id=ADCB61F4FC768832728B0C9CF21AB1E69E1E2A2B&thid=OIF.kN5lguc3wlofrYSDXwNnyA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-The-Lost-Caverns-of-Ixalan-Commander-Deck-Blood-Rites_53e0d997-cc06-4bba-b939-99d93ea3215d.ab76032ad1dcbc1c25cffbf28520ca6d.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7cbaa082dd9117d840230a08f7ec123e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1481&expw=1500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=90DE6582E737C25A1FAD84835F0367C8&selectedIndex=0&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e349]
+            - generic [ref=f169e350]:
+              - link "Ixalan Commander Deck - TCG accessories for ecommerce - Walmart ..." [ref=f169e351] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=fLqggt2R&id=ADCB61F4FC768832728B0C9CF21AB1E69E1E2A2B&thid=OIF.kN5lguc3wlofrYSDXwNnyA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-The-Lost-Caverns-of-Ixalan-Commander-Deck-Blood-Rites_53e0d997-cc06-4bba-b939-99d93ea3215d.ab76032ad1dcbc1c25cffbf28520ca6d.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7cbaa082dd9117d840230a08f7ec123e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1481&expw=1500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=90DE6582E737C25A1FAD84835F0367C8&selectedIndex=0&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan Commander Deck - TCG accessories for ec…" [ref=f169e352] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=fLqggt2R&id=ADCB61F4FC768832728B0C9CF21AB1E69E1E2A2B&thid=OIF.kN5lguc3wlofrYSDXwNnyA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-The-Lost-Caverns-of-Ixalan-Commander-Deck-Blood-Rites_53e0d997-cc06-4bba-b939-99d93ea3215d.ab76032ad1dcbc1c25cffbf28520ca6d.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7cbaa082dd9117d840230a08f7ec123e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1481&expw=1500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=90DE6582E737C25A1FAD84835F0367C8&selectedIndex=0&itb=0
+        - listitem [ref=f169e353]:
+          - generic [ref=f169e354]:
+            - generic [ref=f169e355]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e356] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=SNU9qEj3&id=34965F4BFB8FC7BF14F944A512B6536255C7D331&thid=OIF.5nw7PsayjGIftkNbpTNEug&mediaurl=https%3a%2f%2fwww.tiktok.com%2fapi%2fimg%2f%3fitemId%3d7349638025896348958%26location%3d0%26aid%3d1988&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.48d53da848f72e9688eebb8087cde0c8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1280&expw=720&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=E67C3B3EC6B28C621FB6435BA53344BA&selectedIndex=7&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e358]
+              - link "3 days ago" [ref=f169e359] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=SNU9qEj3&id=34965F4BFB8FC7BF14F944A512B6536255C7D331&thid=OIF.5nw7PsayjGIftkNbpTNEug&mediaurl=https%3a%2f%2fwww.tiktok.com%2fapi%2fimg%2f%3fitemId%3d7349638025896348958%26location%3d0%26aid%3d1988&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.48d53da848f72e9688eebb8087cde0c8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1280&expw=720&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=E67C3B3EC6B28C621FB6435BA53344BA&selectedIndex=7&itb=0
+            - generic [ref=f169e361]:
+              - 'link "What''s inside a Paldean Fates Quaquaval ex Premium Collection box? #po ..." [ref=f169e362] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=SNU9qEj3&id=34965F4BFB8FC7BF14F944A512B6536255C7D331&thid=OIF.5nw7PsayjGIftkNbpTNEug&mediaurl=https%3a%2f%2fwww.tiktok.com%2fapi%2fimg%2f%3fitemId%3d7349638025896348958%26location%3d0%26aid%3d1988&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.48d53da848f72e9688eebb8087cde0c8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1280&expw=720&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=E67C3B3EC6B28C621FB6435BA53344BA&selectedIndex=7&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "What's inside a Paldean Fates Quaquaval ex Pre…" [ref=f169e363] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=SNU9qEj3&id=34965F4BFB8FC7BF14F944A512B6536255C7D331&thid=OIF.5nw7PsayjGIftkNbpTNEug&mediaurl=https%3a%2f%2fwww.tiktok.com%2fapi%2fimg%2f%3fitemId%3d7349638025896348958%26location%3d0%26aid%3d1988&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.48d53da848f72e9688eebb8087cde0c8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1280&expw=720&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=E67C3B3EC6B28C621FB6435BA53344BA&selectedIndex=7&itb=0
+        - listitem [ref=f169e364]:
+          - generic [ref=f169e365]:
+            - generic [ref=f169e366]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e367] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=slyc7JCe&id=B9BEB26C082C152A31B19D5EE48F559CC80519A8&thid=OIF.HljYeUzG6RAKGGyaizDn6Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYkQAAeSwRjVqm7Lg%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b25c9cec909e411d4e5bcc01a12c0cb6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=915&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1E58D8794CC6E9100A186C9A8B30E7E9&selectedIndex=16&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e369]
+              - link "2 days ago" [ref=f169e370] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=slyc7JCe&id=B9BEB26C082C152A31B19D5EE48F559CC80519A8&thid=OIF.HljYeUzG6RAKGGyaizDn6Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYkQAAeSwRjVqm7Lg%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b25c9cec909e411d4e5bcc01a12c0cb6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=915&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1E58D8794CC6E9100A186C9A8B30E7E9&selectedIndex=16&itb=0
+            - generic [ref=f169e372]:
+              - 'link "Magic: The Gathering Lost Caverns of Ixalan Collector Booster Sealed ..." [ref=f169e373] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=slyc7JCe&id=B9BEB26C082C152A31B19D5EE48F559CC80519A8&thid=OIF.HljYeUzG6RAKGGyaizDn6Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYkQAAeSwRjVqm7Lg%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b25c9cec909e411d4e5bcc01a12c0cb6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=915&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1E58D8794CC6E9100A186C9A8B30E7E9&selectedIndex=16&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Lost Caverns of Ixalan Collec…" [ref=f169e374] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=slyc7JCe&id=B9BEB26C082C152A31B19D5EE48F559CC80519A8&thid=OIF.HljYeUzG6RAKGGyaizDn6Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYkQAAeSwRjVqm7Lg%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b25c9cec909e411d4e5bcc01a12c0cb6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=915&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1E58D8794CC6E9100A186C9A8B30E7E9&selectedIndex=16&itb=0
+        - listitem [ref=f169e375]:
+          - generic [ref=f169e376]:
+            - generic [ref=f169e377]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e378] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=8XtOp%2fMo&id=6E37D6B3546055166F1ADC593B391C582A389DAC&thid=OIF.JXszTAQINnMkMpU3B7YKFw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f84052%2fcursed-fig-battle-pack-2-war-of-the-giants-round-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f17b4ea7f3281a3e94ef21d57c1471ec%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=366&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=257B334C040836732432953707B60A17&selectedIndex=25&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e380]
+              - link "1 day ago" [ref=f169e381] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=8XtOp%2fMo&id=6E37D6B3546055166F1ADC593B391C582A389DAC&thid=OIF.JXszTAQINnMkMpU3B7YKFw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f84052%2fcursed-fig-battle-pack-2-war-of-the-giants-round-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f17b4ea7f3281a3e94ef21d57c1471ec%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=366&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=257B334C040836732432953707B60A17&selectedIndex=25&itb=0
+            - generic [ref=f169e383]:
+              - 'link "Fico Maledetto Battle Pack 2: War of the Giants - Round 2 | Yu-Gi-Oh ..." [ref=f169e384] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=8XtOp%2fMo&id=6E37D6B3546055166F1ADC593B391C582A389DAC&thid=OIF.JXszTAQINnMkMpU3B7YKFw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f84052%2fcursed-fig-battle-pack-2-war-of-the-giants-round-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f17b4ea7f3281a3e94ef21d57c1471ec%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=366&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=257B334C040836732432953707B60A17&selectedIndex=25&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Fico Maledetto Battle Pack 2: War of the Giants - R…" [ref=f169e385] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=8XtOp%2fMo&id=6E37D6B3546055166F1ADC593B391C582A389DAC&thid=OIF.JXszTAQINnMkMpU3B7YKFw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f84052%2fcursed-fig-battle-pack-2-war-of-the-giants-round-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f17b4ea7f3281a3e94ef21d57c1471ec%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=366&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=257B334C040836732432953707B60A17&selectedIndex=25&itb=0
+        - listitem [ref=f169e386]:
+          - generic [ref=f169e387]:
+            - generic [ref=f169e388]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e389] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=L%2bUkGOAF&id=DF9E0D32790FC1CF476EDAA8B56118E9AA28963B&thid=OIF.L%2fCr7s1Oq1%2bCwvii2G9ofQ&mediaurl=https%3a%2f%2fstatic.wikia.nocookie.net%2fd4481201-e9e7-4ccb-b40f-f172023e9896&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fe52418e005eab1e120051800c1b57d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=272&expw=534&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2FF0ABEECD4EAB5F82C2F8A2D86F687D&selectedIndex=32&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e391]
+              - link "3 days ago" [ref=f169e392] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=L%2bUkGOAF&id=DF9E0D32790FC1CF476EDAA8B56118E9AA28963B&thid=OIF.L%2fCr7s1Oq1%2bCwvii2G9ofQ&mediaurl=https%3a%2f%2fstatic.wikia.nocookie.net%2fd4481201-e9e7-4ccb-b40f-f172023e9896&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fe52418e005eab1e120051800c1b57d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=272&expw=534&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2FF0ABEECD4EAB5F82C2F8A2D86F687D&selectedIndex=32&itb=0
+            - generic [ref=f169e394]:
+              - 'link "Imperial Chronicles : Leviathan''s Demise (Book 3 Chapter 1/Day 65) | Fandom" [ref=f169e395] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=L%2bUkGOAF&id=DF9E0D32790FC1CF476EDAA8B56118E9AA28963B&thid=OIF.L%2fCr7s1Oq1%2bCwvii2G9ofQ&mediaurl=https%3a%2f%2fstatic.wikia.nocookie.net%2fd4481201-e9e7-4ccb-b40f-f172023e9896&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fe52418e005eab1e120051800c1b57d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=272&expw=534&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2FF0ABEECD4EAB5F82C2F8A2D86F687D&selectedIndex=32&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Imperial Chronicles : Leviathan''s Demise (Bo…" [ref=f169e396] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=L%2bUkGOAF&id=DF9E0D32790FC1CF476EDAA8B56118E9AA28963B&thid=OIF.L%2fCr7s1Oq1%2bCwvii2G9ofQ&mediaurl=https%3a%2f%2fstatic.wikia.nocookie.net%2fd4481201-e9e7-4ccb-b40f-f172023e9896&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fe52418e005eab1e120051800c1b57d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=272&expw=534&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2FF0ABEECD4EAB5F82C2F8A2D86F687D&selectedIndex=32&itb=0
+        - listitem [ref=f169e397]:
+          - generic [ref=f169e398]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e400] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=a4hne0EG&id=0E1AF4CA2FE16F3CDAC664919138FA0131DC3DDD&thid=OIF.9nZdnZa2vmsIfYFlJj8Zfw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fLOUAAeSwKsNpfNJd%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6b88677b410626686ba1f18c473073f8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=133&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F6765D9D96B6BE6B087D8165263F197F&selectedIndex=34&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e402]
+            - generic [ref=f169e403]:
+              - link "Ixalan Display | eBay.de" [ref=f169e404] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=a4hne0EG&id=0E1AF4CA2FE16F3CDAC664919138FA0131DC3DDD&thid=OIF.9nZdnZa2vmsIfYFlJj8Zfw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fLOUAAeSwKsNpfNJd%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6b88677b410626686ba1f18c473073f8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=133&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F6765D9D96B6BE6B087D8165263F197F&selectedIndex=34&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan Display | eBay.de" [ref=f169e405] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=a4hne0EG&id=0E1AF4CA2FE16F3CDAC664919138FA0131DC3DDD&thid=OIF.9nZdnZa2vmsIfYFlJj8Zfw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fLOUAAeSwKsNpfNJd%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6b88677b410626686ba1f18c473073f8%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=133&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F6765D9D96B6BE6B087D8165263F197F&selectedIndex=34&itb=0
+      - list [ref=f169e406]:
+        - listitem [ref=f169e407]:
+          - generic [ref=f169e408]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e410] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=0XTJbn2d&id=A61377AC8A19183255F5DC4DC6F54D1449AD5ED9&thid=OIF.IjPtadLawUBhVFuCcnQwmA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ7gAAOSwhwtnlG-M%2fs-l1600.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d174c96e7d9deb9d71790d271076b7ae%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1214&expw=1212&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2233ED69D2DAC14061545B8272743098&selectedIndex=1&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e412]
+            - generic [ref=f169e413]:
+              - link "FULL SET of 5 - Full Art Lands - Lost Caverns of Ixalan - MTG Magic ..." [ref=f169e414] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=0XTJbn2d&id=A61377AC8A19183255F5DC4DC6F54D1449AD5ED9&thid=OIF.IjPtadLawUBhVFuCcnQwmA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ7gAAOSwhwtnlG-M%2fs-l1600.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d174c96e7d9deb9d71790d271076b7ae%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1214&expw=1212&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2233ED69D2DAC14061545B8272743098&selectedIndex=1&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "FULL SET of 5 - Full Art Lands - Lost Caverns o…" [ref=f169e415] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=0XTJbn2d&id=A61377AC8A19183255F5DC4DC6F54D1449AD5ED9&thid=OIF.IjPtadLawUBhVFuCcnQwmA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ7gAAOSwhwtnlG-M%2fs-l1600.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d174c96e7d9deb9d71790d271076b7ae%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1214&expw=1212&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2233ED69D2DAC14061545B8272743098&selectedIndex=1&itb=0
+        - listitem [ref=f169e416]:
+          - generic [ref=f169e417]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e419] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=BpgC9%2blE&id=C45255175A88C89167A1A339550C0F0A0947AE67&thid=OIF.MvW2MQESSoXNbAtZX4arrQ&mediaurl=https%3a%2f%2fcdn11.bigcommerce.com%2fs-ua4dd%2fimages%2fstencil%2f1280x1280%2fproducts%2f173577%2f286157%2f7cb82fdb-5090-45c0-ae67-4846667c8625__06156.1700083017.png%3fc%3d2&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.069802f7e94456721a4e6f64bb93af84%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1040&expw=745&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=32F5B63101124A85CD6C0B595F86ABAD&selectedIndex=9&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e421]
+            - generic [ref=f169e422]:
+              - link "Mountain (LCI-290) - The Lost Caverns of Ixalan - Game Nerdz" [ref=f169e423] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=BpgC9%2blE&id=C45255175A88C89167A1A339550C0F0A0947AE67&thid=OIF.MvW2MQESSoXNbAtZX4arrQ&mediaurl=https%3a%2f%2fcdn11.bigcommerce.com%2fs-ua4dd%2fimages%2fstencil%2f1280x1280%2fproducts%2f173577%2f286157%2f7cb82fdb-5090-45c0-ae67-4846667c8625__06156.1700083017.png%3fc%3d2&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.069802f7e94456721a4e6f64bb93af84%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1040&expw=745&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=32F5B63101124A85CD6C0B595F86ABAD&selectedIndex=9&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Mountain (LCI-290) - The Lost Caverns of Ixalan - …" [ref=f169e424] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=BpgC9%2blE&id=C45255175A88C89167A1A339550C0F0A0947AE67&thid=OIF.MvW2MQESSoXNbAtZX4arrQ&mediaurl=https%3a%2f%2fcdn11.bigcommerce.com%2fs-ua4dd%2fimages%2fstencil%2f1280x1280%2fproducts%2f173577%2f286157%2f7cb82fdb-5090-45c0-ae67-4846667c8625__06156.1700083017.png%3fc%3d2&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.069802f7e94456721a4e6f64bb93af84%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1040&expw=745&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=32F5B63101124A85CD6C0B595F86ABAD&selectedIndex=9&itb=0
+        - listitem [ref=f169e425]:
+          - generic [ref=f169e426]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e428] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=zSEoa6PD&id=DF63A28F9B351ADBB6E77D46DDB3CC5C1D2DAD74&thid=OIF.078L0jWPVoZkgW0k4HAybw&mediaurl=https%3a%2f%2fimages.manapool.com%2fproducts%2fmtg%2fcards%2fnormal%2ffront%2f6%2f0%2f60b7a85f-3a30-4ece-9bbb-61f3c4b796b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cd21286ba3c3804130ac1cd81abc71ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=D3BF0BD2358F568664816D24E070326F&selectedIndex=15&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e430]
+            - generic [ref=f169e431]:
+              - link "Ixalan | Cards, Decks, Packs, and Boxes" [ref=f169e432] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=zSEoa6PD&id=DF63A28F9B351ADBB6E77D46DDB3CC5C1D2DAD74&thid=OIF.078L0jWPVoZkgW0k4HAybw&mediaurl=https%3a%2f%2fimages.manapool.com%2fproducts%2fmtg%2fcards%2fnormal%2ffront%2f6%2f0%2f60b7a85f-3a30-4ece-9bbb-61f3c4b796b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cd21286ba3c3804130ac1cd81abc71ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=D3BF0BD2358F568664816D24E070326F&selectedIndex=15&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan | Cards, Decks, Packs, and Boxes" [ref=f169e433] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=zSEoa6PD&id=DF63A28F9B351ADBB6E77D46DDB3CC5C1D2DAD74&thid=OIF.078L0jWPVoZkgW0k4HAybw&mediaurl=https%3a%2f%2fimages.manapool.com%2fproducts%2fmtg%2fcards%2fnormal%2ffront%2f6%2f0%2f60b7a85f-3a30-4ece-9bbb-61f3c4b796b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cd21286ba3c3804130ac1cd81abc71ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=D3BF0BD2358F568664816D24E070326F&selectedIndex=15&itb=0
+        - listitem [ref=f169e434]:
+          - generic [ref=f169e435]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e437] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=N93r3Nof&id=00B04D7F6CBE5577F1CCA7AFFEE14DCEB730CDE0&thid=OIF.Puqrm9Ill2uPSBCCtuZB3Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fthumbs%2fimages%2fg%2fgQAAAeSwgMtqbG8x%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.37ddebdcda1fa8e120fadd0394c5650e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=500&expw=359&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3EEAAB9BD225976B8F481082B6E641DD&selectedIndex=21&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e439]
+            - generic [ref=f169e440]:
+              - 'link "Pillar of Origins #241 (NM) Ixalan (XLN) MTG | eBay" [ref=f169e441] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=N93r3Nof&id=00B04D7F6CBE5577F1CCA7AFFEE14DCEB730CDE0&thid=OIF.Puqrm9Ill2uPSBCCtuZB3Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fthumbs%2fimages%2fg%2fgQAAAeSwgMtqbG8x%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.37ddebdcda1fa8e120fadd0394c5650e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=500&expw=359&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3EEAAB9BD225976B8F481082B6E641DD&selectedIndex=21&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Pillar of Origins #241 (NM) Ixalan (XLN) MTG | eBay" [ref=f169e442] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=N93r3Nof&id=00B04D7F6CBE5577F1CCA7AFFEE14DCEB730CDE0&thid=OIF.Puqrm9Ill2uPSBCCtuZB3Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fthumbs%2fimages%2fg%2fgQAAAeSwgMtqbG8x%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.37ddebdcda1fa8e120fadd0394c5650e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=500&expw=359&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3EEAAB9BD225976B8F481082B6E641DD&selectedIndex=21&itb=0
+        - listitem [ref=f169e443]:
+          - generic [ref=f169e444]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e446] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Jg5jWkSJ&id=E9588A8176D4D35CBC56A552D15F7B65E71A0FCF&thid=OIF.xyTfwFJHVyRml0Vcs17xGA&mediaurl=https%3a%2f%2fstorage.googleapis.com%2farchidekt-card-images%2flcc%2fe738e675-4fd1-4bc3-97f5-71d0e2fc3f2e_art_crop.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.260e635a44897331d51402373b00acb2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=183&expw=250&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=C724DFC0524757246697455CB35EF118&selectedIndex=27&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e448]
+            - generic [ref=f169e449]:
+              - link "Copy of - Explorers of the Deep - The Lost Caverns of Ixalan Commander ..." [ref=f169e450] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Jg5jWkSJ&id=E9588A8176D4D35CBC56A552D15F7B65E71A0FCF&thid=OIF.xyTfwFJHVyRml0Vcs17xGA&mediaurl=https%3a%2f%2fstorage.googleapis.com%2farchidekt-card-images%2flcc%2fe738e675-4fd1-4bc3-97f5-71d0e2fc3f2e_art_crop.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.260e635a44897331d51402373b00acb2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=183&expw=250&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=C724DFC0524757246697455CB35EF118&selectedIndex=27&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Copy of - Explorers of the Deep - The Lost Cavern…" [ref=f169e451] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Jg5jWkSJ&id=E9588A8176D4D35CBC56A552D15F7B65E71A0FCF&thid=OIF.xyTfwFJHVyRml0Vcs17xGA&mediaurl=https%3a%2f%2fstorage.googleapis.com%2farchidekt-card-images%2flcc%2fe738e675-4fd1-4bc3-97f5-71d0e2fc3f2e_art_crop.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.260e635a44897331d51402373b00acb2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=183&expw=250&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=C724DFC0524757246697455CB35EF118&selectedIndex=27&itb=0
+        - listitem [ref=f169e452]:
+          - generic [ref=f169e453]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e455] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=JZeU8f6G&id=1E5D93A3C4F66AA2DD8E8B152D7AC28C3C129226&thid=OIF.Sprnzu1XzdihYc2IGRn%2b6A&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fca0AAeSw9oppcwVh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.259794f1fe8679bf06ad3e8bf5805b20%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=135&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4A9AE7CEED57CDD8A161CD881919FEE8&selectedIndex=33&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e457]
+            - generic [ref=f169e458]:
+              - link "Magic Lost Caverns of Ixalan Commander Deck Velociramptor Veloci-Ramp ..." [ref=f169e459] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=JZeU8f6G&id=1E5D93A3C4F66AA2DD8E8B152D7AC28C3C129226&thid=OIF.Sprnzu1XzdihYc2IGRn%2b6A&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fca0AAeSw9oppcwVh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.259794f1fe8679bf06ad3e8bf5805b20%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=135&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4A9AE7CEED57CDD8A161CD881919FEE8&selectedIndex=33&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic Lost Caverns of Ixalan Commander Dec…" [ref=f169e460] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=JZeU8f6G&id=1E5D93A3C4F66AA2DD8E8B152D7AC28C3C129226&thid=OIF.Sprnzu1XzdihYc2IGRn%2b6A&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fca0AAeSw9oppcwVh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.259794f1fe8679bf06ad3e8bf5805b20%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=135&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4A9AE7CEED57CDD8A161CD881919FEE8&selectedIndex=33&itb=0
+      - list [ref=f169e461]:
+        - listitem [ref=f169e462]:
+          - generic [ref=f169e463]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e465] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=UcJrBYLr&id=83E955551CBB55E8B55C86E69BFFEB9D14A473BB&thid=OIF.%2fEOEBlvy%2bwv%2blAi6k8NVPg&mediaurl=https%3a%2f%2fcommon-lands.com%2fcdn%2fshop%2ffiles%2fIxalan-BoosterPack.png%3fv%3d1784131817%26width%3d940&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.51c26b0582ebf0212be62ee9e0eddcf5%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=940&expw=940&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=FC4384065BF2FB0BFE9408BA93C3553E&selectedIndex=2&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e467]
+            - generic [ref=f169e468]:
+              - link "Steals & Deals – Common Lands" [ref=f169e469] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=UcJrBYLr&id=83E955551CBB55E8B55C86E69BFFEB9D14A473BB&thid=OIF.%2fEOEBlvy%2bwv%2blAi6k8NVPg&mediaurl=https%3a%2f%2fcommon-lands.com%2fcdn%2fshop%2ffiles%2fIxalan-BoosterPack.png%3fv%3d1784131817%26width%3d940&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.51c26b0582ebf0212be62ee9e0eddcf5%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=940&expw=940&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=FC4384065BF2FB0BFE9408BA93C3553E&selectedIndex=2&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Steals & Deals – Common Lands" [ref=f169e470] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=UcJrBYLr&id=83E955551CBB55E8B55C86E69BFFEB9D14A473BB&thid=OIF.%2fEOEBlvy%2bwv%2blAi6k8NVPg&mediaurl=https%3a%2f%2fcommon-lands.com%2fcdn%2fshop%2ffiles%2fIxalan-BoosterPack.png%3fv%3d1784131817%26width%3d940&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.51c26b0582ebf0212be62ee9e0eddcf5%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=940&expw=940&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=FC4384065BF2FB0BFE9408BA93C3553E&selectedIndex=2&itb=1
+        - listitem [ref=f169e471]:
+          - generic [ref=f169e472]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e474] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=zJb5f03w&id=CD8FC2C9DC4883EA7109FE781E8A2F2890F708CE&thid=OIF.79z3Eaxt7l3vwIb7bXYkUQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fUKwAAeSwpCVpi9D2%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cc96f97f4df0baa49511147844baf243%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1080&expw=810&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EFDCF711AC6DEE5DEFC086FB6D762451&selectedIndex=8&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e476]
+            - generic [ref=f169e477]:
+              - link "Riftbound Bulk Rune box LEAGUE OF LEGENDS tcg SEALED | eBay" [ref=f169e478] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=zJb5f03w&id=CD8FC2C9DC4883EA7109FE781E8A2F2890F708CE&thid=OIF.79z3Eaxt7l3vwIb7bXYkUQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fUKwAAeSwpCVpi9D2%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cc96f97f4df0baa49511147844baf243%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1080&expw=810&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EFDCF711AC6DEE5DEFC086FB6D762451&selectedIndex=8&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Riftbound Bulk Rune box LEAGUE OF LEGEND…" [ref=f169e479] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=zJb5f03w&id=CD8FC2C9DC4883EA7109FE781E8A2F2890F708CE&thid=OIF.79z3Eaxt7l3vwIb7bXYkUQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fUKwAAeSwpCVpi9D2%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cc96f97f4df0baa49511147844baf243%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1080&expw=810&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EFDCF711AC6DEE5DEFC086FB6D762451&selectedIndex=8&itb=0
+        - listitem [ref=f169e480]:
+          - generic [ref=f169e481]:
+            - generic [ref=f169e482]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e483] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Kp9IV0J0&id=86770ACE63B7B4096B5138489F76CA24B63ACE7A&thid=OIF.98d%2fIVy6NOKNW9%2f3zPZRqA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f409291%2f409291-w-p-fancy-ball-ultra-rare-magnificent-monsters.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2a9f4857427409426a4edde8f0d3cc60%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=852&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F7C77F215CBA34E28D5BDFF7CCF651A8&selectedIndex=14&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e485]
+              - link "2 days ago" [ref=f169e486] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Kp9IV0J0&id=86770ACE63B7B4096B5138489F76CA24B63ACE7A&thid=OIF.98d%2fIVy6NOKNW9%2f3zPZRqA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f409291%2f409291-w-p-fancy-ball-ultra-rare-magnificent-monsters.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2a9f4857427409426a4edde8f0d3cc60%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=852&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F7C77F215CBA34E28D5BDFF7CCF651A8&selectedIndex=14&itb=0
+            - generic [ref=f169e488]:
+              - link "W:P Fancy Ball Magnificent Monsters | Yu-Gi-Oh! | CardTrader" [ref=f169e489] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Kp9IV0J0&id=86770ACE63B7B4096B5138489F76CA24B63ACE7A&thid=OIF.98d%2fIVy6NOKNW9%2f3zPZRqA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f409291%2f409291-w-p-fancy-ball-ultra-rare-magnificent-monsters.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2a9f4857427409426a4edde8f0d3cc60%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=852&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F7C77F215CBA34E28D5BDFF7CCF651A8&selectedIndex=14&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "W:P Fancy Ball Magnificent Monsters | Y…" [ref=f169e490] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Kp9IV0J0&id=86770ACE63B7B4096B5138489F76CA24B63ACE7A&thid=OIF.98d%2fIVy6NOKNW9%2f3zPZRqA&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f409291%2f409291-w-p-fancy-ball-ultra-rare-magnificent-monsters.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2a9f4857427409426a4edde8f0d3cc60%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=852&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F7C77F215CBA34E28D5BDFF7CCF651A8&selectedIndex=14&itb=0
+        - listitem [ref=f169e491]:
+          - generic [ref=f169e492]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e494] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Z2p2pceF&id=A26E4D8C0C5F520A56F6282BB7666D745B1E4012&thid=OIF.G8k%2fU22K%2by0fbsqMKsMj5Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fzAoAAOSw6HVoWvoh%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.676a76a5c7851d85a599c69e6cdfd92b%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=333&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1BC93F536D8AFB2D1F6ECA8C2AC323E5&selectedIndex=20&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e496]
+            - generic [ref=f169e497]:
+              - link "Ixalan Empty Bundle/Fat Pack Box - Magic the Gathering MTG | eBay" [ref=f169e498] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Z2p2pceF&id=A26E4D8C0C5F520A56F6282BB7666D745B1E4012&thid=OIF.G8k%2fU22K%2by0fbsqMKsMj5Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fzAoAAOSw6HVoWvoh%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.676a76a5c7851d85a599c69e6cdfd92b%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=333&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1BC93F536D8AFB2D1F6ECA8C2AC323E5&selectedIndex=20&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan Empty Bundle/Fat Pack Box - Magic the G…" [ref=f169e499] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Z2p2pceF&id=A26E4D8C0C5F520A56F6282BB7666D745B1E4012&thid=OIF.G8k%2fU22K%2by0fbsqMKsMj5Q&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fzAoAAOSw6HVoWvoh%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.676a76a5c7851d85a599c69e6cdfd92b%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=333&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=1BC93F536D8AFB2D1F6ECA8C2AC323E5&selectedIndex=20&itb=0
+        - listitem [ref=f169e500]:
+          - generic [ref=f169e501]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e503] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=m9V6EE59&id=AB7E8C2611B0269B17DF738F296DB3D1E23497E0&thid=OIF.TvVM%2bJV%2fb9BPemPP8I2Lcg&mediaurl=https%3a%2f%2fi.ebayimg.com%2f00%2fs%2fMTIwMFgxNjAw%2fz%2f1cQAAeSwpx9qaCb3%2f%24_1.JPG%3fset_id%3d8800005007&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9bd57a104e7d8666eee181ff8f83eec7%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4EF54CF8957F6FD04F7A63CFF08D8B72&selectedIndex=23&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e505]
+            - generic [ref=f169e506]:
+              - link "Port of Karfell - Ixalan Commander LCC - MTG | eBay" [ref=f169e507] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=m9V6EE59&id=AB7E8C2611B0269B17DF738F296DB3D1E23497E0&thid=OIF.TvVM%2bJV%2fb9BPemPP8I2Lcg&mediaurl=https%3a%2f%2fi.ebayimg.com%2f00%2fs%2fMTIwMFgxNjAw%2fz%2f1cQAAeSwpx9qaCb3%2f%24_1.JPG%3fset_id%3d8800005007&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9bd57a104e7d8666eee181ff8f83eec7%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4EF54CF8957F6FD04F7A63CFF08D8B72&selectedIndex=23&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Port of Karfell - Ixalan Commander LCC - MT…" [ref=f169e508] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=m9V6EE59&id=AB7E8C2611B0269B17DF738F296DB3D1E23497E0&thid=OIF.TvVM%2bJV%2fb9BPemPP8I2Lcg&mediaurl=https%3a%2f%2fi.ebayimg.com%2f00%2fs%2fMTIwMFgxNjAw%2fz%2f1cQAAeSwpx9qaCb3%2f%24_1.JPG%3fset_id%3d8800005007&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9bd57a104e7d8666eee181ff8f83eec7%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=4EF54CF8957F6FD04F7A63CFF08D8B72&selectedIndex=23&itb=0
+        - listitem [ref=f169e509]:
+          - generic [ref=f169e510]:
+            - generic [ref=f169e511]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e512] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=jDYVCx%2bV&id=EB82E124C7518C7B7F083A669E6EE5E86B1C508F&thid=OIF.VLUqNPZNjdnlKzIWYOMOkA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fmOEAAeSwV-xo4uDK%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.8c36150b1f95cd3cf44de8c3a6d29b93%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=301&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=54B52A34F64D8DD9E52B321660E30E90&selectedIndex=28&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e514]
+              - link "3 days ago" [ref=f169e515] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=jDYVCx%2bV&id=EB82E124C7518C7B7F083A669E6EE5E86B1C508F&thid=OIF.VLUqNPZNjdnlKzIWYOMOkA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fmOEAAeSwV-xo4uDK%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.8c36150b1f95cd3cf44de8c3a6d29b93%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=301&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=54B52A34F64D8DD9E52B321660E30E90&selectedIndex=28&itb=0
+            - generic [ref=f169e517]:
+              - link "Corpses of the Lost The Lost Caverns of Ixalan Regular | eBay" [ref=f169e518] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=jDYVCx%2bV&id=EB82E124C7518C7B7F083A669E6EE5E86B1C508F&thid=OIF.VLUqNPZNjdnlKzIWYOMOkA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fmOEAAeSwV-xo4uDK%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.8c36150b1f95cd3cf44de8c3a6d29b93%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=301&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=54B52A34F64D8DD9E52B321660E30E90&selectedIndex=28&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Corpses of the Lost The Lost Caverns of Ixalan R…" [ref=f169e519] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=jDYVCx%2bV&id=EB82E124C7518C7B7F083A669E6EE5E86B1C508F&thid=OIF.VLUqNPZNjdnlKzIWYOMOkA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fmOEAAeSwV-xo4uDK%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.8c36150b1f95cd3cf44de8c3a6d29b93%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=301&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=54B52A34F64D8DD9E52B321660E30E90&selectedIndex=28&itb=0
+      - list [ref=f169e520]:
+        - listitem [ref=f169e521]:
+          - generic [ref=f169e522]:
+            - generic [ref=f169e523]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e524] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=eolX%2bE48&id=F670FFEC8DD8CF96524E485ADA07C69064E1EB7C&thid=OIF.3iPLA5pNXM2WnEHnGM8Xmg&mediaurl=https%3a%2f%2fgoldenapplecomics.com%2fcdn%2fshop%2ffiles%2f517513.jpg%3fv%3d1788728285%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7a8957f84e3c185b323b21ded9a82f5d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1297&expw=826&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=DE23CB039A4D5CCD969C41E718CF179A&selectedIndex=3&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e526]
+              - link "3 days ago" [ref=f169e527] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=eolX%2bE48&id=F670FFEC8DD8CF96524E485ADA07C69064E1EB7C&thid=OIF.3iPLA5pNXM2WnEHnGM8Xmg&mediaurl=https%3a%2f%2fgoldenapplecomics.com%2fcdn%2fshop%2ffiles%2f517513.jpg%3fv%3d1788728285%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7a8957f84e3c185b323b21ded9a82f5d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1297&expw=826&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=DE23CB039A4D5CCD969C41E718CF179A&selectedIndex=3&itb=0
+            - generic [ref=f169e529]:
+              - link "The Lost Caverns of Ixalan Commander Deck - Ahoy Mateys [LCC] | Golden ..." [ref=f169e530] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=eolX%2bE48&id=F670FFEC8DD8CF96524E485ADA07C69064E1EB7C&thid=OIF.3iPLA5pNXM2WnEHnGM8Xmg&mediaurl=https%3a%2f%2fgoldenapplecomics.com%2fcdn%2fshop%2ffiles%2f517513.jpg%3fv%3d1788728285%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7a8957f84e3c185b323b21ded9a82f5d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1297&expw=826&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=DE23CB039A4D5CCD969C41E718CF179A&selectedIndex=3&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "The Lost Caverns of Ixalan Commander Deck - Aho…" [ref=f169e531] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=eolX%2bE48&id=F670FFEC8DD8CF96524E485ADA07C69064E1EB7C&thid=OIF.3iPLA5pNXM2WnEHnGM8Xmg&mediaurl=https%3a%2f%2fgoldenapplecomics.com%2fcdn%2fshop%2ffiles%2f517513.jpg%3fv%3d1788728285%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7a8957f84e3c185b323b21ded9a82f5d%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1297&expw=826&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=DE23CB039A4D5CCD969C41E718CF179A&selectedIndex=3&itb=0
+        - listitem [ref=f169e532]:
+          - generic [ref=f169e533]:
+            - generic [ref=f169e534]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e535] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=FS%2bwxhuW&id=2D44AD579A4990DD8B71C434273AC8E880883E93&thid=OIF.kBouNPNuwIs2MyQcwR0h%2fw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f276546%2fsabine-wren-explosives-artist-spark-of-rebellion.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.152fb0c61b96b14df8617499bc35b804%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=901A2E34F36EC08B3633241CC11D21FF&selectedIndex=11&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e537]
+              - link "5 days ago" [ref=f169e538] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=FS%2bwxhuW&id=2D44AD579A4990DD8B71C434273AC8E880883E93&thid=OIF.kBouNPNuwIs2MyQcwR0h%2fw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f276546%2fsabine-wren-explosives-artist-spark-of-rebellion.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.152fb0c61b96b14df8617499bc35b804%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=901A2E34F36EC08B3633241CC11D21FF&selectedIndex=11&itb=0
+            - generic [ref=f169e540]:
+              - link "Sabine Wren, Artista Degli Esplosivi Spark of Rebellion | Star Wars ..." [ref=f169e541] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=FS%2bwxhuW&id=2D44AD579A4990DD8B71C434273AC8E880883E93&thid=OIF.kBouNPNuwIs2MyQcwR0h%2fw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f276546%2fsabine-wren-explosives-artist-spark-of-rebellion.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.152fb0c61b96b14df8617499bc35b804%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=901A2E34F36EC08B3633241CC11D21FF&selectedIndex=11&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Sabine Wren, Artista Degli Esplosivi Spark of Rebel…" [ref=f169e542] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=FS%2bwxhuW&id=2D44AD579A4990DD8B71C434273AC8E880883E93&thid=OIF.kBouNPNuwIs2MyQcwR0h%2fw&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f276546%2fsabine-wren-explosives-artist-spark-of-rebellion.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.152fb0c61b96b14df8617499bc35b804%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=901A2E34F36EC08B3633241CC11D21FF&selectedIndex=11&itb=0
+        - listitem [ref=f169e543]:
+          - generic [ref=f169e544]:
+            - generic [ref=f169e545]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e546] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tUcpQ9qt&id=1757034428DDEC343D227378AEE1FF3472F8AA40&thid=OIF.KhBgUIPA1hw6Mwiz4IjuRg&mediaurl=https%3a%2f%2fcard-images.archidekt.com%2fgrid%2ffront%2fb%2ff%2fbf7a75a5-a21a-44e9-9e42-b3496cbbd307.webp%3f1783918148&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b5472943daad65152a43c955bf3a82fe%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2A10605083C0D61C3A3308B3E088EE46&selectedIndex=17&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e548]
+              - link "2 days ago" [ref=f169e549] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tUcpQ9qt&id=1757034428DDEC343D227378AEE1FF3472F8AA40&thid=OIF.KhBgUIPA1hw6Mwiz4IjuRg&mediaurl=https%3a%2f%2fcard-images.archidekt.com%2fgrid%2ffront%2fb%2ff%2fbf7a75a5-a21a-44e9-9e42-b3496cbbd307.webp%3f1783918148&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b5472943daad65152a43c955bf3a82fe%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2A10605083C0D61C3A3308B3E088EE46&selectedIndex=17&itb=0
+            - generic [ref=f169e551]:
+              - link "Ixhel Precon • (Abzan Commander deck) • Archidekt" [ref=f169e552] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tUcpQ9qt&id=1757034428DDEC343D227378AEE1FF3472F8AA40&thid=OIF.KhBgUIPA1hw6Mwiz4IjuRg&mediaurl=https%3a%2f%2fcard-images.archidekt.com%2fgrid%2ffront%2fb%2ff%2fbf7a75a5-a21a-44e9-9e42-b3496cbbd307.webp%3f1783918148&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b5472943daad65152a43c955bf3a82fe%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2A10605083C0D61C3A3308B3E088EE46&selectedIndex=17&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixhel Precon • (Abzan Commander deck) • Arc…" [ref=f169e553] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=tUcpQ9qt&id=1757034428DDEC343D227378AEE1FF3472F8AA40&thid=OIF.KhBgUIPA1hw6Mwiz4IjuRg&mediaurl=https%3a%2f%2fcard-images.archidekt.com%2fgrid%2ffront%2fb%2ff%2fbf7a75a5-a21a-44e9-9e42-b3496cbbd307.webp%3f1783918148&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b5472943daad65152a43c955bf3a82fe%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=2A10605083C0D61C3A3308B3E088EE46&selectedIndex=17&itb=0
+        - listitem [ref=f169e554]:
+          - generic [ref=f169e555]:
+            - generic [ref=f169e556]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e557] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pNRF9h5x&id=505CDBC0CA11014F0B7D1124979E5FD0E1105DC7&thid=OIF.7iCdFM3bZV3f2vuPSILFtw&mediaurl=https%3a%2f%2fstatic.odealo.com%2fuploads%2fauction_images%2f10252779926a9ca8f682ca6.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a4d445f61e714ef6a4f5f191a9b0dc48%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=375&expw=353&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EE209D14CDDB655DDFDAFB8F4882C5B7&selectedIndex=22&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e559]
+              - link "3 days ago" [ref=f169e560] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pNRF9h5x&id=505CDBC0CA11014F0B7D1124979E5FD0E1105DC7&thid=OIF.7iCdFM3bZV3f2vuPSILFtw&mediaurl=https%3a%2f%2fstatic.odealo.com%2fuploads%2fauction_images%2f10252779926a9ca8f682ca6.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a4d445f61e714ef6a4f5f191a9b0dc48%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=375&expw=353&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EE209D14CDDB655DDFDAFB8F4882C5B7&selectedIndex=22&itb=0
+            - generic [ref=f169e562]:
+              - link "Buy Ixchel's Torment - Fast Delive in PATH OF EXILE 2 Items - Offer ..." [ref=f169e563] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pNRF9h5x&id=505CDBC0CA11014F0B7D1124979E5FD0E1105DC7&thid=OIF.7iCdFM3bZV3f2vuPSILFtw&mediaurl=https%3a%2f%2fstatic.odealo.com%2fuploads%2fauction_images%2f10252779926a9ca8f682ca6.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a4d445f61e714ef6a4f5f191a9b0dc48%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=375&expw=353&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EE209D14CDDB655DDFDAFB8F4882C5B7&selectedIndex=22&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Buy Ixchel's Torment - Fast Delive in PATH OF …" [ref=f169e564] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=pNRF9h5x&id=505CDBC0CA11014F0B7D1124979E5FD0E1105DC7&thid=OIF.7iCdFM3bZV3f2vuPSILFtw&mediaurl=https%3a%2f%2fstatic.odealo.com%2fuploads%2fauction_images%2f10252779926a9ca8f682ca6.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a4d445f61e714ef6a4f5f191a9b0dc48%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=375&expw=353&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=EE209D14CDDB655DDFDAFB8F4882C5B7&selectedIndex=22&itb=0
+        - listitem [ref=f169e565]:
+          - generic [ref=f169e566]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e568] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=GpsXkPNO&id=61D243C94AFBFDED916FC60C39829020B547453C&thid=OIF.n8b9tP65KCGIT6wB2lv9Mw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZEcAAeSw6o5qhyof%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a9b1790f34e71199c86e16fb09c7b6e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=284&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=9FC6FDB4FEB92821884FAC01DA5BFD33&selectedIndex=30&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e570]
+            - generic [ref=f169e571]:
+              - 'link "Arcane Adaptation Magic: Ixalan XLN #046 | eBay" [ref=f169e572] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=GpsXkPNO&id=61D243C94AFBFDED916FC60C39829020B547453C&thid=OIF.n8b9tP65KCGIT6wB2lv9Mw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZEcAAeSw6o5qhyof%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a9b1790f34e71199c86e16fb09c7b6e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=284&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=9FC6FDB4FEB92821884FAC01DA5BFD33&selectedIndex=30&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Arcane Adaptation Magic: Ixalan XLN #046 | eBay" [ref=f169e573] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=GpsXkPNO&id=61D243C94AFBFDED916FC60C39829020B547453C&thid=OIF.n8b9tP65KCGIT6wB2lv9Mw&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZEcAAeSw6o5qhyof%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a9b1790f34e71199c86e16fb09c7b6e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=284&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=9FC6FDB4FEB92821884FAC01DA5BFD33&selectedIndex=30&itb=0
+      - list [ref=f169e574]:
+        - listitem [ref=f169e575]:
+          - generic [ref=f169e576]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e578] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=cLaoGXgP&id=3A01E4582BA4B2C5646013D132A70EB7D0F12E44&thid=OIF.bV0oDPRmYq63u6IZ2%2fK8fg&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fS%2faplus-media-library-service-media%2f24e8b735-bd06-4e08-8174-3dbc87c9aa09.__CR0%2c0%2c970%2c600_PT0_SX970_V1___.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.70b6a819780f94687e961a1db68ab693%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=600&expw=970&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=6D5D280CF46662AEB7BBA219DBF2BC7E&selectedIndex=4&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e580]
+            - generic [ref=f169e581]:
+              - 'link "Amazon.com: Magic: The Gathering The Lost Caverns of Ixalan Set Booster ..." [ref=f169e582] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=cLaoGXgP&id=3A01E4582BA4B2C5646013D132A70EB7D0F12E44&thid=OIF.bV0oDPRmYq63u6IZ2%2fK8fg&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fS%2faplus-media-library-service-media%2f24e8b735-bd06-4e08-8174-3dbc87c9aa09.__CR0%2c0%2c970%2c600_PT0_SX970_V1___.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.70b6a819780f94687e961a1db68ab693%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=600&expw=970&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=6D5D280CF46662AEB7BBA219DBF2BC7E&selectedIndex=4&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Amazon.com: Magic: The Gathering The Lost Cav…" [ref=f169e583] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=cLaoGXgP&id=3A01E4582BA4B2C5646013D132A70EB7D0F12E44&thid=OIF.bV0oDPRmYq63u6IZ2%2fK8fg&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fS%2faplus-media-library-service-media%2f24e8b735-bd06-4e08-8174-3dbc87c9aa09.__CR0%2c0%2c970%2c600_PT0_SX970_V1___.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.70b6a819780f94687e961a1db68ab693%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=600&expw=970&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=6D5D280CF46662AEB7BBA219DBF2BC7E&selectedIndex=4&itb=0
+        - listitem [ref=f169e584]:
+          - generic [ref=f169e585]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e587] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=3qqdykha&id=22F14730CE55791B13FAD720B5E8CE69A9DA401A&thid=OIF.WJz5dZdB0hqbE%2bZw9b2AAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fDngAAeSwtmpqBotI%2fs-l960.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.deaa9dca485ab30c40086c4cc760de9e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=589CF9759741D21A9B13E670F5BD8000&selectedIndex=6&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e589]
+            - generic [ref=f169e590]:
+              - link "Island 288 The Lost Caverns of Ixalan for sale | eBay" [ref=f169e591] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=3qqdykha&id=22F14730CE55791B13FAD720B5E8CE69A9DA401A&thid=OIF.WJz5dZdB0hqbE%2bZw9b2AAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fDngAAeSwtmpqBotI%2fs-l960.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.deaa9dca485ab30c40086c4cc760de9e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=589CF9759741D21A9B13E670F5BD8000&selectedIndex=6&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Island 288 The Lost Caverns of Ixalan for sal…" [ref=f169e592] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=3qqdykha&id=22F14730CE55791B13FAD720B5E8CE69A9DA401A&thid=OIF.WJz5dZdB0hqbE%2bZw9b2AAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fDngAAeSwtmpqBotI%2fs-l960.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.deaa9dca485ab30c40086c4cc760de9e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=589CF9759741D21A9B13E670F5BD8000&selectedIndex=6&itb=0
+        - listitem [ref=f169e593]:
+          - generic [ref=f169e594]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e596] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ev%2faJ33s&id=12F164C9ABAA0D6AEA834024DB422997DB2451CD&thid=OIF.oDyT0JxcKX7G2HrxaPaBKQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fG7wAAeSwD%7e1qij%7el%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7affda277dec4375bd2ff4bb839bd3c1%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=A03C93D09C5C297EC6D87AF168F68129&selectedIndex=12&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e598]
+            - generic [ref=f169e599]:
+              - link "NM - Foil - Legion Lieutenant - 163 - Rivals of Ixalan | eBay" [ref=f169e600] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ev%2faJ33s&id=12F164C9ABAA0D6AEA834024DB422997DB2451CD&thid=OIF.oDyT0JxcKX7G2HrxaPaBKQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fG7wAAeSwD%7e1qij%7el%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7affda277dec4375bd2ff4bb839bd3c1%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=A03C93D09C5C297EC6D87AF168F68129&selectedIndex=12&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "NM - Foil - Legion Lieutenant - 163 - Rival…" [ref=f169e601] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ev%2faJ33s&id=12F164C9ABAA0D6AEA834024DB422997DB2451CD&thid=OIF.oDyT0JxcKX7G2HrxaPaBKQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fG7wAAeSwD%7e1qij%7el%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7affda277dec4375bd2ff4bb839bd3c1%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1000&expw=718&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=A03C93D09C5C297EC6D87AF168F68129&selectedIndex=12&itb=0
+        - listitem [ref=f169e602]:
+          - generic [ref=f169e603]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e605] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1%2feBrFr5&id=F5C664AC3835454FB700A428490E03DA6F99751E&thid=OIF.%2bElHJ1D4rjQLgutMgTxpZw&mediaurl=https%3a%2f%2fmtg-standard.com%2fstorage%2f5e6b6b27-9e33-5449-bec6-e9d77b0b079d-normal.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d7f781ac5af9012de96569d52e450d94%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F849472750F8AE340B82EB4C813C6967&selectedIndex=18&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e607]
+            - generic [ref=f169e608]:
+              - link "The Lost Caverns of Ixalan Set — Cards & Prices | MTG-Standard.com" [ref=f169e609] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1%2feBrFr5&id=F5C664AC3835454FB700A428490E03DA6F99751E&thid=OIF.%2bElHJ1D4rjQLgutMgTxpZw&mediaurl=https%3a%2f%2fmtg-standard.com%2fstorage%2f5e6b6b27-9e33-5449-bec6-e9d77b0b079d-normal.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d7f781ac5af9012de96569d52e450d94%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F849472750F8AE340B82EB4C813C6967&selectedIndex=18&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "The Lost Caverns of Ixalan Set — Cards & Prices | …" [ref=f169e610] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=1%2feBrFr5&id=F5C664AC3835454FB700A428490E03DA6F99751E&thid=OIF.%2bElHJ1D4rjQLgutMgTxpZw&mediaurl=https%3a%2f%2fmtg-standard.com%2fstorage%2f5e6b6b27-9e33-5449-bec6-e9d77b0b079d-normal.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d7f781ac5af9012de96569d52e450d94%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=680&expw=488&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=F849472750F8AE340B82EB4C813C6967&selectedIndex=18&itb=0
+        - listitem [ref=f169e611]:
+          - generic [ref=f169e612]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e614] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=wxUf7D9c&id=A26E4D8C0C5F520A56F6BBA394182275AC7883B9&thid=OIF.IqbkMtJlFD6RDHsSDANwyQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSLcAAOSwdQ9oWvoh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c3151fec3f5c4fab69a8b28457260e1e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=93&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=22A6E432D265143E910C7B120C0370C9&selectedIndex=26&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e616]
+            - generic [ref=f169e617]:
+              - link "Ixalan Empty Bundle/Fat Pack Box - Magic the Gathering MTG | eBay" [ref=f169e618] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=wxUf7D9c&id=A26E4D8C0C5F520A56F6BBA394182275AC7883B9&thid=OIF.IqbkMtJlFD6RDHsSDANwyQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSLcAAOSwdQ9oWvoh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c3151fec3f5c4fab69a8b28457260e1e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=93&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=22A6E432D265143E910C7B120C0370C9&selectedIndex=26&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Ixalan Empty Bundle/Fat Pack Box - Magic the G…" [ref=f169e619] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=wxUf7D9c&id=A26E4D8C0C5F520A56F6BBA394182275AC7883B9&thid=OIF.IqbkMtJlFD6RDHsSDANwyQ&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSLcAAOSwdQ9oWvoh%2fs-l140.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c3151fec3f5c4fab69a8b28457260e1e%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=93&expw=140&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=22A6E432D265143E910C7B120C0370C9&selectedIndex=26&itb=0
+        - listitem [ref=f169e620]:
+          - generic [ref=f169e621]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e623] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=9lXc7I3W&id=11DC9E20CE5C358968A1FC2E99AE81F8CEAFAD7F&thid=OIF.DZx8KHBmeOr7Pkjnc%2bkV5w&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6%7ewAAeSwTLhqPBBp%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f655dcec8dd62ad975aaf299f98717b0%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=291&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0D9C7C28706678EAFB3E48E773E915E7&selectedIndex=29&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e625]
+            - generic [ref=f169e626]:
+              - 'link "Glimpse the Core #186 Foil The Lost Caverns of Ixalan NM | eBay" [ref=f169e627] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=9lXc7I3W&id=11DC9E20CE5C358968A1FC2E99AE81F8CEAFAD7F&thid=OIF.DZx8KHBmeOr7Pkjnc%2bkV5w&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6%7ewAAeSwTLhqPBBp%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f655dcec8dd62ad975aaf299f98717b0%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=291&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0D9C7C28706678EAFB3E48E773E915E7&selectedIndex=29&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Glimpse the Core #186 Foil The Lost Caverns o…" [ref=f169e628] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=9lXc7I3W&id=11DC9E20CE5C358968A1FC2E99AE81F8CEAFAD7F&thid=OIF.DZx8KHBmeOr7Pkjnc%2bkV5w&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6%7ewAAeSwTLhqPBBp%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f655dcec8dd62ad975aaf299f98717b0%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=291&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0D9C7C28706678EAFB3E48E773E915E7&selectedIndex=29&itb=0
+      - list [ref=f169e629]:
+        - listitem [ref=f169e630]:
+          - generic [ref=f169e631]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e633] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=JDpGQRZu&id=B660DC94DC3C4263916C3002EED98AD87857DF89&thid=OIF.NXb8RkN6Pjp9gwhMuV9V8w&mediaurl=https%3a%2f%2fstorage.googleapis.com%2ftcg-automate-images%2f0673ffec-c567-47a8-8777-f8bdbf04a66c-DocTCG01570021.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.243a4641166e94f505f45a1ddf6ae4ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1418&expw=1026&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3576FC46437A3E3A7D83084CB95F55F3&selectedIndex=5&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e635]
+            - generic [ref=f169e636]:
+              - link "Explorer's Cache U The Lost Caverns of Ixalan 184 LP | eBay" [ref=f169e637] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=JDpGQRZu&id=B660DC94DC3C4263916C3002EED98AD87857DF89&thid=OIF.NXb8RkN6Pjp9gwhMuV9V8w&mediaurl=https%3a%2f%2fstorage.googleapis.com%2ftcg-automate-images%2f0673ffec-c567-47a8-8777-f8bdbf04a66c-DocTCG01570021.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.243a4641166e94f505f45a1ddf6ae4ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1418&expw=1026&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3576FC46437A3E3A7D83084CB95F55F3&selectedIndex=5&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Explorer's Cache U The Lost Caverns of Ixalan 1…" [ref=f169e638] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=JDpGQRZu&id=B660DC94DC3C4263916C3002EED98AD87857DF89&thid=OIF.NXb8RkN6Pjp9gwhMuV9V8w&mediaurl=https%3a%2f%2fstorage.googleapis.com%2ftcg-automate-images%2f0673ffec-c567-47a8-8777-f8bdbf04a66c-DocTCG01570021.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.243a4641166e94f505f45a1ddf6ae4ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=1418&expw=1026&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=3576FC46437A3E3A7D83084CB95F55F3&selectedIndex=5&itb=0
+        - listitem [ref=f169e639]:
+          - generic [ref=f169e640]:
+            - generic [ref=f169e641]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e642] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1XzjBe%2bi&id=A2064C6E682773B2B3698926B4EA2BF606EE5315&thid=OIF.N7VSgSNJpU%2fR7v8QoEtr2g&mediaurl=https%3a%2f%2fjf.x.com%2fimages%2fmedia-preview%2f2097084887299653715&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d57ce305efa2defbbc128ab99e0f96a2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=800&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=37B552812349A54FD1EEFF10A04B6BDA&selectedIndex=10&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e644]
+              - link "2 days ago" [ref=f169e645] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1XzjBe%2bi&id=A2064C6E682773B2B3698926B4EA2BF606EE5315&thid=OIF.N7VSgSNJpU%2fR7v8QoEtr2g&mediaurl=https%3a%2f%2fjf.x.com%2fimages%2fmedia-preview%2f2097084887299653715&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d57ce305efa2defbbc128ab99e0f96a2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=800&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=37B552812349A54FD1EEFF10A04B6BDA&selectedIndex=10&itb=0
+            - generic [ref=f169e647]:
+              - 'link "Ilaan on X: \"HELP THEY LOOK SO COOL, AND OMG SETT IM IN LOVE HE''S ..." [ref=f169e648] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=1XzjBe%2bi&id=A2064C6E682773B2B3698926B4EA2BF606EE5315&thid=OIF.N7VSgSNJpU%2fR7v8QoEtr2g&mediaurl=https%3a%2f%2fjf.x.com%2fimages%2fmedia-preview%2f2097084887299653715&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d57ce305efa2defbbc128ab99e0f96a2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=800&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=37B552812349A54FD1EEFF10A04B6BDA&selectedIndex=10&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Ilaan on X: \"HELP THEY LOOK SO COOL, AND …" [ref=f169e649] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=1XzjBe%2bi&id=A2064C6E682773B2B3698926B4EA2BF606EE5315&thid=OIF.N7VSgSNJpU%2fR7v8QoEtr2g&mediaurl=https%3a%2f%2fjf.x.com%2fimages%2fmedia-preview%2f2097084887299653715&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d57ce305efa2defbbc128ab99e0f96a2%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=800&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=37B552812349A54FD1EEFF10A04B6BDA&selectedIndex=10&itb=0
+        - listitem [ref=f169e650]:
+          - generic [ref=f169e651]:
+            - generic [ref=f169e652]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e653] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pr8%2f8ycX&id=120BF9C95517E872BEF11AB96FF9F0F88B2070B3&thid=OIF.CguGA%2bMQn1p7fFJ76NNJmg&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f342170%2fbonders-enclave-borderless-galaxy-foil-edge-of-eternities-stellar-sights.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a6bf3ff3271762868cc01bd48a8dd8c6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0A0B8603E3109F5A7B7C527BE8D3499A&selectedIndex=13&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e655]
+              - link "2 days ago" [ref=f169e656] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pr8%2f8ycX&id=120BF9C95517E872BEF11AB96FF9F0F88B2070B3&thid=OIF.CguGA%2bMQn1p7fFJ76NNJmg&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f342170%2fbonders-enclave-borderless-galaxy-foil-edge-of-eternities-stellar-sights.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a6bf3ff3271762868cc01bd48a8dd8c6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0A0B8603E3109F5A7B7C527BE8D3499A&selectedIndex=13&itb=0
+            - generic [ref=f169e658]:
+              - 'link "Enclave dei Vincolatori Ai confini dell’Eternità: Stellar Sights ..." [ref=f169e659] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=pr8%2f8ycX&id=120BF9C95517E872BEF11AB96FF9F0F88B2070B3&thid=OIF.CguGA%2bMQn1p7fFJ76NNJmg&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f342170%2fbonders-enclave-borderless-galaxy-foil-edge-of-eternities-stellar-sights.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a6bf3ff3271762868cc01bd48a8dd8c6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0A0B8603E3109F5A7B7C527BE8D3499A&selectedIndex=13&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Enclave dei Vincolatori Ai confini dell’Eternità: Stell…" [ref=f169e660] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=pr8%2f8ycX&id=120BF9C95517E872BEF11AB96FF9F0F88B2070B3&thid=OIF.CguGA%2bMQn1p7fFJ76NNJmg&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f342170%2fbonders-enclave-borderless-galaxy-foil-edge-of-eternities-stellar-sights.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a6bf3ff3271762868cc01bd48a8dd8c6%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=936&expw=672&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=0A0B8603E3109F5A7B7C527BE8D3499A&selectedIndex=13&itb=0
+        - listitem [ref=f169e661]:
+          - generic [ref=f169e662]:
+            - generic [ref=f169e663]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e664] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ZdEo6Z8Z&id=059E68705764F9FBC56C964B6FDF21ED20DACCA8&thid=OIF.isjQF8fsYIld2TdQneHhaA&mediaurl=https%3a%2f%2friftboundroi.com%2fimages%2forigins.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.65d128e99f199b909868f8178d607568%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=8AC8D017C7EC60895DD937509DE1E168&selectedIndex=19&itb=1
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e666]
+              - link "2 days ago" [ref=f169e667] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ZdEo6Z8Z&id=059E68705764F9FBC56C964B6FDF21ED20DACCA8&thid=OIF.isjQF8fsYIld2TdQneHhaA&mediaurl=https%3a%2f%2friftboundroi.com%2fimages%2forigins.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.65d128e99f199b909868f8178d607568%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=8AC8D017C7EC60895DD937509DE1E168&selectedIndex=19&itb=1
+            - generic [ref=f169e669]:
+              - link "Check Riftbound Box Opening Returns - TCGPlayer & CardMarket Data" [ref=f169e670] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ZdEo6Z8Z&id=059E68705764F9FBC56C964B6FDF21ED20DACCA8&thid=OIF.isjQF8fsYIld2TdQneHhaA&mediaurl=https%3a%2f%2friftboundroi.com%2fimages%2forigins.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.65d128e99f199b909868f8178d607568%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=8AC8D017C7EC60895DD937509DE1E168&selectedIndex=19&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Check Riftbound Box Opening Returns - TCG…" [ref=f169e671] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ZdEo6Z8Z&id=059E68705764F9FBC56C964B6FDF21ED20DACCA8&thid=OIF.isjQF8fsYIld2TdQneHhaA&mediaurl=https%3a%2f%2friftboundroi.com%2fimages%2forigins.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.65d128e99f199b909868f8178d607568%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=300&expw=300&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=8AC8D017C7EC60895DD937509DE1E168&selectedIndex=19&itb=1
+        - listitem [ref=f169e672]:
+          - generic [ref=f169e673]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e675] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=MYi7EPuX&id=6A0DDB3A88ECAD1853A7D67472DB8B3A61558DFB&thid=OIF.glQ%2boW2X9HxQQ0WiBIZNAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fWNkAAeSwm-VqJml5%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3188bb10fb97b88be740058c74bf41ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=82543EA16D97F47C504345A204864D00&selectedIndex=24&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e677]
+            - generic [ref=f169e678]:
+              - link "81 The Lost Caverns of Ixalan LCI Art Series Card Complete set NOT ..." [ref=f169e679] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=MYi7EPuX&id=6A0DDB3A88ECAD1853A7D67472DB8B3A61558DFB&thid=OIF.glQ%2boW2X9HxQQ0WiBIZNAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fWNkAAeSwm-VqJml5%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3188bb10fb97b88be740058c74bf41ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=82543EA16D97F47C504345A204864D00&selectedIndex=24&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "81 The Lost Caverns of Ixalan LCI Art Series Car…" [ref=f169e680] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=MYi7EPuX&id=6A0DDB3A88ECAD1853A7D67472DB8B3A61558DFB&thid=OIF.glQ%2boW2X9HxQQ0WiBIZNAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fWNkAAeSwm-VqJml5%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3188bb10fb97b88be740058c74bf41ee%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=400&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=82543EA16D97F47C504345A204864D00&selectedIndex=24&itb=0
+        - listitem [ref=f169e681]:
+          - generic [ref=f169e682]:
+            - generic [ref=f169e683]:
+              - link "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e684] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tOWP0OM2&id=45886AC24FA1935DF21A8C6DC467DB00EC3AE8E8&thid=OIF.GTv%2baXWuhsr%2fV%2fnXaJq21w&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f66894%2fherald-of-orange-light-battle-pack-3-monster-league-66894.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4e58fd0e3362eba0012f9100d682278%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=367&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=193BFE6975AE86CAFF57F9D7689AB6D7&selectedIndex=31&itb=0
+                - img "Image result for \"rivals of ixalan\" empty bundle box OR \"fat pack box\" magic storage" [ref=f169e686]
+              - link "1 day ago" [ref=f169e687] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tOWP0OM2&id=45886AC24FA1935DF21A8C6DC467DB00EC3AE8E8&thid=OIF.GTv%2baXWuhsr%2fV%2fnXaJq21w&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f66894%2fherald-of-orange-light-battle-pack-3-monster-league-66894.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4e58fd0e3362eba0012f9100d682278%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=367&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=193BFE6975AE86CAFF57F9D7689AB6D7&selectedIndex=31&itb=0
+            - generic [ref=f169e689]:
+              - 'link "Araldo della Luce Arancione Battle Pack 3: Monster League | Yu-Gi-Oh ..." [ref=f169e690] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=tOWP0OM2&id=45886AC24FA1935DF21A8C6DC467DB00EC3AE8E8&thid=OIF.GTv%2baXWuhsr%2fV%2fnXaJq21w&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f66894%2fherald-of-orange-light-battle-pack-3-monster-league-66894.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4e58fd0e3362eba0012f9100d682278%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=367&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=193BFE6975AE86CAFF57F9D7689AB6D7&selectedIndex=31&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Araldo della Luce Arancione Battle Pack 3…" [ref=f169e691] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=tOWP0OM2&id=45886AC24FA1935DF21A8C6DC467DB00EC3AE8E8&thid=OIF.GTv%2baXWuhsr%2fV%2fnXaJq21w&mediaurl=https%3a%2f%2fwww.cardtrader.com%2fuploads%2fblueprints%2fimage%2f66894%2fherald-of-orange-light-battle-pack-3-monster-league-66894.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4e58fd0e3362eba0012f9100d682278%3frik%3d%26pid%3dImgRaw%26r%3d0&exph=367&expw=251&q=%22rivals+of+ixalan%22+empty+bundle+box+OR+%22fat+pack+box%22+magic+storage&FORM=IRPRST&ck=193BFE6975AE86CAFF57F9D7689AB6D7&selectedIndex=31&itb=0
+  - button "Feedback" [ref=f169e694] [cursor=pointer]
+  - contentinfo [ref=f169e696]:
+    - generic [ref=f169e697]:
+      - generic [ref=f169e698]: © 2026 Microsoft
+      - list:
+        - listitem [ref=f169e699]:
+          - link "Privacy" [ref=f169e700] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+        - listitem [ref=f169e701]:
+          - link "Terms" [ref=f169e702] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=246338
+        - listitem [ref=f169e703]:
+          - link "Advertise" [ref=f169e704] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=868922
+        - listitem [ref=f169e705]:
+          - link "About our ads" [ref=f169e706] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=286759
+        - listitem [ref=f169e707]:
+          - link "Help" [ref=f169e708] [cursor=pointer]:
+            - /url: https://support.microsoft.com/topic/82d20721-2d6f-4012-a13d-d1910ccf203f
+        - listitem [ref=f169e709]:
+          - button "Feedback" [ref=f169e710] [cursor=pointer]
+        - listitem [ref=f169e711]:
+          - link "Consumer Health Privacy" [ref=f169e712] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=2259814

@@ -111,6 +111,23 @@ tools/tob_build_packs.sh          # builds build/ AND the lane pack in one go
 ./src/build_opt/torirsserver --selftest              # baseline: 0 failures
 ```
 
+**Plugins stay off for every selftest and every Gate D capture.**
+`TORIRS_PLUGINS=0` on the client (`torirs` / `TORIRS_EXIT_BMP`). The env
+outranks `[ui:boot] plugins=` in the manifest. Do not run a quest selftest
+or named BMP with plugins on — overlays are not content evidence. The
+C `--selftest` binary has no plugin host; still export `TORIRS_PLUGINS=0`
+so any client you spawn from the same shell stays clean.
+
+**The player is unkillable unless the step is a death test.**
+A named BMP that shows Lumbridge after `Oh dear, you are dead!` is not
+quest evidence. Level-3 logins die to Karamja snakes, Harpies, Jogres,
+and wilderness NPCs before the dump. Gate D / `TORIRS_BMP_SERIES` boots
+turn on `::god` at login (`TORIRS_EXIT_BMP` / `TORIRS_BMP_SERIES` /
+`TORIRSSERVER_GOD=1`). Still put `god 1` first in `TORIRS_NET_CHEAT`
+(`god 1;junglebmp_ardrigal`). C quest selftests set `player->godmode = 1`
+for the whole walk. Only a step whose assertion *is* death sends
+`::god 0` / `player->godmode = 0`.
+
 Rules that keep this honest:
 
 - **Two script packs exist.** `ToriRSServer --selftest` reads

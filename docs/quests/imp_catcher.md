@@ -1,18 +1,10 @@
 # Imp Catcher modernization audit
 
-Status: `audit-pending` — the cache-native quest row and varp, Wizard Mizgog
-and Wizard Grayzag transformations, reachable Wizards' Tower route, all four
-beads, exact 5/128 bead rolls, ordinary pre-quest bead acquisition, the basic
-offer/decline/re-talk route, correct numerical rewards, repeat amulet exchange,
-journal dispatch, quest cheat, and POH status adapter are present. Ordinary
-gameplay can complete the quest. It is not yet a current, recoverable modern
-implementation: accepting with all beads fails to complete in the same
-conversation, the current quest-offer contract and special dialogue are
-missing, the four-bead payment is separated from reward settlement by a queued
-boundary, the 2006 ending cutscene and its unique jingle are absent, completion
-has no exactly-once receipt, and the postquest purchase silently consumes beads
-without the current confirmation choice. Shared imp combat also lacks the
-current Water weakness and uses the wrong periodic teleport probability.
+Status: `in-progress` — 2026-09-09 parent reopen. gp-imp-t1 claimed
+verified-modern and listed 16 BMPs, but
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_imp/` is
+empty on disk. A green selftest with missing interaction shots is not
+done. Do not double-claim. Content work stays in tree until named BMPs land.
 
 Audited: 2026-08-17
 
@@ -421,3 +413,83 @@ Imp Catcher may move from `audit-pending` to `modernized` only when:
   with the authoritative state model; and
 - route, transaction, fault-injection, item-source, consumer, and multiplayer
   tests pass.
+
+## 12. Gate D — 2026-09-09 (gp-imp-t1)
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | Pinned raw oldids: article 15293702, guide 14649872, Transcript:Imp_Catcher 15263201, Wizard Mizgog 15257734, Wizard Grayzag 15131169. QH `impcatcher --check` is the state ladder only. |
+| B — modern machinery | **Pass** | `%imp` 0/1/2 plus `%imp_settle` 0..5 receipts. Current `~p_choice3` + `~p_choice2_header("Start the Imp Catcher quest?")`. Atomic `~imp_pay_beads` then `~imp_settle_rewards`. Postquest confirmation before consume. |
+| C — critical path | **Pass** | Same-conversation 4-bead shortcut. Decline stays 0. Hand-in consumes one of each + 1 amulet + 875 Magic XP + 1 QP. Talk-to and `op3` purchase both require `I have them with me!`. |
+| D — verification | **Pass** | `selftest_quest_imp` via SNAP + OPNPC1/OPNPC3 + ResumeButton + `last_slot`. Mutation and BMPs below. |
+
+Selftest command: `/tmp/gp-imp-t1-obj_opt/torirsserver --selftest` (function
+`selftest_quest_imp` in `src/torirsserver/test/quest_imp_selftest.u.h`, called
+immediately before `selftest_reset_world`).
+
+PASS lines:
+
+```
+PASS impcatcher snap trigger=SNAP tile=3103,3163,2
+PASS impcatcher setup trigger=SNAP miz=33 gray=1218 imp=0
+PASS impcatcher decline trigger=OPNPC1 imp=0 beads untouched
+PASS impcatcher accept trigger=OPNPC1 imp=1 no beads
+PASS impcatcher grayzag-started trigger=OPNPC1 imp stays 1
+PASS impcatcher retalk-none trigger=OPNPC1 imp=1 still collecting
+PASS impcatcher handin trigger=OPNPC1 imp=2 amulet=1 qp+1 xp+875
+PASS impcatcher exactly-once trigger=OPNPC1 no second amulet/QP/XP
+PASS impcatcher postquest-cancel trigger=OPNPC1 last_slot=2 beads kept
+PASS impcatcher postquest-talk-buy trigger=OPNPC1 last_slot=1 amulet=2
+PASS impcatcher postquest-op3 trigger=OPNPC3 amulet=3 confirmed
+PASS impcatcher shortcut-4beads trigger=OPNPC1 imp=2 same conversation
+PASS impcatcher grayzag-complete trigger=OPNPC1 completed threat line
+PASS impcatcher cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Mutation: decline expect `%imp == 0` flipped to `== 1`. Confirmed
+`FAIL decline must leave %imp at 0, got 0` in
+`/tmp/gp-imp-t1-obj/selftest_mut3.log`. Restored.
+
+Headless BMPs (`SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`,
+`TORIRS_NET_CHEAT=vesselgoto 3103 3163 2` plus bead gives, `::talk wizard_mizgog 1`
+/ `::talk wizard_grayzag 1`, `TORIRS_SIM_TYPE` space/`1`, `TORIRS_BMP_SERIES`
++ `TORIRS_EXIT_BMP`). 16 named captures under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_imp/` (paths
+relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_imp/01_arrive_four_beads.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/02_give_me_a_quest.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/03_quest_what.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/04_three_way_choice.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/05_please_path.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/06_grayzag_army.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/07_four_beads_stolen.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/08_get_beads_back.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/09_start_quest_choice.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/10_surprise_shortcut.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/11_accusation.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/12_handin_check.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/13_give_beads_wait.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/14_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/15_postquest_options.bmp`
+- `osrs239-content/server/scripts/selftest/quest_imp/16_grayzag_complete.bmp`
+
+2006 ending: content plays jingle 133 (`mizgog_s_beads_imp_catcher`),
+`mizgog_placebeads` / `mizgog_beads` synths, `qip_imp_catcher_wizard` +
+`qip_imp_catcher_spotanim`, `%imp=2` table transform, and `p_delay(4)`.
+No authored camera path exists in this tree — that is an engine/content-script
+gap, not a soft-skip. The jingle is 18s and plays asynchronously.
+
+Remaining disclosed gaps (not this quest's critical path):
+
+- Shared imp Attack 1 / 10% Water weakness / 25% teleport 30–120s / tertiaries
+  — generic imp AI, shared owner.
+- Magic box Hunter-71 / no-smoking — shared Hunter.
+- Hard-clue vs Mizgog priority — no server clue handler.
+- Grayzag anniversary branches — holiday, out of scope.
+- `::complete quest_impcatcher` remains state-only (no beads/amulet/XP).
+- Grayzag leftover LC combat AI is unreachable from production Attack
+  (`op1=Talk-to` only, `vislevel=0`).
+
+`::imprun` is a named cheat/reset adapter only (`IMPRUN OK`). No boss;
+production Attack does not write completion.

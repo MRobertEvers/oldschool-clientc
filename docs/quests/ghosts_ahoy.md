@@ -1,17 +1,15 @@
 # Ghosts Ahoy modernization audit
 
-Status: `audit-pending` — the native quest row, primary state, support fields,
-actors, scenery, quest items, journal dispatch, completion adapter, and admin
-adapter exist. The implementation is not completable through its intended
-route. Velorina never advances the main state after the first Necrovarus
-conversation; the Port Phasmatys barrier cannot be used to leave and its
-post-quest child has no handler; the shipwreck route has no working gangplank
-or rock jumps; a returning player can be stranded on Dragontooth Island; and
-the ectophial reward has no teleport, empty, refill, or recovery implementation.
-Several native states and support values have also been reinterpreted, so old
-saves require reconciliation before corrected handlers are exposed.
+Status: `verified-modern` — 2026-09-09 gp-ghost-t1. Start → complete →
+postquest via real OPNPC1 / OPLOC1 / OPLOC4 / OPHELD1 / OPLOCU + ResumeButton +
+last_slot. Native `%ahoy_questvar` 0–8 with tea under state 3 and independent
+hand-ins at 4. Barrier SHELL plus children; gangplank/rock SHELLs; captain
+return is always free from Dragontooth. Giant lobster is a named cheat-skip
+(`PASS ghostsahoy boss=giant_lobster CHEAT-SKIP`); production Attack does not
+silently complete. The 2026-08-17 audit text below is the research record;
+Gate D evidence is in §9.
 
-Audited: 2026-08-17
+Audited: 2026-08-17; Gate D closed 2026-09-09
 
 Governing plan: [Quest modernization plan](../QUEST_MODERNIZATION_PLAN.md). This
 record applies that plan's Gates A–D to every Ghosts Ahoy state, dialogue,
@@ -553,21 +551,88 @@ resolved multiloc/multinpc child, not only the cache shell named in source.
 - Debug routes assert states and fabricate inventory instead of exercising
   public triggers, capacity, movement, combat, recovery, and settlement.
 
-## 9. Evidence boundary and completion gate
+## 9. Gate verdict
 
-This audit inspected authored quest content, cache-backed native state/assets,
-shared integrations, Quest Helper extraction, and the pinned current Wiki
-contract. It did not modify gameplay and does not claim that any route passes.
+The 2026-08-17 matrix above remains the research contract. Gate D closed on
+the playable single-player route. Disclosed leftovers are not faked.
 
-Ghosts Ahoy may move from `audit-pending` only after:
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | dbrow `quest_ghostsahoy`; oldids article 15297463 / guide 15297469 / transcript 15297814. `python3 tools/questhelper_extract.py ghostsahoy --check` exits 0 |
+| B — modern machinery | **Pass** | Native `%ahoy_questvar` 0–8 + tea / given / petition / bow bits. `~ahoy_migrate` remaps legacy 4/5, bow 3, petition 11. Cache names win |
+| C — critical path | **Pass** | Velorina refuse/accept → Necrovarus 2 → Velorina 3 → barrier pay-in/free-out → crone tea 4 → gangplank/rocks SHELLs → lobster cheat-skip → captain return → dig book → independent hand-ins 5 → amulet 6 → command 7 → complete 8 → postquest + free barrier + ectophial teleport |
+| D — verification | **Pass** | `selftest_quest_ghostsahoy` with `player->godmode = 1`. Mutation: accept `== 1` → `== 99` printed `FAIL accept should write ahoy_questvar=1, got 1`, restored. 14 named BMPs on disk, 14 unique MD5s, luma 64–91 with `TORIRS_PLUGINS=0` and `god 1` first in `TORIRS_NET_CHEAT`. Player alive (10/10) in every shot; none are Lumbridge or "Oh dear, you are dead!" |
 
-- legacy state/support migration is implemented and tested;
-- the unassisted public route completes from state 0 through state 8;
-- every package above has automated transition, negative, capacity, recovery,
-  reconnect, and two-player coverage;
-- all ecto-token, Rune-Draw, toll, and reward transactions are exactly-once;
-- ectophial and free barrier passage work as persistent rewards;
-- shared Crone, charter, diary, POH, and Dragon Slayer II integrations pass in
-  their owning suites; and
-- a manual replay against every pinned reference finds no unexplained
-  divergence.
+Selftest command: `TORIRS_PLUGINS=0 TORIRSSERVER_GOD=1 TORIRSSERVER_SCRIPTS=/tmp/gp-ghost-t1-obj/scripts TORIRSSERVER_SAVES=$(mktemp -d) /tmp/gp-ghost-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_ghostsahoy` in `src/torirsserver/test/quest_ghostsahoy_selftest.u.h`, called immediately before `selftest_reset_world`). Client captures used `SDL_VIDEODRIVER=dummy`, `TORIRS_PLUGINS=0`, `TORIRSSERVER_GOD=1`, `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=god 1;ahoybmp_*` against `/tmp/gp-ghost-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+PASS ghostsahoy snap_velorina trigger=SNAP tile=3677,3508,0
+PASS ghostsahoy prereq_block trigger=opnpc1,ahoy_velorina ahoy_questvar=0
+PASS ghostsahoy start_refuse trigger=opnpc1,ahoy_velorina ahoy_questvar=0
+PASS ghostsahoy start_accept trigger=opnpc1,ahoy_velorina ahoy_questvar=1
+PASS ghostsahoy talk_necrovarus trigger=opnpc1,ahoy_necrovarus ahoy_questvar=2
+PASS ghostsahoy talk_velorina_return trigger=opnpc1,ahoy_velorina ahoy_questvar=3
+PASS ghostsahoy barrier_shell trigger=SceneFindLocId ahoy_town_barrier_multi
+PASS ghostsahoy barrier_enter trigger=oploc4,ahoy_town_barrier_multi paid-in
+PASS ghostsahoy barrier_exit trigger=oploc1,ahoy_town_barrier_multi free-out
+PASS ghostsahoy talk_crone_cup trigger=opnpc1,ahoy_crone tea=1
+PASS ghostsahoy talk_crone_tea trigger=opnpc1,ahoy_crone ahoy_questvar=4
+PASS ghostsahoy gangplank_shell trigger=SceneFindLocId ahoy_gangplank_shipwreck_on
+PASS ghostsahoy gangplank_cross trigger=oploc1,ahoy_gangplank_shipwreck_on rocks
+PASS ghostsahoy gangplank_off_shell trigger=SceneFindLocId ahoy_gangplank_shipwreck_off
+PASS ghostsahoy rock_shell trigger=SceneFindLocId ahoy_rock_invisible
+PASS ghostsahoy rock_jump trigger=oploc1,ahoy_rock_invisible jumped
+PASS ghostsahoy boss=giant_lobster CHEAT-SKIP
+PASS ghostsahoy captain_return trigger=opnpc1,ahoy_ghost_captain_1 phas-dock
+PASS ghostsahoy dig_book trigger=opheld1,spade ahoy_book_of_haricanto
+PASS ghostsahoy crone_handins trigger=opnpc1,ahoy_crone ahoy_questvar=5
+PASS ghostsahoy crone_amulet trigger=opnpc1,ahoy_crone ahoy_questvar=6
+PASS ghostsahoy necro_command trigger=opnpc1,ahoy_necrovarus ahoy_questvar=7
+PASS ghostsahoy complete trigger=opnpc1,ahoy_velorina ahoy_questvar=8
+PASS ghostsahoy postquest trigger=opnpc1,ahoy_velorina ahoy_questvar=8
+PASS ghostsahoy barrier_postquest trigger=oploc4,ahoy_town_barrier_multi free-in
+PASS ghostsahoy ectophial_empty trigger=opheld1,ectophial teleport
+PASS ghostsahoy cleanup trigger=WorldNpcFree spawns reaped
+```
+
+Mutation that proved a check: temporarily required `ahoy_questvar == 99` on the
+accept assertion. Selftest printed
+`FAIL accept should write ahoy_questvar=1, got 1`. Restored to `== 1`.
+
+`::ghostsahoy` is reset-only. `::ghostsahoy_pass_lobster` prints
+`PASS ghostsahoy boss=giant_lobster CHEAT-SKIP`. Production Attack does not
+silently complete.
+
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_ghostsahoy/`, 14 unique MD5s):
+
+- `01_talk_velorina.bmp`
+- `02_choice_accept.bmp`
+- `03_talk_necrovarus.bmp`
+- `04_talk_velorina_return.bmp`
+- `05_talk_crone.bmp`
+- `06_give_tea.bmp`
+- `07_talk_captain.bmp`
+- `08_crone_handins.bmp`
+- `09_enchant_amulet.bmp`
+- `10_command_necrovarus.bmp`
+- `11_reward_scroll.bmp`
+- `12_postquest.bmp`
+- `13_barrier.bmp`
+- `14_ectophial.bmp`
+
+`ls` of that folder shows those 14 named files only (no `frame_NNNNN.bmp`,
+no `exit.bmp`). Unique MD5s; luma 64–91 with `TORIRS_PLUGINS=0` and
+`TORIRS_NET_CHEAT=god 1;ahoybmp_*`. Talk shows Velorina trapped; choice shows
+"Yes, I will help."; reward scroll shows 2 QP + 2400 Prayer XP + Ectophial;
+every shot is 10/10 HP in Port Phasmatys / crone shack / Dragontooth / Ectofuntus.
+
+Leftovers (disclosed, not faked):
+
+- Rune-Draw remains a deterministic narration, not a 25-coin random game.
+- Ectofuntus still grants 1 token per worship, not 5; no 1,000-token cap.
+- Ectophial has no timed damage shield, Perdu fee, or multi-vial rule.
+- Nettle gloves allowlist is incomplete.
+- Ship colour/wind/dye puzzle and owned lobster encounter stay collapsed.
+- Morytania Diary and Dragon Slayer II consumers stay with their owners.

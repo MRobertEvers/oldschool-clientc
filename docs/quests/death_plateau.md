@@ -1,15 +1,11 @@
 # Death Plateau modernization audit
 
-Status: `audit-pending` — this is a comparatively substantial LostCity port:
-the native quest state, both parallel quest branches, real actors and doors,
-most dialogue, the Harold gamble, secret-path traversal, journal, post-quest
-boots, combat scenery, and shared completion call exist. It is nevertheless not
-organically completable. All five world-spawned stone balls are green, and the
-authored replacement puzzle state permanently locks a mechanism slot when a
-ball is picked up, expires, or was placed before the Combination was read.
-Claw smithing is also available before completion, the gambling presentation
-and danger cutscene are legacy stubs, several item grants are non-atomic, and
-the advertised Troll Stronghold continuation is a dead dialogue branch.
+Status: `verified-modern` — 2026-09-09 worker=gp-death-t1. Puzzle truth is
+`obj_find` on the five mechanism tiles (`~death_ensure_world_balls` replaces
+the all-green world dump at runtime). Claw smithing is gated on state 80.
+Item grants are atomic (`~death_grant` then write). Denulth's postquest
+Troll Stronghold start is spliced (`%troll_quest = ^troll_started`); the
+successor quest body is not implemented here. Leftovers disclosed below.
 
 Audited: 2026-08-17
 
@@ -445,4 +441,86 @@ loss/full inventory/relog, completion and rewards are exactly-once, claws and
 boots are correctly gated, Troll Stronghold can consume the completion
 contract, and Gate D evidence is attached.
 
-This audit intentionally makes no gameplay changes.
+This audit originally made no gameplay changes. The 2026-09-09 repair
+implemented the packages above in place.
+
+## 14. Gate D evidence (2026-09-09, gp-death-t1)
+
+Selftest: `TORIRSSERVER_SCRIPTS=/tmp/gp-death-t1-obj/scripts`
+`/tmp/gp-death-t1-obj_opt/torirsserver --selftest`
+(`selftest_quest_deathplateau`). Mutation: accept assertion
+`death_equiproom == 10` temporarily required `== 99`; printed
+`FAIL accept should write death_equiproom=10, got 10`; restored.
+
+PASS lines:
+
+- `PASS deathplateau loc_mechanism trigger=SceneFindLocId death_stone_mechanism`
+- `PASS deathplateau loc_castledoor trigger=SceneFindLocId death_castledoor`
+- `PASS deathplateau loc_harold_door trigger=SceneFindLocId death_harold_door`
+- `PASS deathplateau loc_dangersign trigger=SceneFindLocId death_dangersign_trolls`
+- `PASS deathplateau loc_cave_in trigger=SceneFindLocId death_hermitcave_entrance`
+- `PASS deathplateau loc_cave_out trigger=SceneFindLocId death_hermitcave_exit`
+- `PASS deathplateau loc_stile trigger=SceneFindLocId death_fullstyle`
+- `PASS deathplateau start_refuse trigger=opnpc1,death_ig_commander death_equiproom=0`
+- `PASS deathplateau start_accept trigger=opnpc1,death_ig_commander death_equiproom=10`
+- `PASS deathplateau talk_eohric trigger=opnpc1,death_headservant death_equiproom=20`
+- `PASS deathplateau talk_harold trigger=opnpc1,death_guard_equiproom death_equiproom=30`
+- `PASS deathplateau eohric_hint trigger=opnpc1,death_headservant death_equiproom=40`
+- `PASS deathplateau give_ale trigger=opnpcu,death_guard_equiproom death_equiproom=50`
+- `PASS deathplateau give_blurberry trigger=opnpcu,death_guard_equiproom harold_verydrunk`
+- `PASS deathplateau harold_iou trigger=opnpc1+countdialog death_equiproom=55 iou=1`
+- `PASS deathplateau read_iou trigger=opheld1,death_iou death_equiproom=60`
+- `PASS deathplateau take_balls trigger=opobj3,death_cannonball_* five_colours`
+- `PASS deathplateau place_balls trigger=oplocu,death_stone_mechanism death_equiproom=70`
+- `PASS deathplateau talk_saba trigger=opnpc1,death_hermit death_map=1`
+- `PASS deathplateau talk_tenzing trigger=opnpc1,death_sherpa death_map=2`
+- `PASS deathplateau talk_dunstan trigger=opnpc1,death_smithy death_map=3`
+- `PASS deathplateau denulth_cert trigger=opnpc1,death_ig_commander death_map=4`
+- `PASS deathplateau dunstan_spike trigger=opnpc1,death_smithy death_map=5`
+- `PASS deathplateau tenzing_map trigger=opnpc1,death_sherpa death_map=7`
+- `PASS deathplateau scout_path trigger=zone,0_44_56_48_24 death_map=8`
+- `PASS deathplateau handin_complete trigger=opnpc1,death_ig_commander death_equiproom=80 claws+qp+xp`
+- `PASS deathplateau postquest_troll trigger=opnpc1,death_ig_commander troll_quest started`
+- `PASS deathplateau cleanup trigger=WorldNpcFree spawns reaped`
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=deathbmp_*`). 12 named BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_death/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_death/01_talk_denulth.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/03_talk_eohric.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/04_talk_harold.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/05_give_ale.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/06_iou.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/07_place_balls.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/08_talk_saba.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/09_talk_tenzing.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_death/12_postquest.bmp`
+
+`ls` of that folder shows those 12 named files only (no `frame_NNNNN.bmp`).
+Unique MD5s. No boss; no named CHEAT-SKIP.
+
+Leftovers (not Gate D blockers):
+
+- No `death_dice` interface or Lucky Win/Bad Roll jingles in the osrs239
+  cache. Harold uses hosted `dice_roll_*` seqs, stored roll bits, and
+  `p_countdialog`.
+- Danger-sign camera/troll cinematic is engine-blocked (`cam_*` not hosted);
+  Read still shows the Imperial Guard warning.
+- Combination is a mesbox (no handwriting panel in cache).
+- Generated `m45_55.spawn` still names five greens; runtime resync is the
+  in-lane fix. Do not hand-edit the generated spawn file.
+- Troll Stronghold body is a sibling quest; only the Denulth start splice
+  lives here.
+- Archer combat/drop polish and ambient soldier timers remain world-combat
+  work.
+
+`python3 tools/questhelper_extract.py deathplateau --check` exits 0.
+
+`::deathreset` / `::deathballs` are named reset/cheats only. Not playthrough
+evidence.

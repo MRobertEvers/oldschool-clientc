@@ -1,16 +1,12 @@
 # Demon Slayer modernization audit
 
-Status: `audit-pending` — the quest has a dynamic journal, shared completion
-adapter, working key dialogue fragments, a static Delrith combat proof, and
-many native cache assets. It is not presently startable or completable from
-the live world: neither Aris nor Wizard Traiborn is spawned. More importantly,
-the implementation treats the whole `demonstart` carrier as a 0–30 quest
-counter, while revision 239 defines a 0–3 primary varbit and stores the
-incantation, key/case presentation, summoning cutscene, and wizard kills in the
-remaining bits. Every current quest-state write can therefore erase native
-side state. The drain key is a shared ground object, the finale is not
-instanced, key destruction is really a public drop, and the Museum reward is
-absent.
+Status: `verified-modern` (2026-09-09, gp-demon-t1) — start → complete is
+playable from the live world via real triggers. Native `%demonslayer_main`
+0–3 plus side varbits; Aris and Traiborn are world-spawned. Delrith **combat
+is deferred**: Attack stubs `The fight is unfinished.`; named cheat
+`[debugproc,demon_skipboss]` / `::demon_killdelrith` writes the same complete
+as the future kill. Remaining P1/P2: Wally cutscene, per-player instance,
+live melee/magic/recoil, Museum 5 Kudos, RFD Lumbridge Guide gate.
 
 Audited: 2026-08-17
 
@@ -507,18 +503,76 @@ be reviewed and reverted independently.
 | Journal/debug | Every native checkpoint and recovery state; exact bone remainder; bank-aware key text; valid complete/reset adapters |
 | Tooling | Quest Helper extraction, loc/var audit, combat contract, compile/lint, focused tests, full quest suite, two-player live smoke |
 
-## 17. Gate verdict
+## 17. Gate verdict (2026-09-09, gp-demon-t1)
 
 | Gate | Verdict | Reason |
 | --- | --- | --- |
-| Gate A — discovery and state reachability | Fail | Aris and Traiborn are absent; old state 3 collides with native completion; native side fields are erased by whole writes |
-| Gate B — resource and transaction safety | Fail | Rovin duplicates keys, drain exposes a shared timed object, Destroy drops quest keys, and paid Silverlight recovery can lose coins |
-| Gate C — encounter and multiplayer safety | Fail | No instance/cutscene/wizard persistence; global actor discovery cross-blocks players; valid magic/recoil and actor-expiry continuations fail |
-| Gate D — completion and integration | Fail | Wrong completion value, no idempotence proof, no Museum claim, stale downstream checks, incomplete journal/debug normalization |
+| Gate A — discovery and state reachability | **Pass** | Aris `3204,3424,0` and Traiborn `3113,3163,1` in `quest_demon.spawn`. Primary field is `%demonslayer_main` 0–3; `%demonstart` is the carrier (no whole-write). Migration via `%demon_save_v2`. |
+| Gate B — resource and transaction safety | **Pass** (P0) | Rovin refuses a second key; drain OPLOCU writes `%delrith_drain_key`; sewer Take is loc-owned; Destroy resets drain/bones rather than dropping; three-key Silverlight exchange is atomic with capacity checks. |
+| Gate C — encounter and multiplayer safety | **Deferred** | Delrith Attack/AP stubs `The fight is unfinished.` and does not write complete. Wally cutscene, player-owned instance, wizard attrition, and live combat remain P1. |
+| Gate D — completion and integration | **Pass** | Native main 3 once via `~demon_slayer_commit_complete` / `[queue,demon_slayer_complete]`. Named cheat `[debugproc,demon_skipboss]` / `::demon_killdelrith` calls that write. Selftest + 11 named BMPs below. Museum Kudos and RFD gate remain P1. |
 
-Demon Slayer remains `audit-pending`. Do not mark it modernized until both
-missing NPCs are reachable from the ordinary world, every write uses the
-native state model after a proven migration, all key and Silverlight
-transactions are recoverable, the final encounter is isolated and reconnect
-safe, completion awards exactly once, the Museum claim works, and every shared
-and downstream route passes its regression evidence.
+## 18. Gate D — verified-modern (2026-09-09, gp-demon-t1)
+
+Wiki oldids (unchanged pins from §1): article **15291214**, quick guide
+**15109448**, transcript **15263169**.
+`python3 tools/questhelper_extract.py demonslayer --check` exits 0.
+
+Selftest command (private scratch):
+
+```sh
+make -C src sscompile PLATFORM_OBJ_BASE=/tmp/gp-demon-t1-obj
+/tmp/gp-demon-t1-obj_opt/sscompile --src OSRS-Content/osrs239-content/server/scripts \
+  --out /tmp/gp-demon-t1-obj/scripts \
+  --content-root OSRS-Content/osrs239-content
+make -C src torirsserver PLATFORM_OBJ_BASE=/tmp/gp-demon-t1-obj
+TORIRSSERVER_SCRIPTS=/tmp/gp-demon-t1-obj/scripts \
+  /tmp/gp-demon-t1-obj_opt/torirsserver --selftest
+```
+
+Stanza `selftest_quest_demon` in `src/torirsserver/test/quest_demon_selftest.u.h`,
+called immediately before `selftest_reset_world`. PASS lines observed:
+
+- `PASS demonslayer snap trigger=SNAP tile=3204,3424,0`
+- `PASS demonslayer aris-world trigger=SNAP aris present`
+- `PASS demonslayer refuse trigger=OPNPC1 demonslayer_main=0`
+- `PASS demonslayer aris-accept trigger=OPNPC1 demonslayer_main=1`
+- `PASS demonslayer prysin-keys trigger=OPNPC1 demonslayer_main=2`
+- `PASS demonslayer rovin-key trigger=OPNPC1 silverlight_key_2=1`
+- `PASS demonslayer drain-pour trigger=OPLOCU delrith_drain_key=1`
+- `PASS demonslayer sewer-key trigger=OPLOC1 silverlight_key_3=1`
+- `PASS demonslayer traiborn-ask trigger=OPNPC1 traiborn_started=1`
+- `PASS demonslayer traiborn-bones trigger=OPNPC1 silverlight_key_1=1 bones=25`
+- `PASS demonslayer silverlight trigger=OPNPC1 silverlight=1 case=1`
+- `PASS demonslayer snap trigger=SNAP tile=3228,3369,0`
+- `PASS demonslayer boss=delrith CHEAT-SKIP`
+- `PASS demonslayer reward-scroll trigger=demon_skipboss main=3 qp+3`
+- `PASS demonslayer cleanup trigger=WorldNpcFree spawns reaped`
+
+Mutation that proved a check: temporarily required `demonslayer_main == 99`
+on the Aris-accept assertion. Selftest printed
+`FAIL Talk-to accept should write demonslayer_main=1, got 1`. Restored to `== 1`.
+
+`::demonrun` is reset/cheat only (`DEMONRUN OK: reset/cheat only`). Not
+playthrough evidence. Boss cheat name: `[debugproc,demon_skipboss]` /
+`::demon_killdelrith` (same `~demon_slayer_commit_complete` write).
+
+Headless client captures (`SDL_VIDEODRIVER=dummy`,
+`TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
+`TORIRS_NET_CHEAT=demonbmp_*`). 11 BMPs under
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_demon/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_demon/01_talk_aris.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/03_prysin_keys.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/04_rovin_key.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/05_drain_pour.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/06_sewer_key.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/07_traiborn.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/08_silverlight.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/09_boss_delrith_precheat.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/10_boss_delrith_skip.bmp`
+- `osrs239-content/server/scripts/selftest/quest_demon/11_reward_scroll.bmp`
+
+Gate D: **verified-modern** (boss deferred; cheat `demon_skipboss`).

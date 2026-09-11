@@ -1,0 +1,101 @@
+- generic [active] [ref=f338e1]:
+  - banner [ref=f338e2]:
+    - generic [ref=f338e3]:
+      - link [ref=f338e4] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=f338e5]
+      - search [ref=f338e6]:
+        - button "Search" [ref=f338e9] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=f338e10]: site:coolstuffinc.com "Bundle Card Box"
+        - button "Search using an image" [ref=f338e13] [cursor=pointer]
+    - complementary "Account Rewards and Preferences" [ref=f338e14]:
+      - button "Microsoft Rewards" [ref=f338e15] [cursor=pointer]:
+        - generic [ref=f338e16]: Rewards
+      - link [ref=f338e32] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - button "Sign in" [ref=f338e35]
+      - button "Settings and quick links" [ref=f338e36] [cursor=pointer]
+    - navigation "Search Filter" [ref=f338e37]:
+      - list [ref=f338e38]:
+        - listitem [ref=f338e39]:
+          - link "All" [ref=f338e40] [cursor=pointer]:
+            - /url: /search?q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=HDRSC1
+        - listitem [ref=f338e41]:
+          - link "Search" [ref=f338e42] [cursor=pointer]:
+            - /url: /copilotsearch?q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=CSSCOP
+        - listitem [ref=f338e45]:
+          - link "Images" [ref=f338e46] [cursor=pointer]:
+            - /url: /images?FORM=HDRSC2
+        - listitem [ref=f338e47]:
+          - list [ref=f338e48]:
+            - listitem [ref=f338e49]:
+              - link "Create" [ref=f338e50] [cursor=pointer]:
+                - /url: /images/create/ai-image-generator?FORM=IRPGEN
+            - listitem [ref=f338e55]:
+              - link "Collections" [ref=f338e56] [cursor=pointer]:
+                - /url: /saves?FORM=IRPCOL
+        - listitem [ref=f338e60]:
+          - link "Videos" [ref=f338e61] [cursor=pointer]:
+            - /url: /videos/search?q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=HDRSC3
+        - listitem [ref=f338e62]:
+          - link "Maps" [ref=f338e63] [cursor=pointer]:
+            - /url: /maps?q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=HDRSC4
+        - listitem [ref=f338e64]:
+          - link "News" [ref=f338e65] [cursor=pointer]:
+            - /url: /news/search?q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=HDRSC6
+        - listitem [ref=f338e66]:
+          - button [ref=f338e67] [cursor=pointer]
+      - generic [ref=f338e71]:
+        - generic [ref=f338e72]:
+          - list:
+            - listitem [ref=f338e73]:
+              - generic [ref=f338e74]: "SafeSearch:"
+            - listitem [ref=f338e75]:
+              - button "Moderate SafeSearch:" [ref=f338e76] [cursor=pointer]:
+                - generic [ref=f338e77]: Moderate
+        - button "Filter" [ref=f338e80] [cursor=pointer]
+  - main [ref=f338e83]:
+    - navigation [aria-hidden] [ref=f338e84]:
+      - switch [ref=f338e88] [cursor=pointer]:
+        - generic [ref=f338e89]: New Version
+    - switch "New Version" [ref=f338e97] [cursor=pointer]
+    - list [ref=f338e104]:
+      - listitem [ref=f338e105]:
+        - generic [ref=f338e106]:
+          - link "Image result for site:coolstuffinc.com \"Bundle Card Box\"" [ref=f338e108] [cursor=pointer]:
+            - /url: /images/search?view=detailV2&ccid=9vHjR%2bSC&id=D33DC1927D341E18048D663FEE140716276337E6&thid=OIP.9vHjR-SCVq-kdWzkpgiaSQHaHa&mediaurl=https%3a%2f%2fwww.gifskete.com%2fwp-content%2fuploads%2f2024%2f06%2fdaaef8b5-04b5-4d7c-9c38-63d98a8b6207.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6f1e347e48256afa4756ce4a6089a49%3frik%3d5jdjJxYHFO4%252fZg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=IRPRST&ck=260D3EE9DD0D474303EF4C84C3C1B9E4&selectedIndex=0&itb=0
+            - img "Image result for site:coolstuffinc.com \"Bundle Card Box\"" [ref=f338e110]
+          - generic [ref=f338e111]:
+            - link "Feliz miércoles - Gifs-Kete" [ref=f338e112] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=9vHjR%2bSC&id=D33DC1927D341E18048D663FEE140716276337E6&thid=OIP.9vHjR-SCVq-kdWzkpgiaSQHaHa&mediaurl=https%3a%2f%2fwww.gifskete.com%2fwp-content%2fuploads%2f2024%2f06%2fdaaef8b5-04b5-4d7c-9c38-63d98a8b6207.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6f1e347e48256afa4756ce4a6089a49%3frik%3d5jdjJxYHFO4%252fZg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=IRPRST&ck=260D3EE9DD0D474303EF4C84C3C1B9E4&selectedIndex=0&itb=0
+            - generic:
+              - generic:
+                - list:
+                  - listitem:
+                    - link "Feliz miércoles - Gifs-Kete" [ref=f338e113] [cursor=pointer]:
+                      - /url: /images/search?view=detailV2&ccid=9vHjR%2bSC&id=D33DC1927D341E18048D663FEE140716276337E6&thid=OIP.9vHjR-SCVq-kdWzkpgiaSQHaHa&mediaurl=https%3a%2f%2fwww.gifskete.com%2fwp-content%2fuploads%2f2024%2f06%2fdaaef8b5-04b5-4d7c-9c38-63d98a8b6207.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6f1e347e48256afa4756ce4a6089a49%3frik%3d5jdjJxYHFO4%252fZg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=site%3acoolstuffinc.com+%22Bundle+Card+Box%22&FORM=IRPRST&ck=260D3EE9DD0D474303EF4C84C3C1B9E4&selectedIndex=0&itb=0
+  - button "Feedback" [ref=f338e116] [cursor=pointer]
+  - contentinfo [ref=f338e118]:
+    - generic [ref=f338e119]:
+      - generic [ref=f338e120]: © 2026 Microsoft
+      - list:
+        - listitem [ref=f338e121]:
+          - link "Privacy" [ref=f338e122] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+        - listitem [ref=f338e123]:
+          - link "Terms" [ref=f338e124] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=246338
+        - listitem [ref=f338e125]:
+          - link "Advertise" [ref=f338e126] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=868922
+        - listitem [ref=f338e127]:
+          - link "About our ads" [ref=f338e128] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=286759
+        - listitem [ref=f338e129]:
+          - link "Help" [ref=f338e130] [cursor=pointer]:
+            - /url: https://support.microsoft.com/topic/82d20721-2d6f-4012-a13d-d1910ccf203f
+        - listitem [ref=f338e131]:
+          - button "Feedback" [ref=f338e132] [cursor=pointer]
+        - listitem [ref=f338e133]:
+          - link "Consumer Health Privacy" [ref=f338e134] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=2259814

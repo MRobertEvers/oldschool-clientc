@@ -1,17 +1,10 @@
 # Ernest the Chicken modernization audit
 
-Status: `audit-pending` — the native quest row, four-state progress carrier,
-six lever bits, nine door transforms, quest actors, manor and basement maps,
-all machine parts, journal, modern completion API, and downstream Animal
-Magnetism prerequisite exist. A fresh player can collect the parts and reach
-the nominal completion path, but the implementation is not safe or complete:
-the final scene permanently retypes a shared world NPC because this runtime
-ignores `npc_changetype` durations, settlement marks the quest complete before
-the reward queue and final dialogue, the advertised Killerwatt-plane entrance
-has no outbound handler, and Mazchna can assign Killerwatts before the quest.
-The fountain omits canonical damage and use-on branches, the locked closet
-requires a noncanonical use-item action, abnormal basement exits do not reset
-the puzzle, and multiple current dialogue/recovery contracts are missing.
+Status: `verified-modern` (2026-09-09, gp-ernest-t1) — shipped-but-shit
+repair of the audit-pending defects below. Fresh 0→3 is playable via real
+triggers; settlement is atomic; the shared chicken is not retyped; the
+Killerwatt portal loc is wired. Remaining out-of-lane leftovers are listed
+in §11.
 
 Audited: 2026-08-17
 
@@ -488,3 +481,76 @@ may remain corrupted. Completion must unlock the current Professor dialogue
 and a working Killerwatt-plane portal, current Killerwatt combat and optional
 insulated-boots behavior, Mazchna's correctly gated assignment, and Animal
 Magnetism without relying on debug state or stale legacy assumptions.
+
+## 10. Shipped 2026-09-09 route (gp-ernest-t1)
+
+| Chapter | What shipped |
+| --- | --- |
+| Start | Veronica refuse stays 0; accept writes 1 after the spooky-house explanation; mid-quest chicken/harsh/Eeeeeek lines; post-quest rescue thanks |
+| Fountain | 1 HP bite; ordinary fish food; poisoned food sets `%haunted_manor_fountain_poisoned`; water containers refuse after poison; `inv_itemspace` before the gauge |
+| Closet | Open with key in inventory (not only use-on); compost "You dig through the compost..." / "... and find a small key." |
+| Maze | Lever SHELLS `levera`–`leverf` plus rungs; door SHELLS `1to2`…`5to8`; pull D opens door bit 3 (`5to6`); ladder climb-up and climb-down reset levers |
+| Scene | No `npc_changetype` of `ernest_multichicken`. Cache wrapper hides the chicken at `%haunted=3`. Owned `npc_add` + `npc_setowner` Ernest for the thanks scene |
+| Settlement | `%haunted_settle` handover then paid. Parts consumed first; `%haunted=3`, 300 coins, 4 QP, portal bit, and `~quest_complete_rewards` only after Ernest's thanks. Idempotent |
+| Portal | `draynor_killerwatt_portal` / `_hidden` / return `portal2` wired to cache coords. Members check. Post-quest Professor rift + insulated-boots (`slayer_boots`) warning |
+| Debug | `::hauntedrun` / `::haunted` reset/cheat only (`HAUNTEDRUN OK`). Not playthrough evidence. No boss; tube is a ground spawn |
+
+## 11. Gate verdict
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| A — source coverage | **Pass** | Native row `quest_ernestthechicken`, `%haunted` 0–3, lever bits 1–6, door bits 0–8, fountain fact, Veronica 3110,3330,0, Professor 3110,3367,2. Wiki oldids stay pinned (article 15240928, guide 15176696, transcript 15263198 / Veronica 15263191 / Oddenstein 15248067). `python3 tools/questhelper_extract.py ernestthechicken --check` exits 0 |
+| B — modern machinery | **Pass** | Named 0–3 constants, `%haunted_settle` handover, journal handover line, transmitted `%haunted` / `%ernestlever` / `%ernestdoors` |
+| C — critical path | **Pass** | Talk-to refuse/accept; manor door; fountain bite/poison/gauge; compost key; closet Open; lever/door shells via `SceneFindLocId`; oil can OPOBJ3; tube without a skeleton kill; Professor 1→2 then atomic hand-in; shared chicken type unchanged; post-quest Veronica/Professor; portal OPLOC1 |
+| D — verification | **Pass** | `selftest_quest_haunted` drives not-started → Veronica → manor parts → levers/doors → Oddenstein complete → postquest via real OPNPC1 / OPLOC / OPHELD / OPOBJ3 + ResumeButton + last_slot. Mutation: hand-in `haunted==3` → `==99` printed `FAIL atomic hand-in should set haunted=3, got 3`, then restored. Headless BMPs (12), all on disk with unique MD5s, none black/login |
+
+Selftest command: `TORIRSSERVER_SCRIPTS=/tmp/gp-ernest-t1-obj/scripts /tmp/gp-ernest-t1-obj_opt/torirsserver --selftest` (stanza `selftest_quest_haunted` in `src/torirsserver/test/quest_haunted_selftest.u.h`, called immediately before `selftest_reset_world`). Client captures used `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` / `TORIRS_NET_CHEAT=hauntedbmp_*` against `/tmp/gp-ernest-t1-obj/scripts`.
+
+Selftest PASS lines:
+
+```
+HAUNTED PASS: start_refuse trigger=opnpc1,veronica observable=haunted=0
+HAUNTED PASS: start_accept trigger=opnpc1,veronica observable=haunted=1
+HAUNTED PASS: manor_door trigger=oploc1,haunteddoorl loc_slot=3326
+HAUNTED PASS: fountain_bite trigger=oploc1,hauntedfountain damage
+HAUNTED PASS: poison_food trigger=opheldu,poison observable=poisoned=1
+HAUNTED PASS: fountain_poison trigger=oplocu,hauntedfountain
+HAUNTED PASS: fountain_gauge trigger=oploc1,hauntedfountain inv_gauge=1
+HAUNTED PASS: compost_key trigger=oplocu,hauntedcompostheap
+HAUNTED PASS: closet_open trigger=oploc1,closet_door loc_slot=3324
+HAUNTED PASS: lever_shell SceneFindLocId levera slot=1793
+HAUNTED PASS: lever_d trigger=oploc1,leverd door_bit3
+HAUNTED PASS: door_shell SceneFindLocId 5to6 slot=1787
+HAUNTED PASS: take_oil trigger=opobj3,oil_can
+HAUNTED PASS: rubber_tube obtained without a skeleton kill
+HAUNTED PASS: oddenstein_parts trigger=opnpc1,professor_oddenstein haunted=2
+HAUNTED PASS: handin_complete trigger=opnpc1,professor_oddenstein observable=haunted=3 coins+300 qp+4
+HAUNTED PASS: shared_chicken_unmutated type=ernest_multichicken
+HAUNTED PASS: postquest_veronica trigger=opnpc1,veronica haunted=3
+HAUNTED PASS: portal_enter trigger=oploc1,draynor_killerwatt_portal loc_slot=5067
+HAUNTED PASS: postquest_oddenstein trigger=opnpc1,professor_oddenstein
+```
+
+Mutation that proved a check: temporarily required `haunted == 99` on the atomic hand-in assertion. Selftest printed `FAIL atomic hand-in should set haunted=3, got 3`. Restored to `== 3`.
+
+`::hauntedrun` / `::haunted` are reset/cheat adapters only. Not playthrough evidence. No boss; no `PASS ernestthechicken boss=… CHEAT-SKIP`. Rubber tube is a ground spawn.
+
+Headless BMPs (12) under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_haunted/`
+(paths relative to `OSRS-Content/`):
+
+- `osrs239-content/server/scripts/selftest/quest_haunted/01_talk_veronica.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/03_manor_door.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/04_compost.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/05_fountain.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/06_closet.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/07_levers.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/08_oil_can.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/09_oddenstein.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quest_haunted/12_postquest.bmp`
+
+Gate D: **verified-modern**.
+
+Leftovers (not this lane): Mazchna Killerwatt assignment still has no quest predicate (`skill_slayer/scripts/slayer_masters.rs2`); Killerwatt combat / insulated-boots incoming-ranged reduction; unused machine loc animation/smoke; bookcase still uses temporary `loc_change`; exhaustive 64-combination lever truth table not enumerated beyond live D→bit 3 and shell placement.
