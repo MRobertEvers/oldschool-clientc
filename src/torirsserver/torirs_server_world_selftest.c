@@ -3199,6 +3199,9 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_RIBBIT_ONLY") )
+        goto ribbit_selftest_only;
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
@@ -35896,6 +35899,9 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+ribbit_selftest_only:
+#include "test/quest_ribbitingtale_selftest.u.h"
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
