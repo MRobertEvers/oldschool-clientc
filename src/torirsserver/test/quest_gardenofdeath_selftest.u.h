@@ -389,8 +389,9 @@ selftest_tgod_only:;
         for( s = ToriRSServer_CaptureFindNamed(&godrun_capture, PKT_NAME_MESSAGE_GAME, 0); s >= 0;
              s = ToriRSServer_CaptureFindNamed(&godrun_capture, PKT_NAME_MESSAGE_GAME, s + 1) )
         {
-            const struct ToriRSServerCapturePacket* pkt = &godrun_capture.packets[s];
-            if( pkt->len > 8 && memmem(pkt->bytes, (size_t)pkt->len, "godrun OK", 9) )
+            const struct ToriRSServerCapturedPacket* packet = &godrun_capture.packets[s];
+            const char* text = selftest_message_text(srv, packet);
+            if( text && strstr(text, "godrun OK") != NULL )
                 said_ok = 1;
         }
         ToriRSServer_WorldCloseModal(srv);
