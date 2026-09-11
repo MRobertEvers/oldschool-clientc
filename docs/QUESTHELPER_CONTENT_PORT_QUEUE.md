@@ -290,7 +290,7 @@ filed under `helpers/miniquests/` are at the end.
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
 | 16 | thequeenofthieves | `thequeenofthieves` | 259 | done | 2026-09-11 Gate D parent-verified 60 named / 60 unique-MD5 BMPs cherry-picked onto OSRS-Content@4afc1ac9e4 (worker SHA 2372c7071a not merged wholesale). Leftovers: leftover_full_refuse_trees; leftover_favour_system; leftover_graceful_recolour_ui. Prior done; Gate D recapture. |
 | 17 | rovingelves | `rovingelves` | 263 | done | 2026-09-10 parent-verified 46 unique-MD5 named BMPs on OSRS-Content@5c626c570f. Leftovers: moss start BMP is the weapons-gate mesbox; font kerning. |
-| 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | in_progress | 2026-09-11 claimed `gp-dod-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done | 2026-09-11 Gate D parent-verified 65 named / 65 unique-MD5 BMPs cherry-picked onto OSRS-Content@5e384bef98 (worker SHA f15e8a1ca9 not merged wholesale). Leftovers: leftover_full_refuse_trees; leftover_random_library_bookshelf; leftover_stone_rock_fail_rolls; leftover_sand_snake_instance; leftover_butler_elena_trees; leftover_favour_system; leftover_graceful_recolour_ui. Prior done; Gate D recapture. |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
 | 20 | aporcineofinterest | `aporcineofinterest` | 275 | done |  |
 | 21 | deviousminds | `deviousminds` | 275 | done | 2026-09-10 parent-verified 57 named / 52 unique-MD5 BMPs on OSRS-Content@079a4c3933. Leftovers: Abyss/Law Altar travel soft-skipped; heist narrated mesbox. |
@@ -302,7 +302,7 @@ filed under `helpers/miniquests/` are at the end.
 | 27 | gertrudescat | `gertrudescat` | 299 | done | 2026-09-10 parent-verified 90 unique-MD5 named BMPs on OSRS-Content@d325ac547d. |
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
-| 30 | theascentofarceuus | `theascentofarceuus` | 310 | done |  |
+| 30 | theascentofarceuus | `theascentofarceuus` | 310 | in_progress | 2026-09-11 claimed `gp-aoa-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 31 | trollstronghold | `trollstronghold` | 311 | done | 2026-09-10 parent-verified 107 unique-MD5 named BMPs on OSRS-Content@9705435dc. Leftovers: Eadgar stew/goutweed sibling, journal complete still prints mid-quest lines. |
 | 32 | lostcity | `lostcity` | 312 | done (LC) | re-audit 2026-08-10: `quest_zanaris` (`shamus.rs2`, `tree_spirit.rs2`, `zanaris_camp.rs2`; dbrow `quest_lostcity` journal wired) |
 | 33 | ethicallyacquiredantiquities | `ethicallyacquiredantiquities` | 313 | done |  |
@@ -434,7 +434,7 @@ filed under `helpers/miniquests/` are at the end.
 | 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | done | 2026-09-10 parent-verified 99 unique-MD5 named BMPs on OSRS-Content@fded1b361d. Leftovers: Brundt named Someone; maze/house/chop-carve/Sigmund/Manni soft-skips; name stub. |
 | 160 | thefinaldawn | `thefinaldawn` | 1,274 | done |  |
 | 161 | secretsofthenorth | `secretsofthenorth` | 1,293 | done |  |
-| 162 | theforsakentower | `theforsakentower` | 1,353 | done |  |
+| 162 | theforsakentower | `theforsakentower` | 1,353 | in_progress | 2026-09-11 claimed `gp-tft-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 163 | recruitmentdrive | `recruitmentdrive` | 1,425 | done | 2026-09-10 parent-verified 124 unique-MD5 named BMPs on OSRS-Content@6be33a94a. Leftovers: all 7 rooms fixed-order; Gaze teleport/Initiate title deferred; Wanted! arms deferred; journal complete lacks QUEST COMPLETE line. |
 | 164 | akingdomdivided | `akingdomdivided` | 1,560 | done |  |
 | 165 | theheartofdarkness | `theheartofdarkness` | 1,582 | done |  |
@@ -442,7 +442,7 @@ filed under `helpers/miniquests/` are at the end.
 | 167 | sinsofthefather | `sinsofthefather` | 1,668 | done |  |
 | 168 | ragandboneman | `ragandboneman` | 1,729 | done | 2026-09-10 parent-verified 51 unique-MD5 named BMPs on OSRS-Content@e9bf1694b6 (cherry-picked; stale RfD worker SHA not merged wholesale). Leftovers: wishlist bones II, Fortunato wine shop IF, silent quest-bone drop. Prior done (LC); Gate D recapture. OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-09-10 parent-verified 92 unique-MD5 named BMPs on OSRS-Content@8c427e6f7. Leftovers: wall-chart IF, spellbook switch, dream RNG, suqah/lunar item chain, Pauline disguise/flower. Lokar refuse chathead Someone. 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
-| 170 | dragonslayerii | `dragonslayerii` | 1,782 | in_progress | 2026-09-11 claimed `gp-ds2-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 170 | dragonslayerii | `dragonslayerii` | 1,782 | done | 2026-09-11 Gate D parent-verified 226 named / 226 unique-MD5 BMPs cherry-picked onto OSRS-Content@82e9147ed4 (worker SHA dc856220d4 not merged wholesale). Leftovers: leftover_map_rotation_if; leftover_ship_defense_minigame_play; leftover_galvek_tile_hazards; leftover_dining_room_cutscene; leftover_lamp_rub_ui; leftover_full_refuse_trees; leftover_shayzien_riddle_random; leftover_vorkath_lab_chase. Prior done; Gate D recapture. |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done | 2026-09-10 Gate D parent-verified 93 named / 93 unique-MD5 BMPs cherry-picked onto OSRS-Content@520bdf5733 (worker SHA b059d72572 not merged wholesale). Leftovers: leftover_glough_house_puzzle; leftover_entrana_balloon; leftover_ape_atoll_dungeon_agility; leftover_kruk_fight; leftover_kob_keef; leftover_ship_sabotage_pathing; leftover_lab_gorilla_waves; leftover_demonic_tortured_glough_fights; leftover_full_refuse_trees. Prior done; Gate D recapture. |
