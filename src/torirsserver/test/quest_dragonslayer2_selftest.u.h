@@ -55,8 +55,10 @@ selftest_quest_dragonslayer2(struct ToriRSServer* srv, struct ToriRSServerPlayer
 
     ds2_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "ds2");
     qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
-    assert(ds2_bit >= 0);
-    assert(qp >= 0);
+    SELFTEST_CHECK(ds2_bit >= 0, "ds2 varbit must resolve");
+    SELFTEST_CHECK(qp >= 0, "qp varp must resolve");
+    if( ds2_bit < 0 || qp < 0 )
+        return;
 
     SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "ds2bmp_01_qualify_fail_qp") ==
                        TORIRSSERVER_TRIGGER_RAN,
