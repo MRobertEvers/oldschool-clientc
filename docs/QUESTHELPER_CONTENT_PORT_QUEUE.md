@@ -434,7 +434,7 @@ filed under `helpers/miniquests/` are at the end.
 | 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | done | 2026-09-10 parent-verified 99 unique-MD5 named BMPs on OSRS-Content@fded1b361d. Leftovers: Brundt named Someone; maze/house/chop-carve/Sigmund/Manni soft-skips; name stub. |
 | 160 | thefinaldawn | `thefinaldawn` | 1,274 | done |  |
 | 161 | secretsofthenorth | `secretsofthenorth` | 1,293 | done |  |
-| 162 | theforsakentower | `theforsakentower` | 1,353 | in_progress | 2026-09-11 claimed `gp-tft-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 162 | theforsakentower | `theforsakentower` | 1,353 | done | 2026-09-11 Gate D parent-verified 49 named / 49 unique-MD5 BMPs cherry-picked onto OSRS-Content@6cfe59ce7f (worker SHA 3984f60897 not merged wholesale). Leftovers: leftover_jug_coolant_puzzle; leftover_power_grid_if; leftover_fluid_refinery_puzzle; leftover_pylon_altar_puzzle; leftover_ignisia_wintertodt_gate; leftover_full_refuse_trees; leftover_graceful_recolour_ui. Prior done; Gate D recapture. |
 | 163 | recruitmentdrive | `recruitmentdrive` | 1,425 | done | 2026-09-10 parent-verified 124 unique-MD5 named BMPs on OSRS-Content@6be33a94a. Leftovers: all 7 rooms fixed-order; Gaze teleport/Initiate title deferred; Wanted! arms deferred; journal complete lacks QUEST COMPLETE line. |
 | 164 | akingdomdivided | `akingdomdivided` | 1,560 | done |  |
 | 165 | theheartofdarkness | `theheartofdarkness` | 1,582 | done |  |
@@ -447,7 +447,7 @@ filed under `helpers/miniquests/` are at the end.
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done | 2026-09-10 Gate D parent-verified 93 named / 93 unique-MD5 BMPs cherry-picked onto OSRS-Content@520bdf5733 (worker SHA b059d72572 not merged wholesale). Leftovers: leftover_glough_house_puzzle; leftover_entrana_balloon; leftover_ape_atoll_dungeon_agility; leftover_kruk_fight; leftover_kob_keef; leftover_ship_sabotage_pathing; leftover_lab_gorilla_waves; leftover_demonic_tortured_glough_fights; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 174 | recipefordisaster | `recipefordisaster` | 3,370 | done | 2026-09-10 parent-verified 178 named / 174 unique-MD5 BMPs on OSRS-Content@24772511b. Leftovers: dave hellrat spice, traiborn quizzes, mudknuckles cutscene, rohak drunk icefiend, pirate helmet burn, skrach balloon boat, amik brulee chain, monkey threegree, gelatin cycle, banquet cutscene. Agrith TK-grab implemented. Prior 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale; see Log |
-| 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
+| 175 | songoftheelves | `songoftheelves` | 4,285 | in_progress | 2026-09-11 claimed `gp-sote-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
