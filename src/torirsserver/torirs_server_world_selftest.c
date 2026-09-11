@@ -3220,6 +3220,19 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_BIM_ONLY") )
+    {
+        player->godmode = 1;
+        player->dying = 0;
+        if( player->max_hitpoints > 0 )
+            player->hitpoints = player->max_hitpoints;
+        ToriRSServer_CombatSyncHitpoints(player);
+#include "test/quest_belowicemountain_selftest.u.h"
+        fprintf(stderr, "ToriRSServer BIM selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35896,6 +35909,8 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+#include "test/quest_belowicemountain_selftest.u.h"
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
