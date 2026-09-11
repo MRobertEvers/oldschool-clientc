@@ -240,10 +240,10 @@ selftest_dt2_only:;
     if( slot < 0 )
         goto dt2_cleanup;
 
-    /* Refuse: Yes/Not now must not write %dt2. */
+    /* Refuse: drain chat pages until the Yes/Not now menu, then pick Not now. */
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_asgarnia, -1, slot);
-    selftest_click_through(srv, 6);
-    if( com_chatmenu > 0 && player->active_script && player->resume_button_count > 0 )
+    for( row = 0; row < 12 && player->active_script && player->resume_button_count > 0;
+         row++ )
     {
         uint8_t resume[6];
         int uid = player->resume_buttons[0];
@@ -251,9 +251,14 @@ selftest_dt2_only:;
         resume[1] = (uint8_t)(uid >> 16);
         resume[2] = (uint8_t)(uid >> 8);
         resume[3] = (uint8_t)uid;
-        resume[4] = 0;
-        resume[5] = 2; /* Not now. */
-        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, resume, sizeof(resume));
+        if( com_chatmenu > 0 && uid == com_chatmenu )
+        {
+            resume[4] = 0;
+            resume[5] = 2; /* Not now. */
+            selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, resume, sizeof(resume));
+            break;
+        }
+        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
     }
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
@@ -261,7 +266,8 @@ selftest_dt2_only:;
                    "refusing Asgarnia must leave dt2 at 0, got %d",
                    ToriRSServer_VarbitGet(player, vb_dt2));
 
-    /* Accept writes ^dt2_asgarnia = 4. */
+    /* Accept writes ^dt2_asgarnia = 4. click_through picks the first option. */
+    ToriRSServer_VarbitSet(srv, vb_dt2, 0);
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_asgarnia, -1, slot);
     selftest_click_through(srv, 8);
     ToriRSServer_WorldCloseModal(srv);
@@ -298,13 +304,24 @@ selftest_dt2_only:;
                    "Asgarnia sends the player to Balando (10), got %d",
                    ToriRSServer_VarbitGet(player, vb_dt2));
 
-    ToriRSServer_ScriptsRunProc(srv, "[proc,dt2_balando_talk]", NULL, 0);
-    selftest_click_through(srv, 8);
-    ToriRSServer_WorldCloseModal(srv);
-    player->active_script = NULL;
-    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_dt2) == 12,
-                   "Balando writes ^dt2_banikan=12, got %d",
-                   ToriRSServer_VarbitGet(player, vb_dt2));
+    {
+        int expert = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "archaeological_expert");
+        int eslot = expert >= 0
+                        ? npc_spawn(srv, expert, player->x + 2, player->z + 2, player->level)
+                        : -1;
+        if( eslot >= 0 )
+            ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,dt2_balando_talk]", eslot);
+        else
+            ToriRSServer_ScriptsRunProc(srv, "[proc,dt2_balando_talk]", NULL, 0);
+        selftest_click_through(srv, 8);
+        ToriRSServer_WorldCloseModal(srv);
+        player->active_script = NULL;
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_dt2) == 12,
+                       "Balando writes ^dt2_banikan=12, got %d",
+                       ToriRSServer_VarbitGet(player, vb_dt2));
+        if( eslot >= 0 )
+            ToriRSServer_WorldNpcFree(srv, eslot);
+    }
 
     if( npc_banikan >= 0 )
     {
