@@ -3071,6 +3071,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 
 #include "test/sailing_server_selftest.u.h"
 #include "test/sailing_multiplayer_selftest.u.h"
+#include "test/soc_selftest.u.h"
 /* Before the lifecycle header, which is its only caller: the stale-callback
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
@@ -3208,6 +3209,21 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer sailing selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("sailing");
+        return g_selftest_failures;
+    }
+
+    /*
+     * Shadows of Custodia focused walk. The walk body is invoked again
+     * immediately before the shop fprintf (~line 35900) so an unset
+     * SOC_ONLY leaves that stanza unmoved. This top gate is what makes
+     * TORIRSSERVER_SELFTEST_SOC_ONLY skip the default suite.
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_SOC_ONLY") )
+    {
+        selftest_soc(srv, player);
+        fprintf(stderr, "ToriRSServer SOC selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("soc");
         return g_selftest_failures;
     }
 
@@ -35895,6 +35911,15 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_SOC_ONLY") )
+    {
+        selftest_soc(srv, player);
+        fprintf(stderr, "ToriRSServer SOC selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("soc");
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
