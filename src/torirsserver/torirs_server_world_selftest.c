@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_queenofthieves_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_QOT_ONLY") )
+    {
+        player->godmode = 1;
+        selftest_quest_queenofthieves(srv, player);
+        fprintf(stderr, "ToriRSServer Queen of Thieves selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("queenofthieves");
         return g_selftest_failures;
     }
 
@@ -35895,6 +35906,17 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    /*
+     * Queen of Thieves C-walk. Immediately before the shop
+     * `selftest_reset_world`, deliberately: this stanza spawns npcs and
+     * parks scripts. The reset below ends its blast radius. Not MM2 /
+     * MISTMYST / COK / BV. Gate with TORIRSSERVER_SELFTEST_QOT_ONLY=1.
+     */
+    {
+        player->godmode = 1;
+        selftest_quest_queenofthieves(srv, player);
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
