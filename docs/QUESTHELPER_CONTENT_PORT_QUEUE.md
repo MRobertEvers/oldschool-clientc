@@ -288,7 +288,7 @@ filed under `helpers/miniquests/` are at the end.
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | in_progress | 2026-09-10 claimed `gp-cok-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
-| 16 | thequeenofthieves | `thequeenofthieves` | 259 | done |  |
+| 16 | thequeenofthieves | `thequeenofthieves` | 259 | in_progress | 2026-09-11 claimed `gp-qot-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 17 | rovingelves | `rovingelves` | 263 | done | 2026-09-10 parent-verified 46 unique-MD5 named BMPs on OSRS-Content@5c626c570f. Leftovers: moss start BMP is the weapons-gate mesbox; font kerning. |
 | 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done |  |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
@@ -375,7 +375,7 @@ filed under `helpers/miniquests/` are at the end.
 | 100 | thefeud | `thefeud` | 550 | done | 2026-09-10 parent-verified 104 unique-MD5 named BMPs on OSRS-Content@83087eac88. Leftovers: combination-lock IF narrated; snake-charm Attack-only; mayor can name Someone; font kerning. |
 | 101 | thegolem | `thegolem` | 551 | done | 2026-09-10 parent-verified 67 unique-MD5 named BMPs on OSRS-Content@40f9cf07a1. Leftovers: golem named Someone; letter debug-grant; display-case IF unwired; statuette-turn soft-skip; carpet ride scroll-text only; font kerning. |
 | 102 | theredreef | `theredreef` | 559 | done |  |
-| 103 | misthalinmystery | `misthalinmystery` | 564 | in_progress | 2026-09-10 claimed `gp-mistmyst-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 103 | misthalinmystery | `misthalinmystery` | 564 | done | 2026-09-11 Gate D parent-verified 61 named / 61 unique-MD5 BMPs cherry-picked onto OSRS-Content@1c14f2320c (worker SHA c4df4012d5 not merged wholesale). Leftovers: leftover_manor_instance; leftover_candle_piano_fireplace_puzzles; leftover_boss_fight; leftover_abigale_unmask_cutscene; leftover_note_painting_trees; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 104 | thefremennikexiles | `thefremennikexiles` | 573 | done |  |
 | 105 | coldwar | `coldwar` | 574 | done | 2026-09-10 parent-verified 168 named / 161 unique-MD5 BMPs cherry-picked onto OSRS-Content@a5ac0acd3e (worker SHA 9c450569c2 not merged wholesale). Leftovers: leftover_crush_course_pathing; leftover_icelord_combat; leftover_warroom_cutscene; leftover_pescaling_pax; leftover_penguin_points. native dbrow `quest_coldwar` (id 126, endstate 135) + native varbit schema on basevar `peng_var`/`peng_var2` (`peng_quest`, `peng_transmog`, `peng_doing_greeting`, `peng_multi_hide`, `peng_multi_kgp`, `peng_emote_1..3`, `peng_pong_chat`) reused as-is, matching quest-helper's own VarbitID names/semantics exactly; every npc already world-spawned, no hand-spawning needed; see Log |
 | 106 | mourningsendparti | `mourningsendparti` | 575 | done | 2026-09-10 parent-verified 120 unique-MD5 named BMPs on OSRS-Content@99d5cd2c2. Leftovers: mourner kill narrated; toad/bellows collapsed; naphtha soft-skip; apple/barrel autogrant; Eluned escort deferred; walking gnome on rack. |
