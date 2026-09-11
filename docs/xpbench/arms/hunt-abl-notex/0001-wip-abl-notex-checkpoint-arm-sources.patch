@@ -1,0 +1,156 @@
+From 2770b424f35f43192ed792c1dcaabf2bd7740179 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:35 -0500
+Subject: [PATCH] wip(abl-notex): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/abl-notex.
+
+files: 3rd/toridraw/toridraw_raster.u.c
+---
+ 3rd/toridraw/toridraw_raster.u.c | 82 ++++++++++++++++++++++++++++++++
+ 1 file changed, 82 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..952b82a23 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -17,6 +17,43 @@
+ static const int g_empty_texture_texels[128 * 128] = { 0 };
+ #endif
+ 
++/* #region agent log */
++#ifdef HUNTABL_NOTEX
++/* XP frame-hunt ABLATION LADDER. Not shippable: the frame is wrong on purpose.
++ *
++ * HUNTABL_NOTEX_LEVEL is read once and selects how much of the TEXTURED draw is
++ * thrown away at the raster dispatch. Everything upstream -- projection, the
++ * back-face cull, the depth bucket sort, the painter -- is untouched at every
++ * level, so a delta is draw work and only draw work.
++ *
++ *   0  nothing skipped. The same binary acting as its own control, so the cost
++ *      of the switch itself is measured instead of assumed.
++ *   1  skip ToriDraw_TriangleFaceTextureBlendOpaque, the sole caller of
++ *      toridraw_textri_opaque_lerp8_v3_asm (EIP-credited 16.27 ms, 25.2%).
++ *   2  level 1 plus the transparent and affine textured draws, gouraud- and
++ *      flat-shaded: every textured pixel in the frame.
++ *   3  level 2 plus the texture-map lookup and the PNM coord resolution -- the
++ *      whole textured face, dropped on entry to ToriDraw_RasterModelFace.
++ *
++ * The level is a RUNTIME read on purpose. A compile-time #if would let gcc
++ * delete the inlined kernel bodies and re-lay-out the dispatch function, and
++ * the resulting code-size / I-cache win would be banked as part of the bound.
++ */
++static int g_huntabl_notex_level = -1;
++
++static inline int
++huntabl_notex_level(void)
++{
++    if( g_huntabl_notex_level < 0 )
++    {
++        const char* raw = getenv("HUNTABL_NOTEX_LEVEL");
++        g_huntabl_notex_level = raw ? atoi(raw) : 0;
++    }
++    return g_huntabl_notex_level;
++}
++#endif
++/* #endregion */
++
+ enum DashModelRasterFlags
+ {
+     RASTER_FLAG_GOURAUD_SMOOTH = 1 << 0,
+@@ -483,6 +520,15 @@ ToriDraw_RasterModelFace(
+     }
+     /* #endregion */
+ 
++    /* #region agent log */
++#ifdef HUNTABL_NOTEX
++    /* Level 3: ahead of the texture-map lookup, the texel cache compare
++     * and the PNM coord resolution, so those land inside the bound too. */
++    if( texture_id != -1 && huntabl_notex_level() >= 3 )
++        return;
++#endif
++    /* #endregion */
++
+     if( texture_id != -1 )
+     {
+         if( texture_id == ctx->cache_texture_id )
+@@ -826,6 +872,12 @@ ToriDraw_RasterModelFace(
+ 
+             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture )
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 2 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureBlendAffineV3(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -859,6 +911,12 @@ ToriDraw_RasterModelFace(
+             }
+             else if( texture_opaque )
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 1 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureBlendOpaque(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -891,6 +949,12 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 2 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureBlendTransparent(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1003,6 +1067,12 @@ ToriDraw_RasterModelFace(
+                 ctx->texture_render_types_nullable[texture_face] != 0;
+             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture_flat )
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 2 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureFlatAffineV3(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1034,6 +1104,12 @@ ToriDraw_RasterModelFace(
+             }
+             else if( texture_opaque )
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 2 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureFlatOpaque(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1064,6 +1140,12 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                /* #region agent log */
++                #ifdef HUNTABL_NOTEX
++                if( huntabl_notex_level() >= 2 )
++                    break;
++                #endif
++                /* #endregion */
+                 ToriDraw_TriangleFaceTextureFlatTransparent(
+                     ctx->pixel_buffer,
+                     ctx->stride,

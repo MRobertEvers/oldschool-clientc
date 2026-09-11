@@ -1,0 +1,32 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Cure Other
+|image = [[File:Cure Other.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 68
+|spellbook = Lunar
+|type = Combat
+|exp = 65
+|cost = {{RuneReq|Astral=1|Law=1|Earth=10}}
+|speed = 
+|description = Cure poisoned players
+|anim = [[File:Cure Other.gif|180px]]
+|sound = [[File:Cure Other.ogg]]
+}}
+[[File:Cure Other icon (mobile).png|left]]
+'''Cure Other''' cures a targeted player that is poisoned. The targeted player must have [[Accept Aid]] turned on. Players may still be poisoned at any time after the spell is cast, due to the fact that the spell will give no immunity against poison to the player. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 1
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Earth
+|Rune3num = 10
+}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

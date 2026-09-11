@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 void
 uibuilder_manifest_init(struct UIBuilderManifest* out)
@@ -153,7 +154,21 @@ find_component(
     char const* name)
 {
     assert(items && name);
-    for( uint32_t i = 0; i < items->item_count; i++ )
+    /*
+     * LAST match, not first: a later declaration of the same name OVERRIDES an
+     * earlier one.
+     *
+     * That is what makes layering work at all, and the load order is built
+     * around it -- `revconfig_ui=`, then `revconfig_cache=`, then the
+     * manifest's own inline `[revconfig:...]` sections, each able to restate
+     * what came before. It is also what makes a platform-suffixed section an
+     * override rather than a second component with a decorated name: the
+     * suffix is stripped before the name is stored (see
+     * revconfig_load.c), so `[component:cross@mobile]` lands here as a second
+     * `cross`, and scanning forwards would return the desktop one and silently
+     * ignore the override.
+     */
+    for( uint32_t i = items->item_count; i-- > 0; )
     {
         if( items->items[i].kind != RCITEM_UICOMPONENT )
             continue;
@@ -195,6 +210,8 @@ add_sprite(
     strncpy(s->index_filename, cache->index_filename, sizeof(s->index_filename) - 1);
     strncpy(s->table, cache->table, sizeof(s->table) - 1);
     strncpy(s->archive, cache->archive, sizeof(s->archive) - 1);
+    strncpy(s->group, cache->group, sizeof(s->group) - 1);
+    s->defaults_slot = cache->defaults_slot;
     s->crop_x = cache->crop_x;
     s->crop_y = cache->crop_y;
     s->crop_width = cache->crop_width;
@@ -221,6 +238,7 @@ add_font(
         f->font_name,
         font->font_name[0] != '\0' ? font->font_name : font->name,
         sizeof(f->font_name) - 1);
+    strncpy(f->group, font->group, sizeof(f->group) - 1);
 }
 
 static void
@@ -280,7 +298,7 @@ add_inv(
     assert(s->obj_ids && s->obj_counts);
     for( int i = 0; i < s->item_count; i++ )
     {
-        s->obj_ids[i] = atoi(inv->items[i]);
+        s->obj_ids[i] = revconfig_parse_int(inv->items[i]);
         s->obj_counts[i] = 1;
     }
 }
@@ -298,23 +316,44 @@ fill_tree_op_from_component(
     strncpy(op->sprite_active_ref, comp->sprite_active, sizeof(op->sprite_active_ref) - 1);
     strncpy(op->inv_name, comp->inv, sizeof(op->inv_name) - 1);
     op->font = comp->font;
+    op->ink_style = comp->ink_style;
+    op->ink_walk_color = comp->ink_walk_color;
+    op->ink_interact_color = comp->ink_interact_color;
     op->has_font_ref = comp->has_font_ref;
     if( comp->has_font_ref )
         strncpy(op->font_ref, comp->font_ref, sizeof(op->font_ref) - 1);
     op->tabno = comp->tabno;
     op->selected = comp->selected;
     strncpy(op->slot, comp->slot, sizeof(op->slot) - 1);
+    strncpy(op->role, comp->role, sizeof(op->role) - 1);
     op->level_mask = parse_paint_levels_mask(comp->paint_levels);
-    op->mmb_rotate = comp->mmb_rotate;
-    op->wheel_zoom = comp->wheel_zoom;
     op->hotkey_count = comp->hotkey_count;
     for( int i = 0; i < comp->hotkey_count && i < REVCONFIG_COMPONENT_HOTKEY_MAX; i++ )
         strncpy(op->hotkeys[i], comp->hotkeys[i], sizeof(op->hotkeys[i]) - 1);
     op->color = comp->color;
     op->filled = comp->filled;
+    op->tiled = comp->tiled;
     op->center = comp->center;
+    op->valign = comp->valign;
+    op->over_color = comp->over_color;
     op->shadowed = comp->shadowed;
     strncpy(op->text, comp->text, sizeof(op->text) - 1);
+    strncpy(op->title_field, comp->title_field, sizeof(op->title_field) - 1);
+    strncpy(op->title_prefix, comp->title_prefix, sizeof(op->title_prefix) - 1);
+    strncpy(op->title_caret, comp->title_caret, sizeof(op->title_caret) - 1);
+    op->title_caret_blink = comp->title_caret_blink;
+    strncpy(op->title_mask, comp->title_mask, sizeof(op->title_mask) - 1);
+    op->title_maxlen = comp->title_maxlen;
+    strncpy(op->title_charset, comp->title_charset, sizeof(op->title_charset) - 1);
+    strncpy(op->title_action, comp->title_action, sizeof(op->title_action) - 1);
+    op->title_message_index = comp->title_message_index;
+    op->title_px_per_percent = comp->title_px_per_percent;
+    op->flame_bias = comp->flame_bias;
+    op->flame_sway = comp->flame_sway;
+    op->flame_run = comp->flame_run;
+    op->flame_row = comp->flame_row;
+    strncpy(op->flame_blur, comp->flame_blur, sizeof(op->flame_blur) - 1);
+    op->text_baseline = comp->text_baseline;
     op->button_type = comp->button_type;
     op->client_code = comp->client_code;
     strncpy(op->option, comp->option, sizeof(op->option) - 1);
@@ -343,6 +382,7 @@ fill_tree_op_from_component(
     strncpy(
         op->chat_op_accept_duel, comp->chat_op_accept_duel, sizeof(op->chat_op_accept_duel) - 1);
     op->chat_op_accept_duel_action = comp->chat_op_accept_duel_action;
+    strncpy(op->chat_prompt, comp->chat_prompt, sizeof(op->chat_prompt) - 1);
     op->chat_button_filter = comp->chat_button_filter;
     strncpy(op->chat_button_label, comp->chat_button_label, sizeof(op->chat_button_label) - 1);
     op->chat_button_label_y = comp->chat_button_label_y;
@@ -405,8 +445,32 @@ add_layout_op(
     op->bottom = layout->bottom;
     op->right = layout->right;
     op->dirty = layout->dirty;
+    op->xalign_center = layout->xalign_center;
+    op->safe_area_source = layout->safe_area_source;
+    op->safe_area_flags = layout->safe_area_flags;
+    op->safe_area_margin = layout->safe_area_margin;
 
     fill_tree_op_from_component(op, comp, root_interface_id);
+}
+
+int
+uibuilder_manifest_group_wanted(
+    char const* group,
+    char const* select,
+    char const* exclude)
+{
+    assert(group);
+
+    /* Untagged records belong to every build. Without this the key would be
+     * subtractive and adding it would change what every existing profile
+     * builds. */
+    if( group[0] == '\0' )
+        return 1;
+    if( exclude && exclude[0] != '\0' && strcmp(group, exclude) == 0 )
+        return 0;
+    if( select && select[0] != '\0' )
+        return strcmp(group, select) == 0;
+    return 1;
 }
 
 int
@@ -422,6 +486,17 @@ uibuilder_manifest_from_revconfig_rooted(
     struct UIBuilderManifest* out,
     struct RevConfigItemBuffer const* items,
     int root_interface_id)
+{
+    return uibuilder_manifest_from_revconfig_grouped(out, items, root_interface_id, NULL, NULL);
+}
+
+int
+uibuilder_manifest_from_revconfig_grouped(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude)
 {
     assert(out);
     assert(items);
@@ -442,10 +517,14 @@ uibuilder_manifest_from_revconfig_rooted(
         switch( item->kind )
         {
         case RCITEM_CACHE_SPRITE:
-            add_sprite(out, &sprite_cap, &item->u.cache);
+            if( uibuilder_manifest_group_wanted(
+                    item->u.cache.group, layout_group, layout_group_exclude) )
+                add_sprite(out, &sprite_cap, &item->u.cache);
             break;
         case RCITEM_CACHE_FONT:
-            add_font(out, &font_cap, &item->u.font);
+            if( uibuilder_manifest_group_wanted(
+                    item->u.font.group, layout_group, layout_group_exclude) )
+                add_font(out, &font_cap, &item->u.font);
             break;
         case RCITEM_INV:
             add_inv(out, &inv_cap, &item->u.inv);
@@ -458,9 +537,7 @@ uibuilder_manifest_from_revconfig_rooted(
                 if( iface >= 0 )
                     add_component_req(out, &component_cap, iface);
                 else
-                    fprintf(
-                        stderr,
-                        "revconfig: component '%s' is an rs_iface with no componentno= and no "
+                    TORIRS_LOG("revconfig: component '%s' is an rs_iface with no componentno= and no "
                         "root interface to fall back on; it will mount nothing\n",
                         item->u.uicomponent.name);
             }
@@ -476,6 +553,9 @@ uibuilder_manifest_from_revconfig_rooted(
     for( uint32_t i = 0; i < items->item_count; i++ )
     {
         if( items->items[i].kind != RCITEM_UILAYOUT )
+            continue;
+        if( !uibuilder_manifest_group_wanted(
+                items->items[i].u.uilayout.layout_group, layout_group, layout_group_exclude) )
             continue;
         add_layout_op(out, &op_cap, items, &items->items[i].u.uilayout, root_interface_id);
     }
@@ -556,7 +636,8 @@ uibuilder_manifest_from_sources(
     assert(items);
     revconfig_items_build(fields, items);
 
-    int rc = uibuilder_manifest_from_revconfig_rooted(out, items, src->root_interface_id);
+    int rc = uibuilder_manifest_from_revconfig_grouped(
+        out, items, src->root_interface_id, src->layout_group, src->layout_group_exclude);
 
     revconfig_item_buffer_free(items);
     revconfig_buffer_free(fields);

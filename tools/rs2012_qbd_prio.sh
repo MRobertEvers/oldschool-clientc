@@ -53,7 +53,7 @@ models_for() {
 VIEW_ARGS="${VIEW_ARGS:---angles 3 --pitch 300 --tile 420 --yaw0 1300 --bg 202430}"
 HEAD_FOCUS="${HEAD_FOCUS:---focus -31,-243,261 --radius 270}"
 
-toolchain="$repo/toolchain/mingw64/bin"
+toolchain="$repo/toolchains/mingw64/bin"
 if [ -d "$toolchain" ]; then
     PATH="$toolchain:$PATH"
     MAKE="${MAKE:-mingw32-make}"

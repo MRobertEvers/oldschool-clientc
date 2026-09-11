@@ -1,0 +1,85 @@
+{{External|rs}}
+{{Multi Infobox
+|text1 = NPC
+|item1 =
+{{Infobox NPC
+|name = Juna
+|image = [[File:Juna.png|200px]]
+|release = [[4 May]] [[2005]]
+|update = Earthquake Rocks Lumbridge
+|members = Yes
+|race = Serpent
+|quest = {{*}} [[Tears of Guthix]]<br/>{{*}} [[Death to the Dorgeshuun]]
+|location = [[Chasm of Tears]]
+|gender = Female
+|options = None
+|examine = An ancient giant serpent.
+|map = No
+|id = 5785
+|leagueRegion = Misthalin
+}}
+|text2 = Scenery
+|item2 =
+{{Infobox Scenery
+|version1 = Before quest
+|version2 = After quest
+|name = Juna
+|image = [[File:Juna.png|200px]]
+|release = [[4 May]] [[2005]]
+|update = Earthquake Rocks Lumbridge
+|members = Yes
+|quest = {{*}} [[Tears of Guthix]]<br/>{{*}} [[Death to the Dorgeshuun]]
+|location = [[Chasm of Tears]]
+|options1 = Talk-to
+|options2 = Talk-to, Story
+|examine = An ancient giant serpent.
+|map = {{Map|name=Juna|x=3252|y=9517|r=2|mapID=10146|zoom=3|mtype=square}}
+|id1 = 28928
+|id2 = 28929
+|leagueRegion = Misthalin
+}}
+
+}}
+[[File:Juna chathead.png|left]]
+'''Juna''' is a large serpent and a legendary [[Guardians of Guthix|Guardian of Guthix]]. She is very ancient and is known to have been on [[Gielinor]] in its [[Second Age]], thus making her well over six thousand years old. At the end of the [[Third Age]], as one of [[Guthix]]' most loyal followers, she was tasked by him to protect the [[Chasm of Tears|Tears of Guthix cave]] in the [[Lumbridge Swamp Caves]], which she has done for millennia. Her separation from Guthix led her to idolise him out of desire to be with her god again. She plays a role in the [[Tears of Guthix (quest)|Tears of Guthix]] quest, and in the [[Dorgeshuun quest series]].
+
+Players can talk to her to start the [[Tears of Guthix (minigame)|Tears of Guthix]] minigame. She will let them into the cave she guards once every seven days, as long as they have gained 100,000 total [[experience]] points or 1 [[quest point]] in that week. She will also create [[staff of balance|staves of balance]] for the player if they have a [[Staff of the Dead|staff of the dead]] and [[Guthixian icon]] in their inventory.
+
+==Treasure Trails==
+*{{CrypticNPC|Juna|master|Here, there are tears, but nobody is crying. Speak to the guardian and show off your alignment to balance.}} Wear at least three [[Guthix#Affiliated_items|Guthix-related]] items.
+
+==Products==
+{{Uses facility list|Juna}}
+
+==History==
+During the [[Third Age]] there was a [[God Wars|great war]] among the gods. When Guthix awoke, he put a stop to the violence, then returned to sleep again. However, as he descended to the depths, he took pause to rest. Thinking of the destruction that had been brought on the world he found, loved, and shaped, Guthix wept and, as a result of his deep grief, the very rocks wept with him. Realising that his essence had become a part of the rocks, Guthix assigned Juna to guard the spot and judge who was worthy to enter.{{CiteNPC |npc = Juna|quote = Later, Guthix noticed that the rocks continued to weep, and that their tears were infused with a small part of His power. So He set me, his servant, to guard the cave, and He entrusted me the task of judging who was and was not worthy to access the tears.}} Over the many years since then, she's become a bit bored and loves to hear stories of the world above.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 December 2025
+|update = Christmas Event 2025
+|change = Juna's [[chathead]] no longer appears in place of yours when you tell her stories of certain adventures.
+}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|change = Juna is now considered an NPC by the game engine. However, she still has no minimap icon.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Juna can normally be seen sleeping in the cavern. She is awakened when players talk to her; she will not go back to sleep unless there are no players nearby her and are not doing Tears of Guthix.
+* Juna states that she had not heard the name [[Zaros]] "for a thousand years even before the start of my sojourn here." Since Zaros was betrayed and usurped at the end of the Second Age, this means she would have been here no earlier than some time into the Third Age, which lines up with the timeline of [[Edicts of Guthix]].
+
+==References==
+{{Reflist}}
+
+{{Tears of Guthix}}
+{{Death to the Dorgeshuun}}
+{{Lumbridge Swamp Caves}}
+[[Category:Quest NPCs]]
+[[Category:Guthixians]]

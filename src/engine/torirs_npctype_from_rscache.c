@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 torirs_copy_menu_actions(
@@ -83,6 +84,46 @@ torirs_npctype_copy_pairs_int(
     *dst_count = count;
 }
 
+
+/*
+ * The record's params (opcode 249), carried whole for CS2's `nc_param`.
+ *
+ * The rscache decoder has always parsed these; this conversion simply did not
+ * bring them across, so `nc_param` had nothing to read and no implementation. The
+ * cache's own "Highlight entities on mouse-over" (clientscript 5350) is what
+ * needs them: it reads `param_2312` off the hovered record to decide which
+ * highlight group the thing belongs in.
+ */
+static void
+torirs_npctype_copy_params(struct ToriRS_Npctype* dst, struct RSCache_Params const* src)
+{
+    assert(dst);
+    assert(src);
+    if( src->count <= 0 )
+        return;
+
+    dst->param_count = src->count;
+    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    assert(dst->params);
+    for( int i = 0; i < src->count; i++ )
+    {
+        dst->params[i].key = src->keys[i];
+        if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
+        {
+            char const* str = (char const*)src->values[i];
+            dst->params[i].string_value = strdup(str ? str : "");
+            assert(dst->params[i].string_value);
+        }
+        else if( src->values[i] )
+        {
+            if( src->kinds && src->kinds[i] == RSCACHE_PARAM_LONG )
+                dst->params[i].int_value = (int)*(int64_t*)src->values[i];
+            else
+                dst->params[i].int_value = *(int*)src->values[i];
+        }
+    }
+}
+
 struct ToriRS_Npctype*
 ToriRS_NpctypeFromRSCacheDat1(
     int npc_id,
@@ -127,6 +168,19 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->walkanim_b = src->walkanim_b;
     npctype->walkanim_r = src->walkanim_r;
     npctype->walkanim_l = src->walkanim_l;
+    /* dat1 genuinely has no turn/run/crawl opcodes -- the claim the dat2 path
+     * inherited by accident is true here. -1 across the set so the mover's
+     * `!= -1` tests fall back to walkanim, as they did before any of this. */
+    npctype->turnanim_l = -1;
+    npctype->turnanim_r = -1;
+    npctype->runanim = -1;
+    npctype->runanim_b = -1;
+    npctype->runanim_r = -1;
+    npctype->runanim_l = -1;
+    npctype->crawlanim = -1;
+    npctype->crawlanim_b = -1;
+    npctype->crawlanim_r = -1;
+    npctype->crawlanim_l = -1;
     npctype->turn_speed = src->turnspeed;
     npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
@@ -134,6 +188,10 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->height = -1;
     npctype->alwaysontop = src->alwaysontop;
     npctype->minimap_visible = src->minimap;
+    /* dat1 has no opcode 107. True rather than the calloc zero: the flag's
+     * default IS true, and a false here would take the minimap dot off every
+     * npc in every dat1 cache. */
+    npctype->interactable = true;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
     /* The dat1 decoder does not surface opcode 102. Stated rather than left at
@@ -152,6 +210,10 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->sound_radius = 0;
     npctype->ambient_sound_volume = 255;
 
+    /* dat1's NpcType has no multiNpc opcode. */
+    npctype->transform_varbit = -1;
+    npctype->transform_varp = -1;
+
     return npctype;
 }
 
@@ -168,14 +230,29 @@ ToriRS_NpctypeFromRSCacheDat2(
     assert(npctype);
 
     npctype->id = npc_id;
+    /* Opcode 18. The client trigger lookup's category form is keyed on it —
+     * see game/rs_client_trigger.h. */
+    npctype->category = src->category;
     if( src->name )
     {
         strncpy(npctype->name, src->name, TORIRS_NAME_MAX - 1);
         npctype->name[TORIRS_NAME_MAX - 1] = '\0';
     }
-    /* No desc: dat2 (OSRS) NPC config carries no examine opcode — NPC examine is
-     * server-driven there. npctype->desc stays "" (calloc) so the handler falls
-     * back to "It's a <name>.". */
+    /*
+     * The examine string, npc config opcode 3.
+     *
+     * Jagex's own dat2 records state none — the opcode was retired in 2006 and
+     * OldSchool sends npc examine from the server — so for a pristine cache this
+     * leaves `desc` at the calloc'd "" and the Examine handler falls back to
+     * "It's a <name>.". A record the content pack authored does state one, and
+     * that is where an npc's examine text comes from here: the same archive, the
+     * same opcode, and the same field a loc has always used.
+     */
+    if( src->desc )
+    {
+        strncpy(npctype->desc, src->desc, TORIRS_DESC_MAX - 1);
+        npctype->desc[TORIRS_DESC_MAX - 1] = '\0';
+    }
 
     torirs_copy_menu_actions(npctype->actions, src->actions);
     npctype->combat_level = src->combat_level;
@@ -209,9 +286,7 @@ ToriRS_NpctypeFromRSCacheDat2(
             debug = env && *env && *env != '0';
         }
         if( debug )
-            fprintf(
-                stderr,
-                "npc-sound: %-5d %-28s idle %-6d crawl %-6d walk %-6d run %-6d "
+            TORIRS_LOG("npc-sound: %-5d %-28s idle %-6d crawl %-6d walk %-6d run %-6d "
                 "radius %-3d vol %d\n",
                 npc_id,
                 npctype->name,
@@ -239,10 +314,31 @@ ToriRS_NpctypeFromRSCacheDat2(
         src->retexture_count);
 
     npctype->readyanim = src->standing_animation > 0 ? src->standing_animation : -1;
+    /* Opcode 130 (rev 236+): restart the idle when an action animation finishes.
+     * Decoded here since 236 and read by nobody until now — see
+     * World_StepEntityAnimation. dat1 has no equivalent opcode. */
+    npctype->idle_anim_restart = src->idle_anim_restart;
     npctype->walkanim = src->walking_animation > 0 ? src->walking_animation : -1;
     npctype->walkanim_b = src->rotate180_animation > 0 ? src->rotate180_animation : -1;
     npctype->walkanim_r = src->rotate_right_animation > 0 ? src->rotate_right_animation : -1;
     npctype->walkanim_l = src->rotate_left_animation > 0 ? src->rotate_left_animation : -1;
+    /* The rest of the set, decoded since forever and dropped here until now. */
+    npctype->turnanim_l =
+        src->idle_rotate_left_animation > 0 ? src->idle_rotate_left_animation : -1;
+    npctype->turnanim_r =
+        src->idle_rotate_right_animation > 0 ? src->idle_rotate_right_animation : -1;
+    npctype->runanim = src->run_animation > 0 ? src->run_animation : -1;
+    npctype->runanim_b = src->run_rotate180_animation > 0 ? src->run_rotate180_animation : -1;
+    npctype->runanim_r =
+        src->run_rotate_right_animation > 0 ? src->run_rotate_right_animation : -1;
+    npctype->runanim_l = src->run_rotate_left_animation > 0 ? src->run_rotate_left_animation : -1;
+    npctype->crawlanim = src->crawl_animation > 0 ? src->crawl_animation : -1;
+    npctype->crawlanim_b =
+        src->crawl_rotate180_animation > 0 ? src->crawl_rotate180_animation : -1;
+    npctype->crawlanim_r =
+        src->crawl_rotate_right_animation > 0 ? src->crawl_rotate_right_animation : -1;
+    npctype->crawlanim_l =
+        src->crawl_rotate_left_animation > 0 ? src->crawl_rotate_left_animation : -1;
     /* They do carry it: opcode 103, decoded as `rotation_speed`, defaulted to 32
      * by the decoder itself — this line used to say dat2 had no such field and
      * pinned 32, which silently overrode every record that states one. `0` means
@@ -259,6 +355,7 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->height = src->height;
     npctype->alwaysontop = src->has_render_priority;
     npctype->minimap_visible = src->is_minimap_visible;
+    npctype->interactable = src->is_interactable;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
     /*
@@ -280,10 +377,12 @@ ToriRS_NpctypeFromRSCacheDat2(
     /*
      * Client render hints ride the npc's params.
      *
-     * Only the keys the client actually reads are resolved here, into plain
-     * fields -- the whole table is not copied, because the client is not a
-     * script host and a param it does not know the meaning of is not data it
-     * can act on. A key the content never sets simply leaves its field at 0.
+     * The keys the client itself acts on are resolved here into plain fields,
+     * and the whole table is carried alongside for the SCRIPTS -- `nc_param`
+     * reads it by key. It used to be only the former, on the reasoning that
+     * "the client is not a script host"; it is one, and clientscript 5350 sorts
+     * hovered npcs into highlight groups by `param_2312`. A key the content
+     * never sets simply leaves its field at 0.
      */
     for( int i = 0; i < src->params.count; i++ )
     {
@@ -293,6 +392,25 @@ ToriRS_NpctypeFromRSCacheDat2(
             continue;
         if( src->params.values[i] )
             npctype->zbuffer_model = *(int*)src->params.values[i];
+    }
+    /* ... and the whole table, which the scripts read by key. */
+    torirs_npctype_copy_params(npctype, &src->params);
+
+    /*
+     * NpcType.multiNpc (opcode 106) -- a shell record with no model of its
+     * own, resolved through VarPManager_ResolveTransform exactly like a
+     * loc's transform table. `configs` already carries the decoder's own
+     * -1 sentinel for a hidden entry (0xFFFF on the wire), so it copies
+     * straight across.
+     */
+    npctype->transform_varbit = src->varbit_id;
+    npctype->transform_varp = src->varp_index;
+    if( src->configs_count > 0 )
+    {
+        npctype->transforms = malloc((size_t)src->configs_count * sizeof(int));
+        assert(npctype->transforms);
+        memcpy(npctype->transforms, src->configs, (size_t)src->configs_count * sizeof(int));
+        npctype->transform_count = src->configs_count;
     }
 
     return npctype;

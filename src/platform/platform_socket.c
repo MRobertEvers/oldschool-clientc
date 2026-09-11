@@ -62,7 +62,19 @@ out_pending_flush(struct PlatformSocket* sock)
 struct PlatformSocket*
 PlatformSocket_New(int default_port)
 {
-    struct PlatformSocket* sock = calloc(1, sizeof(*sock));
+    struct PlatformSocket* sock;
+    int wsa_rc;
+
+    /* Winsock needs a process-wide WSAStartup before socket(). The JS5 users
+     * (ondemand, js5_cache) each init on their own path; nothing does it for a
+     * client whose only wire is the game transport, so socket() died with
+     * WSANOTINITIALISED on any non-embed non-JS5 boot. Init is refcounted, so
+     * doubling up with a JS5 path is harmless. */
+    wsa_rc = sockstream_init();
+    assert(wsa_rc == 0);
+    (void)wsa_rc; /* OPT=1 defines NDEBUG, so the assert alone would drop it */
+
+    sock = calloc(1, sizeof(*sock));
     assert(sock);
     sock->default_port = default_port > 0 ? default_port : 43594;
     sock->last_status = TORIRS_NET_STATUS_DISCONNECTED;
@@ -241,8 +253,17 @@ PlatformSocket_Poll(
         if( n > 0 )
         {
             CmdBus_Push(bus, TORIRS_CMD_NET_RECV, payload, (uint16_t)n);
-            if( n < TORIRS_CMD_MAX_PAYLOAD )
-                break;
+            /* A short read is NOT "the socket is drained" — keep reading
+             * until would-block says so. Emscripten's socket shim returns at
+             * most one WebSocket message per recv(), so every read of the
+             * server's small game packets is short; breaking here fed the
+             * client ONE message per frame while a server tick's burst is a
+             * dozen, and SERVER_TICK_END — the fence the UI-transaction
+             * latch waits for — arrived last. Measured: the whole burst in
+             * the browser inside 1ms, the client popping it over ~90ms of
+             * withheld frames, a world freeze every server cycle (worst in
+             * combat, where the burst is longest). On native the extra
+             * recv() costs one EWOULDBLOCK syscall per poll. */
         }
         else if( n == 0 || n == SOCKSTREAM_ERROR_CLOSED )
         {

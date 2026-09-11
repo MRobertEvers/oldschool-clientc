@@ -1,0 +1,106 @@
+{
+  "conversion": {
+    "advance_only": [
+      "U+0020 SPACE",
+      "U+0060 GRAVE ACCENT",
+      "U+007C VERTICAL LINE"
+    ],
+    "cmap": "U+0020-U+007E and U+00A3",
+    "eot_root_string": "file:///",
+    "outline": "coalesced rectangles over nonzero baked mask pixels",
+    "units_per_source_pixel": 64
+  },
+  "fonts": [
+    {
+      "authored_css_px": 10,
+      "baseline_px": 10,
+      "cache_archive": 494,
+      "family": "ToriRS Chrome Small",
+      "files": {
+        "eot": {
+          "bytes": 9850,
+          "path": "ToriRSSmall.eot",
+          "sha256": "7837978bd10c845ca6a8cfda5563cbd0d5215c14fa94dd5489d67fd916e573a3"
+        },
+        "ttf": {
+          "bytes": 9596,
+          "path": "ToriRSSmall.ttf",
+          "sha256": "088030d2cee181b7867a0c5ad45c14ffdb950f8215cdc8b997a7db1138346c8a"
+        },
+        "woff": {
+          "bytes": 3240,
+          "path": "ToriRSSmall.woff",
+          "sha256": "cfd1a55f4f34a4d13fd3eb6b464a2c56b46d9b2a3055fd023acc49cf96bb84ac"
+        }
+      },
+      "line_box_px": 12,
+      "style": "Regular",
+      "symbol": "Small",
+      "weight": 400
+    },
+    {
+      "authored_css_px": 12,
+      "baseline_px": 12,
+      "cache_archive": 495,
+      "family": "ToriRS Chrome",
+      "files": {
+        "eot": {
+          "bytes": 10962,
+          "path": "ToriRSBody.eot",
+          "sha256": "74f7d4d1253f7e8378d8b1a1d8bb324f19261e789863f7ae1dfa7b75248a2d6a"
+        },
+        "ttf": {
+          "bytes": 10732,
+          "path": "ToriRSBody.ttf",
+          "sha256": "1bade607903660d564284c4244d950ea1c50d2b8d91d208e1305503578f38f3f"
+        },
+        "woff": {
+          "bytes": 3532,
+          "path": "ToriRSBody.woff",
+          "sha256": "2e81c9c090a35118fbec592182761b2fcb2f4c6b282917cd98338fb7979976bd"
+        }
+      },
+      "line_box_px": 16,
+      "style": "Regular",
+      "symbol": "Body",
+      "weight": 400
+    },
+    {
+      "authored_css_px": 12,
+      "baseline_px": 12,
+      "cache_archive": 496,
+      "family": "ToriRS Chrome",
+      "files": {
+        "eot": {
+          "bytes": 11010,
+          "path": "ToriRSMenu.eot",
+          "sha256": "aff8c7e3478ed59e75e62618fdc80479d35f6366d5e49a1b1cda548666103faa"
+        },
+        "ttf": {
+          "bytes": 10776,
+          "path": "ToriRSMenu.ttf",
+          "sha256": "6c40cdf6678255ef214fdde37a69298b03334c04d12858e798cdfa35e89819ac"
+        },
+        "woff": {
+          "bytes": 3540,
+          "path": "ToriRSMenu.woff",
+          "sha256": "3fc88b340c0c9980d5275d9bb7a8967d83768547dbe42fda491855755c3a27f6"
+        }
+      },
+      "line_box_px": 16,
+      "style": "Bold",
+      "symbol": "Menu",
+      "weight": 700
+    }
+  ],
+  "fonttools": "4.59.2",
+  "generator": "tools/torirs_chrome_fonts.py",
+  "schema": 1,
+  "source": {
+    "cache_revision": "osrs239",
+    "glyphs": "src/engine/torirs_debug_font_baked.c",
+    "glyphs_sha256": "256a9fede930af1d2ac0edb72d3a70deb81f3f4d13a302e40ddb7b6a1943c9ad",
+    "metrics": "src/ui/uitree_debug_font_metrics.h",
+    "metrics_sha256": "edaa30c77d23f03dd44f94db348834ff156d1251e5994ab51b6b5e27ae97cb01"
+  }
+}

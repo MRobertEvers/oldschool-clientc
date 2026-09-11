@@ -479,7 +479,7 @@ FAMILY_DATA = {
              "two different branches of the same charge proc -- ServerScript's def_int is proc-scoped, not "
              "block-scoped, so the second declaration silently read back 0 instead of erroring, and the "
              "rune-charging path refused to charge anything despite affordable materials. Caught by "
-             "bisecting with encoded return values (mock230's headless harness doesn't surface mes() output "
+             "bisecting with encoded return values (ToriRSServer's headless harness doesn't surface mes() output "
              "outside the chargesrun OK/FAIL convention) before landing, not shipped.",
     ),
     "Flamtaer bracelet": dict(
@@ -504,7 +504,7 @@ FAMILY_DATA = {
              "same sanctioned extension point IF_SETEVENTS/IF_OPENTOP/the map-instance band etc. already "
              "use for rev-230/239 surface LostCity's reference never had), regenerated ss_opcode.h/"
              "ss_meta.gen.h properly rather than hand-edited, and added the read-side case in "
-             "mock230_scripts.c. Confirmed end to end: sscompile resolves a bare `last_subop` reference in "
+             "torirs_server_scripts.c. Confirmed end to end: sscompile resolves a bare `last_subop` reference in "
              ".rs2 content, and mutation-testing the cap-clamp/out-of-range guards goes red correctly. "
              "depletion=none, not revert: the obj record has no Uncharge option and nothing forces a swap "
              "at 0 (matches this ledger's own 'no refund on Uncharge' phrasing -- corrected from the prior "
@@ -912,7 +912,7 @@ FAMILY_DATA = {
              "Alchemy-gated counters hit). The one-time Activate step (a Combat Achievements reward-"
              "identification action, not a charge) is also untouched. Selftest coverage added and "
              "mutation-tested (the drain-to-revert guard); full selftest re-run in both plain and "
-             "MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
+             "TORIRSSERVER_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
     ),
     "Ring of shadows": dict(
         storage="item_var", depletion="revert", max_charges=1000,
@@ -1229,7 +1229,7 @@ FAMILY_DATA = {
              "`[label,player_combat_start]` gained one narrow, additive early-exit "
              "(`~powered_staff_worn`/`@player_powered_staff_attack`) ahead of the existing ranged/autocast/"
              "melee branches, none of which were modified -- verified by running the full selftest in both "
-             "plain and MOCK230_GEARRUN=1 modes and confirming the exact same 12-failure pristine baseline "
+             "plain and TORIRSSERVER_GEARRUN=1 modes and confirming the exact same 12-failure pristine baseline "
              "before and after. Max hit is the wiki's own flat formula (floor(Magic level / 3), not derived "
              "from magic_spell_table since this weapon has no spell row) fed through the same "
              "npc_max_dealt/player_npc_hit_roll/player_hit_npc_prepare pipeline every other attack style "
@@ -1258,7 +1258,7 @@ FAMILY_DATA = {
              "base staff's exact max-hit formula per the wiki's 'no additional stat bonuses'. Verified with "
              "a new chargesrun_holy_sanguinesti_staff_charge_and_worn selftest proc (charge/cap/worn/maxhit/"
              "revert) plus a mutation test on ~sanguinesti_staff_charged_obj's new branch (confirmed red with "
-             "the right FAIL message, reverted). Full selftest re-run in both plain and MOCK230_GEARRUN=1 "
+             "the right FAIL message, reverted). Full selftest re-run in both plain and TORIRSSERVER_GEARRUN=1 "
              "modes, same 12-failure pristine baseline before and after. NOT implemented: the Life leech "
              "passive, same scope line as the base staff's own note.",
     ),
@@ -1359,7 +1359,7 @@ FAMILY_DATA = {
              "magic-damage-bonus passive (a much larger mechanic reaching into the whole magic-damage-bonus "
              "pipeline, same scope line as Arclight's infusion meter/Life leech). Selftest coverage added "
              "and mutation-tested (the aether-fallback guard); full selftest re-run in both plain and "
-             "MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
+             "TORIRSSERVER_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
     ),
     "Venator bow": dict(
         storage="item_var", depletion="revert", max_charges=50000,
@@ -1388,7 +1388,7 @@ FAMILY_DATA = {
              "formula text (a fraction rendered with no division bar); both endpoints check out exactly, not "
              "assumed. NOT implemented: 'combination rune' charging (accepted since 14 May 2025, only plain "
              "chaosrune/earthrune here) and the Wilderness on-death charge-protection carve-out. Full "
-             "selftest re-run in both plain and MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline "
+             "selftest re-run in both plain and TORIRSSERVER_GEARRUN=1 modes, same 12-failure pristine baseline "
              "before and after.",
     ),
     "Xeric's talisman": dict(

@@ -1,6 +1,6 @@
 /*
  * Contract test for the runtime interface-slot API (RS_UISlots open/close and
- * SetTab) against a real dat1 cache + rev_245_2 RevConfig build — the surface
+ * SetTab) against a real dat1 cache + rs245_2lc RevConfig build — the surface
  * the network exec layer drives when IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB arrive.
  */
 #include "app.h"
@@ -8,10 +8,22 @@
 #include "game/rs_ui_slots.h"
 #include "revconfig/revconfig.h"
 #include "ui/uitree.h"
+#include "ui/uitree_role.h"
 #include "varp/varp_manager.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
 
 static int
 node_child_count(
@@ -41,9 +53,9 @@ main(
     cfg.script_dir = "../script";
     cfg.interface_id = 84;
     cfg.revconfig_ui_ini =
-        argc > 2 ? argv[2] : "../v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini";
+        argc > 2 ? argv[2] : "../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini";
     cfg.revconfig_cache_ini =
-        argc > 3 ? argv[3] : "../v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini";
+        argc > 3 ? argv[3] : "../revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini";
 
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);
@@ -134,11 +146,11 @@ main(
         node->behavior.script_operand = operands;
 
         assert(VarPManager_GetVarp(&app.varps, 173) == 0);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
         assert(VarPManager_GetVarp(&app.varps, 173) == 1);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
         assert(VarPManager_GetVarp(&app.varps, 173) == 0);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_SELECT));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_SELECT));
         assert(VarPManager_GetVarp(&app.varps, 173) == 7);
         /* Detach the synthetic behavior before shutdown frees the tree. */
         node->behavior.scripts_count = 0;
@@ -147,6 +159,91 @@ main(
         node->behavior.comparator_count = 0;
         node->behavior.script_operand = NULL;
         printf("PASS: IF1 toggle/select buttons drive varps\n");
+    }
+
+    /*
+     * RS_UISlots_TabGiven: the lane-aware "has the server given this tab",
+     * which is what a plugin gameframe asks before it draws an icon.
+     *
+     * This lane is rung 1's: the 2004 frame carries its own fourteen sidebar
+     * mounts, so IF_SETTAB is the whole of it -- and tab 7 stands for a clan
+     * chat LostCity never sends, which is the same answer for a different
+     * reason.
+     */
+    TEST_CHECK(RS_UISlots_TabGiven(&app, 3));
+    TEST_CHECK(!RS_UISlots_TabGiven(&app, 7));
+    TEST_CHECK(!RS_UISlots_TabGiven(&app, -1));
+    /* Past the frame's own tabs: no mount, and no profile has named it, so
+     * nothing says it is hidden. A frame drawing no icons at all would be a
+     * worse wrong than one drawing an icon too many. */
+    TEST_CHECK(RS_UISlots_TabGiven(&app, RS_UI_SLOTS_TAB_MAX - 1));
+    printf("PASS: TabGiven reads IF_SETTAB on a frame that owns its mounts\n");
+
+    /*
+     * Rung 2, on a lane that does not need it: a `sidetab_<n>` role the
+     * profile stated is consulted as WELL as rung 1, and either saying hidden
+     * is the answer.
+     *
+     * Built here rather than read from a profile because no bootable lane
+     * declares both channels -- osrs239 states the roles and has no sidebar
+     * mounts, this one is the other way round -- and the rule that matters is
+     * exactly what happens when both speak.
+     */
+    RS_UISlots_SetTab(&app, 7, 5608);
+    App_BootWait(&app);
+    {
+        /* A dat1 uid is flat -- the pack's root IS 5608, where a dat2 one
+         * would be (group << 16) | child. */
+        int const packroot = 5608;
+        uint16_t const role = UITree_RoleIntern(&app.ui_roles, "sidetab_7");
+        struct UITreeRoleMatcher m = { 0 };
+
+        m.kind = UITREE_ROLE_MATCH_ID;
+        m.uid = packroot;
+        m.member = -1;
+        TEST_CHECK(role != 0);
+        TEST_CHECK(UITree_RoleAddMatcher(&app.ui_roles, role, &m));
+        TEST_CHECK(UITree_RoleNode(app.tree, &app.ui_roles, role) >= 0);
+        TEST_CHECK(RS_UISlots_TabGiven(&app, 7));
+
+        /* The semantic hide: what a CS2 IF_SETHIDE on the tab's own node does,
+         * applied through the same call the opcode handler makes. */
+        TEST_CHECK(UITree_ApplyHide(app.tree, packroot, 1));
+        TEST_CHECK(!RS_UISlots_TabGiven(&app, 7));
+        TEST_CHECK(RS_UISlots_TabEnabled(&app.slots, 7));
+        printf("PASS: TabGiven honours a hidden sidetab_<n> role\n");
+
+        TEST_CHECK(UITree_ApplyHide(app.tree, packroot, 0));
+        TEST_CHECK(RS_UISlots_TabGiven(&app, 7));
+        RS_UISlots_SetTab(&app, 7, 65535);
+        App_BootWait(&app);
+    }
+
+    /*
+     * And a `sidetab_<n>` that does not resolve is a tab that is not there.
+     *
+     * The cache-gameframe spelling: a sub-interface the server closed is out of
+     * the tree entirely rather than hidden in it, so the role has nothing to
+     * find. Stated against a uid nothing will ever mount, because what is under
+     * test is the ANSWER to an unresolved chain -- an unmount arranged here
+     * would be testing the unmount.
+     *
+     * Tab 5 is one this frame has and IF_SETTAB has given, so rung 1 says yes:
+     * this is also the proof that either authority saying no is enough.
+     */
+    {
+        uint16_t const role = UITree_RoleIntern(&app.ui_roles, "sidetab_5");
+        struct UITreeRoleMatcher m = { 0 };
+
+        m.kind = UITREE_ROLE_MATCH_ID;
+        m.uid = 0x7FFE0001; /* no lane mounts into the reserved band */
+        m.member = -1;
+        TEST_CHECK(role != 0);
+        TEST_CHECK(UITree_RoleAddMatcher(&app.ui_roles, role, &m));
+        TEST_CHECK(UITree_RoleNode(app.tree, &app.ui_roles, role) < 0);
+        TEST_CHECK(RS_UISlots_TabEnabled(&app.slots, 5));
+        TEST_CHECK(!RS_UISlots_TabGiven(&app, 5));
+        printf("PASS: TabGiven reads an unresolved sidetab_<n> as taken away\n");
     }
 
     App_Shutdown(&app);

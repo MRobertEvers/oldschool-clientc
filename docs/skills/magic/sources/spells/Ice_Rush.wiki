@@ -1,0 +1,54 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Ice Rush
+|image = [[File:Ice Rush.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 58
+|spellbook = Ancient
+|type = Combat
+|exp = 34
+|element = Ice
+|damage = 16
+|cost = {{RuneReq|Death=2|Chaos=2|Water=2}}
+|speed = 5 ticks
+|description = A single target ice attack
+|anim = [[File:Ice Rush.gif|300px]]
+|sound = [[File:Ice Rush.ogg]]
+}}
+[[File:Ice Rush icon (mobile).png|left]]
+'''Ice Rush''' requires a [[Magic]] level of 58 and can do a maximum of 16 damage (without any [[magic damage]] boosts) per cast.
+
+Ice Rush can freeze targets, causing them to become unable to move for {{Ticks|8}}.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+It is the weakest of the [[Ice spells]] and is thus likely to be ignored by a player with access to [[Ice Burst]] which, on top of dealing significantly more damage, is only marginally more expensive and is able to hit multiple targets with a single cast.
+
+Unlike the rest of the Ice spells, Ice Rush does ''not'' benefit from the [[Ancient sceptre]]'s passive 10% [[freeze]] duration increase due to the calculation rounding down. It still benefits as usual from the [[Ice ancient sceptre]]'s 10% accuracy increase against unfrozen targets.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Ice Rush|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 2
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = water
+|Rune3num = 2
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted ancient ice sack}}
+
+|}
+
+{{Ancient Magicks}}
+{{Combat spells}}

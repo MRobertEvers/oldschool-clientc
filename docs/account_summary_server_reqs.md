@@ -4,7 +4,7 @@
 > 3310). What was missing was arming `summary_click_layer` and the server
 > state behind every counter the draw reads. Content lives under
 > `server/scripts/interface_summary/` plus the feature packages named below.
-> The wire contract is asserted by `mock230 --selftest` ("character summary").
+> The wire contract is asserted by `ToriRSServer --selftest` ("character summary").
 
 ## 0. Status at a glance
 
@@ -25,11 +25,11 @@ per component id; overlapping ranges would clobber each other. Handlers are
 
 ## 1. Engine prerequisite — cache enums
 
-`mock230_content.c` loads `configs/all.enum` as rank-0 config (authored
+`torirs_server_content.c` loads `configs/all.enum` as rank-0 config (authored
 `server/scripts/**/*.enum` still win on name collision). That is what makes
 `enum()`, `enum_getoutputcount()`, and the CA/collection catalog walks answer
 for cache tables. `SS_OP_STRUCT_PARAM` already reads the cache binary via
-`mock230_structinfo`.
+`ToriRSServer_StructInfo`.
 
 A second consumer of the same capability: `chrome_panels.rs2` arms
 `popout:buttons` with `calc(enum_getoutputcount(enum_4067) - 1)` instead of a
@@ -57,7 +57,7 @@ truths stay 0 until that content exists.
 
 ## 3. Selftest contract
 
-`mock230_world.c` "character summary":
+`torirs_server_world.c` "character summary":
 
 1. `[if_open,account_summary_sidepanel]` emits `IF_SETEVENTS` mask 30 for
    sub-ids 0..7, and `RUNCLIENTSCRIPT` 3954 with type string `iii` (combat
@@ -79,12 +79,12 @@ sub-ids 3..7 at ~`(555,345)`, `(640,345)`, `(555,400)`, `(640,400)`,
 
 ```
 clickdbg: … events=0x1e net=1
-mock230: <- IF_BUTTON1 712:3 sub=3   # Quests
-mock230: <- IF_BUTTON1 712:3 sub=4   # Diaries
-mock230: <- IF_BUTTON1 712:3 sub=5   # CA Overview
-mock230: <- IF_BUTTON1 712:3 sub=6   # Collection Log
-mock230: <- IF_BUTTON1 712:3 sub=7   # Time Played
-mock230: -> RUNCLIENTSCRIPT    op=84  payload=20   # iii + 3970
+torirsserver: <- IF_BUTTON1 712:3 sub=3   # Quests
+torirsserver: <- IF_BUTTON1 712:3 sub=4   # Diaries
+torirsserver: <- IF_BUTTON1 712:3 sub=5   # CA Overview
+torirsserver: <- IF_BUTTON1 712:3 sub=6   # Collection Log
+torirsserver: <- IF_BUTTON1 712:3 sub=7   # Time Played
+torirsserver: -> RUNCLIENTSCRIPT    op=84  payload=20   # iii + 3970
 ```
 
 `events=0x1e` is mask 30. Ops 2–4 (CA Bosses/Tasks/Rewards, Collection
@@ -100,8 +100,8 @@ the client. After `[if_open,area_task]` arms `taskbox` 0..11 with mask 6:
 
 ```
 clickdbg: … 'Open … Journal' … events=0x6 net=1
-mock230: <- IF_BUTTON1 259:2 sub=N
-mock230: -> IF_OPENSUB … journalscroll
+torirsserver: <- IF_BUTTON1 259:2 sub=N
+torirsserver: -> IF_OPENSUB … journalscroll
 ```
 
 Wiki op2 is ignored server-side (client browser in OSRS). Full per-task diary

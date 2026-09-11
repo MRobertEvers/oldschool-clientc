@@ -1,7 +1,9 @@
 /* Scratch-buffer profile allocation and API contract. */
 #include "toridraw.h"
+#include "toridraw_font.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static int failures;
 
@@ -69,7 +71,6 @@ check_selectable_depth_capacity(void)
     faceint_t face_a[1] = { 0 };
     faceint_t face_b[1] = { 1 };
     faceint_t face_c[1] = { 2 };
-    struct ToriDraw_BoundsCylinder bounds = { 0 };
     struct ToriDraw_Model model = { 0 };
     struct ToriDraw_ModelHandle hnd = { 0 };
     struct ToriDraw_Scene* reference;
@@ -83,7 +84,7 @@ check_selectable_depth_capacity(void)
     model.face_indices_a = face_a;
     model.face_indices_b = face_b;
     model.face_indices_c = face_c;
-    model.bounds_cylinder = &bounds;
+    model.has_bounds_cylinder = true;
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = &model;
 
@@ -123,7 +124,7 @@ check_selectable_depth_capacity(void)
      * disappearing -- so both tables must order the face, and the deep table
      * (which needs no shift) remains exact.
      */
-    bounds.min_z_depth_any_rotation = 4791;
+    model.bounds_cylinder.min_z_depth_any_rotation = 4791;
     seed_one_face_at_depth(reference, hnd, 4791);
     seed_one_face_at_depth(deep, hnd, 4791);
     CHECK(ToriDraw_FaceOrderCount(reference) == 1);
@@ -133,6 +134,99 @@ check_selectable_depth_capacity(void)
 
     ToriDraw_SceneFree(reference);
     ToriDraw_SceneFree(deep);
+}
+
+static struct ToriDraw_Sprite**
+one_pixel_sprite_array(uint32_t color)
+{
+    uint32_t* pixels = malloc(sizeof(*pixels));
+    struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+    CHECK(pixels != NULL);
+    CHECK(sprites != NULL);
+    if( !pixels || !sprites )
+    {
+        free(pixels);
+        free(sprites);
+        return NULL;
+    }
+    pixels[0] = color;
+    sprites[0] = ToriDraw_SpriteNewFromArgbOwned(pixels, 1, 1);
+    CHECK(sprites[0] != NULL);
+    if( !sprites[0] )
+    {
+        free(sprites);
+        return NULL;
+    }
+    return sprites;
+}
+
+/* Map counts cannot distinguish replacement under an existing scene id. The
+ * UI-facing revision must, especially for font metrics consumed by MEASURE_TEXT. */
+static void
+check_ui_asset_revision(void)
+{
+    struct ToriDraw_Scene* scene =
+        ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ModelHandle model = { .kind = TORIDRAWMK_NONE };
+    uint64_t revision;
+    uint32_t count;
+
+    CHECK(scene != NULL);
+    if( !scene )
+        return;
+
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    sprites = one_pixel_sprite_array(0xff112233u);
+    if( sprites )
+        ToriDraw_SceneSpriteAdd(scene, 17, sprites, 1);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->sprites_hmap);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    sprites = one_pixel_sprite_array(0xff445566u);
+    if( sprites )
+        ToriDraw_SceneSpriteAdd(scene, 17, sprites, 1);
+    CHECK(ToriDraw_MapCount(scene->sprites_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneSpriteRemove(scene, 17);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneSpriteRemove(scene, 17);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) == revision);
+
+    font = calloc(1, sizeof(*font));
+    CHECK(font != NULL);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    if( font )
+        ToriDraw_SceneFontAdd(scene, 9, font);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->fonts_hmap);
+    font = calloc(1, sizeof(*font));
+    CHECK(font != NULL);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    if( font )
+        ToriDraw_SceneFontAdd(scene, 9, font);
+    CHECK(ToriDraw_MapCount(scene->fonts_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneModelAdd(scene, 23, model);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    count = ToriDraw_MapCount(scene->models_hmap);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    ToriDraw_SceneModelAdd(scene, 23, model);
+    CHECK(ToriDraw_MapCount(scene->models_hmap) == count);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    (void)ToriDraw_SceneModelRemove(scene, 23);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) != revision);
+    revision = ToriDraw_SceneUIAssetRevision(scene);
+    (void)ToriDraw_SceneModelRemove(scene, 23);
+    CHECK(ToriDraw_SceneUIAssetRevision(scene) == revision);
+
+    ToriDraw_SceneFree(scene);
 }
 
 int
@@ -152,6 +246,7 @@ main(void)
         check_profile(&profiles[i]);
 
     check_selectable_depth_capacity();
+    check_ui_asset_revision();
 
     low_bytes = ToriDraw_SceneSize(
         TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
@@ -164,17 +259,17 @@ main(void)
     CHECK(ToriDraw_SceneSize(TORIDRAW_SCENE_FULL, (enum ToriDraw_ScratchBufferSize)99) == 0);
     CHECK(ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, (enum ToriDraw_ScratchBufferSize)-1) == NULL);
 
-    /* The existing SMALL flag still selects its CSR sorter; the size enum is
-     * explicit and validated, but does not change that separate algorithm.
-     * The depth flag remains an independent capacity axis in SMALL mode too. */
+    /* The SMALL flag selects the CSR sorter and nothing else: vertex/face
+     * capacity comes from the tier exactly as in FULL mode, and the depth
+     * flag remains an independent capacity axis. */
     scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K,
         TORIDRAW_SCRATCH_BUFFER_MED_4K);
     CHECK(scene != NULL);
     if( scene )
     {
-        CHECK(scene->max_vertices == 1024);
-        CHECK(scene->max_faces == 2048);
+        CHECK(scene->max_vertices == 4096);
+        CHECK(scene->max_faces == 8192);
         CHECK(scene->depth_levels == 16384);
         CHECK(scene->tmp_depth_faces == NULL);
         CHECK(scene->sm_faces_by_depth != NULL);

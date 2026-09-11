@@ -1,0 +1,45 @@
+{{External|rs=Tele-group Waterbirth}}
+{{Infobox Spell
+|name = Tele Group Waterbirth
+|image = [[File:Tele Group Waterbirth.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 73
+|spellbook = Lunar
+|type = Teleport
+|exp = 72
+|cost = {{RuneReq|Law=1|Water=5|Astral=2}}
+|speed = 4 ticks
+|description = Teleports players to Waterbirth Island
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Tele Group Waterbirth icon (mobile).png|left|class=pageimage]]
+'''Tele Group Waterbirth''' teleports the player along with anyone within a 3x3 square area (including standing on the player's square) beside Jarvald's ship on [[Waterbirth Island]]. Players must have Accept Aid turned on in order to be teleported by this spell; otherwise they will be left behind when the caster teleports. A window will pop for the person being teleported asking them if they wished to be teleported. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 5
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2546,3755|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = Lunar's group teleports will no longer trigger the 10 second teleport delay timer in Deadman mode twice.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

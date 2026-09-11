@@ -489,10 +489,6 @@ apply_cache_dat2(
     item->data = archive;
     item->data_size = (int)sizeof(struct RSCache_Dat2DiskArchive);
     return 0;
-
-oom:
-    RSCache_Dat2DiskArchiveFree(archive);
-    return -1;
 }
 
 static int

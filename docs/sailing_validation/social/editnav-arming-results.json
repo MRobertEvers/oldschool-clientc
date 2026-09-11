@@ -1,0 +1,145 @@
+{
+  "title": "Edit-navigator target arming: which side was wrong",
+  "date": "2026-09-06",
+  "worker": "editnav",
+  "question": "The crew tab's 'Edit navigator' button offered no target row, so native target mode could never be armed with the mouse. Was the menu builder wrong, or the authored cs2 script?",
+  "verdict": "THE MENU BUILDER. cc_settargetpriority(-1) is a RESET to the default 4, not a suppression, and the target mask comes from the server's IF_SETEVENTS, not only from the widget's decoded flags. The cs2 script is correct and was NOT changed, so no cache bake was needed.",
+  "authority": {
+    "deob": "/Users/matthewevers/Documents/git_repos/Deobfuscator/src_osrs239_rl1_12_33/deob",
+    "opcode_handler": "Statics.java:36506 (var0 == 1312, CC_SETTARGETPRIORITY): -1 -> field4122 = 1431939116; 1..32 -> field4122 = (v-1) * -1789498869; every other value ignored. 4 * -1789498869 == 1431939116 (mod 2^32), so -1 stores the value 4 -- the same 4 class308.java:594/893 seed at construction. field4122 is read as field4122 * -1201188445 (class308.java:3790).",
+    "menu_builder": "Statics.java:52537-52586: for (var3 = 31; var3 >= 0; var3--) { if (var0.field4122 * -1201188445 == var3) emit targetRow; ... if (var3 > priority) deprioritize op }. A negative priority is unrepresentable there; the row is emitted for every value the opcode can store.",
+    "row_gate": "class545.method12079: method7577(method12093(this, widget)) != 0 && targetVerb non-blank. method7577 is 'var0 >> 11 & 0x3F'; method12093 (Statics.java:53773) returns the SERVER'S IF_SETEVENTS entry for the widget (or its parent's dynamic-child range) when one exists, and the widget's own decoded flags (field4113) when it does not.",
+    "native_precedent": "OSRS-Content/osrs239-content/scripts/inventory_noops_allowinteraction_bind_actions_6011.cs2:5 -- the native inventory painter opens with the same cc_settargetpriority(-1) before it computes a real priority. Reading -1 as 'no target row' would have cost the inventory its Use row too."
+  },
+  "cache_provenance": {
+    "clientscript": 8779,
+    "name": "torirs_sailing_edit_navigator_btn",
+    "source": "pristine cache.osrs239 (manifests/manifest_osrs239_sailing.ini dir=../cache.osrs239) -- interface 937 and script 8779 are NATIVE rev-239 records, not authored content, so the -1 and the 'Edit-navigator' verb are Jagex's own bytes",
+    "arming": "OSRS-Content/osrs239-content/server/scripts/sailing/scripts/boat_sidepanel.rs2:27 if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127, calc(^if_event_op_all + 16384)) = 2046 + 16384 = 0x47fe; (0x47fe >> 11) & 0x3F = 0x8 = TORIRS_TARGET_MASK_PLAYER",
+    "script_changed": false,
+    "cache_bake_needed": false,
+    "bake_recipe_if_it_had_been": "make -C src torirsserver-cache (cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals), then point the manifest's [cache:boot] dir= and JS5 at the baked tree. SHARED build -- root's, not a worker's."
+  },
+  "fix": {
+    "file": "src/game/rs_minimenu_build.c",
+    "changes": [
+      "new component_effective_target_mask(node, events): mask = node->behavior.target_mask, OR'd (IF3 nodes only) with (events >> 11) & 0x3F -- the method12093/method7577 pair rs_cs2_target_mask already keeps for IF/CC_GETTARGETMASK. The shift is IF3-only because a dat1 component stores targetMask unshifted in both click_mask and target_mask.",
+      "component_offers_if3_target() now takes the effective events; a CC_CREATE child (memset to zero, and no cc_ opcode can write a target mask) is armable on the strength of the server's declaration, exactly as add_obj_cell_rows already treats an item cell.",
+      "add_if3_target_op_rows(): assert(node->target_priority >= 0) with the Statics.java derivation written out, and the old 'a negative priority is cc_settargetpriority(-1), no target row at all' comment deleted as false.",
+      "add_if3_target_op_rows(): a target row with an empty opBase is the verb alone, not 'verb + trailing space' -- the same rule its op rows already used.",
+      "TORIRS_MINIMENU_DEBUG now reports the hit stack and, per component, if3/events/mask/priority/verb/base, so 'the row was not built' and 'the component was never in the stack' stop looking identical.",
+      "TORIRS_MINIMENU_DEBUG is read once into a static: a menu is rebuilt for the hover text on every frame the cursor rests on a component, and a per-frame getenv is a measured cost in this tree."
+    ],
+    "not_changed": "UITree_ApplyTargetPriority (src/ui/uitree.c:4818) ALREADY implemented the native mapping (-1 -> 4, 1..32 -> v-1, else ignored). The previous session's diagnosis -- 'a negative priority emits nothing' -- was wrong: the runtime never held a negative priority."
+  },
+  "tests": {
+    "target": "make -C src -j4 PLATFORM_OBJ_BASE=build_editnav test-minimenu-world",
+    "also_run": [
+      "OPT=0 (asserts live) same target",
+      "make -C src -j4 PLATFORM_OBJ_BASE=build_editnav test-social"
+    ],
+    "result": "All tests passed (both OPT=1 and OPT=0).",
+    "added": [
+      "test_if3_script_button_target_row_uses_declared_events -- a dynamic IF3 rect with target_verb 'Edit-navigator', decoded target_mask 0 and events 2046+16384 builds exactly one TGT_BUTTON row whose text is 'Edit-navigator' (no trailing space); the control drops the target bits (events 2046) and the row disappears.",
+      "test_cc_settargetpriority_minus_one_is_the_default -- 7 -> 6, -1 -> 4, 0 ignored, 33 ignored.",
+      "test_if3_target_row_after_reset_sits_at_slot_four -- after the -1 reset the row sits between op 5 (deprioritized) and op 3 (normal)."
+    ]
+  },
+  "native_run": {
+    "binary": "src/torirs_editnav_opt",
+    "binary_sha256": "c2d7ca713ce2f8b776b7bd9b7626a4e31e02d41c6f09adefb40510809dc0a407",
+    "build": "make -C src -j4 OPT=1 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_editnav PLATFORM_TARGET=torirs_editnav_opt torirs_editnav_opt",
+    "script_pack": "/tmp/sailing-editnav-pack/script.dat",
+    "script_pack_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "session": "/tmp/sailing-editnav-proof",
+    "fixture": "ocean skiff 3072,3160, user editcap, guest 'Deckhand' aboard the same hull (wire pid 2, view 1)",
+    "repo_head": "e3d110a7a15d0ae790504c1107c980cd85fc0405",
+    "content_head": "802d03e8ffb845c492b6886b1bc652ebb66afa64",
+    "note": "The session was restarted on this exact binary and every row below re-measured on it; an earlier binary differing only by the cached getenv and a moved comment produced byte-identical findings."
+  },
+  "rows": [
+    {
+      "name": "the runtime priority after cc_settargetpriority(-1) is 4, not -1",
+      "result": "pass",
+      "detail": "TORIRS_MINIMENU_DEBUG on the live client, right-clicking the enabled button: 'component: com=937|49210 if3=1 events=0x47fe mask=0x8 prio=4 target=\"Edit-navigator\" base=\"\"'. prio=4 is the reference default, so no builder may treat -1 as a suppression."
+    },
+    {
+      "name": "the target mask comes from IF_SETEVENTS, not from the widget's decoded flags",
+      "result": "pass",
+      "detail": "Same readout: events 0x47fe is exactly ^if_event_op_all + 16384 from boat_sidepanel.rs2, and the effective mask is 0x8 (PLAYER). The node is a CC_CREATE child (component id 937|49210 is a runtime allocation), so its own decoded target_mask is 0 and the old gate refused the row."
+    },
+    {
+      "name": "right-clicking 'Edit navigator' now offers the Edit-navigator row",
+      "result": "pass",
+      "detail": "Real mouse: cheat sailpanel -> click 706,260 (Crew tab) -> click 660,297 (Players) -> click 645,407 right. The menu reads 'Choose Option / Edit-navigator / Cancel'. The negative control is the previous session's editnav-rightclick-menu.png, the identical scene and click showing 'Choose Option / Cancel' alone.",
+      "images": [
+        "docs/sailing_validation/social/editnav-arming-menu.png"
+      ],
+      "control_image": "docs/sailing_validation/social/editnav-rightclick-menu.png"
+    },
+    {
+      "name": "left-clicking the row arms target mode",
+      "result": "pass",
+      "detail": "click 645,422 closes the menu, and a subsequent right click on the guest's own projected point (382,304, harness 'peer' screen with picked=true) produces 'Choose Option / Cancel' with NO player rows at all -- Follow/Trade/Walk here are suppressed. That is add_world_select_row's RS_MINIMENU_SELECT_TARGET arm returning 'mode active but this kind is not a valid target', which only runs while a target selection is armed.",
+      "images": [
+        "docs/sailing_validation/social/editnav-arming-peer-blocked.png"
+      ]
+    },
+    {
+      "name": "clicking the guest while armed does NOT grant navigation",
+      "result": "fail",
+      "detail": "BLOCKED IN app.c, OUTSIDE THIS WORKER'S OWNERSHIP. Two more halves of the same 'read the cache mask only' mistake: (1) src/app.c:29011 sets app->targetsel.mask = node->behavior.target_mask, which is 0 for the CC_CREATE child, so rs_minimenu_world.c:121 refuses the 'Edit-navigator Deckhand' row -- the menu above is the measurement; (2) src/app.c:29252 puts app->targetsel.component_id straight on the wire as OPPLAYERT's component, and for a dynamic child that is the runtime-allocated 937|49210 the server has never heard of, so [opplayert,sailing_sidepanel:crew_content_clicklayer] could not fire even if the row existed. See open_issues for the exact edits.",
+      "images": [
+        "docs/sailing_validation/social/editnav-arming-peer-blocked.png"
+      ]
+    },
+    {
+      "name": "the grant itself is correct once the OPPLAYERT reaches the server",
+      "result": "pass",
+      "detail": "Driven by harness 'peer target sailing_sidepanel:crew_content_clicklayer' -- the packet the armed click will send once app.c carries the owning component id, NOT a substitute for the click. After it: vessel_stat 11 navigator_mask 0 -> 2 (guest pid 1, bit 2); peer varbit 19233 6; ToriRSServer_VesselCanNavigate/CargoAllowed false -> true; captain's chat 'You grant Deckhand navigation permission.'; the reopened crew panel reads 'Navigator: Deckhand' where it read 'Navigator: editcap'.",
+      "images": [
+        "docs/sailing_validation/social/editnav-arming-granted.png"
+      ]
+    }
+  ],
+  "artifacts": {
+    "docs/sailing_validation/social/editnav-arming-menu.png": "4ec329fe05752df7d60a6e618abd53ed2527add6d9b6299a6c6dcdca4eb79d84",
+    "docs/sailing_validation/social/editnav-arming-peer-blocked.png": "a2c0e42093351f5f960b13f7be1d7ae6459cc16e9599d2029730958331ca685f",
+    "docs/sailing_validation/social/editnav-arming-granted.png": "5e0d0d15d7e98e08759e2930a3fa6e3137ceb449a93ae47520a4af4e5fdb593b",
+    "docs/sailing_validation/social/editnav-rightclick-menu.png": "59f71f1b975fffacdeb5f0739b2e164fc79c089dabb0c724aa3775a0faa5d7cc",
+    "src/game/rs_minimenu_build.c": "fc3b54753d4f01b852fd19c624075b4678c424347d80c658268072099ce37bc5",
+    "src/game/test/rs_minimenu_world_test.c": "39356c92a054d3fc78363e892ec924dc0ff0295fe506be268f495b61f2ad3ede",
+    "OSRS-Content/osrs239-content/scripts/torirs_sailing_edit_navigator_btn.cs2": "eccd7908726788e99170af42b7889fd5e7a96bd6a4b2a5e61cce75cd2df09481 (UNCHANGED)"
+  },
+  "open_issues_for_root": [
+    {
+      "file": "src/app.c",
+      "line": 29011,
+      "now": "app->targetsel.mask = node->behavior.target_mask;",
+      "change": "Use the effective events the way rs_cs2_target_mask does: if app_if_events_override_get(app, com_id, -1, &events) (or the app_if_button_target(app, com_id, &target, &sub) parent lookup) answers, mask = (events >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS for an if3 node; otherwise keep node->behavior.target_mask. app_cs2_events_override_for_component (src/app.c:757) already performs exactly this presence test for IF/CC_GETTARGETMASK. Without it a CC_CREATE target button arms with mask 0 and rs_minimenu_world.c:121 refuses every world row.",
+      "measured": "docs/sailing_validation/social/editnav-arming-peer-blocked.png -- right-clicking the guest while armed offers Cancel alone."
+    },
+    {
+      "file": "src/app.c",
+      "line": 29252,
+      "now": "net_out_opplayert(..., player->server_pid, app->targetsel.component_id)",
+      "change": "targetsel must record the WIRE identity of the armed component, not the tree id: run app_if_button_target(app, opt.pick.id, &com, &sub) at arm time (src/app.c:925 -- the same helper IF_BUTTON already uses for dynamic children) and send that component. A CC_CREATE child's id (measured 937|49210) is a runtime allocation, so [opplayert,sailing_sidepanel:crew_content_clicklayer] can never match it. If the rev-239 OPPLAYERT carries a sub field, it must carry the child index too (net_out_opplayert currently writes out_p1_alt1(&b, 0)).",
+      "measured": "Not reachable by mouse until the first item is fixed; the server half is proven by harness 'peer target', which grants correctly (role 6, navigator_mask 2)."
+    },
+    {
+      "file": "src/ui/uitree_input.c",
+      "line": 68,
+      "note": "NOT a defect for this button (the live rect IS collected -- 'minimenu: 645,407 hits=1 [0]=937|49210(type=19)'), but worth knowing: rs_node_is_decorative_passthrough ignores the target verb entirely, so a target-only component with no ops, no click mask and no hook would never enter the hit stack. The reference collects every widget under the cursor and lets method12079 decide."
+    }
+  ],
+  "resolved_2026_09_06_editnavapp": {
+    "both open_issues_for_root implemented": "src/app.c. (1) the TGT_BUTTON arm now reads the EFFECTIVE target mask (new app_component_target_mask: node->behavior.target_mask, OR'd for an if3 node with (App_IfEventsGetEffective(app, com) >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS) instead of the decoded one; (2) all five targeted sends (OPPLAYERT/OPNPCT/OPLOCT/OPOBJT/OPHELDT) now put the WIRE identity on the wire through the new app_targetsel_wire_component -> app_if_button_target, not the runtime tree id. A third, smaller one: an IF3 target prompt with an empty opBase is now the verb alone.",
+    "measured": "TORIRS_CLICK_DEBUG on an OPT=0 client: 'selarm: tgt com=0x3a9c03a wire=0x3a9000a mask=0x8 op=\"Edit-navigator ->\"' -- the tree id is still 937|49210, the packet now names 937:10 (sailing_sidepanel:crew_content_clicklayer) and the mask is 0x8 PLAYER. The armed guest offers 'Edit-navigator -> Deckhand (level-1)' and the click puts a 12-byte OPPLAYERT on the wire.",
+    "images": [
+      "docs/sailing_validation/social/editnav-armed-on-guest.png",
+      "docs/sailing_validation/social/editnav-rightclick-menu.png"
+    ],
+    "net_out.c": "UNCHANGED and deliberately so. rev-239 OPPLAYERT does carry a selected-sub field (g2Alt2), but mock239_inbound.c reads sub==0xffff && obj==0xffff as the sentinel that means 'a target/spell rather than an item', so writing the child index there would route the grant to OPPLAYERU; handle_opplayert reads only (index, component).",
+    "the remaining half": "NOT the client. handle_opplayert (src/torirsserver/torirs_server_world.c:6959) matches the packet's player index against srv->players[i].pid, the 0-based POOL index, while the client can only send the GPI index the server published (pool pid + 1, ToriRSServer_WirePlayerIndex). The armed click sends index 2 for a peer whose pool pid is 1, no slot matches, and the handler returns before its own verbose line. The harness's 'peer target', which writes the pool pid, grants on the same binary and the same component. See docs/sailing_validation/social-results.json 'blocker'."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "script_id": 7232,
+  "name": "groundItemCaption",
+  "source_sha256": "eb1a2f9c94e5e7adbfb52dfe0dcb756749fbda4a62e2a4f526fc16944897e4d0",
+  "trailer_fields": [
+    20,
+    3,
+    0,
+    13,
+    0,
+    0
+  ],
+  "before_pc": 80,
+  "before_opcode": 1112,
+  "int_locals": [
+    1,
+    5,
+    6,
+    7,
+    8,
+    10,
+    2,
+    4,
+    13
+  ],
+  "color_local": 8,
+  "string_local": 0,
+  "int_writable_mask": 68,
+  "string_writable_mask": 1,
+  "highlight_helper": {
+    "script_id": 7225,
+    "source_sha256": "cd3464d4de037cdfe32940a400d0b56727f64a69a59587d2fb90d73f5d43f3e8",
+    "trailer_fields": [
+      3,
+      0,
+      0,
+      3,
+      0,
+      0
+    ]
+  },
+  "output_locals": [
+    8,
+    13
+  ]
+}

@@ -1,0 +1,29 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolt (Opal)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 4
+|spellbook = Normal
+|type = Utility
+|exp = 9
+|cost = {{RuneReq|Cosmic=1|Air=2}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on opal-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Opal bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Opal)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 4 to cast. They are the first [[bolts]] you can enchant. It imbues 10 [[opal bolts]] each cast and turns them into [[opal bolts (e)]] or 10 [[opal dragon bolts]] into 10 [[opal dragon bolts (e)]]. The enchantment gives the effect ''Lucky Lightning''. Each bolt has a small chance to cause lightning to strike your opponent, causing extra damage based on your [[Ranged]] level.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Air
+|Rune1num = 2
+|Rune2 = Cosmic
+|Rune2num = 1
+}}
+
+{{Standard spellbook}}

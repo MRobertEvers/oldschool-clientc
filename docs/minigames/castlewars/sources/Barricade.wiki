@@ -1,0 +1,109 @@
+{{External|rs=Barricade (Castle Wars)}}
+{{Otheruses|the [[Castle Wars]] barricade}}
+{{Multi Infobox
+|text1 = Item
+|item1 =
+{{Infobox Item
+|name = Barricade
+|image = [[File:Barricade.png]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|members = No
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Set-up, Drop
+|examine = Use these to block enemy team movement.
+|value = 1
+|alchable = No
+|weight = 5.000
+|id = 4053
+}}
+|text2 = NPC
+|item2 =
+{{Infobox NPC
+|version1 = Saradomin
+|version2 = Saradomin (Burning)
+|version3 = Zamorak
+|version4 = Zamorak (Burning)
+|name = Barricade
+|image1 = [[File:Barricade (Saradomin).png|120px]]
+|image2 = [[File:Barricade (Saradomin, burning).png|100px]]
+|image3 = [[File:Barricade (Zamorak).png|120px]]
+|image4 = [[File:Barricade (Zamorak, burning).png|100px]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|members = No
+|location = [[Castle Wars]]
+|options1 = Attack, Burn
+|options2 = Attack, Extinguish
+|options3 = Attack, Burn
+|options4 = Attack, Extinguish
+|examine = A spiky barricade.
+|map = No
+|id1 = 5722
+|id2 = 5723
+|id3 = 5724
+|id4 = 5725
+|leagueRegion = No
+}}
+}}
+[[File:Barricade detail.png|left|120px]]
+A '''barricade''' is an item used in the [[Castle Wars]] [[minigame]] as portable obstacles to restrict enemy movement. On the recommended Castle Wars Worlds, players need at least 500 skill total to set up barricades. Players without that requirement can use the barricades on other worlds.
+
+The barricades have a set-up option that places the item on the ground below you, as an attackable object with 50 [[Hitpoints]]. On dedicated Castle Wars worlds, each team can have a maximum of 10 barricades set up inside their base and 7 barricades set up outside their base. If the limit is reached, players on that team cannot set up more barricades unless some of the previously set up barricades are destroyed.
+
+Players cannot walk through barricades placed in that manner, and must destroy it by [[combat|attacking]], lighting it with a [[tinderbox]], or using an [[explosive potion]] with it.
+Players gain no experience from attacking barricades. Players sometimes light the barricades when an enemy player is coming, as burning barricades take some time to collapse and while burning they cannot be destroyed with an explosive potion.
+
+If you have reached your barricade limit, a message in your chat box will inform you so. Barricades are immune to [[poison]].
+
+On non-designated Castle Wars worlds, barricades will always appear under players. On designated Castle Wars worlds, barricades will appear on top of players.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = Outside designated [[Castle Wars]] worlds, barricades will always appear under players. On designated worlds, they will continue to appear on top of other players.
+}}
+{{Subject changes
+|date = 30 July 2025
+|update = Varlamore: Bug Fixes & More
+|change = Barricades now render over players if they're in the same tile, by default.
+}}
+{{Subject changes
+|date = 9 April 2025
+|update = Farming & Autocast QoL Improvements
+|change = The new barricade cap restricting teams to 7 barricades outside and 10 inside the base now only applies on dedicated Castle Wars [[Server|worlds]].
+}}
+{{Subject changes
+|date = 2 April 2025
+|update = Poll 83: Castle Wars Update
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = * A new barricade cap on dedicated Castle Wars worlds restricts teams to 7 barricades outside and 10 inside the base.
+* Barricades placed now have a coloured rope to indicate what team they belong to.
+* Barricades can now be placed in front of the respawn barriers.
+}}
+{{Subject changes
+|date = 12 August 2021
+|update = Tombs of Amascut: Rewards Beta
+|change = On the recommended Castle Wars Worlds, players now need a skill total of 500 or more if they want to set up barricades. Players without that level are welcome to use the barricades on other worlds.
+}}
+{{Subject changes
+|date = 20 July 2017
+|update = F2P Castle Wars
+|change = The item was made available to free-to-play players.
+}}
+{{Subject changes
+|date = 3 April 2006
+|update = A Soul's Bane
+|change = The item was graphically updated.
+}}
+{{Subject changes footer}}
+
+{{Castle Wars}}
+
+[[Category:Minigame items]]

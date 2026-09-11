@@ -1,0 +1,50 @@
+{{Infobox Spell
+|name = Respawn Teleport
+|image = [[File:Respawn Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 34
+|spellbook = Arceuus
+|type = Teleport
+|exp = 27
+|cost = {{RuneReq|Law=1|Soul=1}}
+|speed = 4 ticks
+|description = Teleports you to your respawn location
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Respawn Teleport icon (mobile).png|left|class=pageimage]]
+'''Respawn Teleport''' teleports the caster to their [[respawn point]], which can either be in [[Lumbridge]], [[Falador]], [[Camelot]], [[Edgeville]], [[Prifddinas]], [[Ferox Enclave]], [[Kourend Castle]], or [[Civitas illa Fortis]]. In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+The [[defence skillcape]]'s effect does not count as a spawn location; because of this, Respawn Teleport will take the player to their standard respawn location and not [[Ardougne]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Soul
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Respawn Teleport v1.png|center]]
+|[[File:Respawn Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

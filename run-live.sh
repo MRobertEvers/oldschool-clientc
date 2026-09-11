@@ -1,13 +1,13 @@
 #!/bin/sh
 # Run torirs from a boot manifest, natively or in a browser.
 #
-#   ./run-live.sh       <manifest.ini> [user] [pass] [client args...]
-#   ./run-live.sh web   <manifest.ini> [user] [pass] [client args...]
+#   ./run-live.sh [--skip-checks]       <manifest.ini> [user] [pass] [client args...]
+#   ./run-live.sh [--skip-checks] web   <manifest.ini> [user] [pass] [client args...]
 #
-# The manifest (manifest_rs254.ini, manifest_osrs230.ini, manifest_xrsps.ini, …)
+# The manifest (manifests/manifest_rs254lc.ini, manifests/manifest_osrs230.ini, manifests/manifest_osrs233xrsps.ini, …)
 # specifies cache, rev, transport, host/port and RSA keys. user/pass default to
 # asdf/a. Anything after them is passed straight through to the client, so
-# `./run-live.sh manifest_rs254.ini asdf a --offline` works. Extra behavior via
+# `./run-live.sh manifests/manifest_rs254lc.ini asdf a --offline` works. Extra behavior via
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #
@@ -20,25 +20,47 @@
 # default because it reports the whole steady-state heap and buries everything
 # else.
 #
-#   TORIRS_SANITIZE=1 ./run-live.sh manifest_osrs239_torirs.ini --soft3d
+#   TORIRS_SANITIZE=1 ./run-live.sh manifests/manifest_osrs239_torirs.ini --soft3d
 #
 # A manifest naming a marked-lane cache (cache.osrs239.rs2012,
 # cache.osrs239.summoning) gets that cache baked here when the content tree has
 # moved under it, because nothing else bakes those. TORIRS_FORCE_CACHE_BAKE=1
 # bakes without asking.
 #
+# The ordinary content bake (cache.osrs239.baked, `torirsserver-cache`) is checked
+# the same way and for the same reason -- it is what puts an edited config,
+# interface, CS2 script or sprite in front of a client -- both when a manifest
+# boots it directly and as layer 0 under an overlay that is based on it.
+#
+# One chain is NOT based on it: anything rooted at cache.osrs239.rs2012 is
+# composed on the pristine cache.osrs239, so ordinary content cannot enter it at
+# any freshness. That case prints what is missing rather than baking, since no
+# bake reachable from here would carry it.
+#
 # The server script pack is compiled here too, when anything sscompile reads is
 # newer than the last compile. TORIRS_FORCE_SCRIPT_BUILD=1 recompiles without
 # asking.
+#
+# WHICH content lanes go into that pack is the manifest's `[content:lanes]`
+# section — `lane=scape2009_summoning`, one per line — and a lane not named is
+# not compiled at all, rather than compiled with its feature flag at 0. The
+# lanes a tree declares are its own (`ported/<lane>/lane.ini`); list them with
+# `make -C src torirsserver-lanes`.
 #
 # TORIRS_PREPARE_ONLY=1 does both of those and stops, without building or
 # launching a client -- how run-runelite.sh borrows this file's bake policy
 # rather than copying it.
 #
+# --skip-checks (or TORIRS_SKIP_CHECKS=1) skips both content preparation
+# steps and runs the cache and script pack exactly as they stand. This is the
+# fast client-code iteration path: the incremental client build still runs, so
+# edited C is never silently ignored. Do not use it after changing content or
+# server scripts unless running those stale artifacts is intentional.
+#
 # Native osrs230 / osrs239 live runs use the in-process server: they build with
 # EMBED_SERVER=1 and set TORIRS_TRANSPORT=embed. Web live runs deliberately do
 # not: a browser has no host filesystem for the embedded server's cache, content
-# tree, or script pack. They start a native mock230 child instead; the browser
+# tree, or script pack. They start a native ToriRSServer child instead; the browser
 # reaches it over WebSocket while its cache reads still go to io_server.
 #
 # `web` runs the emscripten build instead. The client is the same program with
@@ -60,20 +82,26 @@ set -eu
 
 cd "$(dirname "$0")"
 
-# MOCK230_CONTENT_DIR selects the tree used by the build rules. The native mock
-# reads MOCK230_CONTENT, so keep the two sides on the same checkout whenever a
+# TORIRSSERVER_CONTENT_DIR selects the tree used by the build rules. The native mock
+# reads TORIRSSERVER_CONTENT, so keep the two sides on the same checkout whenever a
 # caller selects a non-default content tree.
-if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
-    export MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
+    export TORIRSSERVER_CONTENT="$TORIRSSERVER_CONTENT_DIR"
 fi
 
-USAGE='usage: run-live.sh [web] <manifest.ini> [user] [pass] [client args...]'
+USAGE='usage: run-live.sh [--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]'
 
 MODE=native
-if [ "${1:-}" = "web" ]; then
-    MODE=web
-    shift
-fi
+SKIP_CHECKS="${TORIRS_SKIP_CHECKS:-0}"
+# Launcher options are leading arguments so they can never be confused with a
+# client option. Accept `web` and --skip-checks in either order.
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        web) MODE=web; shift ;;
+        --skip-checks) SKIP_CHECKS=1; shift ;;
+        *) break ;;
+    esac
+done
 
 MANIFEST="${1:?$USAGE}"
 shift
@@ -113,6 +141,30 @@ GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST"
 RAW_SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 RAW_CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 
+# Which content lanes this profile's script pack is built from — `[content:lanes]`,
+# one `lane=` per line (src/serverscript/ssc_lane.h).
+#
+# Section-scoped, unlike every other read above: `lane` is a plausible key
+# elsewhere, and a manifest-wide sed would pick up a `[revconfig:…]` record that
+# happens to use the word. The keys above are read manifest-wide because each of
+# them appears exactly once and always in the section it belongs to; this one is
+# a repeated key, so it is worth reading properly.
+#
+# This replaces guessing the lane set from the OUTPUT DIRECTORY'S NAME, which is
+# what the build_summoning/build_curses/build_summoning_curses case below used to
+# do. That could only ever recognise lanes the launcher had been taught, so a new
+# lane was not launchable until this file learned its suffix — and a manifest that
+# named a directory the pattern did not match silently got the pristine pack.
+MANIFEST_LANES=$(awk '
+    /^[[:space:]]*\[/ { in_section = ($0 ~ /^[[:space:]]*\[content:/); next }
+    in_section && /^[[:space:]]*lane[[:space:]]*=/ {
+        sub(/^[[:space:]]*lane[[:space:]]*=[[:space:]]*/, "")
+        sub(/[[:space:]]*$/, "")
+        if( $0 != "" ) printf "%s ", $0
+    }
+' "$MANIFEST")
+MANIFEST_LANES=${MANIFEST_LANES% }
+
 # BootManifest_LoadFile resolves cache and script paths against the manifest's
 # directory. The standalone mock must receive the same resolved paths as the
 # browser client and io_server, including for `subdir/boot.ini` invocations.
@@ -130,15 +182,34 @@ manifest_path() {
             ;;
     esac
 }
+# ONE ABSOLUTE PATH, resolved once, used by the build and by the server.
+#
+# The server is handed this value (`TORIRSSERVER_SCRIPTS`, below) and the script pack
+# is compiled to it. They must be the same location, and the only reliable way
+# to guarantee that is for them to be the same STRING - a relative path means
+# "wherever the caller happens to stand", and the two callers do not stand in
+# the same place: the server runs from the repo root, the compile runs through
+# `make -C src`.
+#
+# That divergence was live: a manifest `scripts=OSRS-Content/.../build_x` had the
+# server loading the real pack from the root while sscompile wrote to
+# `src/OSRS-Content/.../build_x`. A phantom content tree grew under src/, every
+# compile reported success, the staleness predicate honestly said "stale" on
+# every run because the real pack never moved, and the client ran packs that were
+# hours old. Absolute here, and there is no caller-relative path left to differ.
 SERVER_SCRIPTS=$(manifest_path "$RAW_SERVER_SCRIPTS")
+case "$SERVER_SCRIPTS" in
+    '' | /*) ;;
+    *) SERVER_SCRIPTS="$PWD/$SERVER_SCRIPTS" ;;
+esac
 CACHE_DIR=$(manifest_path "$RAW_CACHE_DIR")
 
-# Every embedded run compiles the server scripts, and mock230-scripts feeds both
+# Every embedded run compiles the server scripts, and torirsserver-scripts feeds both
 # ported/ lanes to sscompile unconditionally (SUMMONING_CLIENT_LANE and
 # RS2012_QBD_TD_CLIENT_LANE in src/makefile). A checkout without them dies on a
 # missing all.varbit.compack several targets deep, which reads as a broken
 # working copy rather than the wrong content root — so find the tree instead of
-# demanding the caller name it. MOCK230_CONTENT_DIR already set wins, and is
+# demanding the caller name it. TORIRSSERVER_CONTENT_DIR already set wins, and is
 # obeyed as given: mid-port, the caller knows better than this check.
 #
 # run-live.ps1 does the same, in the same order, and the two must stay in step.
@@ -146,9 +217,9 @@ content_tree_has_lanes() {
     [ -d "$1/ported/scape2009_summoning" ] && [ -d "$1/ported/rs2012_qbd_td" ]
 }
 
-if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
-    content_tree_has_lanes "$MOCK230_CONTENT_DIR" || echo \
-        "run-live.sh: MOCK230_CONTENT_DIR=$MOCK230_CONTENT_DIR has no ported/ lanes -- the bakes will likely fail" >&2
+if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
+    content_tree_has_lanes "$TORIRSSERVER_CONTENT_DIR" || echo \
+        "run-live.sh: TORIRSSERVER_CONTENT_DIR=$TORIRSSERVER_CONTENT_DIR has no ported/ lanes -- the bakes will likely fail" >&2
 else
     # The submodule first, then checkouts under build/. This used to be
     # reversed -- build/osrs-content-rs2012 (a worktree on
@@ -161,21 +232,21 @@ else
     # run-live.ps1.
     for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
         if content_tree_has_lanes "$candidate"; then
-            MOCK230_CONTENT_DIR=$(cd "$candidate" && pwd)
-            export MOCK230_CONTENT_DIR
+            TORIRSSERVER_CONTENT_DIR=$(cd "$candidate" && pwd)
+            export TORIRSSERVER_CONTENT_DIR
             break
         fi
     done
 fi
 
-# MOCK230_CONTENT_DIR is the BUILD side (src/makefile); MOCK230_CONTENT is the
-# RUNTIME side (mock230_boot.c resolve_content_dir), which otherwise falls back
+# TORIRSSERVER_CONTENT_DIR is the BUILD side (src/makefile); TORIRSSERVER_CONTENT is the
+# RUNTIME side (torirs_server_boot.c resolve_content_dir), which otherwise falls back
 # to a hardcoded OSRS-Content/osrs239-content. Setting only the first compiles
 # script.dat into one tree and boots another's -- the "Unknown command:
 # rs2012qbdmanifest" failure. See run-live.ps1's Set-ContentTree.
-if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
-    MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
-    export MOCK230_CONTENT
+if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
+    TORIRSSERVER_CONTENT="$TORIRSSERVER_CONTENT_DIR"
+    export TORIRSSERVER_CONTENT
 fi
 
 # ws_host/ws_port: where a browser reaches the same server (the web build's
@@ -274,10 +345,10 @@ fi
 
 # Native osrs230 / osrs239 live runs use the in-process server. The browser
 # cannot: the wire web build intentionally has no local cache/content files for
-# that server to open. It instead talks to a native mock230 child over the
+# that server to open. It instead talks to a native ToriRSServer child over the
 # browser's WebSocket-backed socket API.
 USE_EMBED=0
-USE_MOCK230=0
+USE_TORIRSSERVER=0
 if [ "$MODE" = web ] && { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ] || \
                            [ "$MANIFEST_TRANSPORT" = "embed" ] || [ "${TORIRS_TRANSPORT:-}" = "embed" ]; }; then
     # An Emscripten TCP socket is an RFC 6455 WebSocket. Never leave an embed
@@ -291,29 +362,33 @@ if [ "$MODE" = native ]; then
         USE_EMBED=1
         export TORIRS_TRANSPORT=embed
         # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
-        export MOCK230_REV="${MOCK230_REV:-$REV}"
+        export TORIRSSERVER_REV="${TORIRSSERVER_REV:-$REV}"
     fi
 elif [ "$OFFLINE" = 0 ]; then
-    # Own only a reachable IPv4 loopback endpoint. mock230 intentionally binds
+    # Own only a reachable IPv4 loopback endpoint. ToriRSServer intentionally binds
     # 127.0.0.1 (not IPv6); a remote or explicit IPv6 endpoint belongs to the
     # caller and must not get an unused local process.
     if { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ]; } && valid_port "$WEB_GAME_PORT"; then
         case "$WEB_GAME_HOST" in
-            localhost | 127.0.0.1) USE_MOCK230=1 ;;
+            localhost | 127.0.0.1) USE_TORIRSSERVER=1 ;;
         esac
     fi
 fi
 
-# mock230 binds IPv4 loopback. Keep the standard manifest's `localhost` URL
+# ToriRSServer binds IPv4 loopback. Keep the standard manifest's `localhost` URL
 # from depending on the browser's IPv6 fallback; an explicit --connect still
 # wins later in the client's normal command-line parsing.
-if [ "$USE_MOCK230" = 1 ] && [ "$CLI_CONNECT_SET" = 0 ]; then
+if [ "$USE_TORIRSSERVER" = 1 ] && [ "$CLI_CONNECT_SET" = 0 ]; then
     export TORIRS_WS_HOST=127.0.0.1
 fi
 
-# lc254 live login checks cache CRCs; fetch the 9 big-endian int32s from the
-# server's web endpoint (TORIRS_JAG_CRC env wins over the manifest).
-if [ "$REV" = "lc254" ] && [ "$OFFLINE" = 0 ] && [ -z "${TORIRS_JAG_CRC:-}" ]; then
+# LostCity live login checks cache CRCs; fetch the 9 big-endian int32s from the
+# server's web endpoint (TORIRS_JAG_CRC env wins over the manifest). Every
+# LostCity revision, not only 254: an on-demand 289 boot reads /crc itself
+# natively, but the browser build cannot -- the page has no HTTP client for a
+# cross-origin server -- and sends nine zeros, which the server answers with
+# reply 6 ("client out of date") that names neither the cause nor the fix.
+if { [ "$REV" = "lc254" ] || [ "$REV" = "lc289" ]; } && [ "$OFFLINE" = 0 ] && [ -z "${TORIRS_JAG_CRC:-}" ]; then
     CRC_URL="http://${WS_HOST}:${WS_PORT}/crc"
     TORIRS_JAG_CRC=$(curl -sf "$CRC_URL" | python3 -c "
 import sys, struct
@@ -339,7 +414,7 @@ fi
 # simply does not exist, which reads as "the cheat is broken".
 #
 # So the pack is checked here for every embedded/native or mock/web live run —
-# but mock230-scripts/mock230-scripts-summoning have no output file matching
+# but torirsserver-scripts/torirsserver-scripts-summoning have no output file matching
 # their own target name, so `make` reruns the ~15k-script sscompile pass
 # unconditionally, .PHONY or not. Ask the predicate `make` would apply if the
 # target were a real file — see tools/server_scripts_stale.py, which owns the
@@ -352,14 +427,20 @@ fi
 # compiled.
 build_scripts() {
     # Most manifests carry no scripts= at all -- it only needs stating when
-    # build_summoning applies instead of mock230-scripts' own default output,
-    # which is $MOCK230_CONTENT_DIR/server/scripts/build (src/makefile). The
+    # build_summoning applies instead of torirsserver-scripts' own default output,
+    # which is $TORIRSSERVER_CONTENT_DIR/server/scripts/build (src/makefile). The
     # content-tree discovery above has already run by this point, so
-    # MOCK230_CONTENT_DIR is set unless no candidate tree was found at all --
+    # TORIRSSERVER_CONTENT_DIR is set unless no candidate tree was found at all --
     # in which case sscompile itself is about to fail on a missing --pack dir,
     # and this predicate failing the same way is the right answer.
     _out="$SERVER_SCRIPTS"
-    [ -z "$_out" ] && [ -n "${MOCK230_CONTENT_DIR:-}" ] && _out="$MOCK230_CONTENT_DIR/server/scripts/build"
+    [ -z "$_out" ] && [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ] && _out="$TORIRSSERVER_CONTENT_DIR/server/scripts/build"
+    # `SERVER_SCRIPTS` is already absolute (see where it is set, and why). The
+    # fallback below is not, and `make -C src` would resolve it against src/.
+    case "$_out" in
+        '' | /*) ;;
+        *) _out="$PWD/$_out" ;;
+    esac
     if [ -n "$_out" ]; then
         # --tree: the script's own default is the OSRS-Content submodule, and
         # the tree in use is often a build/ checkout instead. Left to the
@@ -367,10 +448,9 @@ build_scripts() {
         # answers "fresh" for sources that moved.
         if python3 tools/server_scripts_stale.py \
                 --out "$_out" \
-                ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
+                ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} \
                 --input src/serverscript --input src/makefile \
-                --input tools/ss_allocate.py \
-                --input tools/stage_summoning_server_constants.py >&2; then
+                --input tools/ss_allocate.py >&2; then
             _stale=0
         else
             _stale=$?
@@ -380,28 +460,53 @@ build_scripts() {
             return 0
         fi
     fi
-    echo "run-live.sh: building the server script pack..." >&2
-    case "$SERVER_SCRIPTS" in
-        *build_summoning_curses)
-            make -C src mock230-scripts-summoning-curses || exit 1
-            ;;
-        *build_summoning)
-            make -C src mock230-scripts-summoning || exit 1
-            ;;
-        *build_curses)
-            make -C src mock230-scripts-curses || exit 1
-            ;;
-        *)
-            make -C src mock230-scripts || exit 1
-            ;;
-    esac
+    if [ -n "$MANIFEST_LANES" ]; then
+        echo "run-live.sh: building the server script pack (lanes: $MANIFEST_LANES)..." >&2
+    else
+        echo "run-live.sh: building the server script pack..." >&2
+    fi
+    # A profile that names lanes gets exactly those, compiled into the directory
+    # it named. A profile that names none is the pristine one, and goes through
+    # `torirsserver-scripts` — the only target carrying the full set of content
+    # contracts (God Wars, quest combat, agility XP, …). Those gates guard the
+    # base tree, and the base tree is what that build is.
+    if [ -n "$MANIFEST_LANES" ] || [ -n "$RAW_SERVER_SCRIPTS" ]; then
+        make -C src torirsserver-scripts-lanes \
+            TORIRSSERVER_SCRIPT_LANES="$MANIFEST_LANES" \
+            ${_out:+TORIRSSERVER_SCRIPT_OUT="$_out"} || exit 1
+    else
+        make -C src torirsserver-scripts || exit 1
+    fi
+    # AND PROVE IT LANDED. A compile that reports success having written
+    # somewhere else is the failure this whole comment block is about, and it is
+    # invisible from its own output — sscompile prints the path it was given,
+    # which is exactly the path that was wrong.
+    #
+    # So ask the predicate again. It was "stale" a moment ago by construction;
+    # if it is still stale after a successful build, the bytes did not reach the
+    # pack the server is about to load, and running on would mean running the
+    # old one. That is never what the caller wanted.
+    if [ -n "$_out" ]; then
+        if python3 tools/server_scripts_stale.py \
+                --out "$_out" \
+                ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} \
+                --input tools/ss_allocate.py >/dev/null 2>&1; then
+            :
+        elif [ $? = 1 ]; then
+            return 0
+        fi
+        echo "run-live.sh: the script pack at $_out is STILL stale after a" >&2
+        echo "  successful compile -- the output did not land where the server" >&2
+        echo "  reads it. Refusing to launch on a stale pack." >&2
+        exit 1
+    fi
 }
 
 # The same argument, one layer down, for the marked lanes.
 #
 # `ported/` is excluded from the ordinary content walk on purpose, so a lane's
 # records reach a client through exactly one route: its own bake. Nothing else
-# writes cache.osrs239.rs2012 or cache.osrs239.summoning — not `mock230-cache`,
+# writes cache.osrs239.rs2012 or cache.osrs239.summoning — not `torirsserver-cache`,
 # which walks the tree without the lanes, and certainly not the pristine
 # cache.osrs239 the other manifests boot. A launcher that skips this step runs
 # today's client against whichever bake happened to be on disk, which is how six
@@ -434,7 +539,7 @@ cache_overlay() {
     # nobody is building from and answers "fresh" for a lane that moved.
     if python3 tools/cache_overlay_stale.py \
             --cache "$_cache" --lane "$_lane" --base "$_base" \
-            ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
+            ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} \
             --input "$_stager" --input src/makefile \
             --input 3rd/rscache/tools/cachepack >&2; then
         _stale=0
@@ -447,6 +552,80 @@ cache_overlay() {
     fi
     echo "run-live.sh: building the $_label cache overlay..." >&2
     make -C src "$_target" || exit 1
+}
+
+# Layer 0: the ORDINARY content bake, under everything above.
+#
+# `torirsserver-cache` is the target that walks the tree proper — configs/,
+# interfaces, CS2, sprites, maps — and writes cache.osrs239.baked. Nothing asked
+# for it here until now, and nothing else asks for it either, so the hole was
+# exactly as wide as the one the lane check closes and shaped the same way: a
+# manifest naming `cache.osrs239.baked` booted whichever bake somebody last ran
+# by hand, and the summoning/curses overlays stacked on that base inherited its
+# staleness silently. `configs/all.hitsplat` was a day newer than the cache
+# every client in this tree was booting when this was written.
+#
+# The predicate is the same script with no --lane (tools/cache_overlay_stale.py),
+# for the same reason the lane check is: one implementation, and `make` would
+# apply this rule itself if the target were a real file.
+#
+# $1 is the cache to bake. That is the OVERLAY'S BASE, not $CACHE_DIR, whenever
+# this runs as a layer under one — and once it rebakes, the overlay's own
+# predicate sees a base newer than itself and rebakes in turn, which is how one
+# content edit propagates all the way up a composition.
+cache_base_bake() {
+    _cache=$1
+    # `make -C src` resolves a relative path against src/, not the repo root.
+    case "$_cache" in
+        /*) _abs=$_cache ;;
+        *) _abs=$(pwd)/$_cache ;;
+    esac
+    if python3 tools/cache_overlay_stale.py \
+            --cache "$_cache" \
+            --base "${TORIRSSERVER_CACHE_BASE:-cache.osrs239}" \
+            ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} \
+            --input src/makefile \
+            --input 3rd/rscache/tools/cachepack >&2; then
+        _stale=0
+    else
+        _stale=$?
+    fi
+    if [ "$_stale" = 1 ]; then
+        echo "run-live.sh: content cache $_cache is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" >&2
+        return 0
+    fi
+    echo "run-live.sh: baking the content cache $_cache..." >&2
+    make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR="$_abs" || exit 1
+}
+
+# The same question where there is no bake that could answer it.
+#
+# A cache in the rs2012 chain is composed on the PRISTINE `cache.osrs239`
+# (RS2012_CACHE_BASE, src/makefile) rather than on the content bake, and each
+# stager copies only its own `ported/` lane on top. So the ordinary tree is not
+# an input to that chain at any freshness: rebaking every layer would not put a
+# single edited config in it. Say so instead — the alternative is what this file
+# spent six sessions learning to avoid, a launcher that looks prepared.
+#
+# Note the inverted rule: a predicate that could not answer stays SILENT here.
+# For a bake, "cannot answer" must mean bake; for a warning, it would mean crying
+# wolf on every launch of a checkout without python3.
+cache_base_warn() {
+    _cache=$1
+    if python3 tools/cache_overlay_stale.py \
+            --cache "$_cache" \
+            ${TORIRSSERVER_CONTENT_DIR:+--tree "$TORIRSSERVER_CONTENT_DIR"} >&2; then
+        _stale=0
+    else
+        _stale=$?
+    fi
+    [ "$_stale" = 0 ] || return 0
+    echo "run-live.sh: ^^ $_cache is composed on the pristine cache.osrs239, so" >&2
+    echo "  those ordinary-content edits are NOT in it and no bake here can put" >&2
+    echo "  them there. Server-side work (.rs2, params, npc/loc server fields)" >&2
+    echo "  travels by the script pack and is unaffected. For client-visible" >&2
+    echo "  edits, rebase the chain: make -C src torirsserver-cache, then rerun with" >&2
+    echo "  RS2012_CACHE_BASE=\$PWD/cache.osrs239.baked TORIRS_FORCE_CACHE_BAKE=1" >&2
 }
 
 # The bases match the Makefile's `?=` defaults, and honour the same overrides:
@@ -479,42 +658,49 @@ build_cache_overlay() {
             _rs2012_summ=cache.osrs239.rs2012-summoning
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
                 "${RS2012_CACHE_BASE:-cache.osrs239}" \
-                tools/stage_rs2012_overlay.py mock230-cache-rs2012 \
+                tools/stage_rs2012_overlay.py torirsserver-cache-rs2012 \
                 "$_rs2012_base"
             cache_overlay "Summoning over QBD/TD" scape2009_summoning \
                 "$_rs2012_base" \
-                tools/stage_summoning_overlay.py mock230-cache-rs2012-summoning \
+                tools/stage_summoning_overlay.py torirsserver-cache-rs2012-summoning \
                 "$_rs2012_summ"
             cache_overlay "Ancient Curses over Summoning" rs558_ancient_curses \
                 "$_rs2012_summ" \
-                tools/stage_curses_overlay.py mock230-cache-all
+                tools/stage_curses_overlay.py torirsserver-cache-all
+            cache_base_warn "$CACHE_DIR"
             ;;
+        # Rooted on the content bake, so layer 0 runs first: a rebuilt base is
+        # one of the overlay predicate's own inputs, which is what carries an
+        # ordinary-content edit up into the overlay without a second rule.
         *cache.osrs239.curses)
+            cache_base_bake "${CURSES_CACHE_BASE:-cache.osrs239.baked}"
             cache_overlay "Ancient Curses" rs558_ancient_curses \
                 "${CURSES_CACHE_BASE:-cache.osrs239.baked}" \
-                tools/stage_curses_overlay.py mock230-cache-curses
+                tools/stage_curses_overlay.py torirsserver-cache-curses
             ;;
         *cache.osrs239.rs2012-summoning)
             _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
                 "${RS2012_CACHE_BASE:-cache.osrs239}" \
-                tools/stage_rs2012_overlay.py mock230-cache-rs2012 \
+                tools/stage_rs2012_overlay.py torirsserver-cache-rs2012 \
                 "$_rs2012_base"
             cache_overlay "Summoning over QBD/TD" scape2009_summoning \
                 "$_rs2012_base" \
-                tools/stage_summoning_overlay.py mock230-cache-rs2012-summoning
+                tools/stage_summoning_overlay.py torirsserver-cache-rs2012-summoning
+            cache_base_warn "$CACHE_DIR"
             ;;
         *cache.osrs239.summoning)
+            cache_base_bake "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}"
             cache_overlay "Summoning" scape2009_summoning \
                 "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
-                tools/stage_summoning_overlay.py mock230-cache-summoning
+                tools/stage_summoning_overlay.py torirsserver-cache-summoning
             ;;
         # The QBD/TD lane's cache is composed, not shipped, so a manifest
         # naming it is a manifest asking for this bake.
         #
         # The merge that left conflict markers in this file also left a second,
         # unreachable copy of this arm — same pattern, so `case` could never
-        # take it. Its one distinct act was `make mock230-servpack` alongside
+        # take it. Its one distinct act was `make torirsserver-servpack` alongside
         # the bake (the server half of the same tree: the npc/loc server fields
         # the boot reads out of <content>/server/pack). That never ran, so it
         # is not restored here; add it deliberately if the lane turns out to
@@ -522,9 +708,36 @@ build_cache_overlay() {
         *cache.osrs239.rs2012)
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
                 "${RS2012_CACHE_BASE:-cache.osrs239}" \
-                tools/stage_rs2012_overlay.py mock230-cache-rs2012
+                tools/stage_rs2012_overlay.py torirsserver-cache-rs2012
+            cache_base_warn "$CACHE_DIR"
+            ;;
+        # A manifest that boots the ordinary bake itself (the osrs239-net profile (profiles/osrs239-net.ini)).
+        # It had no arm at all, so the one cache every non-lane profile runs on was
+        # the only one nothing ever checked.
+        *cache.osrs239.baked)
+            cache_base_bake "$CACHE_DIR"
             ;;
     esac
+}
+
+# Cache and scripts are one consistency boundary: skipping only one leaves a
+# run that looks prepared while its two server-side inputs describe different
+# content revisions. Keep the fast path explicit and centralized at every
+# native, web, and prepare-only call site.
+prepare_live_content() {
+    if [ "$SKIP_CHECKS" = 1 ]; then
+        echo "run-live.sh: --skip-checks -- using the cache and server script pack as they stand (they may be stale)" >&2
+        # The server refuses to boot on a stale pack (torirs_server_scripts.c). That
+        # refusal is the guarantee; this flag is the one place a caller has
+        # already said, in as many words, that stale is what they want. Carrying
+        # the opt-out here keeps the two statements consistent instead of
+        # letting the flag hit a wall it was designed to walk through.
+        TORIRSSERVER_ALLOW_STALE_SCRIPTS=1
+        export TORIRSSERVER_ALLOW_STALE_SCRIPTS
+        return 0
+    fi
+    build_cache_overlay
+    build_scripts
 }
 
 # TORIRS_PREPARE_ONLY=1 runs the manifest-driven preparation above -- the lane
@@ -534,30 +747,29 @@ build_cache_overlay() {
 # implementation of those two predicates is exactly the drift the comments above
 # spend so long guarding against. Nothing else in this file runs in that mode.
 if [ "${TORIRS_PREPARE_ONLY:-0}" = 1 ]; then
-    build_cache_overlay
-    build_scripts
+    prepare_live_content
     exit 0
 fi
 
-# Web OSRS runs put the world in a native process. mock230 accepts both raw TCP
+# Web OSRS runs put the world in a native process. ToriRSServer accepts both raw TCP
 # and RFC 6455 on one port, so Emscripten's WebSocket-backed TCP implementation
 # needs no proxy. Keep it a child of this script: a Ctrl-C must release both the
 # page server and the game port.
 MOCK_PID=''
-start_mock230() {
-    [ "$USE_MOCK230" = 1 ] || return 0
+start_torirsserver() {
+    [ "$USE_TORIRSSERVER" = 1 ] || return 0
     [ "${TORIRS_NO_MOCK:-0}" != 1 ] || return 0
 
     # Build a deterministic, non-embedded native lane. The outer environment
     # may carry OPT/MEMTRACE/sanitizer variables for a client experiment; it
-    # must not make the launcher look for build_opt/mock230 after building a
+    # must not make the launcher look for build_opt/torirsserver after building a
     # different lane. A custom binary is already the caller's responsibility.
-    MOCK_BIN="${TORIRS_MOCK_BIN:-src/build_opt/mock230}"
+    MOCK_BIN="${TORIRS_MOCK_BIN:-src/build_opt/torirsserver}"
     MOCK_PORT="$WEB_GAME_PORT"
     if [ -z "${TORIRS_MOCK_BIN:-}" ]; then
         echo "run-live.sh: building the native mock server..." >&2
         make -C src PLATFORM=native OPT=1 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
-            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 mock230 || return 1
+            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 ToriRSServer || return 1
     fi
     if [ ! -x "$MOCK_BIN" ]; then
         echo "run-live.sh: mock binary '$MOCK_BIN' is not executable" >&2
@@ -565,13 +777,13 @@ start_mock230() {
     fi
 
     (
-        if [ -z "${MOCK230_CACHE:-}" ] && [ -n "$CACHE_DIR" ]; then
-            export MOCK230_CACHE="$CACHE_DIR"
+        if [ -z "${TORIRSSERVER_CACHE:-}" ] && [ -n "$CACHE_DIR" ]; then
+            export TORIRSSERVER_CACHE="$CACHE_DIR"
         fi
-        if [ -z "${MOCK230_SCRIPTS:-}" ] && [ -n "$SERVER_SCRIPTS" ]; then
-            export MOCK230_SCRIPTS="$SERVER_SCRIPTS"
+        if [ -z "${TORIRSSERVER_SCRIPTS:-}" ] && [ -n "$SERVER_SCRIPTS" ]; then
+            export TORIRSSERVER_SCRIPTS="$SERVER_SCRIPTS"
         fi
-        export MOCK230_REV="$CLIENT_REV"
+        export TORIRSSERVER_REV="$CLIENT_REV"
         exec "$MOCK_BIN" "$MOCK_PORT" --rev "$CLIENT_REV"
     ) &
     MOCK_PID=$!
@@ -583,12 +795,12 @@ start_mock230() {
     if ! kill -0 "$MOCK_PID" 2>/dev/null; then
         wait "$MOCK_PID" 2>/dev/null || true
         MOCK_PID=''
-        echo "run-live.sh: mock230 exited during startup (game port $MOCK_PORT unavailable or mock failed to boot; see output above)" >&2
+        echo "run-live.sh: ToriRSServer exited during startup (game port $MOCK_PORT unavailable or mock failed to boot; see output above)" >&2
         return 1
     fi
 }
 
-stop_mock230() {
+stop_torirsserver() {
     if [ -n "$MOCK_PID" ]; then
         kill "$MOCK_PID" 2>/dev/null || true
         wait "$MOCK_PID" 2>/dev/null || true
@@ -634,9 +846,8 @@ fi
 
 if [ "$MODE" = native ]; then
     if [ "$USE_EMBED" = 1 ]; then
-        echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
-        build_cache_overlay
-        build_scripts
+        echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, TORIRSSERVER_REV=$TORIRSSERVER_REV)" >&2
+        prepare_live_content
         if [ "$SANITIZE" != 0 ]; then
             echo "run-live.sh: TORIRS_SANITIZE=$SANITIZE — building $CLIENT_BIN with ASan+UBSan" >&2
             # Unquoted on purpose: SAN_MAKE_ARGS is a list of make assignments.
@@ -678,9 +889,8 @@ WEB_TARGET=web
 # manifest, and nothing here depends on which one this run uses. In particular,
 # never link EMBED_SERVER into the web module: the native mock below owns that
 # world and can open the host cache/content filesystem.
-if [ "$USE_MOCK230" = 1 ] && [ "${TORIRS_NO_MOCK:-0}" != 1 ]; then
-    build_cache_overlay
-    build_scripts
+if [ "$USE_TORIRSSERVER" = 1 ] && [ "${TORIRS_NO_MOCK:-0}" != 1 ]; then
+    prepare_live_content
 fi
 # Command-line assignment is deliberate: even an inherited EMBED_SERVER=1
 # must not turn a `run-live.sh web` build into an embedded-world module.
@@ -732,7 +942,7 @@ PY
 # the next run fails to bind.
 IO_PID=''
 cleanup() {
-    stop_mock230
+    stop_torirsserver
     if [ -n "$IO_PID" ]; then
         kill "$IO_PID" 2>/dev/null || true
         wait "$IO_PID" 2>/dev/null || true
@@ -754,7 +964,7 @@ if ! kill -0 "$IO_PID" 2>/dev/null; then
     exit 1
 fi
 
-if ! start_mock230; then
+if ! start_torirsserver; then
     exit 1
 fi
 
@@ -766,7 +976,7 @@ fi
 WS_ENDPOINT_KNOWN=0
 [ -n "$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=.*/x/p' "$MANIFEST" | head -1)" ] && WS_ENDPOINT_KNOWN=1
 [ -n "${TORIRS_WS_PORT:-}" ] && WS_ENDPOINT_KNOWN=1
-[ "$USE_MOCK230" = 1 ] && WS_ENDPOINT_KNOWN=1
+[ "$USE_TORIRSSERVER" = 1 ] && WS_ENDPOINT_KNOWN=1
 if [ "$OFFLINE" = 0 ] && [ "$WS_ENDPOINT_KNOWN" = 0 ]; then
     echo "run-live.sh: note — a browser reaches this server over a WebSocket, and" >&2
     echo "  this manifest names no ws_port, so the page will dial ${HOST:-localhost}:${GAME_PORT}." >&2
@@ -785,13 +995,13 @@ if [ "${TORIRS_WEB_NO_OPEN:-0}" != "1" ]; then
 fi
 echo "run-live.sh: serving on port $PORT — Ctrl-C to stop (child services stop with it)" >&2
 
-# io_server and mock230 are one live run. Do not leave a page server advertising
+# io_server and ToriRSServer are one live run. Do not leave a page server advertising
 # a dead game endpoint if the mock crashes after its startup check.
 while kill -0 "$IO_PID" 2>/dev/null; do
     if [ -n "$MOCK_PID" ] && ! kill -0 "$MOCK_PID" 2>/dev/null; then
         wait "$MOCK_PID" 2>/dev/null || true
         MOCK_PID=''
-        echo "run-live.sh: mock230 stopped unexpectedly; stopping the web run" >&2
+        echo "run-live.sh: ToriRSServer stopped unexpectedly; stopping the web run" >&2
         exit 1
     fi
     sleep 1

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every hitsplat type's sprite id, once, at boot.
@@ -48,8 +49,10 @@ Task_Dat2HitsplatLoad_Run(
     int* sprite_ids = NULL;
     int* durations = NULL;
     int* slot_policies = NULL;
+    struct RS_HitsplatVariants* variants = NULL;
     int count = 0;
     int decoded = 0;
+    int selectors = 0;
 
     PT_BEGIN(&task->pt);
 
@@ -68,7 +71,7 @@ Task_Dat2HitsplatLoad_Run(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     if( !filelist || !archive->file_ids )
     {
-        fprintf(stderr, "hitsplat: failed to split the config group\n");
+        TORIRS_ERR("hitsplat: failed to split the config group\n");
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);
@@ -90,9 +93,14 @@ Task_Dat2HitsplatLoad_Run(
     sprite_ids = malloc((size_t)count * sizeof(*sprite_ids));
     durations = malloc((size_t)count * sizeof(*durations));
     slot_policies = malloc((size_t)count * sizeof(*slot_policies));
+    /* calloc, not malloc: a type with no opcode 17/18 must read back as
+     * `count == 0` and `ids == NULL`, which is how `ResolveType` tells an
+     * ordinary appearance from a selector. */
+    variants = calloc((size_t)count, sizeof(*variants));
     assert(sprite_ids);
     assert(durations);
     assert(slot_policies);
+    assert(variants);
     /* -1 is "no sprite", and it is a real state rather than a hole: a quarter
      * of cache.osrs230's records genuinely carry no opcode 5. */
     for( int i = 0; i < count; i++ )
@@ -124,25 +132,63 @@ Task_Dat2HitsplatLoad_Run(
             (unsigned)RSCache_Dat2ConfigHitsplatFlags(
                 CacheProvider_Profile(&task->bc->base)));
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(stderr, "hitsplat %d: decode consumed %d of %d bytes\n", id,
+            TORIRS_LOG("hitsplat %d: decode consumed %d of %d bytes\n", id,
                     entry._consumed, filelist->file_sizes[i]);
         sprite_ids[id] = entry.sprite_id;
         durations[id] = entry.duration;
         slot_policies[id] = entry.slot_policy;
+        /*
+         * The selector, laid out as the reference lays it out: the stream's
+         * `variant_count` ids followed by the opcode-18 fallback, so the array
+         * IS the `count + 2` one `GetMultiHitmark` indexes and the "last entry
+         * is the fallback" rule is the array's length rather than a second rule.
+         *
+         * Opcode 17 reads no fallback; the decoder leaves `variant_fallback` at
+         * -1 and appending that is exactly what the reference does, so a var
+         * value out of range on an opcode-17 record draws nothing. cache.osrs239
+         * carries no opcode-17 record, so this path is reached only by a cache
+         * that does.
+         */
+        if( entry.variant_count > 0 )
+        {
+            int const n = entry.variant_count + 1;
+            int* ids = malloc((size_t)n * sizeof(*ids));
+
+            assert(ids);
+            for( int v = 0; v < entry.variant_count; v++ )
+                ids[v] = entry.variants[v];
+            ids[n - 1] = entry.variant_fallback;
+            variants[id].varbit = entry.variant_varbit;
+            variants[id].varp = entry.variant_varp;
+            variants[id].ids = ids;
+            variants[id].count = n;
+            selectors++;
+        }
         decoded++;
     }
 
     RSCache_FileListFree(filelist);
     RSCache_Dat2DiskArchiveFree(archive);
 
-    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, durations, slot_policies, count) )
+    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, durations, slot_policies, variants,
+                               count) )
     {
+        for( int i = 0; i < count; i++ )
+            free(variants[i].ids);
+        free(variants);
         free(sprite_ids);
         free(durations);
         free(slot_policies);
         PT_EXIT(&task->pt);
     }
-    printf("hitsplat load: %d types (%d records)\n", count, decoded);
+    /*
+     * `selectors` is worth printing rather than counting silently. A cache whose
+     * hitsplat table has been round-tripped through a stale text export loses
+     * every one of them — which is not a crash, not a warning, and not visible
+     * on screen: settings 5 and 279 simply stop having anything to switch. It
+     * was 0 here for as long as the baked cache carried that export.
+     */
+    TORIRS_LOG("hitsplat load: %d types (%d records, %d var selectors)\n", count, decoded, selectors);
 
     /*
      * Bring the sprites themselves into residence.
@@ -167,6 +213,7 @@ Task_Dat2HitsplatLoad_Run(
          * returns for a sprite already resident — and it clears its own child
          * pointer afterwards, which is what makes it safe inside a loop. */
         TASK_AWAITEX_IF(
+            &task->task,
             &task->pt,
             io,
             CreateTask_SpriteLoad(&task->bc->base,

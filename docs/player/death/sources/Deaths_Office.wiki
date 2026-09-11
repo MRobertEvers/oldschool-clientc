@@ -1,0 +1,99 @@
+{{External|rs=Death's office}}
+{{redirect|Death's Domain|the scenery object|Death's Domain (scenery)}}
+{{Infobox Location
+|name = Death's Office
+|image = [[File:Death's Office.png|300px]]
+|release = [[25 June]] [[2020]]
+|update = Death Changes
+|members = No
+|location = None
+|music = [[Rest in Peace]]
+|map = {{Map|name=Death's Office|mapID=-1|zoom=3|x=3176|y=5726}}
+|leagueRegion = No
+}}
+'''Death's Office''', also known as '''Death's Domain''', is a small office in which [[Death (NPC)|Death]] resides. The entrance to Death's Office can be found near any major [[respawn]] point, indicated by a tombstone icon [[File:Death's Office icon.png]] on the minimap: 
+* [[Lumbridge]] - graveyard by the church
+* [[Falador]] - [[Crypt (White Knights' Castle)|White Knights' Castle Crypt]]
+* [[Seers' Village]] - graveyard by the church
+* [[Edgeville]] - [[Edgeville ruins]]
+* [[Ferox Enclave]]
+* [[Kourend Castle]]
+* [[Prifddinas]] - [[Prifddinas#Hefin district|Hefin district]], north of the bank (directly north of the central tower).
+* [[Civitas illa Fortis]] - west of the [[Sunrise Palace]]
+
+In Death's office, players can collect items that they did not collect from their [[grave]] within 15 minutes of [[death|dying]]. Items worth less than {{Coins|100000}} are free to reclaim, but items worth more come with a 5% reclamation fee. As with graves, [[Ironman Mode|ironmen]] (with the exception of ultimate ironmen) are given a 50% discount, giving them a 2.5% reclamation fee. Note that it is substantially cheaper to reclaim items from a grave, which uses a [[Death#Fee_calculation_for_collecting_from_gravestones|tiered system]] depending on the item's value, capping at 1% in the worst case scenario. Items may be collected at Death's office for the player's convenience before the 15 minute timer has run out, though the higher fee will be charged.
+
+Players may deposit unwanted items into the [[Death's coffer]] for 105% of the item's [[Grand Exchange]] price (item has to be worth more than 10,000 coins to be acceptable), which will be used to pay for item reclamation fees as well as area instances. Items offered here '''cannot''' be withdrawn and the value cannot be used for any other purpose.
+
+Beware that no more than 120 items or item stacks can be held in Death's Office Item Retrieval at any given time, causing items from an expired gravestone to be deleted when the limit is reached.
+
+Death can be talked to in order to cosmetically enhance the player's [[gravestone]] to a statue of an angel, costing {{coins|200000}}.
+
+==Transportation==
+{| class="wikitable sortable"
+!The closest...
+!To...
+!Description
+!Distance
+!Requirements
+|-
+|[[Teleport]]
+|[[Death's Office]]
+|[[Respawn Teleport]] or [[Ring of returning]] to Edgeville
+|4-8 tiles
+|
+|-
+|[[Teleport]]
+|[[Death's Office]]
+|[[Kourend Castle Teleport]]
+|9-11 tiles
+|Completion of [[Client of Kourend]] and {{SCP|magic|48}} [[Magic]]
+|-
+|[[Teleport]]
+|[[Death's Office]]
+|[[Xeric's talisman]] to [[Xeric's Heart]]
+|9-11 tiles
+|
+|-
+|[[Teleport]]
+|[[Death's Office]]
+|[[Amulet of glory]] to [[Edgeville]]
+|10 tiles
+|
+|}
+
+==Locations==
+
+{| class="wikitable sortable sticky-header"
+!Location
+! class="unsortable" |Map
+|-
+|Lumbridge||{{Map|title=Lumbridge|x:3238,y:3194|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Falador||{{Map|title=Falador|x:2964,y:3331|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Seers' Village||{{Map|title=Seers' Village|x:2715,y:3466|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Edgeville||{{Map|title=Edgeville|x:3096,y:3475|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Ferox Enclave||{{Map|title=Ferox Enclave|x:3127,y:3630|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Kourend Castle||{{Map|title=Kourend Castle|x:1622,y:3663|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Prifddinas||{{Map|title=Prifddinas|x:3256,y:6118|mtype=pin|width=250|height=200|mapID=-1}}
+|-
+|Civitas illa Fortis||{{Map|title=Outer Fortis|x:1654,y:3135|mtype=pin|width=250|height=200|mapID=-1}}
+|}
+
+==Trivia==
+[[File:Siren's tome in Death's Office.png|thumb|right|300px|The Siren's tome, visible behind Death's desk.]]
+* [[Mithril seeds]] and [[adamant seeds]] cannot be used in Death's Office. Attempting to do so results in the message {{mes|You can't plant your flowers here.}} appearing in chat. Previously it said {{mes|Pretty flowers won't cheer this place up.}} instead.
+* Viewing "Items Kept on Death" whilst in the Death's Office will show an additional message about the office being a safe area (despite its appearances) and Death considering dying there silly.
+* The [[Siren's tome]], an item which passed a poll but was scrapped afterward, can be seen behind [[Death (NPC)|Death]]'s desk.
+* Three [[scenery]] objects in the office have their names recoloured in the [[Choose Option]] menus, and "fake" dots drawn on the [[minimap]], to create the illusion that they are items and NPCs.
+** [[Muncher]] has a yellow name and map icon like an [[NPC]].
+** [[Weapons (Death's Office)|Weapons]] and [[Death's scythe]] have orange text and red map icons like [[items]].
+* A [[Death Rework Display|replica]] of Death's office can be found in the [[Old School Museum]].
+
+{{Realms}}
+[[Category:Municipal buildings]]

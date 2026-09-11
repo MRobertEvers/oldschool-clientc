@@ -1,0 +1,4440 @@
+#include "plugin/torirs_plugin_api.h"
+
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/*
+ * Stone Drawer: a phone-shaped gameframe for the 2004 dat1 lanes.
+ *
+ * ## What it is
+ *
+ * The modern OldSchool mobile layout, built out of the rev-289 media jagfile's
+ * own art. The scene fills the screen; a rail of stone tabs hugs the right
+ * edge; the inventory PANEL slides out beside the rail when a tab is tapped and
+ * goes away when the same tab is tapped again; the chatbox is a sheet in the
+ * bottom-left corner behind its own switch. Nothing is docked, because on a
+ * phone every docked pixel is one the world does not get.
+ *
+ * ## Why it is a second plugin and not a fourth layout in gameframe.c
+ *
+ * gameframe.c reproduces three frames that EXIST -- 2004's, OldSchool's fixed
+ * 548 and OldSchool's resizable 161/164 -- and every number in it is copied
+ * from the revconfig or the clientscript that authored them. Its value is that
+ * it invents nothing, and a case in its switch that invented a whole frame
+ * would erode exactly that: the next reader could no longer assume a number in
+ * that file came from somewhere.
+ *
+ * This frame is authored here. It has no reference to be faithful to, its state
+ * is its own (a drawer that opens and closes has no counterpart in any of those
+ * three), and the two files disagree about what a tab stone is FOR -- there,
+ * the pressed highlight over a surround that already drew the stone; here, the
+ * whole button, because a floating rail has no surround behind it.
+ *
+ * ## The OldSchool lane
+ *
+ * This frame used to stand down on an OldSchool cache, whose own toplevel_osm
+ * is a mobile frame already. It arranges over it now -- over whichever
+ * toplevel the server opened -- so the drawer is the same drawer on every
+ * world. Two things differ there, and both are asked of the host rather than
+ * assumed (api->lane): the CHAT is the cache's own 519x165 behavior pack and
+ * is placed whole, while its backing/bar/plates are replaced through retained
+ * appearance facets; the ORBS are a pack laid out beside the map, placed as a
+ * block at the offset the cache's frames use. The tab state is the cache's
+ * too, through the host's tab verbs.
+ *
+ * Auto deliberately means the classic 2004 family everywhere: selecting this
+ * frame on an OldSchool lane is how a player gets that look back. OldSchool
+ * Mobile's own interface-601 stones, plate, ring and icons remain an explicit
+ * family choice. @see MobileFamily.
+ *
+ * ## The canvas it asks for
+ *
+ * FOLLOW_WINDOW with a minimum, and the minimum is the point: the client's own
+ * floor is the classic frame's 765x503, which is a statement about a revconfig
+ * gameframe whose children are insets off that box. This layout is arithmetic
+ * on whatever canvas it is handed, so it carries its own floor -- the size below
+ * which its own pieces stop fitting each other, computed once in
+ * MOBILE_MIN_W/H and asserted against the geometry it is derived from.
+ *
+ * ## The art
+ *
+ * The plugin SHIPS its art: nineteen PNGs in
+ * `script/plugins/assets/mobile-gameframe/`, cut once at authoring time by the
+ * `SOURCES.sh` beside them and committed. Nothing here is read out of whatever
+ * cache the client happens to have booted, so the frame looks the same on every
+ * lane it runs on and cannot be half-drawn by a cache that is missing a sprite.
+ *
+ * They are this plugin's own files under this plugin's own names, rather than a
+ * path into gameframe-layout's folder: an asset name resolves inside the
+ * CALLING plugin's directory, so a borrowed one would make this frame's art
+ * disappear the day the other plugin renamed a file it owns. The names are the
+ * plugin's for a second reason -- the pieces are used for things the 2004 client
+ * never used them for, and the media file's names would describe the wrong job:
+ *
+ *   stone       the surround's vertical strip retained with the classic set.
+ *   highlight   the pressed stone, drawn on the open tab only.
+ *   drawer      the 2004 side panel, which the drawer IS.
+ *   chat_plate  the two classic base sprites whose real chat-control regions
+ *               are cut out and, on OldSchool, reduced to the native cells.
+ *   chat_sheet  the torn parchment behind either lane's chat behavior.
+ *   map_housing the map plate, with the minimap and compass in the holes the
+ *               classic frame puts them in.
+ *
+ * The two switch glyphs are the OldSchool client's own chat and keyboard
+ * pictures; the switch plate itself remains classic interface art.
+ */
+
+/* --------------------------------------------------------------- geometry */
+
+/** Every floating piece is this far from the edge it is pinned to. */
+#define MOBILE_MARGIN 4
+
+#define MOBILE_TAB_COUNT 14
+
+/*
+ * The rail is the 2004 frame's TWO TAB ROWS, each stood on its end.
+ *
+ * The classic frame carries fourteen tabs as two horizontal rows of seven, one
+ * above the inventory and one below it, and each row is a run of redstones laid
+ * edge to edge -- three shapes, mirrored between the halves, in a rhythm of
+ * wide-narrow-wide that is the row's own. That run is the thing the eye reads
+ * as "the tab strip", and it is what this rail is: the TOP row turned a quarter
+ * turn to make the left column, and the BOTTOM row turned to make the right.
+ * Seven tabs a column, fourteen in all, and the two groups stay the two groups
+ * the frame has always had.
+ *
+ * Turning rather than restacking is what keeps the stones' bevels running along
+ * the rail. They were cut lit from one side for a horizontal row; stood upright
+ * the light runs across every cell instead of down the strip, and fourteen
+ * stones that should close into one piece read as fourteen loose buttons.
+ *
+ * So a cell's HEIGHT is the classic box's width, and the rhythm survives the
+ * turn -- which is why the two columns are not the same length and neither is
+ * a multiple of anything. Those sums are the row's own.
+ */
+#define MOBILE_RAIL_COLS 2
+#define MOBILE_RAIL_ROWS 7
+/*
+ * Both columns are the SAME plate, mirrored against each other.
+ *
+ * The rail used to be the top row's plate beside the bottom row's, which are
+ * different lengths (249 against 269) and different depths (45 against 37) --
+ * so the two columns ended at different heights and their stones sat at
+ * different insets. Two copies of one plate, back to back, close into a single
+ * slab: same length, same depth, and the mirror puts a finished outer edge on
+ * each side with the two inner edges meeting up the middle.
+ */
+#define MOBILE_RAIL_COL_W 45
+#define MOBILE_RAIL_COL_H 249
+
+/*
+ * Where the plate's seven ROCKS are, measured off the cleaned art.
+ *
+ * The stones and their icons are centred on these rather than placed at the
+ * 2004 frame's tab offsets, because the plate is not the 2004 frame's any more:
+ * it was cleaned up by hand, and its rocks moved a few pixels each when it was.
+ * Placing against the old table left every stone sitting slightly off the rock
+ * it belongs to -- visible as soon as the highlight lit, because a lit stone
+ * that is two pixels proud of its socket reads as a misprint.
+ *
+ * `start` is the rock's first pixel along the plate's length and `span` its
+ * length. The seams they came from are the dark joints between rocks, found by
+ * scanning the plate for columns darker than its mean; the numbers are recorded
+ * here rather than re-derived at boot because a seam scan is a heuristic and a
+ * table is not, and this art is shipped rather than discovered.
+ */
+struct MobileRock
+{
+    unsigned char start;
+    unsigned char span;
+};
+
+static struct MobileRock const MOBILE_ROCK[MOBILE_RAIL_ROWS] = {
+    { 28, 28 }, { 56, 28 }, { 84, 26 }, { 110, 37 }, { 147, 33 }, { 180, 28 }, { 208, 28 },
+};
+
+/*
+ * The plate's stone band ACROSS its depth: rows 9..44 of 45.
+ *
+ * The turn maps this to the column's width, so it is what a cell's x and width
+ * come from -- and on the mirrored right-hand column it lands at the other end,
+ * which is why the two columns compute it from opposite edges.
+ */
+#define MOBILE_PLATE_BAND_Y 9
+#define MOBILE_PLATE_BAND_D 36
+#define MOBILE_RAIL_COL0_W MOBILE_RAIL_COL_W
+#define MOBILE_RAIL_COL1_W MOBILE_RAIL_COL_W
+#define MOBILE_RAIL_W (MOBILE_RAIL_COL_W * MOBILE_RAIL_COLS)
+#define MOBILE_RAIL_H MOBILE_RAIL_COL_H
+
+/** `classic_invback`, at its own size. The drawer is the 2004 side panel.
+ *  The OldSchool plate (1031) is the same 190x261, which is not luck: both
+ *  frames' side panels are authored to that box. */
+#define MOBILE_PANEL_W 190
+#define MOBILE_PANEL_H 261
+
+/*
+ * The OldSchool rail: OSM's tab columns, two of them side by side.
+ *
+ * Interface 601 lays each column as seven 40x40 stones on a 39-row stride --
+ * each stone overlapping the one above by a row, which is how the bevels
+ * close into one strip -- inside a dark 9-slice plate three pixels wide. Its
+ * left column has six tabs and an expand stone, its right seven, and its
+ * logout stone stands elsewhere; this frame has fourteen tabs and no expand,
+ * so the logout takes the seventh cell of the left column and the columns are
+ * OSM's own order otherwise. @see MOBILE_O_COLUMN.
+ */
+#define MOBILE_O_STONE 40
+#define MOBILE_O_STRIDE 39
+#define MOBILE_O_BORDER 3
+#define MOBILE_O_COL_H (MOBILE_O_STRIDE * (MOBILE_RAIL_ROWS - 1) + MOBILE_O_STONE)
+#define MOBILE_O_RAIL_W (MOBILE_O_STONE * MOBILE_RAIL_COLS + 2 * MOBILE_O_BORDER)
+#define MOBILE_O_RAIL_H (MOBILE_O_COL_H + 2 * MOBILE_O_BORDER)
+
+/** OSM's two columns in screen order, top to bottom: `tabs_left` is
+ *  stone3,4,5,6,0,2 (+expand), `tabs_right` stone1,12,13,7,9,8,11. */
+static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] = {
+    { 3, 4, 5, 6, 0, 2, 10 },
+    { 1, 12, 13, 7, 9, 8, 11 },
+};
+
+/*
+ * The OldSchool chat PACK's container: interface 162 mounts into a 519x165
+ * layer and owns the text, buttons, actions and scrollbar. On that lane the
+ * frame does not place a second chat surface; retained decoration facets dress
+ * the pack in Stone Drawer art. @see mobile_chat_decoration_update.
+ *
+ * The DEFAULT and not the answer -- the four OldSchool toplevels each name
+ * their own container and a resizable one need not be the fixed frame's size.
+ * @see mobile_chat_native.
+ */
+#define MOBILE_O_CHAT_W_DEFAULT 519
+#define MOBILE_O_CHAT_H_DEFAULT 165
+
+/*
+ * The OldSchool orb pack's block, relative to the map WINDOW.
+ *
+ * Interface 160 lays its four orbs out inside a 207x197 block the resizable
+ * toplevels put 29 columns left of the ring and ten rows below its top; the
+ * ring's map window is at (24, 8) in it. Stated against the window rather
+ * than the ring so it holds for every housing this frame offers -- the
+ * window is the one thing all three have at a measured place.
+ */
+#define MOBILE_O_ORBS_DX (-29 - 24)
+#define MOBILE_O_ORBS_DY (10 - 8)
+#define MOBILE_O_ORBS_W 207
+#define MOBILE_O_ORBS_H 197
+/* The activity adviser inside that block, at the resizable and mobile
+ * toplevels' own spot under the run orb (torirs_gridmaster_pos). The one
+ * child of the pack the TOPLEVEL positions: over the Fixed toplevel it would
+ * otherwise sit right-aligned, inside the map circle. */
+#define MOBILE_O_ADVISER_DX 85
+#define MOBILE_O_ADVISER_DY 143
+#define MOBILE_O_ADVISER_W 34
+#define MOBILE_O_ADVISER_H 34
+
+/*
+ * The map housing: a RING, with the scene showing through everywhere it is not.
+ *
+ * Not the 2004 `mapback`, which is an opaque plate with a round window punched
+ * in it. A plate is right for a frame that fills the screen and wrong for one
+ * that floats on it: its square corners sit on the world, and the 2004 compass
+ * hangs off its top-left as a square of its own because the plate is what used
+ * to hide the corners. A ring has no corners to hide.
+ *
+ * The two holes are NOT given as numbers here. They are read off the art at
+ * load time -- the ring states where its windows are and what shape they are,
+ * and a constant beside it is a second copy of that which can only ever drift.
+ * @see mobile_build_holes. These are the fallbacks used for the one declaration
+ * that may happen before the picture has landed.
+ */
+#define MOBILE_MAP_W 233
+#define MOBILE_MAP_H 168
+#define MOBILE_MAP_HOLE_X 24
+#define MOBILE_MAP_HOLE_Y 8
+#define MOBILE_MAP_HOLE_W 152
+#define MOBILE_MAP_HOLE_H 152
+#define MOBILE_COMPASS_X 5
+#define MOBILE_COMPASS_Y 5
+#define MOBILE_COMPASS_W 35
+
+/*
+ * The chat block: the sheet, a stone bar under it, and ONE rectangle between
+ * them.
+ *
+ * The bar used to be `backbase1`, the 2004 frame's bottom-left base plate, and
+ * it is the wrong shape for a floating sheet twice over: it is 496 wide against
+ * the sheet's 479, and its top edge is CUT rather than straight -- it is a
+ * corner piece, shaped to mate with the surround above and beside it. Floated
+ * on the scene with nothing to mate with, those two facts read as one: a chat
+ * box with a notch out of its side and a ragged seam across it.
+ *
+ * So the bar is the plain stone strip tiled to the sheet's own width, and the
+ * two are stacked flush.
+ *
+ * SIZED BY THE LANE, and the two numbers below are only what to fall back on.
+ * How wide the chat surface is, is a fact about the revision and not about
+ * this frame: a 2004 revconfig authors `chat_region` at 479x96 and the chat
+ * renderer's own geometry agrees with it -- a 463-wide message column, the
+ * scrollbar at x+463, the rule at y+77 -- while an OldSchool cache mounts
+ * interface 162 into a 519x165 layer whose pack is built against those. Both
+ * were constants here, which made this frame a claim about every revision it
+ * would ever be loaded on; it now asks. @see mobile_chat_native.
+ *
+ * The fallbacks are the 2004 pair, because a lane that will not answer is one
+ * whose chat is the builtin, and the builtin is 479x96 by construction.
+ */
+#define MOBILE_CHAT_W_DEFAULT 479
+#define MOBILE_CHAT_H_DEFAULT 96
+#define MOBILE_STRIP_H 36
+
+/*
+ * The sheet's TORN edge, and why the block sits seventeen columns in.
+ *
+ * `chat_sheet_rs289.png` is not `chatback.dat`. The cache's sheet is a flat
+ * 479x96 rectangle with four hard corners -- which is the one shape a docked
+ * frame can wear, because a surround explains it, and the one shape a FLOATING
+ * sheet cannot: on the scene those corners read as a beige box someone dropped
+ * on the grass. The parchment is the same 479x96 surface inside a torn fringe,
+ * and the fringe is the whole point of it.
+ *
+ * It is no longer ONE picture, and that is what these numbers are now about.
+ * A single 517x130 sheet has to be scaled to reach a bigger chatbox, and a
+ * scaled tear is the one thing a tear must not be: the fringe's whole job is
+ * to look like paper that was pulled apart, and pulling it further apart in
+ * the resampler turns the tears into long smeared fingers along whichever edge
+ * grew. So the sheet is cut into nine pieces -- four corners that are never
+ * resized, four edges that REPEAT along their own axis, and a middle that
+ * repeats both ways -- and composed at whatever size the chat surface needs.
+ * @see mobile_compose_paper, and tools/cut_chat_sheet_tiles.py, which cuts
+ * them and can prove the numbers below off its own output (`--proof`).
+ *
+ * The FRINGE is what survives the change unaltered, and that is the property
+ * that makes a nine-patch the right shape for this: the corners are the same
+ * pixels at every size and the edges repeat, so how far in from each edge the
+ * paper is solid does not depend on how big the sheet is. Measured off the
+ * composition at four sizes, it is 17 columns to the left, 21 to the right and
+ * 17 rows top and bottom -- the same numbers the single sheet had, so a
+ * composition at 517x130 reproduces the old picture's geometry exactly.
+ *
+ * The surface moves, not the art. The chat builtin's geometry is the 2004
+ * client's and every number in it is fixed -- a 463-wide message column, the
+ * scrollbar at x+463, the input line at y+77 -- so the block is pinned flush
+ * to the bottom-left by the PARCHMENT, and the chat, the filter buttons and
+ * the tap-blocker are all inset by the fringe so the core lands where they
+ * meet it.
+ */
+#define MOBILE_PAPER_FRINGE_L 17
+#define MOBILE_PAPER_FRINGE_T 17
+#define MOBILE_PAPER_FRINGE_R 21
+#define MOBILE_PAPER_FRINGE_B 17
+
+/**
+ * How many real, distinct pieces back one repeating edge, at most.
+ *
+ * A ceiling and not a promise: tools/cut_chat_sheet_tiles.py answers with
+ * however many wraps its source actually supports below its quality gate,
+ * which for this sheet is 3 for the top edge, 2 for the bottom, and 1 for the
+ * left and right -- the left edge's tear only repeats well in one place, and
+ * a second "variant" there would have been a worse seam than drawing the
+ * single tile twice. Slots the cutter did not fill are NULL in
+ * MOBILE_IMAGE_FILE, exactly like MOBILE_TAB_COUNT's missing tab-7 icon.
+ */
+#define MOBILE_PAPER_EDGE_VARIANTS_MAX 3
+/** The middle tile is grain, not a shape, so it does not share the edges'
+ *  scarcity: three disjoint low-blotch patches fit the source every time. */
+#define MOBILE_PAPER_FILL_VARIANTS 3
+/**
+ * Inked rows below the surface's last, and the reason the block sits higher
+ * than the surface alone would.
+ *
+ * The sheet used to be pinned by its surface -- chat_y = strip_y - chat_h --
+ * which put the surface's last row on the strip and left the torn edge hanging
+ * BELOW it, under the filter buttons, which then drew over the paper. So the
+ * block is pinned by the ART's last inked row instead.
+ *
+ * Ink and not the piece: the bottom corners have empty rows past their last
+ * tear, and pinning those would leave a visible gap where the art has nothing.
+ * MOBILE_PAPER_FRINGE_B is 17 rows of fringe and 5 of them are empty, so 12
+ * rows of it are drawn.
+ */
+#define MOBILE_PAPER_INK_B 12
+/**
+ * Extra clear air between the torn edge and the button row, on top of that.
+ *
+ * Zero, and that is the wanted value rather than a disabled feature: the paper
+ * belongs directly above the buttons, and MOBILE_PAPER_INK_B alone already
+ * puts it there. Pinning the art's last inked row to the row above the strip
+ * leaves the two rows the button lift adds, which is the whole clearance the
+ * frame wants -- the sheet reads as sitting ON the row rather than floating
+ * over it.
+ *
+ * It stays a named number because it is the one knob here that is taste rather
+ * than measurement, and because a positive value is the only way to say "hold
+ * them further apart" without disturbing the fringe, which is not free to
+ * move. @see MOBILE_PAPER_INK_B.
+ */
+#define MOBILE_CHAT_STRIP_GAP 0
+
+/** The art that backs a chat surface of `w` by `h`: the fringe is added to it
+ *  on all four sides. @see MOBILE_PAPER_FRINGE_L. */
+#define MOBILE_PAPER_ART_W(w) ((w) + MOBILE_PAPER_FRINGE_L + MOBILE_PAPER_FRINGE_R)
+#define MOBILE_PAPER_ART_H(h) ((h) + MOBILE_PAPER_FRINGE_T + MOBILE_PAPER_FRINGE_B)
+
+/**
+ * The chat surface's top row, and with it the whole block's.
+ *
+ * A macro because the layout pass and the tap-blocker both spelled it out
+ * separately once; that is exactly the pair that drifts when the sheet art
+ * changes shape, and the blocker landing seventeen rows off the sheet is a
+ * frame that swallows taps on the world and passes taps on the chat. Only the
+ * layout evaluates it now -- the blocker reads the answer back out of
+ * g_frame.chat_y, which is the same number and is also the only one that
+ * survives a soft keyboard.
+ *
+ * The bottom is a PARAMETER and is not the canvas's: with a keyboard up the
+ * block hangs from the safe bottom instead. @see mobile_layout. So is the
+ * surface's height, which is the LANE's rather than this frame's.
+ * @see mobile_chat_native.
+ */
+#define MOBILE_CHAT_Y(bottom, chat_h)                                                  \
+    ((bottom) -MOBILE_STRIP_H - (chat_h) -MOBILE_PAPER_INK_B - MOBILE_CHAT_STRIP_GAP)
+
+/*
+ * The four filter buttons, spread evenly across the bar.
+ *
+ * Evenly, and not at the classic frame's own 6/135/273/408: those are measured
+ * against a 496-wide plate and the last of them ends at 508, so on a 479-wide
+ * bar the Report button would hang off the end. An even spread is a LAYOUT
+ * decision the moment the bar stops being the one the numbers came from.
+ */
+#define MOBILE_CHAT_BUTTON_COUNT 4
+#define MOBILE_CHAT_BUTTON_W 100
+#define MOBILE_CHAT_BUTTON_H 32
+#define MOBILE_CHAT_BUTTON_LIFT ((MOBILE_STRIP_H - MOBILE_CHAT_BUTTON_H) / 2)
+
+/*
+ * The OldSchool pack's own bar is 519x23, and the 2004 strip that dresses it
+ * is composed at exactly that box -- with a hollow cut for every filter the
+ * pack has, which is eight.
+ *
+ * Two wrong answers came before this one. The pack's eight controls were first
+ * re-dressed one at a time in a shrunken classic stone, which squashed the
+ * bevel and left an OldSchool button-shaped rectangle behind every caption;
+ * then the whole 519x23 LAYER was replaced, which took the eight filters away
+ * with it and left four 2004 buttons where the player had All, Game, Public,
+ * Private, Channel, Clan, Trade and Report.
+ *
+ * A 2004 chat filter is a caption on a hollow cut INTO the rock, with nothing
+ * between the two. So the bar's picture is re-cut here -- one hollow per
+ * filter, at the boxes the eight plate roles report -- and the plates are held
+ * with no art. Everything written on them stays the pack's: the name, and the
+ * green mode line under it that says On, Friends or Off.
+ *
+ * @see MOBILE_CHAT_RECESS_CAP, mobile_compose_classic_bar.
+ */
+/** The one hollow the band is re-cut from, and the clean rock beside it. The
+ *  first, at MOBILE_CHAT_BUTTON_SRC[0], is wholly inside `chat_plate.png`. */
+#define MOBILE_CHAT_RECESS_CAP 10
+#define MOBILE_CHAT_ROCK_X 106
+#define MOBILE_CHAT_ROCK_W 29
+/** As many hollows as a bar can be asked for: an OldSchool chatbox has eight
+ *  filters and a 2004 one has four. */
+#define MOBILE_CHAT_CELL_MAX 8
+
+/** One hollow to cut, in the BAR's own columns and rows. */
+struct MobileChatCell
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+/** One small-font chat line of parchment beyond the cache's text backing. */
+#define MOBILE_O_PAPER_PAD_T 14
+#define MOBILE_O_PAPER_PAD_B 14
+
+/**
+ * Where filter button `i` starts, across a bar as wide as the chat surface.
+ *
+ * A function of the width and no longer of a constant, because the width is
+ * the lane's: a bar spread across a hard-coded 479 under a 519-wide OldSchool
+ * chatbox puts the last button forty columns short of the corner.
+ *
+ * Evenly, and not at the classic frame's own 6/135/273/408: those are measured
+ * against a 496-wide plate and the last of them ends at 508, so on a 479-wide
+ * bar the Report button would hang off the end. An even spread is a LAYOUT
+ * decision the moment the bar stops being the one the numbers came from.
+ *
+ * The fringe is in here so the two call sites cannot drift apart over it.
+ */
+static int
+mobile_chat_button_x(int i, int strip_w)
+{
+    int const cell = strip_w / MOBILE_CHAT_BUTTON_COUNT;
+
+    assert(i >= 0);
+    assert(i < MOBILE_CHAT_BUTTON_COUNT);
+    assert(strip_w > 0);
+    return i * cell + ((cell - MOBILE_CHAT_BUTTON_W) / 2) + MOBILE_PAPER_FRINGE_L;
+}
+
+/*
+ * The chat switch: the grey interface button, at its own size.
+ *
+ * `miscgraphics2` frame 0 -- the button the 2004 logout and settings panels are
+ * built from. It is a BUTTON, which is what this is, where the tab stones are
+ * sockets in a rail; borrowing a stone made the switch look like a piece of the
+ * rail that had come loose in the opposite corner.
+ */
+#define MOBILE_TOGGLE_W 36
+#define MOBILE_TOGGLE_H 25
+/** On the OldSchool family the two switches are 601's own 40x40 stones. */
+#define MOBILE_O_TOGGLE_W MOBILE_O_STONE
+#define MOBILE_O_TOGGLE_H MOBILE_O_STONE
+/** The gap between the chat switch and the keyboard switch beside it. */
+#define MOBILE_TOGGLE_GAP 4
+/*
+ * How much of its own size the CHAT glyph keeps.
+ *
+ * The atlas is cut for OldSchool Mobile's own 40-pixel buttons and these
+ * switches are 36x25, so the bubbles at full size hang over the plate on three
+ * sides. Two thirds fills the button and leaves a margin: 21x18 inside 36x25.
+ *
+ * Halving fitted too, and left them looking lost on the plate -- which is the
+ * hazard of picking a fraction for the arithmetic rather than for the picture.
+ * Two thirds is not a clean box filter the way a half is, but the scaler
+ * averages each destination pixel's whole footprint, so what it costs is a
+ * little softness at this size rather than the staircase a point sample would
+ * give.
+ */
+#define MOBILE_ICON_NUM 2
+#define MOBILE_ICON_DEN 3
+
+/** What a bank or a dialogue is authored for. The cache's own interfaces are
+ *  built against this box, so it is placed and never resized -- only moved. */
+#define MOBILE_MODAL_W 512
+#define MOBILE_MODAL_H 334
+
+/*
+ * The smallest canvas this frame still computes on.
+ *
+ * Height is the binding one and it is derived, not chosen: the drawer is pinned
+ * to the bottom margin and the map housing to the top, so the canvas has to
+ * hold both without the one climbing into the other --
+ * MARGIN + MAP_H + PANEL_H + MARGIN. Width is a floor of taste rather than of
+ * arithmetic: the rail and the drawer need 262 columns between them and the
+ * world needs the rest to be worth looking at.
+ */
+#define MOBILE_MIN_H (MOBILE_MARGIN + MOBILE_MAP_H + MOBILE_PANEL_H + MOBILE_MARGIN)
+#define MOBILE_MIN_W 640
+
+_Static_assert(
+    MOBILE_MIN_W > MOBILE_RAIL_W + MOBILE_PANEL_W + (2 * MOBILE_MARGIN),
+    "the rail and the drawer must fit side by side at the smallest canvas");
+_Static_assert(
+    MOBILE_MIN_H > MOBILE_RAIL_H + (2 * MOBILE_MARGIN),
+    "the rail must fit between the margins at the smallest canvas");
+
+/* ----------------------------------------------------------------- assets */
+
+enum MobileImage
+{
+    /** The two map housings the `housing` setting chooses between. */
+    IMG_MAPBACK = 0,
+    IMG_MAPBACK_RING,
+    IMG_INVBACK,
+    /**
+     * The parchment. FOUR corners cut once, then a variant SET at each
+     * repeating position -- up to MOBILE_PAPER_EDGE_VARIANTS_MAX real, distinct
+     * strips for each edge and MOBILE_PAPER_FILL_VARIANTS for the middle,
+     * picked between per repeat by a position hash so the pattern does not
+     * read as one stamp walked across the sheet. @see mobile_compose_paper.
+     *
+     * Not one picture, because one picture can only reach a bigger chatbox by
+     * being scaled, and a scaled tear stops being a tear -- and not a SINGLE
+     * repeating tile either, because one tile laid end to end is still a
+     * stamp; the eye catches the interval before it catches anything else.
+     *
+     * The corner box is not a constant here -- it is whatever the top-left
+     * piece measures -- so a recut at a different corner size needs nothing
+     * changed on this side. What DOES have to agree is the fringe, which the
+     * cutter can print off its own output. @see MOBILE_PAPER_FRINGE_L.
+     */
+    IMG_PAPER_0,
+    IMG_PAPER_TOP_0 = IMG_PAPER_0 + 4,
+    IMG_PAPER_BOTTOM_0 = IMG_PAPER_TOP_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_LEFT_0 = IMG_PAPER_BOTTOM_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_RIGHT_0 = IMG_PAPER_LEFT_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_PAPER_FILL_0 = IMG_PAPER_RIGHT_0 + MOBILE_PAPER_EDGE_VARIANTS_MAX,
+    IMG_STONE = IMG_PAPER_FILL_0 + MOBILE_PAPER_FILL_VARIANTS,
+    /** The plate under a classic tab row, cleaned up. Both columns are this
+     *  one picture, the second mirrored. @see MOBILE_RAIL_COL_W. */
+    IMG_PLATE,
+    /** The grey button the 2004 interfaces use for logout and the settings
+     *  toggles -- `miscgraphics2` frame 0. The chat switch wears it. */
+    IMG_SWITCH,
+    /** The 2004 base plates the four chat buttons are regions of. The first
+     *  three fit in `backbase1`; Report crosses into `backbase2`.
+     *  @see mobile_compose_chat_button. */
+    IMG_CHAT_PLATE,
+    IMG_CHAT_PLATE_END,
+    /*
+     * The two switch glyphs, from OldSchool's own sprite set.
+     *
+     * The chat one is `options_icons` frame 5, the pair of speech bubbles --
+     * and it is the RIGHT one rather than a lookalike: interface 601's chat
+     * filter toggle sets exactly that graphic on itself
+     * (`cc_setgraphic("options_icons,5")` in torirs_osm_chatbox_bind), so this
+     * is the icon OldSchool Mobile puts on the button that does this job.
+     *
+     * The keyboard is `osm_keyboard` (sprite 4794), copied whole from the
+     * canonical export in `res/osm_keyboard_icon_sprite4794.png`. Its 33x36
+     * canvas is mostly transparent around a centred 29x13 keyboard. That
+     * authored canvas is intentional: mobile_draw_icon centres the canvas in
+     * either switch family and the visible keys land in the middle of the
+     * stone without a second offset table.
+     *
+     * Both are shipped on their authored canvases and only the CHAT glyph is
+     * scaled, because it is cut for a 40px mobile button and overhangs a 36x25
+     * switch.
+     */
+    IMG_ICON_KEYBOARD,
+    IMG_ICON_CHAT,
+    /** The 2004 compass rose. On a 2004 lane the cache's own IS this picture
+     *  and the skin keeps it; on an OldSchool lane the cache's rose is
+     *  OldSchool's, and a map plate cut for this one wants this one. */
+    IMG_COMPASS,
+    /** The three redstone shapes, in the order the classic frame's own stone
+     *  index numbers them. @see MOBILE_TAB_STONE. */
+    IMG_REDSTONE_0,
+    IMG_REDSTONE_1,
+    IMG_REDSTONE_2,
+    IMG_SIDEICON_0,
+
+    /* -- the OldSchool family, cache.osrs239's own mobile pieces -- */
+    /** The 40x40 tab stone, idle and selected (`tli_button01_square_40x40`
+     *  0 and 2). Also the plate under the two switches. */
+    IMG_O_STONE = IMG_SIDEICON_0 + MOBILE_TAB_COUNT,
+    IMG_O_STONE_LIT,
+    /** The dark 9-slice 601 draws around a tab column: corners, edges and
+     *  middle in reading order, 3x3 each. Composed into a plate per rail. */
+    IMG_O_BORDER_0,
+    /** `border_map_compass`, the thin ring around the map and the compass. */
+    IMG_O_MAPBACK_RING = IMG_O_BORDER_0 + 9,
+    /** The fixed frame's 190x261 side panel plate, which the drawer wears. */
+    IMG_O_DRAWER,
+    IMG_O_SIDEICON_0,
+
+    MOBILE_IMG_COUNT = IMG_O_SIDEICON_0 + MOBILE_TAB_COUNT
+};
+
+/*
+ * Which set of pieces the frame is assembled from.
+ *
+ * A FAMILY and not a lane: the rail, the drawer, the switches and the map
+ * ring are all authored twice, once from each cache, and the choice between
+ * them is the player's (`art`), with classic as Auto. What is NOT a family
+ * choice is chat/orb behavior, which remains the lane's packs or the client's
+ * builtins whatever the stones look like. @see mobile_lane_oldschool.
+ */
+enum MobileFamily
+{
+    FAMILY_CLASSIC = 0,
+    FAMILY_OLDSCHOOL = 1
+};
+
+/*
+ * Which stone each tab wears, and which way round -- the classic frame's own
+ * table, copied.
+ *
+ * `stone` indexes the three redstone shapes, `flip_h`/`flip_v` are the mirrors
+ * the 2004 frame applies (the right half of each row is the left half mirrored,
+ * and the bottom row is the top row upside down), and `extent` is the classic
+ * box's WIDTH -- which after the quarter turn is the cell's height.
+ *
+ * Copied from revconfig/rs245_2lc's `[layout:fixed]` by way of gameframe.c's
+ * classic_fixed, and copied rather than re-derived for the same reason that one
+ * is: the rhythm of wide and narrow stones is what the row looks like, and a
+ * uniform stride is a different picture that happens to have fourteen cells.
+ */
+struct MobileTabStone
+{
+    unsigned char stone;
+    unsigned char flip_h;
+    unsigned char flip_v;
+    /** The classic box's width, which after the turn is the cell's HEIGHT. */
+    unsigned char extent;
+    /** Where the box starts ALONG its plate -- classic x minus the plate's x.
+     *  After the turn this is the cell's y down the column, which is why the
+     *  stones are placed rather than stacked: the row has a gap in the middle
+     *  and stacking would close it. */
+    unsigned char along;
+    /** And ACROSS it -- classic y minus the plate's y -- with the box's own
+     *  height, which after the turn are the cell's x and width. */
+    unsigned char across;
+    unsigned char thickness;
+};
+
+/*
+ * Plate origins: `backhmid1` is blitted at 516,160 and `backbase2` at 496,466,
+ * so `along` and `across` below are each tab's classic x,y less those.
+ */
+static struct MobileTabStone const MOBILE_TAB_STONE[MOBILE_TAB_COUNT] = {
+    /* the top row, on backhmid1, which becomes the left column */
+    { 0, 0, 0, 38, 22, 10, 36 },
+    { 1, 0, 0, 33, 54, 8, 36 },
+    { 1, 0, 0, 38, 82, 8, 36 },
+    { 2, 0, 0, 33, 110, 8, 36 },
+    { 1, 1, 0, 33, 153, 8, 36 },
+    { 1, 1, 0, 33, 181, 8, 36 },
+    { 0, 1, 0, 38, 209, 9, 36 },
+    /* the bottom row, on backbase2, which becomes the right column */
+    { 0, 0, 1, 34, 42, 0, 36 },
+    { 1, 0, 1, 30, 74, 0, 37 },
+    { 1, 0, 1, 30, 102, 0, 37 },
+    { 2, 0, 1, 44, 130, 1, 35 },
+    { 1, 1, 1, 30, 173, 0, 37 },
+    { 1, 1, 1, 30, 201, 0, 37 },
+    { 0, 1, 1, 34, 229, 0, 36 },
+};
+
+/*
+ * Thirteen icons for fourteen tabs.
+ *
+ * The 2004 atlas has no picture for tab 7 -- LostCity has no server constant
+ * and no default if_settab for it -- so the table is shifted from tab 8 on. The
+ * gap is named here rather than being an off-by-one somebody rediscovers from a
+ * missing backpack. @see gameframe.c, which carries the same hole.
+ */
+static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
+    [IMG_MAPBACK] = "map_housing.png",
+    [IMG_MAPBACK_RING] = "map_housing_ring.png",
+    [IMG_INVBACK] = "drawer.png",
+    /* The parchment's nine pieces, cut from `chat_sheet_rs289.png` by
+     * tools/cut_chat_sheet_tiles.py -- which is also where the sheet itself is
+     * documented, and why it is not `chatback.dat`, the cache's flat
+     * rectangle. @see IMG_PAPER_0, mobile_compose_paper. */
+    [IMG_PAPER_0 + 0] = "chat_paper_tl.png",
+    [IMG_PAPER_0 + 1] = "chat_paper_tr.png",
+    [IMG_PAPER_0 + 2] = "chat_paper_bl.png",
+    [IMG_PAPER_0 + 3] = "chat_paper_br.png",
+    /* Three real wraps -- the widest room of any edge, so the cutter's
+     * quality gate let the most through. */
+    [IMG_PAPER_TOP_0 + 0] = "chat_paper_top_1.png",
+    [IMG_PAPER_TOP_0 + 1] = "chat_paper_top_2.png",
+    [IMG_PAPER_TOP_0 + 2] = "chat_paper_top_3.png",
+    /* Two: the bottom tear only wraps well in two places in this sheet. */
+    [IMG_PAPER_BOTTOM_0 + 0] = "chat_paper_bottom_1.png",
+    [IMG_PAPER_BOTTOM_0 + 1] = "chat_paper_bottom_2.png",
+    [IMG_PAPER_BOTTOM_0 + 2] = NULL,
+    /* One: the left tear's only good wrap. A second slot here would have
+     * been the next-best candidate at twenty times the seam cost -- worse
+     * than repeating the one real piece, so the cutter left it out rather
+     * than ship it. @see MOBILE_PAPER_EDGE_VARIANTS_MAX. */
+    [IMG_PAPER_LEFT_0 + 0] = "chat_paper_left_1.png",
+    [IMG_PAPER_LEFT_0 + 1] = NULL,
+    [IMG_PAPER_LEFT_0 + 2] = NULL,
+    /* The left variant(s) mirrored -- the right edge's own tear drifts and
+     * will not wrap at all. @see tools/cut_chat_sheet_tiles.py. */
+    [IMG_PAPER_RIGHT_0 + 0] = "chat_paper_right_1.png",
+    [IMG_PAPER_RIGHT_0 + 1] = NULL,
+    [IMG_PAPER_RIGHT_0 + 2] = NULL,
+    /* Grain, not a shape -- always finds three. */
+    [IMG_PAPER_FILL_0 + 0] = "chat_paper_fill_1.png",
+    [IMG_PAPER_FILL_0 + 1] = "chat_paper_fill_2.png",
+    [IMG_PAPER_FILL_0 + 2] = "chat_paper_fill_3.png",
+    [IMG_STONE] = "stone.png",
+    [IMG_PLATE] = "rail_back_top_cleaned.png",
+    [IMG_SWITCH] = "switch.png",
+    [IMG_CHAT_PLATE] = "chat_plate.png",
+    [IMG_CHAT_PLATE_END] = "chat_plate_end.png",
+    [IMG_ICON_KEYBOARD] = "icon_keyboard.png",
+    [IMG_ICON_CHAT] = "icon_chat.png",
+    [IMG_COMPASS] = "compass.png",
+    [IMG_REDSTONE_0] = "highlight1.png",
+    [IMG_REDSTONE_1] = "highlight2.png",
+    [IMG_REDSTONE_2] = "highlight3.png",
+    [IMG_SIDEICON_0 + 0] = "sideicon_0.png",
+    [IMG_SIDEICON_0 + 1] = "sideicon_1.png",
+    [IMG_SIDEICON_0 + 2] = "sideicon_2.png",
+    [IMG_SIDEICON_0 + 3] = "sideicon_3.png",
+    [IMG_SIDEICON_0 + 4] = "sideicon_4.png",
+    [IMG_SIDEICON_0 + 5] = "sideicon_5.png",
+    [IMG_SIDEICON_0 + 6] = "sideicon_6.png",
+    [IMG_SIDEICON_0 + 7] = NULL,
+    [IMG_SIDEICON_0 + 8] = "sideicon_7.png",
+    [IMG_SIDEICON_0 + 9] = "sideicon_8.png",
+    [IMG_SIDEICON_0 + 10] = "sideicon_9.png",
+    [IMG_SIDEICON_0 + 11] = "sideicon_10.png",
+    [IMG_SIDEICON_0 + 12] = "sideicon_11.png",
+    [IMG_SIDEICON_0 + 13] = "sideicon_12.png",
+
+    [IMG_O_STONE] = "osrs_stone.png",
+    [IMG_O_STONE_LIT] = "osrs_stone_lit.png",
+    [IMG_O_BORDER_0 + 0] = "osrs_border_0.png",
+    [IMG_O_BORDER_0 + 1] = "osrs_border_1.png",
+    [IMG_O_BORDER_0 + 2] = "osrs_border_2.png",
+    [IMG_O_BORDER_0 + 3] = "osrs_border_3.png",
+    [IMG_O_BORDER_0 + 4] = "osrs_border_4.png",
+    [IMG_O_BORDER_0 + 5] = "osrs_border_5.png",
+    [IMG_O_BORDER_0 + 6] = "osrs_border_6.png",
+    [IMG_O_BORDER_0 + 7] = "osrs_border_7.png",
+    [IMG_O_BORDER_0 + 8] = "osrs_border_8.png",
+    [IMG_O_MAPBACK_RING] = "osrs_map_ring.png",
+    [IMG_O_DRAWER] = "osrs_drawer.png",
+    [IMG_O_SIDEICON_0 + 0] = "osrs_sideicon_0.png",
+    [IMG_O_SIDEICON_0 + 1] = "osrs_sideicon_1.png",
+    [IMG_O_SIDEICON_0 + 2] = "osrs_sideicon_2.png",
+    [IMG_O_SIDEICON_0 + 3] = "osrs_sideicon_3.png",
+    [IMG_O_SIDEICON_0 + 4] = "osrs_sideicon_4.png",
+    [IMG_O_SIDEICON_0 + 5] = "osrs_sideicon_5.png",
+    [IMG_O_SIDEICON_0 + 6] = "osrs_sideicon_6.png",
+    [IMG_O_SIDEICON_0 + 7] = "osrs_sideicon_7.png",
+    [IMG_O_SIDEICON_0 + 8] = "osrs_sideicon_8.png",
+    [IMG_O_SIDEICON_0 + 9] = "osrs_sideicon_9.png",
+    [IMG_O_SIDEICON_0 + 10] = "osrs_sideicon_10.png",
+    [IMG_O_SIDEICON_0 + 11] = "osrs_sideicon_11.png",
+    [IMG_O_SIDEICON_0 + 12] = "osrs_sideicon_12.png",
+    [IMG_O_SIDEICON_0 + 13] = "osrs_sideicon_13.png",
+};
+
+/*
+ * The four pictures the plugin RASTERISES for itself.
+ *
+ * Everything above is a file. These four are shapes, and a shape is the one
+ * thing the shipped art cannot be: a quarter turn is not a crop, and a circle
+ * is not a rectangle with a picture in it. @see image_compose, which exists for
+ * exactly the second case.
+ */
+enum MobileComposed
+{
+    /** The two alpha cut-outs, read off the housing. Transparent is the window
+     *  and opaque is clipped away -- the polarity plugin masks use on every
+     *  cache era. @see mobile_build_masks. */
+    ART_MINIMAP_MASK,
+    ART_COMPASS_MASK,
+    /**
+     * One turned stone per tab, and a dimmed twin of each.
+     *
+     * Per TAB rather than per shape, because a tab's stone is a shape AND two
+     * mirrors, and there are ten distinct combinations across the fourteen --
+     * close enough to fourteen that a table keyed by the thing the draw pass
+     * actually has in its hand is simpler than one it has to look up.
+     */
+    /** Four real regions of the classic base plate, at their original
+     *  100x32 boxes. An OldSchool bar wears the whole strip instead, composed
+     *  at the box the pack reports. @see mobile_bar_art. */
+    ART_CHAT_BUTTON_0,
+    /** The chat glyph, scaled to fit the switch. The keyboard keeps
+     *  `osm_keyboard`'s authored 33x36 transparent canvas.
+     *  @see MOBILE_ICON_NUM. */
+    ART_ICON_CHAT = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
+    /** The two backing plates, turned: one whole column each. */
+    ART_PLATE_0,
+    ART_PLATE_1,
+    /**
+     * One turned stone per tab, drawn ONLY on the tab that is open.
+     *
+     * There is no dimmed twin. The redstone is the 2004 frame's PRESSED
+     * highlight -- red is what "this one is open" looks like -- so a rail whose
+     * every cell wore one said fourteen tabs were open at once, and the real
+     * selection had to be picked out by shade. The plate is what the other
+     * thirteen stand on, which is what the desktop frame does too.
+     */
+    ART_STONE_0,
+    /** The OldSchool rail's plate: the dark 9-slice at the rail's size, both
+     *  columns on one. @see mobile_compose_nine_slice. */
+    ART_O_RAIL = ART_STONE_0 + MOBILE_TAB_COUNT,
+
+    MOBILE_ART_COUNT
+};
+
+/*
+ * A map housing: the art, and how big it is.
+ *
+ * The WINDOWS are not here. They are read off the picture at load time -- see
+ * mobile_build_masks -- because a housing's windows are wherever that picture's
+ * windows were drawn, and a box written down beside it is a second copy of that
+ * which can only drift. The size is here because the layout needs it before the
+ * read completes, to put the housing in the corner at all.
+ */
+struct MobileHousing
+{
+    int art;
+    int width;
+    int height;
+};
+
+/** The three choices, in the order the `housing` setting lists them; Auto
+ *  picks by family. @see mobile_housing. */
+static struct MobileHousing const MOBILE_HOUSING[] = {
+    { IMG_MAPBACK,        233, 168 },
+    { IMG_MAPBACK_RING,   182, 166 },
+    { IMG_O_MAPBACK_RING, 182, 166 },
+};
+#define MOBILE_HOUSING_COUNT 3
+#define MOBILE_HOUSING_AUTO MOBILE_HOUSING_COUNT
+
+/** One window in the housing, in the housing's own pixels. */
+struct MobileHole
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int area;
+    /** One pixel of this window (row * width + col), to flood it back from.
+     *  @see mobile_compose_window. */
+    int seed;
+};
+
+/*
+ * Where the chosen housing's windows are, and how big it turned out to be.
+ *
+ * Seeded with the default housing's measurements so the one declaration that
+ * can happen before the picture lands still puts a map in the corner, and
+ * replaced by what the read actually found the moment it does.
+ */
+struct MobileState;
+
+/** Callback-scoped native V2 services threaded through layout helpers. */
+/** One picture to blit, in canvas coordinates. Built by the layout pass. An
+ *  entry with `op` is a tap blocker: an owned control the size of the box,
+ *  wearing a blank face, so a tap on chrome does not walk the player. */
+struct MobileBlit
+{
+    struct ToriRS_ImageRef image;
+    int x;
+    int y;
+    int w;
+    int h;
+    char const* op;
+};
+#define MOBILE_BLIT_MAX 48
+
+struct MobileTab
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int tabno;
+    struct ToriRS_ImageRef icon;
+    struct ToriRS_ImageRef lit;
+};
+
+/*
+ * The live surfaces a layout arranges, by ROLE, the way gameframe-layout
+ * names them. The widget API resolves each on whichever lane is up.
+ */
+enum FrameSurface
+{
+    FRAME_SURFACE_VIEWPORT = 0,
+    FRAME_SURFACE_MINIMAP,
+    FRAME_SURFACE_COMPASS,
+    FRAME_SURFACE_CHAT,
+    FRAME_SURFACE_CHAT_BUTTONS,
+    FRAME_SURFACE_SIDEBAR,
+    FRAME_SURFACE_MODAL,
+    FRAME_SURFACE_ORBS,
+    FRAME_SURFACE_COUNT
+};
+static char const* const FRAME_SURFACE_ROLE[FRAME_SURFACE_COUNT] = {
+    "viewport", "minimap", "compass", "chat", "chat_buttons", "sidebar", "main_modal", "orbs",
+};
+enum
+{
+    FRAME_ORBS_MEMBER_ACTIVITY_ADVISER = 0,
+    FRAME_ORBS_MEMBER_WORLD_MAP,
+    FRAME_ORBS_MEMBER_WIKI,
+};
+#define FRAME_MEMBER_MAX 16
+
+struct MobileRect
+{
+    int placed;
+    struct ToriRS_Rect rect;
+};
+struct MobileSkin
+{
+    int placed;
+    struct ToriRS_ImageRef art;
+    struct ToriRS_ImageRef mask;
+};
+/** An owned control with one operation: the chat switch, the keyboard switch. */
+struct MobileToggle
+{
+    int placed;
+    struct ToriRS_Rect box;
+    struct ToriRS_ImageRef face;
+    struct ToriRS_ImageRef glyph;
+};
+
+/*
+ * What one layout pass wants on screen -- the PLAN, before any widget is
+ * touched. The layout records into it through the helpers it always called
+ * (mobile_blit, mobile_surface, mobile_member, mobile_ui_node), and
+ * mobile_apply then makes the tree match with retained widget edits.
+ */
+struct MobileRuntime
+{
+    int canvas_w;
+    int canvas_h;
+    struct MobileBlit blit[MOBILE_BLIT_MAX];
+    int blit_count;
+    int anchored_count;
+    struct MobileTab tab[MOBILE_TAB_COUNT];
+    int tab_count;
+    int toggle_x;
+    int toggle_y;
+    int keys_x;
+    int keys_y;
+    struct ToriRS_ImageRef toggle_art;
+    int toggle_w;
+    int toggle_h;
+    int panel_x;
+    int panel_y;
+    int chat_placed;
+    int chat_y;
+    int chat_pack;
+    int chat_w;
+    int chat_h;
+    int declared;
+    /* -- the widget plan -- */
+    struct MobileRect surface[FRAME_SURFACE_COUNT];
+    struct MobileRect member[FRAME_SURFACE_COUNT][FRAME_MEMBER_MAX];
+    struct MobileSkin skin_minimap;
+    struct MobileSkin skin_compass;
+    int housing_placed;
+    struct ToriRS_ImageRef housing_image;
+    struct ToriRS_Rect housing_rect;
+    struct MobileToggle chat_toggle;
+    struct MobileToggle keyboard_toggle;
+    /** The 2004 plates under the four filter captions, behind the lane's buttons. */
+    struct MobileRect plate[MOBILE_CHAT_BUTTON_COUNT];
+    struct ToriRS_ImageRef plate_art[MOBILE_CHAT_BUTTON_COUNT];
+};
+
+struct MobilePaper
+{
+    struct ToriRS_ImageRef art;
+    int w;
+    int h;
+    uint32_t key;
+};
+
+/** One owned widget this frame keeps across passes, by key. */
+struct MobileOwned
+{
+    struct ToriRS_WidgetRef ref;
+    int live;
+};
+struct MobileState;
+struct MobileTabHandle
+{
+    struct MobileState* state;
+    int tabno;
+};
+
+struct MobileState
+{
+    struct ToriRS_Api* api;
+    struct ToriRS_ImageRef image_token[MOBILE_IMG_COUNT];
+    struct ToriRS_ImageRef image[MOBILE_IMG_COUNT];
+    struct ToriRS_ImageRef art[MOBILE_ART_COUNT];
+    bool image_ready[MOBILE_IMG_COUNT];
+    bool art_built;
+    struct MobileHole hole_map;
+    struct MobileHole hole_compass;
+    int map_w;
+    int map_h;
+    bool masks_ready;
+    bool drawer_open;
+    bool chat_open;
+    bool keyboard_on;
+    bool tab_present[MOBILE_TAB_COUNT];
+    struct MobileRuntime frame;
+    struct MobilePaper paper;
+    /** The 2004 strip as composed, and the size it was composed for -- the
+     *  same bargain the parchment makes. @see mobile_bar_art. */
+    struct MobilePaper bar;
+    /** The OldSchool pack's sheet, one text line taller than its backing. */
+    struct MobilePaper pack_paper;
+    /** A 1x1 transparent picture: the face of every tap blocker and cell. */
+    struct ToriRS_ImageRef blank;
+    int provided;
+    int logged_pending;
+    int chat_dressed;
+    /* The owned children, by role in the plan. */
+    struct MobileOwned piece[MOBILE_BLIT_MAX];
+    struct MobileOwned housing;
+    struct MobileOwned cell[MOBILE_TAB_COUNT];
+    struct MobileOwned lit[MOBILE_TAB_COUNT];
+    struct MobileOwned icon[MOBILE_TAB_COUNT];
+    struct MobileOwned chat_toggle;
+    struct MobileOwned chat_glyph;
+    struct MobileOwned keyboard_toggle;
+    struct MobileOwned keyboard_glyph;
+    struct MobileOwned plate[MOBILE_CHAT_BUTTON_COUNT];
+    struct MobileOwned pack_sheet;
+    struct MobileTabHandle tab_handle[MOBILE_TAB_COUNT];
+    int lit_shown[MOBILE_TAB_COUNT];
+    int icon_shown[MOBILE_TAB_COUNT];
+};
+
+/** Callback-scoped native V2 services threaded through layout helpers. */
+struct MobileCall
+{
+    struct ToriRS_Api* api;
+    struct MobileState* state;
+    int origin_x;
+    int origin_y;
+};
+
+#define g_api (ctx->api)
+#define g_image (ctx->state->image)
+#define g_art (ctx->state->art)
+#define g_art_built (ctx->state->art_built)
+#define g_hole_map (ctx->state->hole_map)
+#define g_hole_compass (ctx->state->hole_compass)
+#define g_map_w (ctx->state->map_w)
+#define g_map_h (ctx->state->map_h)
+#define g_masks_ready (ctx->state->masks_ready)
+#define g_drawer_open (ctx->state->drawer_open)
+#define g_chat_open (ctx->state->chat_open)
+#define g_keyboard_on (ctx->state->keyboard_on)
+#define g_tab_present (ctx->state->tab_present)
+#define g_frame (ctx->state->frame)
+#define g_paper (ctx->state->paper)
+#define g_bar (ctx->state->bar)
+
+/* The 2004 base plates the four chat buttons are regions of. */
+#define MOBILE_CHAT_PLATE_Y 14
+#define MOBILE_CHAT_PLATE_END_X 496
+#define MOBILE_CHAT_PLATE_END_DY 1
+static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
+
+/*
+ * Which map housing to wear.
+ *
+ * Read as a STRING and resolved two ways, because a config enum is stored as
+ * its LABEL: the settings panel writes back whichever dropdown row was chosen,
+ * and reading that as a number gives atoi("Ring") == 0 and silently pins the
+ * first choice. The index form is still accepted -- plugin_prefs.ini is a file
+ * people edit, and `housing=1` is the obvious thing to write in it.
+ * @see gameframe.c's frame_layout_from_config, which had this exact bug.
+ */
+static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring", "OldSchool", "Auto" };
+
+/*
+ * Is this an OldSchool lane -- one whose chat and orbs are packs of the
+ * cache's own toplevel? Asked of the host each time rather than latched at
+ * init: the plugin is registered before the cache profile has been read.
+ */
+static int
+mobile_lane_oldschool(struct MobileCall* ctx)
+{
+    struct ToriRS_LaneInfo lane;
+
+    assert(ctx);
+    if( !ctx->api->core.lane(ctx->api, &lane) )
+        return 0;
+    return lane.game == TORIRS_GAME_OLDSCHOOL;
+}
+
+/** The choices, in the order the `art` setting lists them. */
+static char const* const MOBILE_FAMILY_NAME[] = { "Auto", "Classic", "OldSchool" };
+
+/*
+ * Which family the `art` setting means right now. Read as a label first and
+ * as an index second, for the reason mobile_housing gives.
+ */
+static enum MobileFamily
+mobile_family(struct MobileCall* ctx)
+{
+    char const* value = NULL;
+    int choice = 0;
+
+    assert(ctx);
+    (void)ctx->api->config.get_string(ctx->api, "art", &value);
+    if( value && value[0] )
+    {
+        if( value[0] >= '0' && value[0] <= '9' )
+            choice = atoi(value);
+        else
+            for( int i = 0; i < 3; i++ )
+                if( strcmp(value, MOBILE_FAMILY_NAME[i]) == 0 )
+                    choice = i;
+    }
+    if( choice == 2 )
+        return FAMILY_OLDSCHOOL;
+    /*
+     * Auto is CLASSIC on every lane. The Stone Drawer is the 2004 frame
+     * turned into a phone layout, and that look -- redstones, the 2004 icons,
+     * the parchment, the paper's filter buttons -- is what it is for; on an
+     * OldSchool lane the point is to get it BACK over the cache's mobile
+     * frame, not to imitate that frame. OldSchool Mobile's own pieces stay
+     * available as a choice.
+     */
+    (void)ctx;
+    return FAMILY_CLASSIC;
+}
+
+static struct MobileHousing const*
+mobile_housing(struct MobileCall* ctx)
+{
+    char const* value = NULL;
+    int choice = MOBILE_HOUSING_AUTO;
+
+    assert(ctx);
+    (void)ctx->api->config.get_string(ctx->api, "housing", &value);
+    if( value && value[0] )
+    {
+        if( value[0] >= '0' && value[0] <= '9' )
+            choice = atoi(value);
+        else
+            for( int i = 0; i <= MOBILE_HOUSING_AUTO; i++ )
+                if( strcmp(value, MOBILE_HOUSING_NAME[i]) == 0 )
+                    choice = i;
+    }
+    /* Auto is the family's own ring: the lizards on a 2004 frame, 601's
+     * thin ring on an OldSchool one. */
+    if( choice < 0 || choice >= MOBILE_HOUSING_AUTO )
+        choice = mobile_family(ctx) == FAMILY_OLDSCHOOL ? 2 : 0;
+    return &MOBILE_HOUSING[choice];
+}
+
+/*
+ * The drawer, and the sheet.
+ *
+ * Both are the player's, both are the plugin's to remember, and neither has a
+ * counterpart in the client: a role this plan does not place is one the
+ * plugin hides itself (mobile_apply_surfaces), so "the drawer is shut" is not
+ * a flag the sidebar reads, it is a frame that stops having a sidebar in it.
+ *
+ * The drawer starts SHUT. On a phone the first thing wanted is the world, and a
+ * frame that opened onto a panel would be spending its first impression on the
+ * one thing a tap can always bring back.
+ */
+/*
+ * Whether this frame has asked for the on-screen keyboard.
+ *
+ * The plugin's own belief, not the platform's: SDL owns the real state and
+ * there is no way to ask it, so what this tracks is what the switch last
+ * requested. That is enough for a toggle, and it is why tapping the chat asks
+ * for the keyboard rather than toggling it -- a tap on the chat means "I want
+ * to type", which is only ever a request to show.
+ */
+
+/*
+ * Which tabs this lane actually has, learned from the widget API.
+ *
+ * The apply pass's widgets.find_all by role both moves a mount and answers
+ * whether the frame HAS one, and that answer is the only way to tell a tab
+ * this cache lacks from one it puts somewhere else -- rs289lc has no clan
+ * chat, and a stone wearing an icon for a panel that cannot open is worse than
+ * a blank one, because it invites the tap that does nothing.
+ *
+ * Cached because the question can only be asked while the drawer is OPEN: a
+ * shut drawer places no mounts, so it has nothing to ask with. That is sound
+ * rather than merely convenient -- which tabs exist is a property of the CACHE
+ * and does not change while a world is loaded -- and it starts out "present" so
+ * that a frame declared before the drawer has ever been opened still wears its
+ * icons.
+ */
+/** Cut one complete 100x32 chat plate from the classic gameframe sprites. */
+static struct ToriRS_ImageRef
+mobile_compose_chat_button(
+    struct MobileCall* ctx,
+    char const* name,
+    int index)
+{
+    uint32_t* plate;
+    uint32_t* tail;
+    uint32_t* out;
+    int plate_w = 0;
+    int plate_h = 0;
+    int tail_w = 0;
+    int tail_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+    int const from = MOBILE_CHAT_BUTTON_SRC[index];
+
+    assert(ctx);
+    assert(name);
+    assert(index >= 0);
+    assert(index < MOBILE_CHAT_BUTTON_COUNT);
+    if( !g_api->assets.image_size(g_api, g_image[IMG_CHAT_PLATE], &plate_w, &plate_h) ||
+        plate_w <= 0 || plate_h <= 0 ||
+        !g_api->assets.image_size(
+            g_api, g_image[IMG_CHAT_PLATE_END], &tail_w, &tail_h) ||
+        tail_w <= 0 || tail_h <= 0 )
+        return handle;
+
+    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
+    tail = malloc((size_t)tail_w * (size_t)tail_h * sizeof(*tail));
+    assert(plate);
+    assert(tail);
+    if( !g_api->assets.image_pixels(
+            g_api,
+            g_image[IMG_CHAT_PLATE],
+            plate,
+            (size_t)plate_w * (size_t)plate_h,
+            &copied) ||
+        copied != (size_t)plate_w * (size_t)plate_h )
+        goto done;
+    copied = 0;
+    if( !g_api->assets.image_pixels(
+            g_api,
+            g_image[IMG_CHAT_PLATE_END],
+            tail,
+            (size_t)tail_w * (size_t)tail_h,
+            &copied) ||
+        copied != (size_t)tail_w * (size_t)tail_h )
+        goto done;
+
+    out = malloc(
+        (size_t)MOBILE_CHAT_BUTTON_W * (size_t)MOBILE_CHAT_BUTTON_H * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < MOBILE_CHAT_BUTTON_H; y++ )
+        for( int x = 0; x < MOBILE_CHAT_BUTTON_W; x++ )
+        {
+            int const sx = from + x;
+            int const sy = MOBILE_CHAT_PLATE_Y + y;
+            uint32_t pixel = 0;
+
+            if( sx < plate_w && sy < plate_h )
+                pixel = plate[(size_t)sy * (size_t)plate_w + (size_t)sx];
+            else if( sx >= MOBILE_CHAT_PLATE_END_X )
+            {
+                int const tx = sx - MOBILE_CHAT_PLATE_END_X;
+                int const ty = sy + MOBILE_CHAT_PLATE_END_DY;
+                if( tx < tail_w && ty < tail_h )
+                    pixel = tail[(size_t)ty * (size_t)tail_w + (size_t)tx];
+            }
+            out[(size_t)y * MOBILE_CHAT_BUTTON_W + (size_t)x] = pixel;
+        }
+    (void)g_api->assets.image_compose(
+        g_api, name, MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H, out, &handle);
+    free(out);
+
+done:
+    free(plate);
+    free(tail);
+    return handle;
+}
+
+/*
+ * The 2004 chat strip, at the box the pack's own bar occupies, with a hollow
+ * re-cut for every filter that bar carries.
+ *
+ * One BAND and not a row of buttons. 2004 cut its four hollows into the base
+ * sprite itself, so a bar is ONE picture and a filter is a caption on it; the
+ * moment a plate is laid over the bar there are two bars, and the seam between
+ * them is the rectangle you can see behind every label. How many hollows there
+ * are is the LANE's answer -- eight on an OldSchool chatbox -- so they are
+ * re-cut here rather than read off the source at its own four columns.
+ *
+ * Each hollow is the source hollow three-sliced SIDEWAYS: MOBILE_CHAT_RECESS_
+ * CAP columns from each end copied exactly (the rounded corner and the bevel,
+ * the two things a narrower cell must not squash) and the smooth gradient
+ * between them resampled. Vertically nothing is scaled: the band is 32 rows
+ * and a bar is 23, so rows come top from the top and bottom from the bottom --
+ * both rock edges exact, and the only rows lost out of the middle of a hollow
+ * whose middle is flat. What the cells leave is filled with the clean rock the
+ * source carries beside its first hollow.
+ */
+static int
+mobile_chat_band_row(int row, int rows)
+{
+    int band = row < rows / 2 ? row : MOBILE_CHAT_BUTTON_H - (rows - row);
+
+    if( band < 0 )
+        band = 0;
+    else if( band >= MOBILE_CHAT_BUTTON_H )
+        band = MOBILE_CHAT_BUTTON_H - 1;
+    return band;
+}
+
+static struct ToriRS_ImageRef
+mobile_compose_classic_bar(
+    struct MobileCall* ctx,
+    char const* name,
+    int width,
+    int height,
+    struct MobileChatCell const* cell,
+    int cell_count)
+{
+    uint32_t* plate;
+    uint32_t* out;
+    int plate_w = 0;
+    int plate_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_count >= 0);
+    assert(cell_count == 0 || cell);
+    if( !g_api->assets.image_size(g_api, g_image[IMG_CHAT_PLATE], &plate_w, &plate_h) ||
+        plate_w < MOBILE_CHAT_ROCK_X + MOBILE_CHAT_ROCK_W ||
+        plate_h < MOBILE_CHAT_PLATE_Y + MOBILE_CHAT_BUTTON_H )
+        return handle;
+
+    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
+    assert(plate);
+    if( !g_api->assets.image_pixels(
+            g_api,
+            g_image[IMG_CHAT_PLATE],
+            plate,
+            (size_t)plate_w * (size_t)plate_h,
+            &copied) ||
+        copied != (size_t)plate_w * (size_t)plate_h )
+    {
+        free(plate);
+        return handle;
+    }
+
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < height; y++ )
+    {
+        int const sy = MOBILE_CHAT_PLATE_Y + mobile_chat_band_row(y, height);
+
+        for( int x = 0; x < width; x++ )
+            out[(size_t)y * (size_t)width + (size_t)x] =
+                plate[(size_t)sy * (size_t)plate_w +
+                      (size_t)(MOBILE_CHAT_ROCK_X + (x % MOBILE_CHAT_ROCK_W))];
+    }
+    for( int i = 0; i < cell_count; i++ )
+    {
+        int const cw = cell[i].w;
+        int const ch = cell[i].h;
+
+        /* A cell too narrow to hold both caps has no three-slice to make, and
+         * a squashed bevel is worse than the plain rock it would replace. */
+        if( cw <= 2 * MOBILE_CHAT_RECESS_CAP || ch <= 0 )
+            continue;
+        for( int y = 0; y < ch; y++ )
+        {
+            int const oy = cell[i].y + y;
+            int const sy = MOBILE_CHAT_PLATE_Y + mobile_chat_band_row(y, ch);
+
+            if( oy < 0 || oy >= height )
+                continue;
+            for( int x = 0; x < cw; x++ )
+            {
+                int const ox = cell[i].x + x;
+                int sx;
+
+                if( ox < 0 || ox >= width )
+                    continue;
+                if( x < MOBILE_CHAT_RECESS_CAP )
+                    sx = x;
+                else if( x >= cw - MOBILE_CHAT_RECESS_CAP )
+                    sx = MOBILE_CHAT_BUTTON_W - (cw - x);
+                else
+                    sx = MOBILE_CHAT_RECESS_CAP +
+                         (x - MOBILE_CHAT_RECESS_CAP) *
+                             (MOBILE_CHAT_BUTTON_W - 2 * MOBILE_CHAT_RECESS_CAP) /
+                             (cw - 2 * MOBILE_CHAT_RECESS_CAP);
+                out[(size_t)oy * (size_t)width + (size_t)ox] =
+                    plate[(size_t)sy * (size_t)plate_w +
+                          (size_t)(MOBILE_CHAT_BUTTON_SRC[0] + sx)];
+            }
+        }
+    }
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(out);
+    free(plate);
+    return handle;
+}
+
+/*
+ * The redstone through a quarter turn, optionally dimmed.
+ *
+ * `image_pixels` out, turn, `image_compose` back in -- the two halves of the
+ * image api meeting, which is what lets a plugin build art out of art it
+ * shipped without carrying a decoder.
+ *
+ * CLOCKWISE, and the direction is not cosmetic: it is what keeps the row's
+ * left-to-right order running top-to-bottom down the column. Turning the other
+ * way reverses it, and the rail comes out with Music at the top and Combat at
+ * the bottom -- every tab where the muscle memory says the opposite one is.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_turned(
+    struct MobileCall* ctx,
+    char const* name,
+    struct ToriRS_ImageRef src,
+    int flip_h,
+    int flip_v,
+    int dim)
+{
+    uint32_t* px;
+    uint32_t* out;
+    int src_w = 0;
+    int src_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    if( src.value == 0 )
+        return handle;
+    if( !g_api->assets.image_size(g_api, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
+        return handle;
+
+    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    assert(px);
+    if( !g_api->assets.image_pixels(
+            g_api, src, px, (size_t)src_w * (size_t)src_h, &copied) ||
+        copied != (size_t)src_w * (size_t)src_h )
+    {
+        free(px);
+        return handle;
+    }
+    /* The turned picture is the source transposed: its width is the source's
+     * height, and nothing here assumes the stone is square. */
+    out = malloc((size_t)src_w * (size_t)src_h * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < src_w; row++ )
+    {
+        for( int col = 0; col < src_h; col++ )
+        {
+            /* Mirror FIRST, in the source's own axes, then turn -- the flips
+             * are the 2004 frame's own and are stated about the upright stone,
+             * so applying them after the turn would swap which one is which.
+             * Clockwise: dest(col,row) reads src(row, src_h-1-col). */
+            int src_x = row;
+            int src_y = src_h - 1 - col;
+            uint32_t pixel;
+
+            if( flip_h )
+                src_x = src_w - 1 - src_x;
+            if( flip_v )
+                src_y = src_h - 1 - src_y;
+            pixel = px[(src_y * src_w) + src_x];
+
+            if( dim )
+            {
+                /* Scale the COLOUR and keep the alpha: a dimmed stone has to
+                 * stay the same shape, and scaling alpha would let the world
+                 * through the rail instead of darkening it. */
+                uint32_t const alpha = pixel & 0xff000000u;
+                uint32_t const red = ((pixel >> 16) & 0xffu) * 5 / 8;
+                uint32_t const green = ((pixel >> 8) & 0xffu) * 5 / 8;
+                uint32_t const blue = (pixel & 0xffu) * 5 / 8;
+
+                pixel = alpha | (red << 16) | (green << 8) | blue;
+            }
+            out[(row * src_h) + col] = pixel;
+        }
+    }
+    (void)g_api->assets.image_compose(g_api, name, src_h, src_w, out, &handle);
+    free(px);
+    free(out);
+    return handle;
+}
+
+/*
+ * How far the ring is sealed shut before its windows are looked for.
+ *
+ * The DRAIN is the reason this number exists. A map surround is not a closed
+ * ring: the lizard one has a gap at the bottom between the two tails, and the
+ * transparent middle runs out through it to the edge of the picture. A plain
+ * flood inward from the border therefore reaches the middle, calls it outside,
+ * and finds no windows at all -- which is exactly what happened, and why the
+ * compass drew square over a mask that had never been built.
+ *
+ * A hard-edged ring needs none of it -- the lizard surround derives the same
+ * two windows at a radius of zero -- so this is insurance rather than the
+ * mechanism, and it is small on purpose: every pixel of seal is a pixel the
+ * window is grown back by afterwards, and a large one would start rounding off
+ * the corners of a window that genuinely has them.
+ */
+#define MOBILE_SEAL 2
+
+static void
+mobile_dilate(
+    unsigned char* mask,
+    unsigned char* scratch,
+    int width,
+    int height,
+    int radius);
+
+/*
+ * The enclosed windows of a sealed ring, with each grown back to the shape the
+ * artist drew.
+ *
+ * `sealed` is the ring dilated shut, `solid` the ring as drawn. The flood runs
+ * over `sealed` so the drain cannot leak, and the windows are then grown back
+ * by the same radius and clipped to `solid` -- which recovers the pixels the
+ * sealing ate without ever crossing the ring itself.
+ *
+ * `window` comes back holding 1 for every pixel of every window found, which is
+ * what mobile_compose_window cuts each mask out of.
+ */
+static int
+mobile_hole_scan(
+    unsigned char const* sealed,
+    unsigned char const* solid,
+    unsigned char* window,
+    int width,
+    int height,
+    unsigned char* seen,
+    int* stack,
+    struct MobileHole* out,
+    int out_max)
+{
+    int const pixels = width * height;
+    int found = 0;
+    int top = 0;
+
+    assert(sealed);
+    assert(solid);
+    assert(window);
+    assert(seen);
+    assert(stack);
+    assert(out);
+
+    /* Flood the outside in from every border pixel, over the SEALED ring. */
+    for( int i = 0; i < pixels; i++ )
+        seen[i] = sealed[i] ? 2 : 0;
+    /*
+     * Marked as it is PUSHED, never as it is popped.
+     *
+     * Marking at pop lets the same pixel be pushed once per neighbour that
+     * reaches it before it comes off, so the stack can hold several entries per
+     * pixel -- and this one is sized at one per pixel. It overran and took the
+     * client with it. Marking at push makes "on the stack" and "seen" the same
+     * statement, and the bound is then a pixel each by construction.
+     */
+    for( int col = 0; col < width; col++ )
+    {
+        int const bottom = ((height - 1) * width) + col;
+
+        if( !seen[col] )
+        {
+            seen[col] = 1;
+            stack[top++] = col;
+        }
+        if( !seen[bottom] )
+        {
+            seen[bottom] = 1;
+            stack[top++] = bottom;
+        }
+    }
+    for( int row = 0; row < height; row++ )
+    {
+        int const left = row * width;
+        int const right = left + width - 1;
+
+        if( !seen[left] )
+        {
+            seen[left] = 1;
+            stack[top++] = left;
+        }
+        if( !seen[right] )
+        {
+            seen[right] = 1;
+            stack[top++] = right;
+        }
+    }
+    while( top > 0 )
+    {
+        int const at = stack[--top];
+        int const col = at % width;
+        int const row = at / width;
+
+        if( col > 0 && !seen[at - 1] )
+        {
+            seen[at - 1] = 1;
+            stack[top++] = at - 1;
+        }
+        if( col < width - 1 && !seen[at + 1] )
+        {
+            seen[at + 1] = 1;
+            stack[top++] = at + 1;
+        }
+        if( row > 0 && !seen[at - width] )
+        {
+            seen[at - width] = 1;
+            stack[top++] = at - width;
+        }
+        if( row < height - 1 && !seen[at + width] )
+        {
+            seen[at + width] = 1;
+            stack[top++] = at + width;
+        }
+    }
+
+    /* Whatever the flood could not reach is an enclosed window -- eroded by the
+     * sealing, so grow it back and clip it to the ring as drawn. */
+    for( int i = 0; i < pixels; i++ )
+        window[i] = (unsigned char)(seen[i] == 0);
+    {
+        unsigned char* grow_scratch = seen;
+
+        mobile_dilate(window, grow_scratch, width, height, MOBILE_SEAL);
+        for( int i = 0; i < pixels; i++ )
+            window[i] = (unsigned char)(window[i] && !solid[i]);
+    }
+
+    /* Then measure each one. `seen` is reused as the visited map. */
+    memset(seen, 0, (size_t)width * (size_t)height);
+    for( int start = 0; start < pixels && found < out_max; start++ )
+    {
+        struct MobileHole* hole;
+
+        if( !window[start] || seen[start] )
+            continue;
+        hole = &out[found];
+        hole->x = start % width;
+        hole->y = start / width;
+        hole->w = 1;
+        hole->h = 1;
+        hole->area = 0;
+        hole->seed = start;
+        top = 0;
+        stack[top++] = start;
+        seen[start] = 1;
+        while( top > 0 )
+        {
+            int const at = stack[--top];
+            int const col = at % width;
+            int const row = at / width;
+            int const right = hole->x + hole->w - 1;
+            int const bottom = hole->y + hole->h - 1;
+
+            hole->area++;
+            if( col < hole->x )
+            {
+                hole->w += hole->x - col;
+                hole->x = col;
+            }
+            else if( col > right )
+                hole->w = col - hole->x + 1;
+            if( row < hole->y )
+            {
+                hole->h += hole->y - row;
+                hole->y = row;
+            }
+            else if( row > bottom )
+                hole->h = row - hole->y + 1;
+
+            if( col > 0 && window[at - 1] && !seen[at - 1] )
+            {
+                seen[at - 1] = 1;
+                stack[top++] = at - 1;
+            }
+            if( col < width - 1 && window[at + 1] && !seen[at + 1] )
+            {
+                seen[at + 1] = 1;
+                stack[top++] = at + 1;
+            }
+            if( row > 0 && window[at - width] && !seen[at - width] )
+            {
+                seen[at - width] = 1;
+                stack[top++] = at - width;
+            }
+            if( row < height - 1 && window[at + width] && !seen[at + width] )
+            {
+                seen[at + width] = 1;
+                stack[top++] = at + width;
+            }
+        }
+        /* A few stray pixels along the ring's outline are not a window. */
+        if( hole->area >= 64 )
+            found++;
+    }
+    return found;
+}
+
+/**
+ * Cut one window out as an alpha mask: transparent where the window is, opaque
+ * everywhere else, at the window's own box.
+ *
+ * The polarity is the plugin mask convention -- transparent is the WINDOW and
+ * opaque is clipped away -- and the SIZE matters as much as the shape, because
+ * the renderer takes the mask's dimensions as the surface's draw box, centred
+ * in the node box. A mask cut to the window is therefore also what sizes the
+ * minimap and the compass.
+ *
+ * THIS window and no other. `window` marks every enclosed pixel of the ring,
+ * and the two windows' boxes overlap: the 2004 mapback's compass boss reaches
+ * eight columns into the map's box. Cutting the map's mask from the union
+ * left those columns transparent, so the map -- painted after the compass on
+ * every OldSchool toplevel -- covered the rose's east edge and its E. The
+ * window is flooded back from its seed pixel, four-connected as it was
+ * measured, and only that region is cut. `own` and `stack` are scratch of
+ * one entry per pixel.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_window(
+    struct MobileCall* ctx,
+    char const* name,
+    unsigned char const* window,
+    int width,
+    int height,
+    struct MobileHole const* hole,
+    unsigned char* own,
+    int* stack)
+{
+    uint32_t* out;
+    struct ToriRS_ImageRef handle = { 0 };
+    int const pixels = width * height;
+    int top = 0;
+
+    assert(ctx);
+    assert(name);
+    assert(window);
+    assert(hole);
+    assert(own);
+    assert(stack);
+    assert(hole->seed >= 0);
+    assert(hole->seed < pixels);
+    assert(window[hole->seed]);
+
+    memset(own, 0, (size_t)pixels);
+    own[hole->seed] = 1;
+    stack[top++] = hole->seed;
+    while( top > 0 )
+    {
+        int const at = stack[--top];
+        int const col = at % width;
+        int const row = at / width;
+
+        if( col > 0 && window[at - 1] && !own[at - 1] )
+        {
+            own[at - 1] = 1;
+            stack[top++] = at - 1;
+        }
+        if( col < width - 1 && window[at + 1] && !own[at + 1] )
+        {
+            own[at + 1] = 1;
+            stack[top++] = at + 1;
+        }
+        if( row > 0 && window[at - width] && !own[at - width] )
+        {
+            own[at - width] = 1;
+            stack[top++] = at - width;
+        }
+        if( row < height - 1 && window[at + width] && !own[at + width] )
+        {
+            own[at + width] = 1;
+            stack[top++] = at + width;
+        }
+    }
+
+    out = malloc((size_t)hole->w * (size_t)hole->h * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < hole->h; row++ )
+        for( int col = 0; col < hole->w; col++ )
+        {
+            int const at = ((hole->y + row) * width) + hole->x + col;
+
+            out[(row * hole->w) + col] = own[at] ? 0x00000000u : 0xff000000u;
+        }
+    (void)g_api->assets.image_compose(
+        g_api, name, hole->w, hole->h, out, &handle);
+    free(out);
+    return handle;
+}
+
+/*
+ * Grow `mask` outward by `radius` pixels, four-connected. `scratch` is a second
+ * buffer of the same size, swapped through rather than allocated per pass.
+ */
+static void
+mobile_dilate(
+    unsigned char* mask,
+    unsigned char* scratch,
+    int width,
+    int height,
+    int radius)
+{
+    assert(mask);
+    assert(scratch);
+
+    for( int pass = 0; pass < radius; pass++ )
+    {
+        memcpy(scratch, mask, (size_t)width * (size_t)height);
+        for( int row = 0; row < height; row++ )
+        {
+            for( int col = 0; col < width; col++ )
+            {
+                int const at = (row * width) + col;
+
+                if( mask[at] )
+                    continue;
+                if( (col > 0 && mask[at - 1]) || (col < width - 1 && mask[at + 1]) ||
+                    (row > 0 && mask[at - width]) || (row < height - 1 && mask[at + width]) )
+                    scratch[at] = 1;
+            }
+        }
+        memcpy(mask, scratch, (size_t)width * (size_t)height);
+    }
+}
+
+
+/*
+ * Read the housing's windows off the housing, and cut a mask for each.
+ *
+ * Seal the ring, flood the outside in from the border, and whatever transparent
+ * pixels the flood cannot reach are the enclosed windows. Then grow those back
+ * by the same amount they were sealed by, clipped to the ring, so each window
+ * is the shape the artist drew rather than one eroded by the sealing.
+ *
+ * Derived rather than shipped as a mask pair per housing, so the mask and the
+ * art agree BY CONSTRUCTION: a new ring dropped into the folder is measured,
+ * not described, and there is no second file to keep in step with it.
+ */
+static void
+mobile_build_masks(struct MobileCall* ctx)
+{
+    struct MobileHousing const* housing = mobile_housing(ctx);
+    struct MobileHole hole[4];
+    uint32_t* argb;
+    unsigned char* solid;
+    unsigned char* sealed;
+    unsigned char* scratch;
+    unsigned char* seen;
+    int* stack;
+    int width = 0;
+    int height = 0;
+    int count;
+    int pixels;
+    int map = 0;
+    int compass = 0;
+
+    assert(ctx);
+    if( !g_api->assets.image_size(g_api, g_image[housing->art], &width, &height) || width <= 0 ||
+        height <= 0 )
+        return;
+    pixels = width * height;
+
+    argb = malloc((size_t)pixels * sizeof(*argb));
+    assert(argb);
+    {
+        size_t copied = 0;
+        if( !g_api->assets.image_pixels(
+                g_api, g_image[housing->art], argb, (size_t)pixels, &copied) ||
+            copied != (size_t)pixels )
+        {
+            free(argb);
+            return;
+        }
+    }
+    solid = malloc((size_t)pixels);
+    assert(solid);
+    sealed = malloc((size_t)pixels);
+    assert(sealed);
+    scratch = malloc((size_t)pixels);
+    assert(scratch);
+    seen = malloc((size_t)pixels);
+    assert(seen);
+    stack = malloc((size_t)pixels * sizeof(*stack));
+    assert(stack);
+
+    /*
+     * Half-lit counts as background, not as ring.
+     *
+     * The housings are cut with hard edges -- their alpha is 0 or 255 and
+     * nothing between -- so this threshold does not fall in the middle of any
+     * real pixel. It matters anyway, because art that came through a resize or
+     * an export with a soft halo has a fringe of alpha 1..20 all round it, and
+     * treating that fringe as ring drags the window's edge a pixel or two
+     * inward everywhere the halo is one-sided.
+     */
+    for( int i = 0; i < pixels; i++ )
+    {
+        solid[i] = (unsigned char)((argb[i] >> 24) >= 128);
+        sealed[i] = solid[i];
+    }
+    mobile_dilate(sealed, scratch, width, height, MOBILE_SEAL);
+
+    count = mobile_hole_scan(sealed, solid, scratch, width, height, seen, stack, hole, 4);
+    if( count < 2 )
+    {
+        /* Said rather than guessed at: a ring this code has not been read
+         * against is worth a line, and an unmasked map is a better failure than
+         * a mask cut around the wrong shape. */
+        g_api->core.log(
+            g_api,
+            "map housing has %d window(s); expected 2, leaving it unmasked",
+            count);
+    }
+    else
+    {
+        /* By AREA, not by position: which corner the compass boss sits in is a
+         * property of the picture, and the one thing true of every ring is that
+         * the map's window is far the larger. */
+        for( int i = 1; i < count; i++ )
+            if( hole[i].area > hole[map].area )
+                map = i;
+        compass = map == 0 ? 1 : 0;
+        for( int i = 0; i < count; i++ )
+            if( i != map && hole[i].area > hole[compass].area )
+                compass = i;
+
+        g_map_w = width;
+        g_map_h = height;
+        g_hole_map = hole[map];
+        g_hole_compass = hole[compass];
+        g_art[ART_MINIMAP_MASK] = mobile_compose_window(
+            ctx, "minimap_mask.png", scratch, width, height, &hole[map], seen, stack);
+        g_art[ART_COMPASS_MASK] = mobile_compose_window(
+            ctx, "compass_mask.png", scratch, width, height, &hole[compass], seen, stack);
+        g_masks_ready = g_art[ART_MINIMAP_MASK].value != 0 &&
+                        g_art[ART_COMPASS_MASK].value != 0;
+        g_api->core.log(
+            g_api,
+            "map windows read: %dx%d at %d,%d and %dx%d at %d,%d",
+            hole[map].w,
+            hole[map].h,
+            hole[map].x,
+            hole[map].y,
+            hole[compass].w,
+            hole[compass].h,
+            hole[compass].x,
+            hole[compass].y);
+    }
+
+    free(argb);
+    free(solid);
+    free(sealed);
+    free(scratch);
+    free(seen);
+    free(stack);
+}
+
+/*
+ * An image at a different size, averaged down.
+ *
+ * Used here to reduce each 100x32 classic chat plate into the compact box an
+ * OldSchool filter cell can hold. Point sampling a reduction throws away most
+ * of the source and turns the stone edge into a staircase; taking the MEAN of
+ * each destination pixel's footprint keeps the bevel and texture legible.
+ *
+ * Averaged in premultiplied space, because the alternative is wrong at every
+ * edge: a transparent pixel still carries a colour, and mixing that colour in
+ * at full weight drags the rim of the button toward whatever the cut-out
+ * happened to be filled with -- black, here, so the button would come back with
+ * a dark fringe all round it.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_scaled(
+    struct MobileCall* ctx,
+    char const* name,
+    struct ToriRS_ImageRef src,
+    int width,
+    int height)
+{
+    uint32_t* px;
+    uint32_t* out;
+    int src_w = 0;
+    int src_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    if( src.value == 0 )
+        return handle;
+    if( !g_api->assets.image_size(g_api, src, &src_w, &src_h) || src_w <= 0 || src_h <= 0 )
+        return handle;
+
+    px = malloc((size_t)src_w * (size_t)src_h * sizeof(*px));
+    assert(px);
+    if( !g_api->assets.image_pixels(
+            g_api, src, px, (size_t)src_w * (size_t)src_h, &copied) ||
+        copied != (size_t)src_w * (size_t)src_h )
+    {
+        free(px);
+        return handle;
+    }
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int row = 0; row < height; row++ )
+    {
+        int const y0 = (row * src_h) / height;
+        int const y1 = (((row + 1) * src_h) / height) > y0 ? ((row + 1) * src_h) / height
+                                                           : y0 + 1;
+
+        for( int col = 0; col < width; col++ )
+        {
+            int const x0 = (col * src_w) / width;
+            int const x1 = (((col + 1) * src_w) / width) > x0 ? ((col + 1) * src_w) / width
+                                                              : x0 + 1;
+            unsigned long sum_a = 0;
+            unsigned long sum_r = 0;
+            unsigned long sum_g = 0;
+            unsigned long sum_b = 0;
+            unsigned long count = 0;
+
+            for( int sy = y0; sy < y1 && sy < src_h; sy++ )
+            {
+                for( int sx = x0; sx < x1 && sx < src_w; sx++ )
+                {
+                    uint32_t const pixel = px[(sy * src_w) + sx];
+                    unsigned long const alpha = (pixel >> 24) & 0xffu;
+
+                    sum_a += alpha;
+                    sum_r += ((pixel >> 16) & 0xffu) * alpha;
+                    sum_g += ((pixel >> 8) & 0xffu) * alpha;
+                    sum_b += (pixel & 0xffu) * alpha;
+                    count++;
+                }
+            }
+            if( count == 0 || sum_a == 0 )
+            {
+                out[(row * width) + col] = 0x00000000u;
+                continue;
+            }
+            out[(row * width) + col] = (uint32_t)(((sum_a / count) & 0xffu) << 24) |
+                                       (uint32_t)(((sum_r / sum_a) & 0xffu) << 16) |
+                                       (uint32_t)(((sum_g / sum_a) & 0xffu) << 8) |
+                                       (uint32_t)((sum_b / sum_a) & 0xffu);
+        }
+    }
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(px);
+    free(out);
+    return handle;
+}
+
+/*
+ * A 9-slice plate at a size: corners as cut, edges and middle repeated.
+ *
+ * What 601 does with the same nine 3x3 pieces (`side_right_tabs_background`:
+ * top_left, top_middle stretched, and so on). The pieces are 3x3 and the
+ * middle is a flat dark, so repeating shows no seam.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_nine_slice(
+    struct MobileCall* ctx,
+    char const* name,
+    struct ToriRS_ImageRef const* piece,
+    int width,
+    int height)
+{
+    uint32_t* px[9];
+    uint32_t* out;
+    int cell = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(piece);
+    assert(width > 0);
+    assert(height > 0);
+    for( int i = 0; i < 9; i++ )
+    {
+        int w = 0;
+        int h = 0;
+        if( piece[i].value == 0 ||
+            !g_api->assets.image_size(g_api, piece[i], &w, &h) || w <= 0 || w != h )
+            return handle;
+        if( i == 0 )
+            cell = w;
+        else if( w != cell )
+            return handle;
+    }
+    if( width < 2 * cell || height < 2 * cell )
+        return handle;
+    for( int i = 0; i < 9; i++ )
+    {
+        px[i] = malloc((size_t)cell * (size_t)cell * sizeof(**px));
+        assert(px[i]);
+        size_t copied = 0;
+        if( !g_api->assets.image_pixels(
+                g_api,
+                piece[i],
+                px[i],
+                (size_t)cell * (size_t)cell,
+                &copied) ||
+            copied != (size_t)cell * (size_t)cell )
+        {
+            for( int j = 0; j <= i; j++ )
+                free(px[j]);
+            return handle;
+        }
+    }
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < height; y++ )
+    {
+        int const row = y < cell ? 0 : y >= height - cell ? 2 : 1;
+        int const sy = row == 0 ? y : row == 2 ? y - (height - cell) : (y - cell) % cell;
+        for( int x = 0; x < width; x++ )
+        {
+            int const col = x < cell ? 0 : x >= width - cell ? 2 : 1;
+            int const sx = col == 0 ? x : col == 2 ? x - (width - cell) : (x - cell) % cell;
+            out[y * width + x] = px[row * 3 + col][sy * cell + sx];
+        }
+    }
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    for( int i = 0; i < 9; i++ )
+        free(px[i]);
+    free(out);
+    return handle;
+}
+
+static void
+mobile_build_art(struct MobileCall* ctx)
+{
+    static int const SHAPE[3] = { IMG_REDSTONE_0, IMG_REDSTONE_1, IMG_REDSTONE_2 };
+    int ready_w;
+    int ready_h;
+
+    assert(ctx);
+    if( g_art_built )
+        return;
+    /* Every one or none, and re-tried from the layout pass until they are all
+     * resident: an image crosses the IO queue like any other asset, so a rail
+     * built from whichever had landed would wear the wrong stones. */
+    for( int i = 0; i < 3; i++ )
+        if( !g_api->assets.image_size(
+                g_api, g_image[SHAPE[i]], &ready_w, &ready_h) )
+            return;
+
+    if( !g_api->assets.image_size(g_api, g_image[IMG_PLATE], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(g_api, g_image[IMG_SWITCH], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(
+            g_api, g_image[IMG_CHAT_PLATE], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(
+            g_api, g_image[IMG_CHAT_PLATE_END], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(g_api, g_image[IMG_ICON_CHAT], &ready_w, &ready_h) )
+        return;
+    if( !g_api->assets.image_size(
+            g_api, g_image[IMG_ICON_KEYBOARD], &ready_w, &ready_h) )
+        return;
+    for( int i = 0; i < 9; i++ )
+        if( !g_api->assets.image_size(
+                g_api, g_image[IMG_O_BORDER_0 + i], &ready_w, &ready_h) )
+            return;
+
+    /* The OldSchool rail's plate, at the rail's own size. Both families are
+     * composed whatever the setting says, so a switch between them costs no
+     * reload and no frame of missing stone. */
+    g_art[ART_O_RAIL] = mobile_compose_nine_slice(
+        ctx, "osrs_rail_plate.png", &g_image[IMG_O_BORDER_0], MOBILE_O_RAIL_W, MOBILE_O_RAIL_H);
+
+    for( int tab = 0; tab < MOBILE_TAB_COUNT; tab++ )
+    {
+        struct MobileTabStone const* stone = &MOBILE_TAB_STONE[tab];
+        char name[32];
+
+        snprintf(name, sizeof(name), "stone_%d.png", tab);
+        /* The same half turn the plates take: a stone sits in a socket, and a
+         * socket that turned over wants the bevel that turned over with it. */
+        g_art[ART_STONE_0 + tab] = mobile_compose_turned(
+            ctx,
+            name,
+            g_image[SHAPE[stone->stone]],
+            !stone->flip_h,
+            !stone->flip_v,
+            /*dim=*/0);
+    }
+    /*
+     * The plate takes the same quarter turn as the stones standing on it, and
+     * the right-hand column takes it mirrored so the two sit back to back.
+     *
+     * Both then take a further half turn, so the plates face the way the rail
+     * wants rather than the way the desktop row did. A half turn commutes with
+     * the quarter turn, so it is simply both source flips inverted -- which is
+     * why the left plate reads (1,1) and the right, being the mirrored one,
+     * reads (1,0).
+     */
+    {
+        int icon_w = 0;
+        int icon_h = 0;
+
+        if( g_api->assets.image_size(
+                g_api, g_image[IMG_ICON_CHAT], &icon_w, &icon_h) )
+            g_art[ART_ICON_CHAT] = mobile_compose_scaled(
+                ctx,
+                "icon_chat_fit.png",
+                g_image[IMG_ICON_CHAT],
+                (icon_w * MOBILE_ICON_NUM) / MOBILE_ICON_DEN,
+                (icon_h * MOBILE_ICON_NUM) / MOBILE_ICON_DEN);
+    }
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+    {
+        char name[40];
+
+        (void)snprintf(name, sizeof(name), "chat_button_%d.png", i);
+        g_art[ART_CHAT_BUTTON_0 + i] = mobile_compose_chat_button(ctx, name, i);
+    }
+    g_art[ART_PLATE_0] =
+        mobile_compose_turned(ctx, "plate_l.png", g_image[IMG_PLATE], 1, 1, /*dim=*/0);
+    g_art[ART_PLATE_1] =
+        mobile_compose_turned(ctx, "plate_r.png", g_image[IMG_PLATE], 1, 0, /*dim=*/0);
+    for( int i = ART_CHAT_BUTTON_0; i < MOBILE_ART_COUNT; i++ )
+        if( g_art[i].value == 0 )
+            return;
+    g_art_built = 1;
+}
+
+/* ---------------------------------------------------- recording the plan */
+
+static void
+mobile_blit_into(struct MobileCall* ctx, struct ToriRS_ImageRef image, int x, int y, int w, int h, char const* op)
+{
+    struct MobileBlit* b;
+
+    assert(ctx);
+    if( image.value == 0 && !op )
+        return;
+    if( g_frame.blit_count >= MOBILE_BLIT_MAX )
+    {
+        /* Said rather than silently dropped: a frame missing one piece of
+         * stone reads as a rendering bug, and this is the one thing here that
+         * could cause it. */
+        g_api->core.log(g_api, "mobile: more than %d chrome blits; the rest are dropped", MOBILE_BLIT_MAX);
+        return;
+    }
+    b = &g_frame.blit[g_frame.blit_count++];
+    b->image = image;
+    b->x = x + ctx->origin_x;
+    b->y = y + ctx->origin_y;
+    b->w = w;
+    b->h = h;
+    b->op = op;
+}
+
+/** Chrome over the scene, under the live surfaces. */
+static void
+mobile_blit(struct MobileCall* ctx, struct ToriRS_ImageRef image, int x, int y)
+{
+    mobile_blit_into(ctx, image, x, y, 0, 0, NULL);
+}
+
+/** A rectangle that exists only to stop a tap falling through to the world. */
+static void
+mobile_blocker(struct MobileCall* ctx, struct ToriRS_Rect box, char const* op)
+{
+    assert(op);
+    mobile_blit_into(ctx, (struct ToriRS_ImageRef){ 0 }, box.x, box.y, box.width, box.height, op);
+}
+
+static void
+mobile_surface(struct MobileCall* ctx, int surface, int x, int y, int width, int height)
+{
+    assert(ctx);
+    assert(surface >= 0 && surface < FRAME_SURFACE_COUNT);
+    g_frame.surface[surface].placed = 1;
+    g_frame.surface[surface].rect = (struct ToriRS_Rect){ x, y, width, height };
+}
+
+static void
+mobile_member(struct MobileCall* ctx, int surface, int member, int x, int y, int width, int height)
+{
+    assert(ctx);
+    assert(surface >= 0 && surface < FRAME_SURFACE_COUNT);
+    if( member < 0 || member >= FRAME_MEMBER_MAX )
+        return;
+    g_frame.member[surface][member].placed = 1;
+    g_frame.member[surface][member].rect = (struct ToriRS_Rect){ x, y, width, height };
+}
+
+/*
+ * One piece of the plan, recorded by what it IS so the apply pass can build
+ * it as an owned widget:
+ *
+ *   frame.minimap.housing      the housing plate, applied over the compass
+ *   chat-toggle / keyboard-toggle  the two switches, owned controls
+ *   frame.sidebar.rail         a tap blocker over the rail plate
+ *   frame.chat.button.*        a 2004 plate behind a lane filter button
+ */
+static void
+mobile_ui_node(
+    struct MobileCall* ctx, char const* name, struct ToriRS_Rect bounds, struct ToriRS_ImageRef image)
+{
+    assert(ctx);
+    assert(name);
+    if( strcmp(name, "frame.minimap.housing") == 0 )
+    {
+        if( image.value == 0 )
+            return;
+        g_frame.housing_placed = 1;
+        g_frame.housing_image = image;
+        g_frame.housing_rect = bounds;
+        return;
+    }
+    if( strcmp(name, "chat-toggle") == 0 || strcmp(name, "keyboard-toggle") == 0 )
+    {
+        struct MobileToggle* t = name[0] == 'c' ? &g_frame.chat_toggle : &g_frame.keyboard_toggle;
+        t->placed = 1;
+        t->box = bounds;
+        t->face = g_frame.toggle_art;
+        t->glyph = name[0] == 'c' ? g_art[ART_ICON_CHAT] : g_image[IMG_ICON_KEYBOARD];
+        return;
+    }
+    if( strcmp(name, "frame.sidebar.rail") == 0 )
+    {
+        mobile_blocker(ctx, bounds, "Rail");
+        return;
+    }
+    if( strncmp(name, "frame.chat.button.", 18) == 0 )
+    {
+        static char const* const NAME[MOBILE_CHAT_BUTTON_COUNT] = { "public", "private", "trade", "report" };
+        for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+            if( strcmp(name + 18, NAME[i]) == 0 )
+            {
+                g_frame.plate[i].placed = 1;
+                g_frame.plate[i].rect = bounds;
+                g_frame.plate_art[i] = image;
+            }
+        return;
+    }
+}
+
+/*
+ * The box this frame lays itself out in. It is the canvas: the placement
+ * service that subtracted the OldSchool popout rail is superseded and nothing
+ * in the widget API answers that question yet, so on osrs239 the tab rail
+ * still meets the lane's strip; the register records the gap.
+ */
+struct MobileArea
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+static struct MobileArea
+mobile_lane_area(struct MobileCall* ctx, int canvas_w, int canvas_h)
+{
+    struct MobileArea area = { 0, 0, canvas_w, canvas_h };
+    assert(ctx);
+    (void)ctx;
+    return area;
+}
+/*
+ * One piece of the parchment, read out of its image once.
+ *
+ * Several of these are wanted at a time -- a corner, plus whichever variants
+ * loaded for each repeating position -- and the composition walks all of
+ * them, so they are fetched together and freed together: fetching per
+ * destination row would re-read the same picture a hundred times.
+ */
+struct MobilePaperPiece
+{
+    uint32_t* px;
+    int w;
+    int h;
+};
+
+/** 1 when the piece was read. A missing asset is a runtime state -- a half
+ *  installed plugin folder -- and not a contract violation. */
+static int
+mobile_paper_fetch(
+    struct MobileCall* ctx,
+    struct ToriRS_ImageRef image,
+    struct MobilePaperPiece* out)
+{
+    assert(ctx);
+    assert(out);
+    out->px = NULL;
+    out->w = 0;
+    out->h = 0;
+    if( image.value == 0 )
+        return 0;
+    if( !g_api->assets.image_size(g_api, image, &out->w, &out->h) || out->w <= 0 || out->h <= 0 )
+        return 0;
+    out->px = malloc((size_t)out->w * (size_t)out->h * sizeof(*out->px));
+    assert(out->px);
+    {
+        size_t copied = 0;
+        if( !g_api->assets.image_pixels(
+                g_api,
+                image,
+                out->px,
+                (size_t)out->w * (size_t)out->h,
+                &copied) ||
+            copied != (size_t)out->w * (size_t)out->h )
+        {
+            free(out->px);
+            out->px = NULL;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
+ * Read every real variant at one repeating position, compacted to the front.
+ *
+ * `image_ids` is MOBILE_PAPER_EDGE_VARIANTS_MAX (or FILL_VARIANTS) slots, some
+ * of which are -1 -- the cutter did not ship a piece there because its source
+ * had nowhere good enough left to cut one from. @see MOBILE_IMAGE_FILE. A
+ * missing slot is skipped rather than counted, so `out[0..count)` is always
+ * the pieces that DID load with no gap in the middle for a caller to trip on,
+ * and `out[count..max_count)` is left zeroed by the caller's own memset --
+ * `free(NULL)` on those in teardown is the ordinary idiom.
+ */
+static int
+mobile_paper_fetch_set(
+    struct MobileCall* ctx,
+    struct ToriRS_ImageRef const* image_ids,
+    int max_count,
+    struct MobilePaperPiece* out)
+{
+    int count = 0;
+
+    assert(ctx);
+    assert(image_ids);
+    assert(out);
+    assert(max_count > 0);
+    for( int i = 0; i < max_count; i++ )
+        if( mobile_paper_fetch(ctx, image_ids[i], &out[count]) )
+            count++;
+    return count;
+}
+
+/*
+ * Which variant lands in one repeat cell -- deterministic, not random.
+ *
+ * The sheet must not shimmer between two draws of the same box, so this is a
+ * pure function of the cell's position and cannot reach for a real RNG; a
+ * cheap integer hash gets the look random asks for (no fixed cycle to notice)
+ * without needing a seed anyone has to carry across frames. `salt` keeps the
+ * four edges and the fill from choosing in lockstep -- without it, cell 0 of
+ * every repeating position would always pick variant 0.
+ */
+static unsigned
+mobile_paper_variant_hash(int cell, int salt)
+{
+    unsigned h = (unsigned)cell * 2654435761u + (unsigned)salt * 40503u;
+    h ^= h >> 15;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    return h;
+}
+
+/*
+ * Repeat along x, picking a variant per cell -- the top and bottom edges.
+ *
+ * Steps by the CHOSEN piece's own width and not a shared constant: two
+ * variants of one edge are not the same period any more (the source only
+ * wraps cleanly at a few exact spacings, so forcing one on every variant left
+ * one of them a visibly bad seam -- @see tools/cut_chat_sheet_tiles.py,
+ * wrap_variants), so the walk has to ask each piece its size as it goes.
+ *
+ * The clip on the last copy is where a tiled strip could show a seam, and it
+ * does not: every variant was cut where its own tear happens to repeat, so a
+ * whole copy butting the next is continuous, and the clipped last copy butts
+ * a CORNER, which is a hard cut in the sheet's own art either way.
+ */
+static void
+mobile_paper_tile_edge_h(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int salt,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    int cell = 0;
+
+    assert(dst);
+    assert(variant);
+    assert(variant_count > 0);
+    for( int x = x0; x < x1; cell++ )
+    {
+        struct MobilePaperPiece const* p =
+            &variant[mobile_paper_variant_hash(cell, salt) % (unsigned)variant_count];
+        int const cols = (x1 - x) < p->w ? (x1 - x) : p->w;
+        int const rows = (y1 - y0) < p->h ? (y1 - y0) : p->h;
+
+        for( int r = 0; r < rows; r++ )
+            memcpy(
+                &dst[(size_t)(y0 + r) * (size_t)dst_w + (size_t)x],
+                &p->px[(size_t)r * (size_t)p->w],
+                (size_t)cols * sizeof(*dst));
+        x += p->w;
+    }
+}
+
+/** Exactly mobile_paper_tile_edge_h, along y -- the left and right edges. */
+static void
+mobile_paper_tile_edge_v(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int salt,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    int cell = 0;
+
+    assert(dst);
+    assert(variant);
+    assert(variant_count > 0);
+    for( int y = y0; y < y1; cell++ )
+    {
+        struct MobilePaperPiece const* p =
+            &variant[mobile_paper_variant_hash(cell, salt) % (unsigned)variant_count];
+        int const rows = (y1 - y) < p->h ? (y1 - y) : p->h;
+        int const cols = (x1 - x0) < p->w ? (x1 - x0) : p->w;
+
+        for( int r = 0; r < rows; r++ )
+            memcpy(
+                &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x0],
+                &p->px[(size_t)r * (size_t)p->w],
+                (size_t)cols * sizeof(*dst));
+        y += p->h;
+    }
+}
+
+/*
+ * The middle: repeats along BOTH axes, a variant picked per (row, column).
+ *
+ * Its own walk and not two passes of the edge tilers, because the middle is
+ * the one piece that has to choose independently in two directions at once --
+ * an edge only ever advances along its own line. `92821` is an arbitrary odd
+ * multiplier with no meaning beyond spreading a row index away from a column
+ * index before they fold into one hash; any prime-ish constant does the job.
+ */
+static void
+mobile_paper_tile_fill(
+    uint32_t* dst,
+    int dst_w,
+    struct MobilePaperPiece const* variant,
+    int variant_count,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    int row = 0;
+
+    assert(dst);
+    assert(variant);
+    assert(variant_count > 0);
+    for( int y = y0; y < y1; row++ )
+    {
+        int col = 0;
+        int step_h = 0;
+
+        for( int x = x0; x < x1; col++ )
+        {
+            struct MobilePaperPiece const* p =
+                &variant[mobile_paper_variant_hash(row * 92821 + col, 0) % (unsigned)variant_count];
+            int const cols = (x1 - x) < p->w ? (x1 - x) : p->w;
+            int const rows = (y1 - y) < p->h ? (y1 - y) : p->h;
+
+            for( int r = 0; r < rows; r++ )
+                memcpy(
+                    &dst[(size_t)(y + r) * (size_t)dst_w + (size_t)x],
+                    &p->px[(size_t)r * (size_t)p->w],
+                    (size_t)cols * sizeof(*dst));
+            step_h = p->h;
+            x += p->w;
+        }
+        y += step_h;
+    }
+}
+
+/*
+ * The parchment at any size: a nine-patch whose edges and middle are TILED --
+ * and, at each repeating position, chosen from several real variants rather
+ * than one tile stamped end to end.
+ *
+ * Tiled and not stretched, which is the whole reason the sheet stopped being
+ * one picture. A torn edge has a grain -- the tears are a few pixels across
+ * and a couple of dozen apart -- and a resampler that has to reach 900 columns
+ * from 517 does not make more tears, it makes the same tears half as sharp and
+ * twice as wide. Repeating the strip makes more of them, at the size they were
+ * drawn -- and repeating ONE strip is still a stamp, which is what the several
+ * variants at each position are for. @see tools/cut_chat_sheet_tiles.py.
+ *
+ * The corner box is read off the top-left piece rather than named here, so the
+ * art can be recut at a different corner size without this function knowing.
+ * What it cannot absorb is a sheet SMALLER than two corners each way, which is
+ * a box no chatbox has ever asked for -- 96x52 against a 2004 chat's 517x130 --
+ * and is refused rather than clamped: silently composing something other than
+ * the size asked for is how a backing ends up not under its chat.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_paper(
+    struct MobileCall* ctx,
+    char const* name,
+    int width,
+    int height)
+{
+    struct MobilePaperPiece corner[4];
+    struct MobilePaperPiece top[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece bottom[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece left[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece right[MOBILE_PAPER_EDGE_VARIANTS_MAX];
+    struct MobilePaperPiece fill[MOBILE_PAPER_FILL_VARIANTS];
+    int top_count, bottom_count, left_count, right_count, fill_count;
+    uint32_t* out;
+    int corner_w = 0;
+    int corner_h = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+
+    /* Cleared first so the teardown below can free every slot -- fetched or
+     * not, compacted or trailing -- however far each fetch got. */
+    memset(corner, 0, sizeof(corner));
+    memset(top, 0, sizeof(top));
+    memset(bottom, 0, sizeof(bottom));
+    memset(left, 0, sizeof(left));
+    memset(right, 0, sizeof(right));
+    memset(fill, 0, sizeof(fill));
+
+    for( int i = 0; i < 4; i++ )
+        if( !mobile_paper_fetch(ctx, g_image[IMG_PAPER_0 + i], &corner[i]) )
+            goto done;
+    top_count =
+        mobile_paper_fetch_set(ctx, &g_image[IMG_PAPER_TOP_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, top);
+    bottom_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_BOTTOM_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, bottom);
+    left_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_LEFT_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, left);
+    right_count = mobile_paper_fetch_set(
+        ctx, &g_image[IMG_PAPER_RIGHT_0], MOBILE_PAPER_EDGE_VARIANTS_MAX, right);
+    fill_count =
+        mobile_paper_fetch_set(ctx, &g_image[IMG_PAPER_FILL_0], MOBILE_PAPER_FILL_VARIANTS, fill);
+    if( top_count <= 0 || bottom_count <= 0 || left_count <= 0 || right_count <= 0 ||
+        fill_count <= 0 )
+        goto done;
+
+    corner_w = corner[0].w;
+    corner_h = corner[0].h;
+    if( width < 2 * corner_w || height < 2 * corner_h )
+        goto done;
+
+    /* Zeroed, because the corners are the only pieces that cover their box
+     * exactly and a tear leaves transparent pixels behind it. */
+    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    assert(out);
+
+    mobile_paper_tile_fill(
+        out, width, fill, fill_count, corner_w, corner_h, width - corner_w, height - corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, top, top_count, 1, corner_w, 0, width - corner_w, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, bottom, bottom_count, 2, corner_w, height - corner_h, width - corner_w, height);
+    mobile_paper_tile_edge_v(
+        out, width, left, left_count, 3, 0, corner_h, corner_w, height - corner_h);
+    mobile_paper_tile_edge_v(
+        out, width, right, right_count, 4, width - corner_w, corner_h, width, height - corner_h);
+    /* The corners last: each overwrites the two strips that ran up to it, so
+     * the strips may be laid without knowing where they stop. */
+    mobile_paper_tile_edge_h(out, width, &corner[0], 1, 0, 0, 0, corner_w, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[1], 1, 0, width - corner_w, 0, width, corner_h);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[2], 1, 0, 0, height - corner_h, corner_w, height);
+    mobile_paper_tile_edge_h(
+        out, width, &corner[3], 1, 0, width - corner_w, height - corner_h, width, height);
+
+    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    free(out);
+
+done:
+    for( int i = 0; i < 4; i++ )
+        free(corner[i].px);
+    for( int i = 0; i < MOBILE_PAPER_EDGE_VARIANTS_MAX; i++ )
+    {
+        free(top[i].px);
+        free(bottom[i].px);
+        free(left[i].px);
+        free(right[i].px);
+    }
+    for( int i = 0; i < MOBILE_PAPER_FILL_VARIANTS; i++ )
+        free(fill[i].px);
+    return handle;
+}
+
+/*
+ * How big the chat surface wants to be, on THIS lane.
+ *
+ * The one measurement in this frame that is not the frame's to make. Every
+ * other box here is the plugin's art at a size the plugin chose; the chatbox
+ * is a live surface with a fixed interior -- a message column, a scrollbar
+ * beside it, an input line under a rule -- and how wide that interior is, is a
+ * fact about the revision. A 2004 revconfig authors it at 479x96 and the chat
+ * renderer agrees (clip to 463, scrollbar at x+463, rule at y+77); an
+ * OldSchool cache mounts interface 162 into a 519x165 layer.
+ *
+ * Both numbers used to be constants here. That is a plugin asserting the shape
+ * of every cache it will ever be loaded against, and it was already wrong on
+ * two of the four OldSchool toplevels -- which is why the API grew a verb to
+ * ask with. @see ToriRS_FrameApi::surface_native_size.
+ *
+ * The fallback is the lane's own default and not an error path: a frame whose
+ * chat is sized as a proportion of its parent has no native size to report,
+ * and 0 there means "you choose", not "something went wrong".
+ */
+static void
+mobile_chat_native(
+    struct MobileCall* ctx,
+    int oldschool,
+    int* out_w,
+    int* out_h)
+{
+    int w = oldschool ? MOBILE_O_CHAT_W_DEFAULT : MOBILE_CHAT_W_DEFAULT;
+    int h = oldschool ? MOBILE_O_CHAT_H_DEFAULT : MOBILE_CHAT_H_DEFAULT;
+
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    (void)g_api->frame.surface_native_size(
+        g_api, TORIRS_SURFACE_CHAT, &w, &h);
+    *out_w = w;
+    *out_h = h;
+}
+
+/*
+ * The parchment at the size this declaration needs, composed once.
+ *
+ * The handle outlives the declaration that asked for it, because the size it
+ * was composed for outlives it too: a canvas that is not being dragged asks
+ * for the same sheet every layout pass, and re-tiling a 517x130 picture on
+ * each of them would be the frame's whole cost.
+ *
+ * The size is in the NAME as well as in the cache, so a re-composition at a
+ * new box is a new picture rather than a rewrite of one the host may still be
+ * painting; the old handle is released after the new one exists.
+ */
+static struct ToriRS_ImageRef
+mobile_paper_art(struct MobileCall* ctx, int width, int height)
+{
+    char name[48];
+    struct ToriRS_ImageRef art;
+
+    assert(ctx);
+    assert(width > 0);
+    assert(height > 0);
+    if( g_paper.art.value != 0 && g_paper.w == width && g_paper.h == height )
+        return g_paper.art;
+
+    snprintf(name, sizeof(name), "chat_paper_%dx%d.png", width, height);
+    art = mobile_compose_paper(ctx, name, width, height);
+    if( art.value == 0 )
+        return g_paper.art;
+    if( g_paper.art.value != 0 )
+        g_api->assets.image_release(g_api, g_paper.art);
+    g_paper.art = art;
+    g_paper.w = width;
+    g_paper.h = height;
+    return art;
+}
+
+/** The 2004 strip at `width` by `height`, composed once per size.
+ *  @see mobile_paper_art, whose bargain this is. */
+static struct ToriRS_ImageRef
+mobile_bar_art(
+    struct MobileCall* ctx,
+    int width,
+    int height,
+    struct MobileChatCell const* cell,
+    int cell_count)
+{
+    char name[48];
+    struct ToriRS_ImageRef art;
+    uint32_t key = (uint32_t)cell_count * 2654435761u;
+
+    assert(ctx);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_count >= 0);
+    assert(cell_count == 0 || cell);
+    /* The hollows are folded into a KEY rather than compared one by one: this
+     * runs every frame, and what matters is only that a moved filter re-cuts
+     * the bar and an unmoved one does not re-cut it sixty times a second. */
+    for( int i = 0; i < cell_count; i++ )
+        key = (key * 16777619u) ^
+              (uint32_t)((cell[i].x * 31 + cell[i].y) * 31 + cell[i].w * 31 +
+                         cell[i].h);
+    if( g_bar.art.value != 0 && g_bar.w == width && g_bar.h == height &&
+        g_bar.key == key )
+        return g_bar.art;
+
+    snprintf(name, sizeof(name), "chat_bar_%dx%d_%08x.png", width, height, key);
+    art = mobile_compose_classic_bar(ctx, name, width, height, cell, cell_count);
+    if( art.value == 0 )
+        return g_bar.art;
+    if( g_bar.art.value != 0 )
+        g_api->assets.image_release(g_api, g_bar.art);
+    g_bar.art = art;
+    g_bar.w = width;
+    g_bar.h = height;
+    g_bar.key = key;
+    return art;
+}
+/*
+ * Is there room for the sheet AND the drawer, or does one have to give way?
+ *
+ * The sheet is pinned to the bottom-left and the drawer to the bottom-right,
+ * and on a wide canvas they never meet -- which is the case this frame is
+ * really for. On a narrow one they would overlap, and both are LIVE surfaces
+ * the host draws rather than art this plugin blits, so the overlap would not
+ * be one of them winning cleanly: it would be a chat log and an inventory
+ * painted through each other.
+ *
+ * So the drawer wins and the sheet is not placed. Stated as a fact about the
+ * geometry rather than as a rule about clicks, because that keeps it out of the
+ * click paths entirely -- the player's intent is untouched, the switch goes on
+ * working, and the sheet comes back by itself the moment the drawer is shut.
+ */
+static int
+mobile_chat_visible(
+    struct MobileCall* ctx,
+    int canvas_w,
+    int rail_w,
+    int chat_w)
+{
+    if( !g_chat_open )
+        return 0;
+    if( !g_drawer_open )
+        return 1;
+    /* The ART's width and not the surface's: the sheet's torn fringe overhangs
+     * it on the right too, so a canvas that fits 479 but not 517 would slide
+     * the parchment under the drawer. @see MOBILE_PAPER_ART_W. On an OldSchool
+     * lane the chat pack is its own 519. */
+    return canvas_w - MOBILE_MARGIN - rail_w - MOBILE_PANEL_W >= chat_w;
+}
+/*
+ * The 2004 rail: the two turned tab rows. @see MOBILE_ROCK, MOBILE_TAB_STONE.
+ *
+ * Fills g_frame.tab and places each present tab's mount when the drawer is
+ * open. Split out of mobile_layout so the OldSchool rail beside it is a
+ * sibling and not a branch through forty lines of arithmetic.
+ */
+static void
+mobile_layout_rail_classic(
+    struct MobileCall* ctx,
+    int rail_x,
+    int rail_y,
+    int panel_x,
+    int panel_y)
+{
+    assert(ctx);
+    /*
+     * The two columns, each a turned row stacked from its own top.
+     *
+     * The running offset is the point: a cell's height is the classic box's
+     * width and those differ down the column, so a cell's place is the sum of
+     * everything above it and not its index times a stride. A tab this cache
+     * lacks still takes its place in that sum -- the rhythm belongs to the ROW,
+     * and closing the gap would shift every stone under it onto a neighbour's.
+     */
+    for( int col = 0; col < MOBILE_RAIL_COLS; col++ )
+    {
+        int const first = col * MOBILE_RAIL_ROWS;
+        int const plate_x = rail_x + (col * MOBILE_RAIL_COL_W);
+
+        /* The plate first, then the stones that stand on it. Both columns are
+         * pinned to the rail's top, and being one picture twice they end
+         * level. */
+        mobile_blit(ctx, g_art[col == 0 ? ART_PLATE_0 : ART_PLATE_1], plate_x, rail_y);
+
+        for( int row = 0; row < MOBILE_RAIL_ROWS; row++ )
+        {
+            int const tab = first + row;
+            /*
+             * A cell IS its rock: the box the stone and the icon are centred
+             * in, and the box a tap answers.
+             *
+             * Both columns are the same plate, so both read the same rock --
+             * measured from the plate's far end, the plate being on its head,
+             * and inset from opposite edges, the right-hand plate being the
+             * mirrored one.
+             */
+            struct MobileRock const* rock = &MOBILE_ROCK[row];
+            int const cell_h = rock->span;
+            int const cell_y = rail_y + MOBILE_RAIL_COL_H - rock->start - rock->span;
+            int const cell_x =
+                plate_x + (col == 0 ? MOBILE_PLATE_BAND_Y
+                                    : MOBILE_RAIL_COL_W - MOBILE_PLATE_BAND_Y -
+                                          MOBILE_PLATE_BAND_D);
+            int const cell_w = MOBILE_PLATE_BAND_D;
+            struct MobileTab* entry;
+            /*
+             * The mount is placed only while the drawer is open, and the ANSWER
+             * is what is kept: the same call states where the panel goes and
+             * reports whether this cache has that tab at all.
+             * @see g_tab_present.
+             */
+            if( g_drawer_open )
+            {
+                mobile_member(
+                    ctx,
+                    FRAME_SURFACE_SIDEBAR,
+                    tab,
+                    panel_x,
+                    panel_y,
+                    MOBILE_PANEL_W,
+                    MOBILE_PANEL_H);
+                g_tab_present[tab] = true;
+            }
+            if( !g_tab_present[tab] )
+                continue;
+
+            entry = &g_frame.tab[g_frame.tab_count++];
+            entry->x = cell_x;
+            entry->y = cell_y;
+            entry->w = cell_w;
+            entry->h = cell_h;
+            entry->tabno = tab;
+            /*
+             * The icon comes from the set the LANE numbers its panels by, not
+             * from the era this rail's rocks were cut in.
+             *
+             * A stone's icon names the panel behind it, and the two eras do
+             * not agree: `sideicons.dat` has nothing at 7, friends at 8 and
+             * ignore at 9, while rev-239 has chat-channel at 7, account
+             * management at 8 and friends at 9. So a 2004 rail over an
+             * OldSchool lane wearing the 2004 set left the live seventh rock
+             * bare and put the frowning ignore face on Friends. The OldSchool
+             * rail beside this one already reads the same table.
+             */
+            entry->icon = g_image[
+                (mobile_lane_oldschool(ctx) ? IMG_O_SIDEICON_0 : IMG_SIDEICON_0) + tab];
+            entry->lit = g_art[ART_STONE_0 + tab];
+        }
+    }
+}
+
+/*
+ * The OldSchool rail: 601's two tab columns on one dark plate.
+ *
+ * Every cell is a stone, blitted here, and the open one wears the red stone
+ * over it in the draw pass -- which is what 601 does (`tli_button01` 0 under
+ * every tab, 2 on the selected). A tab this cache lacks keeps its cell and
+ * shows the bare plate. @see MOBILE_O_COLUMN.
+ */
+static void
+mobile_layout_rail_oldschool(
+    struct MobileCall* ctx,
+    int rail_x,
+    int rail_y,
+    int panel_x,
+    int panel_y)
+{
+    assert(ctx);
+    mobile_blit(ctx, g_art[ART_O_RAIL], rail_x, rail_y);
+    for( int col = 0; col < MOBILE_RAIL_COLS; col++ )
+    {
+        int const cell_x = rail_x + MOBILE_O_BORDER + col * MOBILE_O_STONE;
+
+        for( int row = 0; row < MOBILE_RAIL_ROWS; row++ )
+        {
+            int const tab = MOBILE_O_COLUMN[col][row];
+            int const cell_y = rail_y + MOBILE_O_BORDER + row * MOBILE_O_STRIDE;
+            struct MobileTab* entry;
+
+            if( g_drawer_open )
+            {
+                mobile_member(
+                    ctx,
+                    FRAME_SURFACE_SIDEBAR,
+                    tab,
+                    panel_x,
+                    panel_y,
+                    MOBILE_PANEL_W,
+                    MOBILE_PANEL_H);
+                g_tab_present[tab] = true;
+            }
+            if( !g_tab_present[tab] )
+                continue;
+
+            mobile_blit(ctx, g_image[IMG_O_STONE], cell_x, cell_y);
+            entry = &g_frame.tab[g_frame.tab_count++];
+            entry->x = cell_x;
+            entry->y = cell_y;
+            entry->w = MOBILE_O_STONE;
+            entry->h = MOBILE_O_STONE;
+            entry->tabno = tab;
+            entry->icon = g_image[IMG_O_SIDEICON_0 + tab];
+            entry->lit = g_image[IMG_O_STONE_LIT];
+        }
+    }
+}
+static void
+mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
+{
+    enum MobileFamily const family = mobile_family(ctx);
+    int const oldschool = mobile_lane_oldschool(ctx);
+    int const rail_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_W : MOBILE_RAIL_W;
+    int const rail_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_RAIL_H : MOBILE_RAIL_H;
+    /* The RIGHT and BOTTOM edges below are this box's rather than the window's
+     * -- which is every edge the frame's own furniture is pinned to that any
+     * lane in this tree occludes. The chat block stays on the window's left
+     * edge because `area.x` is 0 on all of them; the day a revision docks
+     * something down the left, that is the line to change, and this is where
+     * the number to change it to comes from. @see mobile_lane_area. */
+    struct MobileArea const area = mobile_lane_area(ctx, canvas_w, canvas_h);
+    int const area_right = area.x + area.w;
+    int const area_bottom = area.y + area.h;
+    int const rail_x = area_right - MOBILE_MARGIN - rail_w;
+    int const rail_y = area_bottom - MOBILE_MARGIN - rail_h;
+    /* The drawer hangs off the rail's inner edge and shares its bottom margin,
+     * so the two read as one assembly rather than two things that happen to be
+     * in the same corner. */
+    int const panel_x = rail_x - MOBILE_PANEL_W;
+    int const panel_y = area_bottom - MOBILE_MARGIN - MOBILE_PANEL_H;
+    struct MobileHousing const* housing = mobile_housing(ctx);
+    int const map_x = area_right - MOBILE_MARGIN - g_map_w;
+    int const map_y = area.y + MOBILE_MARGIN;
+    int const safe_bottom = area_bottom;
+    int strip_y;
+    int chat_y;
+    /* The surface's size is the LANE's, asked for once and then used
+     * everywhere: the sheet is composed for it, the strip is that wide, the
+     * four filter buttons are spread across it and the tap-blocker covers it.
+     * @see mobile_chat_native. */
+    int chat_w = 0;
+    int chat_h = 0;
+    int chat_visible;
+
+    assert(ctx);
+    mobile_chat_native(ctx, oldschool, &chat_w, &chat_h);
+    /* The ART's width on a 2004 lane and the pack's own on an OldSchool one:
+     * the parchment's torn fringe overhangs the surface on both sides, so a
+     * canvas that fits the surface but not the sheet would slide the paper
+     * under the drawer. @see MOBILE_PAPER_ART_W. */
+    chat_visible = mobile_chat_visible(
+        ctx,
+        area.w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
+
+    /* Platform and lane exclusions were already composed into FRAME_BUILD,
+     * so every bottom-anchored piece uses the same visible edge. */
+    strip_y = safe_bottom - MOBILE_STRIP_H;
+    /* Through the macro rather than `strip_y - chat_h`, so the block is
+     * still pinned by the ART's last inked row and not by the surface's -- the
+     * safe bottom moved which edge it hangs from, not what hangs there.
+     * @see MOBILE_CHAT_Y. The OldSchool pack is one 519x165 block flush with
+     * the safe bottom, its own stone bar included. */
+    chat_y = oldschool ? safe_bottom - chat_h : MOBILE_CHAT_Y(safe_bottom, chat_h);
+
+    /*
+     * The scene is the WHOLE canvas, chrome included.
+     *
+     * That is what this frame is: every other piece floats on the world rather
+     * than beside it, which is the one decision the whole layout follows from.
+     */
+    mobile_surface(ctx, FRAME_SURFACE_VIEWPORT, 0, 0, canvas_w, canvas_h);
+
+    /* The housing is attached to the minimap rather than blitted globally, so
+     * it paints immediately under that one live surface instead of over the
+     * whole frame. */
+    mobile_ui_node(
+        ctx,
+        "frame.minimap.housing",
+        (struct ToriRS_Rect){ map_x, map_y, g_map_w, g_map_h },
+        g_image[housing->art]);
+    /* Both surfaces go in the windows the RING says it has, at the boxes the
+     * housing states. @see MobileHousing. */
+    mobile_surface(
+        ctx,
+        FRAME_SURFACE_MINIMAP,
+        map_x + g_hole_map.x,
+        map_y + g_hole_map.y,
+        g_hole_map.w,
+        g_hole_map.h);
+    mobile_surface(
+        ctx,
+        FRAME_SURFACE_COMPASS,
+        map_x + g_hole_compass.x,
+        map_y + g_hole_compass.y,
+        g_hole_compass.w,
+        g_hole_compass.h);
+    /*
+     * And the shape each of them is cut to.
+     *
+     * Both surfaces are LIVE -- the minimap is baked from the world and the
+     * compass turns with the camera -- so neither can be blitted into a round
+     * hole; a housing has to state where its holes are AND what shape they are,
+     * and stating only the first leaves a square map in a round window. That is
+     * what was on screen: the compass drew its four corners over the housing's
+     * rounded one, and the map filled its box out to the edges.
+     *
+     * The compass keeps the LANE's art (-1). It is the 2004 rose already, and
+     * the only thing wrong with it was the shape it was cut to.
+     */
+    g_frame.skin_minimap = (struct MobileSkin){ 1, { 0 }, g_art[ART_MINIMAP_MASK] };
+    /* The compass keeps the LANE's rose on a 2004 lane (-1): it is this rose
+     * already. On an OldSchool lane the cache's rose is OldSchool's, so the
+     * classic family brings the 2004 one with it; the OldSchool family keeps
+     * the cache's, which is the picture its ring was cut for. */
+    g_frame.skin_compass = (struct MobileSkin){
+        1, oldschool && family == FAMILY_CLASSIC ? g_image[IMG_COMPASS] : (struct ToriRS_ImageRef){ 0 },
+        g_art[ART_COMPASS_MASK] };
+    /*
+     * The orb block beside the map, where the OldSchool frames keep it. A
+     * lane with no such block -- every 2004 one -- answers 0 and nothing
+     * moves; the minimap-orbs plugin adds its own there.
+     */
+    mobile_surface(
+        ctx,
+        FRAME_SURFACE_ORBS,
+        map_x + g_hole_map.x + MOBILE_O_ORBS_DX,
+        map_y + g_hole_map.y + MOBILE_O_ORBS_DY,
+        MOBILE_O_ORBS_W,
+        MOBILE_O_ORBS_H);
+    mobile_member(
+        ctx,
+        FRAME_SURFACE_ORBS,
+        FRAME_ORBS_MEMBER_ACTIVITY_ADVISER,
+        map_x + g_hole_map.x + MOBILE_O_ORBS_DX + MOBILE_O_ADVISER_DX,
+        map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_ADVISER_DY,
+        MOBILE_O_ADVISER_W,
+        MOBILE_O_ADVISER_H);
+
+    if( g_drawer_open )
+        mobile_blit(
+            ctx,
+            g_image[family == FAMILY_OLDSCHOOL ? IMG_O_DRAWER : IMG_INVBACK], panel_x, panel_y);
+
+    /*
+     * The sheet, and nothing under the filter buttons.
+     *
+     * They float on the scene instead. A bar behind them is what a DOCKED frame
+     * needs -- something for the row to sit on where the surround stops -- and
+     * this frame has no surround for it to continue, so the bar read as a slab
+     * of stone lying on the grass under four labels.
+     *
+     * On an OldSchool lane there is no global sheet blit: a retained paper
+     * layer replaces the pack backing and extends one text line past it.
+     */
+    if( chat_visible && !oldschool )
+        mobile_blit(
+            ctx,
+            mobile_paper_art(ctx, MOBILE_PAPER_ART_W(chat_w), MOBILE_PAPER_ART_H(chat_h)),
+            0,
+            chat_y - MOBILE_PAPER_FRINGE_T);
+
+    /* The switch sits directly above whatever is in that corner: the sheet when
+     * it is up, the safe bottom margin when it is not. Pinned to the thing it
+     * operates rather than to a coordinate, so it never floats away from it --
+     * nor under the keyboard, which the safe bottom is what keeps it out of. */
+    g_frame.toggle_art = family == FAMILY_OLDSCHOOL ? g_image[IMG_O_STONE] : g_image[IMG_SWITCH];
+    g_frame.toggle_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_TOGGLE_W : MOBILE_TOGGLE_W;
+    g_frame.toggle_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_TOGGLE_H : MOBILE_TOGGLE_H;
+    /*
+     * WHICH END of that strip, and why the OldSchool lane gets the far one.
+     *
+     * That lane parks a HUD in the near one. `stat_boosts_hud` (708) is laid
+     * out by the cache's own script 4130, which reads the pair the client
+     * reports as its identity and branches on it:
+     *
+     *     if (~on_mobile = 0) { if_setposition(2, 2, abs_left,  abs_bottom, ..)
+     *     } else              { if_setposition(2, 0, abs_right, abs_bottom, ..) }
+     *
+     * -- the boosted-stat readout goes bottom-LEFT for a desktop client and
+     * bottom-RIGHT for a mobile one, precisely because OldSchool Mobile's own
+     * chrome owns the bottom-left corner. This frame IS that chrome, but the
+     * client it runs in is a desktop client (CS2VM2_SetClientIdentity is one
+     * fact about the process, resolved at boot from the platform, and flipping
+     * it would change the login block, the toplevel the server opens and every
+     * other mobile branch in the cache) -- so the lane takes the desktop
+     * branch and the readout lands exactly under these two stones.
+     *
+     * The bottom of that HUD is fixed: the dodge insets are a per-toplevel
+     * table (enum_1135/1136, 250x165 on all three OldSchool tops), not a read
+     * of whatever chrome is on screen, so no frame can move it and it is in
+     * this band whatever this one does. The far end of the same edge is clear:
+     * the readout is one 35-row row growing rightwards from x=2, and it would
+     * have to carry a dozen simultaneous boosts to reach the chat block's
+     * right edge.
+     *
+     * A 2004 lane has no such HUD -- nothing of the cache's floats over the
+     * viewport at all -- so it keeps the near end, which is where a frame this
+     * shape wants its switch.
+     */
+    g_frame.toggle_x = MOBILE_MARGIN;
+    if( oldschool )
+    {
+        int const pair_w = 2 * g_frame.toggle_w + MOBILE_TOGGLE_GAP;
+        int const far_x = chat_w - MOBILE_MARGIN - pair_w;
+
+        if( far_x > g_frame.toggle_x )
+            g_frame.toggle_x = far_x;
+    }
+    g_frame.toggle_y =
+        (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_PAPER_FRINGE_T) : safe_bottom) -
+        MOBILE_MARGIN - g_frame.toggle_h;
+    mobile_blit(ctx, g_frame.toggle_art, g_frame.toggle_x, g_frame.toggle_y);
+    /*
+     * And the keyboard beside it.
+     *
+     * A frame the player reaches with a finger needs a way to ASK for the keys
+     * -- the client's chat input was written for a machine that always had
+     * them, so nothing in it ever raises a keyboard. Tapping the chat asks for
+     * one too, but a switch that is always in the same place is what makes it
+     * possible to put the keyboard AWAY again, which a tap on the chat can
+     * never mean.
+     */
+    g_frame.keys_x = g_frame.toggle_x + g_frame.toggle_w + MOBILE_TOGGLE_GAP;
+    g_frame.keys_y = g_frame.toggle_y;
+    mobile_blit(ctx, g_frame.toggle_art, g_frame.keys_x, g_frame.keys_y);
+    mobile_ui_node(
+        ctx,
+        "chat-toggle",
+        (struct ToriRS_Rect){
+            g_frame.toggle_x, g_frame.toggle_y, g_frame.toggle_w, g_frame.toggle_h },
+        (struct ToriRS_ImageRef){ 0 });
+    mobile_ui_node(
+        ctx,
+        "keyboard-toggle",
+        (struct ToriRS_Rect){
+            g_frame.keys_x, g_frame.keys_y, g_frame.toggle_w, g_frame.toggle_h },
+        (struct ToriRS_ImageRef){ 0 });
+
+    /*
+     * The ROLE, and then its members.
+     *
+     * Both, because they answer different questions: the role is "the sidebar,
+     * wherever it is" and is what the host places the open panel by, while a
+     * member is one tab's mount and is the only call that can report whether
+     * this cache HAS that tab. Placing only the members left the role unplaced
+     * -- the panel had fourteen mounts and no box.
+     */
+    g_frame.panel_x = panel_x;
+    g_frame.panel_y = panel_y;
+    if( g_drawer_open )
+        mobile_surface(
+            ctx, FRAME_SURFACE_SIDEBAR, panel_x, panel_y, MOBILE_PANEL_W, MOBILE_PANEL_H);
+
+    mobile_ui_node(
+        ctx,
+        "frame.sidebar.rail",
+        (struct ToriRS_Rect){ rail_x, rail_y, rail_w, rail_h },
+        (struct ToriRS_ImageRef){ 0 });
+
+    if( family == FAMILY_OLDSCHOOL )
+        mobile_layout_rail_oldschool(ctx, rail_x, rail_y, panel_x, panel_y);
+    else
+        mobile_layout_rail_classic(ctx, rail_x, rail_y, panel_x, panel_y);
+
+    /*
+     * The modal is CENTRED on the canvas, not pinned to the frame.
+     *
+     * It is the one region that is about where the player is looking rather
+     * than about the chrome, and the cache authored its contents against a
+     * 512x334 box -- so the placement is free and the size is not. Shrinking it
+     * to fit a phone would clip a bank rather than reflow one.
+     */
+    mobile_surface(
+        ctx,
+        FRAME_SURFACE_MODAL,
+        area.x + (area.w - MOBILE_MODAL_W) / 2,
+        area.y + (area.h - MOBILE_MODAL_H) / 2,
+        MOBILE_MODAL_W,
+        MOBILE_MODAL_H);
+
+    g_frame.chat_placed = chat_visible;
+    g_frame.chat_y = chat_y;
+    g_frame.chat_pack = oldschool;
+    g_frame.chat_w = chat_w;
+    g_frame.chat_h = chat_h;
+    if( !chat_visible )
+        return;
+
+    /* The OldSchool chat pack: placed whole, at its own size, flush with the
+     * corner. It keeps its text, actions and scrollbar; the retained chat
+     * decoration contributions replace only its furniture.
+     * @see MOBILE_O_CHAT_W_DEFAULT. */
+    if( oldschool )
+    {
+        mobile_surface(ctx, FRAME_SURFACE_CHAT, 0, chat_y, chat_w, chat_h);
+        return;
+    }
+    mobile_surface(
+        ctx, FRAME_SURFACE_CHAT, MOBILE_PAPER_FRINGE_L, chat_y, chat_w, chat_h);
+    /*
+     * A button UNDER each label, and nothing behind the row.
+     *
+     * The labels are the lane's own and it draws them itself; what it does not
+     * draw is anything for them to sit on, because on the 2004 frame they sit
+     * on the surround. Giving each one the interface button it would have worn
+     * anywhere else puts the chrome back where it belongs -- on the four
+     * controls -- without laying a slab across the corner behind them.
+     */
+    /* The plates are named UI nodes rather than ordinary blits. The registry
+     * resolves one appearance provider per plate, so a wider replacement does
+     * not expose this frame's art at its edges. */
+
+    /*
+     * The four filter buttons stay the LANE's.
+     *
+     * Their actions remain lane-owned: on a 2004 frame each one cycles its
+     * filter through On/Friends/Off, and replacing that action with a
+     * show/hide switch would remove three working states.
+     * The sheet gets its own switch instead -- @see g_frame.toggle_x -- which
+     * is a button this frame added rather than one it took over.
+     */
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+    {
+        static char const* const NAME[MOBILE_CHAT_BUTTON_COUNT] = {
+            "frame.chat.button.public",
+            "frame.chat.button.private",
+            "frame.chat.button.trade",
+            "frame.chat.button.report",
+        };
+        struct ToriRS_Rect const bounds = {
+            mobile_chat_button_x(i, chat_w),
+            strip_y + MOBILE_CHAT_BUTTON_LIFT,
+            MOBILE_CHAT_BUTTON_W,
+            MOBILE_CHAT_BUTTON_H,
+        };
+
+        mobile_member(
+            ctx,
+            FRAME_SURFACE_CHAT_BUTTONS,
+            i,
+            bounds.x,
+            bounds.y,
+            bounds.width,
+            bounds.height);
+
+        /* Publish the plate as a retained named node. The UI registry chooses
+         * one provider per facet and the host paints only the resolved winner,
+         * so a report-button contribution composes without double drawing.
+         * One picture serves all four buttons; this strip has no hover art. */
+        mobile_ui_node(
+            ctx,
+            NAME[i],
+            bounds,
+            g_art[ART_CHAT_BUTTON_0 + i]);
+    }
+}
+
+/* ------------------------------------------------------- applying the plan */
+
+static bool
+mobile_parent_origin(struct MobileCall* ctx, struct ToriRS_WidgetRef widget, int* out_x, int* out_y)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef parent;
+    struct ToriRS_WidgetBounds box;
+
+    assert(ctx);
+    *out_x = 0;
+    *out_y = 0;
+    if( ui->parent(ui->context, widget, &parent) != TORIRS_CONTRACT_OK )
+        return true;
+    if( ui->bounds(ui->context, parent, &box) != TORIRS_CONTRACT_OK )
+        return false;
+    *out_x = box.x;
+    *out_y = box.y;
+    return true;
+}
+
+static bool
+mobile_place_widget(
+    struct MobileCall* ctx, struct ToriRS_WidgetRef widget, struct ToriRS_Rect rect,
+    struct ToriRS_WidgetRef base, bool over_base)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    int px;
+    int py;
+
+    assert(ctx);
+    if( !mobile_parent_origin(ctx, widget, &px, &py) )
+        return false;
+    if( ui->set_position(ui->context, widget, rect.x - px, rect.y - py) != TORIRS_CONTRACT_OK )
+        return false;
+    if( ui->set_size(ui->context, widget, rect.width, rect.height) != TORIRS_CONTRACT_OK )
+        return false;
+    (void)ui->set_hidden(ui->context, widget, false);
+    if( over_base && ToriRS_WidgetRefValid(base) )
+        (void)ui->set_anchor(ui->context, widget, base, TORIRS_WIDGET_RELATION_OVER);
+    return true;
+}
+
+static bool
+mobile_owned_image(
+    struct MobileCall* ctx, struct MobileOwned* owned, struct ToriRS_WidgetRef parent, char const* key,
+    struct ToriRS_ImageRef image, int width, int height, int canvas_x, int canvas_y)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    int px;
+    int py;
+
+    assert(ctx);
+    assert(owned);
+    if( ui->create_image(ui->context, parent, key, &owned->ref) != TORIRS_CONTRACT_OK )
+    {
+        owned->live = 0;
+        return false;
+    }
+    owned->live = 1;
+    if( ui->set_image(ui->context, owned->ref, image, width, height) != TORIRS_CONTRACT_OK )
+        return false;
+    if( !mobile_parent_origin(ctx, owned->ref, &px, &py) )
+        return false;
+    (void)ui->set_position(ui->context, owned->ref, canvas_x - px, canvas_y - py);
+    (void)ui->set_hidden(ui->context, owned->ref, false);
+    return true;
+}
+
+static void
+mobile_owned_drop(struct MobileCall* ctx, struct MobileOwned* owned)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    assert(ctx);
+    assert(owned);
+    if( owned->live )
+        (void)ui->remove(ui->context, owned->ref);
+    owned->live = 0;
+    owned->ref = (struct ToriRS_WidgetRef){ { 0, 0, 0 } };
+}
+
+/* A picture centred in a box, as an owned image. */
+static bool
+mobile_owned_centred(
+    struct MobileCall* ctx, struct MobileOwned* owned, struct ToriRS_WidgetRef parent, char const* key,
+    struct ToriRS_ImageRef image, struct ToriRS_Rect box)
+{
+    int iw = 0;
+    int ih = 0;
+    assert(ctx);
+    if( image.value == 0 || !g_api->assets.image_size(g_api, image, &iw, &ih) || iw <= 0 || ih <= 0 )
+    {
+        mobile_owned_drop(ctx, owned);
+        return false;
+    }
+    return mobile_owned_image(
+        ctx, owned, parent, key, image, iw, ih, box.x + (box.width - iw) / 2, box.y + (box.height - ih) / 2);
+}
+
+/* Tap blockers: the chat sheet asks for the keyboard, the rest swallow. */
+static void
+mobile_blocker_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    char const* op = user;
+    assert(api);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_OPERATION || !op )
+        return;
+    if( strcmp(op, "Type") == 0 )
+        api->input.chat_focus(api, true);
+}
+
+/* The chrome and the blockers, anchored OVER the scene in layout order; the
+ * live surfaces then sit on the last of them. Returns that last piece. */
+static struct ToriRS_WidgetRef
+mobile_apply_pieces(struct MobileCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef viewport)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef last = viewport;
+    char key[24];
+
+    assert(ctx);
+    for( int i = 0; i < MOBILE_BLIT_MAX; i++ )
+    {
+        struct MobileBlit const* b = &g_frame.blit[i];
+        struct ToriRS_ImageRef image = b->image;
+        int w = b->w;
+        int h = b->h;
+
+        if( i >= g_frame.blit_count )
+        {
+            mobile_owned_drop(ctx, &state->piece[i]);
+            continue;
+        }
+        if( b->op )
+            image = state->blank;
+        else if( !g_api->assets.image_size(g_api, image, &w, &h) )
+            image.value = 0;
+        if( image.value == 0 || w <= 0 || h <= 0 )
+        {
+            mobile_owned_drop(ctx, &state->piece[i]);
+            continue;
+        }
+        (void)snprintf(key, sizeof(key), "piece.%02d", i);
+        if( !mobile_owned_image(ctx, &state->piece[i], parent, key, image, w, h, b->x, b->y) )
+            continue;
+        (void)ui->set_on_op(ui->context, state->piece[i].ref, b->op, b->op ? mobile_blocker_pressed : NULL,
+                            b->op ? (void*)b->op : NULL);
+        if( ui->set_anchor(ui->context, state->piece[i].ref, viewport, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->piece[i].ref;
+    }
+    return last;
+}
+
+static void
+mobile_apply_housing(struct MobileCall* ctx, struct ToriRS_WidgetRef parent)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef anchor;
+    int w = 0;
+    int h = 0;
+
+    assert(ctx);
+    if( !g_frame.housing_placed || !g_api->assets.image_size(g_api, g_frame.housing_image, &w, &h) )
+    {
+        mobile_owned_drop(ctx, &state->housing);
+        return;
+    }
+    if( !mobile_owned_image(
+            ctx, &state->housing, parent, "housing", g_frame.housing_image, w, h, g_frame.housing_rect.x,
+            g_frame.housing_rect.y) )
+        return;
+    if( ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_COMPASS], &anchor) != TORIRS_CONTRACT_OK &&
+        ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_MINIMAP], &anchor) != TORIRS_CONTRACT_OK )
+        return;
+    (void)ui->set_anchor(ui->context, state->housing.ref, anchor, TORIRS_WIDGET_RELATION_OVER);
+}
+
+/*
+ * A rock was tapped. A rock the server has not put a panel behind swallows the
+ * tap; the tab you are already looking at shuts the drawer; any other opens it
+ * on that panel. One stone doing both is what makes the rail a drawer.
+ */
+static void
+mobile_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct MobileTabHandle const* handle = user;
+    struct MobileState* state;
+
+    assert(api);
+    assert(handle);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_OPERATION )
+        return;
+    state = handle->state;
+    if( !api->cache.tab_enabled(api, handle->tabno) )
+        return;
+    if( state->drawer_open && api->cache.tab_active(api) == handle->tabno )
+        state->drawer_open = false;
+    else
+    {
+        state->drawer_open = true;
+        (void)api->cache.tab_select(api, handle->tabno);
+    }
+    api->frame.invalidate(api);
+}
+
+/*
+ * The stones: an owned control per cell, its lit stone and its icon over it,
+ * each anchored over the one before starting at `base` (the last piece of
+ * chrome), so the caller can put the live surfaces over the LAST of them and
+ * a modal centred on the phone is never under a rock. Returns that last one.
+ */
+static struct ToriRS_WidgetRef
+mobile_apply_tabs(struct MobileCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef last = base;
+    char key[24];
+
+    assert(ctx);
+    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+    {
+        struct MobileTab const* t = &g_frame.tab[i];
+        struct ToriRS_Rect const box = { t->x, t->y, t->w, t->h };
+
+        if( i >= g_frame.tab_count )
+        {
+            mobile_owned_drop(ctx, &state->cell[i]);
+            mobile_owned_drop(ctx, &state->lit[i]);
+            mobile_owned_drop(ctx, &state->icon[i]);
+            continue;
+        }
+        (void)snprintf(key, sizeof(key), "tab.%02d", i);
+        if( !mobile_owned_image(ctx, &state->cell[i], parent, key, state->blank, t->w, t->h, t->x, t->y) )
+            continue;
+        state->tab_handle[i] = (struct MobileTabHandle){ state, t->tabno };
+        (void)ui->set_on_op(ui->context, state->cell[i].ref, "Select", mobile_tab_pressed, &state->tab_handle[i]);
+        if( ui->set_anchor(ui->context, state->cell[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+            last = state->cell[i].ref;
+        (void)snprintf(key, sizeof(key), "lit.%02d", i);
+        if( mobile_owned_centred(ctx, &state->lit[i], parent, key, t->lit, box) )
+        {
+            (void)ui->set_hidden(ui->context, state->lit[i].ref, true);
+            if( ui->set_anchor(ui->context, state->lit[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+                last = state->lit[i].ref;
+        }
+        (void)snprintf(key, sizeof(key), "icon.%02d", i);
+        if( mobile_owned_centred(ctx, &state->icon[i], parent, key, t->icon, box) )
+        {
+            (void)ui->set_hidden(ui->context, state->icon[i].ref, true);
+            if( ui->set_anchor(ui->context, state->icon[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+                last = state->icon[i].ref;
+        }
+        state->lit_shown[i] = -1;
+        state->icon_shown[i] = -1;
+    }
+    return last;
+}
+
+/*
+ * Which stone is lit and which icons are given, written when they change. The
+ * redstone goes on the OPEN tab and only while the drawer IS open; a tab the
+ * server has not handed over is a bare rock.
+ */
+static void
+mobile_refresh_tabs(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    int const active = g_api->cache.tab_active(g_api);
+
+    assert(ctx);
+    for( int i = 0; i < g_frame.tab_count; i++ )
+    {
+        struct MobileTab const* t = &g_frame.tab[i];
+        bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
+        int const lit = given && g_drawer_open && t->tabno == active;
+
+        if( state->lit[i].live && lit != state->lit_shown[i] &&
+            ui->set_hidden(ui->context, state->lit[i].ref, !lit) == TORIRS_CONTRACT_OK )
+            state->lit_shown[i] = lit;
+        if( state->icon[i].live && (int)given != state->icon_shown[i] &&
+            ui->set_hidden(ui->context, state->icon[i].ref, !given) == TORIRS_CONTRACT_OK )
+            state->icon_shown[i] = given;
+    }
+}
+
+static void
+mobile_chat_toggle_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct MobileState* state = user;
+    assert(api);
+    assert(state);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_OPERATION )
+        return;
+    state->chat_open = !state->chat_open;
+    /* Putting the sheet away takes the keyboard with it: there is nothing
+     * left on screen to type into. Both sources are dropped, because either
+     * can be holding it up -- the plugin's own latch and the chat line's focus. */
+    if( !state->chat_open )
+    {
+        if( state->keyboard_on )
+        {
+            state->keyboard_on = false;
+            api->input.text_input(api, false);
+        }
+        api->input.chat_focus(api, false);
+    }
+    api->frame.invalidate(api);
+}
+
+static void
+mobile_keyboard_toggle_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct MobileState* state = user;
+    assert(api);
+    assert(state);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_OPERATION )
+        return;
+    state->keyboard_on = !state->keyboard_on;
+    api->input.text_input(api, state->keyboard_on);
+    /* Switching OFF also drops the chat line's focus, or the focus alone keeps
+     * the keyboard up and the switch does nothing visible. */
+    if( !state->keyboard_on )
+        api->input.chat_focus(api, false);
+}
+
+/* A switch and its glyph, over `base` like the stones; returns the last. */
+static struct ToriRS_WidgetRef
+mobile_apply_toggle(
+    struct MobileCall* ctx, struct MobileToggle const* t, struct MobileOwned* control, struct MobileOwned* glyph,
+    struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base, char const* key, char const* glyph_key,
+    char const* label, ToriRS_WidgetListener listener)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef last = base;
+    int w = 0;
+    int h = 0;
+
+    assert(ctx);
+    if( !t->placed || !g_api->assets.image_size(g_api, t->face, &w, &h) )
+    {
+        mobile_owned_drop(ctx, control);
+        mobile_owned_drop(ctx, glyph);
+        return last;
+    }
+    if( !mobile_owned_image(ctx, control, parent, key, t->face, w, h, t->box.x, t->box.y) )
+        return last;
+    (void)ui->set_on_op(ui->context, control->ref, label, listener, ctx->state);
+    if( ui->set_anchor(ui->context, control->ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+        last = control->ref;
+    if( mobile_owned_centred(ctx, glyph, parent, glyph_key, t->glyph, t->box) &&
+        ui->set_anchor(ui->context, glyph->ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
+        last = glyph->ref;
+    return last;
+}
+
+/*
+ * Drop this plugin's retained edits on the live surfaces and their members
+ * before the next plan writes its own: the setters only ever ADD, so a member
+ * one plan hid would stay hidden for the next.
+ */
+static void
+mobile_reset_surfaces(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+
+    assert(ctx);
+    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
+    {
+        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
+        size_t member_count = 0;
+        struct ToriRS_WidgetRef widget;
+
+        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK )
+            (void)ui->reset(ui->context, widget);
+        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) !=
+            TORIRS_CONTRACT_OK )
+            continue;
+        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
+            if( ToriRS_WidgetRefValid(members[m]) )
+                (void)ui->reset(ui->context, members[m]);
+    }
+}
+
+/*
+ * Everything this plugin put on the tree, gone: the frame was given back while
+ * the plugin still runs, and the lane's own chrome comes up under whatever is
+ * left. The pack's backing re-skin goes with the surfaces' edits; the sheet
+ * and plates are owned pieces.
+ */
+static void
+mobile_clear(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef backing;
+
+    assert(ctx);
+    for( int i = 0; i < MOBILE_BLIT_MAX; i++ )
+        mobile_owned_drop(ctx, &state->piece[i]);
+    mobile_owned_drop(ctx, &state->housing);
+    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+    {
+        mobile_owned_drop(ctx, &state->cell[i]);
+        mobile_owned_drop(ctx, &state->lit[i]);
+        mobile_owned_drop(ctx, &state->icon[i]);
+    }
+    mobile_owned_drop(ctx, &state->chat_toggle);
+    mobile_owned_drop(ctx, &state->chat_glyph);
+    mobile_owned_drop(ctx, &state->keyboard_toggle);
+    mobile_owned_drop(ctx, &state->keyboard_glyph);
+    for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+        mobile_owned_drop(ctx, &state->plate[i]);
+    mobile_owned_drop(ctx, &state->pack_sheet);
+    if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
+        (void)ui->reset(ui->context, backing);
+    mobile_reset_surfaces(ctx);
+    memset(&g_frame, 0, sizeof(g_frame));
+}
+
+/* The live surfaces, moved to the plan's rectangles; an unplaced role is
+ * hidden (the shut drawer, the chat put away); members follow. */
+static void
+mobile_apply_surfaces(struct MobileCall* ctx, struct ToriRS_WidgetRef viewport, struct ToriRS_WidgetRef base)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+
+    assert(ctx);
+    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
+    {
+        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
+        size_t member_count = 0;
+        struct ToriRS_WidgetRef widget;
+        bool has_members = false;
+
+        for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
+            if( g_frame.member[s][m].placed )
+                has_members = true;
+        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK &&
+            s != FRAME_SURFACE_CHAT_BUTTONS )
+        {
+            if( g_frame.surface[s].placed )
+                (void)mobile_place_widget(ctx, widget, g_frame.surface[s].rect, base, s != FRAME_SURFACE_VIEWPORT);
+            else if( !has_members )
+                (void)ui->set_hidden(ui->context, widget, true);
+        }
+        if( has_members &&
+            ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) != TORIRS_CONTRACT_OK )
+            member_count = 0;
+        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
+        {
+            struct MobileRect const* at = &g_frame.member[s][m];
+            /* find_all answers the role's own numbering, so m IS the member;
+             * a member this frame does not have is an invalid slot. */
+            if( !ToriRS_WidgetRefValid(members[m]) )
+                continue;
+            if( at->placed )
+                (void)mobile_place_widget(ctx, members[m], at->rect, base, true);
+            else if( s == FRAME_SURFACE_ORBS )
+                (void)ui->set_hidden(ui->context, members[m], true);
+        }
+        /* The 2004 plates under the four filter captions: owned images anchored
+         * directly BEHIND the lane's buttons, so the caption sits on the plate
+         * and nothing lies behind the row. */
+        if( s == FRAME_SURFACE_CHAT_BUTTONS )
+            for( int i = 0; i < MOBILE_CHAT_BUTTON_COUNT; i++ )
+            {
+                struct MobileRect const* at = &g_frame.plate[i];
+                char key[24];
+                int w = 0;
+                int h = 0;
+                if( !at->placed || (size_t)i >= member_count || !ToriRS_WidgetRefValid(members[i]) ||
+                    !g_api->assets.image_size(g_api, g_frame.plate_art[i], &w, &h) )
+                {
+                    mobile_owned_drop(ctx, &state->plate[i]);
+                    continue;
+                }
+                (void)snprintf(key, sizeof(key), "plate.%d", i);
+                if( mobile_owned_image(ctx, &state->plate[i], viewport, key, g_frame.plate_art[i], w, h, at->rect.x, at->rect.y) )
+                    (void)ui->set_anchor(ui->context, state->plate[i].ref, members[i], TORIRS_WIDGET_RELATION_BEHIND);
+            }
+    }
+}
+
+static void
+mobile_apply_skins(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct { int surface; struct MobileSkin const* skin; } const skins[] = {
+        { FRAME_SURFACE_MINIMAP, &g_frame.skin_minimap },
+        { FRAME_SURFACE_COMPASS, &g_frame.skin_compass },
+    };
+    assert(ctx);
+    for( size_t i = 0; i < sizeof(skins) / sizeof(skins[0]); i++ )
+    {
+        struct ToriRS_WidgetRef widget;
+        if( !skins[i].skin->placed ||
+            ui->find(ui->context, FRAME_SURFACE_ROLE[skins[i].surface], &widget) != TORIRS_CONTRACT_OK )
+            continue;
+        if( skins[i].skin->art.value != 0 )
+            (void)ui->set_image(ui->context, widget, skins[i].skin->art, 0, 0);
+        if( skins[i].skin->mask.value != 0 )
+            (void)ui->set_mask(ui->context, widget, skins[i].skin->mask);
+    }
+}
+
+/*
+ * The OldSchool chat pack in this frame's parchment, or the dressing taken off.
+ *
+ * The pack keeps its text, its input line, its scrollbar and its eight FILTERS.
+ * Its backing is hidden and the torn sheet -- one text line taller than the
+ * backing -- is an owned image anchored directly BEHIND the pack; its bar wears
+ * the 2004 strip with a hollow cut per plate; the plates themselves are hidden
+ * under the lane's own captions. Re-read every frame: the pack is mounted and
+ * rebuilt on the lane's schedule.
+ */
+static void
+mobile_chat_decoration_update(struct MobileCall* ctx)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct MobileState* state = ctx->state;
+    struct ToriRS_WidgetRef chat;
+    struct ToriRS_WidgetRef backing;
+    struct ToriRS_WidgetRef bar;
+    struct ToriRS_WidgetBounds backing_box;
+    struct ToriRS_WidgetBounds bar_box;
+    struct MobileChatCell cell[MOBILE_CHAT_CELL_MAX];
+    int cell_count = 0;
+    struct ToriRS_ImageRef rock;
+    struct ToriRS_ImageRef paper;
+    char role[32];
+
+    assert(ctx);
+    if( !state->provided || !mobile_lane_oldschool(ctx) || !g_frame.chat_placed )
+    {
+        if( state->chat_dressed )
+        {
+            if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
+                (void)ui->reset(ui->context, backing);
+            if( ui->find(ui->context, "chat_bar", &bar) == TORIRS_CONTRACT_OK )
+                (void)ui->reset(ui->context, bar);
+            for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
+            {
+                struct ToriRS_WidgetRef plate;
+                (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
+                if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
+                    (void)ui->reset(ui->context, plate);
+            }
+            mobile_owned_drop(ctx, &state->pack_sheet);
+            state->chat_dressed = 0;
+        }
+        return;
+    }
+    if( ui->find(ui->context, "chat_bar", &bar) != TORIRS_CONTRACT_OK ||
+        ui->bounds(ui->context, bar, &bar_box) != TORIRS_CONTRACT_OK || bar_box.width <= 0 || bar_box.height <= 0 )
+        return;
+    for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
+    {
+        struct ToriRS_WidgetRef plate;
+        struct ToriRS_WidgetBounds box;
+        (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
+        if( ui->find(ui->context, role, &plate) != TORIRS_CONTRACT_OK ||
+            ui->bounds(ui->context, plate, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 )
+            continue;
+        cell[cell_count++] = (struct MobileChatCell){ box.x - bar_box.x, box.y - bar_box.y, box.width, box.height };
+    }
+    rock = mobile_bar_art(ctx, bar_box.width, bar_box.height, cell, cell_count);
+    if( rock.value == 0 )
+        return;
+    (void)ui->set_image(ui->context, bar, rock, 0, 0);
+    if( ui->find(ui->context, "chat", &chat) == TORIRS_CONTRACT_OK &&
+        ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK &&
+        ui->bounds(ui->context, backing, &backing_box) == TORIRS_CONTRACT_OK && backing_box.width > 0 &&
+        backing_box.height > 0 )
+    {
+        int const h = backing_box.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B;
+        paper = mobile_paper_art(ctx, backing_box.width, h);
+        if( paper.value != 0 &&
+            mobile_owned_image(
+                ctx, &state->pack_sheet, chat, "pack-sheet", paper, backing_box.width, h, backing_box.x,
+                backing_box.y - MOBILE_O_PAPER_PAD_T) )
+        {
+            (void)ui->set_anchor(ui->context, state->pack_sheet.ref, chat, TORIRS_WIDGET_RELATION_BEHIND);
+            /* The backing keeps its box and loses its picture -- a transparent
+             * re-skin rather than a hide -- so the sheet behind the pack shows
+             * through it and every native part consumer still sees the block. */
+            (void)ui->set_image(ui->context, backing, state->blank, 0, 0);
+        }
+    }
+    for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
+    {
+        struct ToriRS_WidgetRef plate;
+        (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
+        if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
+            (void)ui->set_hidden(ui->context, plate, true);
+    }
+    state->chat_dressed = 1;
+}
+
+static enum ToriRS_FrameBuildResult
+mobile_apply(struct MobileCall* ctx, char* reason, size_t reason_capacity)
+{
+    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct ToriRS_WidgetRef viewport;
+    struct ToriRS_WidgetRef parent;
+    struct ToriRS_WidgetRef base;
+    struct MobileState* state = ctx->state;
+
+    assert(ctx);
+    if( ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_VIEWPORT], &viewport) != TORIRS_CONTRACT_OK )
+    {
+        (void)snprintf(reason, reason_capacity, "%s", "Stone Drawer is waiting for the scene.");
+        return TORIRS_FRAME_PENDING;
+    }
+    parent = viewport;
+    for( int depth = 0; depth < 32; depth++ )
+    {
+        struct ToriRS_WidgetRef above;
+        if( ui->parent(ui->context, parent, &above) != TORIRS_CONTRACT_OK )
+            break;
+        parent = above;
+    }
+    /* World, chrome, rocks and switches, surfaces: each over the last of the
+     * one before, so the stack order is stated once, here. */
+    mobile_reset_surfaces(ctx);
+    base = mobile_apply_tabs(ctx, parent, mobile_apply_pieces(ctx, parent, viewport));
+    base = mobile_apply_toggle(
+        ctx, &g_frame.chat_toggle, &state->chat_toggle, &state->chat_glyph, parent, base, "chat-toggle", "chat-glyph",
+        g_chat_open ? "Hide chat" : "Show chat", mobile_chat_toggle_pressed);
+    base = mobile_apply_toggle(
+        ctx, &g_frame.keyboard_toggle, &state->keyboard_toggle, &state->keyboard_glyph, parent, base,
+        "keyboard-toggle", "keyboard-glyph", "Keyboard", mobile_keyboard_toggle_pressed);
+    mobile_apply_surfaces(ctx, viewport, base);
+    mobile_apply_skins(ctx);
+    mobile_apply_housing(ctx, parent);
+    mobile_refresh_tabs(ctx);
+    return TORIRS_FRAME_READY;
+}
+
+/* ---------------------------------------------------------------- events */
+
+static void
+mobile_call_init(struct MobileCall* call, struct ToriRS_Api* api, struct MobileState* state)
+{
+    assert(call);
+    assert(api);
+    assert(state);
+    memset(call, 0, sizeof(*call));
+    call->api = api;
+    call->state = state;
+    state->api = api;
+}
+
+static enum ToriRS_FrameBuildResult
+mobile_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_GameframeEvent const* event)
+{
+    struct MobileState* state = state_ptr;
+    struct MobileCall call;
+    struct MobileCall* ctx = &call;
+    enum ToriRS_FrameBuildResult result;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    mobile_call_init(&call, api, state);
+    if( !event->active )
+    {
+        mobile_clear(ctx);
+        state->provided = 0;
+        return TORIRS_FRAME_READY;
+    }
+    /* A frame offer is meaningful only on the game screen. PENDING keeps the
+     * lane-native title tree intact until live game surfaces exist. */
+    if( api->core.screen(api) != TORIRS_SCREEN_GAME )
+    {
+        (void)snprintf(event->reason, event->reason_capacity, "%s", "Stone Drawer is waiting for the game screen.");
+        return TORIRS_FRAME_PENDING;
+    }
+    mobile_build_art(ctx);
+
+    memset(&g_frame, 0, sizeof(g_frame));
+    g_frame.canvas_w = event->width;
+    g_frame.canvas_h = event->height;
+    /* The block hangs from the SAFE bottom: what the platform covers -- the
+     * soft keyboard -- is stated by the host as the safe rect, the whole
+     * canvas when nothing is up, and the frame is re-asked when it moves. */
+    if( event->safe.height > 0 && event->safe.y >= 0 && event->safe.y + event->safe.height < g_frame.canvas_h )
+        g_frame.canvas_h = event->safe.y + event->safe.height;
+    /* Less the lane's own popout strip on a desktop toplevel, the profile
+     * role `lane_chrome_0`, right-docked at full height: the drawer must not
+     * open under it. The mobile toplevel has none. */
+    {
+        struct ToriRS_WidgetApi* ui = &api->widgets;
+        struct ToriRS_WidgetRef strip;
+        struct ToriRS_WidgetBounds box;
+        bool visible = false;
+        if( ui->find(ui->context, "lane_chrome_0", &strip) == TORIRS_CONTRACT_OK &&
+            ui->visible(ui->context, strip, &visible) == TORIRS_CONTRACT_OK && visible &&
+            ui->bounds(ui->context, strip, &box) == TORIRS_CONTRACT_OK && box.width > 0 && box.height > 0 &&
+            box.x > 0 && box.x < g_frame.canvas_w && box.x + box.width >= g_frame.canvas_w )
+            g_frame.canvas_w = box.x;
+    }
+    mobile_layout(ctx, g_frame.canvas_w, g_frame.canvas_h);
+    /*
+     * The sheet and the drawer stop a tap reaching the world behind them.
+     *
+     * The scene is the WHOLE canvas on this frame, so every pixel of chrome has
+     * world underneath it: a tap that misses a chat line or an inventory cell
+     * used to fall straight through and walk the player somewhere. The
+     * blockers are pieces -- owned controls under the live widgets -- so the
+     * chat's scrollbar and the panel's items still take their own taps first.
+     * The sheet's runs from the block's top to the canvas floor, and the
+     * SURFACE's columns rather than the torn parchment's: a blocker cut to the
+     * picture would swallow taps on world the player can see.
+     */
+    if( g_frame.chat_placed )
+        mobile_blocker(
+            ctx,
+            (struct ToriRS_Rect){ g_frame.chat_pack ? 0 : MOBILE_PAPER_FRINGE_L, g_frame.chat_y, g_frame.chat_w,
+                                  g_frame.canvas_h - g_frame.chat_y },
+            "Type");
+    if( g_drawer_open )
+        mobile_blocker(
+            ctx, (struct ToriRS_Rect){ g_frame.panel_x, g_frame.panel_y, MOBILE_PANEL_W, MOBILE_PANEL_H }, "Panel");
+    g_frame.declared = 1;
+    result = mobile_apply(ctx, event->reason, event->reason_capacity);
+    state->provided = result == TORIRS_FRAME_READY;
+    if( result == TORIRS_FRAME_READY || !state->logged_pending )
+        api->core.log(
+            api, "mobile stone drawer at %dx%d: %d chrome pieces, %d tabs, drawer %s, chat %s%s", event->width,
+            event->height, g_frame.blit_count + g_frame.housing_placed, g_frame.tab_count,
+            g_drawer_open ? "open" : "shut", g_frame.chat_placed ? "up" : "down",
+            result == TORIRS_FRAME_READY ? "" : " (pending)");
+    state->logged_pending = result != TORIRS_FRAME_READY;
+    return result;
+}
+
+/*
+ * Compose masks and frame art incrementally as their source images arrive,
+ * then re-plan once; refresh what changes per frame: the lit stone, the given
+ * icons and the OldSchool pack's dressing.
+ */
+static void
+mobile_on_frame(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_FrameEvent const* event)
+{
+    struct MobileState* state = state_ptr;
+    struct MobileCall call;
+    struct MobileCall* ctx = &call;
+
+    (void)event;
+    assert(api);
+    assert(state);
+    mobile_call_init(&call, api, state);
+    mobile_chat_decoration_update(ctx);
+    if( state->provided && api->core.screen(api) == TORIRS_SCREEN_GAME )
+        mobile_refresh_tabs(ctx);
+    if( g_art_built && g_masks_ready )
+        return;
+    if( !g_masks_ready )
+        mobile_build_masks(ctx);
+    mobile_build_art(ctx);
+    if( g_art_built && g_masks_ready )
+        api->frame.invalidate(api);
+}
+
+/*
+ * Leaving the game forgets the plan: its boxes were measured against a
+ * gameframe that no longer exists, and the next session's tree is asked for a
+ * fresh one.
+ */
+static void
+mobile_on_screen(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_ScreenChangedEvent const* event)
+{
+    struct MobileState* state = state_ptr;
+    assert(api);
+    assert(state);
+    assert(event);
+    (void)api;
+    if( event->screen != TORIRS_SCREEN_GAME )
+    {
+        memset(&state->frame, 0, sizeof(state->frame));
+        state->provided = 0;
+    }
+}
+
+/* A role this frame arranges came or went: ask for another plan pass. */
+static void
+mobile_role_changed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    (void)user;
+    assert(api);
+    assert(event);
+    if( event->type == TORIRS_WIDGET_BOUND || event->type == TORIRS_WIDGET_UNBOUND )
+        api->frame.invalidate(api);
+}
+
+static void
+mobile_image_request(struct ToriRS_Api* api, struct MobileState* state, int image)
+{
+    struct ToriRS_ImageRef token = { 0 };
+    enum ToriRS_AssetState result;
+
+    assert(api);
+    assert(state);
+    assert(image >= 0 && image < MOBILE_IMG_COUNT);
+    if( !MOBILE_IMAGE_FILE[image] )
+        return;
+    result = api->assets.image(api, MOBILE_IMAGE_FILE[image], &token);
+    if( token.value != 0 )
+        state->image_token[image] = token;
+    if( result == TORIRS_ASSET_READY )
+    {
+        state->image[image] = token;
+        state->image_ready[image] = true;
+    }
+    else if( result != TORIRS_ASSET_PENDING )
+        api->core.log(api, "could not load %s", MOBILE_IMAGE_FILE[image]);
+}
+
+static void
+mobile_on_start(struct ToriRS_Api* api, void* state_ptr)
+{
+    struct MobileState* state = state_ptr;
+    uint32_t const clear = 0;
+    static char const* const WATCHED[] = { "viewport", "chat", "sidebar", "minimap" };
+
+    assert(api);
+    assert(state);
+    memset(state, 0, sizeof(*state));
+    state->api = api;
+    state->hole_map = (struct MobileHole){ 42, 8, 146, 151, 0, 0 };
+    state->hole_compass = (struct MobileHole){ 17, 3, 33, 33, 0, 0 };
+    state->map_w = MOBILE_MAP_W;
+    state->map_h = MOBILE_MAP_H;
+    state->chat_open = true;
+    /* Present until the first open plan says otherwise, so a rail planned
+     * before the drawer has ever been opened still wears its icons. */
+    for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
+        state->tab_present[i] = true;
+    for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
+        mobile_image_request(api, state, i);
+    (void)api->assets.image_compose(api, "mobile_blank.png", 1, 1, &clear, &state->blank);
+    for( size_t i = 0; i < sizeof(WATCHED) / sizeof(WATCHED[0]); i++ )
+        (void)api->widgets.watch(api->widgets.context, WATCHED[i], mobile_role_changed, state);
+}
+
+static void
+mobile_on_asset(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_AssetEvent const* event)
+{
+    struct MobileState* state = state_ptr;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    if( !event->name )
+        return;
+    for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
+        if( MOBILE_IMAGE_FILE[i] && strcmp(MOBILE_IMAGE_FILE[i], event->name) == 0 )
+        {
+            mobile_image_request(api, state, i);
+            api->frame.invalidate(api);
+            return;
+        }
+}
+
+static void
+mobile_release_paper(struct ToriRS_Api* api, struct MobilePaper* paper)
+{
+    assert(api);
+    assert(paper);
+    if( paper->art.value != 0 )
+        api->assets.image_release(api, paper->art);
+    memset(paper, 0, sizeof(*paper));
+}
+
+static void
+mobile_on_stop(struct ToriRS_Api* api, void* state_ptr)
+{
+    struct MobileState* state = state_ptr;
+
+    assert(api);
+    assert(state);
+    /* Put the keyboard away with the frame that raised it: a disabled plugin
+     * must not leave a phone with half its screen covered. */
+    if( state->keyboard_on )
+    {
+        state->keyboard_on = 0;
+        api->input.text_input(api, false);
+    }
+    for( int i = 0; i < MOBILE_IMG_COUNT; i++ )
+        if( state->image_token[i].value != 0 )
+            api->assets.image_release(api, state->image_token[i]);
+    for( int i = 0; i < MOBILE_ART_COUNT; i++ )
+        if( state->art[i].value != 0 )
+            api->assets.image_release(api, state->art[i]);
+    if( state->blank.value != 0 )
+        api->assets.image_release(api, state->blank);
+    mobile_release_paper(api, &state->paper);
+    mobile_release_paper(api, &state->bar);
+    mobile_release_paper(api, &state->pack_paper);
+    memset(state, 0, sizeof(*state));
+}
+
+static void
+mobile_on_config(struct ToriRS_Api* api, void* state_ptr, char const* key)
+{
+    struct MobileState* state = state_ptr;
+
+    assert(api);
+    assert(state);
+    if( !key || (strcmp(key, "housing") != 0 && strcmp(key, "art") != 0) )
+        return;
+    /* The masks are cut from the housing, so a different housing is a different
+     * pair of masks and a different set of window boxes. Dropping the latch is
+     * what makes the frame handler read them again. */
+    if( state->art[ART_MINIMAP_MASK].value != 0 )
+        api->assets.image_release(api, state->art[ART_MINIMAP_MASK]);
+    if( state->art[ART_COMPASS_MASK].value != 0 )
+        api->assets.image_release(api, state->art[ART_COMPASS_MASK]);
+    state->art[ART_MINIMAP_MASK] = (struct ToriRS_ImageRef){ 0 };
+    state->art[ART_COMPASS_MASK] = (struct ToriRS_ImageRef){ 0 };
+    state->masks_ready = false;
+    api->frame.invalidate(api);
+}
+/*
+ * The default is the LABEL and not "0", so that the value this ships with has
+ * the same shape as the value the settings panel writes back. Two spellings of
+ * one choice in a file is how a reader ends up believing one is special.
+ */
+static struct ToriRS_ConfigItem const MOBILE_CONFIG[] = {
+    /* Auto is the 2004 pieces on every lane; OldSchool Mobile's own are a
+     * choice. @see mobile_family. */
+    { "art",
+     TORIRS_CONFIG_ENUM,
+     "Art",
+     "Auto",
+     0,
+     2,
+     "Auto|Classic|OldSchool",
+     0 },
+    /* Auto is the family's own ring. Lizards and Ring keep the numbers they
+     * were saved under. */
+    { "housing",
+     TORIRS_CONFIG_ENUM,
+     "Map housing",
+     "Auto",
+     0,
+     3,
+     "Lizards|Ring|OldSchool|Auto",
+     0 },
+    { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
+};
+
+static struct ToriRS_ConfigSchema const MOBILE_SCHEMA = {
+    .struct_size = sizeof(struct ToriRS_ConfigSchema),
+    .items = MOBILE_CONFIG,
+};
+
+_Static_assert(
+    sizeof(MOBILE_HOUSING_NAME) / sizeof(MOBILE_HOUSING_NAME[0]) == MOBILE_HOUSING_AUTO + 1,
+    "the housing name table and the schema's choices= are the same list");
+_Static_assert(
+    sizeof(MOBILE_HOUSING) / sizeof(MOBILE_HOUSING[0]) == MOBILE_HOUSING_COUNT,
+    "every housing choice needs a picture");
+
+static struct ToriRS_FrameOffer const MOBILE_FRAME_OFFERS[] = {
+    {
+        .struct_size = sizeof(struct ToriRS_FrameOffer),
+        .id = "stone-drawer",
+        .title = "Stone Drawer",
+        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
+        .min_width = MOBILE_MIN_W,
+        .min_height = MOBILE_MIN_H,
+    },
+    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
+};
+
+struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
+    .id = "mobile-gameframe",
+    .title = "Mobile Gameframe (Stone Drawer)",
+    .version = "3.0.0",
+    .state_size = sizeof(struct MobileState),
+    .config = &MOBILE_SCHEMA,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
+    .frames = MOBILE_FRAME_OFFERS,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = mobile_on_start,
+        .on_stop = mobile_on_stop,
+        .on_frame_start = mobile_on_frame,
+        .on_screen_changed = mobile_on_screen,
+        .on_config_changed = mobile_on_config,
+        .on_asset = mobile_on_asset,
+        .on_gameframe = mobile_on_gameframe,
+    },
+};

@@ -1,0 +1,56 @@
+{{Infobox Item
+|name = Cursed phalanx
+|image = [[File:Cursed phalanx.png]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Inspect, Attach, Drop
+|examine = Cursed with a strange magical power. Looks like it could be attached to something.
+|value = 100000
+|weight = 1.000
+|id = 27248
+|leagueRegion = Desert
+}}
+[[File:Cursed phalanx detail.png|left|150px]]
+The '''cursed phalanx''' is an [[ornament kit]] received from the [[Tombs of Amascut]] that can be used on [[Osmumten's fang]] to create [[Osmumten's fang (or)]], which alters its appearance. It is solely a cosmetic upgrade and does not change the stats.
+
+In order to receive one from the [[Chest (Tombs of Amascut)|reward chest]], players must complete a raid at level 500+ with zero deaths for all party members.
+
+If a player already owns a cursed phalanx or has a Osmumten's fang (or), they will not be able to obtain another one from the rewards chest. All available items must be dropped on the ground prior to opening the chest in order to receive multiple phalanxes.
+
+It is possible to receive the combat achievement [[Amascut's Remnant]] without receiving the cursed phalanx by defeating the boss, dying, and regenerating one HP all on the same tick.
+
+==Products==
+{{Uses material list|Cursed phalanx}}
+
+==Item sources==
+{{Drop sources|Cursed phalanx}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = 
+* The item was made available.
+* The item's inventory icon was adjusted slightly.
+}}
+{{Subject changes
+|date = 24 August 2022
+|update = Tombs of Amascut
+|change = The item was added to the game, but was unobtainable.
+}}
+{{Subject changes footer}}
+
+{{Ornament kits}}
+{{Tombs of Amascut}}
+[[Category:Collection log items]]
+[[Category:Ornament kits]]

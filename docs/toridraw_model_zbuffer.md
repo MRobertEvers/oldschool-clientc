@@ -102,16 +102,57 @@ The consequence is that translucent surfaces do not occlude each other, and
 their result still depends on draw order. That is deliberate and is the expected
 residual in the order check below.
 
+## Dropping the sort as well: `ToriDraw_Render{,HD}ZBuffered`
+
+The flag above keeps the painter's sort and depth-tests underneath it. Two entry
+points go further and do not sort at all:
+
+```c
+ToriDraw_RenderZBuffered(hnd, scene, &position, &view_port, &camera, pixels, smooth);
+ToriDraw_RenderHDZBuffered(hnd, scene, &position, &view_port, &camera, pixels, materials, &stats);
+```
+
+No depth buckets, no `face_priorities`, no `model_priority`: faces are drawn in
+the order the model stores them and the depth buffer alone decides. Neither
+consults `TORIDRAW_MODEL_FLAG_ZBUFFER` and neither needs
+`TORIDRAW_SCENE_MODEL_ZBUFFER` — **calling them is the opt-in**, and the buffer
+is sized on the first call.
+
+Three things follow.
+
+- **Back-face culling moves.** It used to be the sort's, done while bucketing;
+  with no sort these entry points do it themselves, with the same winding test
+  and the same near-clip exemption. Without that a model draws its own interior.
+- **The reference's layering rules go with the sort.** A model authored against
+  them — a cape over a body, a face over a hood — will lose them. Between models
+  nothing changes; that is still the scene's painter order.
+- **The HD path draws through 48 new kernels**, the depth-tested twin of every
+  point of the compositing matrix (`Z4`/`Z5` in
+  [the raster catalogue](RASTER_VARIANT_CATALOGUE.md)). Unlike the SD family
+  these keep their siblings' 8-pixel uv fit: the fit decides which texel a pixel
+  samples, the depth test decides whether it is written, and the two are
+  independent.
+
+When to reach for this rather than the flag: when the ORDER is the problem, not
+just the depth. An imported model whose priority bytes meant something else in
+its authoring client is the standard case — the sort then actively enforces a
+wrong answer, and the flag cannot overrule it. The entity viewer exposes it as
+the **zbuffered kernels** checkbox, next to **ignore priorities**, precisely so
+the two questions can be asked separately.
+
 ## Limitations
 
 - 32-bit pixel targets only. Under `TORIDRAW_PIXEL16` the family is not compiled
-  and the model flag is inert.
+  and the model flag is inert; `ToriDraw_RenderZBuffered` asserts there rather
+  than quietly drawing by face order under a name that promises otherwise.
 - The affine texture kernels (`RASTER_FLAG_TEXTURE_AFFINE`, not currently
   enabled) have no depth-tested twin; a z-buffered model takes the perspective
   path.
-- The depth-tested texture spans divide per pixel rather than fitting a line
-  through eight, because a depth test cannot be amortised over a block. This
-  path is opt-in and rare; it is not the one to reach for on scenery.
+- The SD depth-tested texture span divides per pixel rather than fitting a line
+  through eight. Not because the depth test forbids the fit — the HD twins keep
+  it — but because this is one walker serving three shading modes and there was
+  no per-variant fitted span to copy. The path is opt-in and rare; it is not the
+  one to reach for on scenery.
 
 ## Iterating
 
@@ -126,6 +167,20 @@ coverage matches the stock kernels, the crossing lands where the geometry says
 (which is what grades the reciprocal), translucent faces do not write depth, and
 the buffer is reset per model. Both textured dispatches are covered. The file
 header carries the mutation table.
+
+It also covers `ToriDraw_RenderZBuffered`: that it resolves the crossing on a
+model carrying no flag, that it lands on the same picture the flagged sorted
+render does (which is what says the back-face cull survived), and that adding
+face priorities changes nothing. That last one needs an exact-depth-tie fixture
+to be worth anything — on ordinary geometry a depth test resolves every pixel
+the same way whatever order the faces arrive in, so "priorities are ignored"
+would be unfalsifiable. At a tie the first face drawn wins, so the picture names
+the order.
+
+`make -C src test-render-hd` covers the HD twins: identical pixels to their
+plain siblings wherever nothing overlaps (across all four projection families
+and the gate/facealpha/modulate columns), and correct per-pixel resolution on
+crossing quads the sort demonstrably cannot express.
 
 ### `make -C src rs2012-model-view`
 

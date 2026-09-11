@@ -1,0 +1,9 @@
+{
+  "serial": "T062809L3Z",
+  "manifest": "/sdcard/Android/data/com.torirs.client/files/manifests/krait-live.ini",
+  "first_frame": 300,
+  "models": 128,
+  "sha256": "79660868039c287e4c9bd8bb52819f9454d3f1d167cc973d9c07401cd5e12289",
+  "bytes": 6061492,
+  "completion": "I/torirs  (31605): bake capture complete: 128 real model bakes"
+}

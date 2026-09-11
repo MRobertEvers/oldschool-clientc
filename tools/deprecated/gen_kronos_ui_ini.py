@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate rev_kronos_ui.ini and rev_kronos_ui_cache.ini from cache interface dumps."""
+"""Generate osrs_kronos_ui.ini and osrs_kronos_ui_cache.ini from cache interface dumps."""
 
 from __future__ import annotations
 

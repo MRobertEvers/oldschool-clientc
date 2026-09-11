@@ -24,7 +24,7 @@ def main() -> int:
         type=Path,
         default=REPO / "OSRS-Content/osrs239-content/server/scripts/build_summoning",
     )
-    parser.add_argument("--manifest", type=Path, default=REPO / "manifest_osrs239.ini")
+    parser.add_argument("--manifest", type=Path, default=REPO / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO / "build/summoning-phase4")
     args = parser.parse_args()
 
@@ -57,9 +57,9 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "520",
                 "TORIRS_EXIT_BMP": str(bmp.resolve()),

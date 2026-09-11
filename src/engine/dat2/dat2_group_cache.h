@@ -31,6 +31,11 @@ struct Dat2Group
     int table;
     int group;
     struct RSCache_FileList* filelist;
+    /** Backing store for every member's bytes — `filelist->files[i]` point into
+     *  it (RSCache_FileListNewFromDecodeShared). One block instead of one per
+     *  member: the resident config groups hold ~160k members averaging tens of
+     *  bytes, so per-member headers cost megabytes against the same payload. */
+    char* blob;
     /* The archive's member ids, copied — a sharded group numbers its members
      * locally and they are not necessarily dense, so the id->index map cannot
      * be recovered from the file list alone. NULL when the archive had none,

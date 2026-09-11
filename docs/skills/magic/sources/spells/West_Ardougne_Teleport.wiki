@@ -1,0 +1,59 @@
+{{otheruses|the teleport spell|the teleport tablet|West ardougne teleport (tablet)}}
+{{Infobox Spell
+|name = West Ardougne Teleport
+|image = [[File:West Ardougne Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 61
+|spellbook = Arceuus
+|type = Teleport
+|exp = 68
+|cost = {{RuneReq|Law=2|Soul=2}}
+|speed = 4 ticks
+|description = Teleports you to West Ardougne
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:West Ardougne Teleport icon (mobile).png|left|class=pageimage]]
+'''West Ardougne Teleport''' teleports the caster to [[West Ardougne]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]]. Completion of [[Biohazard]] is also required to cast the spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 2
+|Rune2 = Soul
+|Rune2num = 2
+}}
+==Destination==
+{{Map|2500,3290|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = 
+The [[West Ardougne]] teleport spell is now correctly filtered if players lack the requirements to cast it.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:West Ardougne Teleport v1.png|center]]
+|[[File:West Ardougne Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

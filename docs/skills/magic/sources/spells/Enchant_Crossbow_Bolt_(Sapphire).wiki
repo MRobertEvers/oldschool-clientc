@@ -1,0 +1,31 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolt (Sapphire)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 7
+|spellbook = Normal
+|type = Utility
+|exp = 17.5
+|cost = {{RuneReq|Cosmic=1|Water=1|Mind=1}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on sapphire-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Sapphire bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Sapphire)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 7 to cast. It imbues 10 [[sapphire bolts]] each cast and turns them into [[sapphire bolts (e)]] or 10 [[sapphire dragon bolts]] into 10 [[sapphire dragon bolts (e)]]. The enchantment gives the effect ''Clear Mind''. Each bolt has a small chance of draining and siphoning some of your opponent's [[prayer]] to you based on their [[Ranged]] level.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 1
+|Rune2 = Mind
+|Rune2num = 1
+|Rune3 = Cosmic
+|Rune3num = 1
+}}
+
+{{Standard spellbook}}

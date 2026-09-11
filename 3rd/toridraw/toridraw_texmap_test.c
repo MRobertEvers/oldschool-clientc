@@ -41,22 +41,22 @@
 
 // clang-format off
 #include "graphics/shared_tables.c"
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 
-#include "graphics/raster/texture/texcylinder.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcylinder.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcylinder.persp.texopaque.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcylinder.persp.texalpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.texopaque.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.textrans.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.texalpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texcube.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texsphere.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texsphere.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texsphere.persp.texopaque.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texsphere.persp.texalpha.branching.lerp8_v3.u.c"
+#include "impl/raster/tex/raster.texcylinder.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcylinder.perspective.texopaque.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcylinder.perspective.texopaque.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcylinder.perspective.texalpha.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.texopaque.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.texopaque.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.texalpha.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texcube.perspective.texalpha.facealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texsphere.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texsphere.perspective.texopaque.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texsphere.perspective.texopaque.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texsphere.perspective.texalpha.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 // clang-format on
 
 #define W 200
@@ -694,7 +694,7 @@ main(void)
     static int a[BUF_LEN];
     static int b[BUF_LEN];
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
     ToriDraw_InitTanTable();

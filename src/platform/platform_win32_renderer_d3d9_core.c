@@ -15,7 +15,10 @@
  * call.  See platform_win32_renderer_d3d9_core.h for the contract.
  */
 
+#include "engine/boot_bar.h"
+#include "platform/platform_win32_chrome.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include "core/trspk_drawrangeex.h"
@@ -34,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void d3d9_set_no_texture(IDirect3DDevice9* device);
 static void d3d9_disable_texture_transform(IDirect3DDevice9* device);
@@ -50,7 +54,7 @@ static void d3d9_map_animated_uv(float* u, float* v);
 static void
 d3d9_log_hr(const char* where, HRESULT hr)
 {
-    fprintf(stderr, "D3D9: %s failed (HRESULT 0x%08lx)\n", where, (unsigned long)hr);
+    TORIRS_ERR("D3D9: %s failed (HRESULT 0x%08lx)\n", where, (unsigned long)hr);
 }
 
 static UINT
@@ -163,6 +167,22 @@ d3d9_ui_rect_equal(const RECT* a, const RECT* b)
         a->bottom == b->bottom;
 }
 
+static D3DTEXTUREFILTERTYPE
+d3d9_ui_filter(struct ToriRS_D3D9 const* renderer)
+{
+    return renderer->interface_scale_mode == 0 ? D3DTEXF_POINT : D3DTEXF_LINEAR;
+}
+
+static void
+d3d9_set_ui_sampler(struct ToriRS_D3D9* renderer, DWORD sampler)
+{
+    D3DTEXTUREFILTERTYPE const filter = d3d9_ui_filter(renderer);
+    IDirect3DDevice9_SetSamplerState(
+        renderer->device, sampler, D3DSAMP_MINFILTER, filter);
+    IDirect3DDevice9_SetSamplerState(
+        renderer->device, sampler, D3DSAMP_MAGFILTER, filter);
+}
+
 static bool
 d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer);
 
@@ -184,8 +204,7 @@ d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAREF, 1u);
     IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, FALSE);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 0u);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -224,7 +243,12 @@ d3d9_ui_flush(struct ToriRS_D3D9* renderer)
     if( batch->uses_sprite_atlas )
         batch->texture = renderer->ui_sprite_atlas_texture;
     if( batch->texture )
+    {
         d3d9_bind_modulated_texture(renderer->device, batch->texture);
+        /* The generic binder restores point sampling for world textures; the
+         * UI choice applies after it so it cannot leak into the 3D pass. */
+        d3d9_set_ui_sampler(renderer, 0u);
+    }
     else
         d3d9_set_no_texture(renderer->device);
     IDirect3DDevice9_SetRenderState(
@@ -507,9 +531,21 @@ static bool
 d3d9_read_client_size(struct ToriRS_D3D9* renderer, int* out_w, int* out_h)
 {
     RECT client;
+    int reserved = 0;
     if( !renderer->hwnd || !GetClientRect(renderer->hwnd, &client) )
         return false;
-    *out_w = (int)(client.right - client.left);
+    /* The platform's main HWND is a container while plugin chrome is attached.
+     * Class-extra storage avoids a renderer -> PlatformWindow link dependency:
+     * the CPU-only D3D retained-resource test links this core without a window
+     * backend, and an arbitrary probe HWND fails the magic check harmlessly. */
+    if( GetWindowLongPtr(
+            renderer->hwnd, TORIRS_WIN32_CHROME_EXTRA_MAGIC_OFFSET) ==
+        (LONG_PTR)TORIRS_WIN32_CHROME_EXTRA_MAGIC )
+        reserved = (int)GetWindowLongPtr(
+            renderer->hwnd, TORIRS_WIN32_CHROME_EXTRA_RESERVED_OFFSET);
+    *out_w = (int)(client.right - client.left) - reserved;
+    if( *out_w < 0 )
+        *out_w = 0;
     *out_h = (int)(client.bottom - client.top);
     return true;
 }
@@ -536,6 +572,9 @@ d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
 }
 
 static void
+d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer);
+
+static void
 d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
 {
     /* SetIndices retains a device-side reference. Unbind it before dropping
@@ -558,6 +597,19 @@ d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
         renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu = NULL;
     }
     renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].gpu_capacity = 0u;
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu )
+    {
+        IDirect3DVertexBuffer9_Release(
+            renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu);
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu = NULL;
+    }
+    renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity = 0u;
+    if( renderer->static_batch_vbo )
+    {
+        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
+        renderer->static_batch_vbo = NULL;
+    }
+    renderer->static_batch_gpu_page_capacity = 0u;
 }
 
 static void
@@ -594,6 +646,13 @@ d3d9_reset_device(struct ToriRS_D3D9* renderer, int width, int height)
     renderer->reset_pending = false;
     d3d9_update_letterbox(renderer);
     d3d9_restore_after_reset(renderer);
+    /* Reset released every DEFAULT-pool buffer, including the retained static
+     * geometry (the batch arena and the static group). Their CPU copies are
+     * intact; re-mark them dirty so the next draw's upload pass rebuilds the
+     * buffers from them. */
+    d3d9_mark_active_static_batches_dirty(renderer);
+    if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
+        trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
     return true;
 }
 
@@ -734,8 +793,13 @@ d3d9_ui_sprite_slot_index(struct ToriRS_D3D9* renderer, int scene_id, bool creat
     renderer->ui_sprite_slots[free_index].count = 0;
     free(renderer->ui_sprite_slots[free_index].uvs);
     free(renderer->ui_sprite_slots[free_index].loaded);
+    /* A slot being handed to a different scene id keeps none of the old
+     * one's atlas tiles: they belong to whatever sprite used to live here,
+     * and reusing them would overwrite it. */
+    free(renderer->ui_sprite_slots[free_index].tiles);
     renderer->ui_sprite_slots[free_index].uvs = NULL;
     renderer->ui_sprite_slots[free_index].loaded = NULL;
+    renderer->ui_sprite_slots[free_index].tiles = NULL;
     return free_index;
 }
 
@@ -748,9 +812,17 @@ d3d9_ui_sprite_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
     if( slot_index >= 0 )
     {
         struct D3D9UISpriteSlot* slot = &renderer->ui_sprite_slots[slot_index];
-        free(slot->uvs);
-        free(slot->loaded);
-        memset(slot, 0, sizeof(*slot));
+
+        /*
+         * Mark the pixels stale; keep the slot and its tiles.
+         *
+         * Freeing them here is what made a replaced sprite consume a fresh
+         * atlas tile on every upload. The next draw re-uploads into the tile
+         * this slot already owns whenever the size is unchanged, which for a
+         * sprite being replaced in place it always is.
+         */
+        if( slot->loaded )
+            memset(slot->loaded, 0, (size_t)slot->count * sizeof(*slot->loaded));
     }
     for( i = 0u; i < D3D9_UI_VARIANT_CAP; i++ )
         if( renderer->ui_variants[i].valid &&
@@ -765,35 +837,93 @@ d3d9_ui_upload_sprite_pixels(
     const uint32_t* source,
     int width,
     int height,
+    struct D3D9UISpriteTile* tile_io,
     float out_uv[4])
 {
     struct TRSPK_AtlasTile tile;
     uint32_t* argb;
-    size_t count;
-    size_t i;
+    uint32_t padded_width;
+    uint32_t padded_height;
+    int x;
+    int y;
     bool inserted;
-    if( width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 ||
+        !trspk_atlas_is_initialized(&renderer->ui_sprite_atlas) ||
+        renderer->ui_sprite_atlas.width < 3u ||
+        renderer->ui_sprite_atlas.height < 3u ||
+        (uint32_t)width > renderer->ui_sprite_atlas.width - 2u ||
+        (uint32_t)height > renderer->ui_sprite_atlas.height - 2u )
         return false;
     assert(source);
-    count = (size_t)width * (size_t)height;
-    argb = (uint32_t*)malloc(count * sizeof(*argb));
+    padded_width = (uint32_t)width + 2u;
+    padded_height = (uint32_t)height + 2u;
+    argb = (uint32_t*)malloc(
+        (size_t)padded_width * (size_t)padded_height * sizeof(*argb));
     assert(argb);
-    for( i = 0u; i < count; i++ )
-        argb[i] = d3d9_ui_normalize_argb(source[i]);
-    inserted = trspk_atlas_binpack_insert(
-        &renderer->ui_sprite_atlas,
-        (const uint8_t*)argb,
-        (uint32_t)width * 4u,
-        (uint32_t)width,
-        (uint32_t)height,
-        &tile);
+    /* Linear filtering reaches half a texel beyond an enlarged quad's first
+     * and last source pixels.  Keep that footprint inside this sprite rather
+     * than letting it sample the next tightly packed atlas entry.  Repeating
+     * the edge matches a dedicated texture using CLAMP_TO_EDGE. */
+    for( y = 0; y < (int)padded_height; y++ )
+    {
+        int source_y = d3d9_clampi(y - 1, 0, height - 1);
+        for( x = 0; x < (int)padded_width; x++ )
+        {
+            int source_x = d3d9_clampi(x - 1, 0, width - 1);
+            argb[(size_t)y * padded_width + (uint32_t)x] =
+                d3d9_ui_normalize_argb(
+                    source[(size_t)source_y * (size_t)width + (size_t)source_x]);
+        }
+    }
+    /*
+     * Reuse the tile this sprite already holds when the replacement is the
+     * same size, and only ask the packer for a new one otherwise. Without
+     * this a sprite replaced every frame walks the sheet until inserts fail
+     * and it silently stops drawing.
+     */
+    if( tile_io && tile_io->valid && tile_io->w == padded_width &&
+        tile_io->h == padded_height )
+    {
+        inserted = trspk_atlas_update_rect(
+            &renderer->ui_sprite_atlas,
+            tile_io->x,
+            tile_io->y,
+            (const uint8_t*)argb,
+            padded_width * 4u,
+            padded_width,
+            padded_height);
+        tile.x = tile_io->x;
+        tile.y = tile_io->y;
+    }
+    else
+    {
+        inserted = trspk_atlas_binpack_insert(
+            &renderer->ui_sprite_atlas,
+            (const uint8_t*)argb,
+            padded_width * 4u,
+            padded_width,
+            padded_height,
+            &tile);
+    }
     free(argb);
     if( !inserted )
         return false;
-    out_uv[0] = tile.u_start;
-    out_uv[1] = tile.v_start;
-    out_uv[2] = tile.u_end;
-    out_uv[3] = tile.v_end;
+    if( tile_io )
+    {
+        tile_io->x = tile.x;
+        tile_io->y = tile.y;
+        tile_io->w = padded_width;
+        tile_io->h = padded_height;
+        tile_io->valid = 1u;
+    }
+    out_uv[0] = (float)(tile.x + 1u) / (float)renderer->ui_sprite_atlas.width;
+    out_uv[1] = (float)(tile.y + 1u) / (float)renderer->ui_sprite_atlas.height;
+    out_uv[2] =
+        (float)(tile.x + 1u + (uint32_t)width) /
+        (float)renderer->ui_sprite_atlas.width;
+    out_uv[3] =
+        (float)(tile.y + 1u + (uint32_t)height) /
+        (float)renderer->ui_sprite_atlas.height;
     return true;
 }
 
@@ -822,23 +952,33 @@ d3d9_ui_sprite_ensure_base(
     if( slot_index < 0 )
         return false;
     slot = &renderer->ui_sprite_slots[slot_index];
-    if( slot->count != count )
+    if( slot->count != count || !slot->tiles )
     {
         float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
         uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
+        struct D3D9UISpriteTile* tiles = (struct D3D9UISpriteTile*)calloc(
+            (size_t)count, sizeof(*tiles));
         assert(uvs);
         assert(loaded);
+        assert(tiles);
         free(slot->uvs);
         free(slot->loaded);
+        free(slot->tiles);
         slot->uvs = uvs;
         slot->loaded = loaded;
+        slot->tiles = tiles;
         slot->count = count;
     }
     if( !slot->loaded[atlas_index] )
     {
         float uv[4];
         if( !d3d9_ui_upload_sprite_pixels(
-                renderer, sprite->pixels_argb, sprite->width, sprite->height, uv) )
+                renderer,
+                sprite->pixels_argb,
+                sprite->width,
+                sprite->height,
+                &slot->tiles[atlas_index],
+                uv) )
             return false;
         memcpy(&slot->uvs[atlas_index * 4], uv, sizeof(uv));
         slot->loaded[atlas_index] = 1u;
@@ -1050,7 +1190,7 @@ d3d9_ui_sprite_ensure_variant(
             command->flip_h,
             command->flip_v,
             command->sprite_angle_r2pi65536);
-    if( !d3d9_ui_upload_sprite_pixels(renderer, pixels, width, height, out_uv) )
+    if( !d3d9_ui_upload_sprite_pixels(renderer, pixels, width, height, NULL, out_uv) )
     {
         free(pixels);
         return false;
@@ -1193,6 +1333,28 @@ d3d9_ui_record_rotmask_upload(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS, 1);
 }
 
+/* FNV-1a over the sprite's pixel buffer and the fields the uploads read.
+ * The sprites behind a rotmask slot (minimap area, compass) are rewritten in
+ * place without any generation counter, so content identity is the only way
+ * to tell an untouched frame from a real refresh. */
+static uint32_t
+d3d9_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
+{
+    uint32_t hash = 2166136261u;
+    size_t count;
+    size_t i;
+    assert(sprite);
+    assert(sprite->pixels_argb);
+    count = (size_t)sprite->width * (size_t)sprite->height;
+    for( i = 0; i < count; i++ )
+        hash = (hash ^ sprite->pixels_argb[i]) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->crop_x) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->crop_y) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->width) * 16777619u;
+    hash = (hash ^ (uint32_t)sprite->height) * 16777619u;
+    return hash;
+}
+
 static bool
 d3d9_ui_rotmask_upload_source(
     struct ToriRS_D3D9* renderer,
@@ -1203,6 +1365,7 @@ d3d9_ui_rotmask_upload_source(
     UINT texture_width;
     UINT texture_height;
     D3DLOCKED_RECT locked;
+    uint32_t content_hash;
     int sx;
     int sy;
     int y;
@@ -1211,13 +1374,17 @@ d3d9_ui_rotmask_upload_source(
         return false;
     assert(renderer);
     assert(slot);
+    content_hash = d3d9_ui_rotmask_content_hash(sprite);
+    if( slot->source_texture && slot->source_hash_valid &&
+        slot->source_hash == content_hash )
+        return true;
     if( slot->source_texture )
     {
         /* Content refresh (e.g. minimap floor change, world map rebake): the
          * slot's cache key (scene/atlas ids, dims) is unchanged, but the
          * sprite's pixels_argb may have been rewritten in place since the
-         * texture was last uploaded, so re-copy every frame rather than
-         * trusting a one-time upload. */
+         * texture was last uploaded, so re-copy when the content hash says
+         * the pixels actually changed. */
         HRESULT hr = IDirect3DTexture9_LockRect(slot->source_texture, 0u, &locked, NULL, 0u);
         if( FAILED(hr) )
         {
@@ -1260,6 +1427,8 @@ d3d9_ui_rotmask_upload_source(
     slot->source_texture = texture;
     slot->source_texture_width = texture_width;
     slot->source_texture_height = texture_height;
+    slot->source_hash = content_hash;
+    slot->source_hash_valid = true;
     d3d9_ui_record_rotmask_upload(
         renderer, (int)texture_width, (int)texture_height);
     return true;
@@ -1275,6 +1444,7 @@ d3d9_ui_rotmask_upload_mask(
     UINT texture_width;
     UINT texture_height;
     D3DLOCKED_RECT locked;
+    uint32_t content_hash;
     int x;
     int y;
     assert(mask);
@@ -1282,6 +1452,10 @@ d3d9_ui_rotmask_upload_mask(
         return false;
     assert(renderer);
     assert(slot);
+    content_hash = d3d9_ui_rotmask_content_hash(mask);
+    if( slot->mask_texture && slot->mask_hash_valid &&
+        slot->mask_hash == content_hash )
+        return true;
     if( slot->mask_texture )
     {
         HRESULT hr = IDirect3DTexture9_LockRect(slot->mask_texture, 0u, &locked, NULL, 0u);
@@ -1326,6 +1500,8 @@ d3d9_ui_rotmask_upload_mask(
     slot->mask_texture = texture;
     slot->mask_texture_width = texture_width;
     slot->mask_texture_height = texture_height;
+    slot->mask_hash = content_hash;
+    slot->mask_hash_valid = true;
     d3d9_ui_record_rotmask_upload(
         renderer, (int)texture_width, (int)texture_height);
     return true;
@@ -1424,8 +1600,7 @@ d3d9_ui_draw_rotmask_native(
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_TEXCOORDINDEX, 0u);
-    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 0u);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -1442,8 +1617,7 @@ d3d9_ui_draw_rotmask_native(
     IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_TEXCOORDINDEX, 1u);
     IDirect3DDevice9_SetTextureStageState(
         device, 1u, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 1u);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -1972,11 +2146,13 @@ d3d9_ui_bake_font(
     {
         if( font->glyph_width[i] > atlas_width )
             atlas_width = font->glyph_width[i];
-        if( font->glyph_height[i] > 0 )
-            atlas_height += font->glyph_height[i];
+        if( font->glyph_width[i] > 0 && font->glyph_height[i] > 0 &&
+            font->glyph_alpha[i] )
+            atlas_height += font->glyph_height[i] + 2;
     }
     if( atlas_width <= 0 || atlas_height <= 0 )
         return false;
+    atlas_width += 2;
     texture_width = d3d9_next_pow2((UINT)atlas_width);
     texture_height = d3d9_next_pow2((UINT)atlas_height);
     if( texture_width > renderer->caps.MaxTextureWidth ||
@@ -1994,18 +2170,35 @@ d3d9_ui_bake_font(
         int glyph_height = font->glyph_height[i];
         const uint8_t* alpha = font->glyph_alpha[i];
         int x;
-        if( alpha && glyph_width > 0 && glyph_height > 0 )
-            for( y = 0; y < glyph_height; y++ )
-                for( x = 0; x < glyph_width; x++ )
-                    pixels[(size_t)(atlas_y + y) * texture_width + x] =
-                        ((uint32_t)alpha[(size_t)y * glyph_width + x] << 24) |
-                        0x00ffffffu;
-        slot->glyph_uv[i * 4 + 0] = 0.0f;
-        slot->glyph_uv[i * 4 + 1] = (float)atlas_y / (float)texture_height;
-        slot->glyph_uv[i * 4 + 2] = (float)glyph_width / (float)texture_width;
+        if( !alpha || glyph_width <= 0 || glyph_height <= 0 )
+        {
+            memset(&slot->glyph_uv[i * 4], 0, 4u * sizeof(float));
+            continue;
+        }
+        /* Give every glyph its own CLAMP_TO_EDGE footprint.  Without these
+         * extruded rows, linear UI scaling blends the glyph above or below
+         * across the entire quad and produces the visible horizontal streaks. */
+        for( y = -1; y <= glyph_height; y++ )
+        {
+            int source_y = d3d9_clampi(y, 0, glyph_height - 1);
+            for( x = -1; x <= glyph_width; x++ )
+            {
+                int source_x = d3d9_clampi(x, 0, glyph_width - 1);
+                pixels[(size_t)(atlas_y + y + 1) * texture_width + (size_t)(x + 1)] =
+                    ((uint32_t)alpha[
+                         (size_t)source_y * (size_t)glyph_width + (size_t)source_x]
+                        << 24) |
+                    0x00ffffffu;
+            }
+        }
+        slot->glyph_uv[i * 4 + 0] = 1.0f / (float)texture_width;
+        slot->glyph_uv[i * 4 + 1] =
+            (float)(atlas_y + 1) / (float)texture_height;
+        slot->glyph_uv[i * 4 + 2] =
+            (float)(glyph_width + 1) / (float)texture_width;
         slot->glyph_uv[i * 4 + 3] =
-            (float)(atlas_y + glyph_height) / (float)texture_height;
-        atlas_y += glyph_height;
+            (float)(atlas_y + glyph_height + 1) / (float)texture_height;
+        atlas_y += glyph_height + 2;
     }
     hr = IDirect3DDevice9_CreateTexture(
         renderer->device,
@@ -2616,10 +2809,13 @@ d3d9_ui_draw_font(
     {
         int y = command->y - font->line_height;
         bool center = command->center != 0;
-        if( command->shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+        {
+            int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
             d3d9_ui_draw_font_text(
-                renderer, slot, &scissor, command->text, command->x + 1, y + 1,
+                renderer, slot, &scissor, command->text, command->x + dx, y + dy,
                 command->color, true, center);
+        }
         d3d9_ui_draw_font_text(
             renderer, slot, &scissor, command->text, command->x, y,
             command->color, false, center);
@@ -2665,10 +2861,13 @@ d3d9_ui_draw_font(
                     x += (command->w > 0 ? command->w : 1) - text_width;
             }
             y = command->y + first_baseline + i * line_height - font_ascent;
-            if( command->shadowed )
+            for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
+            {
+                int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 d3d9_ui_draw_font_range(
-                    renderer, slot, &scissor, lines[i], lengths[i], x + 1, y + 1,
+                    renderer, slot, &scissor, lines[i], lengths[i], x + dx, y + dy,
                     command->color, true);
+            }
             d3d9_ui_draw_font_range(
                 renderer, slot, &scissor, lines[i], lengths[i], x, y,
                 command->color, false);
@@ -3016,7 +3215,7 @@ d3d9_ui_draw_model_widget(
     uint32_t pending_vertices = 0u;
     int order_index;
     if( !renderer->in2d || !renderer->scene || !renderer->ui_batch.vertices ||
-        command->model.kind != TORIDRAWMK_MODEL ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) ||
         !(model = command->model.u.model.model) || command->w <= 0 || command->h <= 0 )
         return;
     if( !d3d9_ui_scissor_rect(
@@ -3035,13 +3234,14 @@ d3d9_ui_draw_model_widget(
         command->model_zan,
         command->model_x_offset,
         command->model_y_offset,
-        0,
+        command->model_center_y,
         command->model_orthog != 0,
         command->model_fixed_zoom != 0);
     if( !d3d9_widget_model_project(
             renderer, command, &transform, &origin_x, &origin_y) )
         return;
-    sorted_face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    sorted_face_count = ToriDraw_RenderModel2SortFacesWithTable(
+        command->model, renderer->scene, renderer->kernel);
     if( sorted_face_count <= 0 )
         return;
     face_order = ToriDraw_FaceOrder(renderer->scene);
@@ -3077,9 +3277,10 @@ d3d9_ui_draw_model_widget(
         if( !trspk_toridraw_bake_face_handle(
                 command->model,
                 (uint32_t)face_index,
-                NULL,
+                &trspk_world_placement_identity,
                 renderer->scene,
                 true,
+                TRSPK_BAKE_COLOR_FLOAT,
                 &face) ||
             (face.color_a[3] <= (1.0f / 255.0f) &&
              face.color_b[3] <= (1.0f / 255.0f) &&
@@ -3398,7 +3599,7 @@ d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id)
         static bool warned;
         if( !warned )
         {
-            fprintf(stderr, "D3D9: the 2048x2048 world texture atlas is full\n");
+            TORIRS_LOG("D3D9: the 2048x2048 world texture atlas is full\n");
             warned = true;
         }
         return -1;
@@ -3524,13 +3725,44 @@ d3d9_unload_texture(struct ToriRS_D3D9* renderer, int tex_id)
     }
 }
 
+/* Where a slot's tile starts in the atlas.
+ *
+ * Resolving it costs a division and a modulo, and it is the SAME for all
+ * three corners of a face -- so a face loop resolves it once and maps three
+ * corners against it, rather than re-deriving the tile per corner. */
+struct D3D9AtlasTileUV
+{
+    float origin_u;
+    float origin_v;
+    /** No slot at all: every corner collapses onto the tile centre. */
+    bool untextured;
+};
+
 static void
-d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v)
+d3d9_atlas_tile_uv_begin(int slot, struct D3D9AtlasTileUV* tile)
 {
     const float cell = (float)TRSPK_ATLAS_TILE / (float)D3D9_ATLAS_DIM;
-    if( slot < 0 )
+    unsigned int index;
+    tile->untextured = slot < 0;
+    index = tile->untextured ? 0u : (unsigned int)slot;
+    /* The grid is a power of two wide, so the row and column are a shift
+     * and a mask. Signed / and %% would have made the compiler emit the
+     * sign-correcting sequence for a value that is never negative. */
+    tile->origin_u = (float)(index & (D3D9_ATLAS_COLS - 1u)) * cell;
+    tile->origin_v = (float)(index / D3D9_ATLAS_COLS) * cell;
+}
+
+static void
+d3d9_atlas_tile_uv_map(
+    const struct D3D9AtlasTileUV* tile,
+    float local_u,
+    float local_v,
+    float* out_u,
+    float* out_v)
+{
+    const float cell = (float)TRSPK_ATLAS_TILE / (float)D3D9_ATLAS_DIM;
+    if( tile->untextured )
     {
-        slot = 0;
         local_u = 0.5f;
         local_v = 0.5f;
     }
@@ -3546,8 +3778,16 @@ d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* o
         local_v = 0.008f;
     else if( local_v > 0.992f )
         local_v = 0.992f;
-    *out_u = (float)(slot % (int)D3D9_ATLAS_COLS) * cell + local_u * cell;
-    *out_v = (float)(slot / (int)D3D9_ATLAS_COLS) * cell + local_v * cell;
+    *out_u = tile->origin_u + local_u * cell;
+    *out_v = tile->origin_v + local_v * cell;
+}
+
+static void
+d3d9_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v)
+{
+    struct D3D9AtlasTileUV tile;
+    d3d9_atlas_tile_uv_begin(slot, &tile);
+    d3d9_atlas_tile_uv_map(&tile, local_u, local_v, out_u, out_v);
 }
 
 static void
@@ -3771,13 +4011,17 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
         if( group->vbo_gpu )
             IDirect3DVertexBuffer9_Release(group->vbo_gpu);
         group->vbo_gpu = NULL;
+        /* DEFAULT for the static group too (was MANAGED): vbo_cpu is a full
+         * copy already, so the runtime's MANAGED sysmem mirror only doubled
+         * it. Reset releases this buffer and re-marks vbo_cpu dirty; this
+         * same creation path then rebuilds it on the next upload. */
         hr = IDirect3DDevice9_CreateVertexBuffer(
             renderer->device,
             (UINT)(capacity * sizeof(struct TRSPK_VertexD3D9)),
             D3DUSAGE_WRITEONLY |
                 (group->reset_each_frame ? D3DUSAGE_DYNAMIC : 0u),
             0u,
-            group->reset_each_frame ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED,
+            D3DPOOL_DEFAULT,
             &group->vbo_gpu,
             NULL);
         if( FAILED(hr) )
@@ -3787,21 +4031,54 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
             return false;
         }
         group->gpu_capacity = capacity;
+        /* Nothing is in a buffer that did not exist a moment ago, so the
+         * dirty range is not the question -- all of it has to go up. */
+        trspk_vbo_set_dirty(group->vbo_cpu);
     }
-    byte_count = (UINT)(vertex_count * sizeof(struct TRSPK_VertexD3D9));
-    hr = IDirect3DVertexBuffer9_Lock(
-        group->vbo_gpu,
-        0u,
-        byte_count,
-        &locked,
-        group->reset_each_frame ? D3DLOCK_DISCARD : 0u);
-    if( FAILED(hr) )
+
+    /* Upload only what changed.
+     *
+     * The static group is one buffer holding every retained model in the
+     * scene, and its dirty flag is set by any one of them re-baking -- so a
+     * single loc morphing used to re-copy the entire scene to the GPU. The
+     * bake records which vertices it wrote; this sends that span and no more.
+     *
+     * The DYNAMIC group is exempt: D3DLOCK_DISCARD hands back a fresh buffer
+     * whose other contents are undefined, so a partial write there would
+     * leave garbage. It is re-baked wholesale every frame anyway. */
     {
-        d3d9_log_hr("Lock(vertex buffer)", hr);
-        return false;
+        uint32_t first = 0u;
+        uint32_t end = vertex_count;
+
+        if( !group->reset_each_frame && group->vbo_cpu->dirty_end > group->vbo_cpu->dirty_first )
+        {
+            first = group->vbo_cpu->dirty_first;
+            end = group->vbo_cpu->dirty_end;
+            if( end > vertex_count )
+                end = vertex_count;
+            if( first > end )
+                first = end;
+        }
+        byte_count = (UINT)((end - first) * sizeof(struct TRSPK_VertexD3D9));
+        if( byte_count == 0u )
+        {
+            trspk_vbo_clear_dirty(group->vbo_cpu);
+            return true;
+        }
+        hr = IDirect3DVertexBuffer9_Lock(
+            group->vbo_gpu,
+            (UINT)(first * sizeof(struct TRSPK_VertexD3D9)),
+            byte_count,
+            &locked,
+            group->reset_each_frame ? D3DLOCK_DISCARD : 0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("Lock(vertex buffer)", hr);
+            return false;
+        }
+        memcpy(locked, &group->vbo_cpu->vertices.as_d3d9[first], byte_count);
+        IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
     }
-    memcpy(locked, group->vbo_cpu->vertices.as_d3d9, byte_count);
-    IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
     if( group->reset_each_frame )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOAD_BYTES, byte_count);
@@ -4064,12 +4341,17 @@ d3d9_ensure_static_batch_vbo(
     byte_capacity = vertex_capacity * sizeof(struct TRSPK_VertexD3D9);
     if( vertex_capacity > INT_MAX || byte_capacity > UINT_MAX )
         return false;
+    /* DEFAULT, not MANAGED: the runtime keeps a full sysmem mirror of every
+     * MANAGED resource in-process, which doubled this arena's footprint. The
+     * batch16 chunks are the restore source instead — the arena is released
+     * before Reset and every chunk re-marked dirty after (d3d9_reset_device),
+     * so the next d3d9_upload_dirty_static_batches refills it. */
     hr = IDirect3DDevice9_CreateVertexBuffer(
         renderer->device,
         (UINT)byte_capacity,
         D3DUSAGE_WRITEONLY,
         0u,
-        D3DPOOL_MANAGED,
+        D3DPOOL_DEFAULT,
         &replacement,
         NULL);
     if( FAILED(hr) )
@@ -4238,9 +4520,17 @@ static bool
 d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
 {
     uint32_t batch_slot;
+    bool recreated = false;
     assert(renderer);
     if( !renderer->static_batch_upload_pending )
         return true;
+    /* A device Reset releases the DEFAULT-pool arena; rebuild it before
+     * uploading. If it came back fresh, no page's contents survived. */
+    if( !d3d9_ensure_static_batch_vbo(
+            renderer, renderer->static_page_count, &recreated) )
+        return false;
+    if( recreated )
+        d3d9_mark_active_static_batches_dirty(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
@@ -4383,7 +4673,7 @@ d3d9_pose_element_is_retained(
     if( element_id < 0 )
         return false;
     assert(renderer);
-    element_index = (uint32_t)element_id;
+    element_index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
         if( renderer->poses.elements &&
             element_index < renderer->poses.element_count &&
@@ -4402,7 +4692,7 @@ d3d9_pose_track_is_retained(
     if( !renderer || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT )
         return false;
-    element_index = (uint32_t)element_id;
+    element_index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     return renderer->poses.elements && element_index < renderer->poses.element_count &&
         renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
 }
@@ -4416,6 +4706,7 @@ d3d9_bake_pose_vertices(
     struct ToriDraw_ModelHandle model_handle,
     const struct ToriDraw_Position* world_position)
 {
+    struct TRSPK_WorldPlacement placement;
     int face_count;
     uint32_t face_index;
 
@@ -4425,27 +4716,36 @@ d3d9_bake_pose_vertices(
     if( face_count <= 0 )
         return false;
 
+    /* Every vertex of this model is placed by the same rotation, so it is
+     * resolved here rather than inside the per-corner transform. */
+    trspk_toridraw_placement_init(&placement, world_position);
+
     for( face_index = 0u; face_index < (uint32_t)face_count; face_index++ )
     {
         struct TRSPK_ToriDrawBakeFaceVerts face;
+        struct D3D9AtlasTileUV tile;
         uint32_t vertex = vertex_base + face_index * 3u;
-        float ua = 0.5f;
-        float va = 0.5f;
-        float ub = 0.5f;
-        float vb = 0.5f;
-        float uc = 0.5f;
-        float vc = 0.5f;
+        float ua;
+        float va;
+        float ub;
+        float vb;
+        float uc;
+        float vc;
+        float tex_id_f;
         int triangle_config = TRSPK_TRIANGLES_ATLAS;
         int slot = 0;
         bool missing_texture_slot = false;
 
-        memset(&face, 0, sizeof(face));
+        /* No memset: bake_face_handle either fills every field this loop
+         * reads, or returns false and the face is skipped. Zeroing 128 bytes
+         * per face to then overwrite all of them is pure cost. */
         if( !trspk_toridraw_bake_face_handle(
                 model_handle,
                 face_index,
-                world_position,
+                &placement,
                 renderer->scene,
                 true,
+                TRSPK_BAKE_COLOR_ARGB,
                 &face) )
             continue;
 
@@ -4480,12 +4780,12 @@ d3d9_bake_pose_vertices(
                 else
                     missing_texture_slot = true;
             }
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u1, face.uv.v1, &ua, &va);
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u2, face.uv.v2, &ub, &vb);
-            d3d9_map_atlas_uv(
-                face.tex_id >= 0 ? slot : -1, face.uv.u3, face.uv.v3, &uc, &vc);
+            /* One tile for the whole face; the three corners only clamp and
+             * scale into it. */
+            d3d9_atlas_tile_uv_begin(face.tex_id >= 0 ? slot : -1, &tile);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u1, face.uv.v1, &ua, &va);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u2, face.uv.v2, &ub, &vb);
+            d3d9_atlas_tile_uv_map(&tile, face.uv.u3, face.uv.v3, &uc, &vc);
         }
 
         if( missing_texture_slot )
@@ -4493,50 +4793,33 @@ d3d9_bake_pose_vertices(
             /* Slot zero is intentionally opaque white for genuinely
              * untextured faces.  An invalid/full textured face must not use it
              * as a visible fallback. */
-            face.color_a[3] = 0.0f;
-            face.color_b[3] = 0.0f;
-            face.color_c[3] = 0.0f;
+            face.argb_a &= 0x00FFFFFFu;
+            face.argb_b &= 0x00FFFFFFu;
+            face.argb_c &= 0x00FFFFFFu;
         }
 
+        tex_id_f = (float)face.tex_id;
         trspk_triangles_set(
             triangles,
             trspk_triangles_index_from_vertex(vertex),
             triangle_config);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex,
-            face.wx_a,
-            face.wy_a,
-            face.wz_a,
-            face.color_a,
-            ua,
-            va,
-            (float)face.tex_id);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex + 1u,
-            face.wx_b,
-            face.wy_b,
-            face.wz_b,
-            face.color_b,
-            ub,
-            vb,
-            (float)face.tex_id);
-        trspk_vbo_write_vertex_d3d9(
-            vbo,
-            vertex + 2u,
-            face.wx_c,
-            face.wy_c,
-            face.wz_c,
-            face.color_c,
-            uc,
-            vc,
-            (float)face.tex_id);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex, face.wx_a, face.wy_a, face.wz_a, face.argb_a, ua, va,
+            tex_id_f);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex + 1u, face.wx_b, face.wy_b, face.wz_b, face.argb_b, ub, vb,
+            tex_id_f);
+        trspk_vbo_write_vertex_d3d9_argb(
+            vbo, vertex + 2u, face.wx_c, face.wy_c, face.wz_c, face.argb_c, uc, vc,
+            tex_id_f);
     }
 
+    /* Once for the model rather than three times per face -- and as a
+     * RANGE, because this model is the only part of a shared retained
+     * buffer that changed. */
+    trspk_vbo_mark_dirty_range(vbo, vertex_base, (uint32_t)face_count * 3u);
     return true;
 }
-
 static uint32_t
 d3d9_bake_into_arena(
     struct ToriRS_D3D9* renderer,
@@ -4563,9 +4846,7 @@ d3d9_bake_into_arena(
     vertex_count = (uint32_t)face_count * 3u;
     if( vertex_count > TRSPK_BATCH16_MAX_VERTICES )
     {
-        fprintf(
-            stderr,
-            "D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
+        TORIRS_ERR("D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
             (unsigned long)vertex_count);
         return UINT32_MAX;
     }
@@ -4696,7 +4977,7 @@ d3d9_animation_load(
     int frame;
     if( !command || command->element_id < 0 || !command->animation ||
         command->animation->frame_count <= 0 ||
-        command->model.kind != TORIDRAWMK_MODEL || !command->model.u.model.model )
+        !ToriDraw_ModelKindIsFull(command->model.kind) || !command->model.u.model.model )
         return;
     animation = command->animation;
     skeletal = animation->skeletal;
@@ -4737,6 +5018,7 @@ d3d9_animation_load(
                 (size_t)baked->face_count * sizeof(*baked->face_alphas));
 
         ToriDraw_ModelCaptureOriginalVertices(baked);
+        bool posed = false;
         /* Missing/empty cache frames hold the rest pose.  Calling the classic
          * animator for one would assert instead of producing that pose. */
         if( skeletal )
@@ -4745,11 +5027,22 @@ d3d9_animation_load(
             if( skeletal->frame_count > 0 && skeletal->matrices &&
                 baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
                 baked->animaya_groups && baked->animaya_scales )
+            {
                 ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+                posed = true;
+            }
         }
         else if( animation->frames[frame].length > 0 )
+        {
             ToriDraw_ModelAnimateFrame(
                 baked, animation->base, &animation->frames[frame]);
+            posed = true;
+        }
+        /* Every pose that DID run has already re-applied the model's
+         * post-animation resize; the rest pose is the one path that has not,
+         * and it still has to be baked at render scale. */
+        if( !posed )
+            ToriDraw_ModelApplyPostTransforms(baked);
         memset(&handle, 0, sizeof(handle));
         handle.kind = TORIDRAWMK_MODEL;
         handle.u.model.model = baked;
@@ -4821,6 +5114,16 @@ d3d9_begin_3d(
     renderer->cur_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block.
+     *
+     * The SSE2 projection kernels are gated on
+     * `scene->projection_prepared_camera_source == camera`, and only the SDL2
+     * soft3d renderer ever published it -- so on this lane the pointer was
+     * always NULL, the gate was always false, and every model in every frame
+     * took the scalar fallback. The pointer has to be the same one the
+     * projection is called with, which is &renderer->cur_3d.camera below. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
     viewport = &renderer->cur_3d.view_port;
     pass_w = viewport->width > 0 ? viewport->width : renderer->width;
     pass_h = viewport->height > 0 ? viewport->height : renderer->height;
@@ -4862,8 +5165,8 @@ d3d9_begin_3d(
         pass_h,
         /* See the note at the GL caller: this used to project at a hardcoded
          * 512 regardless of what the camera asked for. */
-        (int)command->camera.proj_mode,
-        command->camera.proj_scale,
+        (int)command->camera.projection_mode,
+        command->camera.projection_scale,
         command->camera.fov_rpi2048,
         command->camera.parallel_zoom16);
     if( renderer->zbuffer )
@@ -4911,12 +5214,13 @@ d3d9_draw_model(
             command->anim_index == 0,
             command->anim_frame);
     projected_position = command->position;
-    if( ToriDraw_RenderModel1Project(
+    if( ToriDraw_RenderModel1ProjectWithTable(
             command->model,
             renderer->scene,
             &projected_position,
             &renderer->cur_3d.view_port,
-            &renderer->cur_3d.camera) != TORIDRAW_CULL_VISIBLE )
+            &renderer->cur_3d.camera,
+            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
         return;
 
     if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
@@ -4942,7 +5246,8 @@ d3d9_draw_model(
             command->pick_terrain,
             command->pick_tile_x,
             command->pick_tile_z,
-            command->pick_tile_level);
+            command->pick_tile_level,
+            command->pick_view);
 
     if( command->pick_only )
         return;
@@ -5153,9 +5458,12 @@ d3d9_binding_cpu_source(
     {
         struct TRSPK_Batch16Chunk* chunk = NULL;
         uint32_t page_id;
-        if( binding != D3D9_STATIC_PAGE_BINDING_BASE ||
-            base_offset % D3D9_VBO_PAGE != 0u )
+        if( binding != D3D9_STATIC_PAGE_BINDING_BASE )
             return false;
+        /* The zbuffer's opaque flush biases node offsets inside the page
+         * (page_base + cluster_min) so same-cluster segments coalesce; floor
+         * back to the page.  Bias < D3D9_VBO_PAGE, so this cannot land on the
+         * next page. */
         page_id = base_offset / D3D9_VBO_PAGE;
         if( !d3d9_resolve_static_page(
                 renderer, page_id, NULL, &chunk, NULL) )
@@ -5187,9 +5495,12 @@ d3d9_build_draw_ranges16(
         const struct TRSPK_Triangles* triangles;
         const uint16_t* src = node->ibo.indices.as_u16;
         uint32_t count = node->ibo.index_count;
+        /* Static-page indices are stored rebased by the node's intra-page bias
+         * (offset % page); add the bias back so CPU-side triangle-config and
+         * bounds lookups address the chunk with original page-local vertices. */
         uint32_t absolute_offset = node->group < TRSPK_VBO_GROUP_COUNT
             ? node->ibo.offset
-            : 0u;
+            : node->ibo.offset % D3D9_VBO_PAGE;
         uint32_t i = 0u;
         if( !d3d9_binding_cpu_source(
                 renderer, node->group, node->ibo.offset, &vbo, &triangles) )
@@ -5407,10 +5718,16 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
 {
     uint32_t active_pages = 0u;
     uint32_t page;
+    /* The prepared block describes a camera that is about to go out of scope;
+     * unpublishing it is what stops a later pass reading a stale one. */
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     if( !renderer->has_3d )
         goto done;
     if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
         goto done;
+    if( renderer->zbuffer )
+        d3d9_zbuffer_flush_opaque(renderer);
     if( renderer->ibo_chain && renderer->ibo_chain->head )
         d3d9_draw_retained(renderer, renderer->ibo_chain, false);
     if( renderer->zbuffer )
@@ -5726,6 +6043,14 @@ d3d9_dispatch(
         }
         break;
     }
+    case TORIRSRC_POLYGON_BEGIN:
+    case TORIRSRC_POLYGON_POINT:
+    case TORIRSRC_POLYGON_END:
+        /* Filled polygon runs are a gl3/webgl1/soft3d feature; this backend has
+         * no path for them and drops the run rather than drawing it wrong.
+         * Listed one by one so adding a command to the enum keeps failing the
+         * -Wswitch check here instead of falling silently into a default. */
+        break;
     case TORIRSRC_NONE:
         break;
     }
@@ -5780,6 +6105,7 @@ ToriRS_D3D9_New(int width, int height)
     assert(renderer);
     renderer->width = width;
     renderer->height = height;
+    renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
     renderer->current_batch_slot = -1;
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
@@ -5863,6 +6189,7 @@ ToriRS_D3D9_AttachSceneHeadlessForTest(
         return false;
     assert(scene);
     renderer->scene = scene;
+    renderer->kernel = ToriDraw_KernelGetGpu();
     return true;
 }
 
@@ -5931,6 +6258,146 @@ ToriRS_D3D9_GetPoseBase(
 }
 #endif
 
+static uint64_t
+d3d9_pose_table_bytes(const struct TRSPK_PoseTable* table)
+{
+    uint64_t bytes = (uint64_t)table->element_cap * sizeof(struct TRSPK_PoseElement);
+    uint32_t element_index;
+    uint32_t track;
+    for( element_index = 0u; element_index < table->element_count; element_index++ )
+        for( track = 0u; track < TRSPK_POSE_TRACK_COUNT; track++ )
+            bytes += (uint64_t)table->elements[element_index]
+                         .tracks[track]
+                         .pose_cap *
+                sizeof(uint32_t);
+    return bytes;
+}
+
+static uint64_t
+d3d9_core_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes)
+{
+    uint64_t bytes = 0u;
+    uint32_t nodes = 0u;
+    const struct TRSPK_IBOChainNode* node;
+    assert(chain);
+    for( node = chain->head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    for( node = chain->free_head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    if( out_nodes )
+        *out_nodes = nodes;
+    return bytes;
+}
+
+/**
+ * One-shot shutdown attribution of every retained pool the renderer owns.
+ *
+ * MANAGED-pool resources are reported apart from the CPU pools because each
+ * one exists twice per process: the D3D9 runtime keeps a complete system
+ * memory mirror it restores the video copy from, so their bytes hit private
+ * working set even before the driver's own copy.
+ */
+static void
+d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
+{
+    uint64_t batch_vbo_cpu = 0u;
+    uint64_t batch_tri_cpu = 0u;
+    uint32_t batch_chunks = 0u;
+    uint64_t group_vbo_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_tri_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_slots_cpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t group_vbo_gpu[TRSPK_VBO_GROUP_COUNT];
+    uint64_t chain_bytes = 0u;
+    uint32_t chain_nodes = 0u;
+    uint32_t batch;
+    uint32_t group;
+    uint32_t chunk_index;
+    assert(renderer);
+    for( batch = 0u; batch < renderer->static_batch_count; batch++ )
+    {
+        struct TRSPK_Batch16* cpu = renderer->static_batches[batch].cpu;
+        uint32_t count;
+        if( !cpu )
+            continue;
+        count = trspk_batch16_chunk_count(cpu);
+        for( chunk_index = 0u; chunk_index < count; chunk_index++ )
+        {
+            const struct TRSPK_Batch16Chunk* chunk =
+                trspk_batch16_get_chunk(cpu, chunk_index);
+            if( !chunk )
+                continue;
+            batch_chunks++;
+            if( chunk->vbo )
+                batch_vbo_cpu += (uint64_t)chunk->vbo->capacity *
+                    sizeof(struct TRSPK_VertexD3D9);
+            batch_tri_cpu += (uint64_t)chunk->triangles.cap * sizeof(int);
+        }
+    }
+    for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
+    {
+        const struct D3D9ModelGroup* g = &renderer->groups[group];
+        group_vbo_cpu[group] = g->vbo_cpu
+            ? (uint64_t)g->vbo_cpu->capacity * sizeof(struct TRSPK_VertexD3D9)
+            : 0u;
+        group_tri_cpu[group] = (uint64_t)g->triangles.cap * sizeof(int);
+        group_slots_cpu[group] = g->arena
+            ? (uint64_t)g->arena->slot_capacity * sizeof(struct TRSPK_ModelSlot)
+            : 0u;
+        group_vbo_gpu[group] =
+            (uint64_t)g->gpu_capacity * sizeof(struct TRSPK_VertexD3D9);
+    }
+    if( renderer->ibo_chain )
+        chain_bytes = d3d9_core_ibochain_bytes(renderer->ibo_chain, &chain_nodes);
+    TORIRS_LOG("d3d9_mem: === retained memory report ===\n"
+        "d3d9_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
+        "d3d9_mem: batch16_cpu_configs   %10.2f MB\n"
+        "d3d9_mem: static_vbo_default    %10.2f MB (%u pages; DEFAULT pool, no mirror)\n"
+        "d3d9_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
+        "d3d9_mem: group_static_default  %10.2f MB (DEFAULT pool, no mirror)\n"
+        "d3d9_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
+        "d3d9_mem: group_dynamic_default %10.2f MB\n"
+        "d3d9_mem: ibo_default           %10.2f MB\n"
+        "d3d9_mem: ibo_chain_cpu         %10.2f MB (%u nodes)\n"
+        "d3d9_mem: draw_ranges_cpu       %10.2f MB\n"
+        "d3d9_mem: model_indices_cpu     %10.2f MB\n"
+        "d3d9_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
+        "d3d9_mem: pose_tables_cpu       %10.2f MB\n",
+        (double)batch_vbo_cpu / 1048576.0,
+        batch_chunks,
+        (double)batch_tri_cpu / 1048576.0,
+        (double)renderer->static_batch_gpu_page_capacity * D3D9_VBO_PAGE *
+            sizeof(struct TRSPK_VertexD3D9) / 1048576.0,
+        renderer->static_batch_gpu_page_capacity,
+        (double)group_vbo_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_tri_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_slots_cpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_vbo_gpu[TRSPK_VBO_GROUP_STATIC] / 1048576.0,
+        (double)group_vbo_cpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)group_tri_cpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)group_vbo_gpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
+        (double)renderer->gpu_ibo_capacity * sizeof(uint16_t) / 1048576.0,
+        (double)chain_bytes / 1048576.0,
+        chain_nodes,
+        renderer->draw_ranges
+            ? (double)renderer->draw_ranges->capacity *
+                sizeof(struct TRSPK_DrawRange) / 1048576.0
+            : 0.0,
+        (double)renderer->model_index_capacity * sizeof(uint16_t) / 1048576.0,
+        (double)renderer->atlas.stride * renderer->atlas.height / 1048576.0,
+        (double)renderer->ui_sprite_atlas.stride * renderer->ui_sprite_atlas.height /
+            1048576.0,
+        ((double)d3d9_pose_table_bytes(&renderer->poses) +
+            (double)d3d9_pose_table_bytes(&renderer->batch_poses)) /
+            1048576.0);
+    d3d9_zbuffer_report_memory(renderer);
+}
+
 void
 ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
 {
@@ -5939,6 +6406,7 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     int texture;
     if( !renderer )
         return;
+    d3d9_report_retained_memory(renderer);
     if( renderer->scene_active )
         d3d9_end_frame_scene(renderer);
     d3d9_release_default_pool(renderer);
@@ -6024,6 +6492,7 @@ ToriRS_D3D9_Init(
         return false;
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
+    renderer->kernel = ToriDraw_KernelGetGpu();
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
         return false;
     renderer->client_w = width;
@@ -6031,7 +6500,7 @@ ToriRS_D3D9_Init(
     renderer->d3d = Direct3DCreate9(D3D_SDK_VERSION);
     if( !renderer->d3d )
     {
-        fprintf(stderr, "D3D9: Direct3DCreate9 failed\n");
+        TORIRS_ERR("D3D9: Direct3DCreate9 failed\n");
         return false;
     }
     memset(&renderer->caps, 0, sizeof(renderer->caps));
@@ -6040,9 +6509,7 @@ ToriRS_D3D9_Init(
     if( renderer->caps.MaxTextureWidth < D3D9_ATLAS_DIM ||
         renderer->caps.MaxTextureHeight < D3D9_ATLAS_DIM )
     {
-        fprintf(
-            stderr,
-            "D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
+        TORIRS_LOG("D3D9: adapter texture cap %lux%lu is below the required 2048x2048 atlas\n",
             (unsigned long)renderer->caps.MaxTextureWidth,
             (unsigned long)renderer->caps.MaxTextureHeight);
         return false;
@@ -6130,6 +6597,18 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
 }
 
 void
+ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
+{
+    if( !renderer )
+        return;
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    renderer->interface_scale_mode = mode;
+}
+
+void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* renderer, int mouse_x, int mouse_y)
 {
     assert(renderer);
@@ -6153,29 +6632,95 @@ ToriRS_D3D9_Execute(
     d3d9_dispatch(renderer, command);
 }
 
-void
-ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
+/*
+ * The bar's caption, in the 2D pass the UI text path needs.
+ *
+ * The same two facts the software lane draws (App_BootBarCaption), through
+ * the same command struct the retained frame uses, so a boot sentence is one
+ * picture and not one per renderer. Baseline + centred: the reference draws it
+ * with centreString on the track's baseline, not into a widget box.
+ *
+ * The font id is a scene font id and d3d9_ui_ensure_font resolves it out of
+ * the scene -- no TORIRSRC_FONT_LOAD reaches this lane during a boot, because
+ * no frame is being walked to carry one.
+ */
+static void
+d3d9_draw_boot_caption(
+    struct ToriRS_D3D9* renderer,
+    int caption_font_id,
+    char const* caption)
 {
-    int bar_w;
-    int bar_h = 12;
-    int bar_x;
-    int bar_y;
-    int fill_w;
+    struct ToriRS_RenderCommand_Font font_command;
+
+    assert(renderer);
+    assert(caption);
+    assert(caption_font_id >= 0);
+
+    memset(&font_command, 0, sizeof(font_command));
+    font_command.font_id = caption_font_id;
+    font_command.x = BootBar_OriginX(renderer->width) + BOOT_BAR_W / 2;
+    font_command.y = BootBar_OriginY(renderer->height) + BOOT_BAR_TEXT_BASELINE;
+    font_command.color = 0xFFFFFF;
+    font_command.center = 1;
+    font_command.baseline = 1;
+    font_command.text = caption;
+    font_command.scissor_w = renderer->width;
+    font_command.scissor_h = renderer->height;
+
+    d3d9_begin_2d(renderer, NULL);
+    d3d9_ui_draw_font(renderer, &font_command);
+    d3d9_end_2d(renderer, NULL);
+}
+
+void
+ToriRS_D3D9_DrawBootBar(
+    struct ToriRS_D3D9* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
     assert(renderer);
     if( !d3d9_begin_frame_scene(renderer) )
         return;
-    progress = d3d9_clampi(progress, 0, 100);
-    d3d9_set_full_viewport(renderer);
-    bar_w = renderer->width / 3;
-    bar_x = (renderer->width - bar_w) / 2;
-    bar_y = (renderer->height - bar_h) / 2;
-    fill_w = bar_w * progress / 100;
-    d3d9_draw_solid_rect(renderer, bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2, 0xff8b0000u);
-    if( fill_w > 0 )
-        d3d9_draw_solid_rect(renderer, bar_x, bar_y, fill_w, bar_h, 0xff8b0000u);
-    if( fill_w < bar_w )
+    /* progress < 0: clear only, no bar -- the post-login loading screen,
+     * which is a black screen and the sentence alone on every lane. */
+    if( progress >= 0 )
+    {
+        int bar_x;
+        int bar_y;
+        int fill_w;
+
+        progress = d3d9_clampi(progress, 0, 100);
+        d3d9_set_full_viewport(renderer);
+
+        /*
+         * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+         * constants are shared with the software lane so the same boot does not
+         * draw two different pictures depending on which renderer came up.
+         *
+         * Three rects reach what BootBar_Draw reaches with four operations: a
+         * filled red track, a black inset one pixel in that leaves the red as a
+         * border and blacks the unfilled remainder, then the fill itself two
+         * pixels in. The black ring between border and fill is the deob's, and
+         * it is what makes the bar look recessed.
+         */
+        bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
+        bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+        fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
         d3d9_draw_solid_rect(
-            renderer, bar_x + fill_w, bar_y, bar_w - fill_w, bar_h, 0xff000000u);
+            renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
+        d3d9_draw_solid_rect(
+            renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
+        if( fill_w > 0 )
+            d3d9_draw_solid_rect(renderer,
+                                 bar_x + BOOT_BAR_INSET,
+                                 bar_y + BOOT_BAR_INSET,
+                                 fill_w,
+                                 BOOT_BAR_FILL_H,
+                                 0xff000000u | BOOT_BAR_COLOR);
+    }
+    if( caption && caption[0] && caption_font_id >= 0 )
+        d3d9_draw_boot_caption(renderer, caption_font_id, caption);
     d3d9_end_frame_scene(renderer);
 }
 
@@ -6207,14 +6752,127 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
     d3d9_end_frame_scene(renderer);
 }
 
+/*
+ * The finished frame, sampled back onto the canvas grid.
+ *
+ * The GL twin's shape (ToriRS_GL3_ReadPixels), sharing its "read the finished
+ * frame before presenting it" rule, with one difference that is the API's and
+ * not a choice: no row flip. D3D9 surfaces are already top-down, where GL
+ * reports bottom-up. Flipping here "for symmetry" would invert every capture.
+ *
+ * GetRenderTargetData is the GPU->system-memory copy, and it refuses a
+ * multisampled source -- which is why this can use it directly: the present
+ * parameters are created with D3DMULTISAMPLE_NONE.
+ */
+bool
+ToriRS_D3D9_ReadPixels(
+    struct ToriRS_D3D9* renderer,
+    int* pixels,
+    int width,
+    int height)
+{
+    IDirect3DSurface9* target = NULL;
+    IDirect3DSurface9* readback = NULL;
+    D3DSURFACE_DESC desc;
+    D3DLOCKED_RECT locked;
+    HRESULT hr;
+    bool ok = false;
+
+    assert(renderer);
+    assert(pixels);
+    assert(width > 0);
+    assert(height > 0);
+
+    if( !d3d9_device_ready(renderer) )
+        return false;
+
+    hr = IDirect3DDevice9_GetRenderTarget(renderer->device, 0u, &target);
+    if( FAILED(hr) || !target )
+    {
+        d3d9_log_hr("GetRenderTarget(readback)", hr);
+        return false;
+    }
+    hr = IDirect3DSurface9_GetDesc(target, &desc);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("GetDesc(readback)", hr);
+        IDirect3DSurface9_Release(target);
+        return false;
+    }
+
+    hr = IDirect3DDevice9_CreateOffscreenPlainSurface(
+        renderer->device, desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &readback, NULL);
+    if( FAILED(hr) || !readback )
+    {
+        d3d9_log_hr("CreateOffscreenPlainSurface(readback)", hr);
+        IDirect3DSurface9_Release(target);
+        return false;
+    }
+
+    hr = IDirect3DDevice9_GetRenderTargetData(renderer->device, target, readback);
+    if( SUCCEEDED(hr) )
+    {
+        hr = IDirect3DSurface9_LockRect(readback, &locked, NULL, D3DLOCK_READONLY);
+        if( SUCCEEDED(hr) )
+        {
+            uint8_t const* base = (uint8_t const*)locked.pBits;
+            float const sx = (float)renderer->lb_w / (float)width;
+            float const sy = (float)renderer->lb_h / (float)height;
+
+            for( int y = 0; y < height; y++ )
+            {
+                int src_y = renderer->lb_y + (int)((float)y * sy);
+                uint32_t const* row;
+
+                if( src_y < 0 )
+                    src_y = 0;
+                if( src_y >= (int)desc.Height )
+                    src_y = (int)desc.Height - 1;
+                /* Pitch is bytes and is NOT width*4: the driver pads rows. */
+                row = (uint32_t const*)(base + (size_t)src_y * (size_t)locked.Pitch);
+
+                for( int x = 0; x < width; x++ )
+                {
+                    int src_x = renderer->lb_x + (int)((float)x * sx);
+
+                    if( src_x < 0 )
+                        src_x = 0;
+                    if( src_x >= (int)desc.Width )
+                        src_x = (int)desc.Width - 1;
+                    pixels[y * width + x] = (int)row[src_x];
+                }
+            }
+            IDirect3DSurface9_UnlockRect(readback);
+            ok = true;
+        }
+        else
+            d3d9_log_hr("LockRect(readback)", hr);
+    }
+    else
+        d3d9_log_hr("GetRenderTargetData", hr);
+
+    IDirect3DSurface9_Release(readback);
+    IDirect3DSurface9_Release(target);
+    return ok;
+}
+
 void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;
+    RECT destination;
     assert(renderer);
     if( renderer->scene_active || !d3d9_device_ready(renderer) )
         return;
-    hr = IDirect3DDevice9_Present(renderer->device, NULL, NULL, NULL, NULL);
+    destination.left = 0;
+    destination.top = 0;
+    destination.right = renderer->client_w;
+    destination.bottom = renderer->client_h;
+    /* NULL would stretch the game-sized backbuffer across the container's
+     * whole client, underneath its child chrome.  An explicit, equally-sized
+     * destination keeps the one renderer inside the game region. */
+    hr = IDirect3DDevice9_Present(
+        renderer->device, NULL, &destination, NULL, NULL);
     if( hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICENOTRESET )
         renderer->reset_pending = true;
     else if( FAILED(hr) )

@@ -1,0 +1,466 @@
+{{External|rs=Lunar spells}}
+[[File:Lunar spellbook.png|left|The Lunar spellbook icon.]]
+[[File:Lunar spells.png|frame|The Lunar spellbook.]]
+The '''Lunar spellbook''' is a [[spellbook]] that players can access upon completion of the [[quest]] [[Lunar Diplomacy]], associated with the magicks of the [[Moon Clan]]. Making extensive use of [[astral rune]]s, the spellbook is primarily oriented towards utility spells and combat-support spells, reducing or eliminating the need for certain items and equipment to carry out certain tasks. A larger set of spells is accessible to players who have completed the quest [[Dream Mentor]] and two additional spells are available for completing the [[Hard Fremennik Diary]].
+
+The spells in this spellbook use all rune types except [[wrath rune|wrath]].
+
+65 Magic and 40 Defence without boosts are required to cast any Lunar spell. Although it is not normally possible to unlock the spellbook without those requirements, if the quest was auto-completed with the [[Fremennik quest lamp]], or if the player lost experience on death in those skills in past [[Deadman Mode]] events, Lunar spells cannot be cast until the level requirements are met.
+
+==Switching spellbooks==
+Players can pray at the [[Astral Altar]] on the south-east end of [[Lunar Isle]] to switch between the Lunar spellbook and the [[Standard spellbook]]. Astral runes can also be crafted at this altar using the [[Runecraft]] skill; players cannot craft astral runes through [[The Abyss]]. An easy way to travel to the Lunar Isle is by using a [[Lunar isle teleport]] scroll or a [[Moonclan Teleport (tablet)|Moonclan teleport]] tablet. If you intend to change your spellbook, be sure to bring a teleport to leave the island.
+
+Players who have level 80 in [[Construction]] (or 75 with a +5 [[spicy stew]] boost) can build a [[lunar altar]] within their [[Achievement Gallery]], allowing them to freely switch between the standard and lunar spellbooks without having to travel to the Astral Altar. The crystal saw's +3 boost cannot be combined with the spicy stew's +5 boost since the achievement gallery requires 80 Construction, and the saw's boost does not work on adding new rooms to your POH.
+
+Visiting a POH with an [[Occult altar]] allows players to immediately switch between the spellbooks, including Lunar.
+
+==Spell summary==
+:''Spells denoted with an asterisk (*) require completion of the quest [[Dream Mentor]].''
+
+===Combat spells===
+The combat spells of the Lunar spellbook are primarily used for player support, such as curing and healing, rather than spells that directly damage opponents.
+[[File:Heal Group.gif|thumb|220px|A player transfers their Hitpoints to two players through the [[Heal Group]] spell.]]
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Effect
+|-
+|[[File:Monster Examine.png]]
+|[[File:Monster Examine icon (mobile).png]]
+|[[Monster Examine]]*
+|66
+|{{RuneReq|Astral=1|Cosmic=1|Mind=1}}
+|61
+| style="text-align: left;" | Displays information about the monster the spell is cast upon, such as its combat stats, defensive bonuses, and whether it can be killed as part of a [[Slayer task]].
+|-
+|[[File:Cure Other.png]]
+|[[File:Cure Other icon (mobile).png]]
+|[[Cure Other]]
+|68
+|{{RuneReq|Astral=1|Law=1|Earth=10}}
+|65
+| style="text-align: left;" | Cures a targeted player that is [[poison]]ed. The targeted player must have '''Accept Aid''' turned on.
+|-
+|[[File:Cure Me.png]]
+|[[File:Cure Me icon (mobile).png]]
+|[[Cure Me]]
+|71
+|{{RuneReq|Astral=2|Law=1|Cosmic=2}}
+|69
+| style="text-align: left;" | Cures the caster of poison as though they had taken an [[antipoison]].
+|-
+|[[File:Cure Group.png]]
+|[[File:Cure Group icon (mobile).png]]
+|[[Cure Group]]
+|74
+|{{RuneReq|Astral=2|Law=2|Cosmic=2}}
+|74
+| style="text-align: left;" | Cures all players of poison within a 3x3 square area of the caster (including standing on the caster's square). Players need to have '''Accept Aid''' turned on in order to benefit from this spell.
+|-
+|[[File:Stat Spy.png]]
+|[[File:Stat Spy icon (mobile).png]]
+|[[Stat Spy]]*
+|75
+|{{RuneReq|Astral=2|Cosmic=1|Body=5}}
+|76
+| style="text-align: left;" | Cast on other players to see their combat stats as well as non-combat stats. It also shows their current stats, i.e. their current hitpoints and prayer points.
+|-
+|[[File:Dream.png]]
+|[[File:Dream icon (mobile).png]]
+|[[Dream]]*
+|79
+|{{RuneReq|Astral=2|Cosmic=1|Body=5}}
+|82
+| style="text-align: left;" | Puts the caster into a dream-like state where hitpoints recharge at three times the normal rate (1 hitpoint every 20 seconds). The caster will stay in this state until they move or reach full health.
+|-
+|[[File:Stat Restore Pot Share.png]]
+|[[File:Stat Restore Pot Share icon (mobile).png]]
+|[[Stat Restore Pot Share]]
+|81
+|{{RuneReq|Astral=2|Earth=10|Water=10}}
+|84
+| style="text-align: left;" | Casting this on a [[stat restore potion]] causes the caster to administer 1 dose to each player in a 5x5 square area (including standing on the caster's square) if they have '''Accept Aid''' turned on.
+|-
+|[[File:Boost Potion Share.png]]
+|[[File:Boost Potion Share icon (mobile).png]]
+|[[Boost Potion Share]]
+|84
+|{{RuneReq|Astral=3|Earth=12|Water=10}}
+|88
+| style="text-align: left;" | Casting this on almost any potion causes the caster to administer 1 dose to each player in a 5x5 square area (including standing on the caster's square) if they have '''Accept Aid''' turned on.
+|-
+|[[File:Energy Transfer.png]]
+|[[File:Energy Transfer icon (mobile).png]]
+|[[Energy Transfer]]
+|91
+|{{RuneReq|Astral=3|Law=2|Nature=1}}
+|100
+| style="text-align: left;" | Transfers to the targeted player 100% of the caster's [[special attack]] energy and some of their [[Running|run]] energy. Cannot be cast unless the caster has a full special attack energy bar. Players must have '''Accept Aid''' turned on to benefit from this spell.
+|-
+|[[File:Heal Other.png]]
+|[[File:Heal Other icon (mobile).png]]
+|[[Heal Other]]
+|92
+|{{RuneReq|Astral=3|Law=3|Blood=1}}
+|101
+| style="text-align: left;" | Transfers 75% of the caster's current [[Hitpoints]] to the targeted player. The targeted player must have '''Accept Aid''' turned on to be healed by this spell.
+|-
+|[[File:Vengeance Other.png]]
+|[[File:Vengeance Other icon (mobile).png]]
+|[[Vengeance Other]]
+|93
+|{{RuneReq|Astral=3|Earth=10|Death=2}}
+|108
+| style="text-align: left;" | The targeted player will be under the effect of the [[Vengeance]] spell. The targeted player must have '''Accept Aid''' turned on to receive this benefit.
+|-
+|[[File:Vengeance.png]]
+|[[File:Vengeance icon (mobile).png]]
+|[[Vengeance]]
+|94
+|{{RuneReq|Astral=4|Earth=10|Death=2}}
+|112
+| style="text-align: left;" | The next damaging attack that hits the caster will also hit the opponent dealing the damage for up to 75% of the original damage dealt.
+|-
+|[[File:Heal Group.png]]
+|[[File:Heal Group icon (mobile).png]]
+|[[Heal Group]]
+|95
+|{{RuneReq|Astral=4|Law=6|Blood=3}}
+|124
+| style="text-align: left;" | Transfers 75% of the caster's current [[Hitpoints]] among injured players who are within a 3x3 square area of the caster (including standing on the caster's square). Players must have '''Accept Aid''' turned on to benefit from this spell.
+|}
+
+===Teleport spells===
+The Lunar spellbook contains a relatively small number of teleportation spells, comparable in number to the [[Ancient spellbook]]. These spells are mostly to locations directly associated with the Moonclan and Fremmenik, or indirectly, for example through being associated with Runecraft or Fishing. The spellbook also uniquely contains Tele Group spells, which teleport the caster alongside anyone within a 3x3 [[game square|tile]] area around them - the caster is teleported immediately, players in the area must have [[Accept Aid]] on and accept the teleport from a menu that pops up.
+[[File:Lunar teleport.gif|thumb|200px|A player using Lunar spells to teleport.]]
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Notes
+|-
+|[[File:Lunar Home Teleport.png|center]]
+|[[File:Lunar Home Teleport icon (mobile).png|center]]
+|[[Lunar Home Teleport]]
+|0
+|None
+| data-sort-value="0" |None
+| style="text-align: left;" | Teleports next to the bank of [[Lunar Isle]] free of charge. It takes around 10 seconds to cast and is interruptible by combat. Additionally, it may only be cast every 30 minutes.
+|-
+|[[File:Minigame Teleport.png|center]]
+|[[File:Minigame Teleport icon (mobile).png|center]]
+|[[Minigame Teleport]]
+|0
+|None
+| data-sort-value="0" | None
+| style="text-align: left;" | Teleports the player to a [[minigame]] of their choice. It takes around 10 seconds to cast and is interruptible by combat. Additionally, it may only be cast every 20 minutes.
+|-
+|[[File:Moonclan Teleport.png|center]]
+|[[File:Moonclan Teleport icon (mobile).png|center]]
+|[[Moonclan Teleport]]
+|69
+|{{RuneReq|Astral=2|Law=1|Earth=2}}
+|66
+| style="text-align: left;" | Teleports the player just outside the gates of Lunar Isle.
+|-
+|[[File:Tele Group Moonclan.png|center]]
+|[[File:Tele Group Moonclan icon (mobile).png|center]]
+|[[Tele Group Moonclan]]
+|70
+|{{RuneReq|Astral=2|Law=1|Earth=4}}
+|67
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) near the bank in the Moonclan town. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Ourania Teleport.png|center]]
+|[[File:Ourania Teleport icon (mobile).png|center]]
+|[[Ourania Teleport]]
+|71
+|{{RuneReq|Astral=2|Law=1|Earth=6}}
+|69
+| style="text-align: left;" | Teleports the caster to the [[red salamander (Hunter)|red salamanders]] outside of the [[Ourania Cave]]. Players must speak to [[Baba Yaga]] with the spellbook activated to unlock the ability to cast this spell.
+|-
+|[[File:Waterbirth Teleport.png|center]]
+|[[File:Waterbirth Teleport icon (mobile).png|center]]
+|[[Waterbirth Teleport]]
+|72
+|{{RuneReq|Astral=2|Law=1|Water=1}}
+|71
+| style="text-align: left;" | Teleports the player beside [[Jarvald]]'s ship on [[Waterbirth Island]], right by the snape grass spawns.
+|-
+|[[File:Tele Group Waterbirth.png|center]]
+|[[File:Tele Group Waterbirth icon (mobile).png|center]]
+|[[Tele Group Waterbirth]]
+|73
+|{{RuneReq|Astral=2|Law=1|Water=5}}
+|72
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) beside [[Jarvald]]'s ship on [[Waterbirth Island]]. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Barbarian Teleport.png|center]]
+|[[File:Barbarian Teleport icon (mobile).png|center]]
+|[[Barbarian Teleport]]
+|75
+|{{RuneReq|Astral=2|Law=2|Fire=3}}
+|76
+| style="text-align: left;" | Teleports the player next to the [[Barbarian Outpost]].
+|-
+|[[File:Tele Group Barbarian.png|center]]
+|[[File:Tele Group Barbarian icon (mobile).png|center]]
+|[[Tele Group Barbarian]]
+|76
+|{{RuneReq|Law=2|Fire=6|Astral=2}}
+|77
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) next to the [[Barbarian Outpost]]. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Khazard Teleport.png|center]]
+|[[File:Khazard Teleport icon (mobile).png|center]]
+|[[Khazard Teleport]]
+|78
+|{{RuneReq|Astral=2|Law=2|Water=4}}
+|80
+| style="text-align: left;" | Teleports the player to [[Port Khazard]].
+|-
+|[[File:Tele Group Khazard.png|center]]
+|[[File:Tele Group Khazard icon (mobile).png|center]]
+|[[Tele Group Khazard]]
+|79
+|{{RuneReq|Astral=2|Law=2|Water=8}}
+|81
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) to [[Port Khazard]]. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Fishing Guild Teleport.png|center]]
+|[[File:Fishing Guild Teleport icon (mobile).png|center]]
+|[[Fishing Guild Teleport]]
+|85
+|{{RuneReq|Astral=3|Law=3|Water=10}}
+|89
+| style="text-align: left;" | Teleports the player outside the door of the [[Fishing Guild]].
+|-
+|[[File:Teleport to Target.png|center]]
+|[[File:Teleport to Target icon (mobile).png|center]]
+|[[Teleport to Target]]
+|85
+|{{RuneReq|Law=1|Chaos=1|Death=1}}
+|45
+| style="text-align: left;" | Teleports the player to their assigned target inside [[Daimon's Crater]]. Can only be cast on [[Bounty Hunter]] worlds.
+|-
+|[[File:Tele Group Fishing Guild.png|center]]
+|[[File:Tele Group Fishing Guild icon (mobile).png|center]]
+|[[Tele Group Fishing Guild]]
+|86
+|{{RuneReq|Astral=3|Law=3|Water=14}}
+|90
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) outside the door to the [[Fishing Guild]]. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Catherby Teleport.png|center]]
+|[[File:Catherby Teleport icon (mobile).png|center]]
+|[[Catherby Teleport]]
+|87
+|{{RuneReq|Astral=3|Law=3|Water=10}}
+|92
+| style="text-align: left;" | Teleports the player near the bank in [[Catherby]].
+|-
+|[[File:Tele Group Catherby.png|center]]
+|[[File:Tele Group Catherby icon (mobile).png|center]]
+|[[Tele Group Catherby]]
+|88
+|{{RuneReq|Astral=3|Law=3|Water=15}}
+|93
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) near the bank in [[Catherby]]. Players must have '''Accept Aid''' turned on in order to be teleported by this spell.
+|-
+|[[File:Ice Plateau Teleport.png|center]]
+|[[File:Ice Plateau Teleport icon (mobile).png|center]]
+|[[Ice Plateau Teleport]]
+|89
+|{{RuneReq|Astral=3|Law=3|Water=8}}
+|96
+| style="text-align: left;" | Teleports the player to the members' half of the [[Ice Plateau]] in level 53 [[Wilderness]]. Warns the player that they are about to teleport into the "Deep Wilderness" with an option to abort.
+|-
+|[[File:Tele Group Ice Plateau.png|center]]
+|[[File:Tele Group Ice Plateau icon (mobile).png|center]]
+|[[Tele Group Ice Plateau]]
+|90
+|{{RuneReq|Astral=3|Law=3|Water=16}}
+|99
+| style="text-align: left;" | Teleports the player along with anyone within a 3x3 square area (including standing on the player's square) to the members' half of the Ice Plateau. Players must have '''Accept Aid''' turned on in order to be teleported by this spell. Warns the player(s) that they are about to teleport/be teleported into the "Deep Wilderness" with an option to abort.
+|}
+
+===Utility spells===
+[[File:Fertile Soil.gif|thumb|220px|A player treats a farming patch with supercompost through the [[Fertile Soil]] spell.]]
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Type
+|-
+|[[File:Bake Pie.png]]
+|[[File:Bake Pie icon (mobile).png]]
+|[[Bake Pie]]
+|65
+|{{RuneReq|Astral=1|Fire=5|Water=4}}
+|60
+| style="text-align: left;" | Automatically bakes all uncooked pies in the player's inventory, one after another, without risk of burning. The player receives full Cooking experience.
+|-
+|[[File:Geomancy.png]]
+|[[File:Geomancy icon (mobile).png]]
+|[[Geomancy]]
+|65
+|{{RuneReq|Nature=3|Astral=3|Earth=8}}
+|60
+| style="text-align: left;" | Allows the player to view the status of every single farmable patch in the game, excluding ones used during [[quests]].
+|-
+|[[File:Cure Plant.png]]
+|[[File:Cure Plant icon (mobile).png]]
+|[[Cure Plant]]
+|66
+|{{RuneReq|Astral=1|Earth=8}}
+|60
+| style="text-align: left;" | Cures a diseased [[Farming]] patch.
+|-
+|[[File:Astral Contact.png]]
+|[[File:Astral Contact icon (mobile).png]]
+|[[Astral Contact]]
+|67
+|{{RuneReq|Astral=1|Cosmic=1|Air=2}}
+|63
+| style="text-align: left;" | Allows players to telepathically speak to a set of [[non-player character]]s as if they were next to them.
+|-
+|[[File:Humidify.png]]
+|[[File:Humidify icon (mobile).png]]
+|[[Humidify]]*
+|68
+|{{RuneReq|Astral=1|Water=3|Fire=1}}
+|65
+| style="text-align: left;" | Fills all the vessels in the player's inventory with water. The spell can also water all seedlings in the player's inventory.
+|-
+|[[File:Hunter Kit.png]]
+|[[File:Hunter Kit icon (mobile).png]]
+|[[Hunter Kit (spell)|Hunter Kit]]*
+|71
+|{{RuneReq|Astral=2|Earth=2}}
+|70
+| style="text-align: left;" | Gives the player a [[hunter kit]] containing various tools used in training [[Hunter]].
+|-
+|[[File:Spin Flax.png]]
+|[[File:Spin Flax icon (mobile).png]]
+|[[Spin Flax]]
+|76
+|{{RuneReq|Astral=1|Nature=2|Air=5}}
+|75
+| style="text-align: left;" | Instantly spins up to five [[flax]] into [[bow string]]s in the player's inventory.
+|-
+|[[File:Superglass Make.png]]
+|[[File:Superglass Make icon (mobile).png]]
+|[[Superglass Make]]
+|77
+|{{RuneReq|Astral=2|Fire=6|Air=10}}
+|78
+| style="text-align: left;" | Turns all [[buckets of sand]] and [[soda ash]], [[seaweed]], or [[swamp weed]] into [[molten glass]] instantly and without the need for a [[furnace]].
+|-
+|[[File:Tan Leather.png]]
+|[[File:Tan Leather icon (mobile).png]]
+|[[Tan Leather]]
+|78
+|{{RuneReq|Nature=1|Fire=5|Astral=2}}
+|81
+| style="text-align: left;" | Tans up to five hides in the player's inventory, without the usual cost associated with [[tanner]]s. Requires completion of the [[Hard Fremennik Diary]].
+|-
+|[[File:String Jewellery.png]]
+|[[File:String Jewellery icon (mobile).png]]
+|[[String Jewellery]]
+|80
+|{{RuneReq|Astral=2|Earth=10|Water=5}}
+|83
+| style="text-align: left;" | Unstrung amulets in the player's inventory immediately become strung (one per spell).
+|-
+|[[File:Magic Imbue.png]]
+|[[File:Magic Imbue icon (mobile).png]]
+|[[Magic Imbue]]
+|82
+|{{RuneReq|Astral=2|Fire=7|Water=7}}
+|86
+| style="text-align: left;" | Enables the player to create [[combination runes]] without needing to use opposing [[talisman]]s for 12.6 seconds.
+|-
+|[[File:Fertile Soil.png]]
+|[[File:Fertile Soil icon (mobile).png]]
+|[[Fertile Soil]]
+|83
+|{{RuneReq|Astral=3|Earth=15|Nature=2}}
+|87
+| style="text-align: left;" | This spell treats the targeted [[Farming]] patch with [[supercompost]], or [[ultracompost]] if players have read the [[ash covered tome]] and have two [[volcanic ash]] in their inventory.
+|-
+|[[File:Plank Make.png]]
+|[[File:Plank Make icon (mobile).png]]
+|[[Plank Make]]*
+|86
+|{{RuneReq|Astral=2|Nature=1|Earth=15}}
+|90
+| style="text-align: left;" | Turns one log into a plank. The spell charges a decreased fee for making each plank in comparison to [[sawmill operator]]s.
+|-
+|[[File:Recharge Dragonstone.png]]
+|[[File:Recharge Dragonstone icon (mobile).png]]
+|[[Recharge Dragonstone]]
+|89
+|{{RuneReq|Soul=1|Astral=1|Water=4}}
+|97.5
+| style="text-align: left;" | Recharges all enchanted [[dragonstone]] [[jewellery]] (excluding [[ring of wealth]]). Requires completion of the [[Hard Fremennik Diary]].
+|-
+|[[File:Spellbook Swap.png]]
+|[[File:Spellbook Swap icon (mobile).png]]
+|[[Spellbook Swap]]*
+|96
+|{{RuneReq|Astral=3|Cosmic=2|Law=1}}
+|130
+| style="text-align: left;" | Lets players switch to another [[spellbook]] for one spell cast.
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 October 2016
+|update = The Ourania Altar
+|poll = 
+|change = The Ourania teleport has been added to the spellbook.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = Lunar's group teleports will no longer trigger the 10 second teleport delay timer in Deadman mode twice.
+}}
+{{Subject changes
+|date = 15 October 2015
+|update = The Max Cape
+|poll = Old School Content Poll 36: Skilling Pets
+|change = * A new Lunar spell has been added, Geomancy, requiring 65 Magic, 3 Astral runes, 3 Nature runes and 8 Earth runes.
+* Displays the status of almost every farming patch except those used during quests.
+* Displays, what crop is planted, the growth progress, patch protection status, patch compost status, patch water status, fruit yield
+* The spell has been placed at the bottom of the spellbook rather than in level order to preserve the position of the vengeance spell.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = Two new Lunar spells have been added to the spellbook, [[Tan Leather]] (level 78) and [[Recharge Dragonstone]] (level 89), which can be used after completing the [[Fremennik Hard Diary]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*While the player requires runes to cast Lunar spells, the peoples of the [[Moon Clan]] have advanced their magical abilities to the point they no longer require runes to channel their magic.{{CiteText|text=Baba Yaga|quote=Our people were left isolated on Lunar Isle but we used it to our advantage. Our control over Magic advanced beyond the need for runes and all knowledge of the altar locations passed from memory.}}
+*The only spells in the Lunar spellbook that do not use [[astral rune]]s are [[Teleport to Target]], which is shared with other spellbooks; and [[Lunar Home Teleport]] and [[Minigame Teleport]], which are free.
+
+==References==
+{{Reflist}}
+
+{{Spellbooks}}
+{{Lunar spellbook}}
+[[Category:Members' spellbooks]]

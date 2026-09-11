@@ -1,0 +1,191 @@
+{{redirect|Shadow|other uses|Shadow (disambiguation)}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Tumeken's shadow (uncharged)
+|name2 = Tumeken's shadow
+|image1 = [[File:Tumeken's shadow (uncharged).png]]
+|image2 = [[File:Tumeken's shadow.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable1 = No
+|equipable2 = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|wornoptions = Check
+|examine = An ancient staff created using a higher power.
+|value = 7000000
+|weight1 = 4.000
+|weight2 = 5.000
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 27277
+|id2 = 27275
+|leagueRegion = Desert,Kourend,Morytania
+}}
+{{Synced switch
+|version1 = [[File:Tumeken's shadow (uncharged) detail.png|left|180px]]
+|version2 = [[File:Tumeken's shadow detail.png|left|180px]]
+}}
+[[File:Tumeken's shadow spell.gif|thumb|250px|A player using Tumeken's shadow's built-in spell.]]
+'''Tumeken's shadow''' is a two-handed [[powered staff]] requiring 85 [[Magic]] to wield, and is only available as a rare drop from the [[Tombs of Amascut]]. The staff is extremely valuable as, when matched with other high-end magic gear, it excels with its damage and immense accuracy even against magic-resistant monsters. Like most powered staves, it is only tradeable when it is fully uncharged.
+
+Powered by the sun itself, the staff was created by the god [[Tumeken]] using an unknown artefact during the [[Kharidian–Zarosian War]] as a means to fight back against the invading force of the [[Zarosian Empire]].{{CiteNews|url=https://secure.runescape.com/m=news/tombs-of-amascut?oldschool=1|title=Tombs of Amascut|newsdate=24 August 2022|quote=When the Ruinous Powers arrived in their lands, Tumeken and his people found themselves facing an enemy unlike any other. He responded by hunting down a powerful weapon to use against this new threat – but when he found it, he decided instead to create the Shadow of Tumeken. This staff is powered by the sun itself, and with that brightest of lights comes the darkest of shadows…}} Tumeken also used it to create [[Tumeken's Warden]] and [[Elidinis' Warden]], two massive automata imbued with the divine essence of himself and his wife [[Elidinis]].{{CiteText|text=The wardens|author=Akila|quote=In war, great weapons can turn the tide against even the strongest foes, and legend has long spoken of Tumeken using a powerful staff to build two such weapons. It was believed any truth to these legends had long since been lost, but here in Osmumten's tomb, the truth is revealed: the weapons exist, and they are the prize the Devourer so fervently seeks. In truth, referring to Tumeken's creations as 'weapons' does them no justice. They are in fact two ancient automatons, built to embody Tumeken and Elidinis themselves and seemingly imbued with their divine essence.}} After Tumeken sacrificed himself to end the war, Elidinis gifted the weapon as well as her own [[Elidinis' ward|ward]] to [[Osmumten]] before leaving to mourn her family.
+
+As with all powered staves other than [[Thammaron's sceptre]] and the [[accursed sceptre]], Tumeken's shadow is not able to use its built-in spell against other players outside of minigames.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +35
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = +20
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +1
+|slot = 2h
+|speed = 5
+|attackrange = 8
+|combatstyle = Powered Staff
+|image1 = [[File:Tumeken's shadow (uncharged) equipped male.png|200px]]
+|image2 = [[File:Tumeken's shadow equipped male.png|200px]]
+|altimage1 = [[File:Tumeken's shadow (uncharged) equipped female.png|200px]]
+|altimage2 = [[File:Tumeken's shadow equipped female.png|200px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=5|attackrange=8}}
+
+==Passive effect==
+Tumeken's shadow has a [[passive effect]] exclusive to its built-in spell, in which the player's magic attack bonus and [[magic damage]] are multiplied by three from the player's worn equipment (four within the Tombs of Amascut), capped at a total of 100% magic damage, although this threshold is not currently attainable except for within the Tombs of Amascut. This multiplicative effect includes tripling or quadrupling negative magic attack and damage bonuses.
+
+The passive effect is extremely powerful with max mage gear, as it pushes the player's accuracy incredibly high, even when facing magic-resistant monsters such as [[General Graardor]] and [[Commander Zilyana]]. The staff's max hit also pushes higher with the maximum possible magic damage boost, even more than a [[sanguinesti staff]] and a [[Elidinis' ward (f)|fortified ward]]. It still hits lower than the [[twisted bow]] (when comparing both at max boosts), though it makes up for it for being more accurate in such cases.
+
+The passive multiplicative effect does not amplify the [[Void Knight equipment]], [[salve amulet(ei)]], or the [[slayer helmet (i)|imbued slayer helmet]], although Tumeken's shadow still benefits ordinarily from these bonuses. For PvP, in scenarios where Tumeken's shadow can be used against players (such as [[minigames]]), the multiplier does not apply for balancing reasons.
+
+==Charging==
+To use the staff's magic spell, it must be charged with [[soul rune|soul]] and [[chaos rune]]s, holding up to 20,000 charges when fully charged. Each cast requires 2 soul runes and 5 chaos runes, costing {{NoCoins|{{GEP|Soul rune|2}}+{{GEP|Chaos rune|5}}|c}} per cast. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. [[Aether rune]]s '''can''' be used in place of soul runes but will '''not''' be refunded if the staff is uncharged.
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|2 x {{plink|Soul rune}}
+|{{Coins|{{GEP|Soul rune}} * 2}}
+|-
+|5 x {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}} * 5}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|({{GEP|Soul rune}} * 2)+({{GEP|Chaos rune}} * 5)}}
+|}
+
+The total cost to fully charge the staff with 40,000 soul and 100,000 chaos runes is {{NoCoins|{{GEP|Soul rune|40000}}+{{GEP|Chaos rune|100000}}|c}}. Assuming non-stop use, with one cast every 3 seconds equaling 1200 casts per hour, the shadow costs {{NoCoins|({{GEP|Soul rune|2}}+{{GEP|Chaos rune|5}})* 1200|c}} per hour to use. 
+
+Players can uncharge the staff whenever and wherever they choose, getting all of their runes back.
+
+==Maximum hit==
+The [[Maximum Magic hit|maximum hit]] dealt by the staff is dependent on the player's current visible [[Magic]] level; the formula is as follows. At level 0, the max hit is 1.
+
+<math> \text{Max Hit} = \left\lfloor \frac{\text{Magic}}{3} + 1 \right\rfloor </math>
+
+Note that any [[magic damage]] bonuses are applied after the base max hit is calculated.
+
+===Calculator===
+{{Magic damage calculator|Tumeken's shadow|toa=y}}
+
+==Item sources==
+{{Drop sources|Tumeken's shadow (uncharged)}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip staff.wav|desc=Wielding}}
+{{SFXLine|file=Tumeken's shadow attack.wav|desc=Attacking}}
+{{SFXLine|file=Tumeken's shadow projectile.wav|desc=Projectile}}
+{{SFXLine|file=Darkness impact.wav|desc=Projectile impact}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Tumeken's shadow}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+File:Tumeken's Shadow concept art.jpg|Concept art of Tumeken's shadow by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Tumeken's shadow supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The item has been added to the Grand Exchange's [[Grand_Exchange#Items_regulated_via_item_sink|item sink list]].
+}}
+{{Subject changes
+|date = 5 October 2022
+|update = 
+|type = hotfix
+|change = The staff's magic attack bonus is now correctly quadrupled within the Tombs of Amascut.
+}}
+{{Subject changes
+|date = 5 October 2022
+|update = Clan Hall Upgrades & More
+|change = The staff's attack projectile is now visible when attacking another player less than four tiles away.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The staff's passive effect is now quadrupled within the Tombs of Amascut, instead of the usual tripled bonus.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = The [[infernal max cape]] and [[Masori mask]] no longer have any graphical issues when worn with Tumeken's shadow.
+}}
+{{Subject changes
+|date = 24 August 2022
+|update = Tombs of Amascut
+|type = hotfix
+|change = Tumeken's shadow now only grants passive Magic Attack and Damage bonuses to its built-in spell, not to other spells.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Tumeken's shadow was proposed as a replacement for the [[Tumeken's heka]] as the "standout reward" for the raid in a [[Update:Tombs of Amascut: Reward Changes|newspost]] on [[13 May]] [[2022]], due to player feedback on the desire for a magic weapon that would "redefine Magic as a combat style just as the Scythe [of Vitur] and Twisted Bow did." It was then polled in the [[Poll:Tombs of Amascut Reward Changes|Tombs of Amascut Reward Changes]] [[poll]] with the caveat that the heka would be replaced with Tumeken's shadow if it passed the poll; this came to pass with 90.9% support.
+*"{{RSL|Tumeken's shadow}}" is also the name of a quest NPC fought in the ''RuneScape 3'' quest {{RSL|Missing My Mummy}}.
+
+==References==
+{{Reflist}}
+
+{{Magic weapons}}
+{{Tombs of Amascut}}
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Items with charges]]
+[[Category:Walk animation modifiers]]

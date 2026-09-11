@@ -1,0 +1,113 @@
+{{Infobox Location
+|name = Pollnivneach Rooftop Course
+|image = [[File:Pollnivneach Rooftop Course (7).png|300px]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Pollnivneach]]
+|map = {{Map|3351:2963|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Desert
+}}
+{{Relativelocation
+|location = Agility course
+|north = Shantay Pass
+|west = Bandit Camp (Kharidian Desert)|Bandit Camp
+|south = Agility Pyramid
+|east = Nardah
+}}
+The '''Pollnivneach Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Pollnivneach]] that is available to players with an [[Agility]] level of 70 or over. At level 85 Agility, it becomes impossible to fail any part of the course.
+
+Completing the course rewards a total of 890 Agility experience, which is increased to 1016 experience after completing the [[Desert Hard Diary]].
+
+The course itself takes 79 ticks (47.4 seconds) to complete, and running from the last obstacle to the first obstacle takes 22 ticks (13.2 seconds). With 101 ticks (60.6 seconds) per lap, it is possible to gain around 52,300 exp per hour without the diary, and 60,300 exp per hour with the diary.
+
+Getting from 70–80 Agility using the Pollnivneach Rooftop Agility Course, will take 1,403 laps to complete. If you do the course in the optimal time of 101 ticks (60.6 seconds), it will take 23.7 hours to get from 70–80 Agility.
+
+Pollnivneach is not affected by [[desert heat]], so no waterskins are required.
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Course breakdown
+|-
+!Image
+!Obstacle
+!Experience
+! style="text-align:center;" |Chance to fail
+|-
+|[[File:Pollnivneach Rooftop Course (1).png|200px]]
+|[[Basket (Pollnivneach Rooftop Course)|Basket]]
+|{{+=|xp|10|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (2).png|200px]]
+|[[Market stall (Pollnivneach Rooftop Course)|Market stall]]
+|{{+=|xp|45|echo=2}}
+| style="text-align:center;" |Yes (until 85)
+|-
+|[[File:Pollnivneach Rooftop Course (3).png|200px]]
+|[[Banner (Pollnivneach Rooftop Course)|Banner]]
+|{{+=|xp|65|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (4).png|200px]]
+|[[Gap (Pollnivneach Rooftop Course)|Gap]]
+|{{+=|xp|35|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (5).png|200px]]
+|[[Tree (Pollnivneach Rooftop Course)#Jump-to|Tree]]
+|{{+=|xp|75|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (6).png|200px]]
+|[[Rough wall (Pollnivneach Rooftop Course)|Rough wall]]
+|{{+=|xp|5|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (7).png|200px]]
+|[[Monkeybars (Pollnivneach Rooftop Course)|Monkeybars]]
+|{{+=|xp|55|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (8).png|200px]]
+|[[Tree (Pollnivneach Rooftop Course)#Jump-on|Tree]]
+|{{+=|xp|60|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Pollnivneach Rooftop Course (9).png|200px]]
+|[[Drying line (Pollnivneach Rooftop Course)|Drying line]]
+|540 (without diary)
+{{+=|xp|666|echo=2}} (with diary)
+| style="text-align:center;" |No
+|-
+! colspan="2" style="text-align:right;" |Total
+!890 (without diary)
+{{#var:xp}} (with diary)
+! 1
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change =
+* The spawn rates of [[marks of Grace]] during the course has been increased.
+* Completion of the Desert Hard Diary now increases the rate of Marks of Grace.
+* The experience gained from the drying line obstacle has been increased from 540 to 666 (with completion of Desert Hard Diary), increasing the maximum experience rate from 52,800 to 60,300 experience per hour.
+* The banner jump fail point has been removed.
+}}
+{{Subject changes
+|date = 12 December 2013
+|update = First Slayer Batch
+|change = The Pollnivneach course now has better checks to stop you going the wrong way or skipping obstacles. A lot of people had been skipping the rough wall after the first tree jump, thus denying themselves the course completion bonus.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The examine text for the last tree of the course is a reference to the poem [[wikipedia:Aedh Wishes for the Cloths of Heaven|Aedh Wishes for the Cloths of Heaven]].
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Pollnivneach}}

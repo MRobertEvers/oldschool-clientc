@@ -1112,8 +1112,15 @@ cs2_translate_descriptor_args(struct cs2_interp* interp, int opcode)
         arena, RSCache_CS2_ExprFromList(arena, NULL, 0), operation);
 }
 
+/*
+ * Rev-239 method4548/210 is not a fixed seven-int command. From the top of the
+ * stack it pops two base-type selectors; each selector other than -1 makes
+ * method6560 pop one additional typed value. It then pops the corresponding
+ * two param ids and the component root, and method2627 pushes the int result.
+ * That gives the cache legitimate five-, six-, and seven-value forms.
+ */
 static struct RSCache_CS2_Insn*
-cs2_translate_variadic_int_result(
+cs2_translate_find_param(
     struct cs2_interp* interp, int opcode, const struct RSCache_CS2_CommandInfo* info)
 {
     struct RSCache_CS2_Arena* arena = cs2_arena(interp);
@@ -1134,11 +1141,78 @@ cs2_translate_variadic_int_result(
         }
         dot = operand == 1;
     }
-    int count = interp->stack.count;
-    struct RSCache_CS2_Expr** args = (struct RSCache_CS2_Expr**)RSCache_CS2_ArenaAlloc(
-        arena, (size_t)(count > 0 ? count : 1) * sizeof(*args));
-    for( int i = count - 1; i >= 0; i-- )
-        args[i] = cs2_pop(interp, RSCACHE_CS2_STACK_INT);
+
+    const struct RSCache_CS2_Value* top = cs2_peek_value_at(interp, 0);
+    const struct RSCache_CS2_Value* next = cs2_peek_value_at(interp, 1);
+    if( !top || !next || top->stack_type != RSCACHE_CS2_STACK_INT ||
+        next->stack_type != RSCACHE_CS2_STACK_INT )
+    {
+        cs2_fail(
+            interp,
+            "script %d pc %d: opcode %d base-type selectors are not constant ints",
+            interp->script_id,
+            interp->pc,
+            opcode);
+        return NULL;
+    }
+
+    int selectors[2] = { top->int_value, next->int_value };
+    enum RSCache_CS2_StackType value_stacks[2];
+    int selected[2] = { 0, 0 };
+    for( int i = 0; i < 2; i++ )
+    {
+        if( selectors[i] == -1 )
+            continue;
+        if( selectors[i] == 0 )
+            value_stacks[i] = RSCACHE_CS2_STACK_INT;
+        else if( selectors[i] == 2 )
+            value_stacks[i] = RSCACHE_CS2_STACK_STRING;
+        else
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: opcode %d uses unsupported base-type selector %d",
+                interp->script_id,
+                interp->pc,
+                opcode,
+                selectors[i]);
+            return NULL;
+        }
+        selected[i] = 1;
+    }
+
+    int count = 5 + selected[0] + selected[1];
+    struct RSCache_CS2_Expr* args[7];
+    cs2_pop_many(interp, count, args);
+    if( interp->failed )
+        return NULL;
+
+    int at = 0;
+    cs2_assign_element_to_proto(interp, args[at++], RSCACHE_CS2_PROTO_COMPONENT);
+    cs2_assign_element_to_proto(interp, args[at++], RSCACHE_CS2_PROTO_PARAM);
+    if( selected[1] )
+    {
+        if( !RSCache_CS2_TypingFreezeType(
+                RSCache_CS2_TypingsOfElement(cs2_typings(interp), args[at]),
+                value_stacks[1] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING
+                                                            : RSCACHE_CS2_TYPE_INT) )
+            cs2_fail(interp, "script %d pc %d: opcode %d selected the wrong value stack",
+                     interp->script_id, interp->pc, opcode);
+        at++;
+    }
+    cs2_assign_element_to_proto(interp, args[at++], RSCACHE_CS2_PROTO_PARAM);
+    if( selected[0] )
+    {
+        if( !RSCache_CS2_TypingFreezeType(
+                RSCache_CS2_TypingsOfElement(cs2_typings(interp), args[at]),
+                value_stacks[0] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_TYPE_STRING
+                                                            : RSCACHE_CS2_TYPE_INT) )
+            cs2_fail(interp, "script %d pc %d: opcode %d selected the wrong value stack",
+                     interp->script_id, interp->pc, opcode);
+        at++;
+    }
+    cs2_assign_element_to_proto(interp, args[at++], RSCACHE_CS2_PROTO_INT);
+    cs2_assign_element_to_proto(interp, args[at++], RSCACHE_CS2_PROTO_INT);
     if( interp->failed )
         return NULL;
 
@@ -1668,8 +1742,8 @@ cs2_translate(struct cs2_interp* interp)
     case RSCACHE_CS2_CMD_DESCRIPTOR_ARGS:
         return cs2_translate_descriptor_args(interp, opcode);
 
-    case RSCACHE_CS2_CMD_VARIADIC_INT_RESULT:
-        return cs2_translate_variadic_int_result(interp, opcode, info);
+    case RSCACHE_CS2_CMD_FIND_PARAM:
+        return cs2_translate_find_param(interp, opcode, info);
 
     case RSCACHE_CS2_CMD_CLIENTSCRIPT:
         return cs2_translate_clientscript(interp, opcode);

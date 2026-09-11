@@ -1,12 +1,19 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "uitree_input.h"
 
 #include "perf/torirs_perf.h"
 #include "uitree_inv_view.h"
 #include "uitree_layout.h"
+#include "uitree_frame.h"
 
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+#include "log/torirs_log.h"
+
+static int32_t frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
+                                 int px, int py, int geometric);
 
 /* Screen click (px,py) landed on one of an RS_INV grid's slot rects. Inventory
  * components carry cols/rows in their base width/height (4x7 for the backpack),
@@ -34,8 +41,8 @@ collect_inv_grid_slot_hit(
     layout.rows = component->u.rs_inv.rows;
     layout.margin_x = component->u.rs_inv.margin_x;
     layout.margin_y = component->u.rs_inv.margin_y;
-    layout.offset_x = component->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = component->u.rs_inv.inv_slot_offset_y;
+    layout.offset_x = UITree_InvSlots(component)->offset_x;
+    layout.offset_y = UITree_InvSlots(component)->offset_y;
 
     return UITree_InvViewGridHitTest(bx, by, &layout, px + scroll_off_x, py + scroll_off_y) >= 0;
 }
@@ -91,11 +98,29 @@ UITree_ComponentIsPassThrough(
         UITree_ComponentIsDraggable(component) )
         return false;
 
+    /* An IF3 text-entry field is a click target on the strength of BEING one.
+     * It carries no op, no click mask and no hook -- `~torirs_cc_search_box`
+     * creates the type-12 child and sets nothing but its font, its colour and
+     * its input limits -- so every other test here calls it decoration and the
+     * click falls through to the panel behind it. That is exactly what "the
+     * text box does nothing" was: no menu row, no packet, no focus, nothing to
+     * see. @see `rs_text.input` in uitree.h. */
+    if( UITree_IsInputNode(component) )
+        return false;
+
     switch( component->type )
     {
     case UIELEM_BUILTIN_WORLD:
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
+        return true;
+    case UIELEM_BUILTIN_SPRITE:
+        /* RevConfig frame art is decoration even when it carries an explicit
+         * box for role anchoring. In particular, rs245_2lc's 172x156 mapback
+         * is painted after the 146x151 minimap and covers it geometrically;
+         * treating that plate as a target makes the visible map inert. Hooks
+         * were checked above, so a deliberately scripted sprite remains a
+         * real input target. */
         return true;
     case UIELEM_RS_LAYER:
         /*
@@ -145,6 +170,28 @@ UITree_ComponentIsPassThrough(
          * the top-left corner of the viewport went dead for the rest of every
          * click's marker. */
         return true;
+    case UIELEM_BUILTIN_INKWELL:
+    case UIELEM_BUILTIN_MULTIWAY:
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        /*
+         * The rest of the decoration this switch's own rule ("every decorative
+         * overlay type needs an entry") had not caught yet.
+         *
+         * The touch marker is the cross's twin and cost the same way: 64x64,
+         * parked at the canvas ORIGIN when idle and following the finger when
+         * not, a late root sibling -- so with no entry here it fell to
+         * `default: return false` and won every hit test it covered. On the
+         * mobile gameframe the top-left corner is where the logout, chat and
+         * keyboard stones live: a TAP on them resolved to the marker and ran
+         * nothing, while a long press still worked, because the minimenu is
+         * built from components that carry ops and never sees this node.
+         *
+         * The multiway icon and the reboot countdown are the same kind of
+         * thing drawn over the viewport: never targets, and a node that eats a
+         * world click there is a dead patch of ground. A hook attached to any
+         * of the three still makes it interactive -- that test is above.
+         */
+        return true;
     case UIELEM_BUILTIN_MINIMENU:
     {
         assert(host);
@@ -155,7 +202,7 @@ UITree_ComponentIsPassThrough(
         /* Pass-through here even though the overlay *is* clickable: its node is
          * an unsized late root sibling, so making it interactive would shadow
          * the whole interface (see the note below). The overlay owns its own
-         * hit test instead — the app offers the event to ToriDbgUI_Mouse* first
+         * hit test instead — the app offers the event to ToriRSChrome_Mouse* first
          * and only falls through to the tree when that returns 0. That also
          * keeps the module free of any dependency on ui/ input. */
         return true;
@@ -164,11 +211,11 @@ UITree_ComponentIsPassThrough(
         /* Purely decorative overlays (the "Walk here /..." line; health bars
          * and hitsplats); they must never eat world clicks.
          *
-         * These are pushed as *late* root siblings, and UITree_HitTestInteractive
-         * lets a later root's hit win over earlier ones — so a non-passthrough
-         * unsized overlay node here does not just shadow the world, it shadows
-         * the entire interface. Anything added to app_push_builtin_overlay_nodes
-         * needs an entry in this switch. */
+         * RevConfig normally places these as late siblings, and
+         * UITree_HitTestInteractive lets a later root's hit win over earlier
+         * ones — so a non-passthrough unsized overlay node here does not just
+         * shadow the world, it shadows the entire interface. Every decorative
+         * overlay type needs an entry in this switch. */
         return true;
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
@@ -225,6 +272,25 @@ UITree_ComponentIsPassThrough(
  * caller already tests that separately, and folding the two would make a
  * hovered chat line block the wheel.
  */
+/*
+ * TORIRS_HIT_TRACE, read once.
+ *
+ * It used to be a getenv() per node, and the hit walk runs over the whole tree
+ * twice a frame (app_world_mouse_gate asks PointBlocksWorld and then
+ * HitTestInteractive at the same point). getenv on Windows is a linear scan of
+ * the environment block, so an off-by-default trace was costing a scan per
+ * component per walk per frame -- 14.3% of non-raster work on an in-world
+ * frame, all of it spent deciding not to print.
+ */
+static int
+hit_trace_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_HIT_TRACE") ? 1 : 0;
+    return armed;
+}
+
 static int32_t
 hit_test_interactive_recursive(
     struct UITree const* tree,
@@ -254,8 +320,18 @@ hit_test_interactive_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide )
+    /* Match emit: hidden subtrees are not interactive.
+     *
+     * screen_hidden included, and it is the one that was missing: the title
+     * screen's four groups (menu / form / info / progress) are fully
+     * overlapping siblings that app_title_sync_groups switches between with
+     * exactly this flag, so while it went untested every one of them took
+     * clicks at once and the LAST declared won. On the login form that is the
+     * info screen's "Try again" plate, which covers the right half of Login
+     * and the left half of Cancel -- both buttons visibly lit and dead over
+     * the overlap. */
+    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -270,6 +346,7 @@ hit_test_interactive_recursive(
             return -1;
     }
 
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return -1;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -290,8 +367,30 @@ hit_test_interactive_recursive(
     bool const point_in_self =
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
+    /*
+     * Every node, and through TORIRS_REPORT.
+     *
+     * It used to print only `component_id > 0` and through TORIRS_LOG, which
+     * left it blind in both directions at once: a builtin (a login field, a
+     * login button, the minimap) carries no component id, and TORIRS_LOG is
+     * compiled out of the optimized build people actually run. So the trace
+     * that exists to answer "why did my click do nothing" could not see the
+     * nodes whose clicks are hardest to reason about. It is gated by its own
+     * environment variable, which is what TORIRS_REPORT is for.
+     */
+    if( hit_trace_armed() )
+        TORIRS_REPORT("hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
+            node_index,
+            component->component_id,
+            (int)component->type,
+            bx, by, bw, bh,
+            (int)point_in_self,
+            (int)UITree_ComponentIsPassThrough(component, host),
+            (int)UITree_ComponentHitTestVisibleHost(component, -1, host));
+
     int32_t hit = -1;
-    if( point_in_self && !UITree_ComponentIsPassThrough(component, host) &&
+    if( point_in_self &&
+        !UITree_ComponentIsPassThrough(component, host) &&
         UITree_ComponentHitTestVisibleHost(component, -1, host) )
         hit = node_index;
 
@@ -331,12 +430,13 @@ hit_test_interactive_recursive(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
-        /* Canonical scroll offset lives on the component (emit + CS2 opcodes
-         * and the scrollbar hit path all read it). */
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* The physical tree reparents mounted interface roots under their host, but
@@ -422,7 +522,8 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide )
+    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) )
         return -1;
 
     int32_t hit = -1;
@@ -450,6 +551,7 @@ UITree_HitTest(
     int py)
 {
     assert(tree);
+    if( UITree_FrameHasDepth(tree) ) return frame_ordered_hit(tree, NULL, px, py, 1);
     if( tree->root_index < 0 )
         return -1;
 
@@ -467,9 +569,16 @@ UITree_HitTest(
     return hit;
 }
 
+struct FrameInputEvent
+{
+    int32_t node_plus_one;
+    unsigned char menu, interactive, geometric, barrier, world;
+};
+
 struct collect_nodes_ctx
 {
     int32_t* out;
+    struct FrameInputEvent* events;
     int max;
     int count;
     /** Entries below this index were drawn under a blocking panel/mount. */
@@ -496,13 +605,14 @@ collect_nodes_recursive(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return;
 
-    if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
-        return;
+    bool const clipped = clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip);
+    if( clipped && !ctx->events ) return;
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide )
-        return;
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
+        component->frame_hidden ) return;
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before the no_click_through barrier below. Otherwise an inactive
@@ -515,6 +625,7 @@ collect_nodes_recursive(
             return;
     }
 
+    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -528,20 +639,29 @@ collect_nodes_recursive(
     }
 
     bool const point_in_self =
-        UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
+        !clipped && UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
     /* A blocking panel discards everything rendered under it — including
      * entries already collected — but keeps itself and its subtree. */
-    if( point_in_self && component->no_click_through && ctx->count > ctx->barrier )
+    if( !ctx->events && point_in_self &&
+        component->no_click_through && ctx->count > ctx->barrier )
         ctx->barrier = ctx->count;
 
     /* An RS_INV grid's clickable area is the union of its slot rects, not its
      * (cols x rows)-pixel layout bounds — collect it when a slot is hit even if
      * the click misses the tiny node box. */
     bool const inv_slot_hit =
-        collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
+        !clipped && collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
-    if( (point_in_self || inv_slot_hit) && UITree_ComponentHitTestVisibleHost(component, -1, host) )
+    struct FrameInputEvent event = { .node_plus_one = node_index + 1 };
+    event.barrier = point_in_self && component->no_click_through;
+    event.world = node_index == tree->world_index && point_in_self;
+    event.geometric = point_in_self && component->type != UIELEM_RS_LAYER;
+    event.interactive = point_in_self &&
+                        !UITree_ComponentIsPassThrough(component, host) &&
+                        UITree_ComponentHitTestVisibleHost(component, -1, host);
+    if( (point_in_self || inv_slot_hit) &&
+        UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
         bool const inv_grid =
             component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
@@ -558,10 +678,12 @@ collect_nodes_recursive(
          * child — so every other test here calls it pass-through chrome and
          * drops it, and the equipment slots become unclickable. */
         bool const has_obj = component->item_id > 0;
-        if( (inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host)) &&
-            ctx->count < ctx->max )
+        event.menu = inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host);
+        if( event.menu && !ctx->events && ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;
     }
+
+    if( ctx->events && ctx->count < ctx->max ) ctx->events[ctx->count++] = event;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -583,10 +705,13 @@ collect_nodes_recursive(
     }
     if( component->type == UIELEM_RS_LAYER )
     {
+        int effective_scroll_x;
+        int effective_scroll_y;
+        UITree_ScrollGetClamped(component, &effective_scroll_x, &effective_scroll_y);
         if( UITree_ScrollLayerNeedsHorizontal(component) )
-            child_scroll_x += component->scroll_x;
+            child_scroll_x += effective_scroll_x;
         if( UITree_ScrollLayerNeedsVertical(component) )
-            child_scroll_y += component->scroll_y;
+            child_scroll_y += effective_scroll_y;
     }
 
     /* Keep menu traversal in the same mount-last order and coordinate space as
@@ -599,7 +724,11 @@ collect_nodes_recursive(
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         if( mount_sweep == 1 && mount_type == 0 && point_in_self )
-            ctx->barrier = ctx->count;
+        {
+            if( ctx->events && ctx->count < ctx->max )
+                ctx->events[ctx->count++] = (struct FrameInputEvent){ .node_plus_one = node_index + 1, .barrier = 1 };
+            else ctx->barrier = ctx->count;
+        }
 
         for( int32_t child = component->first_child; child >= 0;
              child = tree->components[child].next_sibling )
@@ -625,6 +754,37 @@ collect_nodes_recursive(
     }
 }
 
+static struct FrameInputEvent*
+frame_input_events(struct UITree const* tree, struct UITreeHost const* host,
+                   int px, int py, int* count)
+{
+    struct collect_nodes_ctx ctx = { .max = (int)tree->component_count * 2 + 1 };
+    ctx.events = calloc((size_t)ctx.max, sizeof(*ctx.events));
+    assert(ctx.events);
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+        if( UITree_RootIsDisplayable(tree, root) )
+            collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
+    *count = UITree_FrameReorder(tree, host, ctx.events, ctx.count, sizeof(*ctx.events),
+                                offsetof(struct FrameInputEvent, node_plus_one));
+    return ctx.events;
+}
+
+static int32_t
+frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
+                  int px, int py, int geometric)
+{
+    int count;
+    int32_t hit = -1;
+    struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( events[i].barrier || events[i].world ) hit = -1;
+        if( geometric ? events[i].geometric : events[i].interactive ) hit = events[i].node_plus_one - 1;
+    }
+    free(events);
+    return hit;
+}
+
 int
 UITree_CollectNodesAt(
     struct UITree const* tree,
@@ -638,6 +798,18 @@ UITree_CollectNodesAt(
 
     assert(tree);
     assert(out_nodes);
+
+    if( UITree_FrameHasDepth(tree) )
+    {
+        int count, barrier = 0, kept = 0;
+        struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+        for( int i = 0; i < count; i++ )
+            if( events[i].barrier || events[i].world ) barrier = i;
+        for( int i = count - 1; i >= barrier && kept < max_nodes; i-- )
+            if( events[i].menu ) out_nodes[kept++] = events[i].node_plus_one - 1;
+        free(events);
+        return kept;
+    }
 
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
@@ -669,6 +841,7 @@ UITree_HitTestInteractive(
     int py)
 {
     assert(tree);
+    if( UITree_FrameHasDepth(tree) ) return frame_ordered_hit(tree, host, px, py, 0);
     if( tree->root_index < 0 )
         return -1;
 
@@ -703,6 +876,19 @@ UITree_PointBlocksWorld(
     if( tree->root_index < 0 )
         return 0;
 
+    if( UITree_FrameHasDepth(tree) )
+    {
+        int count, blocked = 0;
+        struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+        for( int i = 0; i < count; i++ )
+        {
+            if( events[i].world ) blocked = 0;
+            else if( events[i].barrier ) blocked = 1;
+        }
+        free(events);
+        return blocked;
+    }
+
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int root_blocks = 0;
@@ -716,6 +902,91 @@ UITree_PointBlocksWorld(
     }
 
     return 0;
+}
+
+static int
+input_gesture_target_display_hidden(
+    struct UIInputState const* state,
+    struct UITree const* tree)
+{
+    assert(state);
+    assert(tree);
+
+    if( state->pressed >= 0 )
+    {
+        if( (uint32_t)state->pressed >= tree->component_count ||
+            tree->components[state->pressed].freed || state->pressed_incarnation == 0 ||
+            tree->components[state->pressed].incarnation != state->pressed_incarnation )
+            return 1;
+        if( UITree_NodeOrAncestorDisplayHidden(tree, state->pressed) )
+            return 1;
+    }
+    /* UIInputState predates an explicit initializer, so callers which only
+     * initialize hovered/pressed leave this scalar at C's zero default. A
+     * source index has ownership only while a deferred or active drag says it
+     * does; index 0 by itself is not a latent gesture. */
+    if( state->drag_source_idx < 0 ||
+        (!state->deferred_click && !state->drag_active) )
+        return 0;
+    if( (uint32_t)state->drag_source_idx >= tree->component_count )
+        return 1;
+    if( tree->components[state->drag_source_idx].freed ||
+        state->drag_source_incarnation == 0 ||
+        tree->components[state->drag_source_idx].incarnation !=
+            state->drag_source_incarnation ||
+        tree->components[state->drag_source_idx].component_id != state->drag_source_id )
+        return 1;
+    return UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
+}
+
+static void
+input_cancel_gesture(
+    struct UIInputState* state,
+    struct UITree* tree)
+{
+    assert(state);
+    assert(tree);
+
+    /* Only mutate render state when the saved incarnation still names this
+     * component; a reclaimed index belongs to its new node. */
+    if( state->drag_source_idx >= 0 &&
+        (uint32_t)state->drag_source_idx < tree->component_count &&
+        !tree->components[state->drag_source_idx].freed &&
+        state->drag_source_incarnation != 0 &&
+        tree->components[state->drag_source_idx].incarnation ==
+            state->drag_source_incarnation &&
+        tree->components[state->drag_source_idx].component_id == state->drag_source_id )
+    {
+        UITree_SetComponentDragActive(tree, state->drag_source_idx, 0);
+        tree->components[state->drag_source_idx].drag_visual_trans = -1;
+    }
+    state->pressed = -1;
+    state->pressed_incarnation = 0;
+    state->drag_active = 0;
+    state->drag_source_idx = -1;
+    state->drag_source_incarnation = 0;
+    state->drag_source_id = -1;
+    state->drag_target_id = -1;
+    state->drag_target_idx = -1;
+    state->drag_target_incarnation = 0;
+    state->deferred_click = 0;
+    state->release_click_suppressed = 0;
+    state->drag_duration = 0;
+    state->thresholds_set = 0;
+    state->cancelled_press = 1;
+}
+
+int
+UITree_InputCancelDisplayHidden(
+    struct UIInputState* state,
+    struct UITree* tree)
+{
+    assert(state);
+    assert(tree);
+    if( !input_gesture_target_display_hidden(state, tree) )
+        return 0;
+    input_cancel_gesture(state, tree);
+    return 1;
 }
 
 struct UIInputResult
@@ -733,13 +1004,24 @@ UITree_InputUpdate(
     result.prev_hovered = prev_hovered;
     result.clicked = -1;
     result.drag_source_idx = -1;
+    result.drag_source_incarnation = 0;
     result.drag_source_id = -1;
     result.drag_target_id = -1;
+    result.drag_target_idx = -1;
+    result.drag_target_incarnation = 0;
     result.released_source_idx = -1;
+    result.released_source_incarnation = 0;
     result.released_source_id = -1;
 
     assert(state);
     assert(tree);
+
+    /* A frame replacement can become active between input frames. Treat its
+     * native subtree exactly like CSS display:none: retire any pointer
+     * ownership before hold/repeat/drag/release code gets another chance to
+     * dispatch into it. Keep a small latch until mouse-up so the same physical
+     * press cannot be retargeted to the plugin or world underneath. */
+    (void)UITree_InputCancelDisplayHidden(state, tree);
 
     switch( event.kind )
     {
@@ -748,12 +1030,22 @@ UITree_InputUpdate(
         break;
 
     case UI_INPUT_DOWN:
+        /* A new physical press cannot belong to an older cancelled gesture
+         * whose release was lost to focus loss. */
+        state->cancelled_press = 0;
         state->hovered = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->pressed = state->hovered;
+        state->pressed_incarnation =
+            state->pressed >= 0 && (uint32_t)state->pressed < tree->component_count
+                ? tree->components[state->pressed].incarnation
+                : 0;
         state->drag_active = 0;
         state->drag_source_idx = -1;
+        state->drag_source_incarnation = 0;
         state->drag_source_id = -1;
         state->drag_target_id = -1;
+        state->drag_target_idx = -1;
+        state->drag_target_incarnation = 0;
         state->deferred_click = 0;
         state->release_click_suppressed = 0;
         state->drag_duration = 0;
@@ -779,6 +1071,7 @@ UITree_InputUpdate(
                 /* Defer click until mouseup if drag never starts. */
                 state->deferred_click = 1;
                 state->drag_source_idx = state->pressed;
+                state->drag_source_incarnation = c->incarnation;
                 state->drag_source_id = c->component_id;
             }
             else
@@ -801,17 +1094,22 @@ UITree_InputUpdate(
 
     case UI_INPUT_UP:
     {
+        int const cancelled_press = state->cancelled_press;
         int32_t const up_hit = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->hovered = up_hit;
         result.released_source_idx = state->pressed;
+        result.released_source_incarnation = state->pressed_incarnation;
         if( state->pressed >= 0 && (uint32_t)state->pressed < tree->component_count )
             result.released_source_id = tree->components[state->pressed].component_id;
         if( state->drag_active )
         {
             result.drag_ended = 1;
             result.drag_source_idx = state->drag_source_idx;
+            result.drag_source_incarnation = state->drag_source_incarnation;
             result.drag_source_id = state->drag_source_id;
             result.drag_target_id = state->drag_target_id;
+            result.drag_target_idx = state->drag_target_idx;
+            result.drag_target_incarnation = state->drag_target_incarnation;
             if( state->drag_source_idx >= 0 &&
                 (uint32_t)state->drag_source_idx < tree->component_count )
             {
@@ -834,17 +1132,26 @@ UITree_InputUpdate(
             result.clicked = up_hit;
         }
         state->pressed = -1;
+        state->pressed_incarnation = 0;
         state->deferred_click = 0;
         state->release_click_suppressed = 0;
         state->drag_active = 0;
         state->drag_duration = 0;
         /* End of gesture: drop the source so a stale idx cannot resume drag. */
         state->drag_source_idx = -1;
+        state->drag_source_incarnation = 0;
         state->drag_source_id = -1;
         state->drag_target_id = -1;
+        state->drag_target_idx = -1;
+        state->drag_target_incarnation = 0;
+        state->cancelled_press = 0;
+        result.cancelled_press = cancelled_press;
         break;
     }
     }
+
+    if( event.kind != UI_INPUT_UP )
+        result.cancelled_press = state->cancelled_press;
 
     result.hovered = state->hovered;
     result.prev_hovered = prev_hovered;
@@ -872,6 +1179,11 @@ UITree_InputDragTick(
     assert(state);
     assert(tree);
     (void)host;
+
+    /* Direct callers may tick a drag without first delivering a MOVE event.
+     * Apply the same display:none cancellation invariant here as InputUpdate. */
+    if( UITree_InputCancelDisplayHidden(state, tree) )
+        return 1;
 
     if( !left_held || state->drag_source_idx < 0 ||
         (uint32_t)state->drag_source_idx >= tree->component_count )
@@ -961,7 +1273,13 @@ UITree_InputDragTick(
     src->drag_visual_x = target_x;
     src->drag_visual_y = target_y;
 
-    state->drag_target_id = UITree_FindDropTarget(tree, mouse_x, mouse_y, state->drag_source_id);
+    state->drag_target_idx = UITree_FindDropTargetNode(
+        tree, mouse_x, mouse_y, state->drag_source_id, &state->drag_target_id);
+    state->drag_target_incarnation =
+        state->drag_target_idx >= 0 &&
+                (uint32_t)state->drag_target_idx < tree->component_count
+            ? tree->components[state->drag_target_idx].incarnation
+            : 0;
 
     return changed || state->drag_active;
 }

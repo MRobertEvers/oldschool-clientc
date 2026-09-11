@@ -949,6 +949,12 @@ proctex_hsl_to_rgb(int hue, int sat, int light, int* r, int* g, int* b)
         l = hue >> 12;
         j1 = i;
         i1 = hue - (l << 12);
+        /* Callers clamp hue to [0, 4096] *inclusive*, so a hue of exactly 4096
+         * lands in wedge 6 and the chain below has no matching branch -- *r,
+         * *g and *b would be left unwritten. A full turn is the same colour as
+         * hue 0, and i1 is already 0 there, so fold the wedge back. */
+        if( l >= 6 )
+            l = 0;
         j1 = (j1 * k) >> 12;
         j1 = (i1 * j1) >> 12;
         k1 = j + j1;

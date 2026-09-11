@@ -1,0 +1,93 @@
+{{Otheruses|def=no|a guide on how to solve clues involving the strange device|Treasure Trails/Guide/Hot Cold}}
+{{confuse|Locator orb}}
+{{Infobox Item
+|version1 = Beginner
+|version2 = Master
+|name = Strange device
+|image1 = [[File:Strange device (beginner).png]]
+|image2 = [[File:Strange device.png]]
+|release1 = [[11 April]] [[2019]]
+|release2 = [[6 July]] [[2016]]
+|update1 = Treasure Trails Expansion and Easter 2019
+|update2 = Treasure Trail Expansion (2016)
+|members1 = No
+|members2 = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Feel, Drop
+|examine = You can sense strange powers emanating from it.
+|value1 = 20
+|value2 = 2
+|weight1 = 0.020
+|weight2 = 0.010
+|id1 = 23183
+|id2 = 19939
+}}
+{{Synced switch
+|version1 = [[File:Strange device (beginner) detail.png|left|130px]]
+|version2 = [[File:Strange device detail.png|left|130px]]
+}}
+A '''strange device''' is an item used in the [[Treasure Trails/Guide/Hot Cold|Hot & Cold]] challenge of a [[Clue scroll (beginner)|beginner]] or [[Clue scroll (master)|master clue]].
+
+The beginner clue strange device can be obtained by talking to [[Reldo]] in the [[Varrock Palace]] library, while the master clue strange device can be obtained by talking to [[Jorral]] in the [[outpost]] north-west of [[West Ardougne]]. The player must have an active clue step directing them to one of Reldo or Jorral to obtain a strange device, but once obtained it does not need to be returned and can be kept in the bank. Note that one must have completed [[Making History]] before Jorral will give them a strange device for a master clue.
+
+The strange device changes temperature as the player moves about. Its temperature is based on the distance of the treasure from the player, measured in the number of steps it would take to reach the treasure, ignoring any obstacles. The warmer the key gets, the closer the player is to the treasure. 
+
+Clicking "Feel ''Strange device''" gives information on its temperature. If using the strange device obtained from Jorral used for master clues, this will deal 3-8 damage to the player <u>each time</u>, '''which can be fatal'''. If you do not have an active master clue with a hot & cold step, the device will be inactive, and using it will not damage you.
+
+A list of possible locations can be found '''[[Treasure Trails/Guide/Hot Cold|here]].'''
+
+{| class="wikitable"
+!Device Message
+!Proximity
+!Tiles From Center
+|-
+|The Device is Ice Cold
+|You are no where near the dig spot.
+|500+
+|-
+|The Device is Very Cold
+|You are very far away from the dig spot.
+|200 - 499
+|-
+|The Device is Cold
+|You are far away from the dig spot.
+|150 - 199
+|-
+|The Device is Warm
+|You are getting close.
+|100 - 149
+|-
+|The Device is Hot
+|You are close.
+|70 - 99
+|-
+|The Device is Very Hot
+|You are very close.
+|30 - 69
+|-
+|The Device is Incredibly Hot
+|You are almost at the dig spot.
+|4 - 29
+|-
+|The Device is Visibly Shaking
+|You are on top of the dig spot - dig now!
+|0 - 3
+|}
+
+While following a master clue, when you dig at the dig spot you will have to face enemies depending on whether the area is single or multi-combat, so remember to bring combat equipment, food, and potions. If the area is single combat, your opponent will be a [[Brassican Mage]] that uses a typeless projectile attack. In a multi-combat area, you will instead face three [[Ancient Wizard]]s which use different combat styles. The melee wizard can also poison you, so a means of curing poison should also be brought if your destination is in a multi-combat area.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 June 2019
+|update = PvP Improvements and W45 Changes
+|change = The item could now be turned into a bank placeholder.
+}}
+{{Subject changes footer}}
+
+{{Treasure Trails}}
+{{Items that can damage oneself}}

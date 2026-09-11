@@ -116,6 +116,10 @@ static struct GameProtoRevTable k_rev_osrs239 = {
     .npc_slot_bits = 14,
     .npc_type_bits = 14,
     .login = &g_osrs239_login_vtable,
+    /* RSProt separates the two decoders: GAMERECONNECT's authentication
+     * section is the previous session's cipher seed, and the answer is
+     * RECONNECT_OK with the player-info init block. */
+    .reconnect_kind = NET_RECONNECT_SEED,
     .parse = osrs239_parse,
     .appearance_decode = rev_appearance_decode,
     /*

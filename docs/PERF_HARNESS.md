@@ -1,7 +1,15 @@
 # Performance harness
 
+> **`::tele` takes underscores, not commas.** `::tele 0_50_50_21_21`. The comma
+> form in some older recipes below fails with "nowhere called 0,50,50,21,21" and
+> the run then CONTINUES from wherever the player already was — so a harness
+> using it has been measuring the login tile, silently. `~tele_resolve` reads one
+> word and decides name-or-coord by its first character (cheat_tele.rs2); a comma
+> literal is neither.
+
+
 Entry point for measuring and iterating on torirs client frame time,
-especially under `manifest_osrs230.ini` / `manifest_osrs230_embed.ini`.
+especially under `manifests/manifest_osrs230.ini` / `manifests/manifest_osrs230_embed.ini`.
 
 ## Gate
 
@@ -68,6 +76,213 @@ excludes the limiter's final spin and post-frame loop work. On XP,
 one-frame percentile, so the comparison gate uses its longer-window raw mean.
 Measure wall-clock effective fps separately.
 
+## Scene benchmarks (`./launch bench`)
+
+The scenarios above measure the client *doing* something — logging in, opening
+a bank, spawning npcs. A renderer change needs the opposite: the same geometry,
+the same camera, nothing moving, so the only variable left is the code.
+
+That is what a **scene benchmark** is. `manifests/manifest_osrs239_bench.ini`
+declares one `[bench:<name>]` block per camera — which map squares to mesh and
+where the eye stands over them — and `./launch bench` gives each its own
+offline client process, then keeps the per-window rows of the perf CSV as its
+samples.
+
+```bash
+./launch bench osrs239-bench                        # every scene, soft3d
+./launch bench osrs239-bench --list                 # the suite, without running it
+./launch bench osrs239-bench --scene falador --shots
+./launch bench osrs239-bench --renderer soft3d,d3d9
+./launch bench osrs239-bench --baseline build/bench/osrs239-bench/<stamp>
+```
+
+`soft3d-scanline` is a renderer *variant*, not a different flag: the same
+`--soft3d` binary launched with `TORIDRAW_RASTER_SCANLINE=1`, selecting the
+`graphics/raster/scanline/` kernel family instead of the default kernels
+(`bench.RENDERER_ENV` carries the variable; plain `soft3d` pins it to `0` so a
+stray value in the machine's environment cannot turn the A/B into a B/B). The
+bench world's `[bench] renderers=soft3d,soft3d-scanline` makes every scene a
+kernel A/B by default.
+
+Everything lands in `build/bench/<profile>/<stamp>/`: one `.csv` and
+`.csv.windows.csv` per run, the run's stdout+stderr in a `.log`, `--shots`
+BMPs under `shots/<run>/`, and a `summary.json` that `--baseline` reads back.
+
+### What the runner pins
+
+| | how | why |
+|---|---|---|
+| geometry | `TORIRS_WORLD_MAP=x,z;x,z;…` | the scene's map squares, meshed offline |
+| camera | `TORIRS_WEDGE_CAM=x,y,z,pitch,yaw` | re-pinned every frame in `app_world_paint`, *before* the painter, occluders and renderer read it — so it cannot drift, and it needs no player entity |
+| length | `TORIRS_MAX_FRAMES=(warmup+samples)*sample_frames` | the process ends on its own; a bench run is a capture, not a session |
+| samples | `TORIRS_PERF_WINDOW=<sample_frames>` | each window is one sample, with its own percentiles |
+| no server | `--offline` | no login, no world tick, no npc spawns, no network jitter |
+| no pacing | `--uncapped` | under the 50 fps pace most of a frame is the pacing sleep, and a 20% faster renderer moves no number at all |
+| no plugins | `[ui:boot] plugins=0` in the world | a plugin is client code with its own opinion about the frame -- `gameframe-layout` relays the whole gameframe out from its own saved layout -- so a run carrying one times that opinion as the renderer's, and the two competing mounts make the chrome visibly flicker |
+| no gameframe | a `[revconfig:layout:root]` holding one `type=world` component | the frame is the 3D viewport and nothing else. The cache gameframe is ~1,000 components rebuilt and blitted every frame, and it is opaque: it covers roughly a third of the canvas, so mounting it both adds UI cost and removes world pixels |
+| canvas = window | `--windowmode resizable` | under `fixed` the tree lays out at the classic 765x503 and the finished frame is scaled to the window, so a scene asking for a bigger `canvas=` would measure a 765x503 raster and a stretch |
+
+One process per (scene × renderer × repetition), because the map and camera
+knobs are read once at world load — and because a crash then costs one scene
+rather than the suite.
+
+**The first window is discarded** (`warmup=1`). It holds the tail of cache
+load, first-touch page faults, and every model and texture the scene will ever
+build. This is the same rule `compare.py --drift` applies to window 0.
+
+Reported `p50`/`p95` are the **medians across the kept samples**; `worst p95`
+is the largest single sample. Median alone hides a scene that is fine three
+windows out of four; worst alone makes every run look like its unluckiest
+window.
+
+### Reading the table
+
+```
+scene                     renderer   frame p50   frame p95   worst p95   fps      render    build     paint     cmds       n
+lumbridge                 soft3d      5.59        7.17        7.32      176.3      4.25      0.91      0.91      4021       4
+varrock-square            soft3d      6.59        7.67        8.05      149.4      5.34      0.77      0.77      3797       4
+grand-exchange            soft3d      3.70        5.24        7.46      257.7      2.81      0.52      0.52      4091       4
+grand-exchange-low        soft3d      6.76        8.71        9.26      144.9      5.82      0.56      0.56      3404       4
+grand-exchange-orbit      soft3d      3.92        5.39        6.28      247.0      3.03      0.52      0.52      4220       4
+varrock-walk              soft3d      5.03        6.74        7.15      195.1      4.02      0.61      0.61      3577       4
+falador                   soft3d      6.68        8.46        8.79      148.7      5.13      0.80      0.80      4316       4
+lumbridge-swamp           soft3d      1.96        2.83        2.93      477.3      1.49      0.27      0.27      3045       4
+```
+
+(Milliseconds. Measured 2026-08-23, `TORIDRAW_OPT=1` Win64, 765x503, bare
+viewport.) These are roughly half the frame times the same scenes reported
+while the suite still mounted the cache gameframe -- the gameframe was most of
+`render`, which is exactly why it is gone.
+
+`cmds` is the per-frame painter command count, and it is there to catch the
+failure mode a timing table cannot: **a faster number over a lighter scene is
+not a faster renderer.** If `frame p50` drops and `cmds` drops with it, the
+change removed work from the scene, not from the rasteriser. `cmds` was
+identical to the command across two separate runs of the same scene, so a
+moved count is a real change rather than noise.
+
+Frame times are *not* stable between processes, and the spread is larger than
+it looks: `falador` measured 6.68 and 4.97 ms p50 in the two repeats of a
+single `--repeat 2` run, and `lumbridge` measured 5.59, 6.13 and 3.23 ms p50 in
+three runs minutes apart on an otherwise idle machine. `--shots` costs a couple
+of ms more again in the run it writes its BMP from. **`cmds` is the number to
+trust between runs; the times need `--repeat` and a rested machine, and a delta
+under ~2x is not evidence on its own.** This is the harness's weakest point
+today.
+
+### Measured: the `scanline` family vs the default kernels (2026-08-23)
+
+Win64 `OPT=1`, 12 scenes x {`soft3d`, `soft3d-scanline`}, 1500 frames each.
+`cmds` and `r_cmds_model` were identical on both sides of every scene, so each
+pair is the same workload through a different rasteriser.
+
+| stage | median | range | slower in |
+|---|---|---|---|
+| `r_raster` | **+6.4%** | -5.9 .. +11.9% | 10/12 |
+| `render` | +2.7% | -8.0 .. +6.8% | 9/12 |
+| `frame` | +2.1% | -6.6 .. +6.5% | 9/12 |
+| `r_project` *(control)* | -0.4% | -12.8 .. +7.1% | 5/12 |
+| `r_sort` *(control)* | -0.3% | -6.2 .. +1.3% | 3/12 |
+
+**The scanline family is slower, by roughly 6% of raster time.** Read it off
+`r_raster`, not `frame`: the kernel cannot touch projection or the face sort, so
+`r_project` and `r_sort` are controls, and their spread is what this harness's
+run-to-run noise actually looks like (±13% on a single scene, centred on zero).
+That noise is why the per-scene numbers are not individually meaningful — but it
+is independent across scenes, so 10 of 12 pairs leaning one way is a sign test
+at p≈0.02, and the two apparent wins are the two scenes whose *control* stages
+also moved (lumbridge's `r_project` read -12.8%, i.e. the whole run was fast).
+
+This is against the family's design intent — it hoists the y-sort, the left/right
+edge choice, vertical clipping and the horizontal-clip test to once per triangle
+to buy cheaper inner loops (see `scanline_common.h`). Paying that setup per
+triangle only wins when triangles are large enough for the cheaper spans to
+repay it, and these scenes are hundreds of models of small ones. Confirming that
+reading means the `TORIDRAW_ABLATE` ladder, which can separate per-triangle
+prologue from walk from fill; nobody has run it against this axis yet.
+
+### Adding a scene
+
+```ini
+[bench:my-scene]
+description=what makes this camera worth timing
+map=49,54
+map=50,54
+map=49,55
+map=50,55
+at=3164,3486
+look=280,0
+```
+
+`at=` is an **absolute OSRS tile** — the way the wiki names a location. It
+derives both the map square (`tile/64`) and the eye's position inside the scene
+(`tile%64 * 128 + 64`); a tile outside the squares the scene meshes is an error
+rather than a camera pointed off the edge of the world.
+
+Name a **block of four** squares unless the scene is deliberately a floor
+measurement. One square is 64x64 tiles — under half the 104x104 the live client
+keeps resident — so a single-square scene understates every distance-scaled
+cost the renderer has. `app_world_map_squares_parse` in `src/app.c` accepts up
+to 16.
+
+Then look at it before trusting it:
+
+```bash
+./launch bench osrs239-bench --scene my-scene --shots
+```
+
+`--shots` writes one BMP per run at the last warmup frame, through the same
+camera the samples are measured with. Naming a plausible tile and getting a
+hillside is the easiest mistake this harness lets you make.
+
+### Moving cameras
+
+A scene with only `at=`/`look=` is a still. Add a route and the same scene is
+measured while the camera travels it:
+
+```ini
+[bench:varrock-walk]
+description=south along the Varrock main road, there and back
+map=50,53
+map=51,53
+map=50,54
+map=51,54
+look=200,0
+via=3205,3400
+via=3213,3428
+via=3221,3456
+motion=linear
+wrap=pingpong
+```
+
+| key | meaning |
+|---|---|
+| `via=<worldx>,<worldz>` | one waypoint, repeated; absolute OSRS tiles, same as `at=`. Two or more make a route. Up to 32 (`APP_WEDGE_CAM_PATH_MAX`) |
+| `orbit=<radius_tiles>,<steps>` | a ring of `steps` waypoints at `radius` tiles around `at=`, each facing it. Needs `at=` and at least 3 steps |
+| `motion=linear\|spline` | straight legs, or a Catmull-Rom curve through the waypoints |
+| `wrap=loop\|pingpong\|hold` | return to the first waypoint, walk back the way it came, or stop on the last one |
+| `motion_frames=<n>` | frames per traversal. Defaults to `sample_frames` for `loop`, `sample_frames/2` for `pingpong`, `warmup*sample_frames` for `hold` |
+
+`via=` and `orbit=` are alternatives; naming both is an error rather than a
+route with a ring appended. An orbit is generated in scene units rather than
+snapped to tiles - rounding a 12-tile ring to the tile grid puts some
+waypoints 11.3 tiles out, a 6% pulse in the radius that shows up as a periodic
+wobble in the frame time. Prefer `motion=spline` for an orbit: linear legs cut
+the corners off the ring, so the camera speeds up and slows down once per leg.
+
+**A sample window must hold a whole number of camera cycles.** The runner
+enforces it, and a pingpong's cycle is two traversals rather than one.
+Otherwise window 1 covers the dense north side and window 2 the empty south,
+and the four per-window percentiles stop being four repeats of one measurement
+- `--repeat` and `--baseline` both become noise.
+
+**Phase is a function of the frame ordinal, never the clock.** Frame *n* is at
+the same point on the route in every run, whatever that run cost, so a renderer
+change moves the time without moving the scene. The check that this holds is
+`cmds`: across `--repeat 2`, `grand-exchange-orbit` reported 4220 painter
+commands and `varrock-walk` 3577 in *both* runs -- byte-identical, exactly as
+for the still scenes.
+
 ## Current Windows renderer architecture (2026-08-06)
 
 The optimized Windows renderer has one D3D9 architecture on both build lanes.
@@ -108,7 +323,7 @@ longer allocates/copies a temporary image or scans it merely to rewrite alpha.
 Transformed/outlined sprites keep bounded specialized paths.
 
 Final Win64 `-O3` measurements on 2026-08-06 used the pristine revision-239
-offline scene (`manifest_osrs239.ini`) and `--uncapped`. Every run captured
+offline scene (`manifests/manifest_osrs239.ini`) and `--uncapped`. Every run captured
 6,000 frames as twelve 500-frame windows; every steady window held exactly
 1,072 UI components and 4,946 painter commands. Values below are milliseconds
 and exclude the client frame limiter. The aggregate rows are the profiler's
@@ -159,7 +374,7 @@ reported no z-buffer counters in a separate regression run.
 ## Flamegraphs
 
 ```bash
-./profile-mac.sh manifest_osrs230_embed.ini 25
+./profile-mac.sh manifests/manifest_osrs230_embed.ini 25
 # builds EMBED_SERVER=1 TORIDRAW_OPT=1 automatically for transport=embed
 ```
 
@@ -171,7 +386,7 @@ frame → input_prep/platform_poll → command_drain → surface_sync → app_ru
       → display(render/pick_finish/present) → window_sync → frame_post → server
 ```
 
-`server` wraps `mock230_embed_pump` (and therefore `mock230_world_tick` when
+`server` wraps `ToriRSServer_EmbedPump` (and therefore `ToriRSServer_WorldTick` when
 the 600 ms schedule fires). Residual = frame_mean − sum(stage means). Nested
 stages (cs2 inside logic) can make residual negative; read stage columns, not
 the residual, for attribution. The historical sections below describe the
@@ -214,10 +429,98 @@ TORIRS_PKT_SLOW_MS=<n> print `pkt_slow: type=<id> <ms> cycle=<n>` for any server
                        src/net/rev/pktnames.h.
 ```
 
+## Which pacer the frame uses
+
+`--pacer gameshell|deadline`, or `TORIRS_PACER` (the flag wins). An unknown name
+exits rather than falling back, because a knob whose whole purpose is A/B
+measurement must not silently run the other arm. The client logs the choice at
+startup: `pacer: <name> (period N ms, mindel N ms)`.
+
+```
+gameshell   (default) Jagex GameShell.run(), transcribed. A ten-iteration ring
+            estimates the achieved rate; that estimate sets how many logic ticks
+            run per draw; the wait is a DURATION with a floor of `mindel`.
+deadline    Logic ticks from the wall clock, wait to an ABSOLUTE deadline. An
+            early wakeup is retried and a deadline already past costs nothing.
+```
+
+Both hold logic at 50 ticks/s and let the draw rate float; they differ in how
+they measure and in what they wait on. The deadline pacer recovers the time an
+overrun cost and the GameShell pacer cannot, and the GameShell rate estimate
+lags ten frames.
+
+On paper that makes the deadline pacer the better of the two. **On the XP box it
+is not**, which is why gameshell is the default. Measured on the rev-289
+LostCity lane, same binary, `--soft3d`, 25 s in-world windows, two runs each:
+
+| pacer | fps | CPU % of one core | **CPU ms per FRAME** |
+|---|---|---|---|
+| gameshell | 49.88 / 49.01 | 78.6 / 76.3 | **15.75 / 15.56** |
+| deadline | 40.90 / 42.07 | 63.6 / 64.6 | **15.56 / 15.37** |
+
+Cost per frame is the same within ~2 %; what differs is that gameshell holds the
+50 fps cap and the deadline pacer misses it by ~8 fps. The higher CPU % is 20 %
+more frames, not waste — which is exactly the trap the java_parity work fell
+into, so compare the last column and never the middle one.
+
+Why the deadline pacer undershoots its own cap here is not yet explained and is
+worth a look: it waits to `frame_start + 20 ms`, so it should hit 50 whenever the
+frame's work fits, and 15.6 CPU ms of work does fit. Suspect the wait itself —
+`SleepUntilMs` sleeps `remaining - 1` and re-checks, and on a single-core P4
+every one of those returns late.
+
+### Why this client does not throttle to 31 fps the way the Java one does
+
+It is the same pacer, so the question is fair, and the answer is that **we are
+never in the regime where the floor binds.** `TORIRS_PACER_TRACE=1` reports it
+directly — on the XP box, in-world:
+
+```
+[pacer] gameshell fps=48.90 period=20.45 work=11.14 wait=9.30 (req 7.03) ratio=256 atmin=0% budget=20ms
+```
+
+`ratio=256` and `atmin=0%` mean on budget: ~12 ms of work against 20 ms, so
+`del` is recomputed every frame (6–7 ms) and `mindel` never applies. GameShell
+only collapses when `del` falls through to its initialiser, which needs work to
+exceed the budget — and the Java client's does (~22–25 ms/frame) while ours does
+not (~12 ms).
+
+The mechanism is wired correctly and fires when it should. The world-load sample
+from the same run:
+
+```
+[pacer] gameshell fps=25.44 period=39.31 work=30.65 wait=8.67 (req 5.92) ratio=173 atmin=41% budget=20ms
+```
+
+Work 30.65 ms over a 20 ms budget → ratio 173, the floor binding on 41 % of
+frames, 25.4 fps. That is the Java shape, arriving exactly when the budget is
+blown.
+
+Note `wait` 8.2 ms against a `req` of 6.5 ms: **~1.7 ms of overshoot, not ~15.**
+Even when behind, this client waits `work + ~2 ms`, never Java's `work + 16 ms`
+— which is why porting the pacer was never going to port the throttle. The
+throttle never lived in the pacer.
+
+So a trace showing `atmin` near 0 means the cap is being met and the floor is
+irrelevant; `atmin` high with `ratio` well under 256 is the shape worth chasing.
+
+`TORIRS_PACER_MINDEL=<n>` sets GameShell's wait floor in ms (default 1, the
+reference's). **0 is the interesting arm and is our one deliberate divergence
+from the reference**, which hard-codes 1 there and can only raise it: on the XP
+target that floor is what costs the *Java* client 41 % of its frame (a 1 ms
+request charged ~16 ms, because nothing in that process holds the Windows timer
+period down and the wait rounds up to a 15.625 ms tick). We do not inherit the
+16 ms — `PlatformWin32Timing_SleepUntilMs` requests `timeBeginPeriod(1)` itself
+— but the floor is still a floor. See `docs/java_parity/README.md`.
+
+**The timer period is global and refcounted**, so this client running raises the
+resolution for every process on the box, the Java client included. Never
+benchmark the two concurrently.
+
 ## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
-`manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
+`manifests/manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
 CSV: `tools/perf/results/9175a425-idle.csv`. Flamegraph:
 `tools/perf/results/flame_now.svg` (30 s sample after 8 s warmup).
 
@@ -473,7 +776,7 @@ frame (`max` ≈ 4.6 s); steady-state frames never approach the budget.
 
 ### What the flamegraph said at each step
 
-Sampled with `OUT=... TORIDRAW_OPT=1 ./profile-mac.sh manifest_osrs230_embed.ini 30`,
+Sampled with `OUT=... TORIDRAW_OPT=1 ./profile-mac.sh manifests/manifest_osrs230_embed.ini 30`,
 main-thread leaf shares:
 
 | leaf                                                                 | before | after |
@@ -613,9 +916,9 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
 | idle / ui / world harness p95 &lt; 20 ms                               | PASS (CSVs in `tools/perf/results/19e81d70-*.csv`)              |
 | headless embed `TORIRS_EXIT_BMP`                                       | wrote successfully (`EMBED_SERVER=1 TORIDRAW_OPT=1`)            |
-| `mock230_pack --check-only`                                            | **0 errors**, 15 warnings                                       |
-| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-mock230-embed` | green                                                           |
-| `test-mock230-coverage`                                                | green                                                           |
+| `ToriRSServer_Pack --check-only`                                            | **0 errors**, 15 warnings                                       |
+| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-torirsserver-embed` | green                                                           |
+| `test-torirsserver-coverage`                                                | green                                                           |
 | `make -C 3rd/rscache test`                                             | green (`cachepack-fidelity: all bars met`)                      |
 | `readme.md` UITree performance section                                 | points at this doc; historical 84% ToriDraw figure marked stale |
 
@@ -625,14 +928,14 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | idle / ui / world harness p95 &lt; 20 ms                                                                                                                                       | PASS at 5.67 / 5.71 / 6.21 ms (`tools/perf/results/61548478-*.csv`)                                                                |
 | incremental layout vs forced full resolve, 900 frames × 3 scenarios                                                                                                            | 0 box mismatches                                                                                                                   |
-| `mock230_pack --check-only`                                                                                                                                                    | **0 errors**, 15 warnings                                                                                                          |
+| `ToriRSServer_Pack --check-only`                                                                                                                                                    | **0 errors**, 15 warnings                                                                                                          |
 | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-chat-widgets`, `test-minimap`                                                                          | green                                                                                                                              |
 | `test-cs1`, `test-cs1vm`                                                                                                                                                       | green (`test-cs1` needed `perf/torirs_perf.c` added to its hand-picked link list — the harness counters had broken it)             |
 | `test-db`, `test-cs2-{math,string,component-param,triggerop,dialect}`, `test-cache-trim`, `test-task-order`, `test-world`, `test-inv`, `test-varp`, `test-varc`, `test-social` | green                                                                                                                              |
-| `test-mock230-embed`                                                                                                                                                           | green                                                                                                                              |
+| `test-torirsserver-embed`                                                                                                                                                           | green                                                                                                                              |
 | `test-ui-slots`                                                                                                                                                                | fails on `manifest must state [cache:boot] identity` — pre-existing, the target passes a bare `../cache254` rather than a manifest |
 
-Windowed eye-check is left to the operator (`./run-live.sh manifest_osrs230_embed.ini`
+Windowed eye-check is left to the operator (`./run-live.sh manifests/manifest_osrs230_embed.ini`
 after an `EMBED_SERVER=1 TORIDRAW_OPT=1` build). Pixel A/B against a pre-cache
 baseline was not retained in-tree; re-capture with `TORIRS_EXIT_BMP` if a visual
 regression is suspected after further cache work.

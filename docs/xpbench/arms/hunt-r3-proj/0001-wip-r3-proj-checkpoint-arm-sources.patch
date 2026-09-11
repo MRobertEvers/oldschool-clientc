@@ -1,0 +1,1517 @@
+From b38486dd2d52ac2806c9e9709a3ddd3d119c7bc1 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:12 -0500
+Subject: [PATCH] wip(r3-proj): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-proj.
+
+files: 3rd/toridraw/graphics/aabb8_cyl_sse2.h 3rd/toridraw/graphics/madd16_sse2.h 3rd/toridraw/graphics/proj_parity_census.h 3rd/toridraw/graphics/projection16_simd.sse2.u.c 3rd/toridraw/test/aabb8_cyl_compare_test.c 3rd/toridraw/test/madd16_fused_translate_test.c 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/graphics/aabb8_cyl_sse2.h        | 339 ++++++++++++++
+ 3rd/toridraw/graphics/madd16_sse2.h           |  73 +++
+ 3rd/toridraw/graphics/proj_parity_census.h    | 427 ++++++++++++++++++
+ .../graphics/projection16_simd.sse2.u.c       | 194 +++++---
+ 3rd/toridraw/test/aabb8_cyl_compare_test.c    | 120 +++++
+ .../test/madd16_fused_translate_test.c        | 137 ++++++
+ 3rd/toridraw/toridraw_render.u.c              |  80 +++-
+ 7 files changed, 1301 insertions(+), 69 deletions(-)
+ create mode 100644 3rd/toridraw/graphics/aabb8_cyl_sse2.h
+ create mode 100644 3rd/toridraw/graphics/madd16_sse2.h
+ create mode 100644 3rd/toridraw/graphics/proj_parity_census.h
+ create mode 100644 3rd/toridraw/test/aabb8_cyl_compare_test.c
+ create mode 100644 3rd/toridraw/test/madd16_fused_translate_test.c
+
+diff --git a/3rd/toridraw/graphics/aabb8_cyl_sse2.h b/3rd/toridraw/graphics/aabb8_cyl_sse2.h
+new file mode 100644
+index 000000000..1058ae7d5
+--- /dev/null
++++ b/3rd/toridraw/graphics/aabb8_cyl_sse2.h
+@@ -0,0 +1,339 @@
++#ifndef TORIDRAW_AABB8_CYL_SSE2_H
++#define TORIDRAW_AABB8_CYL_SSE2_H
++
++/*
++ * Bit-exact SSE2 replacement for the eight-corner cylinder AABB.
++ *
++ * The generic path builds three vertexint_t[8] stack arrays, hands them to
++ * project_vertices_array_fused_notex_clip, gets three int[8] back, then walks
++ * them with a branchy min/max sweep. Two thirds of that is bookkeeping: the
++ * eight corners hold only FOUR distinct (x,z) pairs and only TWO distinct y
++ * values, so the model-yaw rotation, the camera-yaw rotation and the whole
++ * x-fov scale each run twice on identical inputs.
++ *
++ * Reorganised by y instead of by x:
++ *
++ *      corner   0    1    2    3    4    5    6    7
++ *      x       +r   +r   +r   +r   -r   -r   -r   -r
++ *      z       +r   -r   +r   -r   +r   -r   +r   -r
++ *      y      min  min  max  max  min  min  max  max
++ *
++ * the y=min corners are {0,1,4,5} and the y=max corners are {2,3,6,7}, and
++ * BOTH groups carry the same four (x,z) pairs (+r,+r) (+r,-r) (-r,+r) (-r,-r).
++ * So x_scene and z_scene are computed once for both, and since the x fov scale
++ * depends only on x_scene, screen-x-before-divide is shared too. Only the
++ * pitch rotation, the y fov scale and the perspective divide run twice.
++ *
++ * The arithmetic is the reference arithmetic, not an approximation of it.
++ * Every 32x32 multiply-accumulate uses the pmaddwd byte split
++ *
++ *      c == (c >> 8) * 256 + (c & 255)
++ *      a*c + b*d == ((madd(ab, hi) << 8) + madd(ab, lo))     (mod 2^32)
++ *
++ * which is an identity over int32, not a rounding trade: the shifts and the
++ * wraparound land in exactly the same places as the scalar reference. That is
++ * what makes this output-identical where the float prepared-camera kernel is
++ * not -- see toridraw_aabb8_cyl_ref below, the twin this is checked against.
++ *
++ * The byte split needs both multiplicands inside int16. The caller proves that
++ * with toridraw_aabb8_cyl_sse2_fits() and falls back to the generic path when
++ * it does not, so this is a range-selected exact kernel, never a lossy one.
++ */
++
++#include <assert.h>
++#include <emmintrin.h>
++
++#include "madd16_sse2.h"
++
++/* [x0,z0, x1,z1, ...] from two int32 vectors already known to fit int16. */
++static inline __m128i
++toridraw_ilv16(__m128i x, __m128i z)
++{
++    __m128i p = _mm_packs_epi32(x, z);
++    return _mm_unpacklo_epi16(p, _mm_srli_si128(p, 8));
++}
++
++static inline __m128i
++toridraw_min_epi32_sse2(__m128i a, __m128i b)
++{
++    __m128i m = _mm_cmpgt_epi32(a, b);
++    return _mm_or_si128(_mm_andnot_si128(m, a), _mm_and_si128(m, b));
++}
++
++static inline __m128i
++toridraw_max_epi32_sse2(__m128i a, __m128i b)
++{
++    __m128i m = _mm_cmpgt_epi32(a, b);
++    return _mm_or_si128(_mm_and_si128(m, a), _mm_andnot_si128(m, b));
++}
++
++static inline int
++toridraw_hmin_epi32_sse2(__m128i v)
++{
++    v = toridraw_min_epi32_sse2(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 0, 3, 2)));
++    v = toridraw_min_epi32_sse2(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(2, 3, 0, 1)));
++    return _mm_cvtsi128_si32(v);
++}
++
++static inline int
++toridraw_hmax_epi32_sse2(__m128i v)
++{
++    v = toridraw_max_epi32_sse2(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 0, 3, 2)));
++    v = toridraw_max_epi32_sse2(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(2, 3, 0, 1)));
++    return _mm_cvtsi128_si32(v);
++}
++
++struct ToriDraw_Aabb8Screen
++{
++    int min_sx;
++    int max_sx;
++    int min_sy;
++    int max_sy;
++};
++
++/*
++ * Every value the byte split feeds to pmaddwd has to be an int16, and
++ * toridraw_ilv16 saturates rather than wraps, so the range is proved before
++ * the kernel runs instead of being hoped for.
++ *
++ * |x_rot| <= 2r after the model yaw (|cos| + |sin| < 2 in 16.16), so
++ * |x_rot + scene_x| <= 2r + |scene_x|; the camera yaw output is bounded the
++ * same way by the sum of the two translated extents.
++ */
++static inline int
++toridraw_aabb8_cyl_sse2_fits(
++    int radius, int min_y, int max_y, int scene_x, int scene_y, int scene_z)
++{
++    int r2 = (radius >= 0 ? radius : -radius) << 1;
++    int ax = (scene_x < 0 ? -scene_x : scene_x) + r2;
++    int az = (scene_z < 0 ? -scene_z : scene_z) + r2;
++    int ay0 = (min_y < 0 ? -min_y : min_y);
++    int ay1 = (max_y < 0 ? -max_y : max_y);
++    int ay = (ay0 > ay1 ? ay0 : ay1) + (scene_y < 0 ? -scene_y : scene_y);
++    int axz = ax + az;
++
++    if( ax >= 32000 || az >= 32000 || ay >= 32000 || axz >= 32000 )
++        return 0;
++    return 1;
++}
++
++/*
++ * The scalar twin. This is the shipping chain written out for eight corners
++ * with nothing shared, and it exists so the SSE2 kernel has something to be
++ * compared against under TORIDRAW_AABB8_COMPARE.
++ */
++static inline void
++toridraw_aabb8_cyl_ref(
++    struct ToriDraw_Aabb8Screen* out,
++    int radius,
++    int min_y,
++    int max_y,
++    int model_yaw_cos,
++    int model_yaw_sin,
++    int scene_x,
++    int scene_y,
++    int scene_z,
++    int near_plane_z,
++    int cot15,
++    int cam_pitch_cos,
++    int cam_pitch_sin,
++    int cam_yaw_cos,
++    int cam_yaw_sin)
++{
++    static const int kx[8] = { 1, 1, 1, 1, -1, -1, -1, -1 };
++    static const int kz[8] = { 1, -1, 1, -1, 1, -1, 1, -1 };
++    static const int ky[8] = { 0, 0, 1, 1, 0, 0, 1, 1 };
++    int min_sx = 0;
++    int max_sx = 0;
++    int min_sy = 0;
++    int max_sy = 0;
++
++    assert(out);
++
++    for( int i = 0; i < 8; i++ )
++    {
++        int x = kx[i] * radius;
++        int z = kz[i] * radius;
++        int y = ky[i] ? max_y : min_y;
++
++        int x_rotated = (x * model_yaw_cos + z * model_yaw_sin) >> 16;
++        int z_rotated = (z * model_yaw_cos - x * model_yaw_sin) >> 16;
++        int y_rotated;
++        int x_scene;
++        int z_scene;
++        int y_scene;
++        int z_final;
++        int screen_x;
++        int screen_y;
++        int sx;
++        int sy;
++
++        x_rotated += scene_x;
++        y_rotated = y + scene_y;
++        z_rotated += scene_z;
++
++        x_scene = (x_rotated * cam_yaw_cos + z_rotated * cam_yaw_sin) >> 16;
++        z_scene = (z_rotated * cam_yaw_cos - x_rotated * cam_yaw_sin) >> 16;
++        y_scene = (y_rotated * cam_pitch_cos - z_scene * cam_pitch_sin) >> 16;
++        z_final = (y_rotated * cam_pitch_sin + z_scene * cam_pitch_cos) >> 16;
++
++        screen_x = (x_scene * cot15) >> 6;
++        screen_y = (y_scene * cot15) >> 6;
++
++        if( z_final < near_plane_z )
++        {
++            sx = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
++            sy = screen_y;
++        }
++        else
++        {
++            /* the vector lanes reciprocate, so the twin has to as well */
++            float rz = 0.0f;
++            _mm_store_ss(&rz, _mm_rcp_ss(_mm_set_ss((float)z_final)));
++            sx = (int)((float)screen_x * rz);
++            sy = (int)((float)screen_y * rz);
++            if( sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
++                sx = TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE;
++        }
++
++        if( i == 0 )
++        {
++            min_sx = sx;
++            max_sx = sx;
++            min_sy = sy;
++            max_sy = sy;
++        }
++        else
++        {
++            if( sx < min_sx )
++                min_sx = sx;
++            else if( sx > max_sx )
++                max_sx = sx;
++            if( sy < min_sy )
++                min_sy = sy;
++            else if( sy > max_sy )
++                max_sy = sy;
++        }
++    }
++
++    out->min_sx = min_sx;
++    out->max_sx = max_sx;
++    out->min_sy = min_sy;
++    out->max_sy = max_sy;
++}
++
++static inline void
++toridraw_aabb8_cyl_sse2(
++    struct ToriDraw_Aabb8Screen* out,
++    int radius,
++    int min_y,
++    int max_y,
++    int model_yaw_cos,
++    int model_yaw_sin,
++    int scene_x,
++    int scene_y,
++    int scene_z,
++    int near_plane_z,
++    int cot15,
++    int cam_pitch_cos,
++    int cam_pitch_sin,
++    int cam_yaw_cos,
++    int cam_yaw_sin)
++{
++    short pr;
++    short nr;
++    __m128i xz0;
++    __m128i zx0;
++    __m128i x_rot;
++    __m128i z_rot;
++
++    assert(out);
++    assert(toridraw_aabb8_cyl_sse2_fits(radius, min_y, max_y, scene_x, scene_y, scene_z));
++
++    pr = (short)radius;
++    nr = (short)-radius;
++
++    /* the four distinct (x,z) corners, already interleaved for pmaddwd */
++    xz0 = _mm_setr_epi16(pr, pr, pr, nr, nr, pr, nr, nr);
++    /* z_rotated wants (z, x), so swap the int16 pairs once */
++    zx0 = _mm_shufflelo_epi16(
++        _mm_shufflehi_epi16(xz0, _MM_SHUFFLE(2, 3, 0, 1)), _MM_SHUFFLE(2, 3, 0, 1));
++
++    x_rot = _mm_srai_epi32(
++        toridraw_madd16(
++            xz0,
++            toridraw_m16_hi(model_yaw_cos, model_yaw_sin),
++            toridraw_m16_lo(model_yaw_cos, model_yaw_sin)),
++        16);
++    z_rot = _mm_srai_epi32(
++        toridraw_madd16(
++            zx0,
++            toridraw_m16_hi(model_yaw_cos, -model_yaw_sin),
++            toridraw_m16_lo(model_yaw_cos, -model_yaw_sin)),
++        16);
++
++    x_rot = _mm_add_epi32(x_rot, _mm_set1_epi32(scene_x));
++    z_rot = _mm_add_epi32(z_rot, _mm_set1_epi32(scene_z));
++
++    {
++        __m128i const xz = toridraw_ilv16(x_rot, z_rot);
++        __m128i const zx = toridraw_ilv16(z_rot, x_rot);
++
++        __m128i const x_scene = _mm_srai_epi32(
++            toridraw_madd16(
++                xz,
++                toridraw_m16_hi(cam_yaw_cos, cam_yaw_sin),
++                toridraw_m16_lo(cam_yaw_cos, cam_yaw_sin)),
++            16);
++        __m128i const z_scene = _mm_srai_epi32(
++            toridraw_madd16(
++                zx,
++                toridraw_m16_hi(cam_yaw_cos, -cam_yaw_sin),
++                toridraw_m16_lo(cam_yaw_cos, -cam_yaw_sin)),
++            16);
++
++        /* x fov scale is y-independent: computed once for both halves */
++        __m128i const cot_v = _mm_set1_epi32(cot15);
++        __m128i const x_scaled = _mm_srai_epi32(mullo_epi32_sse(x_scene, cot_v), 6);
++
++        __m128i const zs16 = _mm_packs_epi32(z_scene, z_scene);
++        __m128i const yz_lo = _mm_unpacklo_epi16(_mm_set1_epi16((short)(min_y + scene_y)), zs16);
++        __m128i const yz_hi = _mm_unpacklo_epi16(_mm_set1_epi16((short)(max_y + scene_y)), zs16);
++
++        __m128i const cp_hi = toridraw_m16_hi(cam_pitch_cos, -cam_pitch_sin);
++        __m128i const cp_lo = toridraw_m16_lo(cam_pitch_cos, -cam_pitch_sin);
++        __m128i const cf_hi = toridraw_m16_hi(cam_pitch_sin, cam_pitch_cos);
++        __m128i const cf_lo = toridraw_m16_lo(cam_pitch_sin, cam_pitch_cos);
++
++        __m128i const y_lo = _mm_srai_epi32(toridraw_madd16(yz_lo, cp_hi, cp_lo), 16);
++        __m128i const y_hi = _mm_srai_epi32(toridraw_madd16(yz_hi, cp_hi, cp_lo), 16);
++        __m128i const zf_lo = _mm_srai_epi32(toridraw_madd16(yz_lo, cf_hi, cf_lo), 16);
++        __m128i const zf_hi = _mm_srai_epi32(toridraw_madd16(yz_hi, cf_hi, cf_lo), 16);
++
++        __m128i const ys_lo = _mm_srai_epi32(mullo_epi32_sse(y_lo, cot_v), 6);
++        __m128i const ys_hi = _mm_srai_epi32(mullo_epi32_sse(y_hi, cot_v), 6);
++
++        __m128i const v_near = _mm_set1_epi32(near_plane_z);
++        __m128i const v_zero = _mm_setzero_si128();
++        __m128i const v_neg5000 = _mm_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED);
++        __m128i const v_neg5001 = _mm_set1_epi32(TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE);
++
++        __m128i dead_z;
++        __m128i fx_lo;
++        __m128i fy_lo;
++        __m128i fx_hi;
++        __m128i fy_hi;
++
++        projection_zdiv_sse2_apply_clip(
++            zf_lo, x_scaled, ys_lo, v_near, v_zero, v_neg5000, v_neg5001, &dead_z, &fx_lo, &fy_lo);
++        projection_zdiv_sse2_apply_clip(
++            zf_hi, x_scaled, ys_hi, v_near, v_zero, v_neg5000, v_neg5001, &dead_z, &fx_hi, &fy_hi);
++
++        out->min_sx = toridraw_hmin_epi32_sse2(toridraw_min_epi32_sse2(fx_lo, fx_hi));
++        out->max_sx = toridraw_hmax_epi32_sse2(toridraw_max_epi32_sse2(fx_lo, fx_hi));
++        out->min_sy = toridraw_hmin_epi32_sse2(toridraw_min_epi32_sse2(fy_lo, fy_hi));
++        out->max_sy = toridraw_hmax_epi32_sse2(toridraw_max_epi32_sse2(fy_lo, fy_hi));
++    }
++}
++
++#endif /* TORIDRAW_AABB8_CYL_SSE2_H */
+diff --git a/3rd/toridraw/graphics/madd16_sse2.h b/3rd/toridraw/graphics/madd16_sse2.h
+new file mode 100644
+index 000000000..b81545885
+--- /dev/null
++++ b/3rd/toridraw/graphics/madd16_sse2.h
+@@ -0,0 +1,73 @@
++#ifndef TORIDRAW_MADD16_SSE2_H
++#define TORIDRAW_MADD16_SSE2_H
++
++/*
++ * pmaddwd byte split: an exact 32x32 multiply-accumulate for SSE2.
++ *
++ * SSE2 has no pmulld, so the projection kernels emulate a 32-bit multiply with
++ * mullo_epi32_sse2 -- two pmuludq plus five shuffles and a merge, seven
++ * instructions for one product. A two-term dot product costs fourteen of those
++ * plus the add: fifteen instructions to compute x*c + z*s.
++ *
++ * When one side of every product is a 16.16 trig coefficient (|c| <= 65536)
++ * and the other is a vertex coordinate that is already an int16, the whole
++ * thing collapses to pmaddwd. Split the coefficient across a byte boundary:
++ *
++ *      c == (c >> 8) * 256 + (c & 255)
++ *
++ * with the shift arithmetic, so the identity holds for negative c as well
++ * (c = -65535 -> -256 * 256 + 1). Both halves fit int16: |c >> 8| <= 256 and
++ * 0 <= (c & 255) <= 255. Then
++ *
++ *      a*c + b*d == ((madd(ab, hi) << 8) + madd(ab, lo))        (mod 2^32)
++ *
++ * where ab is [a0,b0, a1,b1, a2,b2, a3,b3]. Four instructions for four lanes
++ * of a two-term dot product instead of fifteen.
++ *
++ * This is an identity over int32, not a rounding trade. The pmaddwd
++ * intermediates cannot overflow (2 * 32767 * 256 = 16.8M), the << 8 and the
++ * final add wrap exactly where the reference C expression wraps, and a
++ * subsequent >> 16 therefore sees the identical 32-bit pattern. That is what
++ * separates it from the fused-yaw and float-pitch shortcuts in
++ * projection16_prepared.sse2.h, which move where the truncation happens and
++ * shift pixels as a result.
++ *
++ * The int16 requirement is on the DATA side and is not negotiable -- callers
++ * either feed raw vertexint_t (int16 by type, so no proof needed) or prove the
++ * range before calling.
++ */
++
++#include <emmintrin.h>
++
++/* hi half of the byte split: int16 lane0 = c >> 8, lane1 = d >> 8. */
++static inline __m128i
++toridraw_m16_hi(int c, int d)
++{
++    unsigned lo16 = ((unsigned)(c >> 8)) & 0xFFFFu;
++    unsigned hi16 = ((unsigned)(d >> 8)) & 0xFFFFu;
++    return _mm_set1_epi32((int)(lo16 | (hi16 << 16)));
++}
++
++/* lo half of the byte split: int16 lane0 = c & 255, lane1 = d & 255. */
++static inline __m128i
++toridraw_m16_lo(int c, int d)
++{
++    unsigned lo16 = ((unsigned)c) & 0xFFu;
++    unsigned hi16 = ((unsigned)d) & 0xFFu;
++    return _mm_set1_epi32((int)(lo16 | (hi16 << 16)));
++}
++
++/*
++ * ab holds [a0,b0, a1,b1, a2,b2, a3,b3] as int16. Returns a*c + b*d per lane,
++ * exact mod 2^32 -- including the wraparound, so an overflowing reference
++ * expression stays reproduced rather than corrected.
++ */
++static inline __m128i
++toridraw_madd16(__m128i ab, __m128i hi, __m128i lo)
++{
++    __m128i h = _mm_madd_epi16(ab, hi);
++    __m128i l = _mm_madd_epi16(ab, lo);
++    return _mm_add_epi32(_mm_slli_epi32(h, 8), l);
++}
++
++#endif /* TORIDRAW_MADD16_SSE2_H */
+diff --git a/3rd/toridraw/graphics/proj_parity_census.h b/3rd/toridraw/graphics/proj_parity_census.h
+new file mode 100644
+index 000000000..b01de5a4e
+--- /dev/null
++++ b/3rd/toridraw/graphics/proj_parity_census.h
+@@ -0,0 +1,427 @@
++#ifndef TORIDRAW_PROJ_PARITY_CENSUS_H
++#define TORIDRAW_PROJ_PARITY_CENSUS_H
++/*
++ * CENSUS-ONLY. Never timed. Built with -DTORIDRAW_PROJ_CENSUS=1.
++ *
++ * Re-runs the noclip yaw-only projection through six arithmetic variants and
++ * histograms how each one disagrees with what the shipping SSE2 kernel just
++ * wrote. The point is to attribute the prepared-camera kernel's pixel shift to
++ * a specific arithmetic decision instead of to "float".
++ */
++#if defined(TORIDRAW_PROJ_CENSUS) && TORIDRAW_PROJ_CENSUS
++
++#include <emmintrin.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <xmmintrin.h>
++
++enum
++{
++    TDPC_V_FUSEYAW = 0,   /* fused yaw (with the residue correction), rest exact */
++    TDPC_V_FUSEYAW_NC,    /* fused yaw, NO residue correction, rest exact */
++    TDPC_V_FLOATPITCH,    /* exact yaw, float pitch, rest exact */
++    TDPC_V_FLOATFOV,      /* exact yaw + pitch, fov folded past the rcp */
++    TDPC_V_FULLPREP,      /* all three together == projection16_prepared.sse2.h */
++    TDPC_V_MADD16,        /* the proposed bit-exact pmaddwd rotation */
++    TDPC_V_COUNT
++};
++
++struct tdpc_var
++{
++    long long vtx;
++    long long dx_nz;
++    long long dy_nz;
++    long long dz_nz;
++    long long dx_abs_sum;
++    int dx_max;
++    int dy_max;
++    int dz_max;
++};
++
++struct tdpc_state
++{
++    long long calls_noclip;
++    long long calls_noclip_yaw0;
++    long long calls_noclip_cardinal; /* yaw in {512,1024,1536} */
++    long long calls_noclip_other;
++    long long calls_noclip_pitched;  /* model pitch/roll set -> not censused */
++    long long calls_clip;
++    long long calls_clip_yaw0;
++    long long calls_aabb8;
++    long long calls_aabb8_yaw0;
++    long long vtx_noclip;
++    long long vtx_clip;
++    long long vtx_hist[9];
++    long long ref_mismatch;
++    int max_abs_xrot;
++    int max_abs_yrot;
++    int max_abs_zscene;
++    int max_abs_xscene;
++    long long over_int16_rot;
++    long long over_int16_pitch;
++    struct tdpc_var var[TDPC_V_COUNT];
++};
++
++extern struct tdpc_state g_tdpc;
++
++static inline float
++tdpc_rcp(float z)
++{
++    return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(z)));
++}
++
++static inline int
++tdpc_i(float f)
++{
++    return _mm_cvtt_ss2si(_mm_set_ss(f));
++}
++
++/* The pmaddwd byte-split, in scalar: h = a*(ca>>8) + b*(cb>>8) accumulated in
++ * int32 by pmaddwd, l likewise on the low bytes, recombined (h << 8) + l. Equal
++ * to a*ca + b*cb mod 2^32 for every input, which is all the reference's own
++ * int32 multiply-add promises either. */
++static inline int
++tdpc_madd16(int a, int b, int ca, int cb)
++{
++    int h = a * ( ca >> 8 ) + b * ( cb >> 8 );
++    int l = a * ( ca & 255 ) + b * ( cb & 255 );
++    return (int)( ( (unsigned)h << 8 ) + (unsigned)l );
++}
++
++static inline void
++tdpc_acc(int v, int dx, int dy, int dz)
++{
++    struct tdpc_var* s = &g_tdpc.var[v];
++    int ax = dx < 0 ? -dx : dx;
++    int ay = dy < 0 ? -dy : dy;
++    int az = dz < 0 ? -dz : dz;
++    s->vtx++;
++    if( dx )
++    {
++        s->dx_nz++;
++        s->dx_abs_sum += ax;
++        if( ax > s->dx_max )
++            s->dx_max = ax;
++    }
++    if( dy )
++    {
++        s->dy_nz++;
++        if( ay > s->dy_max )
++            s->dy_max = ay;
++    }
++    if( dz )
++    {
++        s->dz_nz++;
++        if( az > s->dz_max )
++            s->dz_max = az;
++    }
++}
++
++static inline void
++tdpc_track(int v, int* slot)
++{
++    if( v > *slot )
++        *slot = v;
++    if( -v > *slot )
++        *slot = -v;
++}
++
++/*
++ * `ref_x/ref_y/ref_z` are what the shipping kernel wrote. `n/4*4` is the count
++ * the vector body covered; past it the shipping kernel used an integer divide,
++ * so the reference model has to switch too.
++ */
++static void
++tdpc_census_noclip(
++    const int* ref_x,
++    const int* ref_y,
++    const int* ref_z,
++    const vertexint_t* vx,
++    const vertexint_t* vy,
++    const vertexint_t* vz,
++    int n,
++    int model_yaw,
++    int model_mid_z,
++    int scene_x,
++    int scene_y,
++    int scene_z,
++    int cot16,
++    int camera_pitch,
++    int camera_yaw)
++{
++    int const cot15 = cot16 >> 1;
++    int const cmy = ToriDraw_ReadCosTable(model_yaw);
++    int const smy = ToriDraw_ReadSinTable(model_yaw);
++    int const ccy = ToriDraw_ReadCosTable(camera_yaw);
++    int const scy = ToriDraw_ReadSinTable(camera_yaw);
++    int const ccp = ToriDraw_ReadCosTable(camera_pitch);
++    int const scp = ToriDraw_ReadSinTable(camera_pitch);
++    int const combined = ( model_yaw + camera_yaw ) & 2047;
++    int const cos_c = ToriDraw_ReadCosTable(combined);
++    int const sin_c = ToriDraw_ReadSinTable(combined);
++    int const lanes = ( n / 4 ) * 4;
++
++    int tx = scene_x * ccy + scene_z * scy;
++    int tz = scene_z * ccy - scene_x * scy;
++    int tx_corr = tx;
++    int tz_corr = tz;
++
++    if( model_yaw != 0 )
++    {
++        tx_corr -= ( ccy + scy ) >> 1;
++        tz_corr -= ( ccy - scy ) >> 1;
++    }
++
++    float const f_ccp = (float)ccp * ( 1.0f / 65536.0f );
++    float const f_scp = (float)scp * ( 1.0f / 65536.0f );
++    float const f_fov = (float)cot15 * ( 1.0f / 64.0f );
++
++    for( int i = 0; i < n; i++ )
++    {
++        int const x = vx[i];
++        int const y = vy[i];
++        int const z = vz[i];
++        int const vec = ( i < lanes );
++
++        /* ---- exact reference chain (what the shipping kernel computed) ---- */
++        int const xr = ( x * cmy + z * smy ) >> 16;
++        int const zr = ( z * cmy - x * smy ) >> 16;
++
++        tdpc_track(xr, &g_tdpc.max_abs_xrot);
++        tdpc_track(zr, &g_tdpc.max_abs_xrot);
++        if( xr > 32767 || xr < -32768 || zr > 32767 || zr < -32768 )
++            g_tdpc.over_int16_rot++;
++
++        int const xr_t = xr + scene_x;
++        int const yr = y + scene_y;
++        int const zr_t = zr + scene_z;
++        int const xsc = ( xr_t * ccy + zr_t * scy ) >> 16;
++        int const zsc = ( zr_t * ccy - xr_t * scy ) >> 16;
++        int const ysc = ( yr * ccp - zsc * scp ) >> 16;
++        int const zfin = ( yr * scp + zsc * ccp ) >> 16;
++
++        tdpc_track(yr, &g_tdpc.max_abs_yrot);
++        tdpc_track(zsc, &g_tdpc.max_abs_zscene);
++        tdpc_track(xsc, &g_tdpc.max_abs_xscene);
++        if( yr > 32767 || yr < -32768 || zsc > 32767 || zsc < -32768 )
++            g_tdpc.over_int16_pitch++;
++
++        int const sx_i = ( xsc * cot15 ) >> 6;
++        int const sy_i = ( ysc * cot15 ) >> 6;
++
++        int rx;
++        int ry;
++
++        if( vec )
++        {
++            float const r = tdpc_rcp((float)zfin);
++            rx = tdpc_i((float)sx_i * r);
++            ry = tdpc_i((float)sy_i * r);
++        }
++        else
++        {
++            rx = sx_i / zfin;
++            ry = sy_i / zfin;
++        }
++
++        int const rz = zfin - model_mid_z;
++
++        /* The reference model must reproduce the shipping kernel exactly, or
++         * every number below is measuring the model, not the variant. */
++        if( rx != ref_x[i] || ry != ref_y[i] || rz != ref_z[i] )
++        {
++            g_tdpc.ref_mismatch++;
++            if( g_tdpc.ref_mismatch < 8 )
++                fprintf(
++                    stderr,
++                    "tdpc: REF MODEL MISMATCH i=%d/%d vec=%d yaw=%d got(%d,%d,%d) "
++                    "want(%d,%d,%d)\n",
++                    i, n, vec, model_yaw, rx, ry, rz, ref_x[i], ref_y[i], ref_z[i]);
++        }
++
++        /* ---- variant: fused yaw, everything else exact ---- */
++        {
++            int const fxs = ( x * cos_c + z * sin_c + tx_corr ) >> 16;
++            int const fzs = ( z * cos_c - x * sin_c + tz_corr ) >> 16;
++            int const ys2 = ( yr * ccp - fzs * scp ) >> 16;
++            int const zf2 = ( yr * scp + fzs * ccp ) >> 16;
++            int const a = ( fxs * cot15 ) >> 6;
++            int const b = ( ys2 * cot15 ) >> 6;
++            int ox;
++            int oy;
++
++            if( vec )
++            {
++                float const r = tdpc_rcp((float)zf2);
++                ox = tdpc_i((float)a * r);
++                oy = tdpc_i((float)b * r);
++            }
++            else
++            {
++                ox = a / zf2;
++                oy = b / zf2;
++            }
++            tdpc_acc(TDPC_V_FUSEYAW, ox - rx, oy - ry, ( zf2 - model_mid_z ) - rz);
++        }
++
++        /* ---- variant: fused yaw with NO residue correction ---- */
++        {
++            int const fxs = ( x * cos_c + z * sin_c + tx ) >> 16;
++            int const fzs = ( z * cos_c - x * sin_c + tz ) >> 16;
++            int const ys2 = ( yr * ccp - fzs * scp ) >> 16;
++            int const zf2 = ( yr * scp + fzs * ccp ) >> 16;
++            int const a = ( fxs * cot15 ) >> 6;
++            int const b = ( ys2 * cot15 ) >> 6;
++            int ox;
++            int oy;
++
++            if( vec )
++            {
++                float const r = tdpc_rcp((float)zf2);
++                ox = tdpc_i((float)a * r);
++                oy = tdpc_i((float)b * r);
++            }
++            else
++            {
++                ox = a / zf2;
++                oy = b / zf2;
++            }
++            tdpc_acc(TDPC_V_FUSEYAW_NC, ox - rx, oy - ry, ( zf2 - model_mid_z ) - rz);
++        }
++
++        /* ---- variant: exact yaw, FLOAT pitch ---- */
++        {
++            float const fys = ( (float)yr * f_ccp ) - ( (float)zsc * f_scp );
++            float const fzf = ( (float)yr * f_scp ) + ( (float)zsc * f_ccp );
++            int const izf = tdpc_i(fzf);
++            int const iys = tdpc_i(fys);
++            int const a = ( xsc * cot15 ) >> 6;
++            int const b = ( iys * cot15 ) >> 6;
++            int ox;
++            int oy;
++
++            if( vec )
++            {
++                float const r = tdpc_rcp((float)izf);
++                ox = tdpc_i((float)a * r);
++                oy = tdpc_i((float)b * r);
++            }
++            else
++            {
++                ox = a / izf;
++                oy = b / izf;
++            }
++            tdpc_acc(TDPC_V_FLOATPITCH, ox - rx, oy - ry, ( izf - model_mid_z ) - rz);
++        }
++
++        /* ---- variant: exact yaw + exact pitch, fov folded past the rcp ---- */
++        {
++            float const r = tdpc_rcp((float)zfin) * f_fov;
++            int const ox = tdpc_i((float)xsc * r);
++            int const oy = tdpc_i((float)ysc * r);
++
++            tdpc_acc(TDPC_V_FLOATFOV, ox - rx, oy - ry, 0);
++        }
++
++        /* ---- variant: the shipped-but-unwired prepared kernel, whole ---- */
++        {
++            int const fxs = ( x * cos_c + z * sin_c + tx_corr ) >> 16;
++            int const fzs = ( z * cos_c - x * sin_c + tz_corr ) >> 16;
++            float const fys = ( (float)yr * f_ccp ) - ( (float)fzs * f_scp );
++            float const fzf = ( (float)yr * f_scp ) + ( (float)fzs * f_ccp );
++            int const izf = tdpc_i(fzf);
++            float const r = tdpc_rcp((float)izf) * f_fov;
++            int const ox = tdpc_i((float)fxs * r);
++            int const oy = tdpc_i(fys * r);
++
++            tdpc_acc(TDPC_V_FULLPREP, ox - rx, oy - ry, ( izf - model_mid_z ) - rz);
++        }
++
++        /* ---- variant: the proposed bit-exact pmaddwd rotation ---- */
++        {
++            int const mxr = tdpc_madd16(x, z, cmy, smy) >> 16;
++            int const mzr = tdpc_madd16(z, x, cmy, -smy) >> 16;
++            int const mxs = ( tdpc_madd16(mxr, mzr, ccy, scy) + tx ) >> 16;
++            int const mzs = ( tdpc_madd16(mzr, mxr, ccy, -scy) + tz ) >> 16;
++            int const mys = tdpc_madd16(yr, mzs, ccp, -scp) >> 16;
++            int const mzf = tdpc_madd16(yr, mzs, scp, ccp) >> 16;
++            int const a = ( mxs * cot15 ) >> 6;
++            int const b = ( mys * cot15 ) >> 6;
++            int ox;
++            int oy;
++
++            if( vec )
++            {
++                float const r = tdpc_rcp((float)mzf);
++                ox = tdpc_i((float)a * r);
++                oy = tdpc_i((float)b * r);
++            }
++            else
++            {
++                ox = a / mzf;
++                oy = b / mzf;
++            }
++            tdpc_acc(TDPC_V_MADD16, ox - rx, oy - ry, ( mzf - model_mid_z ) - rz);
++        }
++    }
++}
++
++static void
++tdpc_dump(void)
++{
++    static char const* const names[TDPC_V_COUNT] = {
++        "fuseyaw(+corr)", "fuseyaw(nocorr)", "floatpitch",
++        "fovpastrcp",     "FULL prepared",   "madd16 exact"
++    };
++    FILE* f = stderr;
++    char const* path = getenv("TORIDRAW_PROJ_CENSUS_FILE");
++
++    if( path )
++    {
++        FILE* g = fopen(path, "w");
++        if( g )
++            f = g;
++    }
++
++    fprintf(f, "=== projection parity census ===\n");
++    fprintf(
++        f,
++        "calls noclip=%lld (yaw0=%lld cardinal=%lld other=%lld pitched=%lld) "
++        "clip=%lld (yaw0=%lld) aabb8=%lld (yaw0=%lld)\n",
++        g_tdpc.calls_noclip, g_tdpc.calls_noclip_yaw0, g_tdpc.calls_noclip_cardinal,
++        g_tdpc.calls_noclip_other, g_tdpc.calls_noclip_pitched, g_tdpc.calls_clip,
++        g_tdpc.calls_clip_yaw0, g_tdpc.calls_aabb8, g_tdpc.calls_aabb8_yaw0);
++    fprintf(
++        f, "vertices noclip=%lld clip=%lld  hist(<4,4,5-8,9-16,17-32,33-64,65-128,129-256,>256)=",
++        g_tdpc.vtx_noclip, g_tdpc.vtx_clip);
++    for( int i = 0; i < 9; i++ )
++        fprintf(f, "%lld%s", g_tdpc.vtx_hist[i], i == 8 ? "\n" : ",");
++    fprintf(
++        f,
++        "ranges: |x/z_rot|max=%d |y_rot|max=%d |z_scene|max=%d |x_scene|max=%d "
++        "over_int16_rot=%lld over_int16_pitch=%lld\n",
++        g_tdpc.max_abs_xrot, g_tdpc.max_abs_yrot, g_tdpc.max_abs_zscene,
++        g_tdpc.max_abs_xscene, g_tdpc.over_int16_rot, g_tdpc.over_int16_pitch);
++    fprintf(f, "ref-model mismatches vs shipping kernel: %lld\n", g_tdpc.ref_mismatch);
++    fprintf(f, "%-18s %12s %10s %10s %10s %7s %7s %7s %9s\n",
++            "variant", "vertices", "dx!=0", "dy!=0", "dz!=0",
++            "dxmax", "dymax", "dzmax", "mean|dx|");
++    for( int v = 0; v < TDPC_V_COUNT; v++ )
++    {
++        struct tdpc_var const* s = &g_tdpc.var[v];
++        double pct_x = s->vtx ? 100.0 * (double)s->dx_nz / (double)s->vtx : 0.0;
++        double pct_y = s->vtx ? 100.0 * (double)s->dy_nz / (double)s->vtx : 0.0;
++        double pct_z = s->vtx ? 100.0 * (double)s->dz_nz / (double)s->vtx : 0.0;
++        double mean = s->dx_nz ? (double)s->dx_abs_sum / (double)s->dx_nz : 0.0;
++
++        fprintf(f, "%-18s %12lld %9.3f%% %9.3f%% %9.3f%% %7d %7d %7d %9.3f\n",
++                names[v], s->vtx, pct_x, pct_y, pct_z,
++                s->dx_max, s->dy_max, s->dz_max, mean);
++    }
++    if( f != stderr )
++        fclose(f);
++}
++
++#endif /* TORIDRAW_PROJ_CENSUS */
++#endif
+diff --git a/3rd/toridraw/graphics/projection16_simd.sse2.u.c b/3rd/toridraw/graphics/projection16_simd.sse2.u.c
+index 2fd46ca04..ff8b19aa9 100644
+--- a/3rd/toridraw/graphics/projection16_simd.sse2.u.c
++++ b/3rd/toridraw/graphics/projection16_simd.sse2.u.c
+@@ -3,6 +3,7 @@
+ 
+ #if defined(__SSE2__) && !defined(__SSE4_1__) && !defined(SSE2_DISABLED)
+ #include "sse2_41compat.h"
++#include "madd16_sse2.h"
+ #include "projection_zdiv_simd.sse2.u.c"
+ /* One alias per near-clip family; a call site uses the one matching the
+  * family it lives in (see ToriDraw_Project for where the choice is made). */
+@@ -1382,29 +1383,44 @@ project_vertices_array_fused_noyaw_sse_clip(
+     __m128i v_neg5000 = _mm_set1_epi32(-5000);
+     __m128i v_neg5001 = _mm_set1_epi32(-5001);
+ 
++    /*
++     * The camera-yaw translate folded into the dot product it feeds. Nothing
++     * is shifted between the translate and the multiply, so over int32
++     *
++     *   (x + scene_x)*cos + (z + scene_z)*sin
++     *       == (x*cos + z*sin) + (scene_x*cos + scene_z*sin)
++     *
++     * holds exactly, wraparound included. That is plain distributivity, not
++     * the fused-rotation shortcut in projection16_prepared.sse2.h, which moves
++     * a >> 16 and shifts pixels for it; the >> 16 below still sees the
++     * identical 32-bit sum. Folding it leaves the vertex operands as the raw
++     * int16 they were loaded as, so the four emulated 32x32 multiplies of the
++     * camera yaw become two pmaddwd pairs and the sign extends go with them.
++     */
++    __m128i v_yaw_tx = _mm_set1_epi32(scene_x * cos_camera_yaw + scene_z * sin_camera_yaw);
++    __m128i v_yaw_tz = _mm_set1_epi32(scene_z * cos_camera_yaw - scene_x * sin_camera_yaw);
++    __m128i yaw_p_hi = toridraw_m16_hi(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_p_lo = toridraw_m16_lo(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_n_hi = toridraw_m16_hi(cos_camera_yaw, -sin_camera_yaw);
++    __m128i yaw_n_lo = toridraw_m16_lo(cos_camera_yaw, -sin_camera_yaw);
++
+     int i = 0;
+     for( ; i + 4 <= num_vertices; i += 4 )
+     {
+-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
++        __m128i xv16 = _mm_loadl_epi64((__m128i*)&vertex_x[i]);
++        __m128i zv16 = _mm_loadl_epi64((__m128i*)&vertex_z[i]);
+         __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+ 
+-        __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+-        __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+-
+-        __m128i cos_camera_yaw_v4 = _mm_set1_epi32(cos_camera_yaw);
+-        __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
+-
+-        __m128i x_scene = _mm_add_epi32(
+-            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
+-        x_scene = _mm_srai_epi32(x_scene, 16);
+ 
+-        __m128i z_scene = _mm_sub_epi32(
+-            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
+-        z_scene = _mm_srai_epi32(z_scene, 16);
++        __m128i x_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(xv16, zv16), yaw_p_hi, yaw_p_lo), v_yaw_tx),
++            16);
++        __m128i z_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(zv16, xv16), yaw_n_hi, yaw_n_lo), v_yaw_tz),
++            16);
+ 
+         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
+         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
+@@ -1521,29 +1537,44 @@ project_vertices_array_fused_noyaw_sse_noclip(
+     __m128i v_neg5000 = _mm_set1_epi32(-5000);
+     __m128i v_neg5001 = _mm_set1_epi32(-5001);
+ 
++    /*
++     * The camera-yaw translate folded into the dot product it feeds. Nothing
++     * is shifted between the translate and the multiply, so over int32
++     *
++     *   (x + scene_x)*cos + (z + scene_z)*sin
++     *       == (x*cos + z*sin) + (scene_x*cos + scene_z*sin)
++     *
++     * holds exactly, wraparound included. That is plain distributivity, not
++     * the fused-rotation shortcut in projection16_prepared.sse2.h, which moves
++     * a >> 16 and shifts pixels for it; the >> 16 below still sees the
++     * identical 32-bit sum. Folding it leaves the vertex operands as the raw
++     * int16 they were loaded as, so the four emulated 32x32 multiplies of the
++     * camera yaw become two pmaddwd pairs and the sign extends go with them.
++     */
++    __m128i v_yaw_tx = _mm_set1_epi32(scene_x * cos_camera_yaw + scene_z * sin_camera_yaw);
++    __m128i v_yaw_tz = _mm_set1_epi32(scene_z * cos_camera_yaw - scene_x * sin_camera_yaw);
++    __m128i yaw_p_hi = toridraw_m16_hi(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_p_lo = toridraw_m16_lo(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_n_hi = toridraw_m16_hi(cos_camera_yaw, -sin_camera_yaw);
++    __m128i yaw_n_lo = toridraw_m16_lo(cos_camera_yaw, -sin_camera_yaw);
++
+     int i = 0;
+     for( ; i + 4 <= num_vertices; i += 4 )
+     {
+-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
++        __m128i xv16 = _mm_loadl_epi64((__m128i*)&vertex_x[i]);
++        __m128i zv16 = _mm_loadl_epi64((__m128i*)&vertex_z[i]);
+         __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+ 
+-        __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+-        __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+ 
+-        __m128i cos_camera_yaw_v4 = _mm_set1_epi32(cos_camera_yaw);
+-        __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
+-
+-        __m128i x_scene = _mm_add_epi32(
+-            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
+-        x_scene = _mm_srai_epi32(x_scene, 16);
+-
+-        __m128i z_scene = _mm_sub_epi32(
+-            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
+-        z_scene = _mm_srai_epi32(z_scene, 16);
++        __m128i x_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(xv16, zv16), yaw_p_hi, yaw_p_lo), v_yaw_tx),
++            16);
++        __m128i z_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(zv16, xv16), yaw_n_hi, yaw_n_lo), v_yaw_tz),
++            16);
+ 
+         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
+         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
+@@ -2061,29 +2092,44 @@ project_vertices_array_fused_noyaw_sse_notex_clip(
+     __m128i v_neg5000 = _mm_set1_epi32(-5000);
+     __m128i v_neg5001 = _mm_set1_epi32(-5001);
+ 
++    /*
++     * The camera-yaw translate folded into the dot product it feeds. Nothing
++     * is shifted between the translate and the multiply, so over int32
++     *
++     *   (x + scene_x)*cos + (z + scene_z)*sin
++     *       == (x*cos + z*sin) + (scene_x*cos + scene_z*sin)
++     *
++     * holds exactly, wraparound included. That is plain distributivity, not
++     * the fused-rotation shortcut in projection16_prepared.sse2.h, which moves
++     * a >> 16 and shifts pixels for it; the >> 16 below still sees the
++     * identical 32-bit sum. Folding it leaves the vertex operands as the raw
++     * int16 they were loaded as, so the four emulated 32x32 multiplies of the
++     * camera yaw become two pmaddwd pairs and the sign extends go with them.
++     */
++    __m128i v_yaw_tx = _mm_set1_epi32(scene_x * cos_camera_yaw + scene_z * sin_camera_yaw);
++    __m128i v_yaw_tz = _mm_set1_epi32(scene_z * cos_camera_yaw - scene_x * sin_camera_yaw);
++    __m128i yaw_p_hi = toridraw_m16_hi(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_p_lo = toridraw_m16_lo(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_n_hi = toridraw_m16_hi(cos_camera_yaw, -sin_camera_yaw);
++    __m128i yaw_n_lo = toridraw_m16_lo(cos_camera_yaw, -sin_camera_yaw);
++
+     int i = 0;
+     for( ; i + 4 <= num_vertices; i += 4 )
+     {
+-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
++        __m128i xv16 = _mm_loadl_epi64((__m128i*)&vertex_x[i]);
++        __m128i zv16 = _mm_loadl_epi64((__m128i*)&vertex_z[i]);
+         __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+ 
+-        __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+-        __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+-
+-        __m128i cos_camera_yaw_v4 = _mm_set1_epi32(cos_camera_yaw);
+-        __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
+-
+-        __m128i x_scene = _mm_add_epi32(
+-            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
+-        x_scene = _mm_srai_epi32(x_scene, 16);
+ 
+-        __m128i z_scene = _mm_sub_epi32(
+-            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
+-        z_scene = _mm_srai_epi32(z_scene, 16);
++        __m128i x_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(xv16, zv16), yaw_p_hi, yaw_p_lo), v_yaw_tx),
++            16);
++        __m128i z_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(zv16, xv16), yaw_n_hi, yaw_n_lo), v_yaw_tz),
++            16);
+ 
+         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
+         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
+@@ -2189,29 +2235,44 @@ project_vertices_array_fused_noyaw_sse_notex_noclip(
+     __m128i v_neg5000 = _mm_set1_epi32(-5000);
+     __m128i v_neg5001 = _mm_set1_epi32(-5001);
+ 
++    /*
++     * The camera-yaw translate folded into the dot product it feeds. Nothing
++     * is shifted between the translate and the multiply, so over int32
++     *
++     *   (x + scene_x)*cos + (z + scene_z)*sin
++     *       == (x*cos + z*sin) + (scene_x*cos + scene_z*sin)
++     *
++     * holds exactly, wraparound included. That is plain distributivity, not
++     * the fused-rotation shortcut in projection16_prepared.sse2.h, which moves
++     * a >> 16 and shifts pixels for it; the >> 16 below still sees the
++     * identical 32-bit sum. Folding it leaves the vertex operands as the raw
++     * int16 they were loaded as, so the four emulated 32x32 multiplies of the
++     * camera yaw become two pmaddwd pairs and the sign extends go with them.
++     */
++    __m128i v_yaw_tx = _mm_set1_epi32(scene_x * cos_camera_yaw + scene_z * sin_camera_yaw);
++    __m128i v_yaw_tz = _mm_set1_epi32(scene_z * cos_camera_yaw - scene_x * sin_camera_yaw);
++    __m128i yaw_p_hi = toridraw_m16_hi(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_p_lo = toridraw_m16_lo(cos_camera_yaw, sin_camera_yaw);
++    __m128i yaw_n_hi = toridraw_m16_hi(cos_camera_yaw, -sin_camera_yaw);
++    __m128i yaw_n_lo = toridraw_m16_lo(cos_camera_yaw, -sin_camera_yaw);
++
+     int i = 0;
+     for( ; i + 4 <= num_vertices; i += 4 )
+     {
+-        __m128i xv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_x[i]));
++        __m128i xv16 = _mm_loadl_epi64((__m128i*)&vertex_x[i]);
++        __m128i zv16 = _mm_loadl_epi64((__m128i*)&vertex_z[i]);
+         __m128i yv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_y[i]));
+-        __m128i zv4 = proj_cvtepi16_epi32_lo64(_mm_loadl_epi64((__m128i*)&vertex_z[i]));
+ 
+-        __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+-        __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+-
+-        __m128i cos_camera_yaw_v4 = _mm_set1_epi32(cos_camera_yaw);
+-        __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
+ 
+-        __m128i x_scene = _mm_add_epi32(
+-            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
+-        x_scene = _mm_srai_epi32(x_scene, 16);
+-
+-        __m128i z_scene = _mm_sub_epi32(
+-            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+-            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
+-        z_scene = _mm_srai_epi32(z_scene, 16);
++        __m128i x_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(xv16, zv16), yaw_p_hi, yaw_p_lo), v_yaw_tx),
++            16);
++        __m128i z_scene = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(_mm_unpacklo_epi16(zv16, xv16), yaw_n_hi, yaw_n_lo), v_yaw_tz),
++            16);
+ 
+         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
+         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
+@@ -2396,6 +2457,11 @@ project_vertices_array_fused_notex_noclip(
+             camera_yaw);
+     }
+ }
++#if !defined(TORIDRAW_AABB8_CYL_DISABLED)
++#define TORIDRAW_AABB8_CYL_SSE2 1
++#include "aabb8_cyl_sse2.h"
++#endif
++
+ #endif
+ 
+ #endif /* PROJECTION16_SIMD_SSE2_U_C */
+diff --git a/3rd/toridraw/test/aabb8_cyl_compare_test.c b/3rd/toridraw/test/aabb8_cyl_compare_test.c
+new file mode 100644
+index 000000000..4ad3abd9c
+--- /dev/null
++++ b/3rd/toridraw/test/aabb8_cyl_compare_test.c
+@@ -0,0 +1,120 @@
++/*
++ * Compare-mode test for the eight-corner cylinder AABB kernel.
++ *
++ * Runs toridraw_aabb8_cyl_sse2 against its scalar twin over a randomised
++ * sweep of every input that reaches it, plus the boundary cases the range
++ * test is there to exclude. The kernel claims to be bit-exact, not close, so
++ * the only accepted result is all four screen extents equal on every trial.
++ */
++
++#include <math.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++#include "../graphics/projection.h"
++#include "../graphics/sse2_41compat.h"
++
++#define mullo_epi32_sse mullo_epi32_sse2
++
++#include "../graphics/projection_zdiv_simd.sse2.u.c"
++
++#include "../graphics/aabb8_cyl_sse2.h"
++
++static int g_sin_tab[2048];
++static int g_cos_tab[2048];
++
++static void
++tables_build(void)
++{
++    for( int i = 0; i < 2048; i++ )
++    {
++        g_sin_tab[i] = (int)(sin((double)i * 0.0030679615) * (double)(1 << 16));
++        g_cos_tab[i] = (int)(cos((double)i * 0.0030679615) * (double)(1 << 16));
++    }
++}
++
++static unsigned g_rng = 0x1234567u;
++
++static unsigned
++rng_next(void)
++{
++    g_rng ^= g_rng << 13;
++    g_rng ^= g_rng >> 17;
++    g_rng ^= g_rng << 5;
++    return g_rng;
++}
++
++static int
++rng_range(int lo, int hi)
++{
++    return lo + (int)(rng_next() % (unsigned)(hi - lo + 1));
++}
++
++int
++main(void)
++{
++    long trials = 0;
++    long taken = 0;
++    long rejected = 0;
++    long clipped_seen = 0;
++
++    tables_build();
++
++    for( long t = 0; t < 4000000L; t++ )
++    {
++        int radius = rng_range(0, 6000);
++        int min_y = rng_range(-6000, 0);
++        int max_y = rng_range(0, 6000);
++        int sx = rng_range(-14000, 14000);
++        int sy = rng_range(-14000, 14000);
++        int sz = rng_range(-14000, 14000);
++        int myaw = rng_range(0, 2047);
++        int cyaw = rng_range(0, 2047);
++        int cpitch = rng_range(0, 2047);
++        int near_z = rng_range(1, 60);
++        int cot15 = rng_range(1000, 200000);
++
++        struct ToriDraw_Aabb8Screen fast;
++        struct ToriDraw_Aabb8Screen twin;
++
++        trials++;
++
++        if( !toridraw_aabb8_cyl_sse2_fits(radius, min_y, max_y, sx, sy, sz) )
++        {
++            rejected++;
++            continue;
++        }
++        taken++;
++
++        toridraw_aabb8_cyl_sse2(
++            &fast, radius, min_y, max_y, g_cos_tab[myaw], g_sin_tab[myaw], sx, sy, sz, near_z,
++            cot15, g_cos_tab[cpitch], g_sin_tab[cpitch], g_cos_tab[cyaw], g_sin_tab[cyaw]);
++        toridraw_aabb8_cyl_ref(
++            &twin, radius, min_y, max_y, g_cos_tab[myaw], g_sin_tab[myaw], sx, sy, sz, near_z,
++            cot15, g_cos_tab[cpitch], g_sin_tab[cpitch], g_cos_tab[cyaw], g_sin_tab[cyaw]);
++
++        if( fast.min_sx == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
++            clipped_seen++;
++
++        if( fast.min_sx != twin.min_sx || fast.max_sx != twin.max_sx ||
++            fast.min_sy != twin.min_sy || fast.max_sy != twin.max_sy )
++        {
++            printf(
++                "MISMATCH trial=%ld r=%d miny=%d maxy=%d s=(%d,%d,%d) myaw=%d cyaw=%d "
++                "cpitch=%d near=%d cot15=%d\n",
++                t, radius, min_y, max_y, sx, sy, sz, myaw, cyaw, cpitch, near_z, cot15);
++            printf(
++                "  fast x[%d..%d] y[%d..%d]\n", fast.min_sx, fast.max_sx, fast.min_sy,
++                fast.max_sy);
++            printf(
++                "  twin x[%d..%d] y[%d..%d]\n", twin.min_sx, twin.max_sx, twin.min_sy,
++                twin.max_sy);
++            return 1;
++        }
++    }
++
++    printf(
++        "aabb8_cyl compare: trials=%ld in-range=%ld rejected=%ld near-clipped=%ld  ALL EXACT\n",
++        trials, taken, rejected, clipped_seen);
++    return 0;
++}
+diff --git a/3rd/toridraw/test/madd16_fused_translate_test.c b/3rd/toridraw/test/madd16_fused_translate_test.c
+new file mode 100644
+index 000000000..84e9c3f27
+--- /dev/null
++++ b/3rd/toridraw/test/madd16_fused_translate_test.c
+@@ -0,0 +1,137 @@
++/*
++ * Compare-mode test for the fused camera-yaw translate.
++ *
++ * The claim the projection kernels now rest on is an identity, not a bound:
++ *
++ *   ((x + sx)*cos + (z + sz)*sin) >> 16
++ *       == ((x*cos + z*sin) + (sx*cos + sz*sin)) >> 16
++ *
++ * over int32, wraparound included, with the left side the shipping scalar
++ * expression and the right side what toridraw_madd16 plus a broadcast constant
++ * computes. This sweeps the full int16 vertex range against the whole trig
++ * table and every scene offset the engine can produce, and accepts only exact
++ * equality on all four lanes.
++ */
++
++#include <math.h>
++#include <stdio.h>
++
++#include <emmintrin.h>
++
++#include "../graphics/madd16_sse2.h"
++
++static int g_sin_tab[2048];
++static int g_cos_tab[2048];
++
++static void
++tables_build(void)
++{
++    for( int i = 0; i < 2048; i++ )
++    {
++        g_sin_tab[i] = (int)(sin((double)i * 0.0030679615) * (double)(1 << 16));
++        g_cos_tab[i] = (int)(cos((double)i * 0.0030679615) * (double)(1 << 16));
++    }
++}
++
++static unsigned g_rng = 0x9e3779b9u;
++
++static unsigned
++rng_next(void)
++{
++    g_rng ^= g_rng << 13;
++    g_rng ^= g_rng >> 17;
++    g_rng ^= g_rng << 5;
++    return g_rng;
++}
++
++int
++main(void)
++{
++    long trials = 0;
++    long extreme = 0;
++
++    tables_build();
++
++    for( long t = 0; t < 3000000L; t++ )
++    {
++        int yaw = (int)(rng_next() % 2048u);
++        int c = g_cos_tab[yaw];
++        int s = g_sin_tab[yaw];
++        int sx = (int)(rng_next() % 65536u) - 32768;
++        int sz = (int)(rng_next() % 65536u) - 32768;
++        short vx[4];
++        short vz[4];
++        int ref_x[4];
++        int ref_z[4];
++        int got_x[4];
++        int got_z[4];
++
++        __m128i xv16;
++        __m128i zv16;
++        __m128i tx;
++        __m128i tz;
++        __m128i rx;
++        __m128i rz;
++
++        for( int k = 0; k < 4; k++ )
++        {
++            unsigned r = rng_next();
++            /* bias hard toward the int16 extremes, where the wraparound lives */
++            if( (r & 3u) == 0u )
++            {
++                vx[k] = (short)((r & 4u) ? 32767 : -32768);
++                vz[k] = (short)((r & 8u) ? 32767 : -32768);
++                extreme++;
++            }
++            else
++            {
++                vx[k] = (short)(r & 0xFFFFu);
++                vz[k] = (short)((r >> 16) & 0xFFFFu);
++            }
++            ref_x[k] = (((int)vx[k] + sx) * c + ((int)vz[k] + sz) * s) >> 16;
++            ref_z[k] = (((int)vz[k] + sz) * c - ((int)vx[k] + sx) * s) >> 16;
++        }
++
++        xv16 = _mm_loadl_epi64((__m128i*)vx);
++        zv16 = _mm_loadl_epi64((__m128i*)vz);
++        tx = _mm_set1_epi32(sx * c + sz * s);
++        tz = _mm_set1_epi32(sz * c - sx * s);
++
++        rx = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(
++                    _mm_unpacklo_epi16(xv16, zv16), toridraw_m16_hi(c, s),
++                    toridraw_m16_lo(c, s)),
++                tx),
++            16);
++        rz = _mm_srai_epi32(
++            _mm_add_epi32(
++                toridraw_madd16(
++                    _mm_unpacklo_epi16(zv16, xv16), toridraw_m16_hi(c, -s),
++                    toridraw_m16_lo(c, -s)),
++                tz),
++            16);
++
++        _mm_storeu_si128((__m128i*)got_x, rx);
++        _mm_storeu_si128((__m128i*)got_z, rz);
++        trials++;
++
++        for( int k = 0; k < 4; k++ )
++        {
++            if( got_x[k] != ref_x[k] || got_z[k] != ref_z[k] )
++            {
++                printf(
++                    "MISMATCH trial=%ld lane=%d yaw=%d c=%d s=%d v=(%d,%d) scene=(%d,%d)\n", t, k,
++                    yaw, c, s, (int)vx[k], (int)vz[k], sx, sz);
++                printf("  ref x=%d z=%d\n", ref_x[k], ref_z[k]);
++                printf("  got x=%d z=%d\n", got_x[k], got_z[k]);
++                return 1;
++            }
++        }
++    }
++
++    printf(
++        "madd16 fused translate: trials=%ld lanes=%ld int16-extreme lanes=%ld  ALL EXACT\n",
++        trials, trials * 4, extreme);
++    return 0;
++}
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..f9d9e58c6 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -902,6 +902,81 @@ ToriDraw_CalculateCylinderAabb8point(
+     int model_min_y = bcyl->min_y;
+     int model_max_y = bcyl->max_y;
+ 
++    int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
++    int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
++    int const model_roll = ToriDraw_NormalizeAngle(position->roll);
++    int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
++
++#if defined(TORIDRAW_AABB8_CYL_SSE2)
++    /*
++     * Same eight corners, same arithmetic, none of the bookkeeping: the
++     * generic path below spends most of its instructions filling three
++     * vertexint_t[8] and three int[8] stack arrays and then walking them with
++     * a branchy sweep, and it projects each of the four distinct (x,z)
++     * corners twice. The kernel is bit-exact against it, not an
++     * approximation -- see aabb8_cyl_sse2.h. The range test is what keeps it
++     * exact: the pmaddwd byte split needs int16 multiplicands, so an
++     * outsized model or a far-off scene position drops to the generic path
++     * rather than saturating.
++     */
++    if( !toridraw_proj_is_parallel(camera->proj_mode) && model_pitch == 0 && model_roll == 0 &&
++        camera_roll == 0 &&
++        toridraw_aabb8_cyl_sse2_fits(
++            model_edge_radius, model_min_y, model_max_y, position->x, position->y, position->z) )
++    {
++        int const cot15 =
++            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048) >> 1;
++        struct ToriDraw_Aabb8Screen fast;
++        toridraw_aabb8_cyl_sse2(
++            &fast,
++            model_edge_radius,
++            model_min_y,
++            model_max_y,
++            ToriDraw_ReadCosTable(model_yaw),
++            ToriDraw_ReadSinTable(model_yaw),
++            position->x,
++            position->y,
++            position->z,
++            camera->near_plane_z,
++            cot15,
++            ToriDraw_ReadCosTable(camera->pitch),
++            ToriDraw_ReadSinTable(camera->pitch),
++            ToriDraw_ReadCosTable(camera->yaw),
++            ToriDraw_ReadSinTable(camera->yaw));
++#if defined(TORIDRAW_AABB8_COMPARE) && TORIDRAW_AABB8_COMPARE
++        {
++            struct ToriDraw_Aabb8Screen twin;
++            toridraw_aabb8_cyl_ref(
++                &twin,
++                model_edge_radius,
++                model_min_y,
++                model_max_y,
++                ToriDraw_ReadCosTable(model_yaw),
++                ToriDraw_ReadSinTable(model_yaw),
++                position->x,
++                position->y,
++                position->z,
++                camera->near_plane_z,
++                cot15,
++                ToriDraw_ReadCosTable(camera->pitch),
++                ToriDraw_ReadSinTable(camera->pitch),
++                ToriDraw_ReadCosTable(camera->yaw),
++                ToriDraw_ReadSinTable(camera->yaw));
++            assert(twin.min_sx == fast.min_sx);
++            assert(twin.max_sx == fast.max_sx);
++            assert(twin.min_sy == fast.min_sy);
++            assert(twin.max_sy == fast.max_sy);
++        }
++#endif
++        aabb->min_screen_x = fast.min_sx + view_port->x_center;
++        aabb->max_screen_x = fast.max_sx + view_port->x_center;
++        aabb->min_screen_y = fast.min_sy + view_port->y_center;
++        aabb->max_screen_y = fast.max_sy + view_port->y_center;
++        aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
++        return;
++    }
++#endif
++
+     int mx = 0;
+     int mz = 0;
+ 
+@@ -926,11 +1001,6 @@ ToriDraw_CalculateCylinderAabb8point(
+     int sc_y[8];
+     int sc_z[8];
+ 
+-    int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+-    int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+-    int const model_roll = ToriDraw_NormalizeAngle(position->roll);
+-    int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
+-
+     /*
+      * The clipping family, unlike ToriDraw_Project: the min/max sweep below
+      * reads sc_x directly, so a corner behind the near plane has to come back

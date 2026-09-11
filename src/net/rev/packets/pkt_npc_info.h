@@ -214,6 +214,14 @@ struct PktNpcInfoReader
      *  of 0. */
     int slot_bits;
     int type_bits;
+    /** Set when the packet asked for more ops than the caller's array holds.
+     *  The ops decoded up to that point are still valid; everything after is
+     *  discarded, so the extended-info blocks no longer line up with the list
+     *  positions they address and the packet should be treated as junk. */
+    int overflowed;
+    /** Where a write goes once the array is full, so a packet claiming more ops
+     *  than fit cannot reach past the end of it. See next_op in the .c. */
+    struct PktNpcInfoOp op_sink;
 };
 
 /** Arm a reader for one revision's wire widths. Zeroes the reader; either

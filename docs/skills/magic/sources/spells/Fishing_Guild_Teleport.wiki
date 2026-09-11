@@ -1,0 +1,36 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Fishing guild teleport (tablet)}}
+{{Infobox Spell
+|name = Fishing Guild Teleport
+|image = [[File:Fishing Guild Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 85
+|spellbook = Lunar
+|type = Teleport
+|exp = 89
+|cost = {{RuneReq|Law=3|Water=10|Astral=3}}
+|speed = 4 ticks
+|description = Teleports you to the Fishing Guild
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Fishing Guild Teleport icon (mobile).png|left|class=pageimage]]
+'''Fishing Guild Teleport''' teleports the caster outside the door of the [[Fishing Guild]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 10
+|Rune2 = Law
+|Rune2num = 3
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Destination==
+{{Map|2613,3391|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

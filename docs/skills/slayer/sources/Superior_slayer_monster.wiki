@@ -1,0 +1,571 @@
+{{External|rs=Elite monster}}
+
+[[File:Fighting superior slayer monster.png|thumb|300px|Fighting a [[Nechryarch]], a superior form of a [[Nechryeal]].]]
+'''Superior Slayer monsters''', or simply '''Superiors''', are more powerful versions of normal [[Slayer monster]]s. They can only be encountered after purchasing the ''[[Slayer Rewards#Unlock|Bigger and Badder]]'' unlock for 50 [[Slayer reward point]]s from any [[Slayer master]].
+
+Superior monsters have a base spawn chance of 1/200 upon the death of their regular counterpart, and may only spawn if the player is on a [[Slayer task]] for the slain monster.<ref>The sole exception to this is the [[blood-starved venator]], which may spawn off-task when killing venators through paying [[Stymphike feather|stymphike feathers]].</ref>
+
+==Overview==
+Killing a superior Slayer monster rewards the player with a generous amount of [[Slayer]] experience - generally about ten times the hitpoints of the superior monster. Slayer experience will still be granted for a superior monster that is slain after the completion of the corresponding Slayer task.
+
+Most superiors are passive towards the player, even in the Wilderness, unless the player is under the effects of a [[goading potion]]. This excludes the [[Basilisk Sentinel|basilisk sentinel]] and [[Dreadborn Araxyte|dreadborn araxyte]], which are always aggressive. A superior monster will despawn in two minutes if the player stays in the vicinity and does not attack it, or less than 30 seconds if they leave the area.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1055494011304271872|date=25 October 2018|archiveurl=https://archive.is/Zqs8c|archivedate=3 October 2019|quote=They disappear after 2 mins if you stay there ignoring them, or after 30 secs if they notice you've departed or logged out. [...] P.S. I should clarify the 30 secs thing - I mean that it checks every 30 secs, so if you departed shortly before that tick occurs, the creature would despawn much sooner. It's a bit like farming ticks.}} Should the player die while fighting it or teleport away, the monster will despawn soon after.
+
+[[File:Bigger and Badder.png|left]] 
+After purchasing it, players may toggle the ''[[Slayer Rewards#Unlock|Bigger and Badder]]'' unlock on and off without loss of points to disable superior Slayer monsters at any time, although there generally isn't any benefit to this.
+
+==Spawn mechanics==
+There's an 1/200 chance that a superior spawns upon the death of one of its normal counterparts{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/788657030005452800|date=19 October 2016|archiveurl=https://web.archive.org/web/20181004024347/https:/twitter.com/JagexAsh/status/788657030005452800|archivedate=4 October 2018}}, as long as ''Bigger and Badder'' is enabled and the player slew the monster on a corresponding Slayer task. After claiming the elite tier rewards from the [[Combat Achievements]] system, the chances of a superior Slayer monster appearing is increased to 1/150. There is an additional 10% chance of a superior Slayer monster appearing in [[Wilderness]], increasing the base spawn rate to 1/180, or 1/135 with completion of the elite CA tier.{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1784889256504185269|date=29 April 2024|archiveurl=https://archive.ph/zeoC3|archivedate=17 February 2026|quote=[Hey, what is the superior slayer monster spawnrate in Wilderness assuming Elite Combat Achievements are unlocked? My base chance of receiving a superior monster is 1/150, so does the additional 10% wilderness boost push it to 1/135?] 135, yes.}} This benefit applies when on tasks from any slayer master.
+
+When a superior Slayer monster spawns, a message will appear in the chatbox, stating {{mes|A superior foe has appeared...|color=red}} Players cannot attack superior monsters which have been spawned by other players - attempting to do so produces the message {{mes|That is not your superior creature.}}
+
+In situations where multiple players have attacked the same creature, a superior can spawn for any player that has received partial kill credit, meaning they either dealt the most damage or dealt the last hit.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1618690830293950464|date=26 January 2023|archiveurl=https://reldo.runescape.wiki/i/104404|archivedate=6 June 2023|quote=It's not checking for full credit - dealing the final hit should suffice, if you're getting the 50% XP for that. It may struggle to find space to spawn one, if it's a big monster in a cluttered environment, though.}} If the superior creature is larger in size than its regular counterpart, the game will first check if it can spawn on the south-western tile of the dying creature, while remaining unblocked by scenery; then on the tile where the creature was due to respawn; and finally a tile in the vicinity of the player if they are still within the area.{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1847632983114608792|date=19 October 2024|archiveurl=https://archive.ph/EMcdY|archivedate=17 February 2026|quote=[does this mean that the check for a valid superior spawn from the southwest tile of the slayer monster has increased from 1 tile away to 2 tiles away?] It means it now looks for space (1) where the dying creature was standing, (2) where the dying creature was due to respawn or (3) near you if you're still present, so it'll have a better chance than before when it only tried one of those.}}
+
+Once a superior has appeared, another one will not spawn for that player until it is killed or despawns. In [[single-way combat]] areas, a superior Slayer monster can be attacked even if the player is under attack by another monster; when this happens, the standard monster will stop attacking the player. In multicombat areas, it is possible, though very rare, for multiple superior Slayer monsters to appear simultaneously if eligible monsters die on the same tick.
+
+Superiors can appear even on the last kill of a Slayer task, and can still be attacked by the player who spawned it after completion of the task. They still may even drop special loot associated with the Slayer task, such as a [[Larran's key]] in the Wilderness or a [[Brimstone key]] on task from [[Konar quo Maten]]. Superiors can still be attacked after completing a task even if the location itself would otherwise stop the player from doing so, such as the basement of the [[Slayer Tower]].
+
+It is not possible for a superior Slayer monster to spawn from a [[Reanimation spells|reanimated monster]].{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1767138834809004338|date=11 March 2024|archiveurl=https://archive.ph/HxVfv|archivedate=17 February 2026|quote=[is it possible to get a superior from a reanimated monster such as a blood veld while on the respective slayer task?] No, they don't give superiors.}}
+
+==Drops==
+Superior Slayer monsters kills give three rolls on their lesser counterpart's drop table. Alongside this, they have other guaranteed drops:
+
+*An [[ensouled head]] (if applicable)
+*[[Larran's key]] (in the [[Wilderness Slayer Cave]])
+*A [[Brimstone key]] (if assigned by [[Konar quo Maten]])
+*Wilderness tertiary drops (in the Wilderness Slayer Cave)
+*A [[dark totem]] piece (in the [[Catacombs of Kourend]])
+*6-10 [[crystal shard]]s (in the [[Iorwerth Dungeon]])
+
+Players are also ten times more likely to receive a [[clue scroll]] from killing one. In addition, superior Slayer monsters have four unique drops shared among all superior Slayer monsters:
+
+*[[Imbued heart]], which can boost the player's [[Magic]] level by 1 + 10% of your Magic level every seven minutes.
+*[[Dust battlestaff]], which when equipped provides an infinite amount of [[Air rune|air]] and [[earth rune]]s.
+*[[Mist battlestaff]], which when equipped provides an infinite amount of [[Air rune|air]] and [[water rune]]s.
+*[[Eternal gem]], which can be crafted into a [[Slayer ring (eternal)]].
+
+===Unique Drop tables===
+
+There are two different unique drop tables for superior Slayer monsters:
+
+{{DropsTableHead}}
+{{DropsLine|name=Dust battlestaff|quantity=1|rarity=7/16|bucket=No}}
+{{DropsLine|name=Mist battlestaff|quantity=1|rarity=7/16|bucket=No}}
+{{DropsLine|name=Imbued heart|quantity=1|rarity=1/8|bucket=No}}
+{{DropsTableBottom}}
+
+{{DropsTableHead}}
+{{DropsLine|name=Nothing|rarity=7/8|image=Bank filler.png}}
+{{DropsLine|name=Eternal gem|quantity=1|rarity=1/8|bucket=No}}
+{{DropsTableBottom}}
+
+''Players having an equal chance of hitting either Unique Drop Table. For odds of hitting each UDT per superior monster version, see below.''
+
+===Drop rate===
+The chance of rolling either of the two unique drop tables (UDT) is <math>\frac{1}{200 - \frac{(SlayerReq+55)^2}{125}}</math> 
+
+The first UDT contains the imbued heart, dust battlestaff and mist battlestaff. The second UDT contains only the eternal gem.
+
+If the players rolls the first unique drop table, there is then a 1/8 chance of receiving an imbued heart, and a 7/16 chance each of receiving one of the battlestaves.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/789146663822778370|date=20 October 2016|archiveurl=https://reldo.runescape.wiki/i/27963032|archivedate=4 October 2018|quote=Superior Slayer unique drop rates are finally here! [https://pbs.twimg.com/media/CvOQN3pWIAAGcc8.jpg]}} If the player rolls the second unique drop table, there is a 1/8 chance of receiving an eternal gem, and a 7/8 chance of receiving nothing. {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1265940562957434880|date=28 May 2020|archiveurl=https://reldo.runescape.wiki/i/107422|archivedate=28 May 2020|quote=I still think they're the same, despite that.
+There are two unique tables.
+You have a 1/X chance of getting the table containing the heart (1/8), mist staff (7/16) & dust staff (7/16).
+You have a 1/X chance of getting the table containing the gem (1/8) and nothing (7/8).}}
+
+Thus, the formula of receiving any unique drop is <math>\frac{9}{8*(200 - \frac{(SlayerReq+55)^2}{125})}</math>
+
+The formula of receiving an imbued heart or eternal gem is <math>\frac{1}{8* (200-\frac{(Slayer Req+55)^2}{125})}</math>
+
+And the formula of receiving a dust or mist battlestaff is <math>\frac{7}{16*(200-\frac{(Slayer Req+55)^2}{125})}</math>
+
+When killing superiors from [[Mortimer]] that have a drop rate increase, the increase varies from intervals of 10%-25%. 30%-60%, 50%-100%, 100%-150% or 200%-300% depending on the slayer monster in question. Refer to his page for the specific monsters. 
+
+==Monsters==
+There are superior versions of the following monsters:
+
+{| class="wikitable sortable"
+!{{SCP|Slayer}}<br/>Level
+!Normal variant
+!Superior variant
+!class="unsortable"|Image
+!Combat<br/>level
+!Hitpoints
+!Unique<br/>mechanics
+!Available in Wilderness
+!UDT
+!Slayer XP
+|-
+|5
+|[[Crawling Hand|Crawling hand]]
+|[[Crushing hand]]
+|[[File:Crushing hand.png|100x100px|centre]]
+|45
+|55
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/171.2}}" |1/171.2
+|550
+|-
+|10
+|[[Cave crawler]]
+|[[Chasm Crawler|Chasm crawler]]
+|[[File:Chasm Crawler.png|100x100px|centre]]
+|68
+|64
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/166.2}}" |1/166.2
+|600
+|-
+|15
+|[[Banshee]]
+|[[Screaming banshee]]
+|[[File:Screaming banshee.png|100x100px|centre]]
+|70
+|60
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/160.8}}" |1/160.8
+|610
+|-
+|15
+|[[Twisted Banshee|Twisted banshee]]
+|[[Screaming twisted banshee]]
+|[[File:Screaming twisted banshee.png|100x100px|centre]]
+|144
+|220
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/160.8}}" |1/160.8
+|2200
+|-
+|20
+|[[Rock slug]]
+|[[Giant rockslug]]
+|[[File:Giant rockslug.png|100x100px|centre]]
+|86
+|77
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/155}}" |1/155
+|770
+|-
+|rowspan="2" |25
+|[[Cockatrice]]
+|rowspan="2" |[[Cockathrice]]
+|rowspan="2" |[[File:Cockathrice.png|100x100px|centre]]
+|rowspan="2" |89
+|rowspan="2" |95
+|{{No|rowspan=2}}
+|{{No|rowspan=2}}
+|rowspan="2" data-sort-value="{{#expr:1/148.8}}" |1/148.8
+|rowspan="2" |950
+|-
+|[[Moonlight Cockatrice|Moonlight cockatrice]]
+|-
+|30
+|[[Pyrefiend]]
+|[[Flaming pyrelord]]
+|[[File:Flaming pyrelord.png|100x100px|centre]]
+|97
+|126
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/142.2}}" |1/142.2
+|1250
+|-
+|30
+|[[Pyrelord]]
+|[[Infernal pyrelord]]
+|[[File:Infernal pyrelord.png|100x100px|centre]]
+|134
+|184
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/142.2}}" |1/142.2
+|1840
+|-
+|40
+|[[Basilisk]]
+|[[Monstrous basilisk]]
+|[[File:Monstrous basilisk.png|100x100px|centre]]
+|135
+|172
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/127.8}}" |1/127.8
+|1700
+|-
+|45
+|[[Infernal Mage|Infernal mage]]
+|[[Malevolent Mage|Malevolent mage]]
+|[[File:Malevolent Mage.png|100x100px|centre]]
+|162
+|172
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/120}}" |1/120
+|1750
+|-
+|50
+|[[Bloodveld]]
+|[[Insatiable Bloodveld]]
+|[[File:Insatiable Bloodveld.png|100x100px|centre]]
+|202
+|380
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/111.8}}" |1/111.8
+|2900
+|-
+|50
+|[[Mutated Bloodveld|Mutated bloodveld]]
+|[[Insatiable mutated Bloodveld|Insatiable mutated bloodveld]]
+|[[File:Insatiable mutated Bloodveld.png|100x100px|centre]]
+|278
+|411
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/111.8}}" |1/111.8
+|4100
+|-
+|51
+|[[Gryphon]]
+|[[Dire gryphon]]
+|[[File:Dire gryphon.png|100x100px|centre]]
+|209
+|280
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/110.1}}" |1/110.1
+|2800
+|-
+|52
+|[[Jelly]]
+|[[Vitreous Jelly|Vitreous jelly]]
+|[[File:Vitreous Jelly.png|100x100px|centre]]
+|206
+|190
+|{{No}}
+|{{Yes}}
+|data-sort-value="{{#expr:1/108.4}}" |1/108.4
+|1900
+|-
+|52
+|[[Warped Jelly|Warped jelly]]
+|[[Vitreous warped Jelly|Vitreous warped jelly]]
+|[[File:Vitreous warped Jelly.png|100x100px|centre]]
+|241
+|220
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/108.4}}" |1/108.4
+|2200
+|-
+|52
+|[[Chilled jelly]]
+|[[Vitreous Chilled Jelly|Vitreous chilled jelly]]
+|[[File:Vitreous Chilled Jelly.png|100x100px|centre]]
+|241
+|220
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/108.4}}" |1/108.4
+|2200
+|-
+|55
+|[[Turoth]]
+|[[Spiked Turoth|Spiked turoth]]
+|[[File:Spiked Turoth.png|100x100px|centre]]
+|244
+|195
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/103.2}}" |1/103.2
+|1998
+|-
+|56
+|[[Warped Terrorbird|Warped terrorbird]]
+|[[Mutated Terrorbird|Mutated terrorbird]]
+|[[File:Mutated Terrorbird.png|100x100px|centre]]
+|178
+|320
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/101.4}}" |1/101.4
+|3200
+|-
+|56
+|[[Warped Tortoise|Warped tortoise]]
+|[[Mutated Tortoise|Mutated tortoise]]
+|[[File:Mutated Tortoise.png|100x100px|centre]]
+|247
+|440
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/101.4}}" |1/101.4
+|4510
+|-
+|58
+|[[Cave horror]]
+|[[Cave abomination]]
+|[[File:Cave abomination.png|100x100px|centre]]
+|206
+|130
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/97.8}}" |1/97.8
+|1300
+|-
+|60
+|[[Aberrant spectre]]
+|[[Abhorrent spectre]]
+|[[File:Abhorrent spectre.png|100x100px|centre]]
+|253
+|275
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/94.2}}" |1/94.2
+|2500
+|-
+|60
+|[[Deviant spectre]]
+|[[Repugnant spectre]]
+|[[File:Repugnant spectre.png|100x100px|centre]]
+|335
+|390
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/94.2}}" |1/94.2
+|4085
+|-
+|60
+|[[Basilisk Knight|Basilisk knight]]
+|[[Basilisk Sentinel|Basilisk sentinel]]
+|[[File:Basilisk Sentinel.png|100x100px|centre]]
+|358
+|550
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/94.2}}" |1/94.2
+|5590
+|-
+|62
+|[[Wyrm]]
+|[[Shadow Wyrm|Shadow wyrm]]
+|[[File:Shadow Wyrm.png|100x100px|centre]]
+|267
+|320
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/90.5}}" |1/90.5
+|3120
+|-
+|62
+|[[Lava Strykewyrm|Lava strykewyrm]]
+|[[Magma strykewyrm]]
+|[[File:Magma strykewyrm.png|100x100px|centre]]
+|249
+|340
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/90.5}}" |1/90.5
+|3655
+|-
+|65
+|[[Dust devil]]
+|[[Choke devil]]
+|[[File:Choke devil.png|100x100px|centre]]
+|264
+|300
+|{{No}}
+|{{Yes}}
+|data-sort-value="{{#expr:1/84.8}}" |1/84.8
+|3000
+|-
+|70
+|[[Kurask]]
+|[[King kurask]]
+|[[File:King kurask.png|100x100px|centre]]
+|295
+|420
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/75}}" |1/75
+|2767
+|-
+|74
+|[[Venator]]
+|[[Blood-starved venator]]
+|[[File:Blood-starved venator.png|100x100px|centre]]
+|246
+|345
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/66.8}}" |1/66.8
+|3622.5
+|-
+|75
+|[[Gargoyle]]
+|[[Marble gargoyle]]
+|[[File:Marble gargoyle.png|100x100px|centre]]
+|349
+|270
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/64.8}}" |1/64.8
+|3044
+|-
+|76
+|[[Elder custodian stalker]]
+|[[Ancient Custodian|Ancient custodian]]
+|[[File:Ancient Custodian.png|100x100px|centre]]
+|239
+|330
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/62.2}}" |1/62.2
+|3382
+|-
+|78
+|[[Aquanite]]
+|[[Elder aquanite]]
+|[[File:Elder aquanite (lure).png|100x100px|centre]]
+|305
+|365
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/58.5}}" |1/58.5
+|4200
+|-
+|rowspan="2" |80
+|[[Nechryael]]
+| rowspan="2" |[[Nechryarch]]
+| rowspan="2" |[[File:Nechryarch.png|100x100px|centre]]
+| rowspan="2" |300
+| rowspan="2" |320
+|{{Yes|rowspan=2}}
+|{{No}}
+| rowspan="2" data-sort-value="{{#expr:1/54.2}}" |1/54.2
+| rowspan="2" |3280
+|-
+|[[Greater Nechryael|Greater nechryael]]
+|{{Yes}}
+|-
+|84
+|[[Drake]]
+|[[Guardian Drake]]
+|[[File:Guardian Drake.png|100x100px|centre]]
+|376
+|630
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/45.4}}" |1/45.4
+|7245
+|-
+|85
+|[[Abyssal demon]]
+|[[Greater abyssal demon]]
+|[[File:Greater abyssal demon.png|100x100px|centre]]
+|342
+|400
+|{{Yes}}
+|{{Yes}}
+|data-sort-value="{{#expr:1/43.2}}" |1/43.2
+|4200
+|-
+|90
+|[[Dark beast]]
+|[[Night beast]]
+|[[File:Night beast.png|100x100px|centre]]
+|374
+|640
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/31.8}}" |1/31.8
+|6462
+|-
+|92
+|[[Araxyte]]
+|[[Dreadborn Araxyte]]
+|[[File:Dreadborn Araxyte.png|100x100px|centre]]
+|281
+|350
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/27.1}}" |1/27.1
+|4658
+|-
+|93
+|[[Smoke devil]]
+|[[Nuclear smoke devil]]
+|[[File:Nuclear smoke devil.png|100x100px|centre]]
+|280
+|240
+|{{No}}
+|{{No}}
+|data-sort-value="{{#expr:1/24.7}}" |1/24.7
+|2400
+|-
+|95
+|[[Hydra]]
+|[[Colossal Hydra|Colossal hydra]]
+|[[File:Colossal Hydra.png|100x100px|centre]]
+|309
+|750
+|{{Yes}}
+|{{No}}
+|data-sort-value="{{#expr:1/20}}" |1/20
+|8625
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 October 2024
+|update = Halloween 2024
+|change = Superior slayer monsters will now consider spawning elsewhere if they cannot spawn in tight spaces due to their size.
+}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = The amount of [[crystal shard]]s dropped by superior slayer monsters in the [[Iorwerth Dungeon]] has increased from 1 to 6-10.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Superior slayer monsters are now guaranteed to drop brimstone keys when on a task from [[Konar quo Maten|Konar]].
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|poll = Undead Pirates Rewards & More
+|change = Superior Slayer monsters now have a 10% increased chance to spawn during [[Krystilia|Wilderness Slayer tasks]].
+}}
+{{Subject changes
+|date = 23 July 2020
+|update = Poll 71 and Ferox Enclave Updates
+|change = Superior variants of Drakes, Hydras, Turoths & Wyrms were added.
+}}
+{{Subject changes
+|date = 23 February 2017
+|update = Shift-Click Drop & QoL
+|change = All superior creatures except Marble Gargoyle were [[Graphical updates|graphically updated]] to be more distinct from their normal counterparts.
+}}
+{{Subject changes
+|date = 15 September 2016
+|update = Superior Slayer Encounters
+|change = Superior slayer encounters were added to the game.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* While the [[revenant maledictus]] is referred to as a superior revenant, it is not a Slayer monster.
+* With the exception of cave horrors, dark beasts, and dust devils, all Slayer monsters that have a superior version are either monsters that can be found in the [[Slayer Tower]] or [[Fremennik Slayer Dungeon]], or monsters that were added to ''Old School RuneScape'' after the initial introduction of superior Slayer monsters.
+* Historically, superior creatures that are larger than their normal counterparts could only spawn if the death of the normal monster occurred in a location that can fit the superior creature.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1430982919749779461|date=26 August 2021|archiveurl=https://reldo.runescape.wiki/i/97144|archivedate=16:27, 6 September 2021 (UTC)|quote=The thing ain't going to be spawned into scenery if we can avoid it.}} In order to appear, a superior creature had to be able to fit either its centre tile or one of its corner tiles on the south-western tile of the dying creature, while remaining unobstructed by scenery objects elsewhere.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1552713048351285250|date=28 July 2022|archiveurl=https://reldo.runescape.wiki/i/100135|archivedate=2 June 2023|quote=It should consider whether the superior could have its centre, SW corner, SE corner, NW corner or NE corner at the tile of the dying dust devil. (...)}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1279019845623873543|date=3 July 2020|archiveurl=https://reldo.runescape.wiki/i/101974|archivedate=3 June 2023|quote=No, I mean that it looks at the SW corner of the NPC that died, and first tries to centre the superior on that. (...)}} The [[Update:Halloween 2024|update]] on [[16 October]] [[2024]] changed this to move the superior creature to a valid location to prevent the player from missing spawns.
+
+==References==
+{{Reflist}}
+
+{{Slayer monsters}}
+[[Category:Slayer]]
+[[Category:Slayer monsters]]
+[[Category:Slayer monsters that can only be fought on task]]

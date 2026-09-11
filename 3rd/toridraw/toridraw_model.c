@@ -5,6 +5,7 @@
 #include "toridraw_lighting.h"
 #include "toridraw_math.h"
 #include "toridraw_model_transform.h"
+#include "toridraw_shared_model.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -119,12 +120,17 @@ ToriDraw_AnimApplyTransform(
          * means the frame data, a wild centroid means the bone group (a label
          * naming vertices this model does not have).
          */
-        if( getenv("TORIRS_ORIGIN_PROBE") )
+        /* Probed once: this runs for every ORIGIN op of every posed frame,
+         * the same reason TORIRS_ANIM_RECAPTURE is cached below. */
+        static int origin_probe = -1;
+        if( origin_probe < 0 )
+            origin_probe = getenv("TORIRS_ORIGIN_PROBE") != NULL;
+        if( origin_probe )
         {
             int const ox = transform->origin_x;
             int const oy = transform->origin_y;
             int const oz = transform->origin_z;
-            int const worst = model->bounds_cylinder ? model->bounds_cylinder->radius : 0;
+            int const worst = model->has_bounds_cylinder ? model->bounds_cylinder.radius : 0;
             int const limit = worst > 4096 ? worst * 4 : 16384;
 
             if( ox > limit || ox < -limit || oy > limit || oy < -limit || oz > limit ||
@@ -171,6 +177,25 @@ ToriDraw_AnimApplyTransform(
         if( !vertex_bones || !vertex_bones->bones )
             return;
 
+        /* The rotation is the same for every vertex this transform touches,
+         * so resolving it -- three angle reductions and up to six trig table
+         * reads -- belongs here and not in the innermost loop. The pivot is
+         * hoisted with it: the loop writes through vertices_*, which the
+         * compiler cannot always prove does not alias `transform`, so it was
+         * re-loading the origin on every vertex as well. */
+        int const pitch = (arg_x & 255) * 8;
+        int const yaw = (arg_y & 255) * 8;
+        int const roll = (arg_z & 255) * 8;
+        int const sin_roll = roll != 0 ? ToriDraw_Sin(roll) : 0;
+        int const cos_roll = roll != 0 ? ToriDraw_Cos(roll) : 0;
+        int const sin_pitch = pitch != 0 ? ToriDraw_Sin(pitch) : 0;
+        int const cos_pitch = pitch != 0 ? ToriDraw_Cos(pitch) : 0;
+        int const sin_yaw = yaw != 0 ? ToriDraw_Sin(yaw) : 0;
+        int const cos_yaw = yaw != 0 ? ToriDraw_Cos(yaw) : 0;
+        int const origin_x = transform->origin_x;
+        int const origin_y = transform->origin_y;
+        int const origin_z = transform->origin_z;
+
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
@@ -183,12 +208,9 @@ ToriDraw_AnimApplyTransform(
             for( int j = 0; j < bone_length; j++ )
             {
                 int vertex_index = bone[j];
-                int x = (int)vertices_x[vertex_index] - transform->origin_x;
-                int y = (int)vertices_y[vertex_index] - transform->origin_y;
-                int z = (int)vertices_z[vertex_index] - transform->origin_z;
-                int pitch = (arg_x & 255) * 8;
-                int yaw = (arg_y & 255) * 8;
-                int roll = (arg_z & 255) * 8;
+                int x = (int)vertices_x[vertex_index] - origin_x;
+                int y = (int)vertices_y[vertex_index] - origin_y;
+                int z = (int)vertices_z[vertex_index] - origin_z;
                 int var17;
 
                 /* 32-bit hazard: these coordinates are relative to
@@ -199,8 +221,6 @@ ToriDraw_AnimApplyTransform(
                  * guard by range once per model, not by widening every vertex. */
                 if( roll != 0 )
                 {
-                    int sin_roll = ToriDraw_Sin(roll);
-                    int cos_roll = ToriDraw_Cos(roll);
                     var17 = (sin_roll * y + cos_roll * x) >> 16;
                     y = (cos_roll * y - sin_roll * x) >> 16;
                     x = var17;
@@ -208,8 +228,6 @@ ToriDraw_AnimApplyTransform(
 
                 if( pitch != 0 )
                 {
-                    int sin_pitch = ToriDraw_Sin(pitch);
-                    int cos_pitch = ToriDraw_Cos(pitch);
                     var17 = (cos_pitch * y - sin_pitch * z) >> 16;
                     z = (sin_pitch * y + cos_pitch * z) >> 16;
                     y = var17;
@@ -217,16 +235,14 @@ ToriDraw_AnimApplyTransform(
 
                 if( yaw != 0 )
                 {
-                    int sin_yaw = ToriDraw_Sin(yaw);
-                    int cos_yaw = ToriDraw_Cos(yaw);
                     var17 = (sin_yaw * z + cos_yaw * x) >> 16;
                     z = (cos_yaw * z - sin_yaw * x) >> 16;
                     x = var17;
                 }
 
-                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
-                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
-                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);
+                vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + origin_x);
+                vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + origin_y);
+                vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + origin_z);
             }
         }
         break;
@@ -290,24 +306,90 @@ ToriDraw_AnimApplyTransform(
         }
         break;
     }
+    /*
+     * 4 is unused; 6 never arrives (the framemap loader folds it into ROTATE --
+     * see toridraw_animation_from_rscache.c, which carries the full wire table).
+     * 7 (LIGHT, a per-face HSL shift) and 8/9/10 (rev-727 billboard translate /
+     * rotate / scale) are unimplemented: 8/9/10 index a model's billboard list
+     * rather than its vertex or face bone groups, so there is nothing here to
+     * apply them to. Dropping them loses the op, not the pose.
+     */
     default:
         break;
     }
 }
+
+/**
+ * Recycled normals blocks.
+ *
+ * World lighting allocates normals for every lightable model in a six-column
+ * sliding window and frees them one column later, so a region rebuild churns
+ * three malloc/free pairs per model -- 7668 models on the measured scene, and
+ * `TORIRS_REBUILD_TIMING=1` put that alloc pass at 3.8 ms, the largest of the
+ * three column stages. Pooling by capacity removes the churn: a free pushes the
+ * block, a new pops the first block already big enough. Capacities are retained
+ * rather than trimmed, so the pool converges on the scene's largest models and
+ * steady-state allocation drops to zero.
+ *
+ * Bounded so a scene full of outsized models cannot pin unbounded memory; past
+ * the cap a free is a real free. Not thread safe, in keeping with the rest of
+ * the world builder's scratch.
+ */
+#define TORIDRAW_NORMALS_POOL_MAX 256
+
+static struct ToriDraw_Normals* g_normals_pool[TORIDRAW_NORMALS_POOL_MAX];
+static int g_normals_pool_count = 0;
 
 struct ToriDraw_Normals*
 ToriDraw_NormalsNew(
     int vertex_count,
     int face_count)
 {
-    struct ToriDraw_Normals* normals = malloc(sizeof(struct ToriDraw_Normals));
-    memset(normals, 0, sizeof(struct ToriDraw_Normals));
-    normals->vertex_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
+    struct ToriDraw_Normals* normals = NULL;
+
+    for( int i = g_normals_pool_count - 1; i >= 0; i-- )
+    {
+        struct ToriDraw_Normals* cand = g_normals_pool[i];
+        /* `face_normals` is NULL exactly when the count is zero, and callers do
+         * test the pointer -- `merged_normals` is always built with
+         * `face_count == 0`, so handing it a recycled block that still carries
+         * another model's face buffer makes that test succeed against a buffer
+         * of the wrong length. Match the shape, not just the capacity. */
+        if( (face_count > 0) != (cand->face_normals_cap > 0) )
+            continue;
+        if( cand->vertex_normals_cap < vertex_count )
+            continue;
+        if( cand->face_normals_cap < face_count )
+            continue;
+        normals = cand;
+        g_normals_pool[i] = g_normals_pool[--g_normals_pool_count];
+        break;
+    }
+
+    if( !normals )
+    {
+        normals = malloc(sizeof(struct ToriDraw_Normals));
+        assert(normals);
+        memset(normals, 0, sizeof(struct ToriDraw_Normals));
+        normals->vertex_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
+        assert(normals->vertex_normals);
+        normals->vertex_normals_cap = vertex_count;
+        if( face_count > 0 )
+        {
+            normals->face_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
+            assert(normals->face_normals);
+            normals->face_normals_cap = face_count;
+        }
+    }
+
+    /* Zero only what this model uses. The tail of an oversized recycled block
+     * keeps the previous model's values, which is why every consumer must read
+     * `*_count` and not `*_cap`. */
     memset(normals->vertex_normals, 0, sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
     normals->vertex_normals_count = vertex_count;
+    normals->face_normals_count = 0;
     if( face_count > 0 )
     {
-        normals->face_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
         memset(normals->face_normals, 0, sizeof(struct ToriDraw_Normal) * (size_t)face_count);
         normals->face_normals_count = face_count;
     }
@@ -319,6 +401,11 @@ ToriDraw_NormalsFree(struct ToriDraw_Normals* normals)
 {
     if( !normals )
         return;
+    if( g_normals_pool_count < TORIDRAW_NORMALS_POOL_MAX )
+    {
+        g_normals_pool[g_normals_pool_count++] = normals;
+        return;
+    }
     free(normals->vertex_normals);
     free(normals->face_normals);
     free(normals);
@@ -378,37 +465,40 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
     return dst;
 }
 
-static void
+void
 ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
 {
-    free(m->vertices_x);
-    free(m->vertices_y);
-    free(m->vertices_z);
-    free(m->face_colors_a);
-    free(m->face_colors_b);
-    free(m->face_colors_c);
-    free(m->face_indices_a);
-    free(m->face_indices_b);
-    free(m->face_indices_c);
-    free(m->face_textures);
+    /* One block, or thirteen arrays. @see ToriDraw_Model::arrays_block. */
+    if( m->arrays_block )
+    {
+        free(m->arrays_block);
+    }
+    else
+    {
+        free(m->vertices_x);
+        free(m->vertices_y);
+        free(m->vertices_z);
+        free(m->face_colors_a);
+        free(m->face_colors_b);
+        free(m->face_colors_c);
+
+        /* Every array is this model's -- that is what the type means now. A
+         * placement borrowing its faces is a ToriDraw_ModelLentFaces, which
+         * NULLs the twelve aliases before calling this and then drops its
+         * share of the loan; see ToriDraw_ModelLentFacesFree. */
+#define TORIDRAW_FACE_FREE(field) free(m->field);
+        TORIDRAW_MODEL_FACE_FIELDS(TORIDRAW_FACE_FREE)
+#undef TORIDRAW_FACE_FREE
+    }
+
     free(m->original_vertices_x);
     free(m->original_vertices_y);
     free(m->original_vertices_z);
-    free(m->face_alphas);
     free(m->original_face_alphas);
-    free(m->face_infos);
-    free(m->face_priorities);
-    free(m->face_colors);
-    free(m->textured_p_coordinate);
-    free(m->textured_m_coordinate);
-    free(m->textured_n_coordinate);
-    free(m->texture_render_types);
-    free(m->face_texture_coords);
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);
     ToriDraw_BonesFree(m->vertex_bones);
     ToriDraw_BonesFree(m->face_bones);
-    free(m->bounds_cylinder);
 
     if( m->animaya_groups )
     {
@@ -435,6 +525,11 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
 
     hd = (struct ToriDraw_ModelHD*)calloc(1, sizeof(*hd));
     assert(hd);
+    /* The shell is copied by value below and the original is freed without
+     * going through ToriDraw_ModelFree, so a borrowed-topology holder would be
+     * duplicated into the HD model and never dropped. No HD model is built from
+     * a scene placement today; this is what says so. */
+
 
     /* By value: the arrays are pointers and move with the struct, so freeing
      * the shell afterwards must not go through ToriDraw_ModelFree — that would
@@ -460,6 +555,10 @@ ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd)
 void
 ToriDraw_ModelFree(struct ToriDraw_Model* model)
 {
+    /* A ToriDraw_Model owns everything, so this frees everything. The shared
+     * regimes are other types and have their own release paths, reached through
+     * ToriDraw_ModelHandleFree -- which is why nothing here has to ask what
+     * kind of model this is. */
     if( !model )
         return;
     ToriDraw_ModelFree_arrays(model);
@@ -580,7 +679,6 @@ ToriDraw_ModelFreeNormals(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
-    assert(model);
     size_t const vc = (size_t)model->vertex_count;
 
     /*
@@ -595,8 +693,14 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
      *
      * Comparing against the EXISTING originals is what makes it specific: a
      * re-capture of an unposed model is a harmless no-op and stays silent.
+     *
+     * The env is probed once per process: this runs for every scene element a
+     * map rebuild creates, and per-call getenv was hot in a rebuild profile.
      */
-    if( getenv("TORIRS_ANIM_RECAPTURE") && model->original_vertices_x &&
+    static int recapture_env = -1;
+    if( recapture_env < 0 )
+        recapture_env = getenv("TORIRS_ANIM_RECAPTURE") != NULL;
+    if( recapture_env && model->original_vertices_x &&
         model->original_vertices_y && model->original_vertices_z && vc > 0 )
     {
         size_t differ = 0;
@@ -666,7 +770,6 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 void
 ToriDraw_ModelAnimateReset(struct ToriDraw_Model* model)
 {
-    assert(model);
     if( !model->original_vertices_x )
         return;
 
@@ -715,6 +818,12 @@ ToriDraw_ModelAnimateFrame(
             frame->z[i],
             model);
     }
+
+    /* Animate, THEN resize -- the reference's order (NpcType.getModel,
+     * MapSpotAnim.getModel). The bind pose the ops above were applied to is the
+     * model at its authored size; this is what puts the finished pose into
+     * render scale. */
+    ToriDraw_ModelApplyPostTransforms(model);
 
     /* Projection culling and the face-sort depth bias both consume this
      * cylinder.  Keeping the bind-pose cylinder on a large deformation can
@@ -790,6 +899,7 @@ ToriDraw_ModelAnimateFrameMasked(
     }
     model_animate_frame_mask_pass(model, base, primary, walkmerge, 0);
     model_animate_frame_mask_pass(model, base, secondary, walkmerge, 1);
+    ToriDraw_ModelApplyPostTransforms(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 }
 
@@ -899,6 +1009,9 @@ ToriDraw_ModelAnimateSkeletal(
         }
     }
 
+    /* Same order as the classic path above: the palette poses the authored
+     * bind, the resize follows it. */
+    ToriDraw_ModelApplyPostTransforms(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 }
 
@@ -959,12 +1072,17 @@ ToriDraw_TextureAnimate(
 void
 ToriDraw_TextureMapAnimate(
     struct ToriDraw_TextureMap* map,
-    int cycles)
+    int cycles,
+    int* scratch,
+    int scratch_ints)
 {
-    if( !map || cycles <= 0 )
+    assert(map);
+    assert(scratch);
+    assert(scratch_ints >= 0);
+    /* Zero cycles is what an idle frame passes; it is a real state, not a
+     * caller error. */
+    if( cycles <= 0 )
         return;
-
-    static int scratch[128 * 128];
 
     for( int i = 0; i < map->count; i++ )
     {
@@ -976,7 +1094,7 @@ ToriDraw_TextureMapAnimate(
             continue;
 
         int const pixel_count = tex->width * tex->height;
-        if( pixel_count <= 0 || pixel_count > (int)(sizeof(scratch) / sizeof(scratch[0])) )
+        if( pixel_count <= 0 || pixel_count > scratch_ints )
             continue;
 
         ToriDraw_TextureAnimate(tex, cycles, scratch);

@@ -1,0 +1,45 @@
+{{External|rs=Tele-group Moonclan}}
+{{Infobox Spell
+|name = Tele Group Moonclan
+|image = [[File:Tele Group Moonclan.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 70
+|spellbook = Lunar
+|type = Teleport
+|exp = 67
+|cost = {{RuneReq|Law=1|Earth=4|Astral=2}}
+|speed = 4 ticks
+|description = Teleports players to Moonclan Island
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Tele Group Moonclan icon (mobile).png|left|class=pageimage]]
+'''Tele Group Moonclan''' teleports the caster along with anyone within a 3x3 square area (including standing on the player's square) near the bank on [[Lunar Isle]] (slightly closer than [[Moonclan Teleport]]). Players must have '''Accept Aid''' turned on in order to be teleported by this spell. A window will pop for the person being teleported asking them if they wished to be teleported. If one person doesn't have accept aid on only the caster will be teleported. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell. (Works only if targets already visited Lunar Isle, at least once.)
+
+==Cost==
+{{Spell cost table
+|Rune1 = Earth
+|Rune1num = 4
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2107,3915|2112,3915|2112,3916|2107,3916|mtype=polygon|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = Lunar's group teleports will no longer trigger the 10 second teleport delay timer in Deadman mode twice.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

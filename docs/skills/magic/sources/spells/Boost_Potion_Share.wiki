@@ -1,0 +1,118 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Boost Potion Share
+|image = [[File:Boost Potion Share.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 84
+|spellbook = Lunar
+|type = combat
+|exp = 88
+|cost = {{RuneReq|Earth=12|Water=10|Astral=3}}
+|speed = 
+|description = Shares a potion with up to 4 nearby players
+|anim = [[File:Boost Potion Share.gif|180px]]
+|sound = [[File:Boost Potion Share.ogg]]
+}}
+[[File:Boost Potion Share icon (mobile).png|left]]
+'''Boost Potion Share''' can be cast on almost any non-barbaric [[Herblore#Potions|potion]] in the caster's inventory. When cast, it causes the caster to use 1 dose of the potion for each person, up to four, in a 5x5 square area around the caster, including the middle square, if they have '''[[Accept Aid]]''' turned on, or if they are a member of your Ironman Group. The player casting the spell will also be affected by the potion, although no additional dosage will be used. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+Like its lower-level counterpart, [[Stat Restore Pot Share]], doses of potion are only consumed by other players, not the caster. This means that if the caster has only 1 dose of potion, they will get the benefit as well as their target, effectively doubling the effectiveness of the potion, making potions such as [[super strength potion]]s more useful.
+
+The spell cannot be used in [[Castle Wars]] with the given reason that "You don't want to help your enemies".
+
+==Incompatible potions==
+The following potions '''cannot''' be shared using this spell:
+
+{|class=wikitable
+!colspan=2|Potion
+|-
+|{{Plinkt|Absorption}}
+|-
+|{{Plinkt|Ancient brew}}
+|-
+|{{Plinkt|Castlewars brew}}
+|-
+|{{Plinkt|Combat potion}}
+|-
+|{{Plinkt|Divine bastion potion}}
+|-
+|{{Plinkt|Divine battlemage potion}}
+|-
+|{{Plinkt|Divine magic potion}}
+|-
+|{{Plinkt|Divine ranging potion}}
+|-
+|{{Plinkt|Divine super attack potion}}
+|-
+|{{Plinkt|Divine super combat potion}}
+|-
+|{{Plinkt|Divine super defence potion}}
+|-
+|{{Plinkt|Divine super strength potion}}
+|-
+|{{Plinkt|Energy potion}}{{refn|name=restore|Can be shared using [[Stat Restore Pot Share]] instead}}
+|-
+|{{Plinkt|Forgotten brew}}
+|-
+|{{Plinkt|Goading potion}}
+|-
+|{{Plinkt|Goblin potion}}
+|-
+|{{Plinkt|Guthix rest}}
+|-
+|{{Plinkt|Hunter potion}}
+|-
+|{{Plinkt|Magic essence}}
+|-
+|{{Plinkt|Menaphite remedy}}
+|-
+|{{Plinkt|Overload (Chambers of Xeric)}}
+|-
+|{{Plinkt|Overload (Nightmare Zone)}}
+|-
+|{{Plinkt|Prayer potion}}{{refn|name=restore}}
+|-
+|{{Plinkt|Prayer regeneration potion}}
+|-
+|{{Plinkt|Restore potion}}{{refn|name=restore}}
+|-
+|{{Plinkt|Saradomin brew}}
+|-
+|{{Plinkt|Stamina potion}}{{refn|name=restore}}
+|-
+|{{Plinkt|Super energy}}{{refn|name=restore}}
+|-
+|{{Plinkt|Super magic potion}}
+|-
+|{{Plinkt|Super ranging}}
+|-
+|{{Plinkt|Super restore}}{{refn|name=restore}}
+|-
+|{{Plinkt|Surge potion}}
+|-
+|{{Plinkt|Zamorak brew}}
+|}
+{{reflist}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 10
+|Rune2 = Earth
+|Rune2num = 12
+|Rune3 = Astral
+|Rune3num = 3}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = Boost Potion Share now takes into account the [[Holy Wrench]], [[Prayer cape|Prayer Skillcape]], [[Max Cape]] and [[Ring of the gods (i)]]'s respective effects when used to share the effects of any potion impacted by these items.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

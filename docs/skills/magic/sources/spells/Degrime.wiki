@@ -1,0 +1,43 @@
+{{Infobox Spell
+|name = Degrime
+|image = [[File:Degrime.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 70
+|spellbook = Arceuus
+|type = Utility
+|exp = 83
+|cost = {{RuneReq|Earth=4|Nature=2}}
+|speed = 8 ticks
+|quest = [[A Kingdom Divided]]
+|description = Cleans all of your grimy herbs
+|anim = [[File:Degrime.gif|180px]]
+|sound = [[File:Degrime.ogg]]
+}}
+[[File:Degrime icon (mobile).png|left]]
+'''Degrime''' is a spell within the [[Arceuus spellbook]] that requires level 70 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+Casting Degrime cleans all [[Herb#Normal_herbs|grimy herbs]] in a player's inventory, providing that the player has the required [[Herblore]] level to clean them normally. However, only half the Herblore experience is gained for cleaning herbs via the Degrime spell. For example, casting Degrime with [[grimy toadflax]] will only grant 4 Herblore experience per herb rather than 8.
+
+{{Bug|Attempting to cast Degrime while the player is moving will queue up the action, but never actually cast the spell even once the player comes to a halt, despite repeated attempts yielding the message, {{mes|Your last spell is still in progress!}}. Thus, the player must stop moving and recast Degrime for it to actually trigger.}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 4
+|Rune2 = nature
+|Rune2num = 2
+}}
+
+==Cost analysis==
+{{DegrimeTable}}
+
+==Trivia==
+*This spell was initially named "Cleanse", but was changed sometime during development.
+
+==See also==
+* [[Zahur]] can clean herbs in Nardah.
+
+{{Arceuus spellbook}}
+{{Utility spells}}

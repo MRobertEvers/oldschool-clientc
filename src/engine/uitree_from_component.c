@@ -204,6 +204,7 @@ UITree_FillBuildFromToriRS(
      * spellings of none survive it: dat1's type 0 and dat2's id -1. */
     dst->model_active_id = src->active_model_type == 1 ? src->active_model_id : -1;
     dst->model_seq_id = src->model_seq_id;
+    dst->model_active_seq_id = src->model_active_seq_id;
     dst->model_zoom = src->model_zoom;
     dst->model_xan = src->model_xan;
     dst->model_yan = src->model_yan;
@@ -222,11 +223,13 @@ UITree_FillBuildFromToriRS(
     dst->line_width = src->line_width;
     dst->line_horizontal = src->line_horizontal;
 
+    /* An absent block reads as the all-zero columns a non-inventory component
+     * used to carry inline, so the destination lands on the same values. */
     for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX && i < TORIRS_INV_SLOT_MAX; i++ )
     {
-        dst->inv_slot_offset_x[i] = src->inv_slot_offset_x[i];
-        dst->inv_slot_offset_y[i] = src->inv_slot_offset_y[i];
-        dst->inv_slot_graphic_id[i] = src->inv_slot_graphic_id[i];
+        dst->inv_slot_offset_x[i] = src->inv_slots ? src->inv_slots->offset_x[i] : 0;
+        dst->inv_slot_offset_y[i] = src->inv_slots ? src->inv_slots->offset_y[i] : 0;
+        dst->inv_slot_graphic_id[i] = src->inv_slots ? src->inv_slots->graphic_id[i] : 0;
     }
 
     dst->hide = src->hide;

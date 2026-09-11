@@ -1,0 +1,472 @@
+# varbit — 94 Tombs of Amascut records from cache.osrs239
+# id	symbol	(record follows)
+
+[3211] toa_kicked_from_raid
+basevar=toa_temp_transmit_2
+startbit=30
+endbit=30
+
+[10149] toa_beenteleported
+basevar=xmas20_main
+startbit=29
+endbit=29
+
+[13837] toa_entrance_open
+basevar=itt_primary
+startbit=8
+endbit=8
+
+[14318] toa_partylist_filter
+basevar=toa_perm_transmit_1
+startbit=0
+endbit=0
+
+[14319] toa_should_have_loot
+basevar=toa_perm_transmit_1
+startbit=1
+endbit=1
+
+[14320] toa_scoreboard_tab
+basevar=toa_perm_transmit_1
+startbit=2
+endbit=4
+
+[14321] toa_midraidloot_claimed
+basevar=toa_perm_transmit_1
+startbit=5
+endbit=5
+
+[14322] toa_midraidloot_rolled
+basevar=toa_perm_transmit_1
+startbit=6
+endbit=6
+
+[14323] toa_damage_taken
+basevar=toa_perm_transmit_4
+startbit=0
+endbit=15
+
+[14324] toa_title_selected
+basevar=toa_perm_transmit_1
+startbit=22
+endbit=29
+
+[14325] toa_damage_done
+basevar=toa_perm_transmit_2
+startbit=0
+endbit=15
+
+[14326] toa_title_achieved_swimmer
+basevar=toa_perm_transmit_2
+startbit=16
+endbit=16
+
+[14327] toa_title_achieved_chocolateteapot
+basevar=toa_perm_transmit_2
+startbit=17
+endbit=17
+
+[14328] toa_title_achieved_leech
+basevar=toa_perm_transmit_2
+startbit=18
+endbit=18
+
+[14329] toa_title_achieved_specialist
+basevar=toa_perm_transmit_2
+startbit=19
+endbit=19
+
+[14330] toa_title_achieved_pickyeater
+basevar=toa_perm_transmit_2
+startbit=20
+endbit=20
+
+[14331] toa_title_achieved_peasant
+basevar=toa_perm_transmit_2
+startbit=21
+endbit=21
+
+[14332] toa_title_achieved_showoff
+basevar=toa_perm_transmit_2
+startbit=22
+endbit=22
+
+[14333] toa_title_achieved_tank
+basevar=toa_perm_transmit_2
+startbit=23
+endbit=23
+
+[14334] toa_title_achieved_baller
+basevar=toa_perm_transmit_2
+startbit=24
+endbit=24
+
+[14335] toa_title_achieved_entomophobe
+basevar=toa_perm_transmit_2
+startbit=25
+endbit=25
+
+[14336] toa_title_achieved_moth
+basevar=toa_perm_transmit_2
+startbit=26
+endbit=26
+
+[14337] toa_title_achieved_carry
+basevar=toa_perm_transmit_2
+startbit=27
+endbit=27
+
+[14338] toa_title_achieved_anchor
+basevar=toa_perm_transmit_2
+startbit=28
+endbit=28
+
+[14339] toa_title_achieved_glutton
+basevar=toa_perm_transmit_2
+startbit=29
+endbit=29
+
+[14340] toa_title_achieved_sorcerer
+basevar=toa_perm_transmit_2
+startbit=30
+endbit=30
+
+[14341] toa_title_achieved_archer
+basevar=toa_perm_transmit_2
+startbit=31
+endbit=31
+
+[14342] toa_title_achieved_brawler
+basevar=toa_perm_transmit_3
+startbit=0
+endbit=0
+
+[14343] toa_title_achieved_clutch
+basevar=toa_perm_transmit_3
+startbit=1
+endbit=1
+
+[14344] toa_midraidloot_stats_timer
+basevar=toa_perm_transmit_3
+startbit=2
+endbit=11
+
+[14345] toa_client_partystatus
+basevar=toa_temp_transmit_1
+startbit=0
+endbit=1
+
+[14346] toa_client_p0
+basevar=toa_temp_transmit_1
+startbit=2
+endbit=6
+
+[14347] toa_client_p1
+basevar=toa_temp_transmit_1
+startbit=7
+endbit=11
+
+[14348] toa_client_p2
+basevar=toa_temp_transmit_1
+startbit=12
+endbit=16
+
+[14349] toa_client_p3
+basevar=toa_temp_transmit_1
+startbit=17
+endbit=21
+
+[14350] toa_client_p4
+basevar=toa_temp_transmit_1
+startbit=22
+endbit=26
+
+[14351] toa_client_p5
+basevar=toa_temp_transmit_1
+startbit=27
+endbit=31
+
+[14352] toa_client_p6
+basevar=toa_temp_transmit_2
+startbit=0
+endbit=4
+
+[14353] toa_client_p7
+basevar=toa_temp_transmit_2
+startbit=5
+endbit=9
+
+[14354] toa_client_partyslot
+basevar=toa_temp_transmit_2
+startbit=10
+endbit=13
+
+[14355] toa_client_hideplayers
+basevar=toa_temp_transmit_2
+startbit=14
+endbit=14
+
+[14356] toa_vault_chest_0
+basevar=toa_temp_transmit_2
+startbit=15
+endbit=17
+
+[14357] toa_vault_chest_1
+basevar=toa_temp_transmit_2
+startbit=18
+endbit=20
+
+[14358] toa_vault_chest_2
+basevar=toa_temp_transmit_2
+startbit=21
+endbit=23
+
+[14359] toa_vault_chest_3
+basevar=toa_temp_transmit_2
+startbit=24
+endbit=26
+
+[14360] toa_vault_chest_4
+basevar=toa_temp_transmit_2
+startbit=27
+endbit=29
+
+[14361] toa_midraidloot_energy_active
+basevar=toa_temp_transmit_3
+startbit=1
+endbit=1
+
+[14362] toa_client_primary0
+basevar=toa_temp_transmit_3
+startbit=2
+endbit=2
+
+[14363] toa_client_primary1
+basevar=toa_temp_transmit_3
+startbit=3
+endbit=3
+
+[14364] toa_client_primary2
+basevar=toa_temp_transmit_3
+startbit=4
+endbit=4
+
+[14365] toa_client_primary3
+basevar=toa_temp_transmit_3
+startbit=5
+endbit=5
+
+[14366] toa_client_primary4
+basevar=toa_temp_transmit_3
+startbit=6
+endbit=6
+
+[14367] toa_client_primary5
+basevar=toa_temp_transmit_3
+startbit=7
+endbit=7
+
+[14368] toa_client_primary6
+basevar=toa_temp_transmit_3
+startbit=8
+endbit=8
+
+[14369] toa_client_primary7
+basevar=toa_temp_transmit_3
+startbit=9
+endbit=9
+
+[14370] toa_vault_chest_5
+basevar=toa_temp_transmit_3
+startbit=10
+endbit=12
+
+[14371] toa_vault_chest_6
+basevar=toa_temp_transmit_3
+startbit=13
+endbit=15
+
+[14372] toa_vault_chest_7
+basevar=toa_temp_transmit_3
+startbit=16
+endbit=18
+
+[14373] toa_vault_sarcophagus
+basevar=toa_temp_transmit_3
+startbit=19
+endbit=21
+
+[14374] toa_damage_done_current
+basevar=toa_temp_transmit_4
+startbit=0
+endbit=14
+
+[14375] toa_damage_taken_current
+basevar=toa_temp_transmit_4
+startbit=15
+endbit=29
+
+[14376] toa_client_crondis_level
+basevar=toa_temp_transmit_5
+startbit=0
+endbit=2
+
+[14377] toa_client_scabaras_level
+basevar=toa_temp_transmit_5
+startbit=3
+endbit=5
+
+[14378] toa_client_het_level
+basevar=toa_temp_transmit_5
+startbit=6
+endbit=8
+
+[14379] toa_client_apmeken_level
+basevar=toa_temp_transmit_5
+startbit=9
+endbit=11
+
+[14380] toa_client_raid_level
+basevar=toa_temp_transmit_5
+startbit=12
+endbit=22
+
+[14381] toa_client_current_path
+basevar=toa_temp_transmit_5
+startbit=23
+endbit=25
+
+[14439] toa_pickaxe_charges
+basevar=toa_pickaxe_storage
+startbit=0
+endbit=15
+
+[14440] toa_pickaxe_stored
+basevar=toa_pickaxe_storage
+startbit=16
+endbit=20
+
+[14441] toa_camel_quest_state
+basevar=toa_camel
+startbit=0
+endbit=1
+
+[14442] toa_camel_quest_kephri_solved
+basevar=toa_camel
+startbit=2
+endbit=2
+
+[14443] toa_camel_quest_baba_solved
+basevar=toa_camel
+startbit=3
+endbit=3
+
+[14444] toa_camel_quest_akkha_solved
+basevar=toa_camel
+startbit=4
+endbit=4
+
+[14445] toa_camel_quest_zebak_solved
+basevar=toa_camel
+startbit=5
+endbit=5
+
+[14446] toa_camel_name_learned
+basevar=toa_camel
+startbit=6
+endbit=6
+
+[14447] toa_secret_chest_status
+basevar=toa_camel
+startbit=7
+endbit=7
+
+[14449] toa_book_kephri
+basevar=toa_rewards_int
+startbit=5
+endbit=5
+
+[14450] toa_book_baba
+basevar=toa_rewards_int
+startbit=6
+endbit=6
+
+[14451] toa_book_zebak
+basevar=toa_rewards_int
+startbit=7
+endbit=7
+
+[14452] toa_book_akkha
+basevar=toa_rewards_int
+startbit=8
+endbit=8
+
+[14453] toa_book_wardens
+basevar=toa_rewards_int
+startbit=9
+endbit=9
+
+[14454] toa_book_icthlarin
+basevar=toa_rewards_int
+startbit=10
+endbit=10
+
+[14455] toa_wardens_buff_type
+basevar=toa_wardens
+startbit=0
+endbit=1
+
+[14456] toa_wardens_buff_value
+basevar=toa_wardens
+startbit=2
+endbit=11
+
+[14495] toa_client_raid_level_stop_auto_updating
+basevar=toa_temp_transmit_5
+startbit=26
+endbit=26
+
+[14498] toa_unlocked_pet_morph_akkha
+basevar=toa_rewards_int
+startbit=11
+endbit=11
+
+[14499] toa_unlocked_pet_morph_baba
+basevar=toa_rewards_int
+startbit=12
+endbit=12
+
+[14500] toa_unlocked_pet_morph_kephri
+basevar=toa_rewards_int
+startbit=13
+endbit=13
+
+[14501] toa_unlocked_pet_morph_zebak
+basevar=toa_rewards_int
+startbit=14
+endbit=14
+
+[14502] toa_unlocked_pet_morph_destroyed_tumeken
+basevar=toa_rewards_int
+startbit=15
+endbit=15
+
+[14503] toa_unlocked_pet_morph_destroyed_elidinis
+basevar=toa_rewards_int
+startbit=16
+endbit=16
+
+[14541] toa_preset_selected
+basevar=toa_temp_transmit_5
+startbit=27
+endbit=30
+
+[14542] toa_found_secret_passage
+basevar=toa_camel
+startbit=8
+endbit=8
+
+[14671] toa_ca_qualified
+basevar=toa_perm_transmit_4
+startbit=16
+endbit=16

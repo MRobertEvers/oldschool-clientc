@@ -5,7 +5,10 @@
 #include "rs_attack_option.h"
 #include "world/entity_player.h"
 #include "world/world.h"
+#include "world/wev.h"
 #include "world/world_pickset.h"
+
+#include <datatypes/dat2_config_loc.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -128,14 +131,34 @@ add_world_select_row(
  * "Depends on combat levels", the half of the NPC Attack option that is not
  * about the Attack row at all.
  *
- * The reference's per-op priority bump (Statics.method7229) tests the option
- * and the level difference OUTSIDE its is-this-the-attack-pass branch, so with
- * Depends selected a higher-level NPC has EVERY row deprioritized, not just
- * Attack — left-clicking a level-21 guard at level 10 walks rather than
- * pickpockets. Only the "Always right-click" arm is attack-pass-only.
+ * The settings-era reference's per-op priority bump (Statics.method7229) tests
+ * the option and the level difference OUTSIDE its is-this-the-attack-pass
+ * branch, so with Depends selected a higher-level NPC has EVERY row
+ * deprioritized, not just Attack — left-clicking a level-21 guard at level 10
+ * walks rather than pickpockets. Only the "Always right-click" arm is
+ * attack-pass-only.
+ *
+ * The 2004 client computes the same comparison inside its attack pass and
+ * nowhere else (Client-TS addNpcOptions), so under the classic model this
+ * spread does not happen and Pickpocket stays the left click.
  */
 static bool
 npc_option_deprioritizes(
+    int attack_option_model,
+    int npc_attack_option,
+    struct WorldEntity_NPC const* npc,
+    int viewer_combat_level)
+{
+    return attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS &&
+           npc_attack_option == RS_ATTACK_OPTION_DEPENDS && viewer_combat_level >= 0 &&
+           npc->combat_level > viewer_combat_level;
+}
+
+/* The attack pass's own bump, which both eras compute: the target out-levels
+ * the viewer. Shared so the classic model still gets it with the spread above
+ * turned off. */
+static bool
+npc_attack_row_deprioritizes(
     int npc_attack_option,
     struct WorldEntity_NPC const* npc,
     int viewer_combat_level)
@@ -164,6 +187,9 @@ add_npc_rows(
         .quaternary_id = picked->tile_z,
     };
 
+    if( npc->multinpc_hidden )
+        return;
+
     /* Colour the level by its distance from the local player's combat level
      * (reference addNpcOptions:9695 — `name + combatColourCode(localPlayer,
      * vislevel) + ' (level-N)'`). The suffix is gated on a local player being
@@ -180,7 +206,7 @@ add_npc_rows(
         snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
 
     if( add_world_select_row(
-            menu, sel, pick, "@yel@ ", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
+            menu, sel, pick, "@yel@", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
             REVCONFIG_MINIMENU_TGT_NPC) )
         return;
 
@@ -197,9 +223,10 @@ add_npc_rows(
         if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             continue;
         action = opnpc_action_for_slot(i);
-        if( npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+        if( npc_option_deprioritizes(
+                ctx->attack_option_model, attack_option, npc, viewer_combat_level) )
             action = UIMinimenu_ActionDeprioritize(action);
-        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
     }
     /* "Hidden" drops the whole attack pass; the reference `continue`s before
@@ -218,14 +245,14 @@ add_npc_rows(
                 continue;
             action = opnpc_action_for_slot(i);
             if( attack_option == RS_ATTACK_OPTION_RIGHTCLICK ||
-                npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+                npc_attack_row_deprioritizes(attack_option, npc, viewer_combat_level) )
                 action = UIMinimenu_ActionDeprioritize(action);
-            snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+            snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
             UIMinimenu_AddOption(menu, text, action, i, pick);
         }
     }
 
-    snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
+    snprintf(text, sizeof(text), "Examine @yel@%s", tooltip);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
 }
 
@@ -243,21 +270,29 @@ scenery_debug_name(
     char* buf,
     int cap)
 {
-    char const* name = scenery->name[0] ? scenery->name : "Scenery";
+    char const* name = scenery->info->name[0] ? scenery->info->name : "Scenery";
 
     if( !WorldEntity_SceneryDebugEnabled() )
         return name;
     assert(world);
 
+    /* The footprint rides here, not only on the detail row: the painter orders
+     * scenery by its width x depth, so "which tiles does the client think this
+     * loc covers" is the first question of every placement or draw-order bug,
+     * and this is the one string that reaches the hover line. `draw_size_*` is
+     * the placed footprint (orientation applied), which is the one the painter
+     * used — the config's own size is on the detail row beside it. */
     snprintf(
         buf,
         cap,
-        "%s @whi@sc(%d,%d) abs(%d,%d)",
+        "%s @whi@sc(%d,%d) abs(%d,%d) %dx%d",
         name,
         scenery->grid_position.x,
         scenery->grid_position.z,
         world->_base_tile_x + scenery->grid_position.x,
-        world->_base_tile_z + scenery->grid_position.z);
+        world->_base_tile_z + scenery->grid_position.z,
+        scenery->debug.draw_size_x,
+        scenery->debug.draw_size_z);
     return buf;
 }
 
@@ -410,6 +445,40 @@ add_scenery_debug_row(
     };
     char text[UITREE_MINIMENU_OPTION_LEN];
 
+    /* The ground this loc stands on, in the same spelling the Walk-here row
+     * uses (World_TileSettingsText). A loc's own record cannot say why it draws
+     * or picks the way it does when the column under it is a bridge deck or
+     * carries VIS_BELOW, and reading that off a second hover — of the tile, not
+     * the loc — means the two readings are of different frames. `l` is the
+     * loc's own level, `d` the level the floor beneath it draws at.
+     *
+     * First of the three debug rows so the geometry and placement rows keep
+     * their existing order, and the placement row stays the last inserted. */
+    {
+        char settings[4 * 6 + 1];
+        char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
+
+        World_TileSettingsText(
+            world, scenery->grid_position.x, scenery->grid_position.z, settings,
+            (int)sizeof(settings));
+        World_TerrainMeshLevelsText(
+            world, scenery->grid_position.x, scenery->grid_position.z, meshes,
+            (int)sizeof(meshes));
+        snprintf(
+            text,
+            sizeof(text),
+            "@whi@tile sc(%d,%d) l%d d%d s[%s] m[%s]",
+            scenery->grid_position.x,
+            scenery->grid_position.z,
+            scenery->grid_position.level,
+            World_TerrainDrawLevel(
+                world, scenery->grid_position.x, scenery->grid_position.z,
+                scenery->grid_position.level),
+            settings,
+            meshes);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
+    }
+
     /* Geometry first so the placement row stays the last-inserted one, and so
      * stays the row the hover line is composed from. */
     add_scenery_geometry_row(menu, world, scenery, pick);
@@ -446,6 +515,39 @@ add_scenery_debug_row(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
 }
 
+/* The map editor SELECT tool's row label: which LAYER a loc occupies, since
+ * that (not the loc's own name) is what a tile-tool session cares about --
+ * "Select Wall" says which of a stacked wall + wall-decor + ground-decor the
+ * row will latch, the way the loc's own actions row already says what it is. */
+static char const*
+mapedit_select_category(int shape)
+{
+    switch( shape )
+    {
+    case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
+    case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
+    case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
+    case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
+    case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
+        return "Wall";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_INSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_OUTSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+        return "Wall Decor";
+    case RSCACHE_LOC_SHAPE_SCENERY:
+    case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL:
+        return "Object";
+    case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
+        return "Ground Decor";
+    default:
+        /* Roof shapes (12-21): rare on a right-click menu, and share no
+         * single-word name worth inventing one for. */
+        return "Loc";
+    }
+}
+
 static void
 add_scenery_rows(
     struct UIMinimenu* menu,
@@ -453,7 +555,8 @@ add_scenery_rows(
     struct World* world,
     struct WorldEntity_Scenery const* scenery,
     struct World_Picked const* picked,
-    bool locedit_active)
+    bool locedit_active,
+    bool mapedit_select_active)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char name_buf[UITREE_MINIMENU_OPTION_LEN];
@@ -464,6 +567,7 @@ add_scenery_rows(
         .secondary_id = scenery->loc_id,
         .tertiary_id = picked->tile_x,
         .quaternary_id = picked->tile_z,
+        .view_id = picked->view_id,
     };
 
     if( add_world_select_row(
@@ -476,13 +580,14 @@ add_scenery_rows(
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( scenery->actions[i].name[0] == '\0' )
+        if( scenery->info->actions[i].name[0] == '\0' )
             continue;
-        snprintf(text, sizeof(text), "%s @cya@ %s", scenery->actions[i].name, name);
+        snprintf(
+            text, sizeof(text), "%s @cya@%s", scenery->info->actions[i].name, name);
         UIMinimenu_AddOption(menu, text, oploc_action_for_slot(i), i, pick);
     }
 
-    snprintf(text, sizeof(text), "Examine @cya@ %s", name);
+    snprintf(text, sizeof(text), "Examine @cya@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC6, 0, pick);
 
     /* Loc editor dev tool (src/app.c): every loc that earns an Examine row
@@ -493,9 +598,22 @@ add_scenery_rows(
      * can reach the real OPLOC dispatch; never sent to a server. */
     if( locedit_active )
     {
-        snprintf(text, sizeof(text), "Select @cya@ %s", name);
+        snprintf(text, sizeof(text), "Select @cya@%s", name);
         UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_LOCEDIT_SELECT, 0, pick);
     }
+
+    /* Map editor's own twin, labeled by shape category rather than name --
+     * see mapedit_select_category. Both tools may be open at once, on
+     * different subjects, so this is additive to the row above, not a
+     * replacement for it. */
+    if( mapedit_select_active )
+    {
+        snprintf(
+            text, sizeof(text), "Select %s @cya@%s", mapedit_select_category(scenery->shape),
+            name);
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT, 0, pick);
+    }
+
 }
 
 /* Ground-item rows (Client.ts addWorldOptions entityType 3): ObjType.op in
@@ -519,7 +637,7 @@ add_obj_rows(
     };
 
     if( add_world_select_row(
-            menu, sel, pick, "@lre@ ", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
+            menu, sel, pick, "@lre@", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
             REVCONFIG_MINIMENU_TGT_OBJ) )
         return;
 
@@ -527,17 +645,17 @@ add_obj_rows(
     {
         if( stack->actions[i].name[0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s @lre@ %s", stack->actions[i].name, name);
+            snprintf(text, sizeof(text), "%s @lre@%s", stack->actions[i].name, name);
             UIMinimenu_AddOption(menu, text, opobj_action_for_slot(i), i, pick);
         }
         else if( i == 2 )
         {
-            snprintf(text, sizeof(text), "Take @lre@ %s", name);
+            snprintf(text, sizeof(text), "Take @lre@%s", name);
             UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ3, 2, pick);
         }
     }
 
-    snprintf(text, sizeof(text), "Examine @lre@ %s", name);
+    snprintf(text, sizeof(text), "Examine @lre@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
 }
 
@@ -726,7 +844,7 @@ add_player_rows(
         snprintf(tooltip, sizeof(tooltip), "%s", player->name[0] ? player->name : "Player");
 
     if( add_world_select_row(
-            menu, sel, pick, "@whi@ ", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,
+            menu, sel, pick, "@whi@", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,
             REVCONFIG_MINIMENU_TGT_PLAYER) )
         return;
 
@@ -775,7 +893,7 @@ add_player_rows(
         }
         if( deprioritize )
             action = UIMinimenu_ActionDeprioritize(action);
-        snprintf(text, sizeof(text), "%s @whi@ %s", op, tooltip);
+        snprintf(text, sizeof(text), "%s @whi@%s", op, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
     }
 
@@ -787,7 +905,7 @@ add_player_rows(
             snprintf(
                 menu->options[i].text,
                 sizeof(menu->options[i].text),
-                "Walk here @whi@ %s",
+                "Walk here @whi@%s",
                 tooltip);
             break;
         }
@@ -881,12 +999,41 @@ RS_Minimenu_AddWorldRows(
      * back-to-front, so that is the LAST terrain item (matches the hover
      * tile the click cross and spawn hotkeys use). Suppressed while a use/
      * target mode is armed (reference gates it on useMode==0 && targetMode==0). */
-    if( sel->mode == RS_MINIMENU_SELECT_NONE )
+    if( sel->mode == RS_MINIMENU_SELECT_NONE && ctx->sailing_navigating )
+    {
+        if( ctx->sailing_heading_valid )
+        {
+            struct UIMinimenuPick pick = {
+                .kind = UI_MINIMENU_PICK_HEADING,
+                .id = ctx->sailing_heading,
+            };
+            /* class108.method3786 / action 60: a compass choice, not a
+             * destination tile. Interactive facilities keep their own rows. */
+            UIMinimenu_AddOption(menu, "Set heading", REVCONFIG_MINIMENU_WALK, 0, pick);
+        }
+    }
+    else if( sel->mode == RS_MINIMENU_SELECT_NONE )
     {
         struct World_Picked const* terrain = NULL;
+        struct World_Picked const* view_terrain = NULL;
+
         for( int i = 0; i < picks->count; i++ )
             if( picks->items[i].type == WORLD_PICK_TERRAIN )
+            {
                 terrain = &picks->items[i];
+                if( picks->items[i].view_id != 0 )
+                    view_terrain = &picks->items[i];
+            }
+        /* A DECK tile outranks every root tile in the same click: the ray
+         * only reaches root ground by passing the hull, so the deck is
+         * always the depth-nearer surface — the deob's per-view hovered-tile
+         * race resolves by depth, and paint order (our usual nearest proxy)
+         * misorders the deck against the near-side ground BELOW the hull.
+         * Without this, clicking the planking of a beached boat walked the
+         * grass underneath it, which the gunwale then refused: "pathing on
+         * the boat does not work". */
+        if( view_terrain )
+            terrain = view_terrain;
         if( terrain )
         {
             struct UIMinimenuPick pick = {
@@ -895,25 +1042,51 @@ RS_Minimenu_AddWorldRows(
                 .secondary_id = terrain->tile_x,
                 .tertiary_id = terrain->tile_z,
                 .quaternary_id = terrain->tile_level,
+                .view_id = terrain->view_id,
             };
             /* TORIRS_LOC_DEBUG: name the tile the pointer is actually over,
              * so a loc's slot can be read against the ground under it — and
              * the local player's own tile, which is what the minimap centres
-             * on. */
-            if( WorldEntity_SceneryDebugEnabled() )
+             * on.
+             *
+             * `l` is the picked mesh level and `d` the level that mesh actually
+             * draws and picks against; they differ on exactly the columns where
+             * ground behaves surprisingly (a bridge deck reads l1 d0), so the
+             * pair is worth more than either alone. `s` is the column's land
+             * settings and `m` the levels carrying a floor — see the two
+             * helpers above. The local player's fine position stays last
+             * because it is the field most often read against a loc's own
+             * draw position on the row below. */
+            if( WorldEntity_SceneryDebugEnabled() && terrain->view_id == 0 )
             {
+                /* Root tiles only: a view pick's tiles are DECK-LOCAL, and
+                 * every lookup below (settings, mesh levels, base rebasing)
+                 * reads the ROOT world — the readout would be confidently
+                 * wrong. The view tile keeps the plain row below. */
                 struct WorldEntity_Player* lp =
                     World_PlayerGetByServerPid(ctx->world, ctx->world->local_pid);
                 char text[UITREE_MINIMENU_OPTION_LEN];
+                char settings[4 * 6 + 1];
+                char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
+
+                World_TileSettingsText(
+                    ctx->world, terrain->tile_x, terrain->tile_z, settings, (int)sizeof(settings));
+                World_TerrainMeshLevelsText(
+                    ctx->world, terrain->tile_x, terrain->tile_z, meshes, (int)sizeof(meshes));
                 snprintf(
                     text,
                     sizeof(text),
-                    "Walk here @whi@sc(%d,%d) abs(%d,%d) l%d | you sc(%d,%d) f(%d,%d)",
+                    "Walk here @whi@sc(%d,%d) abs(%d,%d) l%d d%d s[%s] m[%s] | you sc(%d,%d) "
+                    "f(%d,%d)",
                     terrain->tile_x,
                     terrain->tile_z,
                     ctx->world->_base_tile_x + terrain->tile_x,
                     ctx->world->_base_tile_z + terrain->tile_z,
                     terrain->tile_level,
+                    World_TerrainDrawLevel(
+                        ctx->world, terrain->tile_x, terrain->tile_z, terrain->tile_level),
+                    settings,
+                    meshes,
                     lp ? lp->grid_position.x : -1,
                     lp ? lp->grid_position.z : -1,
                     lp ? (int)lp->draw_position.x : -1,
@@ -922,6 +1095,21 @@ RS_Minimenu_AddWorldRows(
             }
             else
                 UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
+
+            /* Loc editor: the ground is selectable too, and by the same
+             * disambiguated route the Select rows use — the pick set already
+             * names the exact tile the pointer is over, so this needs no
+             * second hit test and cannot disagree with the row above it. */
+            if( ctx->locedit_active )
+                UIMinimenu_AddOption(
+                    menu, "Select @whi@terrain", RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN, 0,
+                    pick);
+
+            /* Map editor's own twin -- same pick, different tool, both may be
+             * open at once. */
+            if( ctx->mapedit_select_active )
+                UIMinimenu_AddOption(
+                    menu, "Select Terrain", RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN, 0, pick);
         }
         else
         {
@@ -947,6 +1135,49 @@ RS_Minimenu_AddWorldRows(
         }
     }
 
+    /*
+     * A picked HULL's config ops (SAILING_PLAN C5.2 / deob menu-hash type 4):
+     * a click that landed on a boat's own sub-scene carries the view id, and
+     * the WevConfig's five op strings — gated by the wire's 5-bit op mask —
+     * become rows against that hull ("Board" on the Zenith). One hull per
+     * click, the nearest (last) picked, matching the deob's one-boat-menu
+     * rule; flattened hulls never pick, so they never reach here.
+     */
+    if( sel->mode == RS_MINIMENU_SELECT_NONE && ctx->wevs )
+    {
+        struct World_Picked const* hull_pick = NULL;
+
+        for( int i = 0; i < picks->count; i++ )
+            if( picks->items[i].view_id != 0 && picks->items[i].type == WORLD_PICK_WEV )
+                hull_pick = &picks->items[i];
+        if( hull_pick && Wevs_IsLive(ctx->wevs, hull_pick->view_id) )
+        {
+            struct Wev const* wev = Wevs_Get((struct Wevs*)ctx->wevs, hull_pick->view_id);
+
+            if( wev->config && wev->render_visible && !wev->flattened )
+                for( int op = 0; op < WEV_CONFIG_OPS; op++ )
+                {
+                    struct UIMinimenuPick pick = {
+                        .kind = UI_MINIMENU_PICK_WEV,
+                        .id = hull_pick->view_id,
+                        .secondary_id = op,
+                    };
+                    char text[UITREE_MINIMENU_OPTION_LEN];
+
+                    if( !wev->config->ops[op] || !(wev->op_mask & (1u << op)) )
+                        continue;
+                    snprintf(
+                        text,
+                        sizeof(text),
+                        "%s @cya@%s",
+                        wev->config->ops[op],
+                        wev->config->name ? wev->config->name : "Boat");
+                    UIMinimenu_AddOption(menu, text, oploc_action_for_slot(op), op, pick);
+                }
+        }
+    }
+
+
     for( int i = 0; i < picks->count; i++ )
     {
         struct World_Picked const* picked = &picks->items[i];
@@ -970,10 +1201,24 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_SCENERY:
         {
-            struct WorldEntity_Scenery* scenery =
-                World_SceneryGetByElementId(ctx->world, picked->element_id);
-            if( scenery )
-                add_scenery_rows(menu, sel, ctx->world, scenery, picked, ctx->locedit_active);
+            /* A deck loc's record lives in its VIEW's world (SAILING_PLAN
+             * C5.2) — resolve the pick against the world that owns it. The
+             * view world's base is the staging base, so the debug rows'
+             * absolute-tile math reads correctly there too. */
+            struct World* pick_world = ctx->world;
+            if( picked->view_id != 0 )
+                pick_world = ctx->view_world_fn
+                                 ? ctx->view_world_fn(ctx->view_world_user, picked->view_id)
+                                 : NULL;
+            if( pick_world )
+            {
+                struct WorldEntity_Scenery* scenery =
+                    World_SceneryGetByElementId(pick_world, picked->element_id);
+                if( scenery )
+                    add_scenery_rows(
+                        menu, sel, pick_world, scenery, picked, ctx->locedit_active,
+                        ctx->mapedit_select_active);
+            }
             break;
         }
         case WORLD_PICK_OBJSTACK:
@@ -990,6 +1235,7 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */
         case WORLD_PICK_PROJECTILE: /* Not clickable (v1 parity). */
+        case WORLD_PICK_WEV:        /* Hull op rows only (above). */
             break;
         }
     }

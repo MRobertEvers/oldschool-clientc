@@ -110,12 +110,33 @@ struct D3D9RotmaskVertex
     float mask_v;
 };
 
+/*
+ * One scene sprite id's place in the UI atlas.
+ *
+ * `tiles` is kept across an invalidate, and that is the point of it. The
+ * atlas is an append-only bin-packer with no reclamation, so a sprite that
+ * is REPLACED over a live id -- the title screen's fire redraws its column
+ * every 35 ms -- would consume a fresh tile on every upload and exhaust the
+ * sheet within seconds, after which inserts fail and the sprite stops
+ * drawing altogether. Holding the tile lets a replacement of the same size
+ * overwrite the pixels where they already are.
+ */
+struct D3D9UISpriteTile
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t w; /* padded, as inserted */
+    uint32_t h;
+    uint8_t valid;
+};
+
 struct D3D9UISpriteSlot
 {
     int scene_id;
     int count;
     float* uvs;
     uint8_t* loaded;
+    struct D3D9UISpriteTile* tiles;
 };
 
 struct D3D9UISpriteVariant
@@ -168,6 +189,13 @@ struct D3D9UIRotmaskSlot
     IDirect3DTexture9* mask_texture;
     UINT mask_texture_width;
     UINT mask_texture_height;
+    /* Content hash of the sprite the texture was last uploaded from; lets a
+     * frame whose sprite pixels are byte-identical skip the MANAGED
+     * lock/convert/upload entirely. */
+    uint32_t source_hash;
+    uint32_t mask_hash;
+    bool source_hash_valid;
+    bool mask_hash_valid;
     bool used;
 };
 
@@ -223,6 +251,9 @@ struct D3D9ZBufferWorld;
 struct ToriRS_D3D9
 {
     struct ToriDraw_Scene* scene;
+    /* Projection + face sort; a NULL raster slot is how the table says it
+     * has no software raster stage (ToriDraw_KernelGetGpu). */
+    const struct ToriDraw_Kernel* kernel;
     HWND hwnd;
     IDirect3D9* d3d;
     IDirect3DDevice9* device;
@@ -246,6 +277,9 @@ struct ToriRS_D3D9
     int lb_y;
     int lb_w;
     int lb_h;
+    /* All Settings' interface scaling mode. D3D9's fixed-function UI path
+     * uses point for 0 and its best portable reconstruction, linear, for 1/2. */
+    int interface_scale_mode;
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;
@@ -412,9 +446,21 @@ d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer);
 void
 d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass);
 
+/** Push the frame's gathered per-page opaque indices onto the core's IBO
+ *  chain, one node per (binding, page) instead of one per model.  Must run
+ *  before the core draws that chain. */
+void
+d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer);
+
 /** Draw the deferred blended pass, after the core has drawn the opaque chain. */
 void
 d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer);
+
+/** Print the depth path's retained CPU allocations to stdout, one
+ *  "d3d9_mem:" line per pool.  No-op in painter mode.  Part of the shutdown
+ *  memory report the core assembles in ToriRS_D3D9_Free. */
+void
+d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer);
 
 /** Drop pass-scoped queues.  Runs on every end-of-3D, including early exits. */
 void

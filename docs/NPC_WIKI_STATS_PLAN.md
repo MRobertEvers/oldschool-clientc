@@ -57,7 +57,7 @@ The plan (§4) assumed a second generated `.npc` file could sit beside
 coexists with hand-authored files. It cannot, safely, without more care than
 "write a new file":
 
-- `mock230_content_npc()` (mock230_content.c) resolves an npc id to the
+- `ToriRSServer_ContentNpc()` (torirs_server_content.c) resolves an npc id to the
   **first** `[gameval]` block found across every `.npc` file in the tree — two
   files naming the same npc do not merge, the second is simply never reached.
 - `walk_configs()` visited directory entries in **`readdir()` order**, which
@@ -70,13 +70,13 @@ coexists with hand-authored files. It cannot, safely, without more care than
   same directory, ~1,000 npcs that appear in both files started losing
   whichever file's fields lost the unordered race — observed as npcs falling
   back to human-default swing/block/death animations, or (for `bat`) losing
-  its combat sounds entirely. `make test-mock230` caught this immediately: 7
-  failing selftests, one of them a blunt `mock230_content_error_count() != 0`.
+  its combat sounds entirely. `make test-ToriRSServer` caught this immediately: 7
+  failing selftests, one of them a blunt `ToriRSServer_ContentErrorCount() != 0`.
 
 Three fixes, all necessary together:
 
 1. **`walk_configs` now sorts** (`scandir` + `alphasort` instead of raw
-   `readdir`) — src/net/mock/mock230_content.c. Makes the ordering every
+   `readdir`) — src/torirsserver/torirs_server_content.c. Makes the ordering every
    existing comment already assumed actually true, rather than true by
    filesystem coincidence.
 2. **The compiled config is named `combat_stats.generated.npc`**, which sorts
@@ -91,7 +91,7 @@ Three fixes, all necessary together:
 
 The same discovery also found `find_authored_hitpoints`'s block-detection
 regex (`[a-z0-9_]+`) was narrower than the real loader
-(`mock230_content_section_header` accepts anything between `[` and `]`) — it
+(`ToriRSServer_ContentSectionHeader` accepts anything between `[` and `]`) — it
 missed 63 npcs with hand-authored anim/sound/param overlays that state no
 `hitpoints=`, and two npcs whose gameval contains a literal `+`
 (`mmsnailround_red+black`). Broadened to match the real parser and renamed
@@ -103,7 +103,7 @@ One pre-existing, unrelated gap remains after all of this:
 text-config parser yet. Confirmed pre-existing (I never touched that file,
 and it fails identically on a tree with none of this work applied) and out of
 scope — a quest-varp whole-read feature has nothing to do with npc combat
-stats. `make test-mock230` fails on that one line alone; everything this plan
+stats. `make test-ToriRSServer` fails on that one line alone; everything this plan
 touches is clean.
 
 ### 0.4 Style wiring: melee got it for free, ranged and magic did not
@@ -135,7 +135,7 @@ entirely.
   `gen_npc_stats.py` detects and skips these; a generated binding would either
   collide with or silently shadow hand-written combat AI.
 - `magic_maxhit` also needed registering in the *engine's* param whitelist
-  (`apply_param` in mock230_content.c hand-lists every valid `param=` name
+  (`apply_param` in torirs_server_content.c hand-lists every valid `param=` name
   separately from the compile-time param registry sscompile checks against) —
   a second, easy-to-miss place a new param has to be declared, found only
   because the selftest's content-error count didn't go back to zero after the
@@ -150,8 +150,8 @@ Plan §5's biggest stated risk — "turning `huntmode=aggressive` on across the
 roster without [a level cap] makes every low-level monster in the world
 permanently hostile to a maxed player" — turned out to be based on an
 assumption the plan never actually verified. `maybe_aggress()`
-(mock230_combat.c, landed 2026-08-04) already implements the exact OSRS rule:
-`if (mock230_combat_level(player) > npc_level * 2) return;`. No code change
+(torirs_server_combat.c, landed 2026-08-04) already implements the exact OSRS rule:
+`if (ToriRSServer_CombatLevel(player) > npc_level * 2) return;`. No code change
 was needed; `huntmode=aggressive` + `param=huntrange,5` (the wiki gives no
 aggro-range number, so this is a stated engine default, not a wiki fact) went
 out for every npc the wiki calls aggressive without further changes. The
@@ -342,7 +342,7 @@ The infobox holds a stat block. What the wiki *prose* says — "attacks with
 melee and magic", "drains prayer", "heals when it reaches its lair" — has no
 field, and the only honest way to carry it is per-npc RuneScript. The engine's
 seam is the `[ai_*]` triggers: default melee is handled in
-`mock230_combat.c`'s npc tick, and anything else needs an `ai_opplayer2` /
+`torirs_server_combat.c`'s npc tick, and anything else needs an `ai_opplayer2` /
 `ai_applayer2` script (`dark_wizard.rs2` is the worked example — two spells,
 `~npc_cast_spell`, a random gate).
 
@@ -369,7 +369,7 @@ It does three tractable things:
 **Aggression needs one engine question answered before it is set on 400+ npcs.**
 OSRS aggression stops when the player's combat level exceeds twice the npc's
 (plus one), and it times out after ~10 minutes in an area. `maybe_aggress()` in
-`mock230_combat.c` implements neither today. Turning `huntmode=aggressive` on
+`torirs_server_combat.c` implements neither today. Turning `huntmode=aggressive` on
 across the roster without that rule makes every low-level monster in the world
 permanently hostile to a maxed player. So: **implement the level rule first**,
 then set the flag. This is the one code change the plan requires.
@@ -408,7 +408,7 @@ The `--validate` mode measures all of this and writes nothing, the same contract
 4. **`tools/gen_npc_stats.py --validate`**, then `--write`: the ledger of §4.
    Review a sample by hand against the wiki pages before compiling anything.
 5. **The config**, `npc_stats.generated.npc`, plus the `pack/npc.server` claims.
-   `mock230_pack -v` must load with 0 errors; `make -C src test-mock230` must
+   `ToriRSServer_Pack -v` must load with 0 errors; `make -C src test-ToriRSServer` must
    pass.
 6. **The aggression level rule** in `maybe_aggress()`, with a test, *then*
    `huntmode=aggressive` from the wiki flag.

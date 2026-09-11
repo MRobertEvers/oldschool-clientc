@@ -1,0 +1,174 @@
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Sanguinesti staff (uncharged)
+|name2 = Sanguinesti staff
+|image1 = [[File:Sanguinesti staff (uncharged).png]]
+|image2 = [[File:Sanguinesti staff.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|aka = Sang, Sang staff
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable1 = No
+|equipable2 = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|wornoptions = Check
+|examine1 = A sacred staff imbued with the power of blood. It is currently uncharged.
+|examine2 = A sacred staff imbued with the power of blood.
+|value = 5000000
+|weight = 1.500
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 22481
+|id2 = 22323
+|leagueRegion = Morytania
+}}
+{{Synced switch
+|version1 = [[File:Sanguinesti staff (uncharged) detail.png|left|180px]]
+|version2 = [[File:Sanguinesti staff detail.png|left|180px]]
+}}
+The '''Sanguinesti staff''' is a one-handed [[powered staff]] requiring 82 [[Magic]] to wield, available as a rare drop from the [[Theatre of Blood]]. Like most powered staves, it is only tradeable when it is fully uncharged. Named after the [[Sanguinesti region]], the staff was crafted by Lord [[Lowerniel Drakan]] himself, and was given to Lady [[Verzik Vitur]] as a gift for her assistance in the [[Misthalin–Morytania War]].{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=One of the more recent additions to Lady Verzik's collection, the Sanguinesti staff is a powerful weapon that was crafted by Lord Lowerniel Drakan himself. The staff was given to Lady Verzik by Lord Lowerniel Drakan as a reward for assisting him in their fights against the Seven Priestly Warriors.}}
+
+The Sanguinesti staff can be combined with a [[holy ornament kit]] to make a [[Saradomin]]-themed [[holy Sanguinesti staff]]. Though its stats do not change, it makes it usable as a [[Saradomin]] item in the [[God Wars Dungeon]].
+
+The staff's charge cannot be used against another player in dangerous PvP, only safe minigames.
+
+[[File:Sanguinesti staff spell.gif|thumb|250px|A player using the Sanguinesti staff's built in spell.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +25
+|arange = -4
+|dstab = +2
+|dslash = +3
+|dcrush = +1
+|dmagic = +15
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image = [[File:Sanguinesti staff equipped.png|150px]]
+|altimage1 = [[File:Sanguinesti staff (uncharged) equipped female.png|150px]]
+|altimage2 = [[File:Sanguinesti staff equipped female.png|150px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Passive effect==
+The staff has a unique [[passive effect]] that grants the built in spell [[Life leech]] properties. [[Successful hit]]s with the spell have a 1/5 ''(20%)'' chance of dealing 8 additional damage and healing the user half the amount of [[hitpoints]] dealt to a target. This healing effect has a visible 'upwards spiral' on the enemy when triggered.
+
+The percentage of damage healed can be calculated with the following formula:
+
+<math>\begin{align}
+\text{Percentage of damage healed} &= \frac{(\text{Max Hit} / 2) + 8}{10 * (\text{Max Hit} / 2 + 1.6)} * 100 \\
+\end{align}</math>
+
+With a max mage setup and a saturated heart, the staff heals the user for approximately 12.5% of damage dealt.
+
+==Uses==
+[[File:Sanguinesti staff passive effect.gif|thumb|250px|A player attack triggers the staff's passive effect.]]
+Compared to the [[trident of the swamp]], the built-in spell hits two damage higher with a maximum base damage of 35 compared to the trident of the swamp's 33. The trident possesses the ability to [[venom|envenom]], while the staff possesses the healing passive effect.
+
+Thus, the staff is most optimal in situations where venom or poison has no benefit and where healing is required. However, if the player's target is not immune to venom, players could initially use the trident of the swamp against the target until the target has been envenomed, then switch to the Sanguinesti staff. Notable encounters where the staff's healing capability proves very useful include the [[Kraken]], the [[Chambers of Xeric]], [[Dagannoth Rex]], [[Zulrah]], [[Nightmare]], [[The Whisperer]], and the [[Tombs of Amascut]].
+
+==Charging==
+To use the staff's magic spell, it must be charged with [[blood rune]]s, holding up to 20,000 charges when fully charged. Each cast requires 2 blood runes, costing {{NoCoins|{{GEP|Blood rune|2}}|c}} per cast. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. The total cost to fully charge the staff with 40,000 blood runes is {{NoCoins|{{GEP|Blood rune|40000}}|c}}. Assuming non-stop use, with one cast every 2.4 seconds equalling 1,500 casts per hour, the staff costs {{NoCoins|{{GEP|Blood rune|2}}* 1500|c}} per hour to use.
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|2 x {{plink|Blood rune}}
+|{{Coins|{{GEP|Blood rune}} * 2}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|({{GEP|Blood rune}} * 2)}}
+|}
+
+Players can uncharge the staff whenever and wherever they choose, getting all of the blood runes back.
+
+==Maximum hit==
+<math>\begin{align}
+\text{Max Hit} &= \lfloor \frac{\text{MagicLevel}}{3} \rfloor\\
+\end{align}</math>
+
+The base [[Maximum Magic hit|maximum hit]] dealt by the staff is dependent on the player's current [[Magic]] level, starting at 27 with level 82 Magic and increasing by one every three Magic levels, up to a maximum of 41 at level 123 (obtainable only through [[smelling salts]] in [[Tombs of Amascut]]). Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the staff's attack styles, do not affect the max hit. The staff always has a maximum hit of at least 6, even when reduced to 0 magic. Compared to the other three powered staves, the [[trident of the seas]] has a lower base maximum hit by 5 (max of 20 at level 75), the [[trident of the swamp]] has a lower base maximum hit by 2 (max of 24 at level 78), and [[Tumeken's shadow]] has a higher base maximum hit by 2 (max of 29 at level 85).
+
+===Calculator===
+{{Magic damage calculator|Sanguinesti staff}}
+
+==Products==
+{{Uses material list|Sanguinesti staff (uncharged)}}
+
+==Item sources==
+{{Drop sources|Sanguinesti staff (uncharged)}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Sanguinesti staff}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Concept art==
+<gallery>
+Sanguinesti staff work-in-progress.png|A work-in-progress design of the Sanguinesti staff.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = 
+* The Sanguinesti staff now requires 2 blood runes for every charge. Extra blood runes stored in the staff before the update are refunded to:
+** Player's inventory if the staff is also in the inventory, or their bank if their inventory is full, or dropped to the ground if both are full (or player is an [[ultimate ironman]])
+** Player's bank if their staff is also in the bank
+* The chance for the life leech effect to activate has been increased from 1/6 (~16.6%) to 1/5 (20%).
+* The staff now deals 8 additional damage whenever the life leech effect activates.
+* The staff's base maximum hit has been increased by 1.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Sanguinesti staff supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = The Sanguinesti staff now requires level 82 Magic to wield instead of level 75 Magic.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Sanguinesti staff (beta)
+|daterange = 8 - 17 March 2018
+|beta = Theatre of Blood Rewards Testing
+|change = First present in the Theatre of Blood Rewards beta.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Magic weapons}}
+{{Theatre of Blood}}
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Items with charges]]

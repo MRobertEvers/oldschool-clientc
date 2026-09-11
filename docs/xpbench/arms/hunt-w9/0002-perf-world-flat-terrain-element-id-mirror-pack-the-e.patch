@@ -1,0 +1,197 @@
+From 27720e88467b7f59cd4f0b3c467f391c58d0a9bd Mon Sep 17 00:00:00 2001
+From: hunt-w9 <agent@local>
+Date: Mon, 24 Aug 2026 23:23:56 -0500
+Subject: [PATCH 2/3] perf(world): flat terrain element-id mirror; pack the
+ emitter's scene-element read set
+
+Two halves of the same memory-latency problem in the world emitter.
+
+The terrain lookup was a bounds test, an active-flag probe in a separate node
+array and a load out of a 40-byte record -- three lines to answer with one
+int. World keeps a flat int32 mirror of it instead, written only by
+World_TerrainSet and cleared only by World_TerrainReset, with
+World_TerrainElementAt re-deriving the pool answer under assert() so a debug
+build proves the two cannot drift.
+
+ToriDraw_SceneElement's fields are reordered so the six the emitter reads
+(model, animation, world_position, anim_frame, dynamic, pick_aabb) sit in
+bytes 5..51 instead of spanning 8..86. The element is a scattered calloc
+block, so that is one cache line instead of two for the hot read.
+---
+ 3rd/toridraw/toridraw_types.h | 30 +++++++++++++++++-------
+ src/world/world.c             | 43 +++++++++++++++++++++++++++++------
+ src/world/world.h             | 15 ++++++++++++
+ 3 files changed, 73 insertions(+), 15 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw_types.h b/3rd/toridraw/toridraw_types.h
+index 375b5bbea..13c861ba7 100644
+--- a/3rd/toridraw/toridraw_types.h
++++ b/3rd/toridraw/toridraw_types.h
+@@ -530,6 +530,17 @@ struct ToriDraw_TextureState
+ 
+ struct ToriDraw_SkeletalAnim;
+ 
++/*
++ * FIELD ORDER IS LOAD-BEARING. The world emitter (try_emit_world_draw_model)
++ * reads model / animation / world_position / anim_frame / dynamic / pick_aabb
++ * and nothing else, once per painted command -- 2,582 elements a frame, each
++ * one a cold pointer chased out of the intrusive list, and on the XP profile
++ * that dereference is ~36% of ToriRS_FrameNextCommand. Spread across the
++ * struct those six fields covered bytes 8..86 of an 88-byte heap block, which
++ * is two cache lines however the block falls. Packed into the head they cover
++ * bytes 5..51, which is one line whenever the block starts line-aligned.
++ * Everything the emitter does not read is below the divider. Keep it that way.
++ */
+ struct ToriDraw_SceneElement
+ {
+     int scene_id;
+@@ -537,17 +548,25 @@ struct ToriDraw_SceneElement
+      *  wholesale by ToriDraw_SceneClearPool on a map rebuild; DYNAMIC
+      *  elements (entities) keep their ids across it. */
+     uint8_t pool;
++    bool dynamic;
++    /** Reference Model.useAABBMouseCheck: pick against the projected bounding
++     *  box instead of per-face. Set for npcs, players and ground objs (see
++     *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
++     *  per-face test. */
++    bool pick_aabb;
+     struct ToriDraw_ModelHandle model;
+     struct ToriDraw_Animation* animation;
++    struct ToriDraw_Position world_position;
++    int anim_frame;
++
++    /* ---- not read by the world emitter ---- */
++
+     struct ToriDraw_Animation* secondary_animation;
+     struct ToriDraw_SkeletalAnim* skeletal_animation;
+-    struct ToriDraw_Position world_position;
+-    bool dynamic;
+     bool pending_batch_add;
+     bool is_skeletal; /* true: use skeletal_animation; false: use animation */
+     int skeletal_play_frames; /* playback length from seq anim_maya_end-start; -1 = palette size */
+     int anim_seq_id;
+-    int anim_frame;
+     int anim_cycle;
+ 
+     /* Secondary (walk) track for the walkmerge blend: when the primary
+@@ -565,11 +584,6 @@ struct ToriDraw_SceneElement
+      * MapSpotAnim.update); locs are DynamicObjects and leave it clear so they
+      * still drop their sequence and revert to the static model. */
+     bool anim_loop;
+-    /** Reference Model.useAABBMouseCheck: pick against the projected bounding
+-     *  box instead of per-face. Set for npcs, players and ground objs (see
+-     *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
+-     *  per-face test. */
+-    bool pick_aabb;
+ };
+ 
+ struct ToriDraw_SceneBatchElementHandle
+diff --git a/src/world/world.c b/src/world/world.c
+index 96a03d4ac..0e118b857 100644
+--- a/src/world/world.c
++++ b/src/world/world.c
+@@ -53,6 +53,7 @@ World_Free(struct World* world)
+     free(world->tile_flags);
+     free(world->obj_raise);
+     free(world->tile_last_occupied_cycle);
++    free(world->terrain_element_id);
+     free(world->mapscenes);
+     free(world->area_sounds);
+     World_EntityListFree(&world->entities);
+@@ -489,6 +490,14 @@ World_ResetSceneAlloc(
+ 
+     int terrain_tile_count = scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS;
+     World_EntityPoolReserve(&world->entities.terrain, terrain_tile_count);
++
++    /* The terrain pool was reset above, so the mirror starts empty. */
++    free(world->terrain_element_id);
++    world->terrain_element_id = (int*)malloc((size_t)terrain_tile_count * sizeof(int));
++    assert(world->terrain_element_id);
++    world->terrain_element_id_count = terrain_tile_count;
++    for( int i = 0; i < terrain_tile_count; i++ )
++        world->terrain_element_id[i] = -1;
+ }
+ 
+ void
+@@ -575,6 +584,8 @@ World_TerrainReset(struct World* world)
+ {
+     assert(world);
+     World_EntityPoolReset(&world->entities.terrain);
++    for( int i = 0; i < world->terrain_element_id_count; i++ )
++        world->terrain_element_id[i] = -1;
+ }
+ 
+ void
+@@ -596,6 +607,12 @@ World_TerrainSet(
+     assert(terrain);
+ 
+     terrain->element_id = element_id;
++    /* Mirror write -- see struct World. idx came from World_TerrainTileIdx on
++     * the same _scene_size the mirror was sized from, and the only caller
++     * walks x,z < scene_size and level < WORLD_MAP_TERRAIN_LEVELS. */
++    assert(idx >= 0);
++    assert(idx < world->terrain_element_id_count);
++    world->terrain_element_id[idx] = element_id;
+     terrain->grid_position.level = level;
+     terrain->grid_position.x = x;
+     terrain->grid_position.z = z;
+@@ -615,14 +632,26 @@ World_TerrainElementAt(
+         return -1;
+ 
+     int idx = World_TerrainTileIdx(world, x, z, level);
+-    struct World_EntityPool* pool = &world->entities.terrain;
+-    if( idx < 0 || idx >= pool->count || !World_EntityPoolIsActive(pool, idx) )
+-        return -1;
++    assert(idx >= 0);
++    assert(idx < world->terrain_element_id_count);
+ 
+-    struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
+-    if( !terrain )
+-        return -1;
+-    return terrain->element_id;
++#ifndef NDEBUG
++    /* Prove the mirror against its owner: the pool answer, derived the long
++     * way, must be what the table says. Vanishes under NDEBUG. */
++    {
++        struct World_EntityPool* pool = &world->entities.terrain;
++        int pool_element_id = -1;
++        if( idx < pool->count && World_EntityPoolIsActive(pool, idx) )
++        {
++            struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
++            assert(terrain);
++            pool_element_id = terrain->element_id;
++        }
++        assert(world->terrain_element_id[idx] == pool_element_id);
++    }
++#endif
++
++    return world->terrain_element_id[idx];
+ }
+ 
+ void
+diff --git a/src/world/world.h b/src/world/world.h
+index c9a4f4975..242d7d490 100644
+--- a/src/world/world.h
++++ b/src/world/world.h
+@@ -243,6 +243,21 @@ struct World
+ 
+     struct World_EntityList entities;
+ 
++    /** Flat mirror of entities.terrain[idx].element_id, -1 where no terrain
++     * element is set. The world emitter asks for one of these per painted
++     * terrain command -- ~2,550 a frame -- and the pool answer costs a bounds
++     * test, an active-flag probe in a separate node array and a load out of a
++     * 40-byte record three cache lines from it. The mirror is one int32 out of
++     * a contiguous table.
++     *
++     * The pool remains the owner. Every terrain write goes through
++     * World_TerrainSet and every clear through World_TerrainReset, so the two
++     * cannot drift; World_TerrainElementAt re-derives the pool answer under
++     * assert() to prove it. Sized from the same scene_size
++     * World_TerrainTileIdx indexes by, so every settable tile has a slot. */
++    int* terrain_element_id;
++    int terrain_element_id_count;
++
+     struct World_Event events[WORLD_MAX_EVENTS];
+     int event_count;
+ 

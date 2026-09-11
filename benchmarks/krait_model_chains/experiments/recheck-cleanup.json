@@ -1,0 +1,11 @@
+{
+  "launch_files_restored": {
+    "env.txt": true,
+    "extra_args.txt": true
+  },
+  "test_save_removed": true,
+  "task_tunnel_removed": true,
+  "normal_diagnostics_absent": true,
+  "normal_library_sha256": "f29aa1d82291afe975282a2870c836c9939f33f770075225c99d28d4382cafc7",
+  "normal_apk_sha256": "e66ff2e81f1c2ed82fcfaae9fd5be4189c04babd17fce7506bca33a484c7c469"
+}

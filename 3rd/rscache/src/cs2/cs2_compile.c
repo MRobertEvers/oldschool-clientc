@@ -2122,7 +2122,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         cs2_cc_emit(cc, opcode, 0);
         return;
     }
-    if( info->kind == RSCACHE_CS2_CMD_VARIADIC_INT_RESULT )
+    if( info->kind == RSCACHE_CS2_CMD_FIND_PARAM )
     {
         if( !cs2_cc_expect_punct(cc, '(') )
             return;
@@ -2132,7 +2132,12 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         {
             if( written++ && !cs2_cc_expect_punct(cc, ',') )
                 return;
-            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_INT);
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_NONE);
+        }
+        if( written < 5 || written > 7 )
+        {
+            cs2_cc_fail(cc, "'%s' needs five fixed arguments and up to two selected values", name);
+            return;
         }
         cs2_cc_expect_punct(cc, ')');
         cs2_cc_emit(cc, opcode, dot ? 1 : 0);

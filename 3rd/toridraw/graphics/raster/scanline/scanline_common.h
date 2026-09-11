@@ -35,6 +35,7 @@
  */
 
 #include "graphics/dash_restrict.h"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/shared_tables.h"
 
 /** Screen triangle sorted top-to-bottom (ya <= yb <= yc). */
@@ -296,13 +297,21 @@ scanline_row_clip(
     return x_end - x_start;
 }
 
-/** Barycentric attribute gradient, matching gouraudhsllightness_barycentric_hsl_step_ish8. */
+/**
+ * Barycentric attribute gradient. This is the same arithmetic as
+ * gouraudhsllightness_barycentric_hsl_step_ish8 and has to stay that way:
+ * toridraw_scanline_parity_test renders the same triangles through both
+ * families and allows them to differ only at a clip boundary, so a change to
+ * one that is not made to the other shows up as a parity failure rather than
+ * as the silent divergence it would otherwise be. Read the note over there for
+ * why this quotient may be approximate while the edge slopes may not.
+ */
 static inline int
 scanline_bary_step_ish8(
     int numerator,
-    int sarea)
+    double recip_sarea)
 {
-    return (numerator << 8) / sarea;
+    return gouraudhsllightness_barycentric_hsl_step_ish8(numerator, recip_sarea);
 }
 
 #endif

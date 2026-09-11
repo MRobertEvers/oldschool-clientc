@@ -1,0 +1,36 @@
+{{External|rs|rsc=Dwarf cannon base}}
+{{Infobox Item
+|name = Cannon base
+|image = [[File:Cannon base.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Set-up, Drop
+|examine = The cannon is built on this.
+|value = 187500
+|weight = 10.000
+|exchange = Yes
+|id = 6
+|leagueRegion = Asgarnia&Kandarin
+}}
+[[File:Cannon base detail.png|left|130x200px]]
+The '''cannon base''' is the first part of the [[dwarf multicannon]] to be set up, followed by the stand. The [[Dwarf Cannon]] [[quest]] must be completed to use it. It is purchased from [[Multicannon parts for sale]] for {{NoCoins|200625}} coins.
+
+The cannon base by itself can decay without having the full cannon set up. When lost, a new cannon base can be obtained from [[Nulodion]], free of charge.
+
+==Products==
+{{Uses material list|Cannon base}}
+
+==Shop locations==
+{{Store locations list|Cannon base}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+{{Cannon}}
+{{Dwarf Cannon}}

@@ -60,9 +60,9 @@
  * if `<ns>.client` names it or the base cache already holds its id
  * (docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 3, and `cp_pack.c`'s entity-gate
  * section for the rule in full). `cachepack membership --check-only` holds them
- * against provenance; `mock230_pack` holds them against each namespace's
+ * against provenance; `ToriRSServer_Pack` holds them against each namespace's
  * allocation base and against the cache, which is why this file compiles into
- * that binary too (`src/makefile`, `MOCK230_PACK_SRCS`). It depends on nothing but
+ * that binary too (`src/makefile`, `TORIRSSERVER_PACK_SRCS`). It depends on nothing but
  * stdio so that it can. None of the three writes.
  *
  * A file that is *absent* and a file that is *empty* are different statements and

@@ -46,7 +46,10 @@ enum RSCache_Dat2ConfigKind
     /** "mapFunctions" / map element config — what the MEC_* scripts read. */
     RSCACHE_DAT2_CONFIG_KIND_AREA = 35,
     RSCACHE_DAT2_CONFIG_KIND_DBROW = 38,
-    RSCACHE_DAT2_CONFIG_KIND_DBTABLE = 39
+    RSCACHE_DAT2_CONFIG_KIND_DBTABLE = 39,
+    /** WorldEntityConfig (sailing boats, deob class387). OldSchool 239+;
+     * absent from earlier caches, which is a normal state, not an error. */
+    RSCACHE_DAT2_CONFIG_KIND_WORLDENTITY = 72
 };
 
 #endif

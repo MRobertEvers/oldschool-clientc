@@ -973,7 +973,7 @@ RSCache_Dat2AnimMayaNewFromArchive(
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
-        int id = archive_ref ? archive_ref->children.files[i].id : i;
+        int id = archive_ref ? RSCache_ReferenceTableChildId(archive_ref, i) : i;
         if( id != file_id )
             continue;
 
@@ -1011,7 +1011,8 @@ RSCache_Dat2AnimMayaNewFromCache(
     if( !archive )
         return NULL;
 
-    struct RSCache_ReferenceTable* table = cache->tables[animayas_table];
+    struct RSCache_ReferenceTable* table =
+        RSCache_Dat2DiskReferenceTable(cache, animayas_table);
     maya = RSCache_Dat2AnimMayaNewFromArchive(table, archive, anim_maya_id);
     RSCache_Dat2DiskArchiveFree(archive);
     return maya;

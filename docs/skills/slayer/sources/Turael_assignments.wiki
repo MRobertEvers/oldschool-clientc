@@ -1,0 +1,212 @@
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+!Unlock requirement
+!Noteworthy Alternative(s)
+! class="unsortable" |Alternative(s)
+!Location (Slayer Point Farming)
+![[Task weight|Weight]]
+|-
+|[[Slayer task/Banshees|Banshees]]
+|15-30
+|data-sort-value="1520"|{{SCP|Slayer|15}}, {{SCP|Combat|20}}, completion of [[Priest in Peril]]
+|
+|[[Twisted Banshee]]
+|[[Slayer Tower]] ({{fairycode|cks}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Bats|Bats]]
+|15-30
+|data-sort-value="5"|{{SCP|Combat|5}}
+|
+|[[Giant bat]], [[Albino bat]], [[Death wing]]
+|[[Silvarea|Silvarea,]] North of [[Digsite]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Bears|Bears]]
+|10-20
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Callisto]], [[Artio]]
+|[[Grizzly bear cub]], [[Bear cub]], [[Grizzly bear]], [[Reanimated bear]]
+|South-west of [[Legends' Guild]] ({{Fairycode|BLR}}) (cannon), East of the rowboat to [[The Stranglewood]] (west of {{Fairycode|BLS}})
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Birds|Birds]]
+|15-30
+|data-sort-value="0"|None
+|
+|[[Chicken]], [[Chompy bird]], [[Duck]], [[Duckling]], [[Mounted terrorbird]], [[Penguin (monster)|Penguin]], [[Rooster]], [[Seagull]], [[Terrorbird]], [[Undead chicken]]
+|West of the [[Champions' Guild]] (cannon ducks), [[Alice's farm|Alice's Farm]] (west of the [[Ectofuntus]])
+|{{+=|weight|6|echo=2}}
+|-
+|[[Cave bug]]s
+|10-30
+|data-sort-value="700"|{{SCP|Slayer|7}}
+|
+|None
+|[[Dorgesh-Kaan South Dungeon]] ({{Fairycode|AJQ}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave crawler]]s
+|15-30
+|data-sort-value="1010"|{{SCP|Slayer|10}}, {{SCP|Combat|10}}
+|
+|None
+|[[Fremennik Slayer Dungeon]] ({{Fairycode|ajr}}), [[Ruins of Tapoyauik]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave slime]]
+|10-20
+|data-sort-value="1715"|{{SCP|Slayer|17}}, {{SCP|Combat|15}}
+|
+|None
+|[[Dorgesh-Kaan South Dungeon]] ({{Fairycode|AJQ}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cow]]s
+|15-30
+|data-sort-value="0"|None
+|[[Brutus]]
+|[[Buffalo]], [[Cow calf]], [[Undead cow]]
+|[[Lumbridge cow field]], [[Crafting guild]], [[Alice's farm|Alice's Farm]] (west of the [[Ectofuntus]])
+|{{+=|weight|8|echo=2}}
+|-
+|[[Crawling Hand]]s
+|15-30
+|data-sort-value="500"|{{SCP|Slayer|5}}, completion of [[Priest in Peril]]
+|
+|None
+|[[Slayer Tower]] ({{fairycode|cks}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Dog slayer task|Dogs]]
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|
+|[[Jackal]], [[Guard dog]], [[Wild dog]], [[Reanimated dog]]
+|South-west of [[Nardah]] Fairy Ring ({{Fairycode|dlq}}), East of [[Sophanem]] ([[Pharaoh's sceptre]] - Jaleustrophos)
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Dwarves|Dwarves]]
+|10-25
+|data-sort-value="6"|{{SCP|Combat|6}}
+|
+|[[Black Guard]], [[Chaos Dwarf]], [[Dwarf gang member]]
+|[[White Wolf Tunnel]] pub
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Ghosts|Ghosts]]
+|15-30
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Revenants]]
+|[[Tortured soul]], [[Forgotten Soul]], [[Death wing]]
+|[[Catacombs of Kourend]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Goblins|Goblins]]
+|15-30
+|data-sort-value="0"|None
+|
+|[[Cave goblin guard]]s, [[Sergeant Strongstack]], [[Sergeant Steelwill]], [[Sergeant Grimspike]]
+|East of [[Lumbridge]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Icefiend]]s
+|15-20
+|data-sort-value="20"|{{SCP|Combat|20}}
+|
+|None
+|[[Ice Mountain]], [[Ruins of Tapoyauik]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Kalphites|Kalphite]]
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite Queen]]
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]]
+|[[Kalphite Cave]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/Lizards|Lizards]]
+|15-30
+|data-sort-value="2200"|{{SCP|Slayer|22}}
+|
+|[[Small Lizard]], [[Desert Lizard]], [[Sulphur Lizard]] ({{SCP|Slayer|44}}), [[Grimy Lizard]] ({{SCP|Slayer|44}})
+|North of [[Nardah]] Fairy Ring ({{Fairycode|dlq}}), [[Karuulm Slayer Dungeon]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Minotaur]]s
+|10-20
+|data-sort-value="7"|{{SCP|Combat|7}}
+|
+|None
+|[[Stronghold of Security]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Monkeys|Monkeys]]
+|15-30
+|data-sort-value="0"|None
+|[[Demonic gorilla|Demonic Gorilla]]
+|[[Karamjan Monkey]], [[Monkey Guard]], [[Monkey Archer]], [[Monkey Zombie]], [[Tortured gorilla|Tortured Gorilla]], [[Maniacal monkey|Maniacal Monkey]]
+|[[Ardougne Zoo]], Karamja north-west of glider, [[Kruk's Dungeon]], North of [[Cairn Isle]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/Rats|Rats]]
+|15-30
+|data-sort-value="0"|None
+|[[Scurrius]]
+|[[Giant rat]], [[Dungeon rat]], [[Crypt rat]], [[Brine rat]] ({{SCP|Slayer|47}}), [[Giant crypt rat]]
+|[[Ferox Enclave]], [[Varrock Sewers]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Scorpions|Scorpions]]
+|15-30
+|data-sort-value="7"|{{SCP|Combat|7}}
+|[[Scorpia]]
+|[[King Scorpion]], [[Poison Scorpion]], [[Pit Scorpion]], [[Lobstrosity]], [[Reanimated scorpion]], [[Scorpia's offspring (monster)|Scorpia's offspring]], [[Scorpia's guardian]], [[Grave scorpion]]
+|[[Al Kharid Mine]], [[Dwarven Mine]], [[Mining Guild]] ([[Skills necklace]]) 
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Skeletons|Skeletons]]
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Vet'ion]], [[Calvar'ion]]
+|[[Skeleton mage]], Skeletons in the [[Stronghold of Security]] and [[Ancient Cavern]], [[Skogre]], [[Skeleton (Shayzien Crypts)|Shayzien Crypts Skeletons]], [[Skeleton fremennik]]
+|[[Digsite Dungeon]], [[Catacombs of Kourend]], [[Edgeville Dungeon]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Spiders|Spiders]]
+|15-30
+|data-sort-value="0"|None
+|[[Araxxor]], [[Araxyte]], [[Venenatis]], [[Spindel]],  [[Sarachnis]] 
+|[[Giant spider]], [[Shadow spider]], [[Giant crypt spider]], [[Temple Spider]]
+|Outside [[H.A.M. Hideout]], [[Clock Tower dungeon]] (black square door)
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/Wolves|Wolves]]
+|15-30
+|data-sort-value="20"|{{SCP|Combat|20}}
+|
+|[[Big Wolf]], [[Desert Wolf]], [[Dire Wolf]], [[Ice wolf]], [[Jungle wolf]], [[White wolf]]
+|[[White Wolf Mountain]], [[Stronghold of Security]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Zombies|Zombies]]
+|15-30
+|data-sort-value="10"|{{SCP|Combat|10}}
+|[[Vorkath]]
+|[[Monkey Zombie]], [[Undead chicken]], [[Undead cow]], [[Undead Druid]], [[Undead one]], [[Zombie rat]], [[Zogre]], [[Armoured zombie]], [[Zombie pirate]]
+|[[Alice's farm|Alice's Farm]] (west of the [[Ectofuntus]])
+|{{+=|weight|7|echo=2}}
+|-
+! colspan="5" |Total [[task weight]]
+!
+!{{#var:weight}}
+|}
+[[Category:Slayer]]
+[[Category:Slayer Masters]]
+[[Category:Slayer task]]

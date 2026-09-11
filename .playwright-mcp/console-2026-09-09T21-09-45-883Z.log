@@ -1,0 +1,13 @@
+[     368ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/splashui/challenge?ap=1&appName=orch&ru=https%3A%2F%2Fwww.ebay.com%2Fsch%2Fi.html%3F_nkw%3Ddragons%2Bof%2Btarkir%2Bfat%2Bpack%2Bbox%2Bempty%26_sop%3D12&iid=ee06ab69-bb15-4242-b368-a49166980f3d&iim=NMTM2Lc&iia=ZrjM0LjXe&iiz=oPrc2LjI5imk:0
+[     727ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/JEFjMxhT/aQwb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     727ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/JEFjMxhT/aQwb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     747ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/JEFjMxhT/aQwb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     748ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/JEFjMxhT/aQwb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[    3122ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    3193ms] [LOG] joinUs() at %ce%cb%ca%cy%c! font-weight:bold;color:#e53238; font-weight:bold;color:#0064d2 font-weight:bold;color:#f5af02 font-weight:bold;color:#86b817 color:black @ https://ir.ebaystatic.com/rs/c/srpnweb/common-C2rBUGrN.js:1
+[    3272ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    3272ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    3284ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    4028ms] [LOG] done @ https://www.ebay.com/sch/i.html?_nkw=dragons+of+tarkir+fat+pack+box+empty&_sop=12:4
+[    4143ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    4155ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

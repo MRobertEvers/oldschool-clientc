@@ -146,11 +146,23 @@ test_live_node_sets(void)
     memset(&behavior, 0, sizeof(behavior));
     behavior.client_code = 328;
     behavior.over_layer_id = -1;
+    uint32_t dirty_before = tree->dirty_gen;
     UITree_SetBehavior(tree, a, &behavior);
     TEST_ASSERT(tree->client_code.count == 1, "client_code set after SetBehavior");
+    TEST_ASSERT(tree->dirty_gen != dirty_before, "SetBehavior invalidates emit identity");
     behavior.client_code = 0;
     UITree_SetBehavior(tree, a, &behavior);
     TEST_ASSERT(tree->client_code.count == 0, "client_code cleared");
+    {
+        uint32_t const visibility_identity_before = tree->dirty_gen;
+        behavior.hide = 1;
+        UITree_SetBehavior(tree, a, &behavior);
+        TEST_ASSERT(
+            tree->dirty_gen != visibility_identity_before,
+            "SetBehavior hide invalidates reachability identity");
+        behavior.hide = 0;
+        UITree_SetBehavior(tree, a, &behavior);
+    }
 
     /* World singleton. */
     memset(&spec, 0, sizeof(spec));

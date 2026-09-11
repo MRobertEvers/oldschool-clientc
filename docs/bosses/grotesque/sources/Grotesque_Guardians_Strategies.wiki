@@ -1,0 +1,389 @@
+[[File:Fighting Grotesque Guardians.png|thumb|300px|A player fights the [[Grotesque Guardians]] on the Slayer Tower's roof.]]
+The '''Grotesque Guardians''' are a pair of [[gargoyle]] [[slayer bosses]] that reside at the roof of the [[Slayer Tower]]: the Guardian of [[Dusk]] and Guardian of [[Dawn]]. In order to access and fight them, players must first acquire a [[brittle key]] from regular gargoyles (or their [[marble gargoyle|superior variant]]). The key is only obtainable as a drop whilst assigned gargoyles as a slayer task, which is dropped at a rate of 1/150.
+
+After obtaining the brittle key, players can unlock the tower's rooftop entrance on the {{FloorNumber|uk=2}} (right next to the gargoyle area), permanently unlocking access. However, the player must additionally be assigned [[gargoyles]] or the Grotesque Guardians themselves as a [[slayer task]] or [[boss task]] respectively.
+
+If the player [[dies]] while fighting the Grotesque Guardians, lost items are placed into the [[magical chest]] near the rooftop entrance, where players must pay a fee of 50,000 coins to reclaim their items. Note that dying an unsafe death before reclaiming lost items from the chest will result in '''permanent loss''' of all the items inside; as such, unless the player has level 81 [[Agility]] (can be boosted) to climb the [[Ivy]] agility shortcut found west of the slayer tower's entrance, which leads up to the start of the top floor, it is highly recommended to bring a [[nosepeg]] or equivalent item to protect from [[aberrant spectre|aberrant spectres]] on the way back.
+
+As with all other gargoyles, players '''must''' bring a [[rock hammer]], [[granite hammer]], or [[rock thrownhammer]] to finish them off.
+
+Note that unlike other [[instance]]s, players are '''kicked out''' of their instance after five minutes of inactivity; players are warned when there is one minute remaining, and another when thirty seconds remain. Players can reset this timer by ringing [[the Cloister Bell]].
+
+==Requirements==
+* {{SCP|Slayer|75}} and a [[gargoyle]] slayer task
+* Completion of {{SCP|Quest}} [[Priest in Peril]] to access [[Morytania]]
+* A [[rock hammer]] or [[Rock thrownhammer|thrownhammer]]
+* Unlocked the Slayer tower rooftop with a [[brittle key]]
+* [[Melee]] equipment, plus [[Ranged]] or [[Magic]] if not using a [[halberd]]
+
+===Recommendations===
+* {{SCP|Attack|75+}}
+* {{SCP|Strength|75+}}
+* {{SCP|Defence|70+}}
+* {{SCP|Ranged|75+}}
+* {{SCP|Hitpoints|75+}}
+* {{SCP|Prayer|70+}} for [[Piety]], (74+ for [[Rigour]])
+* {{SCP|Agility|81}}+ for shortcuts
+
+==Transportation==
+There are several ways to access the Slayer Tower: 
+* The [[slayer ring]] teleports players to the main entrance.
+* The [[fairy ring]] code {{Fairycode|CKS}} is south of the Tower.
+* Casting [[Salve Graveyard Teleport]] will also take players south of the Tower.
+* Casting [[Kharyrll Teleport]] will take players to [[Canifis]] which is a short distance from [[Canifis bank|the bank]].
+
+Players with level 61 [[Agility]] can climb up the [[Spikey chain (Slayer Tower)|spikey chain]] on the {{FloorNumber|uk=0}} (marked by a [[File:Agility shortcut icon.png|link=]] icon) to reach the next level; if not wearing a [[nosepeg]] or equivalent item, players are warned to wear one beforehand. Upon climbing up the chain, players can then climb the staircase to the south-west to reach the rooftop entrance.
+
+Alternatively, players with 81 Agility can use the [[Ivy]] outside of the tower entrance to immediately get to the rooftop. This shortcut is recommended for players who find themselves dying multiple times to the Guardians; it removes the risk of dying a second time from aberrant spectres or other monsters on the way to the magical chest, and potentially losing valuable items.
+
+==Fight overview==
+The fight is started by ringing [[the Cloister Bell]], which initiates a cutscene in which the Guardians awaken and face the player; upon reaching five kill count for the boss, the bell gains a "Quick-start" option to start the fight immediately.
+
+During the first three phases, [[Dusk]] uses a slash-style attack that deals up to 15 damage; [[Protect from Melee]] will reduce the damage dealt by 80%. Meanwhile, [[Dawn]] uses a ranged attack that deals two separate hits, both with a max hit of 9. If within melee distance, she may also kick the player for up to 15 damage. The attacks are partially blocked by prayer; praying against melee reduces the max hit of the melee attacks to 2.
+
+===Phase 1===
+[[File:Grotesque Guardians - phase 1 stacking.mp4|thumb|400px|The player initiates the fight and makes their way to Dawn in order to have her and Dusk close enough to make use of the venator bow's ricochet effect.]]
+Dusk is immune to all damage during this phase, so the player must fight [[Dawn]] first. As she is airborne, the player must attack her with [[ranged]], [[magic]], or with a [[halberd]]; she is immune to non-halberd melee attacks.
+
+Aside from her standard attacks, Dawn may launch a '''Stone Ball''' which has a 3x3 Area-of-Effect (1 tile from the centre). If struck, the player will become encased in stone, similar to the [[marble gargoyle]]'s special attack, which acts as a [[freeze]] for 10 ticks (6 seconds) and deals up to 15 damage.
+
+You can minimise damage by starting the fight from the left-most tile next to the bell, as this will automatically off-tick the Guardians. 
+Start with [[Protect from Missiles]], switch to [[Protect from Melee]] when Dawn's attack animation starts, and switch back to Protect from Missiles immediately after Dusk's attack animation starts.
+For less effort you can use Protect from Melee and stand next to Dawn, which will cause her to occasionally use melee attacks. Players can also dance under Dusk and use Protect from Missiles if desired.
+
+The optimal method to attack Dawn with ranged is to stack both her and Dusk on top of each other, then using the [[venator bow]]. When charged, it will ricochet the shots and hit Dawn twice. Players can use a [[toxic blowpipe]] to attack Dawn whilst waiting for Dusk to approach. If using melee, a [[noxious halberd]] is required, as all other halberds hit too slow.
+
+Upon reaching 55% health, she will ascend to the sky, beginning the next phase of the fight.
+
+===Phase 2===
+[[File:Dusk special attack.png|thumb|350px|The player fails to evade Dusk's blinding attack, and gets knocked back.]]
+Dusk becomes attackable during this phase. Dusk's armour protects him from both magic and ranged attacks, so players must use melee on him. Additionally, [[burn]] damage has no effect against him. Dusk has -1 [[flat armour]], encouraging the use of multi-hit weapons, although his abysmal Defence and bonuses make any weapon viable to use. 
+
+After attacking once, he will start to charge his '''blinding''' attack, indicated by his missing wing starting to glow; simply move one tile away from Dusk to avoid the attack. Otherwise, the player will be knocked back and dealt damage in the high 20s. The player will be able to attack three times with any four or five tick weapon before needing to back away.
+
+The knockback animation will only occur if players are right next to or under him. The timeframe to get hit by this attack is relatively short; it is safe to return back and attack Dusk once his wings cover his face, though running back to him just as he expands his wings will result in getting hit.
+
+Throughout this phase, Dawn will also occasionally use a '''rockfall''' attack, throwing down 9-10 pieces of debris into the roof at four different speeds, indicated with looming shadows over the targeted tiles. Like '''Stone Ball''', these rockfalls have a 3x3 AoE. Getting caught in the edges can deal up to 22 damage, while being caught directly in one will also knock the player out, stunning them for 10 ticks (6 seconds).
+
+Lastly, standing under Dusk during this phase can result in him trampling the player for up to 40 damage and should be avoided at all costs.
+
+When Dusk reaches 55% of his health, Dawn will descend, beginning the third phase of the fight.
+
+===Phase 3===
+[[File:Grotesque Guardians lightning attack.png|thumb|350px|The Guardians' lightning attack.]]
+Dusk will quickly fly over to the west, then the pair will begin to charge up a '''lightning''' attack, discharging bolts of lightning that deal 5-10 damage per [[tick]] if the player is standing on or adjacent to the vortices. The vortices spawn anywhere on the rooftop, with one always targeting the tile the player is standing on. They do not stack on each other, although up to three circles may be in close proximity to each other.
+
+There is a one-second warning frame indicated with a vortex of the respective colour before the player starts taking damage. Stand in a spot clear of any vortices; although some vortices appear later than others, they will all expire once the pair become attackable.
+
+Once the attack ends, Dawn becomes attackable whilst Dusk returns to being invulnerable. She will start off by launching three [[energy sphere]]s across the rooftop in an attempt to heal herself. There are three charge stages for these spheres, each advancing to the next after a few seconds. The player can absorb these spheres by walking into them at any time without penalty; if Dawn absorbs them once they fully charge, they will each heal 90 hitpoints.
+
+Dawn will use the same attacks as she did in phase 1. Players can pray against both attacks by being one tile west from the eastern wall (not under or next to Dawn) right after the lightning AoE. Start by praying melee, then ranged and so on. If you notice you don't have enough DPS to skip the orbs, prioritise absorbing those, then finish the kill by standing next to Dawn and praying melee.
+[[File:Grotesque Guardians - orb skip.mp4|thumb|400px|The player positions themselves to be next to Dawn so that Dusk will approach and allow the venator bow to ricochet, resulting in a quick kill without the need to absorb energy spheres.]]
+Once Dawn reaches less than 10 health, use the [[rock hammer]] on her (unless the ''[[Gargoyle smasher]]'' ability is unlocked). Dusk will absorb the remnants of her essence, empowering himself in the process, and initiate the final phase of the fight.
+
+Players with 90+ Ranged or 90+ melee stats should be able to "orb skip", or kill Dawn before she has a chance to absorb any orbs. To do this with ranged, either a toxic blowpipe or venator bow, coupled with amethyst ammo or better, should be used on Dawn. The blowpipe has a ~75% chance of an orb skip, while the venator bow has a ~80-85% chance of an orb skip. When using melee, a noxious halberd is still required, though a crystal halberd can be used as a finisher. With a [[lightbearer]], players should not worry too much about special attack; [[Death Charge]] can also be used, but this will likely shorten trips due to the rune equipment drops the boss frequently drops.
+
+===Phase 4===
+[[File:Dusk 2nd form special attack.png|thumb|350px|A player failing to escape Dusk's special attack.]]
+As Dawn shatters into bits, Dusk will absorb the leftover remains of her essence. Dusk's Attack level increases to 300, with Strength, Magic, and Ranged increased to 250, Defence to 150, and add one flat armour. Upon transforming, he will immediately use his '''prison''' attack, dragging the player somewhere within the arena and trapping them in a barrier of blue flames. One of the flames is missing, which is the first tile the player can stand on to avoid damage. If the player does not escape from the 3x3 "cell" within 5 ticks, they will take up to 65 damage, and the damage dealt by this attack will heal Dusk. Dusk's size is additionally increased from a 5x5 to a 6x6 monster.
+
+Sometimes, Dusk may drag the player to the edges, then create a barrier where the exit cannot be used because there is no space to escape. In this case, simply running into the missing fire tile will prevent Dusk from damaging the player and healing himself. When he first uses this attack, he is invulnerable, but he can still be attacked in subsequent drag attacks. In these cases, the player can simply attack Dusk to path out of the prison, though it is still encouraged to click on a safe tile first.
+
+As with the previous phases, Dusk is immune to magic and ranged attacks and his trample attack is reactivated. Be careful not to click on Dusk until his prison attack animation is fully complete or you may accidentally run under him and be trampled.
+
+Dusk's attacks are improved upon, now using both melee and ranged much like Dawn did. The melee attack can deal up to 26 damage, while the ranged attack hits twice, with a max hit of 15 each for a total of up to 30 damage.
+
+The ranged attack has a unique form of damage calculation. If Dusk succeeds the ranged accuracy check, the first orb will always hit for 60% of his max hit, or half of that number if the player is praying correctly.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1185143100186025984|date=18 October 2019|archiveurl=https://reldo.runescape.wiki/i/107162|archivedate=11 August 2023|quote=[also did you happen to notice whether the first orb had any cheating going on in regard to always dealing the max possible damage (...)?] Ah, yes, it does go with 60% of the max hit, without a random roll.}} The second orb meanwhile will carry out a random damage roll upon succeeding the accuracy check, yet goes on to make a second damage roll ranging between 0 and the damage value rolled directly prior.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1185115040246042624|date=18 October 2019|archiveurl=https://reldo.runescape.wiki/i/105331|archivedate=11 August 2023|quote=1st one rolls ranged accuracy vs your ranged defence, treats the NPC's max hit as 60% of its usual value, then halves it further if you pray. 2nd one does the same, but takes the rolled damage and *rolls a new random number between 0 and the rolled number", thus reducing it.}} 
+
+Prayer reduces the strength of Dusk's melee attack by roughly 80%, and ranged by 55%, which in turn reduces the max hits to around ~4 and 14 (7 x 2) respectively. For his first attack at the start of the phase, there is a 2/3 chance Dusk will use the opposite attack style of the one the player is praying against.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/jagexash/status/1674453151691276290|date=29 June 2023|archiveurl=https://reldo.runescape.wiki/i/96409|archivedate=13 August 2023|quote=[On the first attack of P4 of Dusk, does it always attack with the opposite of your prayer? (...)] I think it doubles the chance of picking the one that'd bypass your prayer. [As in if I was praying Melee, there’s a 2/3 chance it would lead with Ranged and a 1/3 chance it would lead with Melee?] Yes, that's it. And vice-versa, if I'm reading this correctly.}} Afterward, he has a 1/6 chance to alternate attack styles every time he attacks; if using the matching protection prayer, he will instead have a 1/3 chance to switch attack styles.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1243459892037464067|date=27 March 2023|archiveurl=https://reldo.runescape.wiki/i/103705|archivedate=11 August 2023|quote=1/3 switch if you're praying against that style, otherwise 1/6. (...)}} For simplicity, as it is hard to predict Dusk's attacks when in melee range, '''it is best to pray against the style of the attack he previously used.''' 
+
+When Dusk attacks the player, halberd using players are encouraged to stand one tile away from him when possible. Dusk will stay still if he attacks with ranged and will close the distance when using melee. 
+
+When Dusk reaches less than 10 health, use the [[rock hammer]] on him (unless the ''[[Gargoyle smasher]]'' ability is unlocked). It is possible for Dusk's second phase special attack to happen as/shortly after Dusk is killed with a rock hammer, the player can still take damage from the special attack after Dusk dies. Additionally, if the player is inside the barrier and Dusk is at low enough health to be smashed with the ''Gargoyle smasher'' ability, the player may path directly to Dusk instead of trying to exit the barrier first, or may not move at all.
+
+==Equipment==
+During the fight, players will need a [[rock hammer]], [[granite hammer]], or [[rock thrownhammer]] to deal the final blow. [[Magic]] is not recommended as Dawn is more resistant to magic than the other forms of damage she is susceptible to: [[Ranged]] and melee with [[halberd]]s. An [[eternal slayer ring]] is highly recommended for fairly quick banking and access to the bosses.
+<tabber>
+Melee=
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Slayer helmet (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}} /<br/>{{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of glory}}
+|neck5 = {{plink|Amulet of strength}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Ranging cape(t)}}
+|body1 = {{plink|Oathplate chest}}{{efn|With a slash weapon|name=oath}} / {{plink|Torva platebody}}
+|body2 = {{plink|Bandos chestplate}}
+|body3 = {{plink|Blood moon chestplate}} / {{plink|Fighter torso}}
+|body4 = {{plink|Obsidian platebody}} / {{plink|Eclipse moon chestplate}}
+|body5 = {{plink|Black d'hide body}}
+|legs1 = {{plink|Torva platelegs}} / {{plink|Oathplate legs}}{{efn|name=oath}}
+|legs2 = {{plink|Bandos tassets}} > {{plink|Blood moon tassets}}
+|legs3 = {{plink|Obsidian platelegs}} / {{plink|Eclipse moon tassets}}
+|legs4 = {{plink|Verac's plateskirt}}
+|legs5 = {{plink|Dragon platelegs}}
+|legs6 = {{plink|Black d'hide chaps}}
+|weapon1 = {{plink|Scythe of Vitur}}
+|weapon2 = {{plink|Granite hammer}} / <br>{{plink|Soulreaper axe}}{{efn|Need to minimise downtime to avoid losing soul stacks}}
+|weapon3 ={{plinkp|Inquisitor's mace}} > {{plinkp|Ghrazi rapier}} / {{plinkp|Blade of Saeldor}}<br>> {{plink|Noxious halberd}}{{efn|Can hit Dawn|name=halberd}} / {{plink|Abyssal tentacle}}
+|weapon4 = {{plink|Osmumten's fang}} /<br/>{{plink|Abyssal whip}}
+|weapon5 = {{plink|Zamorakian hasta}} / {{plink|Dual macuahuitl}} ><br>{{plink|Dragon scimitar}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Dragonfire shield}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Dragon gloves}}
+|hands4 = {{plink|Rune gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}} /<br>{{plink|Aranea boots}}{{efn|Use as range boots as well}}
+|feet4 = {{plink|Echo boots}} /<br>{{plink|Guardian boots}}
+|feet5 = {{plink|Rune boots}} / {{plink|Mixed hide boots}}
+|ring1 = {{plink|Ultor ring}}<br/>
+|ring2 = {{plink|Bellator ring}}{{efn|With Scythe of Vitur}}/<br/>{{plink|Berserker ring (i)}} /<br/>{{plink|Lightbearer}}{{efn|If using a [[special attack]] weapon}}
+|ring3 = {{plink|Brimstone ring}}/<br/>{{plink|Ring of shadows}}
+|ring4 = {{plink|Ring of suffering (ri)}} /<br/>{{plink|Archers ring (i)}}
+|ring5 = {{plink|Treasonous ring (i)}} /<br/>{{plink|Warrior ring (i)}} /<br/>{{plink|Tyrannical ring (i)}}{{efn|Appropriate to your attack style}}
+|special1 = {{plink|Dragon claws}}
+|special2 = {{plink|Crystal halberd}}{{efn|Only worth using as a last hit before the end of a phase. Last-hitting Dawn is the BIS use of spec, while last-hitting Dusk loses to DClaws.}}{{efn|name=halberd}} / {{plink|Crimson kisten}}
+|special3 = {{plink|Dragon dagger(p++)}}
+|special4 = {{plink|Burning claws}}
+|special5 = {{plink|Saradomin godsword}}
+}}
+{{notelist}}
+|-|
+Ranged switches=
+{{Recommended equipment
+|style = Ranged switches
+|head1 = {{plink|Slayer helmet (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ava's accumulator}}
+|cape4 = {{plink|Ranging cape(t)}}
+|body1 = {{plink|Masori body (f)}}
+|body2 = {{plink|Crystal body}}{{efn|With [[bow of Faerdhinen]]|name=bowfa}}
+|body3 ={{plink|Eclipse moon chestplate}} or Melee equipment{{efn|With [[eclipse atlatl]]|name=eclipse}}
+|body4 = {{plink|Blessed body|pic=Ancient d'hide body}} /<br/>{{plink|Karil's leathertop}}
+|body5 = {{plink|Black d'hide body}}
+|legs1 = {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Crystal legs}}{{efn|name=bowfa}}
+|legs3 = {{plink|Eclipse moon tassets}} or Melee equipment{{efn|name=eclipse}}
+|legs4 = {{plink|Blessed chaps|pic=Ancient chaps}}{{efn|name=optional}} /<br/>{{plink|Karil's leatherskirt}}{{efn|name=optional}}
+|legs5 = {{plink|Black d'hide chaps}}{{efn|name=optional}}
+|weapon1 = {{plink|Venator bow}} & {{plink|Toxic blowpipe}}
+|weapon2 = {{plink|Bow of Faerdhinen}}
+|weapon3 = {{plink|Eclipse atlatl}}{{efn|Requires minimal range switches to be effective.|name=atlatl}}
+|weapon4 = {{plink|Hunters' sunlight crossbow}}
+|weapon5 = {{plink|Magic shortbow (i)}}
+|shield1 = {{plink|Twisted buckler}}{{efn|name=crossbow|If using a crossbow}}
+|shield2 = {{plink|Dragonfire ward}}{{efn|name=crossbow}}
+|shield3 = {{plink|Odium ward}}{{efn|name=crossbow}}
+|ammo1 = {{plink|Seeking dragon arrow}} /<br>{{plink|Dragon arrow}}
+|ammo2 = {{plink|Rada's blessing 4}}{{efn|With bow of Faerdhinen or toxic blowpipe}}
+|ammo3 = {{plink|Atlatl dart}}
+|ammo4 = {{plink|Moonlight antler bolts}} /<br>{{plink|Sunlight antler bolts}}
+|ammo5 = {{plink|Amethyst arrow}} /<br>{{plink|Rune arrow}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Dragon gloves}}
+|hands4 = {{plink|Rune gloves}}
+|ring1 = {{plink|Venator ring}}{{efn|name=maxhit|Provides no max hits in absolute max ranged setups, but can provide one or two max hits in some setups.}}{{efn|name=optional}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Pegasian boots}}{{efn|name=optional|Optional switch. See Phase 3 strategy below}}
+|feet3 = {{plink|Ranger boots}}{{efn|name=optional}}
+|feet4 = {{plink|Aranea boots}}{{efn|Use as melee boots as well}}{{efn|name=optional}}
+|feet5 = {{plink|Blessed boots|pic=Ancient d'hide boots}}{{efn|name=optional}}
+|special1 = {{plink|Toxic blowpipe}}
+}}
+{{notelist}}
+</tabber>
+
+===Inventory===
+A form of sustain, such as a blood fury, full guthans, or a saradomin godsword with a lightbearer can be brought over food, as it is very easy to heal due to the bosses' incredibly low defence. Alternatively, the bosses commonly drop mushroom potatoes which can extend trips, although this is not guaranteed.
+
+If no sustains are used, super restores are recommended over prayer potions to make use of saradomin brews, though these are not always dropped alongside combat potions and will require the player to boost it back up if the brews are drunk. However, the bosses can drop (regular, not divine) 2-dose super combat and ranging potions.
+<tabber>
+Max=
+{{Equipment
+|align = right
+|buttons = No
+|head = Slayer helmet (i)
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Seeking dragon arrow
+|weapon = Scythe of Vitur
+|torso = Oathplate chest
+|legs = Torva platelegs
+|shield = 
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+{{Inventory
+|align = right|Venator bow|Masori body (f)|Dizana's quiver|Crystal halberd
+|Necklace of rupture|Masori chaps (f)|Zaryte vambraces|Dragon claws|Toxic blowpipe|
+Divine super combat potion(4)|Divine ranging potion(4)|Super restore(4)
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Teleport to house (tablet)|Surge potion(4)|Super restore(4)|Explorer's ring 4
+|Book of the Dead|Rock hammer|Slayer ring (eternal)|Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Death rune
+|2=Fire rune
+|3=Aether rune
+|4=Blood rune
+}}
+
+* Ranged switches
+* Special attack weapons
+* [[Super restore]]s
+* 4+ pieces of food or [[saradomin brew]]s
+* [[Divine super combat potion]]
+* [[Divine ranging potion]]
+* [[Surge potion]]
+* [[Rock hammer]] (if not using the [[granite hammer]])
+* [[Slayer ring]] (can be used as a teleport to the [[Slayer tower]], and to the [[Stronghold Slayer Cave]] which is near a bank)
+* [[Divine rune pouch]] and [[book of the Dead]] with runes for [[death charge]] and [[thralls]]. 
+** Alternatively, [[High Level Alchemy]] and [[Teleport to House]] for more inventory space.
+** As Dawn is immune to Melee and Dusk to Magic and Ranged, four thralls total must be summoned per fight for permanent uptime.
+* [[Explorer's ring 4]] for access to High Level Alchemy if not on the [[standard spellbook]]
+{{clear}}
+|-|
+
+
+|-|
+Mid-game=
+{{Equipment
+|align = right
+|buttons = No
+|head = Slayer helmet (i)
+|cape = Fire cape
+|neck = Amulet of fury
+|ammo = Atlatl dart
+|weapon = Granite hammer
+|torso = Fighter torso
+|legs = Verac's plateskirt
+|shield = Dragon defender
+|gloves = Barrows gloves
+|boots = Dragon boots
+|ring = Berserker ring (i)
+}}
+{{Inventory
+|align = right|Eclipse atlatl|Ava's assembler|Divine super combat potion|Divine ranging potion
+|Eclipse moon tassets|Eclipse moon chestplate|Saradomin brew|Saradomin brew
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)
+|Dragon dagger|Cooked karambwan|Slayer ring|Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Law rune
+|4=Dust rune
+}}
+
+* Ranged switches
+* [[Super restore]]s
+* 5+ pieces of food or [[saradomin brew]]s
+* [[Divine super combat potion]]
+* [[Divine ranging potion]]
+* [[Rock hammer]] (if not using the [[granite hammer]])
+* [[Slayer ring]]
+* [[Divine rune pouch]] with runes for [[High Level Alchemy]] and [[Teleport to House]]
+{{clear}}
+|-|
+
+|-|
+Atlatl only=
+{{Equipment
+|align = right
+|buttons = No
+|head = Slayer helmet (i)
+|cape = Fire cape
+|neck = Amulet of torture
+|ammo = Atlatl dart
+|weapon = Abyssal tentacle
+|torso = Fighter torso
+|legs = Blood moon tassets
+|shield = Dragon defender
+|gloves = Ferocious gloves
+|boots = Dragon boots
+|ring = Berserker ring (i)
+}}
+{{Inventory
+|align = right|Eclipse atlatl|Dragon dagger|Divine super combat potion|Divine ranging potion|Saradomin brew|Saradomin brew|Saradomin brew|Super restore(4)|Super restore|Super restore|Super restore(4)|Super restore(4)|Super restore|Super restore|Super restore(4)|Super restore(4)|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)|Anglerfish|Anglerfish|Super restore(4)|Super restore(4)|Anglerfish|Rock hammer|Slayer ring (eternal)|Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Nature rune
+|2=Fire rune
+|3=Law rune
+|4=Dust rune
+}}
+
+* The [[eclipse atlatl]] scales off high strength values and can be paired easily with melee sets without extensive switching.
+* 10+ [[super restore]]s
+* 5+ pieces of food or [[saradomin brew]]s
+* [[Divine super combat potion]]
+* [[Divine ranging potion]]
+* [[Rock hammer]] (if not using the [[granite hammer]])
+* [[Slayer ring]]
+* [[Divine rune pouch]] with runes for [[High Level Alchemy]] and [[Teleport to House]]
+{{clear}}
+|-|
+
+|-|
+Melee only=
+{{Equipment|align = right
+|buttons = No
+|head = Slayer helmet (i)
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Rada's blessing 4
+|weapon = Noxious halberd
+|torso = Oathplate chest
+|legs = Torva platelegs
+|shield = 
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+{{Inventory
+|align = right|Crystal halberd|Scythe of Vitur|Super combat potion(4)|Super combat potion(4)
+|Super restore(4)|Super restore(4)|Super restore(4)|Super restore(4)|
+Super restore(4)|Super restore(4)|Super restore(4)|Super restore(4)
+|Super restore(4)|Super restore(4)|Super restore(4)|Prayer regeneration potion(4)
+|Saradomin brew(4)|Saradomin brew(4)|Saradomin brew(4)|Surge potion(4)
+|Anglerfish|Anglerfish|Anglerfish|Anglerfish
+|Explorer's ring 4|Rock hammer|Slayer ring (eternal)|Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Soul rune
+|2=Death rune
+|3=Blood rune
+}}
+
+* Melee-only requires using the [[noxious halberd]] to attack Dawn, as other halberds are too slow
+* No ranged switches allows more room for restores and food
+* [[Crystal halberd]] should be brought as a powerful special attack for Dawn. Use the special attack at around 65% health or lower to finish the first phase, then use it again when she is below 100 health. With high hits from the special attacks, the player can skip absorbing orbs.
+* Torva/Oathplate can be downgraded to Bandos/Bloodmoon, and amulet of rancour to amulet of torture, and still reach two minute kills
+* [[Divine rune pouch]] with runes for [[Death Charge]]
+** [[High Level Alchemy]] and [[Teleport to House]] can be used for more inventory space if the player is below level 80 [[Magic]] for Death Charge.
+{{clear}}
+|-|
+</tabber>
+
+==References==
+{{Reflist}}
+
+{{Grotesque Guardians}}
+[[Category:Strategies]]

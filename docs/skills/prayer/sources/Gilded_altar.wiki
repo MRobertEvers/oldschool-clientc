@@ -1,0 +1,185 @@
+{{External|rs}}
+{{Infobox Construction
+|version1 = Saradomin
+|version2 = Guthix
+|version3 = Zamorak
+|version4 = Gnome child
+|name = Gilded altar
+|image1 = [[File:Gilded altar (Saradomin) built.png|280px]]
+|image2 = [[File:Gilded altar (Guthix) built.png|280px]]
+|image3 = [[File:Gilded altar (Zamorak) built.png|280px]]
+|image4 = [[File:Gilded altar (Gnome child) built.png|280px]]
+|icon = [[File:Gilded altar icon.png]]
+|furniturename = Altar
+|release1 = [[31 May]] [[2006]]
+|release2 = [[31 May]] [[2006]]
+|release3 = [[31 May]] [[2006]]
+|release4 = [[6 January]] [[2021]]
+|update1 = PLAYER-OWNED HOUSES!
+|update2 = PLAYER-OWNED HOUSES!
+|update3 = PLAYER-OWNED HOUSES!
+|update4 = Soul Wars And 20th Anniversary Event
+|level = 75
+|experience = 2,230
+|room = [[Chapel]]
+|hotspot = [[Altar space]]
+|flatpack = No
+|examine1 = A gilded marble altar with a symbol of Saradomin.
+|examine2 = A gilded marble altar with a symbol of Guthix.
+|examine3 = A gilded marble altar with a symbol of Zamorak.
+|examine4 = A gilded marble altar with a symbol of Gnome Child.
+|id1 = 13197
+|id2 = 13199
+|id3 = 13198
+|id4 = 40878
+|itemid = 8068
+}}
+A '''gilded altar''' can be built in the [[altar space]] of the [[chapel]] in a [[player-owned house]]. It requires 75 [[Construction]] to build and gives 2,230 [[experience]] when built. The player must have a [[hammer]] and a [[saw]] in their inventory to build it.
+
+It gives 250% [[Prayer]] experience when a bone is used with it. With one [[incense burner]] lit, it gives 300% Prayer experience per bone. When both are lit, it gives 350% Prayer experience. When offering bones on the altar, and both burners are lit, you will receive a game message in the [[chat interface]] saying, "The gods are '''very''' pleased with your offering". In contrast, when both burners are not lit, it says "The gods are pleased with your offering", omitting the word "very". Any type of incense burners can be used to gain the same amount of experience, provided that they are lit with [[marrentill]] herbs.
+
+It can be built as early as level 67 by using a [[crystal saw]] (+3 boost to level) and [[spicy stew|orange spicy stew]] with three doses of [[orange spice]] (+5). However this could be difficult to achieve due to the random boost that the orange spicy stew provides. An option with guaranteed success requires 69 Construction and a [[Cup of tea (Player-owned house)|player-owned house tea]] (+3) (from [[teak shelves 2|teak shelves]] 2) which, combined with the crystal saw, gives a total boost of +6.
+
+[[Rimmington]] and [[Yanille]] on World 330 also often host open altars, so this world is commonly used for training Prayer. It is easier and faster to use the [[Rimmington]] house portal, as players can get bones un-noted by [[Phials]] in the general store just south of the portal, for {{Coins|5}} for each noted item.
+
+Note that [[Ironmen]] cannot visit another player's house unless this player is part of their Group Ironman group. Due to its high cost, high Construction requirement, and little benefit over more accessible methods, Ironmen are advised to either use the [[Chaos Temple (church)|Chaos Altar]] in the Wilderness (dangerous, gives 350% XP but with a 50% chance to not consume the bones, resulting in an effective 700% XP) or the [[libation bowl]] instead (safe, gives roughly 70% of Chaos Altar rates, but requires blessing/chiselling bones into shards and making [[Jug of blessed sunfire wine|blessed sunfire wine]]).
+
+==Creation==
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 75
+|skill1boostable = Yes
+|skill1exp = 2,230
+|members = Yes
+|ticks = 5
+|tools = Saw, Hammer
+|mat1 = Marble block
+|mat1quantity = 2
+|mat2 = Bolt of cloth
+|mat2quantity = 2
+|mat3 = Gold leaf
+|mat3quantity = 4
+|output1 = Gilded altar
+|output1pic = Gilded altar icon
+|output1cost = 0
+}}
+
+==Experience per bone==
+{| class="wikitable"
+!Bones
+!Burying XP
+!No burners lit
+!1 burner lit
+!2 burners lit
+|-
+|[[Bones|Normal bones]]
+|4.5
+|11.25
+|13.5
+|15.75
+|-
+|[[Big bones]]
+|15
+|37.5
+|45
+|52.5
+|-
+|[[Zogre bones]]
+|22.5
+|56.25
+|67.5
+|78.75
+|-
+|[[Babydragon bones]]
+|30
+|75
+|90
+|105
+|-
+|[[Wyrm bones]]
+|50
+|125
+|150
+|175
+|-
+|[[Strykewyrm bones]]
+|60
+|150
+|180
+|210
+|-
+|[[Dragon bones]]
+|rowspan="2"|72
+|rowspan="2"|180
+|rowspan="2"|216
+|rowspan="2"|252
+|-
+|[[Wyvern bones]]
+|-
+|[[Drake bones]]
+|80
+|200
+|240
+|280
+|-
+|[[Lava dragon bones]]
+|85
+|212.5
+|255
+|297.5
+|-
+|[[Frost dragon bones]]
+|100
+|250
+|300
+|350
+|-
+|[[Hydra bones]]
+|110
+|275
+|330
+|385
+|-
+|[[Dagannoth bones]]
+|125
+|312.5
+|375
+|437.5
+|-
+|[[Ourg bones]]
+|140
+|350
+|420
+|490
+|-
+|[[Superior dragon bones]]
+|150
+|375
+|450
+|525
+|}
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to training at gilded altars:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|330|United States (east)|mems=yes|House Party, Gilded Altar}}
+{{WorldLine|426|Australia|mems=yes|House Party, Gilded Altar}}
+{{WorldLine|465|Germany|mems=yes|House Party, Gilded Altar}}
+{{WorldLine|512|United Kingdom|mems=yes|House Party, Gilded Altar}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 February 2023
+|update = More Poll 78 Changes!
+|change = When sacrificing bones to an altar in a player-owned house, the game now consumes bones starting from the top left of the inventory, rather than consuming the ones that was used on the altar.
+}}
+{{Subject changes footer}}
+
+{{Chapel}}

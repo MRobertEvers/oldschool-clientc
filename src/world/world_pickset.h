@@ -9,6 +9,11 @@ enum World_PickType
     WORLD_PICK_NPC,
     WORLD_PICK_OBJSTACK,
     WORLD_PICK_PLAYER,
+    /** A model belonging to a world-entity view's sub-scene (a sailing
+     * hull's side, mast, rail — anything drawn inside the descent that is
+     * not deck terrain). Carries view_id; the tile fields are -1. The hull's
+     * right-click op rows key on view_id (SAILING_PLAN C5.2). */
+    WORLD_PICK_WEV,
 };
 
 struct World_Picked
@@ -18,6 +23,10 @@ struct World_Picked
     int tile_x;
     int tile_z;
     int tile_level;
+    /** World-entity view the pick came out of; 0 = root. A non-zero terrain
+     *  pick's tiles are that view's OWN (deck-local) coordinates and resolve
+     *  against the view's staging base (worldview.h base_x/base_z). */
+    int view_id;
 };
 
 #define WORLD_PICKSET_MAX 256
@@ -38,6 +47,7 @@ World_PickSetAdd(
     enum World_PickType type,
     int tile_x,
     int tile_z,
-    int tile_level);
+    int tile_level,
+    int view_id);
 
 #endif

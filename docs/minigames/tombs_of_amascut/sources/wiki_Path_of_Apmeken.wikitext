@@ -1,0 +1,71 @@
+{{Otheruses|def=no|strategies on how to complete the puzzle room|Tombs of Amascut/Strategies#Path of Apmeken}}
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Started
+|version3 = Completed
+|name = Path of Apmeken
+|image1 = [[File:Path of Apmeken (normal).png|250x250px]]
+|image2 = [[File:Path of Apmeken (started).png|250x250px]]
+|image3 = [[File:Path of Apmeken (completed).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Jaltevas Pyramid]]
+|options1 = Enter, Quick-Enter
+|options2 = Enter, Quick-Enter
+|options3 = None
+|examine1 = Walk the Path of Apmeken?
+|examine2 = Another path has been started.
+|examine3 = The Path of Apmeken has been completed.
+|map = {{Map|x:3562,y:5146|mapID=-1|mtype=pin}}
+|id1 = 46158
+|id2 = 46159
+|id3 = 46160
+}}
+The '''Path of Apmeken''' in [[Tombs of Amascut]] leads to [[Ba-Ba]], the guardian of [[Apmeken]]. If another path has been entered, Ba-Ba's head is removed to show that another path is currently being attempted. After the path of Apmeken is cleared, the fire disappears.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|type = hotfix
+|change = The Volatile Baboon's explosion attack will no longer kill [[pets]] within the Path of Apmeken.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = Awakened DT2 Bosses & Poll 80
+|change = 
+* The Path of Apmeken has been adjusted to allow players to clear the baboon waves quicker:
+** The minimum and maximum amount of baboons for most waves have been increased, meaning fewer baboons must be killed before the next wave begins.
+** A Volatile Baboon's explosion attack can now hit other baboons.
+** Baboon Shamans are now vulnerable to poison and venom, and being inflicted with either will also now cause them to stop summoning Baboon Thralls and switch to magic attacks.
+}}
+{{Subject changes
+|date = 2 September 2022
+|update = Tombs of Amascut: Balance Changes Revisited
+|type = hotfix
+|change =
+* The waves 2 and 3 in the Path of Apmeken has been merged to help speed things up.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change =
+* Path of Apmeken:
+** 100 [[neutralising potion]]s are acquired from the crate instead of 20.
+** The hammer acquired from the crates is removed upon completing the challenge.
+** Reduced baboon quantity per wave and made the transition more smoother.
+}}
+{{Subject changes
+|date = 25 August 2022
+|update = 
+|type = hotfix
+|change = 
+* Venom pools on the floor in the Path of Apmeken now last for 20 seconds, rather than 30 seconds.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

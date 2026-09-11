@@ -128,7 +128,7 @@ collision class found throughout this series.
 
 ## 4. Server obligations
 
-| what | mock230 status |
+| what | ToriRSServer status |
 |---|---|
 | Item-loss/retention computation on death (bucketing, priciest-item ranking) | **not implemented** — `death.rs2` states this is deliberate, not an omission |
 | `deathkeep_items`/`inv_468` populated and pushed at time of death | **not implemented**; containers exist in cache, unpopulated |
@@ -169,9 +169,9 @@ that empties your inventory is a mock nobody uses twice."*
 
 The engine's only contribution is two facts about the simulation, both
 landed and confirmed: `player->dying` gates corpse behavior and is set when
-hitpoints hit zero (`mock230_combat.c:533,553`), and it clears only when
+hitpoints hit zero (`torirs_server_combat.c:533,553`), and it clears only when
 the script's own `stat_heal` brings hitpoints back up
-(`mock230_combat.c:597` region) — the length of a death is decided
+(`torirs_server_combat.c:597` region) — the length of a death is decided
 entirely by content, not the engine.
 
 **Everything this doc traces — deathkeep's preview, the gravestone, Death's

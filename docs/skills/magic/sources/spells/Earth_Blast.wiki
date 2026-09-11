@@ -1,0 +1,72 @@
+{{External|rs|rsc=Earth blast}}
+{{Infobox Spell
+|name = Earth Blast
+|image = [[File:Earth Blast.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 53
+|spellbook = Normal
+|type = Combat
+|exp = 31.5
+|element = Earth
+|damage = 15 or 16
+|cost = {{RuneReq|Earth=4|Air=3|Death=1}}
+|speed = 5 ticks
+|description = A medium level Earth missile
+|anim = [[File:Earth Blast.gif|300px]]
+|sound = [[File:Earth Blast.ogg]]
+}}
+[[File:Earth Blast icon (mobile).png|left]]
+'''Earth Blast''' is an [[Earth spells|earth]]-based [[Blast spells|blast spell]] in the [[standard spellbook]], requiring level 53 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest earth spell available to [[free-to-play]] players.
+
+== Damage==
+Earth Blast's base maximum hit starts at 15 and increases to 16 when the player unlocks [[Fire Blast]] at level 59 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level blast spell available
+!{{Plink|Earth Blast}} base maximum hit
+|-
+|{{SCP|Magic|53}}- 58
+|{{Plink|Earth Blast}}
+|15
+|-
+|{{SCP|Magic|59}}+
+|{{Plink|Fire Blast}}
+|16
+|}
+As with all combat spells, Earth Blast's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an earth-based spell, Earth Blast's maximum hit is also increased against targets that are [[Elemental weakness|weak to earth]].
+
+===Calculator===
+{{Magic damage calculator|Earth Blast|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 4
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = death
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+== Notable uses ==
+
+* During the [[Family Crest]] quest, the player must deal damage to the demon [[Chronozon]] with Earth Blast (along with each of the other three blast spells) at least once in order to defeat it.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[blast spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

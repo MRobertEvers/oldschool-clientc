@@ -4,7 +4,7 @@
 
 /* projection.u.c is include-guarded (PROJECTION_U_C). */
 /* clang-format off */
-#include "graphics/projection.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
 /* clang-format on */
 
 void

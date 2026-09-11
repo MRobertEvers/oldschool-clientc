@@ -86,6 +86,11 @@ ToriRS_D3D9_SetViewport(
     int height);
 
 void
+ToriRS_D3D9_SetInterfaceScaleMode(
+    struct ToriRS_D3D9* d3d9,
+    int mode);
+
+void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* d3d9, int mouse_x, int mouse_y);
 
 struct ToriRS_PickHits const*
@@ -96,13 +101,49 @@ ToriRS_D3D9_Execute(
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_RenderCommand const* cmd);
 
+/**
+ * The startup progress bar, before there is a frame to build.
+ *
+ * `progress` < 0 clears without a bar (the post-login loading screen). The
+ * caption is drawn either way, so the text-only screen still carries its
+ * sentence; pass caption NULL / caption_font_id < 0 for none. Both come from
+ * App_BootBarCaption -- the font id is a SCENE font id, resolved out of the
+ * scene this renderer was initialised with, so the app must have registered
+ * the face before the id means anything here.
+ */
 void
-ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* d3d9, int progress);
+ToriRS_D3D9_DrawBootBar(
+    struct ToriRS_D3D9* d3d9,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 void
 ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* d3d9, struct ToriRS_Frame* frame);
 
 void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
+
+/**
+ * Read the finished frame off the device into `pixels`, top-down ARGB.
+ *
+ * `width`/`height` are the CANVAS size, not the window's -- the back buffer is
+ * the client rect and the canvas is letterboxed inside it, so the readback is
+ * sampled back down onto the canvas grid, exactly as the GL lanes do
+ * (ToriRS_GL3_ReadPixels).
+ *
+ * MUST be called BEFORE ToriRS_D3D9_Present, the same as the GL twin: the swap
+ * chain is D3DSWAPEFFECT_DISCARD, so after Present the back buffer's contents
+ * are explicitly undefined.
+ *
+ * Returns false when there is no usable device. A pipeline stall by nature,
+ * so App_DrawComplete only asks for it when a capture is actually pending.
+ */
+bool
+ToriRS_D3D9_ReadPixels(
+    struct ToriRS_D3D9* d3d9,
+    int* pixels,
+    int width,
+    int height);
 
 #endif

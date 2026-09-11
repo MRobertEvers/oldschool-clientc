@@ -95,8 +95,8 @@ around (and under) those packs.
 | `*_ui.ini` | `[component:]`, `[layout:]`, `[inv:]` |
 | `*_cache.ini` | `[sprite:]`, `[font:]` archive bindings (dat2 `archive_id=`, or dat1 jagfile `filename=`/`format=`/`font_name=`) |
 
-Examples: `v0/osrs/revconfig/configs/rev_245_2/rev_osrs_ui.ini`,
-`rev_osrs_ui_cache.ini`, `v1/revs/configs/ui_min.ini`.
+Examples: `revconfig/osrs_static/osrs_static_ui.ini`,
+`osrs_static_ui_cache.ini`, `v1/revs/configs/ui_min.ini`.
 
 Parser lives under `src/revconfig/`. The modern bake path is
 `src/engine/uitree_builder/`. (Legacy: `v0/osrs/revconfig/uitree_load.c` applied
@@ -380,7 +380,7 @@ trees handle those).
 | `WORLD` / `MINIMAP` / `COMPASS` | Filled by `EmitFill`; Soft3D stubs ignore 2D placeholders |
 
 `main.c` demo path: open interface → live SDL present (`UITree_EmitWalk` →
-Soft3D frame → `PlatformSDL2_Present`); optional `--bmp`.
+Soft3D frame → `PlatformWindow_Present`); optional `--bmp`.
 
 ---
 

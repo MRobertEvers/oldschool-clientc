@@ -123,6 +123,64 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
+    /*
+     * A sprite the caller already holds: graphic_scene_id wins over graphic,
+     * and carries a frame with it.
+     *
+     * This is how the baked chrome skin reaches a component -- it is one
+     * multi-frame scene sprite that never came from a cache archive, so there
+     * is no graphic id to resolve and the resolver must not be consulted. The
+     * control beside it is the point: an unset graphic_scene_id has to leave
+     * the ordinary cache path exactly as it was.
+     */
+    {
+        struct UIBuildComponent comps[2];
+        memset(comps, 0, sizeof(comps));
+        comps[0].id = 300;
+        comps[0].type = UIBUILD_GRAPHIC;
+        comps[0].parent_id = -1;
+        comps[0].graphic = 5;                 /* would resolve to 1005 */
+        comps[0].graphic_scene_id = 0x40000009;
+        comps[0].graphic_atlas_index = 7;
+        comps[1].id = 301;
+        comps[1].type = UIBUILD_GRAPHIC;
+        comps[1].parent_id = -1;
+        comps[1].graphic = 5;                 /* no scene id: the cache path */
+
+        g_build_comps = comps;
+        g_build_count = 2;
+
+        struct UITree* tree = UITree_New(8);
+        struct UITreeBuildSource src = {
+            .count = 2,
+            .get_component = get_comp,
+            .get_parent_id = get_parent_id,
+            .resolve_sprite = resolve_sprite,
+            .resolve_font = NULL,
+            .ud = NULL,
+        };
+        TEST_ASSERT(UITree_BuildFromSource(tree, &src) == 2, "build baked + cache graphics");
+
+        int32_t baked = UITree_FindByComponentId(tree, 300);
+        TEST_ASSERT(baked >= 0, "baked graphic found");
+        TEST_ASSERT(
+            tree->components[baked].u.rs_graphic.scene_id == 0x40000009,
+            "baked graphic keeps the caller's scene id");
+        TEST_ASSERT(
+            tree->components[baked].u.rs_graphic.atlas_index == 7,
+            "baked graphic keeps the caller's frame");
+
+        int32_t cached = UITree_FindByComponentId(tree, 301);
+        TEST_ASSERT(cached >= 0, "cache graphic found");
+        TEST_ASSERT(
+            tree->components[cached].u.rs_graphic.scene_id == 1005,
+            "cache graphic still resolves through the resolver");
+        TEST_ASSERT(
+            tree->components[cached].u.rs_graphic.atlas_index == 0,
+            "cache graphic still draws frame 0");
+        UITree_Free(tree);
+    }
+
     /* BuildFromSource forward parent (child before parent in source order) */
     {
         struct UIBuildComponent comps[3];
@@ -415,6 +473,57 @@ test_layout_build(void)
             "continue clears chatbox:controls at y=119");
         TEST_ASSERT(tree->components[head].position.abs_x == 54, "chat_left head abs_x");
         TEST_ASSERT(tree->components[head].position.abs_y == 48, "chat_left head abs_y");
+
+        UITree_Free(tree);
+    }
+    /*
+     * safe_area=os:bottom: a row gives up the overlap with the OS band and no
+     * more, and gets it all back when the band goes away.
+     *
+     * The login box is the row this exists for -- 360x200 at 202,171 in the
+     * rs245/rs289 profile -- so it is the geometry used here.
+     */
+    {
+        struct UITree* tree = UITree_New(8);
+        int32_t box = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 1, 202, 171, 360, 200);
+        int32_t row = UITree_TestPushXy(tree, box, UIELEM_RS_RECT, 2, 10, 120, 200, 20);
+        int32_t plain = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 3, 202, 171, 360, 200);
+
+        tree->components[box].position.safe_area_source = UITREE_SAFE_AREA_SOURCE_OS;
+        tree->components[box].position.safe_area_flags = UITREE_SAFE_AREA_FLAG_BOTTOM;
+        tree->components[box].position.safe_area_margin = 8;
+
+        /* No keyboard: the authored place, exactly. */
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: unlifted abs_y");
+
+        /* 200 rows covered leaves 303; the box wants its bottom (371) plus an
+         * 8px margin above that, so it gives up 76 and not a pixel more. */
+        UITree_LayoutSetSafeBottomInset(200);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 95, "safe area: lifted abs_y");
+        TEST_ASSERT(tree->components[box].position.abs_x == 202, "safe area: x untouched");
+        TEST_ASSERT(tree->components[box].position.abs_h == 200, "safe area: height untouched");
+        TEST_ASSERT(tree->components[box].position.y == 171, "safe area: authored y untouched");
+        TEST_ASSERT(tree->components[row].position.abs_y == 215, "safe area: child moves with it");
+        TEST_ASSERT(
+            tree->components[plain].position.abs_y == 171, "safe area: undeclared row stays put");
+
+        /* Taller than what the keyboard leaves: stop at the canvas top rather
+         * than sliding the box off it. */
+        UITree_LayoutSetSafeBottomInset(480);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 0, "safe area: clamped at canvas top");
+
+        /* Keyboard away: back where the profile put it, with nothing
+         * remembered about how far it had moved. */
+        UITree_LayoutSetSafeBottomInset(0);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: restored abs_y");
 
         UITree_Free(tree);
     }

@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define HARNESS_MAX_CASES 4096
 #define HARNESS_MAX_ARGS 32
@@ -47,7 +48,11 @@ struct HarnessCase
     int str_arg_count;
 };
 
-static struct CS2VM2_TraceRecord s_trace[HARNESS_TRACE_MAX];
+/* Heap, not .bss: at HARNESS_TRACE_MAX x sizeof(CS2VM2_TraceRecord) this is
+ * 5.34 MB of private commit charged to every client start, and the harness
+ * only runs when TORIRS_CS2_HARNESS is set.  Owned by CS2Harness_Run, the
+ * only path that can reach harness_dump_case. */
+static struct CS2VM2_TraceRecord* s_trace;
 
 /* ---------------------------------------------------------------------
  * Case file
@@ -197,7 +202,7 @@ harness_load_cases(char const* path, struct HarnessCase* cases, int max_cases)
     FILE* fp = fopen(path, "rb");
     if( !fp )
     {
-        fprintf(stderr, "cs2_harness: cannot open %s\n", path);
+        TORIRS_ERR("cs2_harness: cannot open %s\n", path);
         return 0;
     }
     fseek(fp, 0, SEEK_END);
@@ -266,7 +271,7 @@ harness_write(
     FILE* fp = fopen(path, "w");
     if( !fp )
     {
-        fprintf(stderr, "cs2_harness: cannot write %s\n", path);
+        TORIRS_ERR("cs2_harness: cannot write %s\n", path);
         return;
     }
     fprintf(fp, "{\n");
@@ -308,12 +313,23 @@ CS2Harness_Run(
     CS2Harness_Shot_Fn shot,
     void* shot_user)
 {
-    static struct HarnessCase cases[HARNESS_MAX_CASES];
+    /* calloc, not malloc: these replace zero-initialised .bss, and
+     * harness_load_cases only fills the cases it actually parses. */
+    struct HarnessCase* cases = calloc(HARNESS_MAX_CASES, sizeof(*cases));
+    assert(cases);
+    s_trace = calloc(HARNESS_TRACE_MAX, sizeof(*s_trace));
+    assert(s_trace);
+
     int count = harness_load_cases(cases_path, cases, HARNESS_MAX_CASES);
     if( count <= 0 )
+    {
+        free(cases);
+        free(s_trace);
+        s_trace = NULL;
         return 0;
+    }
 
-    fprintf(stderr, "cs2_harness: %d case(s) from %s -> %s\n", count, cases_path, out_dir);
+    TORIRS_LOG("cs2_harness: %d case(s) from %s -> %s\n", count, cases_path, out_dir);
 
     for( int i = 0; i < count; i++ )
     {
@@ -368,6 +384,9 @@ CS2Harness_Run(
             item->str_args[s] = NULL;
         }
     }
-    fprintf(stderr, "cs2_harness: done\n");
+    TORIRS_LOG("cs2_harness: done\n");
+    free(cases);
+    free(s_trace);
+    s_trace = NULL;
     return count;
 }

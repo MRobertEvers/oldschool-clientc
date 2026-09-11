@@ -446,7 +446,7 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 # 9043 -- the Inferno. Kronos has no row for it because the Inferno is
 # instanced there too, and its music player keys off the live map square, which
 # an instance never occupies. The square is the Inferno's TEMPLATE, which is
-# what mock230_world.c now resolves an instanced player's music through (see
+# what torirs_server_world.c now resolves an instanced player's music through (see
 # docs/INFERNO_SOUNDS.md section 6):
 #
 #   ^inferno_template = 0_35_83_0_0   (inferno.constant), world base 2240,5312

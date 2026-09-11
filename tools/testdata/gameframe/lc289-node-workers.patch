@@ -1,0 +1,116 @@
+diff --git a/src/app.ts b/src/app.ts
+index 3bcdc74a..a522d3ed 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,5 +1,4 @@
+ import fs from 'fs';
+-import { Worker } from 'worker_threads';
+ 
+ import { collectDefaultMetrics, register } from 'prom-client';
+ 
+@@ -8,6 +7,7 @@ import World from '#/engine/World.js';
+ import TcpServer from '#/server/tcp/TcpServer.js';
+ import Environment from '#/util/Environment.js';
+ import { printError, printInfo } from '#/util/Logger.js';
++import { createRuntimeWorker } from '#/util/RuntimeWorker.js';
+ import { startManagementWeb, startWeb } from '#/web.js';
+ import OnDemand from '#/engine/OnDemand.js';
+ 
+@@ -28,9 +28,9 @@ if (OnDemand.cache.count(0) !== 9 || OnDemand.cache.count(2) === 0 || !fs.exists
+ }
+ 
+ if (Environment.easyStartup) {
+-    new Worker(new URL('./login.ts', import.meta.url));
+-    new Worker(new URL('./friend.ts', import.meta.url));
+-    new Worker(new URL('./logger.ts', import.meta.url));
++    createRuntimeWorker(new URL('./login.ts', import.meta.url));
++    createRuntimeWorker(new URL('./friend.ts', import.meta.url));
++    createRuntimeWorker(new URL('./logger.ts', import.meta.url));
+ }
+ 
+ await World.start();
+diff --git a/src/engine/OnDemand.ts b/src/engine/OnDemand.ts
+index 00579bdf..d04ee1d9 100644
+--- a/src/engine/OnDemand.ts
++++ b/src/engine/OnDemand.ts
+@@ -1,6 +1,7 @@
+ import FileStream from '#/io/FileStream.js';
+ import Packet from '#/io/Packet.js';
+ import ClientSocket from '#/server/ClientSocket.js';
++import { createRuntimeWorker } from '#/util/RuntimeWorker.js';
+ 
+ import { Worker } from 'worker_threads';
+ 
+@@ -116,7 +117,7 @@ class OnDemand {
+             return this.worker;
+         }
+ 
+-        const worker = new Worker(new URL('./OnDemandThread.ts', import.meta.url)) as WorkerWithTransfers;
++        const worker = createRuntimeWorker(new URL('./OnDemandThread.ts', import.meta.url)) as WorkerWithTransfers;
+         this.worker = worker;
+ 
+         worker.on('message', (msg: OnDemandWorkerMessage) => this.onWorkerMessage(msg));
+diff --git a/src/engine/World.ts b/src/engine/World.ts
+index c24c3a1d..e551b7d0 100644
+--- a/src/engine/World.ts
++++ b/src/engine/World.ts
+@@ -93,6 +93,7 @@ import Environment from '#/util/Environment.js';
+ import { fromBase37, toBase37, toSafeName } from '#/util/JString.js';
+ import LinkList from '#/datastruct/LinkList.js';
+ import { printDebug, printError, printInfo } from '#/util/Logger.js';
++import { createRuntimeWorker } from '#/util/RuntimeWorker.js';
+ import OnDemand from './OnDemand.js';
+ import { ObjDelayedRequest } from './entity/ObjDelayedRequest.js';
+ import DbTableIndex from '#/cache/config/DbTableIndex.js';
+@@ -109,9 +110,9 @@ type LogoutRequest = {
+ };
+ 
+ class World {
+-    private loginThread = new Worker(new URL('../server/login/LoginThread.ts', import.meta.url));
+-    private friendThread = new Worker(new URL('../server/friend/FriendThread.ts', import.meta.url));
+-    private loggerThread = new Worker(new URL('../server/logger/LoggerThread.ts', import.meta.url));
++    private loginThread = createRuntimeWorker(new URL('../server/login/LoginThread.ts', import.meta.url));
++    private friendThread = createRuntimeWorker(new URL('../server/friend/FriendThread.ts', import.meta.url));
++    private loggerThread = createRuntimeWorker(new URL('../server/logger/LoggerThread.ts', import.meta.url));
+     private devThread: Worker | null = null;
+ 
+     private static readonly PLAYERS: number = 2047;
+@@ -1746,7 +1747,7 @@ class World {
+     }
+ 
+     private createDevThread() {
+-        this.devThread = new Worker(new URL('../cache/DevThread.ts', import.meta.url));
++        this.devThread = createRuntimeWorker(new URL('../cache/DevThread.ts', import.meta.url));
+ 
+         this.devThread.on('message', msg => {
+             try {
+diff --git a/src/util/RuntimeWorker.ts b/src/util/RuntimeWorker.ts
+new file mode 100644
+index 00000000..d6af6444
+--- /dev/null
++++ b/src/util/RuntimeWorker.ts
+@@ -0,0 +1,13 @@
++import { Worker, type WorkerOptions } from 'worker_threads';
++
++const NODE_WORKER_BOOTSTRAP = new URL('./RuntimeWorkerNode.mjs', import.meta.url);
++
++export function createRuntimeWorker(specifier: string | URL, options: WorkerOptions = {}): Worker {
++    return new Worker(NODE_WORKER_BOOTSTRAP, {
++        ...options,
++        workerData: {
++            ...(options.workerData && typeof options.workerData === 'object' ? options.workerData : {}),
++            __ts_worker_filename: typeof specifier === 'string' ? specifier : specifier.href
++        }
++    });
++}
+diff --git a/src/util/RuntimeWorkerNode.mjs b/src/util/RuntimeWorkerNode.mjs
+new file mode 100644
+index 00000000..a9087a45
+--- /dev/null
++++ b/src/util/RuntimeWorkerNode.mjs
+@@ -0,0 +1,5 @@
++import { workerData } from 'node:worker_threads';
++
++import { tsImport } from 'tsx/esm/api';
++
++await tsImport(workerData.__ts_worker_filename, import.meta.url);

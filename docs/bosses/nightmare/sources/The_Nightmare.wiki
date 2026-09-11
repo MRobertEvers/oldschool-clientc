@@ -1,0 +1,338 @@
+{{Redirect|Nightmare}}
+{{Instance|irs=Shura|cost=60000}}
+{{HasStrategy}}
+{{Switch infobox
+|text1 = Active
+|item1 =
+{{Infobox Monster
+|name = The Nightmare
+|image = [[File:The Nightmare.png|250px]]
+|release = [[6 February]] [[2020]]
+|update = The Nightmare of Ashihama
+|members = Yes
+|combat = 814
+|size = 5
+|examine = Sweet dreams are most definitely not made of this.
+|xpbonus = 0
+|max hit = 50/60 ([[Melee]]), 33/39 ([[Ranged]] and [[Magic]]), Increased by 20% if using incorrect protection prayer
+|aggressive = No
+|poisonous = No
+|attack style = [[Slash]], [[Ranged]], [[Magic]]
+|attack speed = 6
+|hitpoints = 2400
+|att = 150
+|str = 150
+|def = 150
+|mage = 150
+|range = 150
+|attbns = 140
+|strbns = 128
+|amagic = 140
+|mbns = 64
+|arange = 140
+|rngbns = 64
+|dstab = 120
+|dslash = 180
+|dcrush = 40
+|dmagic = 600
+|dlight = 600
+|dstandard = 600
+|dheavy = 600
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|freezeresistance = 100
+|id = 9425,9426,9427,9428,9429,9430,9431,9432,9433,9460
+|leagueRegion = Morytania
+}}
+|text2 = Idle
+|item2 = 
+{{Infobox NPC
+|name = The Nightmare
+|image = [[File:The Nightmare (idle).png|250px]]
+|release = [[6 February]] [[2020]]
+|update = The Nightmare of Ashihama
+|level = 814
+|members = Yes
+|race = Unknown
+|location = [[Sisterhood Sanctuary]]
+|examine = Sweet dreams are most definitely not made of this.
+|map = No
+|id = 378
+|leagueRegion = Morytania
+}}}}
+'''The Nightmare of Ashihama''', often referred to as '''The Nightmare''', is a [[boss]] monster located in [[Morytania]]. The Nightmare can be found in the [[Sisterhood Sanctuary]] under the town of [[Slepe]]. Access to Morytania is the only requirement for fighting The Nightmare.
+
+Upon starting the fight, players are transported to a dream world, where the fight arena takes on a different appearance containing various Eastern motifs such as {{WP|Torii}} gates.
+
+While The Nightmare can be fought in groups alongside other players, there is a stronger version called [[Phosani's Nightmare]] that can only be fought solo.
+
+Drops from the boss include [[inquisitor's armour]], a set of crush-based armour which improves with crush weapons, especially with the [[inquisitor's mace]], the strongest one-handed crush weapon in-game, and the [[Nightmare staff]], a one-handed staff that can autocast [[ancient magicks]]. The staff can be further upgraded with a [[volatile orb|volatile]], [[eldritch orb|eldritch]] or [[harmonised orb]], each one of which provides a unique effect in combat.
+
+[[Ironman_Mode|Ironmen]] are eligible for drops from The Nightmare when defeating it alongside other players. [[Group Ironman Mode|Group ironman players]] will lose their [[Group Ironman Mode#Prestige|prestige]] upon completing an encounter they started with a player outside of their group.
+
+==History==
+The Nightmare's true origins are unknown, but according to a legend in [[Ashihama]], it was told that an ancient ritual was performed by several shamans, birthing an otherworldly horror that took on the appearance of a large, hag-like woman.{{CiteNPC|npc=Shura|quote=Before she claimed them, my parents would sometimes tell me a story of her origin. They told me of a group of shamans who performed an unknown ritual in the hope of gaining great power. The ritual went wrong, though, and instead, they unleashed the Nightmare on this world.}} For as long as the sirens of Ashihama can remember, The Nightmare has plagued them, their dreams stolen and feasted upon.{{CiteNPC|npc=Shura|quote=For generations, she terrorised the island of Ashihama, my home. I lost a lot of good friends to her. Sometimes, I even thought I would lose myself. For some, the nightmares become too much to bear.}} These shamans appeared to have attempted to fight off The Nightmare, eventually culminating in the creation of four totems that could channel power to stop her, but the shamans were wiped out before they could use them on her.{{CiteNPC|npc=Shura|quote=I found the totems deep within the caves. Someone far smarter than you or I had worked out how to make them. But they perished before they could use them against her.}}
+
+The Nightmare resided in the caves underneath Ashihama, thus making the sirens wary of entering them in the event they would stumble into her.{{CiteNPC|npc=Shura|quote=Thanks to the Nightmare, the caves beneath our home are mostly unexplored. There's all sorts of things down there, provided you're brave enough to enter.}} One brave siren, [[Shura]], went into the caves and recovered the four totems, allowing her people to fight the Nightmare.{{CiteNPC|npc=Shura|quote=Everything has a weakness, including the Nightmare, and eventually we found it. We drove her off the island, but she managed to endure.}} Driven out of Ashihama, it fled west to the mainland, eventually arriving in the [[Morytania]]n town of [[Slepe]]. While most of the sirens were content with the Nightmare gone from their lands,{{CiteNPC|npc=Shura|quote=We took up arms against the Nightmare because we had to, not because we wanted to. We are a peaceful race, and most were all too eager to lay down their weapons once the Nightmare was gone.}} Shura continued to pursue it as she wanted to make sure it would be defeated for good.{{CiteNPC|npc=Shura|quote=My kind believe in something called Mo Kal. It means that anything bad that could happen, will happen. The others may have forgotten this, but I have not. The Nightmare may have left my home, but I won't rest until I know for sure that she can never return.}}
+
+The Nightmare arrived at an opportune moment, with the town suffering from the Sleeper Plague as a result of vampyre machinations due to a critical shortage of blood for their growing society.{{CiteNPC|npc=Shura|quote=The people here are ill, suffering from a deep sleep from which few wake. They call it the Sleeper Plague. The illness made these people easy prey for the Nightmare, so she made this place her new home.}} The Nightmare began feasting from the victims of the plague and began growing more rapidly than she did on Ashihama.{{CiteNPC|npc=Shura|quote=Thanks to the Sleeper Plague, her power has grown faster than it ever did on Ashihama. If she is allowed to grow too strong, there won't be any way to stop her.}} Shura managed to contain her in the centre of the [[Sisterhood Sanctuary]] and sought adventurers to keep the Nightmare's powers in check.{{CiteNPC|npc=Shura|quote=I've managed to contain her within this section of the dungeon. She has no desire to leave for the moment. She has no need to, after all. But make no mistake, I won't be able to stop her if she decides to move on.}} Despite their efforts, the Nightmare eventually manifested into [[Phosani]]'s dreams,{{CiteNPC|npc=Sister Senga|quote=The creature down there, the one that Siren calls the Nightmare. It has been invading Mother's mind, feeding on her.}}{{CiteNPC|npc=Sister Senga|quote=The horror that has manifested itself in Mother's mind is far stronger than the one fought in the Nightmare's dream.}} though it would also be kept in check by [[Sister Senga]] and other adventurers.
+
+==Transportation==
+The quickest methods of reaching Slepe, where The Nightmare resides, are:
+*Teleporting to the [[Sisterhood Sanctuary]] via [[Drakan's medallion]] after the [[Slepey tablet]] has been acquired from [[Phosani's Nightmare]]
+*Teleporting to [[Ver Sinhaza]] via [[Drakan's medallion]], then running north. Once players pass the small dock, they can run east to arrive at Slepe. From there, the player can go down the stairs in the small building directly south of the graveyard, and then run east to arrive at the bridge to the [[Sisterhood Sanctuary]].
+*Teleporting to the [[Hallowed Sepulchre]] with a [[Hallowed crystal shard]] (can be purchased from [[Mysterious Stranger (Hallowed Sepulchre)|Mysterious stranger]] for 1 [[Hallowed mark]]) after completion of [[Sins of the Father]], then running to the shortcut on the east side of the city (requires 63 [[Agility]] and two [[Long rope|long ropes]] to unlock). Players can then run east to Slepe, where they can go down the stairs as mentioned above.
+*Using the [[Ectophial]] to teleport to the [[Ectofuntus]], then heading north to the small dock and paying [[Andras]] 10,000 coins to row to [[Slepe]]. The player will arrive at a dock just south-west of Slepe. Players may also pay Andras a one-off fee of 1,000,000 coins to gain permanent access to his boat for free.
+*Using [[Morytania legs 3]] or [[Morytania legs 4|4]] to teleport to [[Burgh de Rott]], running east to the small docks and then taking the boat to [[Slepe]]. This requires partial completion of [[Sins of the Father]], but costs no money.
+*[[Fairy ring]] code {{Fairycode|ALQ}} then run south-east.
+*[[Fenkenstrain's castle teleport (tablet)|Fenkenstrain's castle teleport tablet]], then run south-east.
+*[[Spider cave teleport]], then run south-east.
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to The Nightmare:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|337|United States (east)|mems=yes|Nightmare of Ashihama}}
+{{WorldLine|514|United Kingdom|mems=yes|Nightmare of Ashihama}}
+|}
+
+==Fight overview==
+{{Main|The Nightmare/Strategies}}
+To begin the fight, approach The Nightmare's unconscious body and select the Disturb option. Players may join in the following 30 seconds before the fight begins: afterwards, players must wait until the fight is over (with The Nightmare or all the players defeated) before they may join.
+
+Unlike most boss fights, The Nightmare's health and combat stats scale to the number of players in the fight (ranging from 5–80 players), though it may be fought in smaller team sizes. The minimum durability of her shield is 2,000 and caps at 19,600. If the Nightmare is floating in the centre rather than lying on the ground, it is an indication that she is fighting a group of players; the symbols on the ground also indicate the phase she is in.
+
+The fight against the Nightmare consists of three phases, all three of which involve the player(s) breaking down its shield sufficiently before they can charge the four [[Totem (The Nightmare)|totem]]s in the corners of the arena, unleashing a magical blast that deals massive damage to her. In each subsequent phase, the Nightmare will change its special attacks. Once the totems are charged a third time, the Nightmare will be defeated, ending the encounter.
+
+The Nightmare's melee attack ignores accuracy and always hits. In addition, players take 20% of her base damage if using [[Protect from Melee]], and 120% of her base damage if using the incorrect protection prayer. If the Nightmare has very low combat stats, her max hit will be at least a random number between 1-6, subject to the effects of prayer. The Nightmare's defence can be lowered down to a minimum of 120,{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1269265821471322112|date=6 June 2020|archiveurl=https://reldo.runescape.wiki/i/97557|archivedate=1 September 2023|quote=[do you know of the dragon war hammer spec lowers nightmares defence? if it does or doesnt can you explain on how it does or doesn't?] It's got a cap to stop her Defence being reduced below 120 by it. The only NPC I know of with complete immunity is Verzik, who gives a message to say this.}} however, she restores drained stats at a rate of 20 per minute.
+
+If the player dies while fighting the Nightmare, they will be placed by the [[Pool of Nightmares]] and must reclaim their items from [[Shura]]. This is a flat {{Coins|60000}} regardless of carried wealth.
+
+==Money making==
+{{Mmgsection|Killing The Nightmare}}
+
+==Drops==
+[[File:Fighting The Nightmare.png|thumb|A large group of players in a battle against The Nightmare of Ashihama.]]
+Every player in the fight who reaches the minimum damage threshold (which requires dealing damage to both The Nightmare's mental shield and the totems) will be eligible to receive a drop, with the quantity increasing based on how much damage they have done.
+
+The player who deals the most damage in the fight will receive big bones and 10% additional non-unique loot. Additionally, when unique drops are rolled, a weighting system based on damage dealt determines which player will receive it. Players eligible for a unique drop will receive regular bones as a drop.
+
+{{DropLogProject|kills=251259}}
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always|raritynotes=<ref group=d>Big bones are only dropped for the player who deals the most damage in the fight.</ref>}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always|raritynotes=<ref group=d>Regular bones are only dropped for players eligible to receive a unique drop.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Uniques===
+''With each kill, The Nightmare has a chance to roll two unique drop tables, one containing the armour, mace, and staff, and one containing the orbs; both table rolls can be successful with each kill. The armour, mace, and staff drop table has a 1/83.33 chance to roll, and the orb drop table has a 1/320 chance to roll (with an effective chance of 1/66.67 to get any item).''
+
+''Additionally, there is a chance that both are rolled a second time (independent of the first rolls), with this chance being <math>(partySize - 5)\%</math>, clamped between 0 and 75 percent (with party size-related improved drop rates capped at 80 players''{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1238059336498380801|date=12 March 2020|archiveurl=https://reldo.runescape.wiki/i/99780|archivedate=28 May 2020|name=unique}}'' (meaning that with a full 80 member party, the armour, mace, and staff drop table has a 1/68.6 chance to roll and the orb drop table has a 1/343 chance to roll, or ~1/57.2 for either).''
+
+{{DropsTableHead}}
+{{DropsLine|name=Nightmare staff|quantity=1|rarity=1/300|altrarity=1/171.5|altraritydash=yes}}
+{{DropsLine|name=Inquisitor's great helm|quantity=1|rarity=1/420|altrarity=1/240.1|altraritydash=yes}}
+{{DropsLine|name=Inquisitor's hauberk|quantity=1|rarity=1/420|altrarity=1/240.1|altraritydash=yes}}
+{{DropsLine|name=Inquisitor's plateskirt|quantity=1|rarity=1/420|altrarity=1/240.1|altraritydash=yes}}
+{{DropsLine|name=Inquisitor's mace|quantity=1|rarity=1/750|altrarity=1/428.7|altraritydash=yes}}
+{{DropsLine|name=Eldritch orb|quantity=1|rarity=1/960|altrarity=1/548.7|altraritydash=yes}}
+{{DropsLine|name=Harmonised orb|quantity=1|rarity=1/960|altrarity=1/548.7|altraritydash=yes}}
+{{DropsLine|name=Volatile orb|quantity=1|rarity=1/960|altrarity=1/548.7|altraritydash=yes}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Cosmic rune|quantity=11-242|rarity=4/100}}
+{{DropsLine|name=Nature rune|quantity=8-176|rarity=4/100}}
+{{DropsLine|name=Death rune|quantity=7-176|rarity=4/100}}
+{{DropsLine|name=Blood rune|quantity=16-440|rarity=4/100}}
+{{DropsLine|name=Soul rune|quantity=8-132|rarity=4/100}}
+{{DropsLine|name=Steel cannonball|quantity=6-220|rarity=4/100}}
+{{DropsLine|name=Rune arrow|quantity=31-547|rarity=3/100}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Mithril ore|quantity=11-176 (noted)|rarity=4/100}}
+{{DropsLine|name=Coal|quantity=15-264 (noted)|rarity=4/100}}
+{{DropsLine|name=Gold ore|quantity=9-176 (noted)|rarity=4/100}}
+{{DropsLine|name=Adamantite ore|quantity=40-95 (noted)|rarity=4/100}}
+{{DropsLine|name=Magic logs|quantity=1-55 (noted)|rarity=4/100}}
+{{DropsLine|name=Grimy cadantine|quantity=1-16 (noted)|rarity=4/100}}
+{{DropsLine|name=Grimy torstol|quantity=1-16 (noted)|rarity=4/100}}
+{{DropsLine|name=Snapdragon seed|quantity=1-7|rarity=3/100}}
+{{DropsLine|name=Uncut emerald|quantity=2-44 (noted)|rarity=3/100}}
+{{DropsLine|name=Uncut ruby|quantity=27-60 (noted)|rarity=3/100}}
+{{DropsLine|name=Runite ore|quantity=1-16 (noted)|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Bass|quantity=1-18|rarity=6/100}}
+{{DropsLine|name=Shark|quantity=1-16|rarity=6/100}}
+{{DropsLine|name=Prayer potion(3)|quantity=1-10|rarity=5/100}}
+{{DropsLine|name=Sanfew serum(3)|quantity=1-8|rarity=5/100}}
+{{DropsLine|name=Saradomin brew(3)|quantity=1-10|rarity=5/100}}
+{{DropsLine|name=Zamorak brew(3)|quantity=1-10|rarity=5/100}}
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=2291-43958|rarity=2/100}}
+{{DropsTableBottom}}
+
+
+===Tertiary===
+''Multiple players can receive the tertiary drops each kill. The MVP has a 5% higher chance of receiving each, with the exception of the Little Nightmare pet in teams of fewer than 5 players.''{{NamedRef|unique}}
+
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/190|altrarity=1/200}}
+{{DropsLine|name=Little Nightmare|quantity=1|rarity=1/800|altrarity=1/4000|altraritydash=yes|raritynotes=<ref group=d>The drop rate of the Little Nightmare depends on the amount of players in the fight; 1/800 for 1, 1/1,600 for 2, 1/2,400 for 3, 1/3,200 for 4, and 1/4,000 for 5 and beyond. The team size is counted when the fight starts.</ref>}}
+{{DropsLine|name=Jar of Dreams|quantity=1|rarity=1/1900|altrarity=1/2000}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|The Nightmare}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 21 - 22 January 2026
+|type = hotfix
+|change = The Nightmare now fully resets its magic defence at the start of each kill.
+}}
+{{Subject changes
+|date = 20 August 2025
+|update = More Doom Tweaks, Poll 84, & Summer Sweep Up Changes
+|change = Players who die during the encounter will now respawn by the [[Pool of Nightmares]] rather than their spawn point.
+}}
+{{Subject changes
+|change = Improved Nightmare’s drop rates.
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = Nightmare drop calculations will now factor in the total contribution that is present when the boss dies. This is to prevent boosting of drops.
+}}
+{{Subject changes
+|date = 20 January 2021
+|update = Puro-Puro Improvements and Barbarian Assault Changes
+|poll = 
+|change = Players will no longer be damaged by the Sleepwalkers special attack after teleporting out of an encounter with The Nightmare.
+}}
+{{Subject changes
+|date = 11 November 2020
+|update = The Nightmare and Chambers of Xeric QoL
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|change = *The Nightmare's initial start timer has been reduced from 40 to 30 seconds. Players can disturb her again upon her defeat to start the next fight in 10 seconds.
+*The scaling for her shield and totems has been changed. For groups of five or more, 200 and 30 health will be added to her shield and the totems per player, decreased from 400 and 60, respectively.
+*Damage from parasites and husks are now completely negated if the correct protection prayers have been used.
+*The pet drop rate has been changed to scale with group size. Previously, it was always 1/4,000 (or 1/3,800 for the MVP).
+*An audio bug has been fixed in which the sound effect for The Nightmare's Confusion Curse ended too quietly.
+*An issue was fixed where The Nightmare would sometimes appear to face away from the player who took damage because she was re-targeting the player with the highest Defence halfway through her attack.
+}}
+{{Subject changes
+|date = 16 July 2020
+|update = Ferox Enclave
+|change = Pets can no longer be brought to the Nightmare fight.
+}}
+{{Subject changes
+|date = 2 July 2020
+|update = Poll 71 and Death Feedback Changes
+|poll = 
+|change = Crowded fights will no longer cause The Nightmare's broadcast messages to be truncated.
+}}
+{{Subject changes
+|date = 26 March 2020
+|update = Game Improvements (26 March 2020)
+|change = Players can now permanently dismiss the warning message that appears when leaving The Nightmare's dream world.
+}}
+{{Subject changes
+|date = 12 March 2020
+|update = Phosani's Nightmare and HiScores
+|change = The standard loot quantities were increased. Unique and tertiary drops were made more common with their drop mechanics changed.
+}}
+{{Subject changes
+|date = 20 February 2020
+|update = Old School RuneScape's 7th Birthday
+|change = *Players will now be given fake XP drops when charging the totems in The Nightmare fight.
+*[[Ironman Mode]] players now may fight alongside ordinary accounts instead of only being able to group with other iron players, and subsequently the [[Pool of Nightmares (historical)|Pool of Nightmares]] was removed.
+}}
+{{Subject changes
+|date = 13 February 2020
+|update = Nightmare Feedback and the Zalcano Loot Table
+|change = *The player's Hitpoints Orb now changes pink to indicate a parasitic infection.
+*A scoreboard has been added near [[Shura]], which shows personal and global kills, deaths and fastest kill time.
+*Players can now spectate players fighting by right-clicking the entry portal.
+*To improve readability, messages that appear during the boss fight now have different colours.
+*The volume of The Nightmare defend sound has been reduced again.
+*The Nightmare has been added to the Boss Kill Count section of the HiScores page.
+}}
+{{Subject changes
+|date = 7 February 2020
+|update = Nightmare of Ashihama - Day One Changes
+|change = *The surge attack delay has now been increased by one tick.
+*The volume of The Nightmare defend sound has been reduced.
+*The MVP will now receive [[big bones]] as a drop.
+*There is now a greater chance to receive food and potions as a drop, and their quantity has been increased.
+*The [[Nightmare staff]] now has a separate roll from the other uniques.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+File:The Nightmare of Ashihama Poll Blog (1).jpg|The Nightmare boss arena.
+File:OSRS Reveals- Morytania Expansion (7).jpg|Concept art of the Nightmare from RuneFest 2019.
+File:The Nightmare Concept Art.jpg|Artwork of a group of adventurers battling the Nightmare.
+File:The Nightmare - awakening animation.gif|The Nightmare's awakening animation.
+File:The Nightmare of Ashihama Poll Blog (5).gif|The Nightmare's walking animation.
+File:The Nightmare of Ashihama Poll Blog (6).gif|An animation of The Nightmare's Range attacks.
+File:The Nightmare - surge attack.gif|The Nightmare's surge attack animation.
+The Nightmare (Trading Card).png|The Nightmare [[Steam Trading Cards|Steam Trading Card]].
+File:The Nightmare melee attack code.png|A part of the RuneScript code displaying The Nightmare's melee attack. RuneScript resembles PHP and C, RuneScript is at a higher abstraction than the actual Nightmare Melee attack code.
+File:The Nightmare spore attack code.png|A part of the RuneScript code displaying The Nightmare's spore attack. RuneScript resembles PHP and C, RuneScript is at a higher abstraction than the actual Nightmare Melee attack code.
+</gallery>
+
+===Pre-release gallery===
+This gallery contains previews shown on a livestream on 22 January.
+<gallery captionalign="center" widths="200">
+Sisterhood Sanctuary map preview.png|A map of the Sisterhood Sanctuary; the purple marker displays where the player arrives in the Sanctuary, while the red marker displays The Nightmare's location.
+Sister Sanctuary preview - entrance.png|The Sisterhood Sanctuary entrance.
+Sister Sanctuary preview - lobby.png|The Sisterhood Sanctuary lobby.
+Sister Sanctuary preview - The Nightmare mid-fight.png|A preview of The Nightmare, indicating it is in the middle of a fight.
+Sister Sanctuary preview - Shura and unholy pool.png|A preview showing Shura and the pool used to create the ironman-only instance.
+Sister Sanctuary preview - overview.gif|An overview of the Sisterhood Sanctuary.
+The Nightmare fight area preview 1.png|A view of the dream world in which players battle The Nightmare.
+The Nightmare fight area preview 2.png|Another view of the dream world.
+The Nightmare fight area preview 3.png|Another view of the dream world.
+</gallery>
+
+==Trivia==
+[[File:The Nightmare face teaser.gif|thumb|upright|A pre-release teaser in which a ghostly face of The Nightmare rises as the player dies.]]
+*The Nightmare's examine text is a reference to the song ''{{WP|Sweet Dreams (Are Made of This)}}'' by British pop duo {{WP|Eurythmics}}.
+*[[Ashihama]] is an island in the [[Pincers]] region in the [[Wushanko Isles]] (Eastern Lands). It is described as "''a heavily fortified island known for the refinement and ambition of its citizens''". "Ashihama" (<big>芦浜</big>) is also Japanese for a reed beach or shore.
+*If a player spends too long in The Nightmare's dream without sufficient activity they will be removed from the fight. This will be accompanied by a chat message 'The Nightmare grows tired of your poor effort and removes you from her dream.'.
+*Prior to The Nightmare's release, two teasers were silently released in [[Update:Twisted League Reward Shop and Game Improvements|an update]] on [[16 January]] [[2020]]:
+**[[Sleepwalker]]s spawned in various locations, and made their way to the entrance of the [[Sisterhood Sanctuary]], where they would climb down (but actually despawn).
+**If a player died anywhere (except a PvP death), there is a 10% chance that a ghostly face of The Nightmare would rise.
+* A unique drop from The Nightmare, the siren's charm, which is used alongside a [[mage's book]] to create the [[Siren's tome]], initially passed [[Poll:The Nightmare of Ashihama|The Nightmare of Ashihama]] [[poll]]. However, a decision was made a day after the poll closed to withhold it from being released into ''Old School RuneScape'', due to continued concerns on how it would devalue the [[arcane spirit shield]].{{CiteNews|url=https://secure.runescape.com/m=news/the-nightmare-poll-results?oldschool=1|title=The Nightmare Poll Results|newsdate=12 December 2019|quote=The tome faced one main source of contention - its introduction to the game would devalue the existing best-in-slot item, the Arcane spirit shield, and the challenging grind offered by the Corporeal Beast. Rumblings among some areas of the community suggested that we were trying to trivialise the magic off-hand grind for Iron accounts.}}
+*The Nightmare had a festive override wearing a [[red partyhat]] during the [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+
+==References==
+{{Reflist}}
+
+{{The Nightmare}}
+{{Slepe}}
+{{Bosses}}
+{{DEFAULTSORT:Nightmare, The}}

@@ -144,6 +144,46 @@ fill_npc_row(
     tool_anim_seeds_free(&seeds);
 }
 
+struct NpcPass
+{
+    struct EV_RigIndex* index;
+    struct Tool_Dat2Cache* cache;
+    EV_RigProgressFn progress;
+    void* userdata;
+    int capacity;
+    int seen;
+    int total;
+    int abandoned;
+};
+
+static int
+visit_npc(int npc_id, struct RSCache_Dat2ConfigNpc* npc, void* user)
+{
+    struct NpcPass* pass = user;
+    struct EV_RigIndex* index = pass->index;
+
+    /* Every 64 npcs rather than every one: the callback takes a lock, and at
+     * 16,000 npcs that lock would cost more than the walk. */
+    if( (pass->seen & 63) == 0 && pass->progress &&
+        !pass->progress(pass->userdata, EV_RIG_STAGE_NPCS, pass->seen, pass->total) )
+    {
+        pass->abandoned = 1;
+        return 0;
+    }
+    pass->seen++;
+
+    if( index->npc_count == pass->capacity )
+    {
+        pass->capacity = pass->capacity ? pass->capacity * 2 : 4096;
+        struct EV_RigNpc* grown =
+            realloc(index->npcs, (size_t)pass->capacity * sizeof(*grown));
+        assert(grown);
+        index->npcs = grown;
+    }
+    fill_npc_row(index, pass->cache, npc, npc_id, &index->npcs[index->npc_count++]);
+    return 1;
+}
+
 int
 ev_rigs_build_npcs(
     struct Tool_Dat2Cache* cache,
@@ -156,42 +196,29 @@ ev_rigs_build_npcs(
 
     double t0 = now_ms();
 
+    free(index->npcs);
+    index->npcs = NULL;
+    index->npc_count = 0;
+
+    /*
+     * How many npcs there are, for the progress fraction. The id list is cheap
+     * — it comes off the archives' file tables without decoding a record — and
+     * the walk that follows is what decodes them, one group archive at a time.
+     */
     int* npc_ids = NULL;
     int npc_count = 0;
-    if( !tool_dat2_config_ids(
-            cache, RSCACHE_TYPE_NPC, RSCACHE_DAT2_CONFIG_KIND_NPC, &npc_ids, &npc_count) )
-    {
-        /* No npc table at all. The sequence half still stands — the player and
-         * model views ask for a rig's sequences without naming an npc — so this
-         * is a complete answer rather than a failed one. */
-        index->npcs_complete = 1;
-        return 1;
-    }
-
-    free(index->npcs);
-    index->npcs = calloc((size_t)(npc_count > 0 ? npc_count : 1), sizeof(*index->npcs));
-    index->npc_count = 0;
-    assert(index->npcs);
-
-    for( int n = 0; n < npc_count; n++ )
-    {
-        /* Every 64 npcs rather than every one: the callback takes a lock, and
-         * at 16,000 npcs that lock would cost more than the walk. */
-        if( (n & 63) == 0 && progress &&
-            !progress(userdata, EV_RIG_STAGE_NPCS, n, npc_count) )
-        {
-            free(npc_ids);
-            return 0;
-        }
-
-        struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(cache, npc_ids[n]);
-        if( !npc )
-            continue;
-        fill_npc_row(index, cache, npc, npc_ids[n], &index->npcs[index->npc_count++]);
-        RSCache_Dat2ConfigNpcFree(npc);
-    }
+    tool_dat2_config_ids(
+        cache, RSCACHE_TYPE_NPC, RSCACHE_DAT2_CONFIG_KIND_NPC, &npc_ids, &npc_count);
     free(npc_ids);
 
+    struct NpcPass pass = { index, cache, progress, userdata, 0, 0, npc_count, 0 };
+    tool_dat2_npc_walk_all(cache, visit_npc, &pass);
+    if( pass.abandoned )
+        return 0;
+
+    /* No npc table at all is a complete answer, not a failed one: the sequence
+     * half still stands, and the player and model views ask for a rig's
+     * sequences without naming an npc. */
     qsort(index->npcs, (size_t)index->npc_count, sizeof(*index->npcs), npc_cmp);
     index->npcs_complete = 1;
     index->build_ms += (int)(now_ms() - t0);

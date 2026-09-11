@@ -38,6 +38,14 @@ struct ToriDraw_Pix32
     int stride_y;
 };
 
+/** @see ToriDraw_SpriteAlphaClass. */
+enum
+{
+    TORIDRAW_SPRITE_ALPHA_UNKNOWN = 0,
+    TORIDRAW_SPRITE_ALPHA_MIXED,
+    TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE,
+};
+
 struct ToriDraw_Sprite
 {
     uint32_t* pixels_argb;
@@ -48,7 +56,47 @@ struct ToriDraw_Sprite
     int crop_y;
     int crop_width;
     int crop_height;
+    /* Cached "is every pixel a==255", and the buffer it was computed for.
+     * @see ToriDraw_SpriteAlphaClass. */
+    unsigned char alpha_class;
+    uint32_t const* alpha_class_src;
+    /*
+     * What the alpha byte MEANS, stated by whoever made the pixels.
+     *
+     * 1: a channel. The producer wrote real coverage -- the cache decoders
+     *    (0xFF for a palette colour, 0 for the transparent index), the
+     *    inkwell baker, anything with soft edges -- and a coloured pixel with
+     *    alpha 0 is transparent. This is what the software blit assumes for
+     *    every sprite (its test is `alpha != 0`).
+     * 0: a convention, the legacy default. The client drew this pixmap into
+     *    an opaque framebuffer and never wrote alpha at all, so a consumer
+     *    that needs coverage (a GPU upload) derives it from the colour key:
+     *    black is transparent, everything else opaque.
+     *
+     * A per-pixel guess cannot tell the two apart -- alpha 0 on a yellow
+     * pixel is padding in one and paint in the other -- which is how the
+     * touch marker came to draw as a yellow rectangle. So it is declared.
+     */
+    unsigned char alpha_channel;
 };
+
+/**
+ * Is every pixel of this sprite fully opaque? Computed once, then cached.
+ *
+ * The blit already walks runs of a==255 and hands each to memcpy, which is the
+ * right shape for an icon. But it re-derives that structure on EVERY draw, and
+ * the derivation is a scalar load/shift/compare per pixel that runs ahead of a
+ * vectorised copy. For chrome — panels, backgrounds, the gameframe borders,
+ * which are the large sprites and so most of the blitted area — the answer is
+ * always "all of it", and the scan is pure overhead paid fifty times a second
+ * to re-learn a property of a static asset.
+ *
+ * Keyed on the pixel pointer, not just computed once: the outline and shadow
+ * builders hand a sprite a different buffer, and a stale "all opaque" on a
+ * sprite that grew a transparent border would blit its surround as black.
+ */
+unsigned char
+ToriDraw_SpriteAlphaClass(struct ToriDraw_Sprite* sprite);
 
 struct ToriDraw_Sprite*
 ToriDraw_SpriteNewFromPix8(
@@ -77,7 +125,7 @@ ToriDraw2D_BlitSprite(
     struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteAlpha(
@@ -86,7 +134,7 @@ ToriDraw2D_BlitSpriteAlpha(
     int x,
     int y,
     int alpha,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSprite_subrect(
@@ -98,7 +146,7 @@ ToriDraw2D_BlitSprite_subrect(
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteTiled(
@@ -110,7 +158,7 @@ ToriDraw2D_BlitSpriteTiled(
     int rect_h,
     int origin_x,
     int origin_y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteRotated(
@@ -123,7 +171,7 @@ ToriDraw2D_BlitSpriteRotated(
     int width,
     int height,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** Inverse-map blit: for each destination pixel, sample source with rotation.
  *  Destination bbox is (dst_x, dst_y, dst_w, dst_h) with pivot (dst_anchor_x, dst_anchor_y).
@@ -141,7 +189,7 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** BlitSpriteRotatedEx plus an axis-aligned mask sampled over the dest box
  *  (the mask never rotates with the content).
@@ -165,7 +213,7 @@ ToriDraw2D_BlitSpriteRotatedMaskedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 void
 ToriDraw2D_BlitSpriteMasked(
@@ -174,7 +222,7 @@ ToriDraw2D_BlitSpriteMasked(
     struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
-    int* pixel_buffer);
+    toripixel_t* pixel_buffer);
 
 /** RS UI graphic outline (CC_SETOUTLINE / deob SpritePixels.method9420).
  *  Same size as src; outline>=1 black edge, outline>=2 also white. Owned. */
@@ -218,10 +266,14 @@ ToriDraw_SpriteTransformPixels(
 void
 ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite);
 
-/** Write sprite ARGB pixels to a 32-bit BMP. Exports the embedded crop rect when set. */
+/** Write sprite ARGB pixels to a 32-bit BMP. Exports the embedded crop rect
+ *  when set. Only present with -DTORIDRAW_SPRITE_BMP_EXPORT, which also
+ *  requires 3rd/bmp on the include path -- see toridraw_sprite.c. */
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 int
 ToriDraw_SpriteWriteBmpFile(
     struct ToriDraw_Sprite const* sprite,
     char const* path);
+#endif
 
 #endif

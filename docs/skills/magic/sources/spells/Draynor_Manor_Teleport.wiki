@@ -1,0 +1,62 @@
+{{otheruses|the teleport spell|the teleport tablet|Draynor manor teleport (tablet)}}
+{{Infobox Spell
+|name = Draynor Manor Teleport
+|image = [[File:Draynor Manor Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 17
+|spellbook = Arceuus
+|type = Teleport
+|exp = 16
+|cost = {{RuneReq|Law=1|Earth=1|Water=1}}
+|speed = 4 ticks
+|description = Teleports you to Draynor Manor
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Draynor Manor Teleport icon (mobile).png|left|class=pageimage]]
+'''Draynor Manor Teleport''' teleports the caster to the front doors of [[Draynor Manor]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 1
+|Rune3 = Water
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3107,3354|3111,3354|3111,3352|3110,3352|3110,3351|3111,3351|3111,3350|3110,3350|3110,3349|3108,3349|3108,3353|3107,3353|mtype=polygon|align=left|zoom=3}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|poll = 
+|change = The spell now correctly uses [[combination rune]]s.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Draynor Manor Teleport v1.png|center]]
+|[[File:Draynor Manor Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

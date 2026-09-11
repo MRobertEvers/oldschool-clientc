@@ -27,7 +27,7 @@ world_contour_ground(struct WorldBuilder* builder)
             continue;
 
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, r->element_id);
-        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
             continue;
 
         struct ToriRS_Location* config_loc = CacheProvider_LocationGet(builder->cache, r->loc_id);

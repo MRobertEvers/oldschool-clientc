@@ -1,0 +1,529 @@
+{{External|rs}}
+{{Redirect3|TT|For the minigame in Morytania, see [[Temple Trekking]]. For the quests, see [[The Tourist Trap]] and [[Troubled Tortugans]]. For the Barracuda Trial, see [[Tempor Tantrum]]}}
+{{Dangerous}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Treasure Trails
+|image = [[File:Treasure trail reward.png|300px]]
+|release = [[5 May]] [[2004]]
+|update = Bigger Banks & Treasure Trails
+|type = Distraction and Diversion
+|members = No
+|location = Global
+|currency = No
+|music = [[Box of Delights]] ([[Mimic]])
+|map = No
+|leagueRegion = No
+}}
+[[File:Treasure Trails logo.jpg|left]]
+'''Treasure Trails''' is a [[Distraction and Diversion]] which involves solving [[clue scroll]]s. Clue scrolls contain a number of randomly chosen clues and riddles for the player to solve in steps to eventually find a [[reward casket]], which could contain unique rewards. While the activity is available to [[free-to-play]] players, only beginner clues can be found and completed in free-to-play worlds.
+
+===Difficulty levels===
+[[Clue scroll]]s have six types of difficulty levels, these are: beginner, easy, medium, hard, elite, and master. More difficult trails provide more valuable rewards. Every tier of clue scroll has their own requirements, increasing in complexity for higher tiers. In general, higher tiers feature more complex puzzles to solve, more remote locations to reach, and tougher quests and item requirements. Higher tiers are also likely to have medium or high level skill requirements. In most cases, players can boost these skills in order to meet the requirement.
+
+{| class="wikitable align-center-1"
+! colspan=2 |Tier
+![[File:Member icon.png]]
+!Length
+!Guide
+!Requirements
+!Item sources
+!Rewards
+|-
+|{{plinkt|Clue scroll (beginner)|txt=Beginner}}
+|[[File:Free-to-play icon.png]]
+|1-3 steps
+|[[Treasure Trails/Full guide/Beginner|Beginner clues guide]]
+|[[Clue scroll (beginner)#Item Requirements|Requirements]]
+|[[Clue scroll (beginner)#Item sources|List of sources]]
+|{{plink|Reward casket (beginner)|txt=Reward casket}}
+|-
+|{{plinkt|Clue scroll (easy)|txt=Easy}}
+|[[File:Member icon.png]]
+|2-4 steps
+|[[Treasure Trails/Full guide/Easy|Easy clues guide]]
+|[[Clue_scroll_(easy)#Requirements|Requirements]]
+|[[Clue scroll (easy)#Item sources|List of sources]]
+|{{plink|Reward casket (easy)|txt=Reward casket}}
+|-
+|{{plinkt|Clue scroll (medium)|txt=Medium}}
+|[[File:Member icon.png]]
+|3-5 steps
+|[[Treasure Trails/Full guide/Medium|Medium clues guide]]
+|[[Clue_scroll_(medium)#Requirements|Requirements]]
+|[[Clue scroll (medium)#Item sources|List of sources]]
+|{{plink|Reward casket (medium)|txt=Reward casket}}
+|-
+|{{plinkt|Clue scroll (hard)|txt=Hard}}
+|[[File:Member icon.png]]
+|4-6 steps
+|[[Treasure Trails/Full guide/Hard|Hard clues guide]]
+|[[Clue_scroll_(hard)#Requirements|Requirements]]
+|[[Clue scroll (hard)#Item sources|List of sources]]
+|{{plink|Reward casket (hard)|txt=Reward casket}}
+|-
+|{{plinkt|Clue scroll (elite)|txt=Elite}}
+|[[File:Member icon.png]]
+|5-7 steps
+|[[Treasure Trails/Full guide/Elite|Elite clues guide]]
+|[[Clue_scroll_(elite)#Requirements|Requirements]]
+|[[Clue scroll (elite)#Item sources|List of sources]]
+|{{plink|Reward casket (elite)|txt=Reward casket}}
+|-
+|{{plinkt|Clue scroll (master)|txt=Master}}
+|[[File:Member icon.png]]
+|6-8 steps
+|[[Treasure Trails/Full guide/Master|Master clues guide]]
+|[[Clue_scroll_(master)#Requirements|Requirements]]
+|[[Clue scroll (master)#Item sources|List of sources]]
+|{{plink|Reward casket (master)|txt=Reward casket}}
+|}
+
+For a list of all skill requirements, see [[Clue scroll/Requirements by skill]].
+
+===Obtaining clues===
+Clue scrolls are acquired through a great number of different activities, where the difficulty of the activity generally corresponds to both the tier of clue dropped, and its drop rate. Activities that commonly provide clue scrolls include killing monsters, skilling, and opening impling jars.
+
+For skilling, players can acquire clue scrolls through specific Woodcutting, Fishing and Mining methods. All skilling nodes can potentially reward clue scrolls of all tiers except master, though the drop rate is influenced by the skilling requirement. This is also increased depending on the player's corresponding skilling level, though clue scrolls from skilling methods are significantly rarer than from other sources.
+
+Clue scrolls are usually dropped as a tertiary (bonus) drop, and the drop rate may be increased through several methods; for example, an [[Ring of wealth (i)|imbued ring of wealth]] doubles the drop rate of clues from killing monsters in the Wilderness, and completion of the Medium [[Falador Diary]] increases the drop rate of clues from Falador's guards by 20%. Completion of the Easy, Medium, Hard and Elite tier of [[Combat Achievements]] additionally increases the drop rate of the corresponding clue tier by 5%. These bonuses all stack with each other.
+
+=== Stacking limitations===
+{{Main| Scroll case }}
+
+You can only have one of each type of clue scroll in your inventory or bank. However with the completion of [[X Marks the Spot]], players will receive [[Scroll box|scroll boxes]] instead of clue scrolls directly: opening them will reward the player with a clue scroll. Unlike regular clue scrolls, these boxes are stackable, starting with a limit of 2. This limit is shared across boxes and scrolls (i.e, 1 scroll and 1 box is the same as 2 boxes for the sake of the limit). This limit can be increased twice per tier (for that tier only) by completing a specific number of clues in that tier and opening [[Reward casket|reward caskets]]. There is an additional special [[Mimic scroll case|Mimic scroll case]] which increases the stack limit of all tiers by +1. Hence, there is a maximum stack limit size of 5 for any given scroll tier.
+
+If you drop your clue scroll on the ground, it is possible to receive additional scrolls beyond the limit before it despawns. You can manipulate this mechanic - for more information see this [[Guide:Clue_Juggling|guide]].
+
+If the player has reached the cap for the clue scroll of that tier and the clue scroll warning is toggled on in [[Settings]], they will receive the message {{mes|You have a sneaking suspicion that you would have received a/an [difficulty] clue scroll.}} If this option is not toggled on clue scrolls/scroll boxes will continue to drop as normal but cannot be picked up if the player has reached their cap.
+
+If the player tries to pick up a clue scroll while having one in their possession of the same tier, they will get the message {{mes|You already have a clue scroll of this tier.}} If the player has reached the cap and tries to pick up a scroll box, the box will be destroyed, with the message {{mes|Some of your Scroll Boxes were destroyed, as you have too many of that tier.}}
+
+===Risks===
+While it is possible to complete a Treasure Trail without any major requirements, it is highly recommended players meet the necessary requirements for the difficulty of each clue scroll so they may be done without issue. Failure to do so will likely result in the player having to abandon the Treasure Trail, as it is usually a loss of time, especially for lower levels if they cannot complete the step. 
+
+If players die they will always keep their clue scroll (or [[reward casket]]), whether protected or not, as it is an untradeable item. If not protected it will go their gravestone.
+
+Hard, Elite and Master Treasure Trails can direct players into the Wilderness, and may more often than not require players to utilise [[STASH]] units. As clue scrolls have very low monetary value, almost any item, even food, is more than enough for the clue scroll to be lost on death if killed by any means. Players should try to bring as few items as possible (easily achievable with hard and elite trails) to ensure that the scroll is always protected on death. If it is not possible to have no risk while holding the clue, a [[clue box]] can be used to keep the clue scroll upon death at the cost of it being destroyed; however, its high cost of {{NoCoins|{{GEP|Clue box}}}} coins means it is only best for master clues.
+
+Players may find it beneficial to carry a [[Wilderness sword 1|Wilderness sword]] (to cut [[Web|webs]]), [[Royal seed pod|Royal Seed Pod]]/[[Teleport crystal|Teleport Crystal]] and/or an [[Explorer's ring 1|Explorer's ring]], as clue scrolls are always kept above these items; they will be lost upon death but duplicates are easily obtainable.
+
+==Solving the Treasure Trails==
+
+See the table below for links to the pages with solutions for each clue.
+
+{| class="wikitable" style="text-align:center;"
+|+
+! colspan=2 |Tier
+!Anagrams
+!Challenge scrolls
+!Ciphers
+!Coordinates
+!Cryptic clues
+!Emote clues
+!Hot Cold
+!Light boxes
+!Maps
+!Puzzle boxes
+|-
+!{{plinkt|Clue scroll (beginner)|txt=Beginner}}
+|[[Treasure Trails/Guide/Anagrams/Beginner|Solutions]]
+|{{NA}}
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Cryptic clues/Beginner|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Beginner|Solutions]]
+|[[Treasure Trails/Guide/Hot Cold/Beginner|Solutions]]
+|{{NA}}
+|[[Treasure Trails/Guide/Maps/Beginner|Solutions]]
+|{{NA}}
+|-
+!{{plinkt|Clue scroll (easy)|txt=Easy}}
+|{{NA}}
+|{{NA}}
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Cryptic clues/Easy|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Easy|Solutions]]
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Maps/Easy|Solutions]]
+|{{NA}}
+|-
+!{{plinkt|Clue scroll (medium)|txt=Medium}}
+|[[Treasure Trails/Guide/Anagrams/Medium|Solutions]]
+|[[Treasure Trails/Guide/Challenge scrolls|Solutions]]
+|[[Treasure Trails/Guide/Ciphers|Solutions]]
+|[[Treasure Trails/Guide/Coordinates/Medium|Solutions]]
+|[[Treasure Trails/Guide/Cryptic clues/Medium|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Medium|Solutions]]
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Maps/Medium|Solutions]]
+|{{NA}}
+|-
+!{{plinkt|Clue scroll (hard)|txt=Hard}}
+|[[Treasure Trails/Guide/Anagrams/Hard|Solutions]]
+|[[Treasure Trails/Guide/Challenge scrolls|Solutions]]
+|[[Treasure Trails/Guide/Ciphers|Solutions]]
+|[[Treasure Trails/Guide/Coordinates/Hard|Solutions]]
+|[[Treasure Trails/Guide/Cryptic clues/Hard|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Hard|Solutions]]
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Maps/Hard|Solutions]]
+|[[Treasure Trails/Guide/Puzzle boxes|Solutions]]
+|-
+!{{plinkt|Clue scroll (elite)|txt=Elite}}
+|[[Treasure Trails/Guide/Anagrams/Elite|Solutions]]
+|[[Treasure Trails/Guide/Challenge scrolls|Solutions]]
+|{{NA}}
+|[[Treasure Trails/Guide/Coordinates/Elite|Solutions]]
+|[[Treasure Trails/Guide/Cryptic clues/Elite|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Elite|Solutions]]
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Maps/Elite|Solutions]]
+|[[Treasure Trails/Guide/Puzzle boxes|Solutions]]
+|-
+!{{plinkt|Clue scroll (master)|txt=Master}}
+|[[Treasure Trails/Guide/Anagrams/Master|Solutions]]
+|{{NA}}
+|{{NA}}
+|[[Treasure Trails/Guide/Coordinates/Master|Solutions]]
+|[[Treasure Trails/Guide/Cryptic clues/Master|Solutions]]
+|[[Treasure Trails/Guide/Emote clues/Master|Solutions]]
+|[[Treasure Trails/Guide/Hot Cold/Master|Solutions]]
+|[[Treasure Trails/Guide/Light boxes|Solutions]]
+|{{NA}}
+|[[Treasure Trails/Guide/Puzzle boxes|Solutions]]
+|}
+
+==Antagonists==
+In hard and higher-levelled Treasure Trails, some steps will require the player to fight a random enemy based on the Treasure Trail's tier when the correct spot is dug at, as indicated with the list below:
+
+{| class="wikitable"
+! rowspan=2 colspan=2 |Tier
+! colspan=3 |Coordinate clues
+! colspan=3 |Emote clues
+|-
+!Level(s)
+!Enemy
+!Location
+!Level
+!Enemy
+!Location
+|-
+|{{plinkt|Clue scroll (beginner)|txt=Beginner}}
+|{{NA|colspan=6}}
+|-
+|{{plinkt|Clue scroll (easy)|txt=Easy}}
+|{{NA|colspan=6}}
+|-
+|{{plinkt|Clue scroll (medium)|txt=Medium}}
+|{{NA|colspan=6}}
+|-
+|{{plinkt|rowspan=2|Clue scroll (hard)|txt=Hard}}
+|108||[[File:Saradomin symbol.png|20x20px]] [[Saradomin wizard]]||Non-Wilderness
+|108||[[Double agent]]||Non-Wilderness
+|-
+|65||[[File:Zamorak symbol.png|20x20px]] [[Zamorak wizard]]||[[Wilderness]]
+|65||[[Double agent]]||[[Wilderness]]
+|-
+|{{plinkt|rowspan=2|Clue scroll (elite)|txt=Elite}}
+|97||[[File:Armadyl symbol.png|20x20px]] [[Armadylean guard]]||Anywhere
+| {{NA|colspan=3|rowspan=2}}
+|-
+|125||[[File:Bandos symbol.png|20x20px]] [[Bandosian guard]]||Anywhere
+|-
+|{{plinkt|rowspan=2|Clue scroll (master)|txt=Master}}
+|98, 98, 112||[[File:Zaros symbol.png|20x20px]] [[Ancient Wizard]] (x3)||[[Multicombat]]
+| rowspan=2|141
+| rowspan=2|[[Double agent]]
+| rowspan=2|Anywhere
+|-
+|140||[[File:Brassica Prime symbol.png|20x20px]] [[Brassican Mage]]||[[Single-way combat]]
+|}
+
+==STASH units==
+{{Main|STASH}}
+STASH units (short for "Store Things And Stuff Here"), also known as hidey holes, are storage units for [[emote clue]] items, saving [[bank]] space and bank trips, especially for players who complete many Treasure Trails.
+
+STASH units require varying levels of [[Construction]] in order to be constructed, which can be boosted. All STASH units require nails, and the plank needed corresponds to its tier. 
+
+There are 119 STASH units in total found throughout [[Gielinor]]. These locations are initially labelled as inconspicuous bushes/crates/holes/rocks, and, once built, become usable STASH units. Players can check which units they've already built/filled by visiting [[Watson]] and reading the [[Noticeboard (Watson's house)|noticeboard]] within his [[Watson's house|house]], or by building a [[S.t.a.s.h chart]] in a [[player-owned house]].
+
+As with all player-constructed items, a hammer and saw are required to build STASH units.
+
+Depending on the scenery the emote clue is located in, STASH may differ in appearance to appear as inconspicuous as possible. For a list of the locations of all STASH units as well as its building materials, visit [[STASH#List_of_STASH_units|this page]].
+
+{| class="wikitable" style="text-align:center;"
+! colspan="4" |Inconspicuous objects
+|-
+!Bush
+!Crate
+!Hole
+!Rocks
+|-
+|[[File:Bush scenery.png|80px]]
+|[[File:Inconspicuous crate.png|80px]]
+|[[File:Inconspicuous hole.png|100px]]
+|[[File:Inconspicuous rocks.png|100px]]
+|-
+! colspan="4" |Constructed STASH units
+|-
+!Bush
+!Crate
+!Hole
+!Rocks
+|-
+|[[File:STASH unit (bush).png|80px]]
+|[[File:STASH unit (crate).png|80px]]
+|[[File:STASH unit (hole).png|100px]]
+|[[File:STASH unit (rock).png|100px]]
+|}
+
+==Rewards==
+{{Listen|filename=Treasure! (Treasure Trails).ogg|align=right|title=[[Treasure! (Treasure Trails)|Treasure!]]|desc=The music that plays upon completing a Treasure Trail.}}
+There are a total of 638 unique rewards from all tiers of clue scrolls. The tier of items and their average value tends to increase with higher tiers of clue scrolls, with exceptions for sought-after items in lower tiers such as the medium tier reward of [[ranger boots]]. All tiers except for beginner can reward items from the universal drop table. Starting with the hard tier, rewards may also include items from the mega rare tables, such as [[gilded equipment]] or [[3rd age equipment]].
+
+===Universal rewards===
+Universal rewards are only available from easy Treasure Trails and above.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1126491427343601664|date=9 May 2019|archiveurl=https://reldo.runescape.wiki/i/105842|archivedate=15 July 2019|quote=They only give F2P items.|name=Mod Ash tweet}}
+{{Universal rewards}}
+
+===Beginner rewards===
+{{Main|Reward casket (beginner)}}
+{{Clue scroll (beginner)/Rewards}}
+
+===Easy rewards===
+{{Main|Reward casket (easy)}}
+{{Clue scroll (easy)/Rewards}}
+
+===Medium rewards===
+{{Main|Reward casket (medium)}}
+{{Clue scroll (medium)/Rewards}}
+
+===Hard rewards===
+{{Main|Reward casket (hard)}}
+{{Clue scroll (hard)/Rewards}}
+
+===Elite rewards===
+{{Main|Reward casket (elite)}}
+{{Clue scroll (elite)/Rewards}}
+
+===Master rewards===
+{{Main|Reward casket (master)}}
+{{Clue scroll (master)/Rewards}}
+
+===Average rewards value===
+Opening a [[Reward casket]] generates a certain number of rolls on the relevant loot tables. The table below shows the expected gold values per loot roll, and the expected gold values per completed clue taking into account the average number of generated rolls.
+
+{| class="wikitable align-center-1 align-center-5"
+|+
+! colspan=2 |Tier
+!Average gp<br/>per roll
+!Average gp<br/>per clue
+|-
+|{{plinkt|Clue scroll (beginner)|txt=Beginner}}
+|{{Coins|floor({{BeginnerClueValue}})}}
+|{{Coins|floor(2 * {{BeginnerClueValue}})}}
+|-
+|{{plinkt|Clue scroll (easy)|txt=Easy}}
+|{{Coins|floor({{EasyClueValue}})}}
+|{{Coins|floor(3 * {{EasyClueValue}})}}
+|-
+|{{plinkt|Clue scroll (medium)|txt=Medium}}
+|{{Coins|floor({{MediumClueValue}})}}
+|{{Coins|floor(4 * {{MediumClueValue}})}}
+|-
+|{{plinkt|Clue scroll (hard)|txt=Hard}}
+|{{Coins|floor({{HardClueValue}})}}
+|{{Coins|floor(5 * {{HardClueValue}})}}
+|-
+|{{plinkt|Clue scroll (elite)|txt=Elite}}
+|{{Coins|floor({{EliteClueValue}})}}
+|{{Coins|floor(5 * {{EliteClueValue}})}}
+|-
+|{{plinkt|Clue scroll (master)|txt=Master}}
+|{{Coins|floor({{MasterClueValue}})}}
+|{{Coins|floor(6 * {{MasterClueValue}})}}
+|}
+
+===Milestone rewards===
+There are milestone rewards for each tier of clue scrolls. Each can be obtained by completing a specific amount of clue scrolls of that tier:
+* Beginner: {{elink|Explore}} — 600 scrolls
+* Easy: {{plink|Large spade}} — 500
+* Medium: {{plink|Clueless scroll}} — 400
+* Hard: {{elink|Uri transform}} — 300
+* Elite: {{plink|Heavy casket}} — 200
+* Master: {{plink|Scroll sack}} — 100
+
+{| class="wikitable"
+|+
+! colspan=2 |Tier
+!Minor Case
+!Major Case
+|-
+|{{plinkt| Minor beginner scroll case|txt=Beginner}}
+|50
+|100
+|-
+|{{plinkt| Minor easy scroll case|txt=Easy}}
+|100
+|200
+|-
+|{{plinkt| Minor medium scroll case|txt=Medium}}
+|100
+|250
+|-
+|{{plinkt| Minor hard scroll case|txt=Hard}}
+|50
+|150
+|-
+|{{plinkt| Minor elite scroll case|txt=Elite}}
+|50
+|150
+|-
+|{{plinkt| Minor master scroll case|txt=Master}}
+|25
+|75
+|}
+
+If any of the items are lost, they can be re-obtained by completing another clue scroll of its tier.
+
+==Ranks==
+A player may check the amount of Treasure Trails they have completed by clicking on the [[Treasure Trail Statistics]] or by checking the [[Achievement_Gallery#Adventure_log|adventure log]] in their [[player-owned house]]. These interfaces also show the player's Treasure Trails rank.
+
+{| class="wikitable"
+!Completed clue scrolls
+!Rank
+|-
+|0–100
+|Beginner
+|-
+|101–200
+|Novice
+|-
+|201–400
+|The Explorer
+|-
+|401–600
+|Treasure Hunter
+|-
+|601–1000
+|Expert
+|-
+|1,001–1,500
+|Elite
+|-
+|1,501–2,000
+|Master
+|-
+|2,001+
+|Legend
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|poll = Stackable Clues & Clue Despawn Timer
+|change = 
+* After completing the quest [[X Marks the Spot]], clue scroll drops are replaced by stackable [[scroll box]]es.
+* Scroll boxes and traditional clue scrolls share a stack limit, which starts at 2 per tier by default and can be increased up to a maximum of 5 per tier.
+* The stack limit can be raised in two ways:
+** Consuming a [[scroll case]] will increase the scroll capacity by 1.
+** Defeating [[The Mimic]] boss now grants a special [[mimic scroll case]] which increases the scroll capacity by 1 across all clue tiers.
+* Scroll cases will appear in clue scroll rewards once a player has completed the required number of clues for a given tier.
+* Clue completions earned before prior to this change count toward a player's scroll case unlocks.
+* A warning now appears if a player hits the stack limit and cannot receive a scroll box.
+* Free-to-play players will only have access to beginner scroll cases.
+* The [[Treasure Trail Statistics]] board has been updated and now tracks:
+** Clue completion totals per tier
+** Current scroll capacity per tier
+}}
+{{Subject changes
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = * The amount of time that a clue scroll remains on the ground after being dropped by the player has been increased from two minutes to one hour.
+* Players are now informed if they would have received a clue scroll drop but did not because they already have it.
+}}
+{{Subject changes
+|date = 17 February 2021
+|update = The Isle of Souls
+|change = Two new elite Treasure Trail steps were added.
+}}
+{{Subject changes
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|poll = Old School Content Poll 65: Treasure Trails Expansion
+|change = A treasure trails expansion introduces beginner clues, music track clues, the Mimic boss, and new clues and rewards across all clue tiers. Additionally, reward caskets were made stackable and inventory icons for clue tiers have been made distinct.
+}}
+{{Subject changes
+|date = 6 July 2016
+|update = Treasure Trail Expansion (2016)
+|poll = Old School Content Poll 42: Clue Scrolls Expansion
+|change = A treasure trails expansion introduces master clues (including Falo the Bard, Hot/cold clues, master puzzle boxes, and lightbox puzzles). Cipher clues are introduced to medium and hard clues. New rewards are added to all tiers.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Increased the zone check for an emote clue at the Observatory.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|change = You will now be able to have up to one clue scroll of each tier and will be able to complete clue scrolls of different tiers simultaneously.
+}}
+{{Subject changes
+|date = 22 January 2015
+|update = Zulrah, Bank Space & More
+|change = You can no longer receive a clue scroll if Priestess Zul-Gwenwynig is protecting one for you.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = 
+*Lumberyard teleport scrolls are now available as clue scroll rewards.
+*Clue scrolls and caskets can no longer be picked up on F2P worlds.
+}}
+{{Subject changes
+|date = 19 June 2014
+|update = Clan Wars is here!
+|poll = Old School feature poll 19
+|change = You can no longer receive a clue scroll drop if you have a skill challenge scroll. Appended text on various clue scrolls to make them a little clearer. Fixed a few clue scroll typos.
+}}
+{{Subject changes
+|date = 12 June 2014
+|update = Treasure Trail Expansion
+|change = 
+*Elite clue drops have been added as a drop from high level monsters.
+*Patchy is now able to combine some clue scroll rewards.
+*The toybox in your player-owned house was updated to store new rewards
+*Some clue scroll rewards have been renamed to be more easily searchable
+*When you complete a clue scroll the game will now tell you how many of each tier of clue you've completed. This is also shown at the observatory.
+}}
+{{Subject changes
+|date = 1 May 2014
+|update = Spirit trees, clues & more!
+|change = Clue scrolls are now universally dropped in addition to other drops rather than instead of them.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* If a player's loot from a clue scroll is worth exactly 1 coin, they will receive the unique message {{mes|color=red|Your treasure is worth almost nothing. Better luck next time.}}.
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}
+{{DnD}}
+[[Category:Free-to-play minigames]]

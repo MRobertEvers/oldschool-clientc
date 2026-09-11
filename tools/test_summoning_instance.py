@@ -67,7 +67,7 @@ def main() -> int:
     parser.add_argument(
         "--scripts", type=Path, default=CONTENT / "server/scripts/build_summoning"
     )
-    parser.add_argument("--manifest", type=Path, default=REPO / "manifest_osrs239.ini")
+    parser.add_argument("--manifest", type=Path, default=REPO / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO / "build/summoning-instance")
     parser.add_argument(
         "--static-only",
@@ -219,9 +219,9 @@ def run_probe(args: argparse.Namespace, provision: str) -> str:
             env.pop(key, None)
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "420",
                 "TORIRS_NET_DEBUG": "1",

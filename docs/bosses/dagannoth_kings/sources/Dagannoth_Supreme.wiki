@@ -1,0 +1,216 @@
+{{External|rs}}
+{{Redirect|Supreme}}
+{{HasStrategy|page=Dagannoth Kings/Strategies}}
+{{HasTask|Dagannoth}}
+{{Infobox Monster
+|name = Dagannoth Supreme
+|image = [[File:Dagannoth Supreme.png|230px]]
+|release = [[7 November]] [[2005]]
+|update = Waterbirth Island - deeper, darker, deadlier!
+|members = Yes
+|combat = 303
+|size = 3
+|examine = The dagannoth king responsible for the death of the Bukalla.
+|xpbonus = 0
+|max hit = 30
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Ranged]]
+|attack speed = 4
+|respawn = 150
+|slayxp = 255
+|cat = Bosses, Dagannoth
+|assignedby = vannaka,chaeldar,konar,nieve,duradel
+|hitpoints = 255
+|att = 255
+|str = 255
+|def = 128
+|mage = 255
+|range = 255
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 10
+|dslash = 10
+|dcrush = 10
+|dmagic = 255
+|dlight = 550
+|dstandard = 550
+|dheavy = 550
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 35
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = No
+|immunethrall = No
+|id = 2265
+}}
+'''Dagannoth Supreme''' is the [[Ranged]]-based [[Dagannoth King]] found in the depths of the [[Waterbirth Island Dungeon]], along with fellow Dagannoth Kings, [[Dagannoth Rex]] and [[Dagannoth Prime]]. Supreme is the only monster to drop the [[archers ring]] and [[seercull]]. He, along with the other [[Dagannoth (race)|Dagannoth]] Kings, can also drop the [[dragon axe]].
+
+His Ranged attack sounds like the [[Water Wave]] spell when hitting players and, in a similar fashion to [[Magic]] attacks, will "splash" if it misses. It can also attack multiple players at once, sending projectiles at any player standing within the 6x6 area around his target.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Dagannoth Supreme
+|location = [[Waterbirth Island Dungeon]]
+|levels = 303
+|members = Yes
+|mapID = 25
+|plane = 0
+|x:2626,y:9664
+|mtype = pin
+|leagueRegion = fremennik
+}}
+{{LocLine
+|name = Dagannoth Supreme
+|location = [[Waterbirth Island Dungeon]] (Slayer lair)
+|levels = 303
+|members = Yes
+|mapID = 25
+|plane = 0
+|x:2682,y:9664
+|mtype = pin
+|leagueRegion = fremennik
+}}
+{{LocTableBottom}}
+Dagannoth Supreme spawns and roams on the western side of the Dagannoth Kings' lair. The lair is accessible via the [[Kings' ladder]] deep within the [[Waterbirth Island Dungeon]]. A separate lair where players that have a Dagannoth [[Slayer task]] can attack the Kings is accessible by using the "Slayer" option on the ladder. The lair can be peeked at to see if other players are inside it via the ladder and a [[Crack (Waterbirth Island Dungeon)|crack]] inside a safe room nearby the ladder.
+
+==Strategy==
+{{Main|Dagannoth Kings/Strategies}}
+Dagannoth Supreme is most weak to [[melee]] attacks. The best weapons to use primarily are the [[abyssal whip]] or [[abyssal tentacle|tentacle]] due to its high [[Strength#Strength bonus|Strength bonus]] and fast attack rate, the [[Saradomin godsword]] for its [[special attack]], accuracy, and Strength bonus, and [[Guthan's warspear]], which should only be used in conjunction with the rest of [[Guthan's armour]] set to heal. If a player does not possess a Saradomin godsword or [[Crystal halberd]], a [[Dragon dagger]] is a good alternative [[special attack]] weapon.
+
+The biggest threat when killing Dagannoth Supreme is that [[Dagannoth Prime]] may respawn while killing Supreme. To save yourself from Prime's hard-hitting magical attacks, turn on [[Protect from Magic]]. You can either stick around or leave up the ladder. Another possible threat is that [[Dagannoth Rex]] may respawn instead of Prime. If this happens and you are a [[mage]], distract him again like in first wave. However, the mage should feel no inclination to kill Rex; just lure him away. Another strategy is to make use of [[Entangle]] or [[ice spells]] to deal with Rex.
+
+==Drops==
+{{DropLogProject|kills=64276}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+Excluding [[archers ring]] drops, the average kill is worth {{Coins|floor(({{Average drop value|raw=y}} - (1/128) * {{GEP|Archers ring}}))}}.
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Dagannoth bones|quantity=1|quantitynotes=<ref group="d">Dropped in noted form if the player has completed the elite tier of the [[Fremennik diary]]</ref>|rarity=Always}}
+{{DropsLine|name=Dagannoth hide|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Mithril knife|quantity=25-50|rarity=10/128}}
+{{DropsLine|name=Red d'hide vambraces|quantity=1|rarity=7/128}}
+{{DropsLine|name=Rune thrownaxe|quantity=5-10|rarity=5/128}}
+{{DropsLine|name=Adamant dart|quantity=10-25|rarity=5/128}}
+{{DropsLine|name=Iron knife|quantity=200-500|rarity=5/128}}
+{{DropsLine|name=Steel knife|quantity=50-150|rarity=5/128}}
+{{DropsLine|name=Fremennik blade|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Fremennik shield|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Fremennik helm|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Seercull|quantity=1|rarity=1/128|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsLine|name=Dragon axe|quantity=1|rarity=1/128|raritynotes={{CiteForum|author=Envision|url=https://reldo.runescape.wiki/i/108912|title=Drop Rates V2|name=Drop Rates V2}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/648561290034683904|date=28 September 2015|archiveurl=https://reldo.runescape.wiki/i/97635|archivedate=15 April 2019|quote=1/42 for a hard clue, 1/750 for elite, 1/128 for a d axe and 1/128 for a ring.|name=Ash tweet unique rates}}}}
+{{DropsLine|name=Archer helm|quantity=1|rarity=1/128}}
+{{DropsLine|name=Spined body|quantity=1|rarity=1/128|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1016722619100487681|date=10 July 2018|archiveurl=https://reldo.runescape.wiki/i/98552|archivedate=15 April 2019|quote=Each of those items is 1/128.|name=Armour+Rings}}}}
+{{DropsLine|name=Spined chaps|quantity=1|rarity=1/128|raritynotes={{NamedRef|Armour+Rings}}}}
+{{DropsLine|name=Archers ring|quantity=1|rarity=1/128|raritynotes={{NamedRef|Drop Rates V2}}{{NamedRef|Ash tweet unique rates}}{{NamedRef|Armour+Rings}}}}
+{{DropsTableBottom}}
+
+===Ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Steel arrow|quantity=50-250|rarity=5/128}}
+{{DropsLine|name=Runite bolts|quantity=2-12|rarity=5/128}}
+{{DropsLine|name=Iron arrow|quantity=200-700|rarity=4/128}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{RareSeedDropTableInfo|7/128}}
+{{DropsTableHead}}
+{{RareSeedDropLines|7/128}}
+{{DropsTableBottom}}
+
+===Talismans===
+{{TalismanDropTableInfo|1/128}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/745561134040645633|date=22 June 2016|archiveurl=https://reldo.runescape.wiki/i/103291|archivedate=15 April 2019|quote=He has a 1/128 chance of calling the talisman table; it has a 1/7 chance of giving an air talisman.}}
+{{DropsTableHead}}
+{{TalismanDropLines|1/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=500-1110|rarity=10/128|gemw=No}}
+{{DropsLine|name=Oyster pearls|quantity=1|rarity=6/128}}
+{{DropsLine|name=Opal bolt tips|quantity=10-30|rarity=5/128}}
+{{DropsLine|name=Shark|quantity=5|rarity=5/128}}
+{{DropsLine|name=Yew logs|quantity=50-150 (noted)|rarity=5/128}}
+{{DropsLine|name=Grimy ranarr weed|quantity=1|rarity=5/128}}
+{{DropsLine|name=Maple logs|quantity=15-65 (noted)|rarity=3/128}}
+{{DropsLine|name=Runite limbs|quantity=1|rarity=2/128}}
+{{DropsLine|name=Feather|quantity=250-500|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Rare and Gem drop table===
+{{RareDropTable|8/128|10/128|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Dagannoth ribs|quantity=1|rarity=1/4|raritynotes=<ref group=d>Dagannoth ribs are only dropped during [[Rag and Bone Man II]].</ref>|gemw=No}}
+{{DropsLine|name=Ensouled dagannoth head|quantity=1|rarity=1/20}}
+{{DropsLineClue|type=hard|rarity=1/42|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/648561290034683904|date=28 September 2015|archiveurl=https://reldo.runescape.wiki/i/97635|archivedate=15 April 2019|quote=1/42 for a hard clue, 1/750 for elite, 1/128 for a d axe and 1/128 for a ring.|name=Ash tweet unique rates}}}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|303}}|raritynotes=<ref group="d">Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Fremennik&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/750|raritynotes={{NamedRef|Drop Rates V2}}{{NamedRef|Ash tweet unique rates}}}}
+{{DropsLine|name=Pet Dagannoth Supreme|quantity=1|rarity=1/5000|raritynotes={{CiteTwitter|author=Mod JohnC|url=https://twitter.com/JagexJohnC/status/514022931790565376|date=22 September 2014|archiveurl=https://reldo.runescape.wiki/i/103448|archivedate=25 March 2019|quote=1/128. I hope you got some other decent stuff while that was going on.}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group="d"}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Dagannoth Supreme}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Dagannoth Supreme can now drop [[dagannoth ribs]] during [[Rag and Bone Man II]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+Dagannoth Supreme now has a 35% elemental weakness to [[earth spells]].
+}}
+{{Subject changes
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = Dagannoth Supreme's range defence was increased from 255 to 550 to reduce the [[twisted bow]]'s effectiveness on it.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = [[Dagannoth bones]] are now noted drops if you have completed the [[Fremennik Elite|Fremennik Elite Diary]].
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = Players can now receive a pet version of this boss after defeating it.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The Dagannoth Supreme's examine text references an entity called the [[Bukalla]]. This entity was originally planned to be a tribe of vikings that the Supreme had conquered,{{CiteReddit|author=Mod James|url=https://www.reddit.com/r/2007scape/comments/4hha91/i_used_to_work_on_rs_ask_me_selected_things/d2pqszd/|title=I used to work on RS, Ask Me Selected Things?|quote=This is another example of me dropping something I could come back to later on - I had no specific plans, but I was more leaning towards it being a 'lost tribe' of vikings than an individual. Obviously someone else went somewhere else with that though XD|date=3 May 2016|archiveurl=https://reldo.runescape.wiki/i/97730|archivedate=6 October 2018|notes=}} but the Bukalla eventually turned out to be a legendary [[Fremennik]] warrior.
+* Unlike the other Dagannoth Kings, Supreme does not have an experience modifier. Due to this, he awards 255 Slayer experience rather than 331.4 Slayer experience.
+
+==References==
+{{Reflist}}
+
+{{Dagannoth}}
+{{Waterbirth Island}}
+{{Bosses}}
+[[Category:Monsters that do not become tolerant]]

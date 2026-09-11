@@ -13,6 +13,7 @@ inv_slot_clear(struct InvSlot* slot)
     slot->obj_count = 0;
     slot->scene_id = INV_MANAGER_NO_SCENE_ID;
     slot->atlas_index = 0;
+    slot->icon_attempts = 0;
 }
 
 static void
@@ -34,6 +35,58 @@ inv_container_alloc_slots(struct InvContainer* c, int slot_count)
     assert(slots);
 
     for( int i = 0; i < slot_count; i++ )
+        inv_slot_clear(&slots[i]);
+
+    c->slots = slots;
+    c->slot_count = slot_count;
+    return true;
+}
+
+/*
+ * Widen a container in place, keeping what is already in it.
+ *
+ * A container's slot count is not something the first packet about it gets to
+ * decide for the rest of the session, and treating it that way is what made a
+ * backpack stop accepting items part-way down.
+ *
+ * UPDATE_INV_FULL's "capacity" is written by the server as the *used prefix* —
+ * slots up to and including the last occupied one (torirs_server_container.c's
+ * `used_prefix`, an explicit "the empty tail costs nothing to omit"). The
+ * client used it as the container's size, so a login that restored 17 items
+ * built a 17-slot backpack: every later UPDATE_INV_PARTIAL naming slot 17 or
+ * beyond was dropped by the `slot >= slot_count` bound below, and
+ * `emit_rs_inv_slots` drew those cells as empty because the host lookup missed.
+ * The server counted 28 slots and 3 free; the player saw eleven empty cells and
+ * `::give` answering "did not fit". Nothing was wrong with the server's
+ * placement — `ToriRSServer_ContainerAdd` fills the first free slot and always did.
+ * The cells the player was aiming at existed only on the server.
+ *
+ * The bank has the same shape and the worse consequence: it is transmitted
+ * whole rather than per slot, so ApplyFull's clamp silently discarded every
+ * slot past the prefix the bank happened to have when it first opened.
+ *
+ * So: the wire may name any slot, and naming one past the end grows the
+ * container rather than being dropped. Growth only — a later, shorter FULL
+ * still clears its tail (that is the server saying those slots are empty, not
+ * that they are gone).
+ */
+static bool
+inv_container_ensure_slots(struct InvContainer* c, int slot_count)
+{
+    struct InvSlot* slots;
+    int const old_count = c ? c->slot_count : 0;
+
+    assert(c);
+    if( slot_count <= old_count )
+        return true;
+    if( slot_count > INV_MANAGER_MAX_SLOTS )
+        return false;
+    if( !c->slots )
+        return inv_container_alloc_slots(c, slot_count);
+
+    slots = realloc(c->slots, (size_t)slot_count * sizeof(struct InvSlot));
+    assert(slots);
+    for( int i = old_count; i < slot_count; i++ )
         inv_slot_clear(&slots[i]);
 
     c->slots = slots;
@@ -70,7 +123,12 @@ inv_manager_get_or_create_container(
     for( int i = 0; i < mgr->container_count; i++ )
     {
         if( mgr->containers[i].inv_id == inv_id )
+        {
+            /* A later, larger claim about the same container widens it. */
+            if( slot_count > 0 )
+                (void)inv_container_ensure_slots(&mgr->containers[i], slot_count);
             return &mgr->containers[i];
+        }
     }
 
     if( mgr->container_count >= INV_MANAGER_STORE_MAX )
@@ -171,7 +229,19 @@ InvManager_EnsureContainer(
     for( int i = 0; i < mgr->source_count; i++ )
     {
         if( mgr->sources[i].used && mgr->sources[i].container_id == container_id )
+        {
+            /* Already known, but perhaps as fewer slots than this caller has
+             * just been told about — the first UPDATE_INV_FULL for a container
+             * carries only its used prefix. See inv_container_ensure_slots. */
+            struct InvContainer* c = InvManager_GetContainer(mgr, container_id);
+            if( c && slot_count > 0 )
+            {
+                (void)inv_container_ensure_slots(c, slot_count);
+                if( c->slot_count > mgr->sources[i].slot_count )
+                    mgr->sources[i].slot_count = c->slot_count;
+            }
             return i;
+        }
     }
 
     if( mgr->source_count >= INV_MANAGER_SOURCE_MAX )
@@ -304,7 +374,16 @@ InvManager_SetSlot(
     assert(container);
     assert(container->slots);
     if( slot >= container->slot_count )
-        return false;
+    {
+        /* Emptying a slot the container does not have yet is already true, and
+         * refusing to allocate for it keeps a stray slot index from sizing the
+         * container. An item, though, has to land: see
+         * inv_container_ensure_slots for the backpack this used to swallow. */
+        if( data->obj_id <= INV_MANAGER_EMPTY_OBJ_ID )
+            return true;
+        if( !inv_container_ensure_slots(container, slot + 1) )
+            return false;
+    }
 
     int obj_id = data->obj_id;
     int obj_count = data->obj_count;
@@ -358,7 +437,10 @@ InvManager_ApplyFull(
 
     if( count < 0 )
         count = 0;
-    if( count > container->slot_count )
+    /* Widen rather than truncate: a FULL that names more slots than the
+     * container was created with is the server correcting an earlier, shorter
+     * claim about its size (inv_container_ensure_slots). */
+    if( count > container->slot_count && !inv_container_ensure_slots(container, count) )
         count = container->slot_count;
 
     for( int i = 0; i < count; i++ )
@@ -373,11 +455,11 @@ InvManager_ApplyFull(
              *
              * Emptiness is the obj id's to say — the branch above already tests
              * it, and the encoder writes the pair independently for exactly
-             * this reason (mock230_encode.c: "`obj_id >= 0` is the occupancy
+             * this reason (torirs_server_encode.c: "`obj_id >= 0` is the occupancy
              * test, not `count > 0`"). Two things on the wire legitimately
              * carry an obj with a count of zero: a bank placeholder, and an
              * out-of-stock shop line, which a shop keeps in place at zero
-             * rather than deleting (mock230_container_clear_slot).
+             * rather than deleting (ToriRSServer_ContainerClearSlot).
              *
              * The floor made both of them lie, and it lied differently
              * depending on the obj: a stackable at zero stock drew a yellow
@@ -397,6 +479,7 @@ InvManager_ApplyFull(
             {
                 container->slots[i].scene_id = INV_MANAGER_NO_SCENE_ID;
                 container->slots[i].atlas_index = 0;
+                container->slots[i].icon_attempts = 0;
             }
             container->slots[i].obj_id = oid;
             container->slots[i].obj_count = norm_count;
@@ -448,10 +531,16 @@ InvManager_ApplyPartial(
     for( int i = 0; i < count; i++ )
     {
         int const slot = slots[i];
-        if( slot < 0 || slot >= container->slot_count )
+        if( slot < 0 )
             continue;
         int const oid = obj_ids ? obj_ids[i] : INV_MANAGER_EMPTY_OBJ_ID;
         int const oc = obj_counts ? obj_counts[i] : 0;
+        /* Past the end: an item widens the container, an empty slot is already
+         * what it says (inv_container_ensure_slots). */
+        if( slot >= container->slot_count &&
+            (oid <= INV_MANAGER_EMPTY_OBJ_ID ||
+             !inv_container_ensure_slots(container, slot + 1)) )
+            continue;
         if( oid > INV_MANAGER_EMPTY_OBJ_ID )
         {
             /* Count zero is kept — see ApplyFull for the two things on the wire
@@ -463,6 +552,7 @@ InvManager_ApplyPartial(
             {
                 container->slots[slot].scene_id = INV_MANAGER_NO_SCENE_ID;
                 container->slots[slot].atlas_index = 0;
+                container->slots[slot].icon_attempts = 0;
             }
             container->slots[slot].obj_id = oid;
             container->slots[slot].obj_count = norm_count;

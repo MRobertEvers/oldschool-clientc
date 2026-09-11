@@ -1,4 +1,5 @@
 #include "pkt_rebuild_normal.h"
+#include "torirs_env.h"
 #include <assert.h>
 
 #include "net/rev/revpacket.h"
@@ -7,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * REBUILD_NORMAL wire (RSProt RebuildNormalEncoder.encode):
@@ -46,10 +48,8 @@ pkt_rebuild_normal_read(uint8_t const* data, int len, struct RevPacket* out)
             out->_map_rebuild.region_keys[i] = (int32_t)g4(&buf);
     }
 
-    if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "pkt_rebuild_normal: zoneX=%d zoneZ=%d keys=%d\n",
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("pkt_rebuild_normal: zoneX=%d zoneZ=%d keys=%d\n",
             zone_x,
             zone_z,
             key_count);

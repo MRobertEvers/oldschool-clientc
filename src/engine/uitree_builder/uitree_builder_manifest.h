@@ -16,6 +16,11 @@ struct UIBuilderSpriteReq
     char index_filename[64];
     char table[32];
     char archive[32];
+    /* @see RevConfigCacheItem::group — empty means every build wants it. */
+    char group[32];
+    /* `table=defaults`: position in the defaults record, or -1. See
+     * RevConfigCacheItem::defaults_slot. */
+    int defaults_slot;
     int crop_x;
     int crop_y;
     int crop_width;
@@ -31,6 +36,8 @@ struct UIBuilderFontReq
     int cache_font_id;
     /* dat1: title-jagfile stem (e.g. "b12"); defaults to the section name. */
     char font_name[64];
+    /* @see RevConfigCacheItem::group — empty means every build wants it. */
+    char group[32];
 };
 
 struct UIBuilderComponentReq
@@ -95,22 +102,63 @@ struct UIBuilderTreeOp
     char inv_name[64];
     char font_ref[64];
     int font;
+
+    /* type=inkwell: which artwork, and which colour each outcome uses.
+     * -1 = the profile said nothing, and the host keeps its default.
+     * @see ui/torirs_chrome_inkwell.h. */
+    int ink_style;
+    int ink_walk_color;
+    int ink_interact_color;
     uint8_t has_font_ref;
     int tabno;
     int selected;
     char slot[24];
+    /** RevConfig `role=`: the semantic name this node is stamped with, interned
+     *  into the builder's role table at bake. @see ui/uitree_role.h. */
+    char role[64];
     int dirty;
+    /** @see RevConfigUILayoutItem::xalign_center. */
+    int xalign_center;
+    /** REVCONFIG_SAFE_AREA_SOURCE_* / _FLAG_*: which safe area this row keeps
+     *  clear of, which of its edges, and the room it wants beyond the overlap.
+     *  @see RevConfigUILayoutItem::safe_area_source. */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
     int level_mask;
-    int mmb_rotate;
-    int wheel_zoom;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
     int hotkey_count;
     int color;
     int filled;
+    /** type=rs_graphic: repeat the sprite across the box. @see RevConfig `tiled=`. */
+    int tiled;
     int center;
+    /** type=rs_text: 0 top, 1 centre, 2 bottom. @see RevConfig `valign=`. */
+    int valign;
+    /** Hover colour, 0 for none. @see RevConfig `over_color=`. */
+    int over_color;
     int shadowed;
     char text[256];
+    /* Title-screen widgets; @see RevConfigUIComponentItem's title_* block. */
+    char title_field[16];
+    char title_prefix[32];
+    char title_caret[24];
+    int title_caret_blink;
+    char title_mask[8];
+    int title_maxlen;
+    char title_charset[160];
+    char title_action[32];
+    int title_message_index;
+    int title_px_per_percent;
+    /** @see RevConfigUIComponentItem::flame_bias. */
+    int flame_bias;
+    int flame_sway;
+    int flame_run;
+    int flame_row;
+    char flame_blur[16];
+    /** @see RevConfigUIComponentItem::text_baseline. */
+    int text_baseline;
     int button_type;
     int client_code;
     char option[REVCONFIG_MENU_OPTION_LEN];
@@ -127,6 +175,7 @@ struct UIBuilderTreeOp
     int chat_op_accept_trade_action;
     char chat_op_accept_duel[REVCONFIG_CHAT_OP_TEMPLATE_LEN];
     int chat_op_accept_duel_action;
+    char chat_prompt[REVCONFIG_CHAT_PROMPT_LEN];
     int chat_button_filter;
     char chat_button_label[64];
     int chat_button_label_y;
@@ -193,6 +242,20 @@ uibuilder_manifest_from_revconfig_rooted(
     struct RevConfigItemBuffer const* items,
     int root_interface_id);
 
+/**
+ * As above, keeping only the layouts and assets one group wants.
+ *
+ * @see uibuilder_manifest_group_wanted for what the two selectors mean; passing
+ * NULL for both is exactly uibuilder_manifest_from_revconfig_rooted.
+ */
+int
+uibuilder_manifest_from_revconfig_grouped(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude);
+
 int
 uibuilder_manifest_from_revconfig_ini(
     struct UIBuilderManifest* out,
@@ -222,7 +285,32 @@ struct UIBuilderManifestSources
     /** File holding `[revconfig:…]` sections — in practice the manifest itself. */
     char const* inline_ini_path;
     int root_interface_id;
+    /**
+     * Take only `[layout:<group>]` records (and assets with a matching `group=`)
+     * from this group. NULL/empty takes every group, which is what a profile
+     * with one unnamed gameframe layout has always got.
+     */
+    char const* layout_group;
+    /**
+     * Drop this group even when `layout_group` would have taken it. The
+     * gameframe build names the title group here so the title screen's nodes —
+     * and its every-frame flame repaint — never enter the in-game tree.
+     */
+    char const* layout_group_exclude;
 };
+
+/**
+ * Does a record tagged `group` belong in a build selecting `select` and
+ * excluding `exclude`? Either selector may be NULL or empty.
+ *
+ * An untagged record (`group` empty) is in every build: that is what makes the
+ * key additive, so no existing profile changes meaning by our adding it.
+ */
+int
+uibuilder_manifest_group_wanted(
+    char const* group,
+    char const* select,
+    char const* exclude);
 
 int
 uibuilder_manifest_from_sources(

@@ -1,4 +1,5 @@
 #include "gameproto_parse.h"
+#include "torirs_env.h"
 
 #include "net/wordpack.h"
 
@@ -7,13 +8,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 parse_debug(void)
 {
     static int cached = -1;
     if( cached < 0 )
-        cached = getenv("TORIRS_NET_DEBUG") != NULL;
+        cached = torirs_env_net_debug() != NULL;
     return cached;
 }
 
@@ -21,7 +23,7 @@ parse_debug(void)
     do                                 \
     {                                  \
         if( parse_debug() )            \
-            fprintf(stderr, __VA_ARGS__); \
+            TORIRS_LOG(__VA_ARGS__); \
     } while( 0 )
 
 /*
@@ -32,6 +34,12 @@ parse_debug(void)
 static void
 read_loc_add_change(struct RSCache_Buffer* b, struct PktLocAddChange* p)
 {
+    memset(p, 0, sizeof(*p));
+    /* The classic layout is LOC_ADD_CHANGE, not V2: no op mask and no
+     * replacement labels, so the placement's menu is exactly the loctype's.
+     * All five bits set says that, and it is the right answer here rather than
+     * a stand-in — the revision genuinely cannot narrow the menu. */
+    p->op_flags = 0x1f;
     p->pos = g1(b);
     p->info = g1(b);
     p->loc_id = g2(b);
@@ -103,6 +111,20 @@ read_loc_merge(struct RSCache_Buffer* b, struct PktLocMerge* p)
 static void
 read_map_projanim(struct RSCache_Buffer* b, struct PktMapProjAnim* p)
 {
+    /*
+     * The classic layout states the destination as a pair of signed tile
+     * offsets from the source; the absolute packed CoordGrid rev239's
+     * MapProjAnimV2 carries instead does not exist here. `dst_abs` is how the
+     * executor chooses between the two, so it has to be WRITTEN as zero rather
+     * than left alone -- inside UPDATE_ZONE_PARTIAL_ENCLOSED this struct lives
+     * in a malloc'd entry array, so "left alone" is heap garbage, the executor
+     * takes the absolute branch, and `dst_abs_level` becomes the projectile's
+     * plane. Under ASan's 0xbe fill that is level -1094795586 and the
+     * heightmap's level assert fires the moment anything casts a spell; on an
+     * ordinary heap it is a shot that flies off the map. Same reason
+     * read_loc_add_change zeroes its V2 fields.
+     */
+    memset(p, 0, sizeof(*p));
     p->pos = g1(b);
     p->dx_offset = g1b(b);
     p->dz_offset = g1b(b);
@@ -180,6 +202,9 @@ gameproto_parse(
     struct RevPacket* packet)
 {
     struct RSCache_Buffer buffer;
+    /* Stated once here so the `buffer.position < (uint32_t)data_size` walks
+     * below are reading a length, not a wrapped negative. */
+    assert(data_size >= 0);
     RSCache_BufferInit(&buffer, data, data_size);
 
     packet->packet_type = pkt_name;
@@ -214,7 +239,12 @@ gameproto_parse(
     {
         packet->_update_inv_full.component_id = g2(&buffer);
         packet->_update_inv_full.inv_id = -1; /* component id is the container key */
-        packet->_update_inv_full.size = g1(&buffer);
+        /* Two bytes, not one (reference Client.ts UPDATE_INV_FULL: `g2`, and
+         * UpdateInvFullEncoder writes `p2(max)`). Read as one, every inventory
+         * on this generation decoded as the HIGH byte of a slot count that
+         * never reaches 256 — i.e. size 0, every container silently empty.
+         * The skill guide's item column was the visible half of it. */
+        packet->_update_inv_full.size = g2(&buffer);
 
         packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
         packet->_update_inv_full.obj_counts = malloc(packet->_update_inv_full.size * sizeof(int));
@@ -420,7 +450,7 @@ gameproto_parse(
         enc->count = 0;
         enc->entries = malloc(cap * sizeof(*enc->entries));
 
-        while( buffer.position < data_size )
+        while( buffer.position < (uint32_t)data_size )
         {
             int wire = g1(&buffer);
             enum GameProtoPktName sub = (enum GameProtoPktName)rev->packetin_code(wire);
@@ -625,14 +655,20 @@ gameproto_parse(
     {
         packet->_update_inv_partial.component_id = g2(&buffer);
         packet->_update_inv_partial.inv_id = -1;
-        /* count is derived from remaining bytes; allocate conservatively */
-        int max_entries = (data_size - 2) / 5 + 1;
+        /* count is derived from remaining bytes; allocate conservatively. The
+         * smallest record is 4 bytes — a one-byte smart slot, the two-byte obj
+         * and a one-byte count — so the divisor is 4. Sizing by 5 under-allocated
+         * whenever a packet carried only short records and wrote past the end. */
+        int max_entries = (data_size - 2) / 4 + 1;
         packet->_update_inv_partial.entries =
             (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
         int n = 0;
-        while( buffer.position < data_size )
+        while( buffer.position < (uint32_t)data_size )
         {
-            int slot = g1(&buffer);
+            /* Smart, not a plain byte (reference `gsmart`, encoder `psmart`):
+             * a bank slot of 128 or more goes out as two bytes, and reading one
+             * desynchronised the rest of the packet. */
+            int slot = gushortsmart(&buffer);
             int obj_id_raw = g2(&buffer);
             int count = g1(&buffer);
             if( count == 255 )
@@ -648,6 +684,12 @@ gameproto_parse(
     case PKT_NAME_SET_MULTIWAY:
     {
         packet->_set_multiway.multiway = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKT_NAME_MINIMAP_TOGGLE:
+    {
+        packet->_minimap_toggle.state = g1(&buffer);
         assert(buffer.position == data_size);
         return 1;
     }
@@ -756,6 +798,11 @@ gameproto_free(struct RevPacket* p)
 
     switch( p->packet_type )
     {
+    case PKT_NAME_RUNCLIENTSCRIPT:
+        /* The one payload held outside the union; see struct RevPacket. */
+        free(p->_runclientscript);
+        p->_runclientscript = NULL;
+        break;
     case PKT_NAME_NPC_INFO:
         free(p->_npc_info.data);
         p->_npc_info.data = NULL;
@@ -778,6 +825,11 @@ gameproto_free(struct RevPacket* p)
         p->_map_rebuild.zones = NULL;
         p->_map_rebuild.region_count = 0;
         break;
+    case PKT_NAME_REBUILD_WORLDENTITY:
+        free(p->_rebuild_wev.data);
+        p->_rebuild_wev.data = NULL;
+        p->_rebuild_wev.length = 0;
+        break;
     case PKT_NAME_UPDATE_INV_FULL:
         free(p->_update_inv_full.obj_ids);
         free(p->_update_inv_full.obj_counts);
@@ -798,7 +850,9 @@ gameproto_free(struct RevPacket* p)
         p->_if_settext.text = NULL;
         break;
     case PKT_NAME_MESSAGE_GAME:
+        free(p->_message_game.name);
         free(p->_message_game.text);
+        p->_message_game.name = NULL;
         p->_message_game.text = NULL;
         break;
     case PKT_NAME_MESSAGE_PRIVATE:
@@ -827,4 +881,71 @@ gameproto_free(struct RevPacket* p)
     default:
         break;
     }
+}
+
+/* Bounds-checked MSB-first bit read (same shape as the osrs239 parse arm's
+ * gbits_checked): the wev grid decode runs at exec against wire-fed bytes, so
+ * a short frame must fail the decode, not terminate the client. */
+static uint32_t
+wev_gbits(
+    uint8_t const* data,
+    int len,
+    int* bit_pos,
+    int count,
+    int* ok)
+{
+    uint32_t value = 0;
+
+    if( !*ok || count < 0 || count > 32 || *bit_pos < 0 || *bit_pos + count > len * 8 )
+    {
+        *ok = 0;
+        return 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        int pos = (*bit_pos)++;
+        value = (value << 1) | ((data[pos >> 3] >> (7 - (pos & 7))) & 1u);
+    }
+    return value;
+}
+
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones)
+{
+    int bit_pos = 0;
+    int ok = 1;
+
+    assert(p);
+    assert(p->data);
+    assert(out_zones);
+    /* 13 is the PKT_MAP_REBUILD_ZONES stride (revpacket.h): a view wider than
+     * the full-instance grid cannot be expressed in the array the world-load
+     * path consumes. */
+    assert(zones_x > 0);
+    assert(zones_x <= 13);
+    assert(zones_z > 0);
+    assert(zones_z <= 13);
+
+    memset(out_zones, 0, PKT_MAP_REBUILD_ZONES * sizeof(*out_zones));
+    /* Deob class592.method12654: [4 levels][zonesX][zonesZ], 1 presence bit
+     * then a 26-bit descriptor. The destination index re-strides the view's
+     * compact wire grid onto the 13x13 instance array; everything past the
+     * view's zone counts stays 0 = void. */
+    for( int level = 0; level < 4; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                if( wev_gbits(p->data, p->length, &bit_pos, 1, &ok) )
+                    out_zones[level * 13 * 13 + zx * 13 + zz] =
+                        (int32_t)wev_gbits(p->data, p->length, &bit_pos, 26, &ok);
+                if( !ok )
+                    return 0;
+            }
+    /* Byte-aligned full consumption, the same test the region arm applies:
+     * trailing bytes mean the two ends disagree about the view's size. */
+    return (bit_pos + 7) / 8 == p->length;
 }

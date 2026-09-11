@@ -30,6 +30,85 @@ ev_build_npc_model(
     int npc_id);
 
 /**
+ * Which of an obj's model sets to build.
+ *
+ * An obj record carries several unrelated meshes, and "the item's model" means
+ * a different one depending on who is asking: the thing on the ground and in
+ * the inventory icon, the thing on a male or female body, and the thing on a
+ * chathead. They are separate ids in the record, so the caller picks.
+ */
+enum EV_ObjModelVariant
+{
+    /** `inventory_model_id` — the ground drop and the inventory icon. */
+    EV_OBJ_MODEL_ITEM = 0,
+    /** male_model_0..2 merged, as the player build wears them. */
+    EV_OBJ_MODEL_MALE,
+    EV_OBJ_MODEL_FEMALE,
+    /** The chathead pair (male_head_model, male_head_model_2). */
+    EV_OBJ_MODEL_MALE_HEAD,
+    EV_OBJ_MODEL_FEMALE_HEAD,
+    EV_OBJ_MODEL_VARIANT_COUNT
+};
+
+/** For a picker: `"item"`, `"male"`, … Asserts on an out-of-range variant. */
+const char*
+ev_obj_model_variant_name(enum EV_ObjModelVariant variant);
+
+/**
+ * One of an obj's model sets, recoloured, resized and lit as the client does.
+ *
+ * Returns NULL — not an error — when the record names no model for that
+ * variant, which is the common case: most objs have no wear models and only
+ * worn equipment has heads.
+ */
+struct ToriDraw_Model*
+ev_build_obj_model(
+    struct Tool_Dat2Cache* c,
+    int obj_id,
+    enum EV_ObjModelVariant variant);
+
+/**
+ * A loc's models for one shape, merged and transformed the way the scene
+ * builder transforms them (world_scenery.u.c: recolour, mirror, resize,
+ * offset, then scene lighting).
+ *
+ * `shape` is a `RSCache_Dat2LocShape`, or -1 for "whichever the record lists
+ * first". A loc keeps a separate mesh per shape — a wall, its corner, its
+ * diagonal — and asking for one it does not carry returns NULL rather than
+ * quietly substituting another, because a wall drawn where a corner was asked
+ * for looks like a correct answer.
+ *
+ * The placed rotation is NOT applied: nothing here is placed on a tile, so the
+ * model is built in the record's own frame and the viewer orbits it. `mirrored`
+ * IS applied, because at orientation 0 the scene builder applies it too.
+ */
+struct ToriDraw_Model*
+ev_build_loc_model(
+    struct Tool_Dat2Cache* c,
+    int loc_id,
+    int shape);
+
+/**
+ * The same two, built as HD models so their mapped textures can be drawn.
+ *
+ * Both return NULL for a subject that does not need one, exactly as
+ * ev_build_npc_model_hd does — which is every OldSchool obj and loc. RS2-era
+ * scenery is where it matters: a loc whose faces are cube-mapped comes out
+ * untextured or invisible through the classic raster.
+ */
+struct ToriDraw_ModelHD*
+ev_build_obj_model_hd(
+    struct Tool_Dat2Cache* c,
+    int obj_id,
+    enum EV_ObjModelVariant variant);
+
+struct ToriDraw_ModelHD*
+ev_build_loc_model_hd(
+    struct Tool_Dat2Cache* c,
+    int loc_id,
+    int shape);
+
+/**
  * A sequence as an animation: its rig, and each frame in playback order.
  *
  * `out_framemap_id` receives the rig id, which is what the catalog matches on.

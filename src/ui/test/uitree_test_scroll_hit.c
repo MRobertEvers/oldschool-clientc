@@ -78,6 +78,8 @@ test_scroll_hit(void)
      */
     {
         struct UITreeScrollbarHitInfo sb;
+        struct UITreeScrollbarHitInfo stale_down;
+        int const before_hidden = tree->components[layer].scroll_y;
         TEST_ASSERT(
             UITree_FindScrollbarAt(tree, &host, 108, 55, &sb) &&
                 sb.kind == UITREE_SCROLLBAR_V_GRIP,
@@ -91,9 +93,100 @@ test_scroll_hit(void)
                 sb.kind == UITREE_SCROLLBAR_V_UP,
             "up arrow");
         TEST_ASSERT(
-            UITree_FindScrollbarAt(tree, &host, 108, 90, &sb) &&
-                sb.kind == UITREE_SCROLLBAR_V_DOWN,
+            UITree_FindScrollbarAt(tree, &host, 108, 90, &stale_down) &&
+                stale_down.kind == UITREE_SCROLLBAR_V_DOWN,
             "down arrow");
+
+        /* A plugin frame hides replaced widgets as an effective display:none.
+         * IF1 scrollbars are synthetic hit regions rather than child nodes, so
+         * they must honor that gate explicitly. Also reject a hit latched while
+         * visible: a frame can replace the layer during an active arrow/grip
+         * hold, before the interaction code consumes its saved hit record. */
+        tree->components[layer].frame_hidden = 1;
+        TEST_ASSERT(
+            !UITree_FindScrollbarAt(tree, &host, 108, 90, &sb),
+            "a frame-hidden IF1 layer exposes no synthetic scrollbar hitbox");
+        TEST_ASSERT(
+            !UITree_ScrollbarHandle(
+                tree, &stale_down, 108, 90,
+                UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0),
+            "a stale scrollbar hit cannot mutate a layer hidden by the frame");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == before_hidden,
+            "hidden IF1 scrollbar leaves its native scroll offset unchanged");
+
+        /* A rebuild can reuse the same id and array index. The saved hit still
+         * belongs to the former occupant and must not scroll the replacement. */
+        tree->components[layer].frame_hidden = 0;
+        tree->components[layer].incarnation++;
+        TEST_ASSERT(
+            !UITree_ScrollbarHandle(
+                tree, &stale_down, 108, 90,
+                UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0),
+            "a stale scrollbar capture cannot transfer to a recycled layer slot");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == before_hidden,
+            "recycled layer keeps its native scroll offset");
+
+        /* The release edge is no longer `held`. If the layer disappears on
+         * exactly that frame, retain an explicit cancellation result for the
+         * app's out-of-tree plugin hit regions instead of treating the mouse
+         * up as a fresh click on the newly exposed replacement. */
+        {
+            struct UIInteraction interact;
+            struct UIInteractOut out;
+            struct LibToriRS_Input input_storage;
+            struct LibToriRS_Input* input = LibToriRS_Input_Init(&input_storage, 0);
+
+            UIInteraction_Init(&interact);
+            LibToriRS_Input_Begin(input, 0);
+            LibToriRS_Input_PushMouseMove(input, 108, 8);
+            LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 108, 8);
+            LibToriRS_Input_End(input);
+            UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+            TEST_ASSERT(interact.sb_arrow_held, "visible scrollbar owns its press");
+
+            tree->components[layer].frame_hidden = 1;
+            LibToriRS_Input_Begin(input, 20);
+            LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 108, 8);
+            LibToriRS_Input_End(input);
+            UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+            TEST_ASSERT(
+                out.cancelled_pointer_click,
+                "hidden scrollbar release is fenced from plugin regions");
+            TEST_ASSERT(!out.left_click_miss, "hidden scrollbar release cannot reach world");
+        }
+        tree->components[layer].frame_hidden = 0;
+    }
+
+    /* A raw offset can become out of range when the viewport is resized before
+     * the next canonical write. Every render-space consumer must still use the
+     * same effective clamp as emit; the typed setter then publishes that clamp
+     * when a script writes the offset explicitly. */
+    {
+        int32_t const bottom =
+            UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, TUID(9), 10, 350, 60, 30);
+        struct UITreeScrollbarHitInfo sb;
+
+        tree->components[bottom].behavior.button_type = 1;
+        tree->components[bottom].behavior.over_color = 0xFFFFFF;
+        UITree_TestResolve(tree);
+        tree->components[layer].scroll_y = 999;
+        TEST_ASSERT(
+            UITree_HitTestInteractive(tree, &host, 20, 60) == bottom,
+            "hit testing clamps the same out-of-range offset as emit");
+        TEST_ASSERT(
+            UITree_FindHoveredComponentIdForRegion(
+                tree, &host, tree->root_index, 20, 60, 0, 0, 400, 300) == TUID(9),
+            "hover uses the effective clamped offset");
+        TEST_ASSERT(
+            UITree_FindScrollbarAt(tree, &host, 108, 75, &sb) &&
+                sb.kind == UITREE_SCROLLBAR_V_GRIP,
+            "scrollbar grip hit math uses the effective clamped offset");
+        TEST_ASSERT(
+            UITree_ApplyScrollPos(tree, TUID(3), 0, 999) &&
+                tree->components[layer].scroll_y == 300,
+            "typed scroll publication stores a canonical offset");
     }
 
     UITree_Free(tree);
@@ -110,16 +203,28 @@ test_wheel_stops_at_interface(void)
     struct UIInteraction interact;
     struct UIInteractOut out;
     int32_t pane;
+    int32_t child;
+    int child_x, child_y, child_w, child_h;
     struct UITreeRuntimeHooks* hooks;
 
     printf("TEST: interface wheel stops propagation to world gestures\n");
     UITree_TestHostInit(&host, &hs);
 
     pane = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, TUID(20), 10, 10, 100, 100);
+    child = UITree_TestPushXy(
+        tree, pane, UIELEM_RS_RECT, TUID(21), 35, 35, 20, 20);
     hooks = UITree_HooksMut(&tree->components[pane]);
     hooks->on_scroll_wheel.script_id = 1234;
+    UITree_HooksMut(&tree->components[child])->on_scroll_wheel.script_id = 1235;
     UITree_SyncHookMembership(tree, pane);
+    UITree_SyncHookMembership(tree, child);
     UITree_TestResolve(tree);
+    UITree_LayoutGetBounds(
+        &tree->components[child].position,
+        &child_x,
+        &child_y,
+        &child_w,
+        &child_h);
 
     input = LibToriRS_Input_Init(&input_storage, 0);
     UIInteraction_Init(&interact);
@@ -135,6 +240,30 @@ test_wheel_stops_at_interface(void)
     TEST_ASSERT(out.wheel_consumed, "handled interface wheel cannot reach world gesture");
 
     UITree_Free(tree);
+
+    /* The native IF1 wheel search: a scrollable layer under the pointer takes
+     * the wheel and consumes it. */
+    {
+        struct UITree* native = UITree_New(2);
+        int32_t layer = UITree_TestPushXy(
+            native, -1, UIELEM_RS_LAYER, TUID(22), 10, 10, 100, 80);
+
+        UITree_TestResolve(native);
+        TEST_ASSERT(
+            UITree_SetScrollSizeAt(native, layer, 100, 300),
+            "native wheel fixture has scrollable content");
+        input = LibToriRS_Input_Init(&input_storage, 0);
+        UIInteraction_Init(&interact);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_PushMouseWheel(input, -1);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, native, &host, input, 0, &out);
+        TEST_ASSERT(
+            native->components[layer].scroll_y == UITREE_SCROLLBAR_WHEEL_STEP &&
+                out.wheel_consumed,
+            "a native scrollable layer acquires wheel input");
+        UITree_Free(native);
+    }
 
     /* Mounted native pane under an outer scroller: its screen Y includes the
      * outer scroll, but excludes the mount host's own scroll. A flat abs-box

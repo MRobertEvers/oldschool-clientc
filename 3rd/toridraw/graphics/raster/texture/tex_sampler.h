@@ -51,7 +51,12 @@ struct ToriDraw_TexSampler
     int v_mask;
     /** Non-zero clamps that axis to [0, width-1] instead of wrapping it.
      *  Three of the QBD's fifteen materials need it: two are repeat_s only,
-     *  one repeats on neither axis. */
+     *  one repeats on neither axis.
+     *
+     *  Both are honoured on both span paths. That is worth stating because it
+     *  was once true of `t` only: `s` was clamped whatever this said, which made
+     *  a repeating material sample one column for every coordinate past the
+     *  edge — see tex_span_u_quotient_mode. */
     int clamp_s;
     int clamp_t;
     /** Source weight for the whole face, 0-255. Read only by `facealpha`. */
@@ -65,7 +70,15 @@ struct ToriDraw_TexSampler
     int tint_b;
 };
 
-/** Fill the derived fields. `width` must be 64 or 128. */
+/**
+ * Fill the derived fields. `width` must be 64 or 128.
+ *
+ * The addressing defaults are the SD spans' own — u clamped, v wrapped — not
+ * "repeat on both". A caller with a material overwrites them; a caller without
+ * one wants whatever the plain kernels do, because a sampler kernel and its
+ * plain twin drawing the same triangle differently is the failure the matrix
+ * test exists to catch, and the two disagree only on u.
+ */
 static inline void
 ToriDraw_TexSamplerInit(
     struct ToriDraw_TexSampler* s,
@@ -77,7 +90,7 @@ ToriDraw_TexSamplerInit(
     s->shift = (width == 128) ? 7 : 6;
     s->u_mask = width - 1;
     s->v_mask = (width == 128) ? 0x3F80 : 0x0FC0;
-    s->clamp_s = 0;
+    s->clamp_s = 1;
     s->clamp_t = 0;
     s->face_alpha = 0xFF;
     s->tint_r = 256;

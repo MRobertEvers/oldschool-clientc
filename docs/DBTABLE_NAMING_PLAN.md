@@ -51,8 +51,8 @@
 
 - Build: `make -C src` targets; embed binary is
   `make -C src torirs_embed_wf EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_embed_wf
-  PLATFORM_TARGET=torirs_embed_wf`. Gate: `make -C src test-mock230` (which now
-  rebuilds `mock230-scripts` first — do not undo that dependency).
+  PLATFORM_TARGET=torirs_embed_wf`. Gate: `make -C src test-ToriRSServer` (which now
+  rebuilds `torirsserver-scripts` first — do not undo that dependency).
 - **Every new assertion needs a negative control**: mutate the input to prove
   the assertion can fail, then restore. Two assertions this session passed for
   weeks on the strength of the bug they should have caught.
@@ -68,7 +68,7 @@
 `CONTENT_IDS_CACHE` with the comment *"neither has an encoder, so authored
 content cannot create one either way."* Both claims are stale: this tree
 created `coord_pair_table` (259) and `combat_style_table` (260) and they work,
-because `mock230_db.c` parses text and needs no cache encoder. The allocation
+because `torirs_server_db.c` parses text and needs no cache encoder. The allocation
 succeeded only because `tools/ss_allocate.py`'s `id_authority()` defaults to
 `'server'` when `content.ini` is silent — and `content.ini` says nothing about
 either namespace. The Python default silently outvoted the C register: the
@@ -83,11 +83,11 @@ third occurrence.
 2. Correct the stale comment in `content_register.c` and make the C rows agree
    (`CONTENT_IDS_SERVER`, keeping `names` as-is and `server_base` 259).
    Check what `CONTENT_IDS_SERVER` changes behaviourally in
-   `mock230_content.c` / `cachepack` before flipping — read the consumers, do
+   `torirs_server_content.c` / `cachepack` before flipping — read the consumers, do
    not assume the enum is inert documentation.
 3. Verify: `python3 tools/ss_allocate.py --tree OSRS-Content/osrs239-content
-   --check` still exits 0; `make -C src test-mock230` green;
-   `validate_id_bases` (`src/net/mock/mock230_pack.c:553`) still passes on
+   --check` still exits 0; `make -C src test-ToriRSServer` green;
+   `validate_id_bases` (`src/torirsserver/torirs_server_pack.c:553`) still passes on
    boot.
 
 **As executed.** Both steps done, and the register comment was stale in a
@@ -97,7 +97,7 @@ third occurrence.
 false as well as irrelevant. Corrected in the comment.
 
 Step 3's premise is wrong on the last clause: `validate_id_bases` is **not a boot
-check**. `mock230_pack.c` has its own `main`; it is the validator binary run by
+check**. `torirs_server_pack.c` has its own `main`; it is the validator binary run by
 `make -C src test-content`. It also reads `ContentRegister_Defaults`, not the
 tree's `content.ini`, and gates on `server_base != 0` rather than on `ids`.
 
@@ -239,7 +239,7 @@ For each Tier-1 table, in this order:
    Semantic round-trip proves nothing (memory: `rscache-write-expansion`);
    byte-exact or a documented, understood diff.
 
-4. **Boot + suite.** `make -C src test-mock230`; boot the embed binary and
+4. **Boot + suite.** `make -C src test-ToriRSServer`; boot the embed binary and
    confirm the quest journal / music tab still populate (they are dbtable-
    backed client-side — a broken table 21 index or a mangled row shows up
    there). `SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=...`
@@ -282,7 +282,7 @@ For each Tier-1 table, in this order:
    text in memory, and never opens `configs/all.dbtable` or `all.dbrow`. A
    compack renamed with the data files left stale verifies **fully green**.
    Verify is a check on the codecs and the text layer, not on step 2.
-4. **Boot + suite.** Green: `test-content`, `test-mock230`, and a headless embed
+4. **Boot + suite.** Green: `test-content`, `test-ToriRSServer`, and a headless embed
    boot that renders the world, sidebar and inventory. Worth stating that this is
    a *regression* check and not a proof — the client reads dbtables from the
    cache, and `verify` says all 246 tables and 16,711 rows still encode
@@ -300,8 +300,8 @@ For each Tier-1 table, in this order:
    consistent tree still reports 0.
 
    The plan's fallback answer also holds: **nothing else in the tree notices.**
-   `mock230_db.c` reads only the server population, `sscompile` reads the
-   compack, the client reads the cache, and `test-mock230` stays green
+   `torirs_server_db.c` reads only the server population, `sscompile` reads the
+   compack, the client reads the cache, and `test-ToriRSServer` stays green
    throughout. Renames are validated by `cachepack pack` and by nothing else.
 
 **A second defect, outside the plan's list.** `cp_names_emit_gamevals` wrote
@@ -333,7 +333,7 @@ A renamed table is readable by humans but still unusable from RuneScript:
 `quest:displayname` cannot compile because cache tables have no column
 declarations (`all.dbtable` has `columns=`/`defaulttypes=` — types, no names;
 the compiler's "N db columns" all come from server `.dbtable` files). And
-`mock230_db.c` loads only the server population — cache rows are the
+`torirs_server_db.c` loads only the server population — cache rows are the
 *client's*, read by CS2.
 
 The column names exist — embedded in the derived gameval string. So the
@@ -350,7 +350,7 @@ for a cache table live:
   "adopt" mechanism or a separate declarations file. **Scope for this plan:
   investigate, document the answer and the recommended design in the README,
   implement only if it turns out to be trivial.** Feeding the cache's 16k
-  rows into `mock230_db` is explicitly out of scope — a real feature for a
+  rows into `ToriRSServer_Db` is explicitly out of scope — a real feature for a
   session that needs it (the quest journal server-side would be the natural
   driver).
 
@@ -360,8 +360,8 @@ Answered by probe rather than by reading alone. A server `.dbtable` whose block
 header is `[quest]` resolves through
 `SSC_SymbolsFind(…, SSC_SYM_DBTABLE)` — which searches the *whole* namespace,
 cache half included — so `quest:displayname` compiled, the db column count went
-3 → 6, `mock230_pack` reported 0 errors, `ss_allocate --check` exited 0 (no
-allocation: the name already has a line), and `test-mock230` passed. Probe
+3 → 6, `ToriRSServer_Pack` reported 0 errors, `ss_allocate --check` exited 0 (no
+allocation: the name already has a line), and `test-ToriRSServer` passed. Probe
 reverted.
 
 So no adopt mechanism needs inventing and none was invented. What is missing is a
@@ -397,7 +397,7 @@ Write it last, from what Parts B–D actually found. Sections:
 4. **The files and the pipeline.** Cache binary ↔ `all.dbtable`/`all.dbrow`
    (cachepack, both directions, escape rules, `columns=` semantics) ↔
    `all.dbtable.compack` (names; gameval archive 10; replacement semantics);
-   server `server/scripts/**/*.dbtable`/`.dbrow` → `mock230_db.c` →
+   server `server/scripts/**/*.dbtable`/`.dbrow` → `torirs_server_db.c` →
    `db_find`/`db_getfield` ops.
 5. **How server content uses them — worked example.** `combat_style_table`
    end to end: the schema, the 15 rows, `~combat_get_weapon_style_data`,
@@ -406,7 +406,7 @@ Write it last, from what Parts B–D actually found. Sections:
    stab/slash/crush).
 6. **Editing workflows.** Data edit = restart only (verified: a `data=` edit
    changed a selftest answer with no rebuild); new name = `ss_allocate` +
-   `mock230-scripts`; rename = Part C's four steps; column reorder = the trap
+   `torirsserver-scripts`; rename = Part C's four steps; column reorder = the trap
    at the top of the list.
 7. **The naming register.** The full appendix table: id, shipped name (or
    retained derived name), tier, evidence one-liner. Tier 2/3 entries carry

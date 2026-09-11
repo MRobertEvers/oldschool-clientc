@@ -1,0 +1,32 @@
+{{External|rs|rsc}}
+{{Infobox Spell
+|name = Enfeeble
+|image = [[File:Enfeeble.png]]
+|release = [[23 October]] [[2002]]
+|update = Updates galore!
+|members = Yes
+|level = 73
+|spellbook = Normal
+|type = Combat
+|exp = 83
+|cost = {{RuneReq|Earth=8|Water=8|Soul=1}}
+|speed = 5 ticks
+|description = Reduces your opponent's strength by 10%
+|anim = [[File:Enfeeble.gif|300px]]
+|sound = [[File:Enfeeble.ogg]]
+}}
+[[File:Enfeeble icon (mobile).png|left]]
+'''Enfeeble''' is a level 73 [[Magic]] [[spell]]. When cast on an opponent, their [[Strength]] level is reduced by 10%. Casting Enfeeble grants 83 Magic experience and requires 1 [[Soul rune|Soul]], 8 [[Earth rune|Earth]], and 8 [[Water rune]]s to be cast. The spell can only be cast if the opponent's stats haven't already been lowered, meaning you cannot stack the 10% Strength reduction with multiple spells in a row.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 8
+|Rune2 = Earth
+|Rune2num = 8
+|Rune3 = Soul
+|Rune3num = 1
+|uses_pages_water = yes
+}}
+
+{{Standard spellbook}}

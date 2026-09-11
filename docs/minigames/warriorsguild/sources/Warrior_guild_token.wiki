@@ -1,0 +1,129 @@
+{{External|rs}}
+{{Infobox Item
+|name = Warrior guild token
+|image = [[File:Warrior guild token 1.png]] [[File:Warrior guild token 2.png]] [[File:Warrior guild token 3.png]] [[File:Warrior guild token 4.png]] [[File:Warrior guild token 5.png]]
+|release = [[13 June]] [[2006]]
+|update = Warriors' Guild
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Warrior Guild Token.
+|value = 1
+|weight = 0.000
+|id = 8851
+}}
+[[File:Warrior guild token detail.png|120px|left]]
+'''Warrior guild tokens''' are obtained by participating in various activities found in the [[Warriors' Guild]]. They are used to gain entry to the {{FloorNumber|uk=2}} [[Cyclops]] chamber and basement areas, where they can be killed for a chance to drop [[defender]]s. To enter the area, players need a minimum of 100 tokens in their inventory. 
+
+Upon entry, 10 tokens are taken from your inventory immediately. With every minute spent inside one of the cyclops rooms, 10 tokens will crumble away. When you run out of tokens, you are asked to leave, and if you stay, you will be forcefully teleported out in another minute.
+
+==Treasure Trails==
+* {{FaloItem|warrior guild token|A token used to kill mythical beasts, in hopes of a blade or just for an xp feast.}}
+
+==Item sources==
+*Players with at least {{Globals|ca easy points}} [[Combat Achievements]] points (Easy combat tier) double the amount of tokens earned.
+*Players with at least {{Globals|ca medium points}} [[Combat Achievements]] points (Medium combat tier) triple the amount of tokens earned.
+{| class="wikitable"
+|+
+!Source
+!Level
+!No Bonus
+!Easy Bonus
+!Medium Bonus
+!Rarity
+|-
+|[[Animated Bronze Armour]]
+|11
+|5
+|10
+|15
+|Always
+|-
+|[[Animated Iron Armour]]
+|23
+|10
+|20
+|30
+|Always
+|-
+|[[Animated Steel Armour]]
+|46
+|15
+|30
+|45
+|Always
+|-
+|[[Animated Black Armour]]
+|69
+|20
+|40
+|60
+|Always
+|-
+|[[Animated Mithril Armour]]
+|92
+|25
+|50
+|75
+|Always
+|-
+|[[Animated Adamant Armour]]
+|113
+|30
+|60
+|90
+|Always
+|-
+|[[Animated Rune Armour]]
+|138
+|40
+|80
+|120
+|Always
+|-
+|[[Warriors' Guild#Catapult room|Catapult]]
+|
+|1
+|2
+|3
+|Always
+|-
+|[[Warriors' Guild#Shot put room|Shot put]] (18lb)
+|
+|2–15
+|4–30
+|6–45
+|[[Calculator:Shot_put|Calculator]]
+|-
+|[[Warriors' Guild#Shot put room|Shot put]] (22lb)
+|
+|4–17
+|8–34
+|12–51
+|[[Calculator:Shot_put|Calculator]]
+|-
+|[[Warriors' Guild#Dummy room|Dummy room]]
+|
+|2
+|4
+|6
+|Always
+|}
+
+{{Drop sources|Warrior guild token}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Warrior guild token 1 detail.png|One warrior guild token
+Warrior guild token 2 detail.png|Two warrior guild tokens
+Warrior guild token 3 detail.png|Three warrior guild tokens
+Warrior guild token 4 detail.png|Four warrior guild tokens
+Warrior guild token detail.png|Five warrior guild tokens
+</gallery>
+
+{{Currencies}}
+{{Warriors' Guild}}

@@ -1,0 +1,48 @@
+dump          : C:/Users/mrobe/.claude/jobs/6a36cf9a/tmp/out_eipbake/E0-d3d9zb.eip.txt
+binary        : dist/win32/torirs.exe
+module base   : 0x00400000   (nm range 0x00401000-0x0083f9b0)
+samples       : 7118 over 23.8 s (299 Hz), 5229 in image (73.5%), 0 suspend failures
+
+=== inside the executable ===
+  samples   share   at  16.0ms  symbol
+------------------------------------------------------------------------------
+      931   13.08%    2.093 ms  _d3d9_draw_model.lto_priv.0
+      432    6.07%    0.971 ms  _d3d9_ui_draw_sprite.lto_priv.0
+      278    3.91%    0.625 ms  _app_plugin_highlights_rebuild_pools
+      241    3.39%    0.542 ms  _emit_walk_node
+      237    3.33%    0.533 ms  _toridraw_project_vertices_noclip_portable.isra.0
+      233    3.27%    0.524 ms  _ToriDraw_AnimApplyTransform
+      201    2.82%    0.452 ms  _ToriDraw_Project.lto_priv.0
+      195    2.74%    0.438 ms  _App_BuildFrame.part.0
+      195    2.74%    0.438 ms  _ToriRS_FrameNextCommand
+      185    2.60%    0.416 ms  _trspk_toridraw_bake_face.constprop.0
+      159    2.23%    0.357 ms  _ToriDraw_CalculateCylinderAabb8point.isra.0
+      155    2.18%    0.348 ms  _d3d9_draw_retained
+      154    2.16%    0.346 ms  _World_CycleRegisterPainterDynamics.lto_priv.0
+      145    2.04%    0.326 ms  _scene_occluders_ground_tile_hidden
+      110    1.55%    0.247 ms  _ToriDraw_ComputeProjectedFaceOrderSmall.lto_priv.0
+       80    1.12%    0.180 ms  _hit_test_interactive_recursive.constprop.0
+       78    1.10%    0.175 ms  _d3d9_bake_pose_vertices
+       55    0.77%    0.124 ms  _app_world_frame.constprop.0
+       54    0.76%    0.121 ms  _d3d9_ui_append_quad_vertices.part.0.lto_priv.0
+       49    0.69%    0.110 ms  _d3d9_end_3d.lto_priv.0
+       46    0.65%    0.103 ms  _app_ui_host_publish_inputs.constprop.0
+       46    0.65%    0.103 ms  _PlatformXIOJs5Cache_Tick
+       44    0.62%    0.099 ms  _CS2VM2_RunOp
+       39    0.55%    0.088 ms  _get_next_block.lto_priv.0
+       32    0.45%    0.072 ms  _trspk_toridraw_face_colors
+       32    0.45%    0.072 ms  _UITree_FindByComponentId
+       31    0.44%    0.070 ms  _interactive_render_present.constprop.0
+       31    0.44%    0.070 ms  ___umoddi3
+
+=== outside the executable (64 KB pages, DLL granularity) ===
+  samples   share   at  16.0ms  symbol
+------------------------------------------------------------------------------
+      986   13.85%    2.216 ms  ntdll.dll
+      768   10.79%    1.726 ms  msvcrt.dll
+       97    1.36%    0.218 ms  d3d9.dll
+       32    0.45%    0.072 ms  kernel32.dll
+        3    0.04%    0.007 ms  GDI32.dll
+        1    0.01%    0.002 ms  mswsock.dll
+        1    0.01%    0.002 ms  WS2HELP.dll
+        1    0.01%    0.002 ms  WS2_32.dll

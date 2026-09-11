@@ -1,0 +1,51 @@
+{{Confuse|Monumental chest}}
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Opened
+|name = Chest
+|image1 = [[File:Chest (Theatre of Blood, closed).png]]
+|image2 = [[File:Chest (Theatre of Blood).png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|location = [[Theatre of Blood]]
+|options1 = Open
+|options2 = Search
+|examine = Maybe there's something nice in here for you.
+|map = {{Map|x:3269,y:4449|plane=0|mapID=-1|mtype=pin}}
+|id1 = 32758
+|id2 = 32759
+|leagueRegion = Morytania
+}}
+A '''chest''' containing supplies can be found in the [[Theatre of Blood]]. It is accessible twice per raid — once after killing the [[Pestilent Bloat]], and once after killing [[Sotetseg]]. It supplies players with different supplies provided by entertained vampyres, purchasable with points earned in the Theatre. Depending on the player's performance, the amount of points a player is given can range from 6 to 13. The points earned from the first chest can carry over to the second chest within the Theatre. 
+
+==Stock==
+{{StoreTableHead|hidebuy=yes|hidestock=y|hiderestock=y|hidecaption=y|currency=Points|column1=GP per point}}
+{{StoreLine|stock=∞|buy=N/A|name=Stamina potion(4)|displayname=Stamina potion(4) {{Refn|Only one is purchasable per chest.|group=c}}|sell=1|column1={{Coins|{{GEP|Stamina potion(4)}}}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Prayer potion(4)|sell=2|column1={{Coins|{{GEP|Prayer potion(4)}}/2}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Saradomin brew(4)|sell=3|column1={{Coins|{{GEP|Saradomin brew(4)}}/3}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Super restore(4)|sell=3|column1={{Coins|{{GEP|Super restore(4)}}/3}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Mushroom potato|sell=1|column1={{Coins|{{GEP|Mushroom potato}}}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Shark|sell=1|column1={{Coins|{{GEP|Shark}}}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Sea turtle|sell=2|column1={{Coins|{{GEP|Sea turtle}}/2}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Manta ray|sell=2|column1={{Coins|{{GEP|Manta ray}}/2}}}}
+{{StoreLine|stock=∞|buy=N/A|name=Message (Theatre of Blood)|displayname=Message {{Refn|Message given depends on performance.|group=c}}|sell=N/A|column1=N/A}}
+{{StoreLine|stock=∞|buy=N/A|name=Onion|displayname=Onion {{Refn|Given in place of all other rewards if the player dies at both Maiden of Sugadinti and Pestilent Bloat or Nylocas and Sotetseg.|group=c}}|sell=N/A|column1=N/A}}
+{{StoreLine|stock=∞|buy=N/A|name=Bandages (Theatre of Blood)|displayname=Bandages {{Refn|10 are given in Entry Mode in place of all other supplies.|group=c}}|sell=N/A|column1=N/A}}
+{{StoreTableBottom}}
+{{Reflist|group=c}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|change =
+* When using mid-raid chests, you can select from previous quantities of a particular item you have bought, rather than inputting the number every time.
+* Players can now only buy one stamina potion from mid-level chests. This is to discourage players from obtaining an excessive amount of stamina potions.
+}}
+{{Subject changes footer}}
+
+{{Theatre of Blood}}
+[[Category:Shops]]

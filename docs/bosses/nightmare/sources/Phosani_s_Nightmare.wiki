@@ -1,0 +1,221 @@
+{{Instance|irs=Sister Senga|cost=60000}}
+{{HasStrategy}}
+{{Switch infobox
+|text1 = Active
+|item1 =
+{{Infobox Monster
+|name = Phosani's Nightmare
+|image = [[File:The Nightmare.png|250px]]
+|release = [[30 June]] [[2021]]
+|update = Phosani's Nightmare
+|members = Yes
+|combat = 1024
+|size = 5
+|examine = Sweet dreams are most definitely not made of this.
+|xpbonus = 0
+|max hit = 73 (melee), 80 (magic/ranged), ~85 (dash)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]], [[Ranged]], [[Magic]]
+|attack speed = 6
+|hitpoints = 3200
+|att = 150
+|str = 150
+|def = 150
+|mage = 150
+|range = 150
+|attbns = 220
+|strbns = 274
+|amagic = 220
+|mbns = 162
+|arange = 220
+|rngbns = 162
+|dstab = 120
+|dslash = 180
+|dcrush = 40
+|dmagic = 600
+|dlight = 600
+|dstandard = 600
+|dheavy = 600
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|freezeresistance = 100
+|id = 9416,9417,9418,9419,9420,9421,9422,9424,11153,11154,11155
+|leagueRegion = Morytania
+}}
+|text2 = Idle
+|item2 = 
+{{Infobox NPC
+|name = Phosani's Nightmare
+|image = [[File:The Nightmare (idle).png|250px]]
+|release = [[30 June]] [[2021]]
+|update = Phosani's Nightmare
+|level = 1,024
+|members = Yes
+|race = Unknown
+|location = [[Sisterhood Sanctuary]]
+|examine = Sweet dreams are most definitely not made of this.
+|map = No
+|id = 377,9423
+|leagueRegion = Morytania
+}}}}
+'''Phosani's Nightmare''' is a more difficult version of [[The Nightmare]], encountered by selecting ''Drink-from'' on the [[Pool of Nightmares]] in the [[Sisterhood Sanctuary]]. 
+
+Phosani's Nightmare can only be fought alone, and the game encourages the player to have at least one normal Nightmare kill before attempting Phosani's Nightmare; trying to attempt the boss without any Nightmare kill count will result in an initial warning advising the player to do so, though they may ignore it and proceed to the boss fight.
+
+Compared to fighting the Nightmare solo, Phosani's Nightmare is significantly faster, with little damage being taken if players master the fight's mechanics, though far more punishing when mistakes are made. Although the boss itself has a lower drop rate for uniques compared to the original, it makes up for it with its faster kill times and increased quantities of normal drops.{{CiteNews|url=https://secure.runescape.com/m=news/phosanis-nightmare-poll-blog?oldschool=1|title=Phosani's Nightmare: Poll Blog|newsdate=10 May 2021|quote=}} It also possesses two unique drops the original lacks; the [[Slepey tablet]], which allows players to access the Nightmare even quicker, and the [[parasitic egg]], an item that unlocks a cosmetic skin for the [[Little Nightmare]].
+
+==Difference in mechanics==
+{{See also|Phosani's Nightmare/Strategies}}
+There are notable differences in mechanics compared to the regular Nightmare encounter:
+* Standard attacks hit significantly higher, but successfully praying against them will fully block the attack.
+* Special attacks and minions are stronger and some are used in combination with one another: for example, spores are always summoned before six consecutive claw attacks.
+** Phosani's Nightmare will use multiple consecutive claw attacks in conjunction with Flower Power or Spores.
+** The spores slow the player's attack speed by 2 ticks instead of 1 (doubled if maging), and they also drain 6 prayer points every time the player yawns.
+* Crush weapons will always deal their maximum hit against [[Husk (Phosani's Nightmare)|husks]] and weakened [[Parasite (Phosani's Nightmare)|parasites]].
+* There are four phases instead of three: 3 phases of 400 shield durability and 1 phase of 150 health, along with 3 sets of totems (12 in total) with 200 charge. In total, the player has to deal 1,350 physical damage and 1,200 charge damage (using magic) for a total of 2,550 damage in Phosani's encounter. The original fight, in comparison, requires 7,800 damage (3 phases each of 2,000 shield durability and 600 charge damage (using magic)), making kills ~3x faster on average.
+* After each phase, the number of sleepwalkers spawned increases by one, capping at 4 at the end of the third phase, whereas the original fight has sleepwalkers scale to the amount of players present (still 1 for solo).
+* Phases 1-3 use a set rotation of specials taken from the original encounter.
+* In phase 3, Phosani's Nightmare will deactivate the player's protection prayer if they had already had the prayer active before the attack. She also has an increased chance of attacking with melee.
+* In phase 4, the "desperation phase", she indefinitely performs Grasping Claws and summons sleepwalkers until killed. One sleepwalker is summoned at a time; should they reach her, she will unleash a blast causing 15 damage.
+
+==Money making==
+{{Mmgsection|Killing Phosani's Nightmare}}
+
+==Drops==
+{{DropLogProject|kills=651229}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Uniques===
+''With each kill, Phosani's Nightmare has a chance to roll two unique drop tables, one containing the armour, mace, and staff, and one containing the orbs; both table rolls can be successful with each kill. The armour, mace, and staff drop table has a 1/140{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1489188443484323900|date=2 April 2026|quote=it appears to be 1/140.|ctxquote=I did the math, and the numbers didn't add up to those of the newspost. [...] Can this 7/1000 number be confirmed or corrected?|name=Inquisitor/staff table rate}} chance to roll. The orb drop table has a ~1/533 chance to roll. There is an effective chance of ~1/111 to receive any item. On the armour, mace, and staff drop table, there's a 1/10 chance to roll the mace, a 2/10 chance to roll an individual armour piece, and a 3/10 chance to roll the staff. If the staff was rolled, there is a 8/100 chance of switching to the mace.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1488822050587152434|date=1 April 2026|quote=Once it's decided that it will drop a unique from the inquisitor / staff list, it picks one as follows:
+20% helm, 20% body, 20% skirt, 10% mace, 30% staff
+Then, if it picked the staff, it has an 8/100 chance of switching it to a mace.|name=Staff to mace reroll}} The effective droprates are listed in the table below.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Nightmare staff|quantity=1|rarity=69/35000}}
+{{DropsLine|name=Inquisitor's great helm|quantity=1|rarity=1/700}}
+{{DropsLine|name=Inquisitor's hauberk|quantity=1|rarity=1/700}}
+{{DropsLine|name=Inquisitor's plateskirt|quantity=1|rarity=1/700}}
+{{DropsLine|name=Inquisitor's mace|quantity=1|rarity=31/35000}}
+{{DropsLine|name=Eldritch orb|quantity=1|rarity=1/1600}}
+{{DropsLine|name=Harmonised orb|quantity=1|rarity=1/1600}}
+{{DropsLine|name=Volatile orb|quantity=1|rarity=1/1600}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Cosmic rune|quantity=247-420|rarity=4/100}}
+{{DropsLine|name=Nature rune|quantity=165-305|rarity=4/100}}
+{{DropsLine|name=Death rune|quantity=165-305|rarity=4/100}}
+{{DropsLine|name=Blood rune|quantity=343-765|rarity=4/100}}
+{{DropsLine|name=Soul rune|quantity=110-228|rarity=4/100}}
+{{DropsLine|name=Steel cannonball|quantity=137-382|rarity=4/100}}
+{{DropsLine|name=Rune arrow|quantity=412-957|rarity=3/100}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Mithril ore|quantity=165-305 (noted)|rarity=5/100}}
+{{DropsLine|name=Coal|quantity=220-458 (noted)|rarity=4/100}}
+{{DropsLine|name=Gold ore|quantity=165-305 (noted)|rarity=4/100}}
+{{DropsLine|name=Adamantite ore|quantity=40-95 (noted)|rarity=4/100}}
+{{DropsLine|name=Magic logs|quantity=40-95 (noted)|rarity=4/100}}
+{{DropsLine|name=Grimy cadantine|quantity=13-26 (noted)|rarity=4/100}}
+{{DropsLine|name=Grimy torstol|quantity=13-26 (noted)|rarity=4/100}}
+{{DropsLine|name=Snapdragon seed|quantity=5-10|rarity=3/100}}
+{{DropsLine|name=Uncut emerald|quantity=33-75 (noted)|rarity=3/100}}
+{{DropsLine|name=Uncut ruby|quantity=27-60 (noted)|rarity=3/100}}
+{{DropsLine|name=Runite ore|quantity=11-26 (noted)|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Bass|quantity=16-29|rarity=6/100}}
+{{DropsLine|name=Shark|quantity=13-26|rarity=6/100}}
+{{DropsLine|name=Prayer potion(3)|quantity=8-15|rarity=5/100}}
+{{DropsLine|name=Sanfew serum(3)|quantity=6-12|rarity=5/100}}
+{{DropsLine|name=Saradomin brew(3)|quantity=8-15|rarity=5/100}}
+{{DropsLine|name=Zamorak brew(3)|quantity=8-15|rarity=5/100}}
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=41417-74500|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/35|raritynotes={{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1434788551535865856|date=6 September 2021|name=unique|archiveurl = https://reldo.runescape.wiki/i/103806 |archivedate=6 September 2021 |quote=Some Phosani rates, since I said I would... Pet - 1/1400. Jar - 1/4000. Egg - 1/200. Clue - 1/35}}}}
+{{DropsLine|name=Slepey tablet|quantity=1|rarity=1/25|raritynotes={{refn|group=d|In addition to having a 1/25 chance to drop, players will '''always''' receive the tablet on their 25th kill. Players that already have more than 25 kill count, or have managed to lose their slepey tablet without using it, will receive it on their next kill.}}|gemw=No}}
+{{DropsLine|name=Parasitic egg|quantity=1|rarity=1/200|raritynotes={{NamedRef|unique}}}}
+{{DropsLine|name=Little Nightmare|quantity=1|rarity=1/1400|raritynotes={{NamedRef|unique}}}}
+{{DropsLine|name=Jar of Dreams|quantity=1|rarity=1/4000|raritynotes={{NamedRef|unique}}}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Phosani's Nightmare}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* Players who die during the encounter will now respawn by the [[Pool of Nightmares]] rather than their respawn point.
+* The first phase of the encounter has been removed; as such, the required kill time for [[Phosani's Speedchaser]] and [[Phosani's Speedrunner]] have both been reduced by 1:30.
+* The drop rate of the [[Slepey tablet]] has been increased from 1/100 to 1/25, with the guaranteed drop adjusted alongside it to the 25th kill.
+}}
+{{Subject changes
+|date = 7 August 2024
+|update = Poll 82 Changes
+|change = The despawn time for items dropped to the ground in Phosani's Nightmare has been increased.
+}}
+{{Subject changes
+|change = Improved Phosani's Nightmare’s drop rates.
+|update = Project Rebalance: Combat Changes
+|date = 29 May 2024
+}}
+{{Subject changes
+|date = 12 April 2023
+|update = Desert Treasure II Rewards Beta
+|poll = Old School Content Poll 79: Quality of Life
+|change = The Slepey tablet drop is now guaranteed on the 100th kill. Players that already have more than 100 kill count, or have managed to lose their slepey tablet without using it, will receive it on their next kill.
+}}
+{{Subject changes
+|date = 13 August 2022
+|update = LMS Game Modes: Pures & Zerks
+|change = Sister Senga will now allow players to fight Phosani's Nightmare without having to defeat The Nightmare first.
+}}
+{{Subject changes footer}}
+
+==Development history==
+Phosani's Nightmare was {{UD|Phosani's Nightmare and Tinted Hitsplats|initially released}} as a competition lasting one week from 5 March 2020, allowing players to win free membership and signed artwork. Like the currently existing Phosani's Nightmare, it had more punishing mechanics and could only be fought solo, although it did not have reduced health, reduced damage when fought correctly, or phase randomisation. Its loot table was unchanged from the regular encounter.
+
+*Its standard magic and ranged attacks could hit up to 90, while its slashing attack could hit up to 115.
+*The Grasping Claws and Surge attack would instantly kill the player if hit.
+*The spores would slow attack speed by 2 ticks, and last longer.
+*Two sleepwalkers spawned instead of one.
+*The husks were much more accurate and dealt more damage.
+*Parasites could heal Phosani's Nightmare over 100 health, even when weakened. In addition, the damage taken when it burst out was 10 instead of 5, even when weakened.
+*The Curse attack shuffled the protection prayers by one to the left rather than the right: clicking on Protect from Magic activated Protect from Melee, Protect from Missiles activated Protect from Magic and Protect from Melee activated Protect from Missiles.
+
+The encounter was later offered in a [[Update:Phosani's Nightmare: Poll Blog|poll blog]] on 4 May 2021, as a piece of end-game content that would take less development time to create than a brand new boss. The boss was then polled in [[Poll:Phosani's Nightmare Poll|Phosani's Nightmare Poll]] and passed with 89.1% support.
+
+==Trivia==
+*Phosani's Nightmare's examine text is a reference to the song ''{{WP|Sweet Dreams (Are Made of This)}}'' by British pop duo {{WP|Eurythmics}}.
+*Phosani's Nightmare had a festive override wearing a [[red partyhat]] during the [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+
+==References==
+{{Reflist}}
+
+{{The Nightmare}}
+{{Bosses}}
+[[Category:The Nightmare|  ]]

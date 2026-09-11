@@ -1,0 +1,178 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Bake Pie
+|image = [[File:Bake Pie.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 65
+|spellbook = Lunar
+|type = Utility
+|exp = 60
+|cost = {{RuneReq|Astral=1|Fire=5|Water=4}}
+|speed = 3 ticks
+|description = Bake pies without a stove
+|anim = [[File:Bake Pie.gif|200pxpx]]
+|sound = [[File:Bake Pie.ogg]]
+}}
+[[File:Bake Pie icon (mobile).png|left]]
+The [[Lunar spell]] '''Bake Pie''' cooks uncooked [[pies]] in the player's inventory automatically, one by one, without the risk of burning them. The player must still have the [[Cooking]] level required for the spell to work on the pie ([[Cooking boost|boosts]] may be used). The usual Cooking [[experience]] is granted for each pie baked with this spell.
+
+Once cast, Bake Pie will automatically cook each pie in the inventory. However, one set of [[runes]] is required for '''each''' pie.
+
+This spell works for completing the elite Varrock diary task for baking a [[summer pie]].
+
+''As with all [[Lunar spells]], the [[Lunar Diplomacy]] [[quest]] must be completed to cast this spell.''
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 1
+|Rune2 = Water
+|Rune2num = 4
+|Rune3 = Fire
+|Rune3num = 5
+|Staff1 = water
+|Staff2 = fire
+}}
+
+==Cost analysis==
+*Cost analysis assumes that only one [[Astral rune]] will be used per cast; this can be achieved with:
+**a [[twinflame staff]] or [[steam battlestaff]], or any of its variants
+**a [[tome of water]] + any staff which provides unlimited [[fire rune]]s
+**a [[tome of fire]] + any staff which provides unlimited [[water rune]]s
+*All profit/loss calculations are on a '''per pie''' basis
+{|class="wikitable sortable"
+!colspan="2"|Item
+!Cooking<br/>Level
+!XP
+!Materials Required
+!Material Cost
+!Profit/Loss
+!GP/XP<br/>{{SCP|Magic}}
+!GP/XP<br/>{{SCP|Cooking}}
+!GP/XP<br/>{{SCP|Magic}} + {{SCP|Cooking}}
+|-
+|{{plinkt|Uncooked berry pie}} > [[Redberry pie]]
+|{{SCP|Cooking|10|sort=yes}}
+|{{SCP|Cooking|78|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked berry pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked berry pie}}}}
+|{{Coins|{{GEP|Redberry pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked berry pie}}}}
+|{{Coins|({{GEP|Redberry pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked berry pie}})/60}}
+|{{Coins|({{GEP|Redberry pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked berry pie}})/78}}
+|{{Coins|({{GEP|Redberry pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked berry pie}})/(60+78)}}
+|-
+|{{plinkt|Uncooked meat pie}} > [[Meat pie]]
+|{{SCP|Cooking|20|sort=yes}}
+|{{SCP|Cooking|110|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked meat pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked meat pie}}}}
+|{{Coins|{{GEP|Meat pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked meat pie}}}}
+|{{Coins|({{GEP|Meat pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked meat pie}})/60}}
+|{{Coins|({{GEP|Meat pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked meat pie}})/110}}
+|{{Coins|({{GEP|Meat pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked meat pie}})/(60+110)}}
+|-
+|{{plinkt|Raw mud pie}} > [[Mud pie]]
+|{{SCP|Cooking|29|sort=yes}}
+|{{SCP|Cooking|128|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw mud pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw mud pie}}}}
+|{{Coins|{{GEP|Mud pie}}-{{GEP|Astral rune}}-{{GEP|Raw mud pie}}}}
+|{{Coins|({{GEP|Mud pie}}-{{GEP|Astral rune}}-{{GEP|Raw mud pie}})/60}}
+|{{Coins|({{GEP|Mud pie}}-{{GEP|Astral rune}}-{{GEP|Raw mud pie}})/128}}
+|{{Coins|({{GEP|Mud pie}}-{{GEP|Astral rune}}-{{GEP|Raw mud pie}})/(60+128)}}
+|-
+|{{plinkt|Uncooked apple pie}} > [[Apple pie]]
+|{{SCP|Cooking|30|sort=yes}}
+|{{SCP|Cooking|130|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked apple pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked apple pie}}}}
+|{{Coins|{{GEP|Apple pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked apple pie}}}}
+|{{Coins|({{GEP|Apple pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked apple pie}})/60}}
+|{{Coins|({{GEP|Apple pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked apple pie}})/130}}
+|{{Coins|({{GEP|Apple pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked apple pie}})/(60+130)}}
+|-
+|{{plinkt|Raw garden pie}} > [[Garden pie]]
+|{{SCP|Cooking|34|sort=yes}}
+|{{SCP|Cooking|138|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw garden pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw garden pie}}}}
+|{{Coins|{{GEP|Garden pie}}-{{GEP|Astral rune}}-{{GEP|Raw garden pie}}}}
+|{{Coins|({{GEP|Garden pie}}-{{GEP|Astral rune}}-{{GEP|Raw garden pie}})/60}}
+|{{Coins|({{GEP|Garden pie}}-{{GEP|Astral rune}}-{{GEP|Raw garden pie}})/138}}
+|{{Coins|({{GEP|Garden pie}}-{{GEP|Astral rune}}-{{GEP|Raw garden pie}})/(60+138)}}
+|-
+|{{plinkt|Raw fish pie}} > [[Fish pie]]
+|{{SCP|Cooking|47|sort=yes}}
+|{{SCP|Cooking|164|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw fish pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw fish pie}}}}
+|{{Coins|{{GEP|Fish pie}}-{{GEP|Astral rune}}-{{GEP|Raw fish pie}}}}
+|{{Coins|({{GEP|Fish pie}}-{{GEP|Astral rune}}-{{GEP|Raw fish pie}})/60}}
+|{{Coins|({{GEP|Fish pie}}-{{GEP|Astral rune}}-{{GEP|Raw fish pie}})/164}}
+|{{Coins|({{GEP|Fish pie}}-{{GEP|Astral rune}}-{{GEP|Raw fish pie}})/(60+164)}}
+|-
+|{{plinkt|Uncooked botanical pie}} > [[Botanical pie]]
+|{{SCP|Cooking|52|sort=yes}}
+|{{SCP|Cooking|180|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked botanical pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked botanical pie}}}}
+|{{Coins|{{GEP|Botanical pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked botanical pie}}}}
+|{{Coins|({{GEP|Botanical pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked botanical pie}})/60}}
+|{{Coins|({{GEP|Botanical pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked botanical pie}})/180}}
+|{{Coins|({{GEP|Botanical pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked botanical pie}})/(60+180)}}
+|-
+|{{plinkt|Uncooked mushroom pie}} > [[Mushroom pie]]
+|{{SCP|Cooking|60|sort=yes}}
+|{{SCP|Cooking|200|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked mushroom pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked mushroom pie}}}}
+|{{Coins|{{GEP|Mushroom pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked mushroom pie}}}}
+|{{Coins|({{GEP|Mushroom pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked mushroom pie}})/60}}
+|{{Coins|({{GEP|Mushroom pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked mushroom pie}})/200}}
+|{{Coins|({{GEP|Mushroom pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked mushroom pie}})/(60+200)}}
+|-
+|{{plinkt|Raw admiral pie}} > [[Admiral pie]]
+|{{SCP|Cooking|70|sort=yes}}
+|{{SCP|Cooking|210|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw admiral pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw admiral pie}}}}
+|{{Coins|{{GEP|Admiral pie}}-{{GEP|Astral rune}}-{{GEP|Raw admiral pie}}}}
+|{{Coins|({{GEP|Admiral pie}}-{{GEP|Astral rune}}-{{GEP|Raw admiral pie}})/60}}
+|{{Coins|({{GEP|Admiral pie}}-{{GEP|Astral rune}}-{{GEP|Raw admiral pie}})/210}}
+|{{Coins|({{GEP|Admiral pie}}-{{GEP|Astral rune}}-{{GEP|Raw admiral pie}})/(60+210)}}
+|-
+|{{plinkt|Uncooked dragonfruit pie}} > [[Dragonfruit pie]]
+|{{SCP|Cooking|73|sort=yes}}
+|{{SCP|Cooking|220|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Uncooked dragonfruit pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Uncooked dragonfruit pie}}}}
+|{{Coins|{{GEP|Dragonfruit pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked dragonfruit pie}}}}
+|{{Coins|({{GEP|Dragonfruit pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked dragonfruit pie}})/60}}
+|{{Coins|({{GEP|Dragonfruit pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked dragonfruit pie}})/220}}
+|{{Coins|({{GEP|Dragonfruit pie}}-{{GEP|Astral rune}}-{{GEP|Uncooked dragonfruit pie}})/(60+220)}}
+|-
+|{{plinkt|Raw wild pie}} > [[Wild pie]]
+|{{SCP|Cooking|85|sort=yes}}
+|{{SCP|Cooking|240|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw wild pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw wild pie}}}}
+|{{Coins|{{GEP|Wild pie}}-{{GEP|Astral rune}}-{{GEP|Raw wild pie}}}}
+|{{Coins|({{GEP|Wild pie}}-{{GEP|Astral rune}}-{{GEP|Raw wild pie}})/60}}
+|{{Coins|({{GEP|Wild pie}}-{{GEP|Astral rune}}-{{GEP|Raw wild pie}})/240}}
+|{{Coins|({{GEP|Wild pie}}-{{GEP|Astral rune}}-{{GEP|Raw wild pie}})/(60+240)}}
+|-
+|{{plinkt|Raw summer pie}} > [[Summer pie]]
+|{{SCP|Cooking|95|sort=yes}}
+|{{SCP|Cooking|260|sort=yes}}<br/>{{SCP|Magic|60}}
+|{{RuneReq|Astral=1}} {{Plinkp|Raw summer pie}}
+|{{Coins|{{GEP|Astral rune}}+{{GEP|Raw summer pie}}}}
+|{{Coins|{{GEP|Summer pie}}-{{GEP|Astral rune}}-{{GEP|Raw summer pie}}}}
+|{{Coins|({{GEP|Summer pie}}-{{GEP|Astral rune}}-{{GEP|Raw summer pie}})/60}}
+|{{Coins|({{GEP|Summer pie}}-{{GEP|Astral rune}}-{{GEP|Raw summer pie}})/260}}
+|{{Coins|({{GEP|Summer pie}}-{{GEP|Astral rune}}-{{GEP|Raw summer pie}})/(60+260)}}
+|}
+
+{{Lunar spellbook}}
+{{Utility spells}}

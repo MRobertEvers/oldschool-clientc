@@ -4,7 +4,7 @@
  * Included from painters.c — do not compile as a separate translation unit.
  *
  * Derivation (camera at origin, pitch/yaw applied, perspective screen =
- * (coord * focal) / z with focal = the camera's proj_scale):
+ * (coord * focal) / z with focal = the camera's projection_scale):
  *   u = X cosYaw + Z sinYaw
  *   v = Z cosYaw - X sinYaw
  *   Y sampled in [Y0, Y1] = eye_height + [y_lo, y_hi]
@@ -173,8 +173,8 @@ painters_cullspan_build(
      * actually use, or this culls tiles that would have drawn (and keeps ones
      * that would not). Same single knob as ToriDraw_Camera, resolved by the
      * same helper, so there is no second copy of the rule to drift. */
-    focal = (double)toridraw_proj_scale_from_cot16(
-        toridraw_proj_cot16(p->proj_mode, p->proj_scale, p->fov_rpi2048));
+    focal = (double)toridraw_projection_scale_from_cot16(
+        toridraw_projection_cot16(p->projection_mode, p->projection_scale, p->fov_rpi2048));
 
     a = ((double)p->screen_width * 0.5) / focal;
     b = ((double)p->screen_height * 0.5) / focal;

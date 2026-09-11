@@ -35,7 +35,7 @@ marker, so a hand-written header survives a regeneration — which is exactly wh
 **Output goes to the server's allocation ledger, `pack/<ns>.alloc`** — never to
 `configs/all.<ns>.compack`, which is the cache's member index and the file
 `cachepack unpack` regenerates. The two are layers of one namespace: every
-reader (mock230_content.c, ssc_symbols.c, cachepack's cp_names.c) loads the
+reader (torirs_server_content.c, ssc_symbols.c, cachepack's cp_names.c) loads the
 compack and then the ledger, and refuses a name bound in both. This tool used
 to append below a marker *inside* the compack, which meant every server feature
 edited a client-side file and `--gamevals` carried the server's dbrow names
@@ -82,13 +82,19 @@ MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-
 # conclusion drawn at the time was "content cannot own this rule", which is
 # exactly backwards — see docs/CONTENT_ARCHITECTURE.md §8.2(c).
 SERVER_NAMESPACES = (
-    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv',
+    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv', 'varn',
     # `varp` is here because the `ids` axis was retired, and it is the ONLY
     # namespace that axis ever contributed — measured against the tree, not
     # assumed. It is swept so content can declare the `%com_*` combat stat block
     # the reference computes in `[proc,player_combat_stat]`; before the promotion
     # no tool would hand those varps an id.
     'varp',
+    # `vars` — world-shared variables — is swept because the cache names none of
+    # them. There is no `vars` config group to layer over, so unlike every other
+    # namespace here the alloc ledger IS the namespace: a `[block]` with no line
+    # in `pack/vars.alloc` resolves to nothing at all, and `%name = 1` fails to
+    # compile rather than writing somewhere wrong.
+    'vars',
 )
 
 
@@ -127,7 +133,7 @@ def server_namespaces(tree):
 
 # The four namespaces whose names do NOT live beside a config archive.
 #
-# This mirrors `pack_kind_is_config()` in src/net/mock/mock230_content.c and has to:
+# This mirrors `pack_kind_is_config()` in src/torirsserver/torirs_server_content.c and has to:
 # the runtime reads `pack/<ns>.pack` for these and `configs/all.<ns>.compack` for
 # everything else, so a file written to the other location is a file nothing reads.
 #
@@ -135,7 +141,7 @@ def server_namespaces(tree):
 # was armed. Promoting `category` so the 20 LostCity-only npc categories can get an
 # id (docs/LOSTCITY_PORT_TRIAGE.md §16.7) is a one-line change to content.ini, and
 # the moment it landed this tool would have created `configs/all.category.compack`
-# while `pack/category.pack` — the file both mock230 and sscompile load — stayed
+# while `pack/category.pack` — the file both ToriRSServer and sscompile load — stayed
 # untouched. Two authorities, silent disagreement; docs/CONTENT_ARCHITECTURE.md
 # §8.2(c) for the third time.
 NON_CONFIG_NAMESPACES = ('3_interfaces', 'component', 'stat', 'category')
@@ -187,6 +193,37 @@ def read_pack(path):
     return raw, mapping
 
 
+def ported_layers(tree, ns):
+    """Every imported lane's symbol file for `ns`, in lane order.
+
+    An imported lane mints ids of its own, outside the rank-0 cache's member
+    compacks, and states them in `ported/<lane>/pack/<ns>.alloc` beside
+    `ported/<lane>/configs/all.<ns>.compack`. Every other reader already layers
+    them over the ordinary symbols — `torirs_server_content.c: load_ported_pack_symbols`,
+    `cp_names.c: cp_names_load_ported_allocs`, and sscompile's `--pack` list — so
+    this tool has to see them too, or it allocates a *second* id for a name a lane
+    has already bound.
+
+    Which is what it did: `prayer_curses_0` is varp 5705 in
+    `ported/rs558_ancient_curses`, and this tool, seeing only the base tree,
+    appended `6353=prayer_curses_0` to `pack/varp.alloc`. Both readers then
+    refused the tree — 2 of the 15 content load errors that failed
+    `ToriRSServer --selftest`'s "the content tree should load clean" — and
+    `make torirsserver-servpack` would not pack at all.
+    """
+    root = os.path.join(tree, 'ported')
+    if not os.path.isdir(root):
+        return []
+    layers = []
+    for lane in sorted(os.listdir(root)):
+        if lane.startswith('.') or not os.path.isdir(os.path.join(root, lane)):
+            continue
+        lane_tree = os.path.join(root, lane)
+        layers.append(pack_path(lane_tree, ns))
+        layers.append(alloc_path(lane_tree, ns))
+    return layers
+
+
 def other_layers(tree, ns):
     """({name: id}, highest_id) for every layer this tool does not own.
 
@@ -200,14 +237,17 @@ def other_layers(tree, ns):
     - **the high-water mark**, which has to be the highest id *anyone* claims.
       Reading only the current location would allocate on top of ids a previous
       layout had already given out.
+
+    "Anyone" includes the imported lanes — see `ported_layers`. Their bands sit
+    below the base ledger's mark in every server-owned namespace today, so
+    counting them costs no id; what it buys is that a lane band which grows past
+    the mark cannot be allocated over.
     """
     known = {}
     highest = -1
-    for layer in (pack_path(tree, ns),):
+    for layer in [pack_path(tree, ns)] + ported_layers(tree, ns):
         if not os.path.exists(layer):
             continue
-        # (kept as a loop: the cache layer used to be several files, and a
-        # future one — a second ledger, say — slots in here.)
         with open(layer, encoding='utf-8', errors='replace') as handle:
             for line in handle:
                 line = line.strip()
@@ -252,9 +292,9 @@ def register_bases():
     authority in fact, and nothing compared them. What that cost, measured:
     `struct` reads 8000 in the register and the allocator would have handed out
     6500; `varp` read 8000 while nineteen server varps already sat at 5705..5723,
-    and 8000 is past `MOCK230_VARP_COUNT` (6217), so the first varp allocated at
+    and 8000 is past `TORIRSSERVER_VARP_COUNT` (6217), so the first varp allocated at
     the declared floor would have been silently dropped by
-    `mock230_world_set_varp`'s bounds check — docs/CONTENT_ARCHITECTURE.md §8.3's
+    `ToriRSServer_WorldSetVarp`'s bounds check — docs/CONTENT_ARCHITECTURE.md §8.3's
     named failure mode, re-armed.
 
     Read, not restated. The path is derived from this file's own location because
@@ -279,7 +319,7 @@ def declared_base(tree, ns, bases=None):
     the floor is where *ours* start, so an id in a log reads as ours at a glance.
     The allocator takes `max(floor, mark + 1)`, which is also what
     `lc_pack_alloc_from` does on the C side — two implementations of one rule, and
-    a boot check (`validate_id_bases` in mock230_pack.c) that holds the floor above
+    a boot check (`validate_id_bases` in torirs_server_pack.c) that holds the floor above
     whatever the cache actually reaches.
 
     `content.ini` *overlays* the register, exactly as it does for `ids` and

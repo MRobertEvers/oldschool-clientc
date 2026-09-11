@@ -1,0 +1,86 @@
+{{external|rs=Zachariah}}
+{{Infobox Monster
+|name = Justiciar Zachariah
+|image = [[File:Justiciar Zachariah.png|270px]]
+|release = [[8 February]] [[2018]]
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|members = Yes
+|combat = 348
+|size = 3
+|examine = A powerful Saradominist justiciar.
+|xpbonus = 55
+|max hit = 43 (melee), 26 (magic)
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]], [[Slash]]
+|attack speed = 6
+|hitpoints = 320
+|att = 500
+|str = 250
+|def = 100
+|mage = 180
+|range = 1
+|attbns = 200
+|strbns = 0
+|amagic = 80
+|mbns = 80
+|arange = 0
+|rngbns = 0
+|dstab = 200
+|dslash = 200
+|dcrush = 200
+|dmagic = -60
+|dlight = 200
+|dstandard = 200
+|dheavy = 200
+|poisonresistance = 100
+|venomresistance = 100
+|id = 5977,7858
+|leagueRegion = Wilderness
+}}
+[[File:Justiciar Zachariah chathead.png|left]]
+'''Justiciar Zachariah''' is a [[Saradomin]]ist [[Justiciar]] who roams the [[Wilderness]] hunting the demon [[Porazdir]]. 
+
+During the [[Mage Arena II]] [[miniquest]], he has to be defeated in order to obtain [[Justiciar's hand|his hand]] for [[Kolodion]]'s spell. In order to summon him, players have to use an [[enchanted symbol]] to locate him, similar to using an [[enchanted key]] or [[strange device]].
+
+[[File:Fighting Justiciar Zachariah.png|thumb|270px|left|A player fighting Zachariah.]]
+When fighting Zachariah, he occasionally swings his sword, releasing a shock wave aimed at the player's location. If they do not move, the attack will drag the player forward into [[melee]] range and bind them in place, where his sword is able to attack every 3 ticks (1.8 seconds). He can also cast a [[Tele Block]] lasting one minute, and cast freezes preventing the player from moving. His melee attacks hit much harder than his regular [[magic]] attacks, so moving out of the way of the shock wave attack is recommended to prevent this from happening.
+
+Zachariah's attacks hit through prayer, but praying reduces the damage.
+
+Instead of dodging the shock wave attack, players can stand in a [[safespot]] so as to avoid all damage.
+
+Zachariah can only be harmed by the [[Saradomin Strike]] spell. As such, a [[Saradomin staff]] or [[staff of light]] is required to defeat him.
+
+==History==
+[[File:Justiciar of the Owl.png|left|150px]]
+As a [[Saradomin|Saradominist]] [[Justiciar]], known as the Justiciar of the Owl, Zachariah was known as one of the wisest servants of Saradomin.{{CiteNPC|npc=Knight of the Owl|quote=[Who's this Justiciar of the Owl?] Saradomin's wisest of servants. It surprises me that you've not heard of his many feats.}} He had a personal love for lilies, and grew them alongside various foliage within the [[Hallowed Sepulchre]].{{CiteNPC|npc=Knight of the Owl|quote=These plants were grown personally by Zachariah, the Justiciar of the Owl. Anything he plants blossoms with unimaginable vigour. You may have noticed that he has a love for lilies.}}
+
+During the [[God Wars]], after having secured the [[Stone of Jas]] from [[Zamorak]], Saradomin hid the Stone on the ocean floor south of [[Hallowvale]] and tasked Zachariah and [[Aliya]], the Justiciar of the Lion, to protect it.{{CiteNPC|npc=Zachariah|quote=...he has given us the task of protecting it [the Stone].}} Knowing [[Zamorak]] had given [[Porazdir]], his collector, the task of finding the Stone, he is duty-bound to hunt him down along with any others who wish to take it.{{CiteNPC|npc=Zachariah|quote=Zamorak has tasked his collector with finding the Eye. I will hunt him down before he does, along with any others who would try to claim it.}}
+
+Today, Zachariah continues to hunt and do battle with Porazdir. As he is human, he is several thousand years old with magic likely prolonging his life, as [[Knight of the Owl|one of his knights]] mentioned that he did not recall him having a magical hand.{{CiteNPC|npc=Knight of the Owl|quote=Strange, when I saw him last he had no magical hand to speak of...}}
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Justiciar's hand|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/3|gemw=No}}
+{{DropsTableBottom}}
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Trivia==
+* He replaced the [[Demon of Light]] after the Mage Arena II rework.
+* A statue depicting Zachariah can be found in the lobby of the [[Hallowed Sepulchre]], named "the Justiciar of the Owl."
+
+==References==
+{{Reflist}}
+
+{{Mage Arena II}}
+{{Temple of the Eye}}
+[[Category:Saradominists]]

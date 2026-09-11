@@ -1,0 +1,417 @@
+{{Infobox Location
+|name = Motherlode Mine
+|image = [[File:Motherlode Mine.png|300px]]
+|release = [[24 April]] [[2014]]
+|update = The Motherlode Mine!
+|members = Yes
+|floors = 2
+|location = [[Dwarven Mine]] ([[Asgarnia]])
+|race = [[Human]]s, [[Dwarf|Dwarves]]
+|teleport = [[Skills necklace]] (Mining Guild)
+|music = [[Pick & Shovel]]
+|map = {{Map|name=Motherlode Mine|3744,5664|mapID=-1}}
+|type = dungeon
+|leagueRegion = Asgarnia
+}}
+The '''Motherlode Mine''' is a [[Members-only]] low-intensity [[Mining]] training area located in the [[Dwarven Mine]]. No level is required to access it, but 30 Mining (not boostable) is required to mine in the area. The activity involves mining [[ore vein]]s for [[pay dirt]], depositing the pay dirt into a [[hopper (Motherlode Mine)|hopper]] to clean it, then collecting cleaned ores as well as [[golden nuggets]] from the [[Sack (Motherlode Mine)|sack]] after a short delay.
+
+The mine consists of two levels, with the upper level requiring 57 Mining (not boostable) and a one time payment of 100 golden nuggets to access. The hopper on this level also requires an additional 50 nuggets to use.
+
+[[Golden nuggets]] can also be exchanged for a variety of [[Motherlode Mine#Rewards|other rewards]] from [[Prospector Percy]], including the [[Prospector set]], [[gem bag]] and [[coal bag]].
+
+==Transportation==
+There are several ways to access the mine. It is strongly recommended to bring a [[pickaxe]] to enter the mine and for further passage, as opposed to relying on other players and [[Miner (Motherlode Mine)|miners]] to remove the [[rockfall]]s that block the area.
+
+* The quickest way to reach the mine is to teleport outside the gate leading to the [[Mining Guild]] with a [[Skills necklace]], which will put you just south-west of the mine entrance. 60 Mining is '''not''' required to enter with this method.
+*Players can also enter the Dwarven Mine via the house in north-eastern [[Falador]], east of the [[Falador Party Room]]. Taking the stairs will put players just north of a cave entrance to the mine.
+*Players with 60 Mining can enter the Mining Guild directly and run east until they see a cave entrance.
+*Finally, players can enter the Dwarven Mine via the camp south of [[Ice Mountain]], and walk south-east to the northern entrance.
+
+==Mechanics==
+{{Clear|left}}
+
+===Mining ore veins===
+[[File:Motherlode Mine - Mining ore veins.png|thumb|Mining ore veins]]
+[[Ore vein]]s are scattered throughout both levels of the mine, and may be mined with any [[pickaxe]] yielding 60 Mining [[experience]] each. After the first [[pay-dirt]] has been mined by '''any''' player, a 23-27 second timer will start, after which the vein will be depleted. This timer is increased to 36-40 on the upper level. The double ore bonus of the [[Varrock armour]] does '''not''' affect pay-dirt.
+
+The veins also have a chance to give [[uncut gem]]s for no experience. Wearing an [[amulet of glory]] will increase the chance of giving an [[uncut gem]]. As each gem mined decreases the experience rate per inventory, this is not recommended if looking to maximise experience rates. If you wish to keep the gems, you may consider using a [[gem bag]] to store them.
+
+[[Clue geode]]s cannot be obtained from ore veins.
+
+{{Skilling success chart|label=Pay-dirt mining chance|showbefore=no|xlabel=Mining Level
+|label1=Pay-dirt|low1=60|high1=105|req1=30|color1=brown|image1=Pay-dirt.png
+}}
+
+===Mine layout===
+Rocks fall on certain tiles around the mine; these [[rockfall]]s block access to veins or other areas of the mine, and will deal 1-4 damage to any players on the tile. Removing them requires a pickaxe and rewards 10 Mining experience each. [[Runite Minor]] and the other [[Miner (Motherlode Mine)|miner]]s may occasionally remove these rockfalls, though they usually just mine pay-dirt. [[Box trap]]s and other traps placed on the ground may be laid to temporarily prevent rockfalls from blocking a path, until the trap collapses.
+
+Near [[Prospector Percy]] is a bank chest that can be accessed without any requirements, though this cannot be used to bank pay-dirt (see the cleaning pay-dirt section below). There is also a [[Dark tunnel (Motherlode Mine)|dark tunnel]] next to it, an [[Agility]] [[shortcut]] (requires 54 Agility and completion of the medium [[Falador Diary]]) that connects the east side of the mine to the centre. There is a similar tunnel to the south which does not require diary completion.
+
+====Upper level====
+Unlocking the upper level of the mine requires base 57 [[Mining]], and a one-time fee of 100 [[golden nugget]]s paid to [[Prospector Percy]]. It can be accessed from a [[Ladder (Motherlode Mine)|ladder]] north of the bank chest.
+
+The upper level consists of 64 ore veins clustered closer together than on the lower level. These ore veins deplete at a much slower rate, depleting after 36-40 seconds instead of the usual 23-27 seconds.
+
+===Cleaning pay-dirt===
+Pay-dirt cannot be banked (though it can be dropped), and may be cleaned in order to gain bonus experience and collect various ores and [[golden nuggets]].
+
+Cleaning pay-dirt involves depositing it into a [[Hopper (Motherlode Mine)|hopper]]. A hopper can be found on each level, both easily accessible from the upper level. The hopper on the upper level is much closer to the ore veins, and allows players to deposit pay-dirt without needing to use the ladder to return to the lower level. The player must unlock this hopper with 50 golden nuggets by speaking to Prospector Percy, while the hopper on the lower level is free.
+
+Once deposited, pay-dirt will make its way towards the [[Sack (Motherlode Mine)|sack]] to the south, taking 8 seconds, at which point players will receive bonus experience. This process requires the water to be flowing (see the Water circuit section below). The sack can then be searched to collect various ores and [[golden nuggets]]. Bonus experience will increase with higher mining levels, as higher-tier ores are cleaned. The average bonus experience per pay dirt cleaned varies with Mining level; being 16.84 at level 85 and 21.9 at level 99. 
+
+Each ore has a level requirement equal to the Mining requirement for that rock; players with 50 Mining, for example, will not receive [[Mithril ore|mithril]], [[Adamantite ore|adamantite]], or [[runite ore]]. Using boosts will allow players to receive ores they usually can't obtain.
+
+{| class="wikitable"
+! colspan="2" | Ore
+! {{SCP|Mining}} Level<br/>required
+! Bonus<br/>experience
+! [[Grand Exchange|GE]] Price
+|-
+| {{plinkt|Coal}}
+| 30
+| 15
+| {{Coins|{{GEP|Coal|1}}}}
+|-
+| {{plinkt|Golden nugget}}
+| 30
+| 0
+| {{NA|Untradeable}}
+|-
+| {{plinkt|Gold ore}}
+| 40
+| 15
+| {{Coins|{{GEP|Gold ore|1}}}}
+|-
+| {{plinkt|Mithril ore}}
+| 55
+| 30
+| {{Coins|{{GEP|Mithril ore|1}}}}
+|-
+| {{plinkt|Adamantite ore}}
+| 70
+| 45
+| {{Coins|{{GEP|Adamantite ore|1}}}}
+|-
+| {{plinkt|Runite ore}}
+| 85
+| 75
+| {{Coins|{{GEP|Runite ore|1}}}}
+|}
+
+[[File:Motherlode Mine HUD.png|frame|The HUD displaying the amount of pay-dirt in the sack.]]
+
+When the sack holds 108 pay-dirt (or 189 if the sack has been upgraded), a game message in the chatbox will state {{Mes|Some ore is ready to be collected from the sack. It's getting full.}}, and players will no longer be able to mine pay-dirt or deposit pay-dirt into the hopper until the sack is emptied below 108 (or 189 if the sack has been upgraded).
+
+===Water circuit===
+[[File:Motherlode Mine - Fixing the water wheel.png|thumb|A player using a hammer to fix a waterwheel.]]
+At the centre of the mine is a water circuit that connects the [[Hopper (Motherlode Mine)|hoppers]] to a [[Sack (Motherlode Mine)|sack]].
+
+This water flow can be interrupted when the [[strut]]s that support the two large [[Water wheel (Motherlode Mine)|water wheel]]s occasionally break. When both are broken, any pay-dirt that was making its way to the sack will be frozen in place. You may still deposit pay-dirt into the hopper when the water flow is interrupted, but it will not make its way to the sack until the struts have been repaired.
+
+Repairing the struts requires the use of a [[hammer]] (or [[Imcando  hammer]]), which may be found in three of the crates surrounding the machine (the other three contain bronze pickaxes). This process is world specific, not player specific; meaning the struts will break at the same time for everyone, and repairing it will fix it for everyone.
+
+The progress of your pay-dirt will be saved upon logging out or hopping worlds. While you may choose to hop worlds to find one where the struts are not broken, this may take more time than simply repairing them, and may be considered bad etiquette by other players.
+
+Repairing the struts grants [[Smithing]] [[experience]] equal to 1.5 times the player's Smithing level, which will be rewarded on successfully fixing the strut. Chance of repairing improves with a higher level, with a base chance of 12% to repair each tick at level 1 Smithing, increasing to a 27% chance each tick at level 99.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1510918071019610115|date=5 April 2022|archiveurl=https://reldo.runescape.wiki/i/97492|archivedate=5 April 2022|quote=Yes, it's based on Smithing. 12% at level 1, 27% at level 99 for each roll.}}
+
+===Ore rates===
+The ore received from pay-dirt is based on the player's Mining level, with better ores becoming more common at higher levels. The table below shows the chance of ores at each level:
+
+{{Skilling success chart|label=Motherlode Mine ore chance|xlabel=Mining level|cascade=yes|showbefore=no
+|label1=Golden nugget|low1=7|high1=7|req1=30|color1=gold|image1=Golden nugget.png
+|label2=Runite ore|low2=-20|high2=5|req2=85|color2=steelblue|image2=Runite ore.png
+|label3=Adamantite ore|low3=-90|high3=50|req3=70|color3=seagreen|image3=Adamantite ore.png
+|label4=Mithril ore|low4=-19|high4=90|req4=55|color4=slateblue|image4=Mithril ore.png
+|label5=Gold ore|low5=-40|high5=126|req5=40|color5=goldenrod|image5=Gold ore.png
+|label6=Coal|low6=226|high6=325|req6=30|color6=black|image6=Coal.png
+}}{{^|Coal is actually a 100% drop if you fail all other rolls. However, the chart doesn't support this, and a low/high of 226/325 closely approximates this}}
+
+Ores are determined when the pay-dirt is mined, not when cleaning.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/608021782449119232|date=8 June 2015|archiveurl=https://reldo.runescape.wiki/i/99682|archivedate=1 December 2019|quote=When it is mined. It'd stay as runite even if your level drops before you clean it.}} Thus, players wishing to boost should '''do so while mining, not before cleaning'''. Pay-dirt rolls for each ore in descending order, starting from the top tier you're eligible to get.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/jagexash/status/1539706211561607170|date=22 June 2022|archiveurl=https://reldo.runescape.wiki/i/102638|archivedate=22 July 2022}} With the [[Falador Elite|Falador Elite diary]], the success chance to receive an ore is increased by ~1%.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1536370067935358978|date=13 June 2022|archiveurl=https://reldo.runescape.wiki/i/109709|archivedate=22 July 2022}} The number of percentage points added to the rate is ~1% for runite ore; ~2% for adamantite ore; and ~1% for mithril ore.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1486771592210403333|date=27 January 2022|archiveurl=https://reldo.runescape.wiki/i/102827|archivedate=4 June 2023|quote=About 1% more likely to get runite, 2% more likely to get adamant and 1% more likely to get mithril, roughly. Those increases are *added* to the existing percentage chance of getting the ore.}}
+
+The number of golden nuggets received is limited to 3 per batch of pay-dirt deposited into the hopper. While this limit doesn't cause issues during normal gameplay, seasonal events with boosted rates can cause golden nuggets to be deleted. To avoid this, players can deposit half of their pay-dirt at a time by dropping the other half before depositing.
+
+==Money making==
+{{Mmgsection|Motherlode Mine}}
+
+==Rewards==
+[[Golden nugget]]s can be obtained by searching the sack after cleaning [[pay-dirt]], with each pay-dirt having a 3.13% chance of being a nugget, regardless of a player's [[Mining]] level. This means that, on average, a player should receive a golden nugget every 32 pay-dirts cleaned. 
+
+Golden nuggets stack, and will be collected all at once when searching the sack. Once obtained, they can be spent by speaking to Prospector Percy, to spend at either his [[Prospector Percy's Nugget Shop|shop]], or for various upgrades inside the Motherlode Mine.
+
+===Prospector Percy's Nugget Shop===
+{{Main|Prospector Percy's Nugget Shop}}
+
+{{StoreTableHead|sellmultiplier=1000|buymultiplier=800|delta=0|currency=Golden nugget|column1=Exp boost|column2=Boost per nugget|hidege=yes|bucket=No}}
+{{StoreLine|name=Prospector helmet#Motherlode Mine|image=Prospector helmet.png|displayname=Prospector helmet|restock=1|stock=100|column1=0.4%|column2=0.010%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector jacket#Motherlode Mine|image=Prospector jacket.png|displayname=Prospector jacket|restock=1|stock=100|column1=0.8%|column2=0.013%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector legs#Motherlode Mine|image=Prospector legs.png|displayname=Prospector legs|restock=1|stock=100|column1=0.6%|column2=0.012%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector boots#Motherlode Mine|image=Prospector boots.png|displayname=Prospector boots|restock=1|stock=100|column1=0.2%|column2=0.007%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Coal bag|bucketname=Coal bag#Closed|stock=1|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Gem bag|bucketname=Gem bag#Closed|stock=1|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Soft clay pack|bucketname=Soft clay pack#Golden nuggets|stock=1000|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Bag full of gems|bucketname=Bag full of gems#Golden nuggets|image=Bag full of gems (golden nuggets).png|stock=100|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreTableBottom}}
+
+===Motherlode Mine Upgrades===
+In addition to the rewards in Prospector Percy's shop, players can speak to [[Prospector Percy]] for the following upgrades inside the Motherlode Mine:
+{| class="wikitable sortable lighttable" style="text-align:center;"
+! Upgrade
+! {{plinkp|Golden nugget|txt=Golden nuggets}}
+|-
+| Upper floor{{efn|With 57 [[Mining]]}}
+| 100
+|-
+| Super Hopper
+| 50
+|-
+| Pay-dirt sack upgrade{{efn|Allows the [[Sack (Motherlode Mine)|pay-dirt sack]] to hold up to 189 pay-dirt, up from 108}}
+| 200
+|- class="sortbottom"
+! Total
+! 350
+|}
+{{Notelist}}
+
+Buying one of every unique item and upgrade (without selling back any of the [[prospector outfit]]) would cost a total of 730 golden nuggets.
+
+===Reward order===
+The [[Prospector helmet]] is required for a hard [[Falador Diary]] task. Players looking to complete the diary may consider purchasing the helmet first. If planning to do more [[Motherlode Mine]] in the future, it may be worth selling the helmet back for 32 nuggets (loss of 8) after completing the task in order to unlock the upper floor upgrades first. The helmet '''cannot''' be sold if purchased through the [[Volcanic Mine]] activity.
+
+The upper floor and hopper unlocks should be prioritised if players plan to do more Motherlode Mine, as these provide the most efficient [[Mining]] experience with less attention required.
+
+Outfit pieces should then be obtained in order of what has the highest bonus per nugget; jacket, legs, helmet, then boots. The [[Varrock armour 4]] may be used in place of a prospectors jacket when the elite [[Varrock Diary]] is completed.
+
+The [[coal bag]] is mainly used for [[Blast Furnace]] smithing, where it greatly affects XP and GP rates for any bars requiring coal. See 
+[[Blast Furnace/Strategies]] for a detailed overview.
+
+Purchasing the [[gem bag]] along with an equipped and '''charged''' [[amulet of glory]] will maximise gem collection without affecting experience rates. 
+
+The [[Sack (Motherlode Mine)|sack]] capacity upgrade may be purchased last, as the increased experience rates from an additional three deposits per inventory will be negligible compared to the upper level and prospector kit, and 200 [[golden nuggets]] is significantly more expensive.
+
+Players who wish to unlock the upper level will, on average, need to mine from level 30 to level 68, in order to receive enough golden nuggets for the full outfit and the upper level fee. On average, players will need to mine 17,519 pay-dirt to unlock the upper level, upgraded bag, and complete Prospector's kit.
+
+==Experience and efficiency==
+The experience and profit rates of Motherlode Mine can vary greatly based on level, the tier of pickaxe used, the amount of other players mining, and whether the upper floor is used.
+
+Compared to other methods, Motherlode Mine requires significantly lower effort, while still offering moderate experience and profit. Mining [[iron ore]] or [[granite]] provides significantly higher experience rates at the cost of being more click-intensive and offering no profit, as items are dropped when mining.
+
+Due to the ore vein timer starting after the first ore is mined, mining veins on low population worlds that are not in use by other players will provide more consistent timings and require less effort; though it also means that the [[strut]]s are less likely to be repaired by another player, which can be especially inconvenient when using the hopper on the upper level of the mine.
+
+To maximise the capacity of the sack, players should have an inventory with only 1 space occupied by a hammer '''or''' gem/coal bag with an [[Imcando hammer (off-hand)]] equipped. This setup will result with 4 trips (7 trips with the upgraded sack) with a full inventory of pay-dirt before having to empty the sack.
+
+Players can expect the following XP rates, assuming the following unlocks:
+
+* Upper level is unlocked at level 57 [[Mining]].  
+* [[Dragon pickaxe]] is used from level 61 Mining.   
+* [[Prospector kit|Prospector's outfit]] is worn.   
+* The upper floor Super Hopper is unlocked.
+
+{| class="wikitable"
+|+Experience and profit per hour
+!Level
+!Xp/hour
+!Profit
+|-
+|30
+|13,000
+|{{Coins|floor(215*({{GEP|Coal|1}}*0.9727))}}
+|-
+|40
+|26,000
+|{{Coins|floor(250*({{GEP|Gold ore|1}}*0.1026+{{GEP|Coal|1}}*0.8701))}}
+|-
+|50
+|33,000
+|{{Coins|floor(365*({{GEP|Gold ore|1}}*0.1672+{{GEP|Coal|1}}*0.8055))}}
+|-
+|61
+|45,000
+|{{Coins|floor(480*({{GEP|Mithril ore|1}}*0.1824+{{GEP|Gold ore|1}}*0.1883+{{GEP|Coal|1}}*0.6020))}}
+|-
+|70
+|48,000
+|{{Coins|floor(570*({{GEP|Adamantite ore|1}}*0.0380+{{GEP|Mithril ore|1}}*0.2154+{{GEP|Gold ore|1}}*0.2191+{{GEP|Coal|1}}*0.5001))}}
+|-
+|80
+|52,000
+|{{Coins|floor(635*({{GEP|Adamantite ore|1}}*0.0912+{{GEP|Mithril ore|1}}*0.2410+{{GEP|Gold ore|1}}*0.2377+{{GEP|Coal|1}}*0.4028))}}
+|-
+|90
+|59,000
+|{{Coins|floor(730*({{GEP|Runite ore|1}}*0.0152+{{GEP|Adamantite ore|1}}*0.1421+{{GEP|Mithril ore|1}}*0.2580+{{GEP|Gold ore|1}}*0.2438+{{GEP|Coal|1}}*0.3135))}}
+|-
+|99
+|64,000
+|{{Coins|floor(845*({{GEP|Runite ore|1}}*0.0227+{{GEP|Adamantite ore|1}}*0.1885+{{GEP|Mithril ore|1}}*0.2693+{{GEP|Gold ore|1}}*0.2422+{{GEP|Coal|1}}*0.2460))}}
+|}
+The following table compares experience rates with other methods, with the highest rates bolded:
+<!--
+mining: 2000 attempted rolls * chance * 35 * enhancer multiplier (0.1*2 + 0.85 + 0.05*2 for 99)
+granite: based on templeosrs rates, scaled up by ~1.0752688x (templeosrs multiplies ehp rate by 0.93x for methods which are harder to maintain, but the "true" rate is higher
+xp rates stated are rounded to the nearest integer.
+
+for some reason 41 mlm was stated to be lower xp/hr than 31, assuming this is an error and just needed to be switched.
+
+bm based on sample rates from quinn, scaled by xp/dyna for some other levels | lv61 sounds wrong but i lack the data for it.
+-->
+{| class="wikitable"
+!{{SCP|Mining}} Level
+!Iron ore 
+!3-tick Granite
+!Motherlode Mine
+!Blast Mine
+|-
+|31
+|'''55,344'''
+|N/A
+|15,500
+|N/A
+|-
+|41
+|'''62,863'''
+|N/A
+|26,100
+|N/A
+|-
+|61
+|81,529
+|'''108,512'''
+|45,000
+|48,000{{fact}}
+|-
+|75
+|84,000
+|'''116,677'''
+|50,000
+|76,200
+|-
+|85
+|84,000
+|'''121,999'''
+|54,000
+|86,766
+|-
+|99
+|87,818
+|'''134,409'''
+|64,000
+|101,600
+|}
+
+However, [[Volcanic Mine]] always offers the highest experience rates behind 3-tick granite mining.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = Players are warned when mining ore veins with a full sack at the Motherlode Mine.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Veins on the lower floor now last between 23-27 seconds.
+* Veins on the upper floor now last between 36-40 seconds.
+* [[Coal]] now provides [[experience]] when harvested from [[pay dirt]].
+* The [[Hopper_(Motherlode_Mine)|hopper]] now has an upper cap of 108 pay dirt, replacing the previous deposit functionality.
+* For 50 [[golden nugget]]s you can now unlock the Super Hopper, which allows you to deposit from upstairs.
+* The Mining level required to unlock the upper level has been decreased from 72 to 57.
+* The [[hard Falador Diary]] task now only requires the [[prospector helmet]] rather than the full [[Prospector kit|outfit]].
+* A warning has been added when the player's sack and 'about to be cleaned dirt' is more than the sack capacity.
+* The interface that displays how much room is left in your sack has been updated.
+}}
+{{Subject changes
+|date = 15 March 2023
+|update = The Last of Poll 78
+|poll = New Skill: Community Consultation and Poll 78
+|change = * Adjusted the respawn rate of veins on the upper and lower levels.
+* Added more veins to the southern area of the Mine.
+* Added a Level 54 Agility shortcut between the Bank and the southern part of the mine.
+}}
+{{Subject changes
+|date = 1 March 2023
+|update = Theatre of Blood: Entry Mode Improvements
+|change = The delay when depositing [[pay-dirt]] into the [[Hopper (Motherlode Mine)|hopper]] has been removed.
+}}
+{{Subject changes
+|date = 13 July 2022
+|update = Emir's Arena: Full Launch
+|change = The upstairs ore veins no longer need to be completely depleted to start their respawn timer.
+}}
+{{Subject changes
+|date = 
+|change = The Medium Falador Diary no longer provides any increased chance of receiving higher ores when cleaning pay dirt.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1239199151243644928|date=15 March 2020|archiveurl=https://reldo.runescape.wiki/i/101939|archivedate=15 March 2020|quote=There's just one buff to pay-dirt, and it's for the elite diary only. This matches what the diary master says if asked.|name=Falador Diary reward tweet}}
+}}
+{{Subject changes
+|date = 31 October 2019
+|update = Mobile Anniversary and BH Hotspots
+|change = The clickzone of the top of the ladder in Motherlode Mine has been improved.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The Motherlode Mine has had its timer lengthened in the upper area.
+}}
+{{Subject changes
+|date = 23 February 2017
+|update = Shift-Click Drop & QoL
+|poll = Quality of Life - Ten Skilling Suggestions
+|change = *For the price of 200 Nuggets, you can now double the capacity of the pay-dirt sack in Motherlode Mine by speaking to Prospector Percy.
+*The HUD shown while in the Motherlode mine now displays how much Pay-dirt is in the Pay-dirt Sack.
+*The Ore veins found on the upper level of the Motherlode Mine now disappear a random period of time after they are first mined, rather than depleting faster if multiple people are mining them.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = Pets now follow you up and down the Motherlode Mine's ladder.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|change = The Motherlode Mine's ladder has had its click-zone changed to help players click the correct end of it.
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|poll = Old School Content Poll 31: Easter Holiday Event
+|change = An expansion of the Motherlode Mine with a brand new upstairs area can be accessed by players with over 72 mining that have paid Percy a one-time fee of 100 nuggets.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = *There is now a [[shortcut]] in the Motherlode Mine that you can use at level 54 [[Agility]] if you have completed the [[Falador Medium Diary]].
+*There is now a slightly increased chance at receiving higher ores when cleaning [[pay-dirt]] if you have completed the [[Falador Medium Diary]] and a further increased chance if you have completed the [[Falador Elite Diary]].
+}}
+{{Subject changes
+|date = 1 May 2014
+|update = Spirit trees, clues & more!
+|change = Dwarves no longer deplete pay-dirt veins and when a vein is depleted the "empty rock" sound will play to all the adjacent players. The rate at which ore respawns has also been increased slightly.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Rockfall partyhat.png|thumb|Some falling rocks wearing party hats during Christmas.]]
+*The rockfalls share the same model as the [[pet rock]] when they fall from the ceiling. As a result, the falling rocks wear party hats during Christmas.
+*When a player climbs up the ladder, the player character does not actually move up a plane in the game; rather, the terrain on the upper level is simply raised up from the ground on the plane the player character is standing on, so the player will be able to see other players and NPCs on both levels. This is similar to the mechanics in [[Castle Wars]].
+*There are several popular culture and community references within the Motherlode Mine:
+**On the western side of the mine, there is an [[NPC]] named [[Runite Minor]], who is named after the designer of the Motherlode Mine and winner of the [[Update:PDC: Brains over brawn winner!|2014 Player Designed Content competition]].
+**In the middle of Prospector Percy's machine, there is a baby mole with the examine text "''Mooooooooooooole''", a reference to a scene from the film ''{{WP|Austin Powers in Goldmember}}''.
+**Prospector Percy's appearance and examine text are references to the character Stinky Pete from ''{{WP|Toy Story 2}}''.
+**The miner in the north-eastern corner of the mine has examine text that reads "''Secretly, he'd like to rescue princesses and eat mushrooms''", a reference to the {{WP|Mario (franchise)|''Mario'' video game franchise}} as the miners share a similar appearance to its titular character.
+**A miner in the south-western corner reveals that "he became a miner after his {{WP|agoraphobia}} stopped him doing Sailing", a reference to the [[Sailing]] skill.
+**A miner along the east wall's examine text reads "He could have been a great ballet dancer if they'd let him try." This is a reference to the film ''{{WP|Billy Elliot}}'', about a father's expectations for his son to be a miner, and not to follow his dreams of being a dancer.
+**A miner on the eastern side has the examine text "professional miners don't actually whistle while they work" which is a reference to Disney's Snow White and the Seven Dwarves
+**The name Motherlode Mine itself may be an homage to "MotherLoad" - a popular Flash game involving mining seams of ore, released the same year as RuneScape 2.
+*The machine [[Prospector Percy]] built to wash the pay-dirt is a cheap knockoff of the machine used in the [[Lovakengj]] [[blast mine]]. According to the [[operator]]s, the design is a secret, and those who try to copy it would "never get it quite right" and "their machine would break down all the time", referencing the fact that the struts on the water wheel often break.
+*If all the ores are collected from 85 to 99 Mining at Motherlode Mine, it will average out to 6,344,981 Smithing experience.
+*The In-game levelling guide erroneously claims level 30 mining is required for access, it is only required to mine the paydirt and the area can be accessed at level 1 (allowing you to train smithing on the struts without a mining level)
+
+==References==
+{{Reflist}}
+
+{{Motherlode Mine}}
+{{Dwarven Mine}}
+{{Mines}}
+[[Category:Smithing]]

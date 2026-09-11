@@ -1,0 +1,172 @@
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_TRANSPORT_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_TRANSPORT_H
+
+/*
+ * The byte-stream seam: where the server's bytes come from and go to, with no
+ * assumption that either end is a socket.
+ *
+ * There are two implementations and the server cannot tell them apart:
+ *
+ *   - **socket** wraps `struct ToriRSServerConn`, which is itself already two things
+ *     (raw TCP and RFC 6455) sniffed per client. That layering stays.
+ *   - **memory** is a pair of byte FIFOs, for a server hosted *inside* the
+ *     client's process. Nothing is framed, nothing blocks and no fd exists.
+ *
+ * The reason this is a vtable rather than an `if( embedded )` is the second
+ * implementation's real constraint: in-process, client and server run on one
+ * thread, so any blocking read in the server is a deadlock rather than a stall.
+ * Making the transport non-blocking is what forced the login handshake to
+ * become a state machine (torirs_server_session.c) — which is the change that
+ * actually buys the embedding, the vtable just names the seam.
+ *
+ * Contract, and all three implementations must honour it exactly:
+ *
+ *   recv   > 0  bytes taken
+ *          = 0  nothing available *yet* — not an error, and specifically not
+ *               end-of-stream, because a WebSocket read can deliver less than
+ *               one whole frame
+ *          < 0  the peer is gone
+ *   send   len  on success (buffering internally if it must), -1 once dead
+ *   pollfd      a descriptor to select() on, or -1 when there is nothing to
+ *               wait on — an embedded host polls on its own schedule
+ *   buffered    bytes a recv would return without going to the source. A
+ *               waiter must consult this before it sleeps on `pollfd`: a
+ *               framed transport reads whole frames, so the bytes that answer
+ *               the next request can already be in hand while the descriptor
+ *               says nothing is coming — and the peer that sent them is
+ *               waiting for the reply, so nothing more ever will.
+ *   pending     bytes a send has accepted that the peer has not yet been given.
+ *               Since `send` never blocks and never refuses, this is the only
+ *               thing that says a peer has stopped keeping up, and it is what a
+ *               service whose answers dwarf its requests (JS5) has to consult
+ *               before generating another one. Zero for a transport that
+ *               cannot fall behind.
+ */
+
+#include <stdint.h>
+
+struct ToriRSServerConn;
+
+struct ToriRSServerTransport
+{
+    void* ctx;
+    int (*recv)(void* ctx, uint8_t* dst, int max);
+    int (*send)(void* ctx, const uint8_t* src, int len);
+    int (*pollfd)(void* ctx);
+    int (*buffered)(void* ctx);
+    int (*pending)(void* ctx);
+    void (*close)(void* ctx);
+};
+
+/* ------------------------------------------------------------------ */
+/* Byte FIFO                                                           */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A growable one-way byte queue.
+ *
+ * Contiguous with a read offset rather than a ring: an embedded session moves
+ * whole login bursts through this (a REBUILD_NORMAL plus every container is
+ * tens of kilobytes in one tick), and a fixed ring would have to either block
+ * — impossible on one thread — or drop, which corrupts the stream silently.
+ * Growing and compacting is the only behaviour with no failure mode.
+ */
+struct ToriRSServerPipe
+{
+    uint8_t* data;
+    int cap;
+    /** Read offset into `data`; bytes before it are consumed. */
+    int head;
+    /** Write offset. Live bytes are [head, tail). */
+    int tail;
+    int closed;
+};
+
+/** Append. Returns `len`, or -1 once closed. Grows as needed; only an
+ *  allocation failure can short-write, and that returns -1 too. */
+int
+ToriRSServer_PipeWrite(
+    struct ToriRSServerPipe* pipe,
+    const uint8_t* src,
+    int len);
+
+/** Take up to `max`. Returns the count, 0 when empty, or -1 when the writer
+ *  closed *and* nothing is left — so a reader drains before it sees the end. */
+int
+ToriRSServer_PipeRead(
+    struct ToriRSServerPipe* pipe,
+    uint8_t* dst,
+    int max);
+
+/** Live bytes. */
+int
+ToriRSServer_PipeAvailable(const struct ToriRSServerPipe* pipe);
+
+/**
+ * The live bytes in place, for a writer that hands them somewhere itself.
+ *
+ * `ToriRSServer_PipeRead` copies, which is the wrong shape for a queue whose
+ * whole purpose is to be handed to write(2): the copy would be a second buffer
+ * to own, and a short write would have to push the remainder back. Peek, write
+ * what the kernel takes, drop exactly that much.
+ *
+ * `*len` is set to the count; NULL is returned when there is nothing. The
+ * pointer is invalidated by the next write to the pipe.
+ */
+const uint8_t*
+ToriRSServer_PipePeek(
+    const struct ToriRSServerPipe* pipe,
+    int* len);
+
+/** Retire `len` peeked bytes. `len` must not exceed what the peek reported. */
+void
+ToriRSServer_PipeDrop(
+    struct ToriRSServerPipe* pipe,
+    int len);
+
+void
+ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe);
+
+void
+ToriRSServer_PipeFree(struct ToriRSServerPipe* pipe);
+
+/* ------------------------------------------------------------------ */
+/* Implementations                                                     */
+/* ------------------------------------------------------------------ */
+
+/** Over an accepted (and already sniffed) connection. */
+void
+ToriRSServer_TransportSocket(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerConn* conn);
+
+/**
+ * The two ends of an in-process connection.
+ *
+ * Owned by the caller rather than by the transport, which is what keeps a
+ * second embedded session possible: a `static` here would have made "one at a
+ * time" a property of the transport layer instead of a property of whoever is
+ * sharing the process-wide config tables.
+ */
+struct ToriRSServerMemoryEnds
+{
+    struct ToriRSServerPipe* to_server;
+    struct ToriRSServerPipe* to_client;
+};
+
+/**
+ * Over a FIFO pair, from the *server's* point of view: it reads `to_server` and
+ * writes `to_client`. The host owns both and does the mirror image.
+ *
+ * `ends` must outlive the transport. Neither pipe is owned by the transport —
+ * closing it closes them but does not free them, because the host still has to
+ * drain whatever the server said on its way out.
+ */
+void
+ToriRSServer_TransportMemory(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerMemoryEnds* ends,
+    struct ToriRSServerPipe* to_server,
+    struct ToriRSServerPipe* to_client);
+
+#endif

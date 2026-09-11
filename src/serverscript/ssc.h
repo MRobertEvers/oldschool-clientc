@@ -64,7 +64,7 @@ enum
      * Content growing past a compiler ceiling is expected here, not
      * exceptional, so the number is raised with headroom rather than to the
      * exact count observed — 4096->16384 wasn't a tight fit either. */
-    SSC_MAX_SCRIPTS = 32768,
+    SSC_MAX_SCRIPTS = 65536,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
     SSC_MAX_SWITCH_TABLES = 32,
@@ -81,7 +81,7 @@ enum
     SSC_MAX_ASSIGN_TARGETS = 32,
     /* Values in a `queue*(...)(a, b, c)` / `runclientscript*(...)(…)` vararg
      * block. 28 covers `ge_pricechecker_prices` (script 785); keep in lockstep
-     * with MOCK230_RUNCLIENTSCRIPT_ARG_MAX and PKT_RUNCLIENTSCRIPT_ARG_MAX. */
+     * with TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX and PKT_RUNCLIENTSCRIPT_ARG_MAX. */
     SSC_MAX_VARARG_TYPES = 28,
 };
 
@@ -154,8 +154,18 @@ struct SSC_Symbol
     char name[SSC_MAX_NAME];
     int32_t value;
     enum SSC_SymbolKind kind;
-    /** Constants only: the literal text, so `^player_run_off` can expand to a
-     *  string as easily as to a number. */
+    /**
+     * The symbol's source text, for the two kinds that have one.
+     *
+     * SSC_SYM_CONSTANT: the literal, so `^player_run_off` can expand to a string
+     * as easily as to a number.
+     *
+     * SSC_SYM_DBCOLUMN: the `.dbtable` column's declared types and flags, the
+     * text after the column name (`string`, `coord,int,int,int,LIST`). It is the
+     * only record of which STACK a `db_getfield` on that column pushes onto —
+     * the opcode table cannot say, because the answer is data (ss_meta.h,
+     * `runtime_typed`).
+     */
     char* text;
     /** Constants only: `path:line`, kept so a duplicate declaration can name
      *  both sites. A constant is the one symbol kind whose source is a file the
@@ -262,11 +272,42 @@ SSC_SymbolsLoadPack(
     const char* path,
     enum SSC_SymbolKind kind);
 
+/**
+ * Loads one `id=name` pack file, taking its kind from its filename.
+ *
+ * The single-file form of SSC_SymbolsLoadPackDir, for a lane that needs exactly
+ * one index out of a directory holding many. A lane's own `configs/` is the
+ * case that forced it: the whole directory is known-stale against that lane's
+ * own `pack/`, so loading all of it drags that drift into every other lane's
+ * symbol table, while the one aggregate compack beside it is all that is wanted.
+ */
+int
+SSC_SymbolsLoadPackFile(
+    struct SSC_Symbols* symbols,
+    const char* path);
+
 /** Loads a `^name value` constant file. */
 int
 SSC_SymbolsLoadConstants(
     struct SSC_Symbols* symbols,
     const char* path);
+
+/**
+ * Declare `^name` with a literal value that has no file behind it.
+ *
+ * A lane's feature flag: `^curses_enabled` is 1 in a build that compiled the
+ * Ancient Curses lane and 0 in one that did not, and shared files test it
+ * unconditionally — an undefined constant is a compile error, not a false. It
+ * comes from the build's lane selection rather than from content, so nothing in
+ * the tree can state it. `origin` names what declared it, for the duplicate
+ * diagnostic. Returns 0 when the name is already declared.
+ */
+int
+SSC_SymbolsDefineConstant(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const char* text,
+    const char* origin);
 
 /** Loads every `*.pack` in a directory, mapping the filename to a kind. */
 int
@@ -286,7 +327,7 @@ SSC_SymbolsLoadDbTableDir(
  *
  * The `basevar=` key on each varbit record is the only statement anywhere of
  * which varp a varbit lives inside, and the cache is its author — the same file
- * `mock230_varbit.c` calls "the authority for" the ranges. The compiler reads it
+ * `torirs_server_varbit.c` calls "the authority for" the ranges. The compiler reads it
  * rather than deriving anything: a second opinion about which varps are shared
  * would be a second opinion that can drift.
  *
@@ -354,7 +395,7 @@ SSC_SymbolsLoadConstantDir(
  * The compiler used to be *looser than the server it feeds*, in two places, and
  * both are silent:
  *
- *   - **A constant declared twice.** `mock230_content.c`'s loader errors with
+ *   - **A constant declared twice.** `torirs_server_content.c`'s loader errors with
  *     `is declared twice`; `SSC_SymbolsAdd` appends unconditionally and the
  *     binary search then returns whichever copy `qsort` — which is not stable —
  *     happened to land first. So one loader refuses the tree and the other
@@ -364,7 +405,7 @@ SSC_SymbolsLoadConstantDir(
  *
  *   - **A `%name` that is two kinds at once.** `content.ini`'s `vardomain`
  *     column declares varp/varbit/varn/vars to share one RuneScript name domain
- *     and `mock230_content.c` enforces it; the compiler never read the column,
+ *     and `torirs_server_content.c` enforces it; the compiler never read the column,
  *     so `resolve_variable` silently tried VARP first. That precedence is what
  *     `docs/LOSTCITY_PORT_TRIAGE.md` §7.5 is about: a name that is both compiles
  *     to the whole-varp write and clobbers every varbit packed into it. The cost
@@ -434,7 +475,49 @@ SSC_CompileDir(
     const char* dir,
     struct SSC_Diag* diag);
 
+/**
+ * One directory of `.rs2` sources, and what a name declared in it means.
+ *
+ * `weak` marks a *seam*: a definition the base tree provides so that a call site
+ * compiles whether or not the lane that really implements it is in this build.
+ * A strong (non-weak) definition of the same name — which is what a lane ships —
+ * replaces it outright, body included. Without this the two are simply a
+ * duplicate script name, which SSC_Declare refuses, so the base tree could never
+ * name a lane's procedure and every lane was mandatory.
+ *
+ * Weak only ever loses to strong. Two weak definitions of one name, or two
+ * strong ones, are still the duplicate they always were.
+ */
+struct SSC_SourceRoot
+{
+    const char* dir;
+    int weak;
+};
+
+/**
+ * Compile several source roots as one pack, skipping anything under `excludes`.
+ *
+ * The exclusions are path prefixes, and they exist because a lane's server
+ * scripts live *inside* the base tree (`server/scripts/ported_<lane>`): a build
+ * that leaves the lane out has to subtract that subtree from the base walk, not
+ * merely decline to add it.
+ *
+ * Paths are sorted across all roots together, so a file's script id does not
+ * depend on which root it arrived through.
+ */
+int
+SSC_CompileRoots(
+    struct SSC_Compiler* compiler,
+    const struct SSC_SourceRoot* roots,
+    int root_count,
+    const char* const* excludes,
+    int exclude_count,
+    struct SSC_Diag* diag);
+
 /** Writes `<dir>/script.dat` and `<dir>/script.idx`. */
+/* Transactional body-only update; declarations must remain compatible. */
+int SSC_RecompileFile(struct SSC_Compiler*, const char* path, struct SSC_Diag*);
+
 int
 SSC_Write(
     struct SSC_Compiler* compiler,

@@ -223,6 +223,101 @@ occluder_partition_active(struct SceneOccluders* occ)
         occ->active[i] = tmp[i];
 }
 
+/**
+ * Build occ->packed from occ->active: sort each run by its (sign-folded)
+ * plane coordinate descending, then copy in the nine fields the point test
+ * reads.
+ *
+ * Insertion sort because a run is at most a few dozen entries and this runs
+ * once a frame against ~600,000 point-test visits -- the constant factor
+ * here is not a term in anything.
+ */
+#if !(defined(TORIDRAW_OCC_REF) && TORIDRAW_OCC_REF)
+static void
+occluder_pack_active(struct SceneOccluders* occ)
+{
+    int h;
+
+    for( h = 1; h <= 5; h++ )
+    {
+        int start = occ->run_start[h];
+        int end = occ->run_end[h];
+        int i;
+
+        for( i = start; i < end; i++ )
+        {
+            struct SceneOccluder* o = occ->active[i];
+            struct SceneOccluderPacked e;
+            int j;
+
+            switch( h )
+            {
+            case OCCLUDER_HIDES_WEST_OF_PLANE:
+                e.key = o->min_x;
+                e.lo_a = o->min_z;
+                e.hi_a = o->max_z;
+                e.spread_lo_a = o->spread_min_z;
+                e.spread_hi_a = o->spread_max_z;
+                e.lo_b = o->min_y;
+                e.hi_b = o->max_y;
+                e.spread_lo_b = o->spread_min_y;
+                e.spread_hi_b = o->spread_max_y;
+                break;
+            case OCCLUDER_HIDES_EAST_OF_PLANE:
+                e.key = -o->min_x;
+                e.lo_a = o->min_z;
+                e.hi_a = o->max_z;
+                e.spread_lo_a = o->spread_min_z;
+                e.spread_hi_a = o->spread_max_z;
+                e.lo_b = o->min_y;
+                e.hi_b = o->max_y;
+                e.spread_lo_b = o->spread_min_y;
+                e.spread_hi_b = o->spread_max_y;
+                break;
+            case OCCLUDER_HIDES_SOUTH_OF_PLANE:
+                e.key = o->min_z;
+                e.lo_a = o->min_x;
+                e.hi_a = o->max_x;
+                e.spread_lo_a = o->spread_min_x;
+                e.spread_hi_a = o->spread_max_x;
+                e.lo_b = o->min_y;
+                e.hi_b = o->max_y;
+                e.spread_lo_b = o->spread_min_y;
+                e.spread_hi_b = o->spread_max_y;
+                break;
+            case OCCLUDER_HIDES_NORTH_OF_PLANE:
+                e.key = -o->min_z;
+                e.lo_a = o->min_x;
+                e.hi_a = o->max_x;
+                e.spread_lo_a = o->spread_min_x;
+                e.spread_hi_a = o->spread_max_x;
+                e.lo_b = o->min_y;
+                e.hi_b = o->max_y;
+                e.spread_lo_b = o->spread_min_y;
+                e.spread_hi_b = o->spread_max_y;
+                break;
+            default:
+                assert(h == OCCLUDER_HIDES_BELOW_PLANE);
+                e.key = -o->min_y;
+                e.lo_a = o->min_x;
+                e.hi_a = o->max_x;
+                e.spread_lo_a = o->spread_min_x;
+                e.spread_hi_a = o->spread_max_x;
+                e.lo_b = o->min_z;
+                e.hi_b = o->max_z;
+                e.spread_lo_b = o->spread_min_z;
+                e.spread_hi_b = o->spread_max_z;
+                break;
+            }
+
+            for( j = i; j > start && occ->packed[j - 1].key < e.key; j-- )
+                occ->packed[j] = occ->packed[j - 1];
+            occ->packed[j] = e;
+        }
+    }
+}
+#endif
+
 void
 scene_occluders_select_for_camera(
     struct SceneOccluders* occ,
@@ -447,7 +542,75 @@ scene_occluders_select_for_camera(
     }
 
     occluder_partition_active(occ);
+#if !(defined(TORIDRAW_OCC_REF) && TORIDRAW_OCC_REF)
+    /* The A/B baseline must not pay for a table its predicate never reads. */
+    occluder_pack_active(occ);
+#endif
+
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+    scene_occluders_census_arm();
+    g_scene_occluder_census.frames++;
+    g_scene_occluder_census.active_sum += (unsigned)occ->active_count;
+    if( (unsigned)occ->active_count > g_scene_occluder_census.active_max )
+        g_scene_occluder_census.active_max = (unsigned)occ->active_count;
+#endif
 }
+
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+#include <stdio.h>
+#include <stdlib.h>
+
+struct SceneOccluderCensus g_scene_occluder_census;
+static int g_scene_occluder_census_armed;
+
+static void
+scene_occluders_census_dump(void)
+{
+    const struct SceneOccluderCensus* s = &g_scene_occluder_census;
+    const char* path = getenv("TORIDRAW_OCC_CENSUS_FILE");
+    FILE* f = path ? fopen(path, "w") : stderr;
+    double frames = (double)(s->frames ? s->frames : 1);
+    double calls = (double)(s->point_calls ? s->point_calls : 1);
+    double tiles = (double)(s->tile_calls ? s->tile_calls : 1);
+
+    assert(f);
+    fprintf(f, "occluder census over %llu frames\n", s->frames);
+    fprintf(f, "  active set:  mean %.1f, max %u\n",
+            (double)s->active_sum / frames, s->active_max);
+    fprintf(f, "  point_hidden: %llu calls (%.0f/frame), %llu hit (%.1f%%)\n",
+            s->point_calls, calls / frames, s->point_hits,
+            100.0 * (double)s->point_hits / calls);
+    fprintf(f, "  active set walked (upper bound): %llu (%.1f/call, %.0f/frame)\n",
+            s->point_active_sum, (double)s->point_active_sum / calls,
+            (double)s->point_active_sum / frames);
+    fprintf(f, "  occluders visited: %llu (%.1f/call, %.0f/frame, %.1f%% of the set)\n",
+            s->point_visits, (double)s->point_visits / calls,
+            (double)s->point_visits / frames,
+            100.0 * (double)s->point_visits
+                / (double)(s->point_active_sum ? s->point_active_sum : 1));
+    fprintf(f, "  past the d>0 gate: %llu (%.1f%% of visits)\n",
+            s->point_dpos, 100.0 * (double)s->point_dpos
+                / (double)(s->point_visits ? s->point_visits : 1));
+    fprintf(f, "  of those, first range axis alone rejected: %llu (%.1f%%)\n",
+            s->point_axis_a_reject, 100.0 * (double)s->point_axis_a_reject
+                / (double)(s->point_dpos ? s->point_dpos : 1));
+    fprintf(f, "  ground_tile_hidden: %llu calls (%.0f/frame), %llu cached (%.1f%%)\n",
+            s->tile_calls, (double)s->tile_calls / frames, s->tile_cached,
+            100.0 * (double)s->tile_cached / tiles);
+    fprintf(f, "  wall_hidden: %llu calls (%.0f/frame)\n",
+            s->wall_calls, (double)s->wall_calls / frames);
+    if( path )
+        fclose(f);
+}
+void
+scene_occluders_census_arm(void)
+{
+    if( g_scene_occluder_census_armed )
+        return;
+    g_scene_occluder_census_armed = 1;
+    atexit(scene_occluders_census_dump);
+}
+#endif
 
 static int
 tile_cycle_idx(
@@ -479,12 +642,18 @@ scene_occluders_ground_tile_hidden(
     if( level < 0 || level >= occ->levels )
         return false;
 
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+    g_scene_occluder_census.tile_calls++;
+#endif
     idx = tile_cycle_idx(occ, level, x, z);
     cycle = occ->tile_cycle[idx];
-    if( cycle == -occ->frame_no )
-        return false;
-    if( cycle == occ->frame_no )
-        return true;
+    if( cycle == -occ->frame_no || cycle == occ->frame_no )
+    {
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+        g_scene_occluder_census.tile_cached++;
+#endif
+        return cycle == occ->frame_no;
+    }
 
     sx = x << 7;
     sz = z << 7;
@@ -531,6 +700,9 @@ scene_occluders_wall_hidden(
     assert(occ);
     if( occ->active_count == 0 )
         return false;
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+    g_scene_occluder_census.wall_calls++;
+#endif
     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
         return false;
 
@@ -655,6 +827,9 @@ scene_occluders_column_hidden(
     assert(occ);
     if( occ->active_count == 0 )
         return false;
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+    g_scene_occluder_census.wall_calls++;
+#endif
     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
         return false;
     sx = x << 7;

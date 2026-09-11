@@ -71,7 +71,7 @@ load_config_file(
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
-        if( archive_ref->children.files[i].id != file_id )
+        if( RSCache_ReferenceTableChildId(archive_ref, i) != file_id )
             continue;
         *out_size = filelist->file_sizes[i];
         data = malloc((size_t)filelist->file_sizes[i]);

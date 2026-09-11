@@ -269,8 +269,8 @@ divergence, not the reference's.
 
 `SS_OP_SOUND_SYNTH` is 2110 (`src/serverscript/ss_opcode.h:184`) and *is* in the
 coverage header, so nothing flags it. Its host implementation
-(`src/net/mock/mock230_scripts.c:6406`) pops three ints, prints them under
-`MOCK230_VERBOSE`, and returns. It sends nothing. The comment says so honestly —
+(`src/torirsserver/torirs_server_scripts.c:6406`) pops three ints, prints them under
+`TORIRSSERVER_VERBOSE`, and returns. It sends nothing. The comment says so honestly —
 "the encoder lands with the rest of the dialogue packets" — which means the
 coverage number counts an opcode that does not do its job.
 
@@ -353,8 +353,8 @@ sound.
 **2. No weapon stated a sound, and none could.** The port writer refused to emit
 sound params at all: `pack/4_soundeffects.pack` named every sound `synth_<id>`,
 the id spelled back at itself, so there was nothing for a value to resolve
-against and `mock230_content.c` had no `synth` pack kind to resolve it with.
-Both are fixed — `MOCK230_PACK_SYNTH` exists, and `tools/gen_sound_names.py`
+against and `torirs_server_content.c` had no `synth` pack kind to resolve it with.
+Both are fixed — `TORIRSSERVER_PACK_SYNTH` exists, and `tools/gen_sound_names.py`
 fills the pack with **Jagex's own config names** (see §6.7). 902 weapons now
 state their swing sounds, emitted by `tools/port_weapon_fx.py --write-sounds`.
 
@@ -500,7 +500,7 @@ Recorded so nobody re-derives it:
   cover (spot-checked; the full diff is queue slice 2).
 - `~combat_weapon_type`'s 23-category mapping and the 36 `weapon_type.constant`
   rows agree with DBTable 78.
-- `MOCK230_STYLE_*` ordering (0 accurate, 1 aggressive, 2 controlled, 3
+- `TORIRSSERVER_STYLE_*` ordering (0 accurate, 1 aggressive, 2 controlled, 3
   defensive) matches the cache.
 - The client's animation path is fine end to end — this is not a rendering bug,
   and `TORIRS_ANIM_DEBUG` will show the *correct* wrong seq playing.

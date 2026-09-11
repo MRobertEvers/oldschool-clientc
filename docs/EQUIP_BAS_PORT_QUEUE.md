@@ -19,7 +19,7 @@ to green `sscompile`. See PORTING_GUIDE §7 and
 
 Loop prompt: read this file + PORTING_GUIDE §4 / §7; if any slice is
 pending/unblocked, port it; NEVER park sibling lanes; verify
-(`mock230_pack --check-only`, `make -C src mock230-scripts`); update this file;
+(`ToriRSServer_Pack --check-only`, `make -C src torirsserver-scripts`); update this file;
 re-arm. Stop only when the user stops the loop.
 
 | # | Slice | Status | Notes |

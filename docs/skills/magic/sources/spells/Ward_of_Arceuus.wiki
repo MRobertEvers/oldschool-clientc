@@ -1,0 +1,52 @@
+{{Infobox Spell
+|name = Ward of Arceuus
+|image = [[File:Ward of Arceuus.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 73
+|spellbook = Arceuus
+|type = Combat
+|exp = 83
+|cost = {{RuneReq|Cosmic=1|Nature=2|Soul=4}}
+|speed = 
+|cooldown = 50 ticks
+|quest = [[A Kingdom Divided]]
+|description = Gives you protection from the effects of offensive Arceuus spells and demonic attacks
+|anim = [[File:Ward of Arceuus.gif|180px]]
+|sound = [[File:Ward of Arceuus.ogg]]
+}}
+[[File:Ward of Arceuus icon (mobile).png|left]]
+'''Ward of Arceuus''' is a spell within the [[Arceuus spellbook]] that requires level 73 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+When the player is under the effects of the Ward of Arceuus spell, they will gain various buffs for a certain amount of time (<math>0.6 * Y</math> seconds), where <math>Y</math> is the player's Magic level at the time of casting.
+* Players are immune to [[Corruption (status)|corruption]].
+* If successfully bound by [[grasp spells]], players will only be bound in place for 0.6 seconds.
+* [[Demon (attribute)|Demonic]] creatures will have their damage reduced by 10%.
+* Demonic creatures will have their prayer drain effects reduced by 33%; this stacks multiplicatively with the [[spectral spirit shield]].
+
+When the damage reduction is calculated, bear in mind that 10% of the incoming damage is first rounded down before being subtracted from the original damage value, meaning no benefit is provided by this spell when hit for less than 10 damage.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1402928439422763014|date=10 June 2021|archiveurl=https://reldo.runescape.wiki/i/96972|archivedate=21 May 2023|quote=If I'm reading my colleagues' code correctly, it calculates 10% of the damage, rounding down, then subtracts the result from the original damage. So the *reduction* rounds down.}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = cosmic
+|Rune1num = 1
+|Rune2 = nature
+|Rune2num = 2
+|Rune3 = soul
+|Rune3num = 4
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The spell will now additionally reduce prayer drain from demons by 33%.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Arceuus spellbook}}

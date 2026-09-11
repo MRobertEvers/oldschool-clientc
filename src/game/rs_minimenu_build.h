@@ -2,6 +2,7 @@
 #define SRC_RS_MINIMENU_BUILD_H
 
 #include "engine/cache_provider.h"
+#include "features/features.h"
 #include "inv/inv_manager.h"
 #include "revconfig/revconfig.h"
 #include "task_runner.h"
@@ -60,6 +61,8 @@ struct RS_MinimenuSelection
     int target_mask_held_bit;
 };
 
+struct Wevs;
+
 struct RS_MinimenuBuildCtx
 {
     struct UITree* tree;
@@ -94,6 +97,11 @@ struct RS_MinimenuBuildCtx
      * shipped with and what the standalone tests want. */
     int player_attack_option;
     int npc_attack_option;
+    /* enum ToriRS_AttackOptionModel (features/features.h). Zero — the classic
+     * 2004 client, which has no such setting — is what the standalone tests
+     * want, and it is the value that keeps the "Depends on combat levels" bump
+     * inside the NPC attack pass instead of spreading it over every op. */
+    int attack_option_model;
 
     /* Clan-channel membership test for RS_ATTACK_OPTION_CLAN (reference
      * ClientPlayer.isClanMember, which scans the four clan channels). NULL —
@@ -107,6 +115,20 @@ struct RS_MinimenuBuildCtx
     struct World* world;
     struct World_PickSet const* world_pickset;
     bool click_in_world;
+    /* Live world entities (sailing hulls), for the config's right-click op
+     * rows on a picked hull (SAILING_PLAN C5.2). NULL = no hull rows. */
+    struct Wevs const* wevs;
+    /** Native heading selector replaces the ground walk action at the helm.
+     * - A separate presence flag keeps a due-south heading (0) meaningful. */
+    bool sailing_navigating;
+    bool sailing_heading_valid;
+    int sailing_heading;
+    /* Resolve a live world-entity view's own World, for SCENERY picks whose
+     * view_id is non-zero (a deck loc classifies through the VIEW world's
+     * tables — the root cannot see it). NULL when set, or fn NULL, drops
+     * such rows; root picks never consult it. */
+    struct World* (*view_world_fn)(void* user, int view_id);
+    void* view_world_user;
 
     /*
      * Destination for "Walk here" when the click hit no terrain at all — the
@@ -132,17 +154,150 @@ struct RS_MinimenuBuildCtx
      * the real OPLOC dispatch. False in every build path that predates the
      * tool, so this changes nothing when it is closed. */
     bool locedit_active;
+
+    /* The map editor's SELECT tool (src/editor/editor_panel.h,
+     * `app->editor_panel`) wants the same disambiguated-target rows
+     * locedit_active earns above, but latches into the editor panel's own
+     * sel_kind/sel_scene_x/z/sel_element_id rather than locedit_loc_id --
+     * the two tools can be open together, on different subjects. Labeled by
+     * loc SHAPE category ("Select Wall", "Select Ground Decor", ...) rather
+     * than by name, since the map editor's tile tools care which layer they
+     * would be affecting, not which loc it is. */
+    bool mapedit_select_active;
+
+    /*
+     * The plugin lane's server is unreachable, so no "Manage Plugins" row is
+     * offered at all.
+     *
+     * Every file the plugin system needs after the module itself -- the
+     * manifest, each script it names, each shipped asset -- arrives over the
+     * same transport as a cache read (TORIRS_IOK_SCRIPT, task_plugin_io.c).
+     * With that transport down the panel can list nothing, load nothing and
+     * save nothing, so a row that opens it is a row that leads to an empty
+     * window and no explanation.
+     *
+     * Dropped here rather than refused in the dispatcher because the row is
+     * AUTHORED: a profile puts `op0_action=PLUGIN_PANEL` on whatever component
+     * it likes, so the client does not know which component to grey and cannot
+     * reach it even if it did. Suppressing by ACTION covers every one of them,
+     * on every gameframe -- and it takes the left-click default with it, since
+     * a row that is not there cannot be chosen
+     * (RS_Minimenu_ActionIsDefaultable).
+     *
+     * Sense is deliberately "down", not "available": false is the pre-existing
+     * behaviour, so every build path that predates this -- the standalone
+     * minimenu tests included -- keeps offering the row exactly as it did.
+     */
+    bool plugin_io_down;
 };
 
 /* Custom, client-only minimenu action id: never sent to a server, and picked
  * well clear of both the real rev-254 action-id band (tops out ~1714, or
  * ~3714 deprioritized, revconfig.h) and the >1000 "deprioritized" bit
- * UIMinimenu_ActionNormalize/SortPriorityActions test for, so a Select row
- * sorts like any ordinary option instead of sinking to the bottom. */
-#define RS_MINIMENU_ACTION_LOCEDIT_SELECT 500000
+ * SortPriorityActions tests for, so a Select row sorts like any ordinary
+ * option instead of sinking to the bottom.
+ *
+ * Derived from the ui/ constant rather than restated, because being at or
+ * above it is what exempts the id from the +2000 priority bias — and an id
+ * merely "well clear" of the reference band is NOT enough on its own: 500000
+ * is >= 2000, so before that exemption existed the dispatcher's normalize step
+ * turned this into 498000 and the Select row did nothing at all. */
+#define RS_MINIMENU_ACTION_LOCEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 0)
+
+/* The same, for the GROUND rather than a loc. A tile is the other half of a
+ * placement question — whether a loc looks wrong because it is on the wrong
+ * square or because the square itself is a bridge deck is not answerable from
+ * the loc alone — and the terrain pick is already in the set, so selecting one
+ * costs a row rather than a second mechanism. */
+#define RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 1)
+
+/* The map editor SELECT tool's pair of the same two ids -- one action id
+ * covers every loc shape category, since the row TEXT is what varies
+ * ("Select Wall" vs "Select Ground Decor"), not the handler. */
+#define RS_MINIMENU_ACTION_MAPEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 2)
+#define RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 3)
+
+/*
+ * A CLIENTOP_* row -- one the cache installed with 6700..6709 ("Mark tile",
+ * "Tag"), run client-side and never sent to a server.
+ *
+ * ONE action id for the whole family, with the kind and slot carried in the
+ * option's `action_index`: a per-(kind, slot) id would be thirty of them, and
+ * the dispatcher does the same thing for every one -- look the slot up and run
+ * its script. See RS_MINIMENU_CLIENTOP_INDEX.
+ */
+#define RS_MINIMENU_ACTION_CLIENTOP (UITREE_MINIMENU_ACTION_CLIENT_BASE + 4)
+
+/*
+ * "Manage Plugins": open the plugin window.
+ *
+ * Declared in revconfig.h rather than here, because unlike the four above it
+ * is AUTHORED -- a profile writes `op0_action=PLUGIN_PANEL` on a component and
+ * the parser has to turn that name into this number. The assertion is what
+ * keeps the leaf header's literal and this band from drifting apart; without
+ * it the id would land among the reference's, pick up the +2000 bias, and the
+ * dispatcher's equality test would quietly stop matching.
+ */
+#define RS_MINIMENU_ACTION_PLUGIN_PANEL (UITREE_MINIMENU_ACTION_CLIENT_BASE + 5)
+_Static_assert(
+    RS_MINIMENU_ACTION_PLUGIN_PANEL == REVCONFIG_MINIMENU_PLUGIN_PANEL,
+    "the profile's PLUGIN_PANEL id is not this client action");
+
+/**
+ * Set one chat filter to one named mode.
+ *
+ * `pick.id` is the button's component id, `secondary_id` the filter and
+ * `tertiary_id` the mode. The row exists because the modern frames take the
+ * LEFT click off these buttons -- there it opens and closes the chatbox -- and
+ * a filter you can no longer cycle has to be reachable some other way. The
+ * fixed frames keep the click and get these rows as well, which is no loss:
+ * naming a mode beats stepping to it.
+ */
+#define RS_MINIMENU_ACTION_CHAT_FILTER (UITREE_MINIMENU_ACTION_CLIENT_BASE + 7)
+
+_Static_assert(
+    RS_MINIMENU_ACTION_CHAT_FILTER == REVCONFIG_MINIMENU_CHAT_FILTER,
+    "the profile's CHAT_FILTER id is not this client action");
+
+#define RS_MINIMENU_ACTION_PLUGIN_WIDGET UITREE_MINIMENU_ACTION_OWNED_WIDGET
+
+/**
+ * May this row be the LEFT-click default?
+ *
+ * The reference's rule is "an ordinary action sorts below 1000", and every
+ * client-band id is far above it -- deliberately, so that a developer tool's
+ * row can never become what a bare click does in the world. The plugin
+ * launcher is the one client row that is not a tool but a BUTTON: it is the
+ * only thing on the component it sits on, and a button that needs a
+ * right-click to find is a button most people never find.
+ *
+ * Named rather than folded into the scan so that adding a second one is a
+ * decision made here, once, next to the reason.
+ */
+static inline int
+RS_Minimenu_ActionIsDefaultable(int action)
+{
+    return action < 1000 || action == RS_MINIMENU_ACTION_PLUGIN_PANEL ||
+           action == RS_MINIMENU_ACTION_PLUGIN_WIDGET;
+}
+
+/** Pack a client op's (kind, slot) into a minimenu option's action_index, and
+ *  read it back. `action_index` is otherwise the config op slot 0..4, which a
+ *  client-op row does not have. */
+#define RS_MINIMENU_CLIENTOP_INDEX(kind, slot) ((kind) * 16 + (slot))
+#define RS_MINIMENU_CLIENTOP_KIND(index) ((index) / 16)
+#define RS_MINIMENU_CLIENTOP_SLOT(index) ((index) % 16)
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */
+/* Native actions for one live widget, without hit-testing unrelated widgets.
+ * Grid inventories and chat lines require a cell/line selection and yield no
+ * widget-level rows. Appends current native rows and stamps exact identity. */
+uint64_t RS_Minimenu_WidgetActionRevision(struct UIMinimenuOption const*);
+int RS_Minimenu_WidgetActionIndex(struct UIMinimenu const*,uint64_t ordinal,uint64_t revision);
+int RS_Minimenu_AddWidgetRows(struct RS_MinimenuBuildCtx const*, int32_t node,
+                             struct UIMinimenu*);
+
 void
 RS_Minimenu_Build(
     struct RS_MinimenuBuildCtx const* ctx,

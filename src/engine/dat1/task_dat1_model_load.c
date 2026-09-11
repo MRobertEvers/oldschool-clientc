@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1ModelLoad
 {
@@ -26,7 +27,6 @@ Task_Dat1ModelLoad_Run(
 {
     struct Task_Dat1ModelLoad* task = (struct Task_Dat1ModelLoad*)task_base;
     struct RSCache_Model* rscache_model = NULL;
-    struct RSCache_Model* model_copy = NULL;
     struct ToriRS_Model* torirs_model = NULL;
 
     PT_BEGIN(&task->pt);
@@ -37,16 +37,15 @@ Task_Dat1ModelLoad_Run(
     rscache_model = RSCache_IO_Dat1ModelDecode(io, 0);
     if( !rscache_model )
     {
-        fprintf(stderr, "Failed to decode dat1 model %d\n", task->model_id);
+        TORIRS_ERR("Failed to decode dat1 model %d\n", task->model_id);
         PT_EXIT(&task->pt);
     }
 
-    dat1_buildcache_model_add(task->bc, task->model_id, rscache_model);
-
-    model_copy = RSCache_ModelNewCopy(rscache_model);
-    assert(model_copy);
-    torirs_model = ToriRS_ModelFromRSCache(model_copy);
-    RSCache_ModelFree(model_copy);
+    /* Consumed here, not stashed in the buildcache's raw store: no client
+     * code reads that store, so it only grew (see the dat2 task). */
+    torirs_model = ToriRS_ModelFromRSCache(rscache_model);
+    RSCache_ModelFree(rscache_model);
+    rscache_model = NULL;
     CacheProvider_ModelAdd(&task->bc->base, task->model_id, torirs_model);
 
     PT_END(&task->pt);

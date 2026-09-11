@@ -17,6 +17,12 @@ struct Task_ObjModelLoad
     int* counts;
     int n;
     int i;
+    /* Read once per iteration and then read again after several awaits. A
+     * protothread resumes by jumping to a `case __LINE__:` inside the loop
+     * body (TASK_AWAITEX_IF), so a plain local would be re-entered
+     * uninitialised -- these have to live in the task like `i` does. */
+    int obj_id;
+    int count;
     int count_obj_id;
     int render_obj_id;
     int model_id;
@@ -24,7 +30,45 @@ struct Task_ObjModelLoad
     int base_obj_id;
     int base_model_id;
     int base_tex_f;
+    /** Loaders fanned out on the provider's asset queue and not yet ended. */
+    int pending;
 };
+
+static int
+obj_model_face_texture(
+    struct CacheProvider* provider,
+    int model_id,
+    int face);
+
+static int
+obj_model_face_count(
+    struct CacheProvider* provider,
+    int model_id);
+
+/*
+ * Queue a load for every SD face texture of `model_id` the provider does not
+ * hold, as siblings counted on `pending`. The textures of one model are
+ * independent reads, so they go out together; the join is the caller's.
+ */
+static void
+obj_model_fanout_textures(
+    struct Task_ObjModelLoad* self,
+    int model_id)
+{
+    int const faces = obj_model_face_count(self->provider, model_id);
+
+    assert(self);
+    assert(self->provider->asset_queue);
+    for( int f = 0; f < faces; f++ )
+    {
+        int const texture_id = obj_model_face_texture(self->provider, model_id, f);
+        if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
+            ToriRS_TaskQueue_AddJoined(
+                self->provider->asset_queue,
+                CreateTask_TextureLoad(self->provider, texture_id),
+                &self->pending);
+    }
+}
 
 static int
 obj_model_resolve_count_obj_id(
@@ -168,6 +212,21 @@ obj_model_face_count(
 }
 
 int
+ObjModelLoad_RenderObjId(
+    struct CacheProvider* provider,
+    int obj_id,
+    int count)
+{
+    int count_obj_id;
+
+    assert(provider);
+    if( obj_id <= 0 )
+        return obj_id;
+    count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
+    return count_obj_id > 0 ? count_obj_id : obj_id;
+}
+
+int
 ObjModelLoad_NeedsWork(
     struct CacheProvider* provider,
     int obj_id,
@@ -266,32 +325,59 @@ Task_ObjModelLoad_Run(
 
     PT_BEGIN(&self->pt);
 
+    /*
+     * Several objs: one chain each, ALL AT ONCE.
+     *
+     * The records of ONE obj are a dependency chain (obj -> count obj -> model
+     * -> textures) and have to be read in order; the chains of different objs
+     * are independent, and this task used to run them nose to tail -- an
+     * inventory of twenty-eight items was twenty-eight chains of round trips
+     * on a streamed cache. So with an asset queue to fan out on, each obj gets
+     * a single-obj instance of this task as a sibling, and this one joins.
+     */
+    if( self->n > 1 && self->provider->asset_queue )
+    {
+        for( int k = 0; k < self->n; k++ )
+        {
+            if( self->obj_ids[k] <= 0 )
+                continue;
+            ToriRS_TaskQueue_AddJoined(
+                self->provider->asset_queue,
+                CreateTask_ObjModelLoad(
+                    self->provider, &self->obj_ids[k], self->counts ? &self->counts[k] : NULL, 1),
+                &self->pending);
+        }
+        PT_TASK_JOIN(pending);
+        PT_EXIT(&self->pt);
+    }
+
     for( self->i = 0; self->i < self->n; self->i++ )
     {
-        int obj_id = self->obj_ids[self->i];
-        int count = self->counts ? self->counts[self->i] : 1;
+        self->obj_id = self->obj_ids[self->i];
+        self->count = self->counts ? self->counts[self->i] : 1;
 
-        if( obj_id <= 0 )
+        if( self->obj_id <= 0 )
             continue;
 
-        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, obj_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->obj_id));
 
-        self->count_obj_id = obj_model_resolve_count_obj_id(self->provider, obj_id, count);
+        self->count_obj_id =
+            obj_model_resolve_count_obj_id(self->provider, self->obj_id, self->count);
         if( self->count_obj_id > 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
 
         /* Bank note: pull in the cert template objtype whose model it borrows
          * (base obj/count obj are resident now, so render-id resolves). */
         self->render_obj_id = obj_model_render_obj_id(
-            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
-        if( self->render_obj_id > 0 && self->render_obj_id != obj_id &&
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
+        if( self->render_obj_id > 0 && self->render_obj_id != self->obj_id &&
             self->render_obj_id != self->count_obj_id )
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
         /* Bank note: also load the base item (cert_link) objtype + its model +
          * textures — the icon composites the base's icon over the note paper. */
         self->base_obj_id = obj_model_cert_link_id(
-            self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
+            self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
         if( self->base_obj_id > 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
@@ -299,33 +385,52 @@ Task_ObjModelLoad_Run(
                 obj_model_objtype_model_id(self->provider, self->base_obj_id);
             if( self->base_model_id > 0 )
                 PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->base_model_id));
-            for( self->base_tex_f = 0;
-                 self->base_tex_f < obj_model_face_count(self->provider, self->base_model_id);
-                 self->base_tex_f++ )
+            if( self->provider->asset_queue )
             {
-                int base_texture_id = obj_model_face_texture(
-                    self->provider, self->base_model_id, self->base_tex_f);
-                if( base_texture_id >= 0 &&
-                    !CacheProvider_TextureHas(self->provider, base_texture_id) )
-                    PT_TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, base_texture_id));
+                obj_model_fanout_textures(self, self->base_model_id);
+                PT_TASK_JOIN(pending);
+            }
+            else
+            {
+                for( self->base_tex_f = 0;
+                     self->base_tex_f < obj_model_face_count(self->provider, self->base_model_id);
+                     self->base_tex_f++ )
+                {
+                    int base_texture_id = obj_model_face_texture(
+                        self->provider, self->base_model_id, self->base_tex_f);
+                    if( base_texture_id >= 0 &&
+                        !CacheProvider_TextureHas(self->provider, base_texture_id) )
+                        PT_TASK_AWAITSELF_IF(
+                            CreateTask_TextureLoad(self->provider, base_texture_id));
+                }
             }
         }
 
-        self->model_id =
-            obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);
+        self->model_id = obj_model_resolve_inventory_model_id(
+            self->provider, self->obj_id, self->count_obj_id);
         if( self->model_id > 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
 
         /* One attempt per face: a texture whose load fails stays missing and
-         * the icon raster skips those faces instead of looping here. */
-        for( self->tex_f = 0;
-             self->tex_f < obj_model_face_count(self->provider, self->model_id);
-             self->tex_f++ )
+         * the icon raster skips those faces instead of looping here. The
+         * textures of one model are independent, so with an asset queue they
+         * go out together and are joined. */
+        if( self->provider->asset_queue )
         {
-            int texture_id =
-                obj_model_face_texture(self->provider, self->model_id, self->tex_f);
-            if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
-                PT_TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, texture_id));
+            obj_model_fanout_textures(self, self->model_id);
+            PT_TASK_JOIN(pending);
+        }
+        else
+        {
+            for( self->tex_f = 0;
+                 self->tex_f < obj_model_face_count(self->provider, self->model_id);
+                 self->tex_f++ )
+            {
+                int texture_id =
+                    obj_model_face_texture(self->provider, self->model_id, self->tex_f);
+                if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
+                    PT_TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, texture_id));
+            }
         }
     }
 

@@ -141,9 +141,9 @@ than "port all of RSProt" for one pass:**
 ## Relationship to the hand-written wire code (deliberately untouched)
 
 Per the scoping decision this library was built under: it is **standalone**.
-`mock230_wire.c`, `src/net/rev/osrs239/`, and `3rd/rsareabuf` are not modified
+`torirs_server_wire.c`, `src/net/rev/osrs239/`, and `3rd/rsareabuf` are not modified
 and do not depend on this library yet. Wiring osrs239's ten hand-transcribed
 payload writers onto `rsprot_buf` (proving the buffer port against a real
-client, per the existing `MOCK230_REV=osrs239` selftest path) is a natural
+client, per the existing `TORIRSSERVER_REV=osrs239` selftest path) is a natural
 next step but a separate one — it changes behavior on a path the regression
 suite runs, where this library so far only adds new files.

@@ -4,20 +4,40 @@
 
 #include <assert.h>
 #include <rsbuffer.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 rsbuf_rsaenc(
     struct RSCache_Buffer* buffer,
     const struct rsa* rsa)
 {
+    if( buffer->size < 3 || buffer->position <= 0 )
+        return -1;
     int8_t* temp = malloc(buffer->position);
+    if( !temp )
+        return -1;
     memcpy(temp, buffer->data, buffer->position);
 
     int enclen = rsa_crypt(
-        (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size);
+        (struct rsa*)rsa, temp, buffer->position, buffer->data + 1, buffer->size - 2);
     free(temp);
+
+    if( enclen <= 0 || enclen > 254 )
+        return -1;
+    /* This wire uses Java BigInteger.toByteArray, a signed two's-complement
+     * representation. rsa_crypt returns an unsigned magnitude. LostCity's
+     * Packet.rsadec interprets an unprefixed high bit as a NEGATIVE cipher,
+     * decrypts another number, then returns the misleading out-of-date reply.
+     * Keep this encoding here: other login protocols use unsigned blocks. */
+    if( buffer->data[1] & 0x80 )
+    {
+        memmove(buffer->data + 2, buffer->data + 1, (size_t)enclen);
+        buffer->data[1] = 0;
+        enclen++;
+    }
 
     buffer->data[0] = enclen;
     buffer->position = enclen + 1;
@@ -65,6 +85,7 @@ loginproto_new(
     loginproto->seed_user = NULL;
 
     loginproto->state = LOGINPROTO_SEND_CONNECT;
+    loginproto->reply_code = -1;
     return loginproto;
 }
 
@@ -77,6 +98,15 @@ loginproto_set_seed_fn(
     assert(loginproto);
     loginproto->seed_fn = seed_fn ? seed_fn : default_seed_fn;
     loginproto->seed_user = user;
+}
+
+void
+loginproto_set_reconnect(
+    struct LoginProto* loginproto,
+    int reconnect)
+{
+    assert(loginproto);
+    loginproto->reconnect = reconnect;
 }
 
 void
@@ -124,6 +154,49 @@ loginproto_send(
 {
     assert(out_size >= ringbuf_avail(loginproto->out));
     return ringbuf_read(loginproto->out, out, out_size);
+}
+
+enum
+{
+    LOGINPROTO_OP_GAMELOGIN = 16,
+    LOGINPROTO_OP_GAMERECONNECT = 18,
+};
+
+/*
+ * The first byte of the login block, which is the whole of what separates a
+ * reconnect from a fresh login on the wire at every revision this machine
+ * drives: LostCity's client writes `reconnect ? 18 : 16` and then the same
+ * bytes either way (Client-TS Client.ts login()), and its server reads the
+ * block with one decoder and branches on the opcode to decide whether the
+ * character it already has is handed back or logged in from a save.
+ *
+ * Announcing it is therefore free where the revision has it, and not free
+ * where it doesn't -- a server that does not know opcode 18 drops the
+ * connection on the first byte, which presents as "the reconnect never
+ * connected" rather than as a rejected login. So the table decides.
+ */
+static int
+login_opcode(struct LoginProto* loginproto)
+{
+    if( !loginproto->reconnect )
+        return LOGINPROTO_OP_GAMELOGIN;
+
+    /*
+     * The seed flavour is not this machine's block to write: it replaces the
+     * authentication section wholesale, and a revision that wants it brings a
+     * login vtable that does (loginproto_osrs239.c). A table that selects it
+     * and leaves `->login` NULL is a table bug, not a runtime state.
+     */
+    assert(loginproto->rev->reconnect_kind != NET_RECONNECT_SEED);
+
+    if( loginproto->rev->reconnect_kind != NET_RECONNECT_CREDS )
+    {
+        TORIRS_LOG(
+            "loginproto: %s has no reconnect handshake; re-establishing as a fresh login\n",
+            loginproto->rev->name);
+        return LOGINPROTO_OP_GAMELOGIN;
+    }
+    return LOGINPROTO_OP_GAMERECONNECT;
 }
 
 int
@@ -194,11 +267,26 @@ loginproto_poll(struct LoginProto* loginproto)
             int low_memory = 0;
             RSCache_BufferInit(&out, loginproto->tempout, sizeof(loginproto->tempout));
 
-            /* 18 = reconnect (not implemented), 16 = fresh login. */
-            p1(&out, 16);
+            p1(&out, login_opcode(loginproto));
 
-            p1(&out, encrypted_len + 36 + 1 + 1);
-            p1(&out, loginproto->rev->client_version);
+            /* The revision is one byte, with 255 as the escape to a two-byte
+             * one. Builds past 254 (LostCity's 274 and 289 branches) cannot
+             * be written any other way, and the length byte has to grow with
+             * it -- a server reads exactly the count it was promised, so
+             * getting this wrong desyncs the whole block rather than failing
+             * the version check. */
+            int rev_bytes = loginproto->rev->client_version > 254 ? 3 : 1;
+
+            p1(&out, encrypted_len + 36 + rev_bytes + 1);
+            if( rev_bytes == 3 )
+            {
+                p1(&out, 255);
+                p2(&out, loginproto->rev->client_version);
+            }
+            else
+            {
+                p1(&out, loginproto->rev->client_version);
+            }
             p1(&out, low_memory ? 1 : 0);
 
             for( int i = 0; i < 9; i++ )
@@ -246,11 +334,65 @@ loginproto_poll(struct LoginProto* loginproto)
             }
             if( reply_byte == 15 )
             {
-                /* Reconnect handoff: single byte, no tail. */
+                /*
+                 * The reconnect verdict: a single byte, no tail, and no
+                 * REBUILD_LOGIN behind it -- the server is handing back a
+                 * session rather than opening one, so it restates neither the
+                 * staff level nor the mouse-tracking flag that a `2` carries.
+                 *
+                 * Accepted on a fresh login too, because the reference does
+                 * (Client-TS `response === 15`): a server that answers a 16
+                 * with a 15 has decided the character is already in the world,
+                 * and the stream that follows is a game stream either way.
+                 */
                 loginproto->state = LOGINPROTO_SUCCESS;
                 return LOGINPROTO_SUCCESS;
             }
-            fprintf(stderr, "loginproto: login rejected, reply=%d\n", reply_byte);
+            /*
+             * Reply 6 is the one worth spelling out. It means "client out of
+             * date", but the server also uses it for an invalid RSA block.
+             * Revision and jag checksums are not the only possible causes, so the
+             * number alone names neither. All-zero checksums are the failure
+             * that looks like a version problem and is not: an on-demand boot
+             * fills them from the server's own `GET /crc`, so zeros mean that
+             * fetch did not happen and the login was doomed before it was
+             * sent.
+             *
+             * Non-zero is NOT proof of a revision mismatch, and saying so was
+             * wrong: this server recomputes its nine checksums whenever it
+             * repacks, so a repack between the /crc read and this login makes
+             * them stale within one boot. Both causes reach here identically
+             * and the client cannot tell them apart -- but they want opposite
+             * responses, so the message names both and says which to rule out
+             * first. A stale-checksum rejection clears on a retry; a revision
+             * disagreement does not.
+             */
+            if( reply_byte == 6 )
+            {
+                int zero = 1;
+                for( int i = 0; i < 9; i++ )
+                    if( loginproto->rev->jag_checksum[i] != 0 )
+                        zero = 0;
+                TORIRS_ERR("loginproto: login rejected, reply=6 (client out of "
+                    "date). Sent revision %d and %s. %s\n",
+                    loginproto->rev->client_version,
+                    zero ? "nine ZERO jag checksums"
+                         : "nine non-zero jag checksums",
+                    zero ? "The checksums were never fetched -- see the /crc "
+                           "warning above; the server is unreachable or was "
+                           "not serving when this client booted."
+                         : "The checksums came from the server, so either the "
+                           "revision disagrees -- check engine.revision in the "
+                           "server's data/config/world.json -- or the server "
+                           "repacked between that read and this login, which "
+                           "makes them stale. LostCity also returns this reply "
+                           "for an invalid RSA block; verify the login key.");
+            }
+            else
+                TORIRS_ERR("loginproto: login rejected, reply=%d\n", reply_byte);
+            /* The code the login screen needs: [login_reply:6] is what a
+             * player is shown, and the prose above is what the log gets. */
+            loginproto->reply_code = reply_byte;
             loginproto->state = LOGINPROTO_ERROR;
             return LOGINPROTO_AWAIT_RECV;
         }

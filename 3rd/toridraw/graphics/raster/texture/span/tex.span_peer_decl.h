@@ -6,7 +6,7 @@
 
 static inline void
 raster_linear_transparent_blend_lerp8(
-    uint32_t* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const uint32_t* RESTRICT texels,
     int u_scan,
@@ -18,7 +18,7 @@ raster_linear_transparent_blend_lerp8(
 
 static inline void
 raster_linear_transparent_texshadeflat_lerp8(
-    uint32_t* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const uint32_t* RESTRICT texels,
     int u_scan,
@@ -30,7 +30,7 @@ raster_linear_transparent_texshadeflat_lerp8(
 
 static inline void
 raster_linear_opaque_blend_lerp8(
-    uint32_t* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const uint32_t* RESTRICT texels,
     int u_scan,
@@ -42,7 +42,7 @@ raster_linear_opaque_blend_lerp8(
 
 static inline void
 raster_linear_opaque_texshadeflat_lerp8(
-    uint32_t* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const uint32_t* RESTRICT texels,
     int u_scan,
@@ -54,7 +54,7 @@ raster_linear_opaque_texshadeflat_lerp8(
 
 static inline void
 draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -74,7 +74,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
 
 static inline void
 draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -94,8 +94,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
 
 static inline void
 raster_linear_transparent_blend_lerp8_v3(
-    uint32_t* __restrict pixel_buffer,
-    const uint32_t* __restrict texels,
+    toripixel_t* RESTRICT pixel_buffer,
+    const uint32_t* RESTRICT texels,
     int u_scan,
     int v_scan,
     int step_u,
@@ -107,8 +107,8 @@ raster_linear_transparent_blend_lerp8_v3(
 
 static inline void
 raster_linear_opaque_blend_lerp8_v3(
-    uint32_t* __restrict pixel_buffer,
-    const uint32_t* __restrict texels,
+    toripixel_t* RESTRICT pixel_buffer,
+    const uint32_t* RESTRICT texels,
     int u_scan,
     int v_scan,
     int step_u,
@@ -120,7 +120,7 @@ raster_linear_opaque_blend_lerp8_v3(
 
 static inline void
 draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -138,7 +138,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
 
 static inline void
 draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -156,7 +156,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
 
 static inline void
 draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -176,7 +176,7 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered(
 
 static inline void
 draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -196,7 +196,7 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
 
 static inline void
 draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -214,7 +214,7 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
 
 static inline void
 draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,

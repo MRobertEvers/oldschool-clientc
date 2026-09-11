@@ -37,14 +37,38 @@ now_ms(void)
     return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
 }
 
+/* One named list, id for id and name for name. The npc, obj and loc lists are
+ * the same row type and the same serialised shape, so comparing them by three
+ * copies of this loop would be three chances to leave one of them uncompared —
+ * which is what "the warm build matches" quietly meant when only npcs were
+ * checked and obj/loc rows had just been added to the file. */
+static int
+same_rows(const char* what, const struct EV_IndexRow* a, const struct EV_IndexRow* b, int count)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        const char* x = a[i].name; const char* y = b[i].name;
+        if( a[i].id != b[i].id )
+        { printf("    %s %d: id %d vs %d\n", what, i, a[i].id, b[i].id); return 0; }
+        if( (x == NULL) != (y == NULL) )
+        { printf("    %s %d (id %d): name %s vs %s\n", what, i, a[i].id,
+                 x ? x : "NULL", y ? y : "NULL"); return 0; }
+        if( x && strcmp(x, y) != 0 )
+        { printf("    %s %d (id %d): '%s' vs '%s'\n", what, i, a[i].id, x, y); return 0; }
+    }
+    return 1;
+}
+
 static int
 same(const struct EV_Index* a, const struct EV_Index* b)
 {
-    if( a->npc_count != b->npc_count || a->seq_count != b->seq_count ||
+    if( a->npc_count != b->npc_count || a->obj_count != b->obj_count ||
+        a->loc_count != b->loc_count || a->seq_count != b->seq_count ||
         a->model_count != b->model_count )
     {
-        printf("    counts differ: npcs %d/%d seqs %d/%d models %d/%d\n",
-               a->npc_count, b->npc_count, a->seq_count, b->seq_count,
+        printf("    counts differ: npcs %d/%d objs %d/%d locs %d/%d seqs %d/%d models %d/%d\n",
+               a->npc_count, b->npc_count, a->obj_count, b->obj_count,
+               a->loc_count, b->loc_count, a->seq_count, b->seq_count,
                a->model_count, b->model_count);
         return 0;
     }
@@ -54,18 +78,9 @@ same(const struct EV_Index* a, const struct EV_Index* b)
     for( int i = 0; i < a->model_count; i++ )
         if( a->model_ids[i] != b->model_ids[i] )
         { printf("    model %d: %d vs %d\n", i, a->model_ids[i], b->model_ids[i]); return 0; }
-    for( int i = 0; i < a->npc_count; i++ )
-    {
-        const char* x = a->npcs[i].name; const char* y = b->npcs[i].name;
-        if( a->npcs[i].id != b->npcs[i].id )
-        { printf("    npc %d: id %d vs %d\n", i, a->npcs[i].id, b->npcs[i].id); return 0; }
-        if( (x == NULL) != (y == NULL) )
-        { printf("    npc %d (id %d): name %s vs %s\n", i, a->npcs[i].id,
-                 x ? x : "NULL", y ? y : "NULL"); return 0; }
-        if( x && strcmp(x, y) != 0 )
-        { printf("    npc %d (id %d): '%s' vs '%s'\n", i, a->npcs[i].id, x, y); return 0; }
-    }
-    return 1;
+    return same_rows("npc", a->npcs, b->npcs, a->npc_count) &&
+           same_rows("obj", a->objs, b->objs, a->obj_count) &&
+           same_rows("loc", a->locs, b->locs, a->loc_count);
 }
 
 int

@@ -1,0 +1,211 @@
+{{External|rs|rsc=Superheat item|dw=Superheat}}
+{{Infobox Spell
+|name = Superheat Item
+|image = [[File:Superheat Item.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 43
+|spellbook = Normal
+|type = Utility
+|exp = 53
+|cost = {{RuneReq|Nature=1|Fire=4}}
+|speed = 3 ticks
+|description = Smelt ore without a furnace
+|anim = [[File:Superheat Item.gif]]
+|sound = [[File:Superheat Item.ogg]]
+}}
+[[File:Superheat Item icon (mobile).png|left]]
+'''Superheat Item''' is a [[Utility spells|utility spell]] available in the [[standard spellbook]]. It requires level 43 [[Magic]] to cast, and grants 53 Magic experience per cast. It allows players to [[smelt]] [[ore]] into [[bars]] without a [[furnace]]. It '''cannot''' be cast on noted ore. 
+
+Casting the spell on a piece of ore in the player's [[inventory]] requires the same [[Smithing]] level as smelting the bar at a furnace, along with the appropriate amount of coal. Each bar made yields the same amount of Smithing experience as would be gained from smelting the bar at a furnace. The experience-boosting effect of the [[goldsmith gauntlets]] or [[Smithing cape]] is applied when casting Superheat Item. 
+
+Casting Superheat Item on [[iron ore]] with at least two [[coal]] always produces a [[steel bar]], otherwise it produces an [[iron bar]] with a 100% chance of success. This is comparable to a [[ring of forging]], used to increase the furnace smelting rate from 50% to 100%. Assuming a [[staff of fire]] or [[tome of fire]] is used, it is more profitable to use {{#if:{{GEP|Nature rune}} > ({{GEP|Ring of forging}} / 140)|a ring of forging by {{NoCoins|{{#expr:{{GEP|Nature rune}} - ({{GEP|Ring of forging}} / 140)}}}}|Superheat Item by {{NoCoins|{{#expr:({{GEP|Ring of forging}} / 140) - {{GEP|Nature rune}}}}}}}} [[coin]]s per bar.
+
+Casting Superheat Item '''does''' work in conjunction with [[smithing catalyst]], providing the catalyst's usual effects of halving coal consumption and doubling the experience gain for the ore it was cast on.
+
+==Money making==
+{{Mmgsection|Mining coal and superheating Mithril bars|Mining coal and superheating Adamantite bars|Mining coal and superheating Runite bars|Smelting adamantite bars (Superheat Item)|Smelting runite bars (Superheat Item)}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = nature
+|Rune1num = 1
+|Rune2 = fire
+|Rune2num = 4
+}}
+
+==Cost effectiveness==
+{| class="wikitable sortable align-center-1 align-center-2 align-right-6 align-right-7"
+! rowspan="2" |{{SCP|Smithing}}<br/>Level
+! rowspan="2" colspan="2" class="unsortable" |Bar
+! rowspan="2" class="unsortable" |Materials
+! rowspan="2" |Cost
+! colspan="2" |Experience
+! rowspan="2" |Profit
+! colspan="3" |Profit/Exp
+|-
+!{{SCP|Magic}}
+!{{SCP|Smithing}}
+![[Magic]]
+![[Smithing]]
+!Total
+|-
+|1
+|{{plinkt|Bronze bar|txt=Bronze}}
+|{{plinkp|Tin ore}} + {{plinkp|Copper ore}}
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Tin ore}}+{{GEP|Copper ore}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|6.2}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Bronze bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|15
+|{{plinkt|Iron bar|txt=Iron}}
+|{{plinkp|Iron ore}}
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Iron ore}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|12.5}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Iron bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|20
+|{{plinkt|Silver bar|txt=Silver}}
+|{{plinkp|Silver ore}}
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Silver ore}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|13.7}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Silver bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|25
+|{{plinkt|Lead bar|txt=Lead}}
+|{{plinkp|Lead ore}} × 2
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Lead ore|2}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|15.5}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Lead bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|30
+|{{plinkt|Steel bar|txt=Steel}}
+|{{plinkp|Iron ore}} + {{plinkp|Coal}} × 2
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Iron ore}}+{{GEP|Coal|2}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|17.5}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Steel bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|40
+|{{plinkt|Gold bar|txt=Gold}}
+|{{plinkp|Gold ore}}
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Gold ore}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|22.5}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Gold bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|40
+|{{plinkt|Gold bar|txt=Gold|pic=Goldsmith gauntlets}} ([[Goldsmith gauntlets|gauntlets]])
+|{{plinkp|Gold ore}}
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Gold ore}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|56.2}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Gold bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|45
+|{{plinkt|Lovakite bar|txt=Lovakite}}
+|{{plinkp|Lovakite ore}} + {{plinkp|Coal}} × 2
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Coal|2}}+{{GEP|Nature rune}}}}}}}}<ref group="t">Assumes the cost of Lovakite ore and bars is zero.</ref>
+|53
+|{{#vardefineecho:smithxp|20}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:-{{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|50
+|{{plinkt|Mithril bar|txt=Mithril}}
+|{{plinkp|Mithril ore}} + {{plinkp|Coal}} × 4
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Mithril ore}}+{{GEP|Coal|4}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|30}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Mithril bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|70
+|{{plinkt|Adamantite bar|txt=Adamantite}}
+|{{plinkp|Adamantite ore}} + {{plinkp|Coal}} × 6
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Adamantite ore}}+{{GEP|Coal|6}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|37.5}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Adamantite bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|74
+|{{plinkt|Cupronickel bar|txt=Cupronickel}}
+|{{plinkp|Nickel ore}} + {{plinkp|Copper ore}} × 2
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Nickel ore}}+{{GEP|Copper ore|2}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|42}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Cupronickel bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|-
+|85
+|{{plinkt|Runite bar|txt=Runite}}
+|{{plinkp|Runite ore}} + {{plinkp|Coal}} × 8
+|{{Coins|{{#vardefineecho:cost|{{#expr:{{GEP|Runite ore}}+{{GEP|Coal|8}}+{{GEP|Nature rune}}}}}}}}
+|53
+|{{#vardefineecho:smithxp|50}}
+|{{Coins|{{#vardefineecho:profit|{{#expr:{{GEP|Runite bar}} - {{#var:cost}}}}}}}}
+|{{Coins|{{#var:profit}} / 53}}
+|{{Coins|{{#var:profit}} / {{#var:smithxp}}}}
+|{{Coins|{{#var:profit}} / (53+{{#var:smithxp}})}}
+|}
+{{Reflist|group=t}}
+
+==Uses==
+Superheat Item can be used to extend [[Mining]] trips by mining coal and the ore. Bars also [[weigh]] less than ore. For this method, it is recommended to equip a [[staff of fire]], with a [[pickaxe]] and [[nature rune]]s. Ore can also be brought to the mine to superheat while mining only coal. Without a [[coal bag]], Superheat Item can save time transporting coal from the [[coal trucks]], which will also requires [[ore]]s to use. Repeatedly withdraw coal and cast Superheat Item.
+
+It can also be useful when killing creatures that drop the ores and coal to save inventory space or earn [[Smithing]] and [[Magic]] [[experience]] while fighting.
+
+
+Superheat Item can also be used as a Magic training method for both Free-to-play and members. When using the Spell you can theoretically get up-to 106,000 Magic Experience an hour, however due to the need of using a bank to store and restock you can expect rates closer to 90,000 - 100,000 experience an hour from efficient Superheat Item casting.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 August 2014
+|update = In-Game Polls & Pet Insurance
+|poll = Old School feature poll - Content Poll 23
+|change = Superheat and enchant jewellery spells will now queue up one spell if you cast them too quickly.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Casting Superheat Item on a non-ore item, which fails, results in the chatbox message, {{Mes|You need to cast superheat item on ore.}} A spell splash animation will appear on the player.
+* Casting Superheat Item on an [[elemental ore]], which fails, results in the chatbox message, {{Mes|Even this spell is not hot enough to heat this item.}}
+* Superheat Item can be used in place of a furnace to turn [[jogre bones]] into [[burnt jogre bones]].
+
+{{Standard spellbook}}

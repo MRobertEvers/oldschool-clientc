@@ -74,26 +74,72 @@ struct WorldEntity_SceneryDebug
 };
 
 /**
- * TORIRS_LOC_DEBUG: surface loc placement provenance in the minimenu, and let
- * every loc be picked while doing it — including the inactive ones the pick
- * classifier normally drops (LocType.active), which is most of the scenery a
- * misplacement is visible on (bushes, walls, gravel).
+ * TORIRS_LOC_DEBUG: surface loc placement provenance in the minimenu — the
+ * scene/abs slot on every loc row, and the full placement record as a row of
+ * its own.
  *
- * Read once per translation unit; flipping the env var mid-run does nothing.
+ * Env only, and read once: this is the READOUT, and a hotkey-driven tool must
+ * not start rewriting menu text as a side effect of being switched on.
  */
-static inline bool
-WorldEntity_SceneryDebugEnabled(void)
+bool
+WorldEntity_SceneryDebugEnabled(void);
+
+/**
+ * Whether an INACTIVE loc may be picked (LocType.active; the reference negates
+ * a non-active typecode and Model.draw records no hit for it, Model.ts:1758).
+ *
+ * Separate from the readout above because it is what every loc-inspection tool
+ * needs to see its subject at all. Walls, gravel, fences, ground decor and
+ * bushes are overwhelmingly inactive — they carry no ops and therefore no menu
+ * row — so with this false the footprint outline and the loc editor could only
+ * ever reach the small minority of scenery that happens to be interactive, and
+ * "the tool does nothing over a wall" is indistinguishable from a broken tool.
+ *
+ * True when the readout is on, or while WorldEntity_SceneryDebugSetTools says
+ * a tool that picks locs is running.
+ */
+bool
+WorldEntity_SceneryPickInactive(void);
+
+/** Declare whether a loc-picking tool (loc editor, footprint outline) is
+ *  active this frame. The host calls this; nothing in world/ turns it on by
+ *  itself. */
+void
+WorldEntity_SceneryDebugSetTools(bool active);
+
+/**
+ * The name and the five menu options a loc placement shows -- shared, never
+ * copied per placement.
+ *
+ * Every placement of a loc type carries the same 234 bytes of label, a scene
+ * holds thousands of placements against a few hundred types, and the great
+ * majority carry nothing at all: walls, gravel, fences and ground decor have
+ * neither a name nor an op, so they all resolve to one block. Held inline this
+ * was 234 of the entity's 380 bytes, on a pool that runs to eight thousand.
+ *
+ * Interned per world by content (World_SceneryInfoIntern), so it is never
+ * NULL -- an unnamed, op-less placement points at the shared empty block. The
+ * pointer is const because a placement never edits its own label: the one path
+ * that overrides ops (a LOC_ADD_CHANGE dressing the door it just spawned)
+ * interns the edited copy and repoints, which also means two spawns carrying
+ * the same override still share.
+ */
+struct WorldEntity_SceneryInfo
 {
-    static int enabled = -1;
-    if( enabled < 0 )
-        enabled = getenv("TORIRS_LOC_DEBUG") != NULL;
-    return enabled != 0;
-}
+    /* 64, matching ToriRS_Location.name (TORIRS_NAME_MAX) -- col-tagged names
+     * don't fit in 32. */
+    char name[64];
+    struct WorldEntityFacet_Action actions[5];
+};
 
 struct WorldEntity_Scenery
 {
     int element_id;
     int loc_id;
+    /** Placement overrides survive a varp-driven model change. Names already
+     * live in the interned info; these masks distinguish them from cache ops. */
+    uint8_t placement_op_mask;
+    uint8_t placement_op_overrides;
     struct WorldEntityFacet_GridPosition grid_position;
     /** ROUTE footprint: the loc's config size, angle-swapped, which is what the
      *  click-time approach test measures against. Not the render footprint —
@@ -112,10 +158,9 @@ struct WorldEntity_Scenery
     int force_approach;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_AnimationStep animation;
-    /* 64, matching ToriRS_Location.name (TORIRS_NAME_MAX) -- col-tagged names
-     * don't fit in 32. */
-    char name[64];
-    struct WorldEntityFacet_Action actions[5];
+    /** Name and menu options, shared with every placement that shows the same
+     *  ones. Never NULL once the placement is registered. */
+    struct WorldEntity_SceneryInfo const* info;
     /** LocType.active. The reference negates a non-active loc's scene
      *  typecode so Model.draw never records it as a pick hit; torirs filters
      *  in torirs_pick.c instead (walls/gravel/floor decor stay unclickable). */
@@ -134,6 +179,15 @@ struct WorldEntity_Scenery
      *  wall on the correct side of its tile instead of as centre scenery. */
     int painter_wall_ab;
     int painter_wall_side;
+    /** Painter registration for a runtime-spawned GROUND DECOR (shape 22) loc:
+     *  1 = re-register through painter_add_ground_decor_dynamic rather than as
+     *  normal scenery. Recorded at spawn time (scenery_add_floor_decoration)
+     *  for the same reason painter_wall_ab is — the build path's single-slot
+     *  registration is suppressed for a runtime spawn, so the per-frame pass
+     *  has to be told which slot the loc belongs in. Without it a spawned
+     *  puddle draws as scenery and can sort in front of a large NPC standing
+     *  over it. */
+    int painter_ground_decor;
     /** Placement provenance for the TORIRS_LOC_DEBUG hover readout. */
     struct WorldEntity_SceneryDebug debug;
 };

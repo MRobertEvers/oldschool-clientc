@@ -1,0 +1,270 @@
+{{External|rs}}
+{{Otheruses|def=no|the music track|Duel Arena (music track)|the Duel Arena's replacement|Emir's Arena}}
+{{Gone|update=PvP Arena: Soft Launch}}
+{{Infobox Activity
+|name = Duel Arena
+|image = [[File:Duel Arena.png|300px]]
+|release = [[25 March]] [[2004]]
+|update = RS2 - Duelling and Extras
+|removal = [[6 July]] [[2022]]
+|removalupdate = PvP Arena: Soft Launch
+|aka = Sand casino
+|type = Minigame
+|members = No
+|location = [[Al Kharid]]
+|players = 2
+|skills = [[Combat]]
+|requirements = None
+|currency = N/A
+|tutorial = No
+|music = [[Shine]], [[Duel Arena (music track)|Duel Arena]]
+|map = {{Map|name=Duel Arena|zoom=1|x=3360|y=3233}}
+|leagueRegion = No
+}}
+The [[Al Kharid]] '''Duel Arena''' was a place where players could go to engage in [[PvP|one-on-one]] [[Combat]]. The Duel Arena was available to both members and free-to-play, though there was a limit to how much you can stake in both members and free-to-play.
+
+Duel Arena challenge areas were identified upon entering by a battleaxe ([[File:Duel Arena battleaxe.png|25px]]) which appeared in the bottom right hand corner of the [[interface]], during a duel this was changed to a skull ([[File:Skull_(status)_icon.png|25px]]).
+
+Players could partake in duels for free, but as stakes could be placed, it was frequently used for betting; battling opponents in a setup where the chance of winning was roughly equal with little strategy involved was known as "staking". There was no official world where players engage in the Duel Arena, but the unofficial world with the largest population was world 302.
+
+From its inception, the Duel Arena was a controversial activity due to the frequent staking that took place, especially with its ties to [[real world trading]]. In response, Jagex introduced a 10 million coin staking cap in 2021 and, after a [[Update:PvP Arena: Soft Launch|game update]] on [[6 July]] [[2022]], removed the Duel Arena from the game entirely, replacing it with the [[Emir's Arena]].
+
+{{Relative location
+|north = Mage Training Arena
+|south = Citharede Abbey
+|west = Al Kharid Mine
+|east = River Salve
+}}
+
+==Origins==
+===Development history===
+The Duel Arena was added in ''[[RuneScape 2]]'' shortly after the end of its beta to replace the "Duel anywhere" feature in ''[[RuneScape Classic]]''. This was partially due to the feature being a concern because some players would abuse it in order to get a free teleport to [[Lumbridge]].
+
+===In-universe history===
+According to in-game lore, the Duel Arena was built in the [[Second Age]] in the northern part of Kharidian Empire.
+
+==Transportation==
+The arena was located north-east of [[Al Kharid]]. It was fenced off from the rest of the area.
+
+Players could also rub a [[Ring of dueling]] to teleport directly to the arena entrance. This saved on having to walk from far away, although using an [[Amulet of glory]] to teleport to the [[Al Kharid Palace]] was another viable option along with the [[Lumbridge]] [[Home Teleport]] as it was close to the Duel Arena.
+
+==Picking a fight==
+{{Listen
+|title = [[Commence The Fight! (Duel Arena)|Commence The Fight!]]
+|align = right
+|filename = Commence The Fight! (Duel Arena).ogg
+|desc = The jingle that plays upon starting a fight.}}
+To fight another player, players had to right-click their intended opponent and select the "Challenge" option. This would tell that player that someone wished to duel with them, and they accepted by challenging that player in return.
+
+===Combat===
+This would open the duelling options screen, which defined the parameters for the battle. The screen showed the name and [[Combat level]] of the opponent, as well as the amount of gold each player was offering up for a "bet", or a "stake". At the time of removal, player could not stake more than 10 million coins during a single duel (initially being unlimited), and the difference between the stakes could not exceed 10,000 coins. Finally, there was 11 different options that could be turned on or off and were adjustable by either player. These are detailed as follows:
+*'''No [[Ranged]]''': No ranged [[weapon]]ry could be equipped during the battle.
+*'''No [[Melee]]''': Players could not engage in hand-to-hand [[combat]], including bare fists/feet.
+*'''No [[Magic]]''': No magical attack [[spells]] could be cast.
+*'''No Special Attacks''': [[Special attack]]s could not be used.
+*'''Fun Weapons''': The only allowed weapons were those with negative attack stats, such as the [[Rubber chicken]],[[Flowers]], [[Birthday cake]], rubber mouse toy, and [[Golden tench]]. Bare fists/feet were not allowed.
+*'''No Forfeit''': Players could not escape the arena; the fight lasted until one player dies.
+*'''No Drinks''': Players could not drink anything that boosts stats, such as [[potions]]. All stats that were boosted prior to the fight were reset to their default values once the fight begins.
+*'''No [[Food]]''': Eating [[food]] to heal was not allowed, including [[Saradomin brew]]s.
+*'''No [[Prayer]]:''' Using the [[Prayer]] skill was not allowed.
+*'''No Movement''': Players couldn't walk or [[run]] during the battle.
+*'''Obstacles''': One of the walled arenas was used during the fight, putting the players in a sort of mini-maze.
+Some of the options couldn't be combined; for instance, having no Ranged, Melee, or Magic made it impossible to fight.
+
+It is also possible to select and disable equipment slots on this screen. Rangers should be careful not to check off [[shield]] if they intend to use a bow.
+
+Once the battle begins, players were teleported into the arena itself with a 3-second countdown before the fighting actually began. If "No Forfeit" was not checked off, players who were losing (or simply wished to end the duel early) could retreat through one of the trapdoors, ending the battle immediately. Anything staked was awarded to the other player.
+
+<gallery>
+Duel Arena interface.png|The Duelling interface
+</gallery>
+
+===Presets===
+A player could save the duel options and load it as a preset. This was very handy especially for stakers to avoid getting [[scamming|scammed]].
+
+The 5 different options were:
+*[[File:Save as preset icon.png]] '''Save as preset''': Saved the current choice of options and saved it as a preset.
+*[[File:Load preset icon.png]] '''Load preset''': Loaded the preset that the player saved.
+*[[File:Load preset icon.png]] '''Load last duel''': Loaded the last duels options.
+* "'''Whip'''": Only allowed the use of any one-handed weapon, no armour permitted. 
+* "'''Boxing'''": No weapons or armour permitted.
+
+===Outcome===
+{{Listen
+|filename=You Are Victorious! (Emir's Arena).ogg
+|align=right
+|title=[[You Are Victorious! (Emir's Arena)|You Are Victorious!]]
+|desc= The jingle that plays when you have won the duel.}}
+After the battle ended, players were teleported back to the building beside the arena and healed ([[poison]] and stat-reducing effects are negated as well). Any [[Ranged weapons]] that fell to the ground were automatically returned to the owner. If there was a stake, the victor claimed the prize(s). When you die you only lost the gold you staked.
+
+The winnings (the combined total of both players' stakes) were also taxed by a percentage depending on the size of the stake. This tax acted as a gold sink by removing part of the winnings from the game. If the total winnings were less than ten million coins, then 0.25% was deducted. If the winnings were over ten million coins, then 0.5% was deducted.
+
+Near the gate was a scoreboard where players could view the last 50 battles on that server. This included the combat levels of the combatants and who won the round.
+The scoreboard automatically updated every five minutes.
+
+==NPCs==
+The following [[NPC]]s are found at the Duel Arena:
+*[[A'abla]]
+*[[Afrah]]
+*[[Captain Daerkin]]
+*[[Dalal]]
+*[[Fadli]]
+*[[Hamid]]
+*[[Ima]]
+*[[Jadid]]
+*[[Jaraah]]
+*[[Jeed]]
+*[[Mubariz]]
+*[[Sabeil]]
+*[[Sabreen]]
+*[[Surgeon General Tafani]]
+*[[Zahwa]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 July 2022
+|update = PvP Arena: Soft Launch
+|change = The Duel Arena was removed from the game and replaced with the [[Emir's Arena]].
+}}
+{{Subject changes
+|date = 12 January 2022
+|update = Nex Changes & Tweaks
+|change = The south-west corner of the Duel Arena that was unsafe on PvP worlds is now safe.
+}}
+{{Subject changes
+|date = 16 December 2021
+|update = Christmas 2021
+|change = An obscure corner of the Duel Arena that was unsafe on PvP worlds is now safe.
+}}
+{{Subject changes
+|date = 17 November 2021
+|update = Duel Arena Changes
+|change = * There is now a stake limit of 10 million [[coins]] per player in every duel.
+* Two new presets based on settings players commonly for 'boxing' and 'whip' duels has been added.
+}}
+{{Subject changes
+|date = 16 August 2018
+|update = Duel Arena Changes and iOS Beta News
+|change = * Players can no longer stake items; only Coins and Platinum tokens can be used.
+* Each stake must now be within 10,000 Coins of each other in value.
+* Winnings (the combined total of both players' stakes) are now taxed by a percentage depending on the size of the stake.
+}}
+{{Subject changes
+|date = 6 October 2016
+|update = The Hill Giant Boss
+|poll = 
+|change = * The Duel Arena confirmation page shows more information about the duel's settings.
+* The colour of your opponent's levels on the Duel Arena setup interface will change based on your own levels.
+}}
+{{Subject changes
+|date = 10 March 2016
+|update = Custom Nightmare Zone Rumbles
+|change = Completing a duel at the Duel arena now consistently returns players to where they initiated the challenge.
+}}
+{{Subject changes
+|date = 22 October 2015
+|update = Abyssal Bludgeon Buff
+|poll = Old School Content Poll 36: Skilling Pets
+|change =
+*The scoreboards now show wins and losses.
+*A message in the chat box when a duel ends will the total wins and losses as well. This message is filtered and can be hidden.
+* Players should no longer get stuck inside the Duel Arena after a duel.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = 
+|change = The warnings if duelling options change will now show even if you haven't clicked accept yet.
+}}
+{{Subject changes
+|date = 3 September 2015
+|update = Barrows Features & Saradomin's Light
+|change = Ammo is now returned at the Duel Arena more reliably if you lose the duel.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Receiving multiple challenge requests will no longer prevent you accepting all but the most recent.
+}}
+{{Subject changes
+|date = 6 August 2015
+|update = XP Drops, Jad Pet & Slayer
+|change = It is no longer possible to search a panning tray inside a duel at the Duel Arena.
+}}
+{{Subject changes
+|date = 23 July 2015
+|update = Big Cats & WWF
+|change = More challenge messages at the [[Duel Arena]] will now appear under the [[Chat Interface|trade chat tab]].
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|poll = Old School Content Poll 33
+|change = * It is now possible to save and load a chosen set of rules for duels.
+* Possible to choose to use the same rules as your previous duel.
+* When a change is made to the rules the 'Accept' button cannot be clicked for a few seconds to prevent scamming.
+* The second screen that appears when starting a duel has been given a makeover.
+}}
+{{Subject changes
+|date = 18 December 2014
+|update = Christmas 2014
+|change = You can no longer buy rotten tomatoes from the duel arena crate on [[free-to-play]] Worlds.
+}}
+{{Subject changes
+|date = 27 November 2014
+|poll = Old School Game Integrity Survey
+|update = Integrity Survey Followup
+|change = Because organised commission staking FCs are acting as a front for real world traders, from now anyone being part of a commission staking friends chat (that is hosting, participating and advertising) will be considered as involved in [[real world trading]]. In effect, commission staking is now against the rules.
+}}
+{{Subject changes
+|date = 6 November 2014
+|update = Amulet of the Damned & CWA
+|change = You can no longer stake a stack of items if the total stack of spoils will be greater than 2147M due to inventory space limits.
+}}
+{{Subject changes
+|date = 9 October 2014
+|update = New Bounty Hunter Rewards
+|change = Fixed a typo when talking to duel arena nurses.
+}}
+{{Subject changes
+|date = 21 August 2014
+|update = In-Game Polls & Pet Insurance
+|poll = Old School feature poll - Content Poll 23
+|change = No movement duels are added in a dedicated arena.
+}}
+{{Subject changes
+|date = 26 June 2014
+|update = Midsummer Event
+|poll = Old School feature poll - Rewarding Rewards
+|change = Your duel partner's chat and any game messages relating to the stake setup, are now output to the trade tab while the challenge interfaces are open. If either player closes the first or second screens the chat stops appearing on the trade tab.
+}}
+{{Subject changes
+|date = 29 May 2014
+|update = Salamanders and Special Attack
+|change = * In order to fix a pathfinding issue in the duel arena the trapdoors were moved one square closer to the wall.
+* Treasure trail caskets can no longer be opened inside the duel arena.
+}}
+{{Subject changes
+|date = 22 May 2014
+|update = Chat update and 'Operate'
+|change = In preparation for the F2P trial period, we've made the Duel Arena available on free-to-play worlds so that non-members can duel there.
+}}
+{{Subject changes
+|date = 27 March 2014
+|update = Wilderness Feedback Update
+|change = Fadli the banker will now look after your stake winnings if your inventory becomes full during a duel.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*It was once possible to create a neverending duel, by setting [[Ranged]] on, [[arrows]] off and movement off made it so the game was fooled and players stood facing each other unable to attack.
+*Using [[Retribution]] prayer to kill your opponent as you die will still give the win to your opponent.
+*While players are in a duel with each other, players cannot lay [[box trap]]s. Attempting to do so will state in the game chat to the player: {{mes|I don't think your opponent will fall for that.}}
+*Players cannot [[trade]] whilst dueling. Attempting to do so will state in the game chat to the player: {{mes|You can't trade in a duel arena.}}
+
+{{Duel Arena}}
+{{Free-to-play PvP}}
+[[Category:Player vs Player arenas]]
+[[Category:Buildings]]
+[[Category:Al Kharid]]

@@ -2,6 +2,7 @@
 #define SRC_UITREE_H
 
 #include "ui/uitree_component_options.h"
+#include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_hook.h"
 
 #include <assert.h>
@@ -11,6 +12,30 @@
 #define UI_INV_SLOT_OFFSET_MAX 20
 /* UITreeComponent::child_key_max sentinels (below any real sub-id key). */
 #define UITREE_CHILD_KEY_UNKNOWN INT32_MIN
+/**
+ * Component ids for controls a PROFILE authored, one group below the chrome's.
+ *
+ * A revconfig `[component:]` has no cache id -- there is no interface behind
+ * it -- so the builder used to leave its component_id at -1, and that is the
+ * whole reason such a control could be hovered but never clicked: the click
+ * path carries a component ID, and `-1` reads as "the click landed on
+ * nothing". The mouseover line worked, the right-click menu worked, and the
+ * left click silently did nothing, which is the least debuggable shape a bug
+ * can take.
+ *
+ * A synthetic id fixes that for every authored control at once, and a RANGE is
+ * what makes it safe: it cannot collide with a cache uid (no interface is
+ * numbered 0x7FFD) and it is one bounds test away from being recognised.
+ *
+ * A GROUP of its own rather than sharing the chrome's, because the chrome's
+ * group is intercepted before the game's dispatch ever sees it
+ * (add_component_rows returns 0 for it) -- these are the opposite: they are
+ * ordinary components with ordinary menu rows, and the only thing they need
+ * from the id is to have one.
+ */
+#define TORIRS_REVCONFIG_GROUP 0x7FFD
+#define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)
+
 #define UITREE_CHILD_KEY_NONE (INT32_MIN + 1)
 #define UITREE_MENU_OPTION_SLOTS 10
 /* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
@@ -18,6 +43,7 @@
 #define UITREE_SUBMENU_OP_SLOTS 10
 #define UITREE_SUBMENU_ENTRY_SLOTS 32
 #define UITREE_CHAT_OP_TEMPLATE_LEN 64
+#define UITREE_CHAT_PROMPT_LEN 64
 #define UITREE_WALK_STACK_MAX 64
 #define UITREE_INV_SOURCE_INVALID (-1)
 
@@ -25,6 +51,29 @@
 #define UITREE_RELATIVE_FLAG_TOP 2
 #define UITREE_RELATIVE_FLAG_RIGHT 4
 #define UITREE_RELATIVE_FLAG_BOTTOM 8
+
+/*
+ * WHICH safe area a node keeps clear of, and which of its edges.
+ *
+ * There is more than one box that deserves the name, and they answer to
+ * different occluders; plugins read the OS one through the draw context's
+ * bounds and the gameframe event's safe rect.
+ * The OS one is the canvas minus what the PLATFORM put on top of the whole
+ * window (today a soft keyboard, a band off the bottom while it is up); the
+ * game-chrome one, when the layout learns to resolve it, is the canvas minus
+ * what the CLIENT put there -- frame regions, edges plugins reserved. A row
+ * that wants to clear a keyboard and a row that wants to clear the chat box
+ * are asking different questions, so the profile names the area rather than
+ * saying "the safe one" and leaving the client to guess which.
+ *
+ * Only the bottom edge exists because only the bottom edge is ever eaten. A
+ * notch would add UITREE_SAFE_AREA_FLAG_TOP and an inset for it in
+ * uitree_layout; nothing else about the rule would change.
+ */
+#define UITREE_SAFE_AREA_SOURCE_NONE 0
+#define UITREE_SAFE_AREA_SOURCE_OS 1
+
+#define UITREE_SAFE_AREA_FLAG_BOTTOM 1
 
 /** Client.ts overMainComId / overSideComId / overChatComId. -1 = none. */
 struct UITreeHoverIds
@@ -69,6 +118,66 @@ enum UITreeComponentType
      *  it gets its own emit pass, after the drag pass, so it draws over
      *  everything. Skipped entirely when the host has no overlay. */
     UIELEM_BUILTIN_DEBUG_OVERLAY = 27,
+    /**
+     * Multi-combat indicator (SET_MULTIWAY): one sprite frame, drawn only
+     * while the server says the player is in a multi-combat zone. A builtin
+     * because no interface owns it -- the reference plots it straight onto the
+     * viewport -- but its sprite and its place are revconfig's, not C's.
+     */
+    UIELEM_BUILTIN_MULTIWAY = 29,
+    /**
+     * System-update countdown (UPDATE_REBOOT_TIMER): one line of text over the
+     * viewport while an update is pending. Same deal as MULTIWAY -- font,
+     * colour and position come from revconfig, the host supplies the string
+     * and whether there is one.
+     */
+    UIELEM_BUILTIN_REBOOT_TIMER = 30,
+    /*
+     * Title-screen widgets, 31-35.
+     *
+     * Builtins for the same reason MULTIWAY and REBOOT_TIMER are: no revision
+     * ships the login screen as interface data, so there is no cache pack to
+     * mount and the client has to own the widgets. What it does NOT own is how
+     * they look -- position, font, colour, the caret string, the mask, the
+     * length caps and the charset all arrive from revconfig, which is what lets
+     * one set of widgets draw both a 2004 login box and a modern one.
+     */
+    /** One credential line: prefix, value (masked if asked), blinking caret. */
+    UIELEM_BUILTIN_LOGIN_INPUT = 31,
+    /** A clickable sprite carrying a resolved RS_TitleAction. Its hit box is
+     *  its own layout box, which is what keeps click and draw from drifting --
+     *  the references compute the two from different origins and only agree by
+     *  arithmetic coincidence. */
+    UIELEM_BUILTIN_LOGIN_BUTTON = 32,
+    /** One of the three server-supplied login message lines. */
+    UIELEM_BUILTIN_LOGIN_MESSAGE = 33,
+    /** The loading bar's filled part; the track and border are rs_rect. */
+    UIELEM_BUILTIN_TITLE_PROGRESS = 34,
+    /** The loading bar's status line. */
+    UIELEM_BUILTIN_TITLE_PROGRESS_TEXT = 35,
+    /** One of the two burning braziers. The fire is simulated host-side and
+     *  arrives as a scene sprite reuploaded per frame; the widget says which
+     *  side it is and where it goes. */
+    UIELEM_BUILTIN_TITLE_FLAMES = 36,
+    /** A login-form checkbox ("Remember username", "Hide username"). Draws one
+     *  of two sprites depending on the host's answer for its toggle, and its
+     *  click flips that answer -- the same TITLE_ACTION path a login_button
+     *  takes. The LABEL beside it is a child rs_text, as with a button. */
+    UIELEM_BUILTIN_LOGIN_TOGGLE = 37,
+    /**
+     * Touch marker -- the "inkwell". Shown for EVERY touch, which is the whole
+     * difference from UIELEM_BUILTIN_CROSS: the cross marks a click that
+     * resulted in something, and on a touchscreen a tap that draws nothing is
+     * indistinguishable from a tap the device never received.
+     *
+     * A builtin for the same reason CROSS is: no interface owns it, the
+     * reference plots it straight onto the canvas. Its artwork and its colour
+     * rules are revconfig's (`style=`, `walk_color=`, `interact_color=`), and a
+     * profile overrides them with a `[component:<name>@mobile]` section.
+     *
+     * @see ui/torirs_chrome_inkwell.h, ui/uitree_ink.h.
+     */
+    UIELEM_BUILTIN_INKWELL = 38,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -77,6 +186,11 @@ enum UITreeComponentType
     UIELEM_RS_RECT = 19,     /* TYPE_RECT */
     UIELEM_RS_LINE = 20,     /* TYPE_LINE */
     UIELEM_RS_INV_TEXT = 21, /* TYPE_INV_TEXT */
+    /** TYPE_ARC — a circular sector, shaped by CC/IF_SETARC's two angles.
+     *  The only user in the cache is clientscript 5480's countdown pie, which
+     *  stacks three of them: a full translucent disc, the swept wedge over it,
+     *  and the wedge's 1px arc outline. */
+    UIELEM_RS_ARC = 28,
     // Dynamic object created by CS2.
     UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
@@ -133,6 +247,16 @@ enum UITreeSlotTag
     UITREE_SLOT_SIDE_MODAL,
     UITREE_SLOT_CHAT,
     UITREE_SLOT_TUT,
+    /**
+     * The minimap's HUD block: the orb column a cache gameframe mounts beside
+     * the map (interface 160 on OldSchool). Never authored by a revconfig
+     * profile -- a 2004 frame has no such thing -- it is stamped at runtime
+     * by the frame binder, @see UITree_FrameSetBinder.
+     */
+    UITREE_SLOT_ORBS,
+    /** One chat filter button of a cache chatbox, bound by the binder the
+     *  same way; a 2004 frame's are builtins and carry no tag. */
+    UITREE_SLOT_CHAT_BUTTON,
 };
 
 enum UITreeElemPositionKind
@@ -143,9 +267,24 @@ enum UITreeElemPositionKind
 
 struct UITreeElemPosition
 {
-    enum UITreeElemPositionKind kind;
+    /* Hot front, 36 bytes: UITree_LayoutGetBounds reads exactly these nine
+     * fields and nothing else, and it runs on every node of every per-frame
+     * walk. They are first so that they share the containing component's first
+     * cache line — see the hot block at the top of struct UITreeComponent for
+     * why that matters. Ordering inside this struct is not observed anywhere
+     * (no positional initializers, no memcpy/fread over it), but keep the
+     * layout-resolved bounds together at the front. */
+    uint8_t layout_resolved;
+    int abs_x;
+    int abs_y;
+    int abs_w;
+    int abs_h;
     int x;
     int y;
+    int width;
+    int height;
+
+    enum UITreeElemPositionKind kind;
 
     int relative_flags;
     int anchor_x;
@@ -154,8 +293,6 @@ struct UITreeElemPosition
     int top;
     int right;
     int bottom;
-    int width;
-    int height;
 
     int8_t x_mode;
     int8_t y_mode;
@@ -164,11 +301,25 @@ struct UITreeElemPosition
     int aspect_w;
     int aspect_h;
 
-    int abs_x;
-    int abs_y;
-    int abs_w;
-    int abs_h;
-    uint8_t layout_resolved;
+    /*
+     * Which safe area this node keeps itself clear of, which of its edges, and
+     * how much room it wants beyond the overlap (UITREE_SAFE_AREA_SOURCE_*,
+     * UITREE_SAFE_AREA_FLAG_*, and canvas rows). All three come from the
+     * profile's layout row -- `safe_area=os:bottom`, `safe_area_margin=` -- so
+     * WHICH panel moves out from under a soft keyboard is a statement the
+     * revision makes about its own interface, not a role name compiled into
+     * the client.
+     *
+     * Applied to the RESOLVED box, never to x/y: the authored coordinates stay
+     * the authored coordinates, so a keyboard going away restores the row by
+     * re-resolving rather than by remembering what it displaced.
+     *
+     * SOURCE_NONE -- the overwhelmingly common case -- means the node sits
+     * exactly where its coordinates put it, whatever is covering the canvas.
+     */
+    int safe_area_source;
+    int safe_area_flags;
+    int safe_area_margin;
 };
 
 /* Runtime script hooks live in their own file: the slot type, its accessors and
@@ -190,12 +341,6 @@ struct UITreeElemPosition
 #define UITREE_INTERFACE_PARENT_MAX 32
 /** parent_index for UITree_Push: allocate node without linking into the tree. */
 #define UITREE_PARENT_UNLINKED (-2)
-/* Structural uid for chatbox:chatmodal (client gameframe slot). Dialogue
- * packs mount here; close/replace reclaim the outgoing group rather than
- * hide-reuse (see UITree_ReclaimInterfaceGroup). Same id as
- * uitree_test_layout_build.c — not a content string. */
-#define UITREE_CHATBOX_CHATMODAL_UID ((162 << 16) | 567)
-
 struct UITreeInterfaceParent
 {
     int container_uid;
@@ -205,6 +350,11 @@ struct UITreeInterfaceParent
 
 struct UITreeBehavior
 {
+    /** First on purpose: this is the one field of this struct the per-frame
+     *  walks read on every node, and putting it at offset 0 keeps it on the
+     *  second cache line of the component rather than a fourth. */
+    uint8_t hide;
+    uint8_t script_kind;
     /** CS1 (IF1) value scripts: scripts[i] is compared against script_operand[i]
      *  using script_comparator[i] to decide the component's active state. */
     int scripts_count;
@@ -214,13 +364,6 @@ struct UITreeBehavior
     int comparator_count;
     int* script_comparator;
     int* script_operand;
-    uint8_t hide;
-    /** Set when `hide` was forced by the interface-mount bookkeeping (a group
-     *  baked into the tree but not mounted anywhere, or the group a mount slot
-     *  just replaced) rather than by the cache data or a script. Mounting the
-     *  group clears it — a cache/script hide is left alone. */
-    uint8_t hide_unmounted;
-    uint8_t script_kind;
     int button_type;
     int client_code;
     int32_t click_mask;
@@ -350,6 +493,63 @@ struct UITreeChatButtonConfig
 };
 
 /**
+ * Everything a login_input needs to draw and to bound one credential field.
+ *
+ * Heap-allocated and reached through a pointer, like the chat and debug-overlay
+ * configs beside it: a login screen has two of these, the component union is
+ * shared by every one of ~7000 nodes, and a 220-byte inline member would cost
+ * more than a megabyte to serve two widgets.
+ *
+ * The charset and maxlen live here rather than in the title model because they
+ * are per-revision facts the INI states; the app copies them onto the model
+ * once the tree is baked. @see RS_TitleFieldCfg.
+ */
+/*
+ * What a login_button's click asks the host to do.
+ *
+ * A restatement of game/rs_title.h's RS_TitleAction, not an include of it: ui/
+ * is a leaf of game/, the same reason revconfig.h restates the minimenu action
+ * ids. game/rs_title.c carries the static assertions that hold the two in step,
+ * so a value added to one and forgotten in the other fails to build.
+ */
+enum UITreeTitleAction
+{
+    UITREE_TITLE_ACTION_NONE = 0,
+    UITREE_TITLE_ACTION_EXISTING_USER = 1,
+    UITREE_TITLE_ACTION_NEW_USER = 2,
+    UITREE_TITLE_ACTION_LOGIN = 3,
+    UITREE_TITLE_ACTION_CANCEL = 4,
+    UITREE_TITLE_ACTION_FOCUS_USERNAME = 5,
+    UITREE_TITLE_ACTION_FOCUS_PASSWORD = 6,
+    UITREE_TITLE_ACTION_TOGGLE_REMEMBER = 7,
+    UITREE_TITLE_ACTION_TOGGLE_HIDE = 8,
+};
+
+struct UITreeLoginInputConfig
+{
+    /** Which credential: 0 username, 1 password. Mirrors RS_TitleField, kept
+     *  as an int so ui/ stays a leaf of game/. */
+    int field;
+    int font_id;
+    int color;
+    int center;
+    int shadowed;
+    /** Blink period in client cycles; the caret shows for the first half.
+     *  0 = never blink. */
+    int caret_blink;
+    /** Drawn before the value, on the same line and in the same string --
+     *  which is how the references measure and centre it. */
+    char prefix[32];
+    /** Appended while the caret is visible, in the era's own font markup
+     *  ("@yel@|" on dat1, "<col=ffff00>|" on dat2). */
+    char caret[24];
+    /** Shown instead of the value; empty shows the value. */
+    char mask[8];
+    int maxlen;
+    char charset[160];
+};
+
+/**
  * One entry of a component's runtime param table (CS2 CC_SETCOMPONENTPARAM /
  * CC_GETCOMPONENTPARAM, OldSchool wire 1704/1703).
  *
@@ -368,18 +568,127 @@ struct UITreeComponentParam
     char* str;
 };
 
+/*
+ * The per-slot overrides an RS_INV component may carry.
+ *
+ * Held off the component because inventories are a handful of nodes while the
+ * union that carried these four arrays sized all of them: at 20 slots they are
+ * 320 of the union's 352 bytes, and the union is the widest arm of a struct
+ * that a loaded tree holds 8192 of. Every non-inv component paid for them.
+ *
+ * Absent is a real answer, so reads go through UITree_InvSlots, which hands
+ * back uitree_inv_slots_none rather than NULL -- the callers assign .offset_x
+ * straight into a layout and must not have to branch.
+ */
+struct UITreeInvSlots
+{
+    int offset_x[UI_INV_SLOT_OFFSET_MAX];
+    int offset_y[UI_INV_SLOT_OFFSET_MAX];
+    /** -1 = this slot draws no background, which is why "none" cannot be the
+     *  zeroed block. */
+    int bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
+    int bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
+};
+
+/*
+ * The chrome arms held off the component.
+ *
+ * A tree carries one chat panel, one debug overlay and a handful of chat
+ * buttons, and each of those arms was sizing the union for all 8192
+ * components: chat at 344 bytes was the widest outright, then chat_button at
+ * 168 and debug_overlay at 136 were the widest of what remained. Behind
+ * pointers the union falls to rs_model's 60, so a component sheds 284 bytes
+ * it only ever needed on a few nodes.
+ *
+ * Reads go through the accessors, which hand back a zeroed "none" block rather
+ * than NULL. Absent is a real state -- a chat node whose spec has not run yet
+ * -- and it has always read as all-zero, because a fresh component slot is
+ * memset before its type is set.
+ */
+struct UITreeChatConfig
+{
+    struct UITreeChatMinimenuConfig minimenu;
+    int font_id; /* INI font= (message + input line font, e.g. p12) */
+    /** INI prompt= — the unfocused input line's invitation. Empty (the
+     * "none" state included) means the renderer's own default wording. */
+    char prompt[UITREE_CHAT_PROMPT_LEN];
+};
+
+struct UITreeDebugOverlayConfig
+{
+    /** Scene font ids the host registered the baked debug faces
+     * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
+     * travel as plain ints the same way minimenu.font_id does. */
+    int font_id_small;
+    int font_id_menu;
+    int font_id_body;
+    /** Scene id the host uploaded the baked chrome skin under, and the
+     * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
+    int skin_scene_id;
+    int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
+};
+
+/** Derived rendering data; never copied as native widget state. */
+struct UITreeModelRenderCache
+{
+    void* data;
+    void (*release)(void* data);
+};
+
 struct UITreeComponent
 {
+    /* --- Hot block: the fields every per-frame walk reads on every node it
+     * visits, packed into this struct's first cache line. Do not scatter them.
+     *
+     * The tree is ~7,100 components of ~744 bytes — 5.3 MB, several times the
+     * L2 — and the emit walk chases first_child/next_sibling indices through
+     * it in an order unrelated to the array's layout, so each visit is a
+     * random stride and every extra 64-byte line it straddles is its own DRAM
+     * miss. Measured: repeating the emit walk over the just-warmed tree costs
+     * 41% of the cold walk, i.e. ~59% of the stage is the memory system, and
+     * prefetching does not help because the footprint, not the latency, is
+     * the problem. Before this block the per-visit reads were spread over
+     * lines 0, 1, 2 and 5; they now sit on line 0, plus `behavior.hide` on
+     * line 1.
+     *
+     * type + the three links + component_id + trans + four flag bytes is 28
+     * bytes, and the hot front of `position` is the other 36 — exactly 64.
+     * There is no slack: one more field here pushes `position.height` onto
+     * the next line and gives the win back. --- */
     enum UITreeComponentType type;
-    uint8_t always_dirty;
-    uint8_t is_dirty;
-    /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
-     *  walks and reused by the next push. */
-    uint8_t freed;
-    int32_t free_next;
     int32_t parent;
     int32_t first_child;
     int32_t next_sibling;
+    int component_id;
+    int trans;
+    uint8_t if3;
+    /** Visual-only override flag while dragging (does not mutate position.abs_*);
+     *  the drag_visual_* values it selects are cold and live below. */
+    uint8_t drag_active;
+    uint8_t always_dirty;
+    uint8_t is_dirty;
+    struct UITreeElemPosition position;
+    /** Immediately after `position` so that `behavior.hide` — read on every
+     *  visit, and the only field of this struct that is — lands at offset 112,
+     *  on the second cache line rather than a fourth one. */
+    struct UITreeBehavior behavior;
+    /* --- end hot block --- */
+
+    /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
+     *  walks and reused by the next push. */
+    uint8_t freed;
+    /**
+     * Process-unique identity of this occupant of the component-array slot.
+     *
+     * Array indices are storage, not identity: CC_DELETEALL puts an index on
+     * the free list and the next CC_CREATE can hand it straight to an
+     * unrelated node. Long-lived side tables (notably a plugin gameframe's
+     * binding) pair an index with this value before touching it, so a stale
+     * binding can never restore state through a recycled index.
+     * Zero is reserved for an empty/reclaimed slot.
+     */
+    uint64_t incarnation;
+    int32_t free_next;
     /** Hint at the tail of `first_child`'s sibling list, so appending a child is
      *  O(1) instead of walking the list (cc_create fills a container one child at
      *  a time, which is quadratic in the child count). Never trusted blindly —
@@ -406,7 +715,6 @@ struct UITreeComponent
     int32_t* child_key_index;
     int32_t child_key_index_cap;
     uint8_t child_key_index_bad;
-    int component_id;
     uint8_t dynamic;
     int dynamic_child_index;
 
@@ -426,28 +734,31 @@ struct UITreeComponent
     int fill_colour;
     char* data_text;
 
-    int trans;
-    uint8_t if3;
     uint8_t no_click_through;
     uint8_t draggable;
     int drag_behavior;
     uint8_t drag_dead_zone;
     uint8_t drag_dead_time;
     uint8_t model_transparent;
+    struct UITreeModelRenderCache* model_render_cache;
     /** CC/IF_SETDRAGGABLE render-area parent uid (-1 = none). */
     int drag_render_area_uid;
     int drag_render_area_child_index;
-    /** Visual-only overrides while dragging (do not mutate position.abs_*). */
-    uint8_t drag_active;
+    /** Visual-only overrides while dragging (do not mutate position.abs_*);
+     *  selected by `drag_active` up in the hot block. */
     int drag_visual_x;
     int drag_visual_y;
     int drag_visual_trans; /* -1 = use component trans; else forced (e.g. 128) */
 
-    struct UITreeBehavior behavior;
     /** Last CS1 evaluation, written by the CS1 eval task and read by the emit
      *  host: emit stays synchronous while the VM's asset yields are serviced by
      *  the task layer. */
     uint8_t cs1_active;
+    /** Explicit server/script hiding, separate from an authored IF1 tooltip
+     * gate. Only the native hide setter changes it; frame release does not. */
+    uint8_t native_hide;
+    /** Group is prepared but not mounted. Independent of cache/script hiding. */
+    uint8_t mount_hidden;
     int cs1_values[UITREE_CS1_VALUE_MAX];
     /** CS2 event hooks, owned by the component, NULL until one is registered.
      *  17 slots each carrying argv[64] and strv[4][80] inline is ~10 KB — the
@@ -460,8 +771,92 @@ struct UITreeComponent
     int target_priority;
     /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
     uint8_t force_left_click;
+    /**
+     * Suppressed by a plugin gameframe layout (ui/uitree_frame.h).
+     *
+     * A flag of its own rather than a use of `behavior.hide`, and the reason
+     * is not tidiness. `hide` is the CACHE's and the SCRIPTS': the CS1 value
+     * scripts rewrite it every tick on a dat1 frame and the CS2 hooks do the
+     * same on a dat2 one, so a layout borrowing it is overwritten before the
+     * frame it wrote for is drawn. Worse, `UITree_ComponentVisibleById` reads
+     * a hidden node with NO component id as visible -- a rule that is right
+     * for the hover-reveal it was written for and means every revconfig
+     * builtin, which has no id, ignores `hide` completely. Setting it on the
+     * 2004 gameframe's forty-six stones changed nothing at all.
+     *
+     * Nothing but the layout writes this, so it needs no re-asserting and
+     * cannot be argued with.
+     */
+    uint8_t frame_hidden;
+    /* Host-owned live-widget geometry edits. Native layout inputs stay in
+     * position; deleting/copying a native node never transfers these owners. */
+    struct UITreeWidgetGeometry* widget_geometry;
+    uint64_t plugin_owner;
+    char* plugin_key;
+    uint64_t plugin_op_serial; /* Host listener version; never copied with native content. */
+    /**
+     * A layer the plugin frame released from clipping.
+     *
+     * Every ancestor of a surface the provider moved: the lane's shell and
+     * the toplevel's mount groups are authored for the lane's own gameframe,
+     * and a layer clips to its own box. Widening the box was tried first and was never
+     * enough, because a layer's box has an ORIGIN too -- the 548 toplevel's
+     * `mapcontainer` sits at 516,4, so a compass the frame placed at 504 was
+     * cut off at 516 however wide the layer had been made -- and it was
+     * actively wrong besides: the box is the space the layer's OTHER children
+     * are laid out in, and widening it right-aligned 548's XP-total plate to
+     * the window instead of to the viewport. So the box stays native and this
+     * flag carries the whole release: UITree_LayerChildClip and
+     * UITree_LayerCullsChildren read it, so the emit, hit, hover and drop
+     * walks all agree that the layer clips nothing and culls nothing.
+     *
+     * Written only by the frame layout, like `frame_hidden`.
+     */
+    uint8_t frame_stretched;
+    /**
+     * Suppressed because this title screen is not the one showing.
+     *
+     * Its own flag for the reason given above `frame_hidden`: `behavior.hide`
+     * belongs to the cache and its scripts, and -- decisively here --
+     * UITree_ComponentVisibleById reads a hidden node with NO component id as
+     * visible, which is every revconfig builtin. The login screen's groups are
+     * exactly that, so hiding them with `hide` would change nothing at all.
+     *
+     * Only the screen machine writes it, so it needs no re-asserting and no
+     * script can argue with it.
+     */
+    uint8_t screen_hidden;
+    /** Camera projection temporarily rejected this scripted entity-overlay
+     * layer (for example, its subject crossed behind the near plane). Kept
+     * separate from `behavior.hide`, which remains script-owned. */
+    uint8_t projection_hidden;
+    /** Effective live-widget presentation hide. Native hide remains separate. */
+    uint8_t widget_hidden;
+    uint8_t widget_text_outline;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
+    /**
+     * Which MEMBER of its slot's role this node answers to, plus one; 0 is
+     * "the whole role" (or no numbering).
+     *
+     * The runtime twin of `u.sidebar.tabno`. A 2004 sidebar mount is a builtin
+     * that carries its tab number in its own union; a cache gameframe's
+     * `side3` is an ordinary layer with nothing to carry it in, so the frame
+     * binder stamps it here when it stamps the slot tag. Read only through
+     * UITree_FrameSlotIndex. @see UITree_FrameSetBinder.
+     */
+    uint8_t frame_member_plus1;
+    /**
+     * Semantic role this node was AUTHORED with (ui/uitree_role.h), interned
+     * against the tree's role table. 0 = none.
+     *
+     * The direct half of the role vocabulary, for the nodes a revconfig
+     * profile built itself. The other half is a matcher chain, which finds a
+     * node the profile did not author -- a cache component, or one a CS2
+     * script created -- and needs no field here because there is nowhere to
+     * put it: the node does not exist until the script runs.
+     */
+    uint16_t role_id;
     /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a
      *  bound key (revconfig `hotkey=` lines). 0 = not a hotkey target. */
     uint32_t hotkey_effects;
@@ -473,7 +868,9 @@ struct UITreeComponent
     int params_capacity;
     int scroll_x;
     int scroll_y;
-    struct UITreeElemPosition position;
+    /** CC/IF_SETTRANSBOT and CC_GETBLENDTRANS. Kept separately from `trans`,
+     *  matching the reference widget's top/bottom transparency pair. */
+    int trans_bot;
     /* Lazily allocated — see ui/uitree_component_options.h. Read through
      * UITree_MenuOptions / UITree_OpKeys (never NULL), write through the Mut
      * accessors, test with the Has ones. */
@@ -491,6 +888,19 @@ struct UITreeComponent
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /*
+         * UIELEM_BUILTIN_INKWELL. No scene id here: the artwork is generated
+         * and uploaded once into a single scene entry holding every style and
+         * colour, so what a component carries is a CHOICE and not a binding.
+         * -1 for any of these means "the profile said nothing", and the host
+         * substitutes its default. @see ui/torirs_chrome_inkwell.h.
+         */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;
@@ -510,11 +920,6 @@ struct UITreeComponent
         struct
         {
             uint8_t level_mask;
-            /** INI mmb_rotate= — middle-button drag inside the viewport
-             *  rotates the camera (yaw/pitch). */
-            uint8_t mmb_rotate;
-            /** INI wheel_zoom= — mouse wheel over the viewport zooms. */
-            uint8_t wheel_zoom;
         } world;
         struct
         {
@@ -531,10 +936,47 @@ struct UITreeComponent
             int color;
             int center;
             int y_align;
+            /** revconfig `baseline=`: the layout row's y IS the text baseline,
+             *  which is how both references write every text coordinate
+             *  (font.drawString(s, x, y)). Without it a row has to carry the
+             *  box top instead, and the reference's own numbers stop being
+             *  usable as written. */
+            int baseline;
             int line_height;
             int shadowed;
             char const* text;
             char const* text_active;
+            /**
+             * IF3 component type 12: this text node is an EDITABLE FIELD.
+             *
+             * Type 12 is the reference's text-entry widget -- the hiscores
+             * search box, the bug-report body, the loot-tracker ignore prompt,
+             * every settings dropdown's filter. It draws exactly like a
+             * TYPE_TEXT (same font, colour, alignment, same `cc_settext`),
+             * which is why it is a flag on this member rather than a UIELEM of
+             * its own: a new type would have to be taught to every consumer of
+             * rs_text to arrive back where it started.
+             *
+             * What the flag adds is the caret. `UITree_InputFocusId` may name
+             * this node; clicking it takes the caret, typed keys edit `text`
+             * through UITree_InputInsert / UITree_InputBackspace, and the emit
+             * draws the cursor after `caret` characters.
+             */
+            uint8_t input;
+            /** Caret position in characters, 0..strlen(text). Meaningless
+             *  unless `input`. */
+            int caret;
+            /**
+             * CC_INPUT_SETLINEWRAPPINGWIDTH, in pixels; 0 = "the node's own
+             * layout width".
+             *
+             * The typing cap: a keystroke that would push the line past this
+             * is dropped. `cc_input_setlinewidthlimit(1)` accompanies it at
+             * every type-12 call site in the cache and means one line, which is
+             * the only mode implemented -- no field this client reaches is
+             * multi-line.
+             */
+            int input_wrap_width;
         } rs_text;
         struct
         {
@@ -575,6 +1017,7 @@ struct UITreeComponent
              * anim_frame is advanced by the client tick driver; anim_frame_cycle
              * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
+            int active_anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
             /* Hold anim_frame instead of advancing it. The player-design
@@ -590,6 +1033,18 @@ struct UITreeComponent
         } rs_rect;
         struct
         {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
+        struct
+        {
             int inv_source_id;
             int cols;
             int rows;
@@ -601,18 +1056,10 @@ struct UITreeComponent
             int obj_ops;
             /** Show the "Use" row (objUse); 0 hides it. */
             int obj_use;
-            int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
-            int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
+            /** NULL until a spec supplies per-slot data. Read through
+             *  UITree_InvSlots, never directly. */
+            struct UITreeInvSlots* slots;
         } rs_inv;
-        struct
-        {
-            int obj_id;
-            int obj_count;
-            int scene_id;
-            int atlas_index;
-        } cc_obj;
         struct
         {
             int scroll_height;
@@ -634,18 +1081,79 @@ struct UITreeComponent
         } hovertext;
         struct
         {
-            /** Scene font ids the host registered the two baked debug faces
-             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
-             * travel as plain ints the same way minimenu.font_id does. */
-            int font_id_small;
-            int font_id_menu;
-        } debug_overlay;
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
+        /** NULL until a spec configures the field. Read through
+         *  UITree_LoginInput, never directly. */
+        struct UITreeLoginInputConfig* login_input;
         struct
         {
-            struct UITreeChatMinimenuConfig minimenu;
-            int font_id; /* INI font= (message + input line font, e.g. p12) */
-        } chat;
-        struct UITreeChatButtonConfig chat_button;
+            int scene_id;
+            int atlas_index;
+            /** Resolved RS_TitleAction; 0 = none, and a button with none is a
+             *  typo in an INI announcing itself by doing nothing. */
+            int action;
+        } login_button;
+        struct
+        {
+            /** Off and on art. `scene_id_on` may be -1: a revision whose
+             *  checkbox is one sprite plus a drawn mark says so by declaring
+             *  no sprite_active, and both states then draw the same plate. */
+            int scene_id;
+            int atlas_index;
+            int scene_id_on;
+            int atlas_index_on;
+            /** Resolved RS_TitleAction (one of the toggle members). */
+            int action;
+            /** Resolved RS_TitleToggle: which checkbox to ask the host about. */
+            int toggle;
+        } login_toggle;
+        struct
+        {
+            /** Which of the three login message lines, 0-2. */
+            int index;
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } login_message;
+        struct
+        {
+            int color;
+            /** Bar pixels per percent; 0 means fill the box at 100. */
+            int px_per_percent;
+        } title_progress;
+        struct
+        {
+            /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
+            int side;
+            /* Where the fire sits inside the column it burns in. The
+             * column is blitted over the wall it was cut from, so these
+             * lean the FIRE outward rather than the wall with it. */
+            int bias;
+            int sway;
+            int run;
+            int row;
+            /** enum TitleFlameBlur. */
+            int blur;
+        } title_flames;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } title_progress_text;
+        /** NULL until a spec configures the overlay. Read through
+         *  UITree_DebugOverlay, never directly. */
+        struct UITreeDebugOverlayConfig* debug_overlay;
+        /** NULL until a spec configures the panel. Read through UITree_Chat. */
+        struct UITreeChatConfig* chat;
+        /** NULL until a spec configures the button. Read through
+         *  UITree_ChatButton. */
+        struct UITreeChatButtonConfig* chat_button;
         struct
         {
             int color;
@@ -669,6 +1177,44 @@ struct UITreeComponent
 
 /** The all-zero block a component with no hooks reads as. Never written. */
 extern struct UITreeRuntimeHooks const uitree_hooks_none;
+
+/** Every slot at offset 0 with no background -- what an inv with no per-slot
+ *  overrides behaves as. */
+extern struct UITreeInvSlots const uitree_inv_slots_none;
+
+/** The zeroed blocks the accessors hand back for an unconfigured component. */
+extern struct UITreeChatConfig const uitree_chat_none;
+extern struct UITreeDebugOverlayConfig const uitree_debug_overlay_none;
+extern struct UITreeChatButtonConfig const uitree_chat_button_none;
+extern struct UITreeLoginInputConfig const uitree_login_input_none;
+
+/** The component's chrome block, or the "none" block. Never NULL. */
+struct UITreeChatConfig const*
+UITree_Chat(struct UITreeComponent const* c);
+struct UITreeDebugOverlayConfig const*
+UITree_DebugOverlay(struct UITreeComponent const* c);
+struct UITreeChatButtonConfig const*
+UITree_ChatButton(struct UITreeComponent const* c);
+struct UITreeLoginInputConfig const*
+UITree_LoginInput(struct UITreeComponent const* c);
+
+/** The component's chrome block, allocating it on first use. */
+struct UITreeChatConfig*
+UITree_ChatMut(struct UITreeComponent* c);
+struct UITreeDebugOverlayConfig*
+UITree_DebugOverlayMut(struct UITreeComponent* c);
+struct UITreeChatButtonConfig*
+UITree_ChatButtonMut(struct UITreeComponent* c);
+struct UITreeLoginInputConfig*
+UITree_LoginInputMut(struct UITreeComponent* c);
+
+/** The component's per-slot data, or the "none" block. Never NULL. */
+struct UITreeInvSlots const*
+UITree_InvSlots(struct UITreeComponent const* c);
+
+/** The component's per-slot data, allocating it on first use. */
+struct UITreeInvSlots*
+UITree_InvSlotsMut(struct UITreeComponent* c);
 
 /**
  * A component's hook block for reading. Never NULL, so a caller may take the
@@ -750,8 +1296,17 @@ struct UITreeGroupBucket
     struct UITreeNodeSet nodes;
 };
 
+/** Internal retained identity. Native component IDs remain script-visible queries. */
+struct UITreeNodeRef
+{
+    uint64_t tree_instance;
+    uint64_t incarnation;
+    int32_t index;
+};
+
 struct UITree
 {
+    struct UITreeGeometryAudit* geometry_audit;
     struct UITreeComponent* components;
     uint32_t component_count;
     uint32_t component_capacity;
@@ -759,9 +1314,69 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    uint64_t instance_id;
+    /* Structural candidates for canvas queries. Geometry and visibility are
+     * read live; topology or alignment-mode changes invalidate membership. */
+    uint32_t* canvas_candidate_ids;
+    uint32_t canvas_candidate_count, canvas_candidate_capacity;
+    uint32_t canvas_candidate_generation, canvas_candidate_nodes;
+    uint8_t canvas_candidates_valid;
+    /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
+     *  a resolved box could have moved. `dirty_gen` does not cover this: layout
+     *  re-resolves on `layout_stale`, `layout_force_full` and a changed root box,
+     *  none of which raise a component's `is_dirty`. That gap is what made the
+     *  emit retention gate call a frame quiet while a clip width moved 765 -> 807
+     *  underneath it (measured once, at emit #5 of a 2,000-frame run). It is the
+     *  third term of the gate, alongside `dirty_gen` and the hover id. */
+    uint32_t layout_resolve_seq;
     /** Bumped only when a component_id is assigned or cleared (reclaim) — the id
      *  index depends on ids alone, so topology churn must not invalidate it. */
     uint32_t id_generation;
+    /** Bumped wherever a component's `is_dirty` is raised, i.e. by every write
+     *  that claims to change what a node draws — the tree half of the emit
+     *  retention signal (Opt 11). `generation` is not a substitute: it tracks
+     *  topology only, so a cc_settext that rewrites a label leaves it alone.
+     *
+     *  Deliberately conservative. It over-counts freely (a write of the same
+     *  value still bumps), because over-counting only costs a missed skip,
+     *  whereas under-counting reuses a stale list and freezes a panel. Anything
+     *  that sets `is_dirty` must bump this in the same breath. */
+    uint32_t dirty_gen;
+    /* Bounded accounting while App moves projected overlay layers. Any other
+     * dirty/layout publication makes the emission shortcut ineligible. */
+    uint32_t overlay_motion_dirty, overlay_motion_layout;
+    uint8_t overlay_motion_tracking;
+    /** One byte per node, set by `emit_walk_node` for every node the last emit
+     *  walk entered, cleared at the head of each walk. It is the reachability
+     *  half of the retention signal: `UITree_MarkNodeDirty` skips the
+     *  `dirty_gen` bump for a node this array says the walk never reached, so a
+     *  closed interface ticking its 3D model stops defeating the gate.
+     *
+     *  "Reached" and "hidden" are not the same question, which is why this is a
+     *  bitmap and not a `UITree_ComponentOrAncestorHidden` call: inactive
+     *  sidebar tabs prune their whole mounted subtree with no hide bit set
+     *  anywhere, and a dynamically-created child with no component_id cannot be
+     *  looked up by that function at all. Both read as visible; neither is.
+     *
+     *  Sound because a node the walk did not enter can only become entered if
+     *  some ancestor's traversal decision changed, and every write that changes
+     *  one goes through a `dirty_gen` bump on that ancestor — which was itself
+     *  entered, since it is the node that made the decision. That is why the
+     *  bump sites inside uitree.c stay unfiltered: they are the ones that move
+     *  hide bits and topology, and filtering them would break the argument.
+     *
+     *  Written through a `struct UITree const*` on purpose — the walk takes the
+     *  tree read-only and this is scratch, not tree state. Allocated on first
+     *  walk; `cap` trails `component_count` after a growth, and an index past
+     *  it is treated as reached (conservative: a new node has never been
+     *  walked, so it must not be skipped). */
+    uint8_t* emit_visited;
+    uint32_t emit_visited_cap;
+    /** The stamp a walk writes into emit_visited: "visited this walk" is
+     *  `emit_visited[i] == emit_epoch`. Bumped at the start of every walk
+     *  instead of clearing the whole array (which was 92% of the walk on a
+     *  phone); the array is cleared for real only when the stamp wraps. */
+    uint8_t emit_epoch;
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
@@ -802,6 +1417,25 @@ struct UITree
     uint32_t layout_order_count; /* live (non-freed) entries in layout_order */
     uint32_t layout_order_gen;   /* generation order/depth were computed for */
     uint8_t layout_order_valid;
+    /** Nodes whose own layout inputs changed since the last resolve.
+     *
+     *  A node's box is a pure function of its own fields and its parent's
+     *  box, so a resolve only has to visit the nodes that were invalidated
+     *  and, transitively, the descendants of those whose box actually moved.
+     *  Sweeping all of them to find the handful that moved cost 6,918 node
+     *  visits a frame to do ~80 nodes of work.
+     *
+     *  Only invalidators that can NAME a node contribute here. The ones that
+     *  cannot -- a root-box change, a frame-layer rebind, anything reaching
+     *  UITree_LayoutInvalidate -- set `layout_dirty_overflow` instead, and
+     *  the resolve falls back to the full sweep. So does a run that produces
+     *  more seeds than the list holds: past that many distinct nodes the
+     *  sweep is the cheaper answer anyway. The fallback is what makes this
+     *  safe -- the worst case is exactly the old behaviour. */
+    int32_t* layout_dirty;
+    uint32_t layout_dirty_count;
+    uint32_t layout_dirty_cap;
+    uint8_t layout_dirty_overflow;
     /** Forces the next resolve to recompute every node instead of only the ones
      *  whose own box or parent's box changed. Set when a box moved outside the
      *  resolve's own bookkeeping (a JIT chain resolve that could not record into
@@ -817,6 +1451,8 @@ struct UITree
      *  directly, so the count cannot drift. */
     uint32_t drag_active_nodes;
     uint16_t next_dynamic_uid;
+    /** Retained focus is checked by tree, slot, and incarnation on every read. */
+    struct UITreeNodeRef input_focus;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
     int interface_parent_count;
@@ -826,7 +1462,7 @@ struct UITree
      *  The CS2 host cannot reach UIInteraction::input_state, so it writes
      *  these and InteractFrame consumes them into a live drag source. */
     uint8_t pending_drag_pickup;
-    int pending_drag_pickup_id;
+    struct UITreeNodeRef pending_drag_pickup_ref;
     int pending_drag_pickup_x;
     int pending_drag_pickup_y;
     /** Set when any node's layout is invalidated (position/size/topology
@@ -892,16 +1528,43 @@ struct UITree
     struct UITreeNodeSet resize_hooks;
     struct UITreeNodeSet sub_change_hooks;
     struct UITreeNodeSet scroll_layers;
+    /** Debug-overlay nodes. Not a singleton: a tree may carry more than one
+     *  (see UITree_DebugOverlaySetFontIds), and the emit pass has to reach all
+     *  of them. A set rather than a bare count because the count would only let
+     *  the pass skip when there are none, and every lane's manifest declares one
+     *  — switched off, drawing nothing, and still costing a whole-tree descent
+     *  per frame to be found again. */
+    struct UITreeNodeSet debug_overlays;
     /** Singleton builtins; -1 when absent. Maintained on Push / reclaim. */
     int32_t world_index;
     int32_t worldmap_index;
+    /** The `entity_overlay` builtin, which is both the host-drawn health-bar /
+     *  hitsplat layer and the PARENT of every scripted entity overlay
+     *  (game/rs_entity_overlay.h). A singleton for the same reason the world is:
+     *  the overlay ops reach for it on every create, and a whole-tree scan per
+     *  create is what the fishing-spot scripts would pay sixteen times a tick. */
+    int32_t entity_overlay_index;
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
+    /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
+     *  which it is on every lane until a layout plugin claims one. */
+    struct UITreeFrameLayout* frame_layout;
+    /** Retained widget anchor edits alive on this tree; the cheap depth gate. */
+    int widget_anchor_edits;
+    /**
+     * Stamps the frame roles a cache gameframe does not declare for itself,
+     * before any binding is collected. NULL on a tree nobody has bound.
+     * @see UITree_FrameSetBinder.
+     */
+    void (*frame_binder)(struct UITree* tree, void* user);
+    void* frame_binder_user;
 };
 
 struct UITreeNodeSpec
 {
+    /* Internal initialization boundary for anonymous plugin-owned children. */
+    uint64_t plugin_owner;
     enum UITreeComponentType type;
     int component_id;
 
@@ -917,6 +1580,8 @@ struct UITreeNodeSpec
     int dynamic_child_index;
     uint8_t has_position;
     uint8_t slot_tag; /* enum UITreeSlotTag */
+    /** Interned semantic role, or 0. @see UITreeComponent::role_id. */
+    uint16_t role_id;
     /** dat2 noClickThrough on a LAYER; CS2 can also raise it later. */
     uint8_t no_click_through;
     struct UITreeElemPosition position;
@@ -932,6 +1597,14 @@ struct UITreeNodeSpec
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
+        /* UIELEM_BUILTIN_INKWELL: a CHOICE of artwork, not a binding to one.
+         * @see the matching member on UITreeComponent. */
+        struct
+        {
+            int style;
+            int walk_color;
+            int interact_color;
+        } inkwell;
         struct
         {
             int scene_id;
@@ -951,8 +1624,6 @@ struct UITreeNodeSpec
         struct
         {
             uint8_t level_mask;
-            uint8_t mmb_rotate; /* INI mmb_rotate= (see UITreeComponent) */
-            uint8_t wheel_zoom; /* INI wheel_zoom= (see UITreeComponent) */
         } world;
         struct
         {
@@ -967,6 +1638,12 @@ struct UITreeNodeSpec
             int color;
             int center;
             int y_align;
+            /** revconfig `baseline=`: the layout row's y IS the text baseline,
+             *  which is how both references write every text coordinate
+             *  (font.drawString(s, x, y)). Without it a row has to carry the
+             *  box top instead, and the reference's own numbers stop being
+             *  usable as written. */
+            int baseline;
             int line_height;
             int shadowed;
             char const* text;
@@ -1011,6 +1688,7 @@ struct UITreeNodeSpec
              * anim_frame is advanced by the client tick driver; anim_frame_cycle
              * accumulates elapsed 50hz cycles toward the current frame's length. */
             int anim_seq_id;
+            int active_anim_seq_id;
             int anim_frame;
             int anim_frame_cycle;
             /* Hold anim_frame instead of advancing it. The player-design
@@ -1024,6 +1702,18 @@ struct UITreeNodeSpec
             int color;
             int filled;
         } rs_rect;
+        struct
+        {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
         struct
         {
             int inv_source_id;
@@ -1070,17 +1760,64 @@ struct UITreeNodeSpec
         } hovertext;
         struct
         {
-            /** Scene font ids the host registered the two baked debug faces
-             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
-             * travel as plain ints the same way minimenu.font_id does. */
-            int font_id_small;
-            int font_id_menu;
-        } debug_overlay;
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
+        /* By value in the spec, by pointer on the component: the spec is one
+         * short-lived stack struct, the component is one of thousands. */
+        struct UITreeLoginInputConfig login_input;
         struct
         {
-            struct UITreeChatMinimenuConfig minimenu;
+            int scene_id;
+            int atlas_index;
+            int action;
+        } login_button;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+            int scene_id_on;
+            int atlas_index_on;
+            int action;
+            int toggle;
+        } login_toggle;
+        struct
+        {
+            int index;
             int font_id;
-        } chat;
+            int color;
+            int center;
+            int shadowed;
+        } login_message;
+        struct
+        {
+            int color;
+            int px_per_percent;
+        } title_progress;
+        struct
+        {
+            int font_id;
+            int color;
+            int center;
+            int shadowed;
+        } title_progress_text;
+        struct
+        {
+            /** enum TitleFlameSide; ui/ stays a leaf so it travels as an int. */
+            int side;
+            /* Where the fire sits inside the column it burns in. The
+             * column is blitted over the wall it was cut from, so these
+             * lean the FIRE outward rather than the wall with it. */
+            int bias;
+            int sway;
+            int run;
+            int row;
+            /** enum TitleFlameBlur. */
+            int blur;
+        } title_flames;
+        struct UITreeDebugOverlayConfig debug_overlay;
+        struct UITreeChatConfig chat;
         struct UITreeChatButtonConfig chat_button;
         struct
         {
@@ -1123,8 +1860,44 @@ UITree_Clear(struct UITree* tree);
 void
 UITree_MarkAllDirty(struct UITree* tree);
 
+/**
+ * Make a detached LAYER under the `entity_overlay` builtin, for one scripted
+ * entity overlay (game/rs_entity_overlay.h).
+ *
+ * `sub_id` is the overlay's index, which is what makes the node findable again
+ * and what a rebuild replaces in place. The box is set absolute and at (0,0);
+ * the App moves it to the projected anchor each frame, because where it belongs
+ * is a fact about the camera and not about the tree.
+ *
+ * Returns the node index, or -1 when the tree has no `entity_overlay` builtin
+ * -- a pack that declares none draws no overlays, which is a manifest decision
+ * rather than an error.
+ */
+int32_t
+UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int height);
+
+/**
+ * Move a layer made by `UITree_EntityOverlayCreateLayer` to its projected
+ * parent-relative position. This invalidates both incremental layout and the
+ * retained emit list; writing `position.x/y` directly does neither completely.
+ *
+ * Returns false when `idx` is not a live scripted-overlay layer.
+ */
+bool
+UITree_EntityOverlaySetLayerPosition(struct UITree* tree, int32_t idx, int x, int y);
+
 void
 UITree_MarkNodeDirty(
+    struct UITree* tree,
+    int32_t idx);
+
+/**
+ * Mark a node whose visibility changed. Unlike UITree_MarkNodeDirty this
+ * always advances retained-output identity: a previously pruned node was not
+ * visited by the last emit, but revealing it necessarily changes the next one.
+ */
+void
+UITree_MarkNodeVisibilityDirty(
     struct UITree* tree,
     int32_t idx);
 
@@ -1146,6 +1919,24 @@ int32_t
 UITree_FindByComponentId(
     struct UITree const* tree,
     int component_id);
+
+/**
+ * Re-point every debug-overlay component at a different set of baked fonts.
+ *
+ * The chrome's scale can change after the tree is built -- the window moves to
+ * a display of a different pixel density, or the editor's scale row is changed
+ * -- and the font ids were resolved once, at bake time. Without this the
+ * overlay lays out at the new size and draws at the old one, which reads as a
+ * broken font rather than as a stale id.
+ *
+ * @param font_id_* scene font ids from UITreeSceneBridge_EnsureDebugFont.
+ */
+void
+UITree_DebugOverlaySetFontIds(
+    struct UITree* tree,
+    int font_id_small,
+    int font_id_menu,
+    int font_id_body);
 
 void
 UITree_WalkAdvance(
@@ -1175,8 +1966,8 @@ UITree_LinkUnderParent(
     int32_t parent_index,
     int32_t child_index);
 
-/** Move child_index under new_parent_index (-1 = root list). Preserves child's subtree. */
-void
+/** Move child under new parent (-1 = root). Invalid/cyclic moves fail atomically. */
+bool
 UITree_Reparent(
     struct UITree* tree,
     int32_t child_index,
@@ -1240,6 +2031,273 @@ UITree_CollectDynamicChildIndices(
     int start_index,
     int* out_indices,
     int out_cap);
+
+/**
+ * Typed runtime mutation API for callers that already hold a component-array
+ * index.  These setters own all cache invalidation implied by their property:
+ * callers must not write the corresponding UITreeComponent fields and then
+ * try to reproduce the dirty/layout bookkeeping themselves.
+ *
+ * A repeated value is a successful no-op.  False means the index is not a live
+ * component, or (where applicable) has the wrong component type.  The
+ * corresponding component-id UITree_Apply* entry points below are lookup
+ * wrappers around these functions.
+ */
+/** Mount bookkeeping may suppress a group without changing native hide. */
+bool UITree_SetMountHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+bool
+UITree_SetHideAt(struct UITree* tree, int32_t idx, int hide);
+
+/** Publish one cached CS1 active result as a visual mutation. */
+bool
+UITree_SetCS1ActiveAt(struct UITree* tree, int32_t idx, int active);
+
+/** Publish one cached CS1 placeholder value as a visual mutation. */
+bool
+UITree_SetCS1ValueAt(struct UITree* tree, int32_t idx, int value_index, int value);
+
+/** Set frame-layout suppression with unfiltered reachability invalidation. */
+bool
+UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+/** Set frame-layout containment release (`frame_stretched`): the layer's
+ *  children take the enclosing clip instead of the layer's own box. */
+bool
+UITree_SetFrameStretchedAt(struct UITree* tree, int32_t idx, int stretched);
+
+/** As above for `screen_hidden`: hide the subtree of a title screen that is
+ *  not the current one. */
+bool
+UITree_SetScreenHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+/** Set camera-owned visibility of a scripted entity-overlay layer. */
+bool
+UITree_SetProjectionHiddenAt(struct UITree* tree, int32_t idx, int hidden);
+
+bool
+UITree_SetTextAt(struct UITree* tree, int32_t idx, char const* text);
+
+/* ------------------------------------------------------------------ */
+/* IF3 text-entry fields (component type 12)                           */
+/* ------------------------------------------------------------------ */
+
+/* The hit walk lives in uitree_input.h, which includes this header; naming its
+ * host type here rather than including it back keeps the two out of a cycle. */
+struct UITreeHost;
+
+/** Hit-stack depth for UITree_InputHitTest. The deepest stack a field sits
+ *  under in this cache is the settings dropdown's (panel > list > row > field);
+ *  32 is the same headroom the minimenu's own walk takes. */
+#define UITREE_INPUT_HIT_STACK_MAX 32
+
+/** Longest line an editable field will hold, including the terminator. The
+ *  fields are capped by PIXEL width against their own wrapping width long
+ *  before this; it is the buffer bound, not the policy. */
+#define UITREE_INPUT_TEXT_MAX 256
+
+/** Is this node an editable field? @see `rs_text.input`. */
+int
+UITree_IsInputNode(struct UITreeComponent const* c);
+
+/** Capture/resolve a live identity. Zero references and references from another
+ * tree, deleted slots, or recycled slots resolve to -1. */
+bool UITree_StageDragPickup(struct UITree* tree, int32_t index, int x, int y);
+/** Development audit: constructor/typed-mutation state versus published native geometry. */
+void UITree_GeometryAuditEnable(struct UITree* tree);
+bool UITree_GeometryAuditCheck(struct UITree const* tree, char const* where);
+
+struct UIMinimenuPick;
+uint64_t UITree_ActionSignatureAt(struct UITree const* tree, int32_t idx);
+void UITree_StampMenuPick(struct UITree const* tree, int32_t idx, struct UIMinimenuPick* pick);
+bool UITree_MenuPickCurrent(struct UITree const* tree, struct UIMinimenuPick const* pick);
+
+struct UITreeNodeRef UITree_RefAt(struct UITree const* tree, int32_t index);
+int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
+
+/* Client-thread widget setters. Owner is a nonzero plugin-instance identity.
+ * Position is native-parent-local, unscrolled. Reset exposes current native
+ * inputs or the most recent remaining owner's edit, without saved snapshots. */
+bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
+bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
+bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
+
+/* Presentation depth of a widget relative to a named target widget: drawn and
+ * hit directly OVER it, directly BEHIND it, or in its place (REPLACE, which
+ * inherits the target's native visibility). Retained per owner like the
+ * geometry edits: the latest writer wins, NATIVE records "no relation", reset
+ * drops it. Numeric values match the plugin contract's ToriRS_WidgetRelation
+ * (pinned by the static assert in torirs_plugin_bridge.u.c). */
+enum UITreeWidgetRelation
+{
+    UITREE_WIDGET_RELATION_NATIVE = 0,
+    UITREE_WIDGET_RELATION_OVER,
+    UITREE_WIDGET_RELATION_BEHIND,
+    UITREE_WIDGET_RELATION_REPLACE,
+};
+enum UITreeWidgetAnchorResult
+{
+    UITREE_WIDGET_ANCHOR_OK = 0,
+    UITREE_WIDGET_ANCHOR_STALE,   /* the widget or the target no longer resolves */
+    UITREE_WIDGET_ANCHOR_BLOCKED, /* the widget is another plugin's owned control */
+    UITREE_WIDGET_ANCHOR_INVALID, /* self, ancestor/descendant, cycle, bad relation */
+    UITREE_WIDGET_ANCHOR_BUDGET,  /* the node's per-owner edit budget is spent */
+};
+enum UITreeWidgetAnchorResult UITree_WidgetSetAnchor(struct UITree*, struct UITreeNodeRef widget, uint64_t owner,
+                                                     struct UITreeNodeRef target, enum UITreeWidgetRelation relation);
+/* The effective anchor of `idx`: the latest edit whose target still resolves.
+ * Writes the live target index (-1 for NATIVE). */
+enum UITreeWidgetRelation UITree_WidgetAnchorAt(struct UITree const*, int32_t idx, int32_t* out_target);
+int UITree_WidgetAnchorCount(struct UITree const*);
+
+/* Native re-skin, retained per owner like the other edits. Art applies to a
+ * native sprite, graphic or compass (scene id > 0) and only while the native
+ * widget shows a graphic of its own; a mask applies to a native minimap,
+ * compass or sprite (0 = draw unmasked). Plugin masks always cut where they
+ * are transparent. Owned controls take their picture through set_image. */
+bool UITree_WidgetSetArt(struct UITree*, struct UITreeNodeRef, uint64_t owner, int scene_id);
+bool UITree_WidgetSetMask(struct UITree*, struct UITreeNodeRef, uint64_t owner, int scene_id);
+/* Effective skin of `idx`: bit 1 art, bit 2 mask; outputs written when set. */
+int UITree_WidgetSkinAt(struct UITree const*, int32_t idx, int* out_art_scene_id, int* out_mask_scene_id);
+/* Drop every retained art/mask edit naming `scene_id` (a released plugin image). */
+int UITree_WidgetClearSkin(struct UITree*, int scene_id);
+bool UITree_WidgetSetProjectionHeight(struct UITree*,struct UITreeNodeRef,uint64_t owner,int height);
+int UITree_WidgetProjectionHeight(struct UITree const*,int32_t node);
+bool UITree_WidgetSetTextOutline(struct UITree*,struct UITreeNodeRef,uint64_t owner,bool outline);
+bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
+void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
+int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
+                               char const* key, int font_id);
+bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owner,uint64_t serial,char const* label);
+/* Owned image control: a plugin-owned RS_GRAPHIC child, keyed like owned text.
+ * SetGraphic installs a scene sprite and the node's requested size in one
+ * step; ClearGraphic blanks every plugin-owned graphic still showing a scene id
+ * whose pixels were released, so a freed slot is never drawn again. */
+int32_t UITree_WidgetCreateGraphic(struct UITree*, struct UITreeNodeRef parent, uint64_t owner, char const* key);
+bool UITree_WidgetSetGraphic(struct UITree*,struct UITreeNodeRef,uint64_t owner,int scene_id,int width,int height);
+int UITree_WidgetClearGraphic(struct UITree*, int scene_id);
+bool UITree_WidgetSetTransparency(struct UITree*,struct UITreeNodeRef,uint64_t owner,int transparency);
+bool UITree_WidgetRemove(struct UITree*, struct UITreeNodeRef, uint64_t owner);
+
+/* The merged geometry override the layout applies: every owner's retained
+ * position/size edits, latest serial winning. Bit 1 position, bit 2 size. */
+int UITree_WidgetPositionOverride(struct UITree const*, int32_t, struct UITreeElemPosition*);
+/* The same, read through ONE owner's retained edits only. What a question
+ * about a particular plugin's moves -- did the frame provider place this
+ * widget? -- asks, so another plugin's nudge is never mistaken for its own. */
+int UITree_WidgetPositionOverrideByOwner(struct UITree const*, int32_t, uint64_t owner,
+                                         struct UITreeElemPosition*);
+
+/** Current live focus component ID, or -1. Never transfers across node reuse. */
+int
+UITree_InputFocusId(struct UITree const* tree);
+
+/**
+ * Give the caret to `com_id`, or drop it with -1. Returns the id that LOST the
+ * caret (-1 if none), which is the node whose `on_input_focus_changed` the
+ * caller still owes a dispatch to.
+ *
+ * The caret lands at the end of whatever text the field already holds, which is
+ * what clicking a name already in the box has to do to let you correct it.
+ */
+int
+UITree_InputSetFocusId(struct UITree* tree, int com_id);
+
+/** The topmost editable field under (x, y), or -1. */
+int
+UITree_InputHitTest(
+    struct UITree* tree,
+    struct UITreeHost const* host,
+    int x,
+    int y);
+
+bool
+UITree_SetGraphicAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scene_id,
+    int atlas_index);
+
+bool
+UITree_SetColourAt(struct UITree* tree, int32_t idx, int colour);
+
+bool
+UITree_SetFillColourAt(struct UITree* tree, int32_t idx, int colour);
+
+/** Set the component's 0..255 transparency value (0 is opaque). */
+bool
+UITree_SetTransparencyAt(struct UITree* tree, int32_t idx, int transparency);
+
+/** Set the resolved scene-font id used by the builtin minimenu expansion. */
+bool
+UITree_SetMinimenuFontAt(struct UITree* tree, int32_t idx, int font_id);
+
+/** Set a RS_ARC widget's 65536-per-turn start and end angles. */
+bool
+UITree_SetArcAnglesAt(struct UITree* tree, int32_t idx, int arc_start, int arc_end);
+
+/** Replace the scene model drawn by a RS_MODEL widget. */
+bool
+UITree_SetModelAt(struct UITree* tree, int32_t idx, int model_id);
+
+/**
+ * Set all fields written by IF/CC_SETMODELANGLE in one paint mutation.  A
+ * non-positive zoom preserves the current zoom, matching the opcode contract.
+ */
+bool
+UITree_SetModelPoseAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x_offset,
+    int y_offset,
+    int x_angle,
+    int y_angle,
+    int z_angle,
+    int zoom);
+
+bool
+UITree_SetPositionAt(struct UITree* tree, int32_t idx, int x, int y);
+
+/** Replace a node's complete explicit XY box in one geometry mutation. */
+bool
+UITree_SetXYBoxAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y,
+    int width,
+    int height);
+
+bool
+UITree_SetSizeAt(struct UITree* tree, int32_t idx, int width, int height);
+
+bool
+UITree_SetPositionModesAt(
+    struct UITree* tree,
+    int32_t idx,
+    int x,
+    int y,
+    int x_mode,
+    int y_mode);
+
+bool
+UITree_SetSizeModesAt(
+    struct UITree* tree,
+    int32_t idx,
+    int width,
+    int height,
+    int width_mode,
+    int height_mode);
+
+bool
+UITree_SetScrollSizeAt(
+    struct UITree* tree,
+    int32_t idx,
+    int scroll_width,
+    int scroll_height);
+
+bool
+UITree_SetScrollPosAt(struct UITree* tree, int32_t idx, int scroll_x, int scroll_y);
 
 bool
 UITree_ApplyHide(
@@ -1389,6 +2447,10 @@ UITree_ApplyScrollPos(
 /* num_mode is the SETOBJECT opcode variant's count-text rule: 0 = draw when
  * stackable (plain SETOBJECT, and the zero-init default for cells filled
  * outside CS2), 1 = always (_ALWAYS_NUM), 2 = never (_NONUM). */
+bool UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
+                        int scene_id, int atlas_index, int num_mode);
+bool UITree_SwapObjectStateAt(struct UITree* tree, int32_t a, int32_t b);
+
 bool
 UITree_ApplyObject(
     struct UITree* tree,
@@ -1419,6 +2481,18 @@ UITree_ApplyModelAngle(
     int yan,
     int zoom);
 
+/** Set a MODEL widget's 2D offsets (reference modelOffsetX/Y). Part of an
+ * objtype's own presentation rather than a widget property: an obj icon is
+ * composed from zoom2d, the three angles AND xof2d/yof2d, and dropping the
+ * offsets leaves off-centre models — `arrow_shaft` carries yof2d -29 and
+ * projects clean out of its cell without it. */
+bool
+UITree_ApplyModelOffset(
+    struct UITree* tree,
+    int component_id,
+    int x_offset,
+    int y_offset);
+
 bool
 UITree_ApplyModelRotateSpeed(
     struct UITree* tree,
@@ -1429,6 +2503,26 @@ UITree_ApplyModelRotateSpeed(
 /** Set a MODEL widget's animation sequence (reference IF_SETANIM / modelAnim);
  * -1 clears it. Restarts playback only when the sequence actually changes —
  * re-applying the one already running must not reset the frame counters. */
+struct UITreeModelRenderCache* UITree_ModelRenderCacheMut(struct UITreeComponent* component);
+bool UITree_SetModelAnimationAt(struct UITree* tree, int32_t idx, int sequence,
+                                int frame, int cycle, int hold);
+bool UITree_SetModelAnimationCursorAt(struct UITree* tree, int32_t idx, int frame, int cycle);
+bool UITree_SetButtonTypeAt(struct UITree* tree, int32_t idx, int button_type);
+
+enum UITreeNativeIntField
+{
+    UITREE_NATIVE_IF3, UITREE_NATIVE_HFLIP, UITREE_NATIVE_VFLIP,
+    UITREE_NATIVE_LINE_WIDTH, UITREE_NATIVE_LINE_DIRECTION,
+    UITREE_NATIVE_NO_CLICK_THROUGH, UITREE_NATIVE_DRAG_DEAD_ZONE,
+    UITREE_NATIVE_DRAG_DEAD_TIME, UITREE_NATIVE_DRAG_BEHAVIOR,
+    UITREE_NATIVE_MODEL_ORTHOG, UITREE_NATIVE_TRANS_BOTTOM,
+    UITREE_NATIVE_INPUT_WRAP_WIDTH, UITREE_NATIVE_FILL, UITREE_NATIVE_GRAPHIC_ACTIVE
+};
+bool UITree_SetNativeIntAt(struct UITree* tree, int32_t idx, enum UITreeNativeIntField field, int value);
+bool UITree_SetDragAreaAt(struct UITree* tree, int32_t idx, int enabled, int uid, int child);
+bool UITree_SetInputCaretAt(struct UITree* tree, int32_t idx, int caret);
+bool UITree_SetInventorySourceAt(struct UITree* tree, int32_t idx, int source_id);
+
 bool
 UITree_ApplyModelAnim(
     struct UITree* tree,
@@ -1440,6 +2534,8 @@ UITree_ApplyTextFont(
     struct UITree* tree,
     int component_id,
     int font_id);
+
+bool UITree_SetTextAlignAt(struct UITree*, int32_t index, int horizontal, int vertical, int line_height);
 
 bool
 UITree_ApplyTextAlign(
@@ -1722,11 +2818,57 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id);
 
-/** Ancestor hide check for InvTransmit gating. */
+/** Exact-node form used by retained drag gestures. Returns the node index and
+ * optionally its component id, or -1 when no drop target is painted there. */
+int32_t
+UITree_FindDropTargetNode(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id);
+
+/** Cache/script hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,
     int component_id);
+
+/** Display/input hide check, also including plugin-frame suppression. */
+int
+UITree_ComponentOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int component_id);
+
+/**
+ * The node-index form of ComponentOrAncestorDisplayHidden.
+ *
+ * Input gestures keep node indices while they are active, and a revconfig
+ * builtin may have no component id at all.  Those callers must still observe
+ * plugin-frame suppression as a true display:none subtree rather than
+ * continuing a press/drag against an element which is no longer painted.
+ */
+int
+UITree_NodeOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int32_t node_index);
+
+/**
+ * The same query with the gameframe plugin's own suppression excused.
+ *
+ * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
+ * fence, and exists for the one caller that is not a click on pixels: a
+ * synthesised button press names a component, not a place on the screen, so a
+ * panel the arranger is simply not showing right now is not a reason to
+ * refuse it -- while a hide the cache or a script authored still is. Every
+ * other flag (behavior.hide, screen, projection, and an orphaned root) fences
+ * as before.
+ */
+int
+UITree_NodeOrAncestorDisplayHiddenEx(
+    struct UITree const* tree,
+    int32_t node_index,
+    int ignore_frame_hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
  *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */

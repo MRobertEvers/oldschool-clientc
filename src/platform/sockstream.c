@@ -1,5 +1,9 @@
 #include "sockstream.h"
+
+#include "platform_mdns.h"
+
 #include <assert.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -30,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #ifndef _WIN32
 #include <errno.h>
@@ -138,7 +143,7 @@ sockstream_connect(
     SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
     if( sock == INVALID_SOCKET )
     {
-        printf("Failed to create socket: %d\n", WSAGetLastError());
+        TORIRS_ERR("Failed to create socket: %d\n", WSAGetLastError());
         return;
     }
     stream->sockfd = sock;
@@ -146,7 +151,7 @@ sockstream_connect(
     stream->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if( stream->sockfd < 0 )
     {
-        printf("Failed to create socket: %s\n", strerror(errno));
+        TORIRS_ERR("Failed to create socket: %s\n", strerror(errno));
         return;
     }
 #endif
@@ -156,7 +161,7 @@ sockstream_connect(
     u_long mode = 1;
     if( ioctlsocket(stream->sockfd, FIONBIO, &mode) != 0 )
     {
-        printf("Failed to set non-blocking: %d\n", WSAGetLastError());
+        TORIRS_ERR("Failed to set non-blocking: %d\n", WSAGetLastError());
         closesocket(stream->sockfd);
         /* The caller owns the stream and will close/free it after poll reports
          * failure. Freeing here leaves that caller with a dangling pointer. */
@@ -168,7 +173,7 @@ sockstream_connect(
     int flags = fcntl(stream->sockfd, F_GETFL, 0);
     if( flags < 0 || fcntl(stream->sockfd, F_SETFL, flags | O_NONBLOCK) < 0 )
     {
-        printf("Failed to set non-blocking: %s\n", strerror(errno));
+        TORIRS_ERR("Failed to set non-blocking: %s\n", strerror(errno));
         close(stream->sockfd);
         sockstream_clear_socket(stream);
         stream->status = SOCKSTREAM_STATUS_ERROR;
@@ -203,9 +208,43 @@ sockstream_connect(
         }
         if( res )
             freeaddrinfo(res);
+        /*
+         * SYSTEM RESOLVER FIRST, mDNS ONLY AS A FALLBACK.
+         *
+         * The other order was available -- intercept `.local` before
+         * getaddrinfo ever sees it -- and was rejected. macOS resolves `.local`
+         * inside getaddrinfo through mDNSResponder, and so does a Linux box
+         * running nss-mdns; on those hosts the line above already returns the
+         * right answer in single-digit milliseconds. Going to the wire first
+         * would replace a working system path with a reimplementation of it on
+         * every desktop boot, and add this module's whole retry budget to any
+         * name it happened to miss. Nothing about the developer's Mac changes
+         * here: on it, this branch is never reached.
+         *
+         * The cost of this order is one failed system lookup on the platform
+         * that needs the fallback. Measured on the XT1060 (Android 5.1),
+         * getaddrinfo("matthewllm.local") fails in 15-26 ms -- bionic has no
+         * mDNS path at all and the phone's only nameserver is the LAN router,
+         * which answers `.local` with NXDOMAIN immediately. That is a price
+         * worth paying to leave the working hosts untouched.
+         *
+         * Gated on the name, not on the platform: a `.local` name is one no
+         * unicast DNS server will ever answer, so this runs exactly when the
+         * failure above was a foregone conclusion and never turns an ordinary
+         * DNS outage into a multicast query.
+         */
+        if( !resolved && PlatformMdns_IsLocalName(host) )
+        {
+            uint32_t mdns_addr = 0;
+            if( PlatformMdns_ResolveIpv4(host, &mdns_addr) )
+            {
+                server_addr.sin_addr.s_addr = mdns_addr;
+                resolved = 1;
+            }
+        }
         if( !resolved )
         {
-            printf("Invalid address: %s\n", host);
+            TORIRS_ERR("Invalid address: %s\n", host);
 #ifdef _WIN32
             closesocket(stream->sockfd);
 #else
@@ -224,7 +263,7 @@ sockstream_connect(
     {
         // Connection succeeded immediately
         stream->status = SOCKSTREAM_STATUS_CONNECTED;
-        printf("Connected to %s:%d\n", host, port);
+        TORIRS_LOG("Connected to %s:%d\n", host, port);
         return;
     }
     if( result == SOCKET_ERROR )
@@ -232,7 +271,7 @@ sockstream_connect(
         int connect_err = WSAGetLastError();
         if( connect_err != WSAEINPROGRESS && connect_err != WSAEWOULDBLOCK )
         {
-            printf("Failed to connect: %d\n", connect_err);
+            TORIRS_ERR("Failed to connect: %d\n", connect_err);
             closesocket(stream->sockfd);
             sockstream_clear_socket(stream);
             stream->status = SOCKSTREAM_STATUS_ERROR;
@@ -240,26 +279,26 @@ sockstream_connect(
         }
     }
     // Connection in progress - return stream, caller should poll with sockstream_poll_connect
-    printf("Connection in progress to %s:%d\n", host, port);
+    TORIRS_LOG("Connection in progress to %s:%d\n", host, port);
     return;
 #else
     if( result == 0 )
     {
         // Connection succeeded immediately
         stream->status = SOCKSTREAM_STATUS_CONNECTED;
-        printf("Connected to %s:%d\n", host, port);
+        TORIRS_LOG("Connected to %s:%d\n", host, port);
         return;
     }
     if( result < 0 && errno != EINPROGRESS )
     {
-        printf("Failed to connect: %s\n", strerror(errno));
+        TORIRS_ERR("Failed to connect: %s\n", strerror(errno));
         close(stream->sockfd);
         sockstream_clear_socket(stream);
         stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
     // Connection in progress - return stream, caller should poll with sockstream_poll_connect
-    printf("Connection in progress to %s:%d\n", host, port);
+    TORIRS_LOG("Connection in progress to %s:%d\n", host, port);
     return;
 #endif
 }
@@ -267,6 +306,7 @@ sockstream_connect(
 int
 sockstream_lasterror(struct SockStream* stream)
 {
+    (void)stream;
     assert(stream);
 #ifdef _WIN32
     int error = WSAGetLastError();
@@ -314,7 +354,7 @@ sockstream_send(
     if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || !sockstream_has_socket(stream) || !buffer ||
         size <= 0 )
     {
-        printf("Socket send error: invalid stream\n");
+        TORIRS_ERR("Socket send error: invalid stream\n");
         return -1;
     }
 
@@ -325,13 +365,13 @@ sockstream_send(
         int send_err = WSAGetLastError();
         if( send_err != WSAEWOULDBLOCK )
         {
-            printf("Socket send error: %d\n", send_err);
+            TORIRS_ERR("Socket send error: %d\n", send_err);
             stream->status = SOCKSTREAM_STATUS_ERROR;
         }
 #else
         if( errno != EAGAIN && errno != EWOULDBLOCK )
         {
-            printf("Socket send error: %s\n", strerror(errno));
+            TORIRS_ERR("Socket send error: %s\n", strerror(errno));
             stream->status = SOCKSTREAM_STATUS_ERROR;
         }
 #endif
@@ -349,7 +389,7 @@ sockstream_recv(
     if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || !sockstream_has_socket(stream) || !buffer ||
         size <= 0 )
     {
-        printf("Socket recv error: invalid stream\n");
+        TORIRS_ERR("Socket recv error: invalid stream\n");
         return SOCKSTREAM_ERROR_INVALID_STREAM;
     }
 
@@ -361,8 +401,28 @@ sockstream_recv(
     else if( received == 0 )
     {
         // Connection closed
+        /*
+         * An ORDERLY close, which this layer cannot judge and must not narrate.
+         *
+         * recv() returning 0 means the peer shut its write side down. Whether
+         * that is a failure depends entirely on what the caller was reading,
+         * and every caller already decides: platform_x_http.c and
+         * platform_x_io_ondemand.c BREAK on it, because an HTTP/1.0 body ends
+         * exactly this way, while net_transport_ws.c and platform_socket.c
+         * treat it as a dead connection. The return code carries that
+         * distinction; a line of stderr from in here cannot.
+         *
+         * It was doing real damage. Booting the rev-289 world fetches nine jag
+         * archives over HTTP, so every SUCCESSFUL boot printed nine copies of
+         * "Socket recv error: connection closed" -- and TORIRS_ERR is compiled
+         * in even at OPT=1, so this was the optimized client's loudest output
+         * and it described a client that was working correctly. On the XP box
+         * a single stderr write has been measured at about 6 ms.
+         *
+         * The two branches below keep their logs: those are errno/WSA errors,
+         * which are failures wherever they happen.
+         */
         stream->status = SOCKSTREAM_STATUS_IDLE;
-        printf("Socket recv error: connection closed\n");
         return SOCKSTREAM_ERROR_CLOSED;
     }
     else
@@ -372,7 +432,7 @@ sockstream_recv(
         int recv_err = WSAGetLastError();
         if( recv_err != WSAEWOULDBLOCK )
         {
-            printf("Socket recv error: %d\n", recv_err);
+            TORIRS_ERR("Socket recv error: %d\n", recv_err);
             stream->status = SOCKSTREAM_STATUS_ERROR;
             /* See the POSIX branch: a real error is a closed connection, not
              * a quiet one. */
@@ -383,7 +443,7 @@ sockstream_recv(
 #else
         if( errno != EAGAIN && errno != EWOULDBLOCK )
         {
-            printf("Socket recv error: %s\n", strerror(errno));
+            TORIRS_ERR("Socket recv error: %s\n", strerror(errno));
             stream->status = SOCKSTREAM_STATUS_ERROR;
             /*
              * Distinct from would-block, which used to share this return.
@@ -461,7 +521,7 @@ sockstream_poll_connect(struct SockStream* stream)
         int error = 0;
         int len = sizeof(error);
         getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len);
-        printf("Connection failed with error: %d\n", error);
+        TORIRS_ERR("Connection failed with error: %d\n", error);
         stream->status = SOCKSTREAM_STATUS_ERROR;
         return SOCKSTREAM_CONNECT_FAILED;
     }
@@ -484,7 +544,7 @@ sockstream_poll_connect(struct SockStream* stream)
     }
     if( error != 0 )
     {
-        printf("Connection failed with error: %d\n", error);
+        TORIRS_ERR("Connection failed with error: %d\n", error);
         stream->status = SOCKSTREAM_STATUS_ERROR;
         return SOCKSTREAM_CONNECT_FAILED;
     }
@@ -496,7 +556,7 @@ sockstream_poll_connect(struct SockStream* stream)
     }
     if( error != 0 )
     {
-        printf("Connection failed with error: %s\n", strerror(error));
+        TORIRS_ERR("Connection failed with error: %s\n", strerror(error));
         stream->status = SOCKSTREAM_STATUS_ERROR;
         return SOCKSTREAM_CONNECT_FAILED;
     }
@@ -504,7 +564,7 @@ sockstream_poll_connect(struct SockStream* stream)
 
     // Connection succeeded
     stream->status = SOCKSTREAM_STATUS_CONNECTED;
-    printf("Connection completed\n");
+    TORIRS_LOG("Connection completed\n");
     return SOCKSTREAM_CONNECT_SUCCESS;
 }
 

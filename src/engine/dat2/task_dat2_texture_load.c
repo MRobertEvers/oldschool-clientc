@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct TextureLayer
 {
@@ -299,9 +300,7 @@ proctex_bake(
     if( !ProcTexGenerator_IsFullySupported(def, &first_unsupported) )
     {
         if( getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(
-                stderr,
-                "proctex %d: skipped, operation %d (%s) has no evaluator yet\n",
+            TORIRS_ERR("proctex %d: skipped, operation %d (%s) has no evaluator yet\n",
                 texture_id,
                 first_unsupported,
                 RSCache_ProcTexOpName(first_unsupported));
@@ -324,7 +323,7 @@ proctex_bake(
         unsupported > 0 )
     {
         if( getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(stderr, "proctex %d: render failed (unsupported=%d)\n",
+            TORIRS_ERR("proctex %d: render failed (unsupported=%d)\n",
                     texture_id, unsupported);
         ProcTexGenerator_Free(gen);
         free(pixels);
@@ -445,9 +444,7 @@ texture_bake(
         }
 
         if( getenv("TORIRS_TEX_DEBUG") )
-            fprintf(
-                stderr,
-                "tex_bake: layer=%d blend=%d w=%d h=%d palette_len=%d dest=%d\n",
+            TORIRS_LOG("tex_bake: layer=%d blend=%d w=%d h=%d palette_len=%d dest=%d\n",
                 i,
                 layer->blend_type,
                 layer->width,
@@ -606,9 +603,7 @@ Task_Dat2TextureLoad_Run(
             task->bc->proctex_mode = DAT2_PROCTEX_SPRITE;
         }
 
-        fprintf(
-            stderr,
-            "textures: %s system%s\n",
+        TORIRS_LOG("textures: %s system%s\n",
             task->bc->proctex_mode == DAT2_PROCTEX_PROCEDURAL ? "procedural (RS2 materials)"
                                                               : "sprite-backed",
             task->bc->materials ? "" : " (no materials table)");
@@ -625,7 +620,7 @@ Task_Dat2TextureLoad_Run(
         archive = RSCache_IO_Dat2ProcTextureDecode(io, 0);
         if( !archive )
         {
-            fprintf(stderr, "Failed to load proc texture %d\n", task->texture_id);
+            TORIRS_ERR("Failed to load proc texture %d\n", task->texture_id);
             PT_EXIT(&task->pt);
         }
 
@@ -639,7 +634,7 @@ Task_Dat2TextureLoad_Run(
 
         if( !task->proc_def )
         {
-            fprintf(stderr, "Failed to decode proc texture %d\n", task->texture_id);
+            TORIRS_ERR("Failed to decode proc texture %d\n", task->texture_id);
             PT_EXIT(&task->pt);
         }
         proctex_program_put(task->bc, task->texture_id, task->proc_def);
@@ -778,8 +773,7 @@ Task_Dat2TextureLoad_Run(
         archive = RSCache_IO_Dat2TextureGroupDecode(io, 0);
         if( !archive )
         {
-            fprintf(
-                stderr, "Failed to decode dat2 texture group for texture %d\n", task->texture_id);
+            TORIRS_ERR("Failed to decode dat2 texture group for texture %d\n", task->texture_id);
             PT_EXIT(&task->pt);
         }
 
@@ -790,13 +784,13 @@ Task_Dat2TextureLoad_Run(
     task->def = dat2_buildcache_texture_get(task->bc, task->texture_id);
     if( !task->def )
     {
-        fprintf(stderr, "Failed to load dat2 texture %d\n", task->texture_id);
+        TORIRS_ERR("Failed to load dat2 texture %d\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 
     if( task->def->sprite_ids_count <= 0 )
     {
-        fprintf(stderr, "Dat2 texture %d has no sprite layers\n", task->texture_id);
+        TORIRS_LOG("Dat2 texture %d has no sprite layers\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 
@@ -812,9 +806,7 @@ Task_Dat2TextureLoad_Run(
         archive = RSCache_IO_Dat2SpriteDecode(io, 0);
         if( !archive )
         {
-            fprintf(
-                stderr,
-                "Failed to decode sprite %d for texture %d\n",
+            TORIRS_ERR("Failed to decode sprite %d for texture %d\n",
                 task->def->sprite_ids[task->sprite_index],
                 task->texture_id);
             task_dat2_texture_load_clear_packs(task);
@@ -828,9 +820,7 @@ Task_Dat2TextureLoad_Run(
         RSCache_Dat2DiskArchiveFree(archive);
         if( !task->packs[task->sprite_index] || task->packs[task->sprite_index]->count <= 0 )
         {
-            fprintf(
-                stderr,
-                "Failed to decode sprite pack %d for texture %d\n",
+            TORIRS_ERR("Failed to decode sprite pack %d for texture %d\n",
                 task->def->sprite_ids[task->sprite_index],
                 task->texture_id);
             task_dat2_texture_load_clear_packs(task);
@@ -843,7 +833,7 @@ Task_Dat2TextureLoad_Run(
 
     if( !torirs_texture )
     {
-        fprintf(stderr, "Failed to bake dat2 texture %d\n", task->texture_id);
+        TORIRS_ERR("Failed to bake dat2 texture %d\n", task->texture_id);
         PT_EXIT(&task->pt);
     }
 

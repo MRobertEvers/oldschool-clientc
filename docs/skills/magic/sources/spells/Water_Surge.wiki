@@ -1,0 +1,77 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Water Surge
+|image = [[File:Water Surge.png]]
+|release = [[4 January]] [[2018]]
+|update = Dragon Slayer II
+|members = Yes
+|level = 85
+|spellbook = Normal
+|type = Combat
+|exp = 46.5
+|element = Water
+|damage = 22, 23, or 24
+|cost = {{RuneReq|Water=10|Air=7|Wrath=1}}
+|speed = 5 ticks
+|description = A very high level Water missile
+|anim = [[File:Water Surge.gif|300px]]
+|sound = [[File:Water Surge.ogg]]
+}}
+[[File:Water Surge icon (mobile).png|left]]
+'''Water Surge''' is a [[Water spells|water]]-based [[Surge spells|surge spell]] in the [[standard spellbook]], requiring level 85 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest water spell in the game.
+
+==Damage ==
+Water Surge has a base maximum hit of 22 which increases as the player unlocks additional surge spells, up to 24 at level 95 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level surge spell available
+!{{Plink|Water Surge}} base maximum hit
+|-
+|{{SCP|Magic|85}}- 89
+|{{Plink|Water Surge}}
+|22
+|-
+|{{SCP|Magic|90}}- 94
+|{{Plink|Earth Surge}}
+|23
+|-
+|{{SCP|Magic|95}}+
+|{{Plink|Fire Surge}}
+|24
+|}
+As with all combat spells, Water Surge's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a water-based spell, Water Surge's maximum hit is also increased against targets that are [[Elemental weakness|weak to water]].
+
+===Calculator===
+{{Magic damage calculator|Water Surge|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=water}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 10
+|Rune2 = air
+|Rune2num = 7
+|Rune3 = wrath
+|Rune3num = 1
+|is_offensive = y
+|uses_pages=y}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[surge spells]] the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

@@ -1,3 +1,0 @@
-LIVE — do not rename this directory to minigame_mta.skip
-Do not move/delete for other-lane compiles. See PORTING_GUIDE §7 and
-.cursor/rules/no-park-sibling-content.mdc.

@@ -1,0 +1,105 @@
+{{Infobox Spell
+|name = Minigame Teleport
+|image = [[File:Minigame Teleport.png]]
+|release = [[11 March]] [[2026]]
+|update = More from the Getting Around Poll
+|members = No
+|level = 1
+|spellbook = All
+|type = Teleport
+|exp = 0
+|cost = None ''(see article)''
+|speed = 22 ticks<br/>18 ticks ([[Speedy teleport scroll|speedy]])
+|cooldown = 2,000 ticks
+|description = Requires no runes - recharge time 20 mins. Warning: This spell takes a long time to cast and will be interrupted by combat.
+|anim = [[File:Home Teleport.gif]]
+|sound = [[File:Home Teleport.ogg]]
+}}
+[[File:Minigame Teleport icon (mobile).png|left|class=pageimage]]
+'''Minigame Teleport''' is a spell available on all [[spellbooks]] which provides players with a free [[teleport]] every twenty minutes to a [[minigame]] of their choice. Although Minigame Teleport is listed as one spell in a player's spellbook, attempting to cast the spell opens an interface asking you to choose from 21 different minigames. The spell requires no [[runes]] but takes 24 (or 18 with [[Speedy teleport scroll|Speedy]]) [[ticks]] (around 14 seconds or 10 seconds with Speedy) to cast. The teleport can be interrupted at any time by most actions, including combat. If a player tries to cast a minigame teleport a second time before 20 minutes have elapsed, they are notified with the remaining time in minutes in the chat box.
+
+Minigame teleports may also be cast from the [[Grouping]] tab and share the same cooldown.
+
+Minigame teleports cannot be cast from PvP worlds, the [[Wilderness]], player-owned houses, [[Emir's Arena]], or from various other minigames.
+
+==Destinations==
+{|class="wikitable align-center-1"
+!colspan=2 | Minigame
+!Teleport location
+!Requirements
+!Members
+|-
+|[[File:Barbarian Assault logo.png]]||[[Barbarian Assault]]||{{Map|group=1|width=200|height=200|text=Map|mapID=-1|2521,3570|mtype=square|r=2.5}}||[[Barbarian Assault tutorial]] completion
+|{{Members|yes}}
+|-
+|[[File:Blast Furnace logo.png]]||[[Blast Furnace]]||{{Map|group=2|width=200|height=200|text=Map|mapID=-1|2930,10193|mtype=square|r=2.5}}||Visited [[Keldagrim]] before
+|{{Members|yes}}
+|-
+|[[File:Bounty Hunter logo (Minigame Teleport).png]]||[[Bounty Hunter]]||{{Map|group=3|width=200|height=200|text=Map|mapID=-1|3140,3626|mtype=square|r=2.5}}||{{NA}}
+|{{Members|yes}}
+|-
+|[[File:Burthorpe Games Room logo.png]]||[[Burthorpe Games Room]]||{{Map|group=4|width=200|height=200|text=Map|mapID=-1|2899,3553|mtype=square|r=2.5}}||{{NA}}
+|{{Members|yes}}
+|-
+|[[File:Castle Wars logo.png]]||[[Castle Wars]]||{{Map|group=5|width=200|height=200|text=Map|mapID=-1|2442,3093|mtype=square|r=2.5}}||{{NA}}
+|{{Members|no}}
+|-
+|[[File:Clan Wars logo.png]]||[[Clan Wars]]||{{Map|group=6|width=200|height=200|text=Map|mapID=-1|3149,3634|mtype=square|r=2.5}}||{{NA}}
+|{{Members|no}}
+|-
+|[[File:Fishing Trawler logo.png]]||[[Fishing Trawler]]||{{Map|group=7|width=200|height=200|text=Map|mapID=-1|2658,3157|mtype=square|r=2.5}}||15 [[Fishing]]
+|{{Members|yes}}
+|-
+|[[File:Giants' Foundry logo.png]]||[[Giants' Foundry]]||{{Map|group=8|width=200|height=200|text=Map|mapID=-1|3361,3149|mtype=square|r=2.5}}||15 [[Smithing]]
+|{{Members|yes}}
+|-
+|[[File:Guardians of the Rift logo.png]]||[[Guardians of the Rift]]||{{Map|group=9|width=200|height=200|text=Map|mapID=-1|3615,9477|mtype=square|r=2.5}}||[[Temple of the Eye]] completion
+|{{Members|yes}}
+|-
+|[[File:Last Man Standing logo (Minigame Teleport).png]]||[[Last Man Standing]]||{{Map|group=10|width=200|height=200|text=Map|mapID=-1|3149,3634|mtype=square|r=2.5}}||{{NA}}
+|{{Members|no}}
+|-
+|[[File: Mage Training Arena logo.png]]||[[Mage Training Arena]]||{{Map|group=11|width=200|height=200|text=Map|mapID=-1|3363,3295|mtype=square|r=2.5}}||Spoken to the [[Entrance Guardian]]
+|{{Members|yes}}
+|-
+|[[File:Mastering Mixology logo.png]]||[[Mastering Mixology]]||{{Map|group=12|width=200|height=200|text=Map|mapID=-1|1388,2918|mtype=square|r=2.5}}||[[Children of the Sun]] completion and 60 [[Herblore]]
+|{{Members|yes}}
+|-
+|[[File:Nightmare Zone logo.png]]||[[Nightmare Zone]]||{{Map|group=13|width=200|height=200|text=Map|mapID=-1|2609,3114|mtype=square|r=2.5}}||Completion of 5 [[Nightmare Zone#Requirements|eligible quests]] with boss fights
+|{{Members|yes}}
+|-
+|[[File:Pest Control logo.png]]||[[Pest Control]]||{{Map|group=14|width=200|height=200|text=Map|mapID=-1|2658,2663|mtype=square|r=2.5}}||40+ [[combat level]]
+|{{Members|yes}}
+|-
+|[[File:Rat Pits logo.png]]||[[Rat Pits]] - [[Ardougne]] (kittens)||{{Map|group=15|width=200|height=200|text=Map|mapID=-1|2561,3320|mtype=square|r=2.5}}||[[Ratcatchers]] completion
+|{{Members|yes}}
+|-
+|[[File:Rat Pits logo.png]]||[[Rat Pits]] - [[Varrock]] (grown cats)||{{Map|group=16|width=200|height=200|text=Map|mapID=-1|3267,3400|mtype=square|r=2.5}}||[[Ratcatchers]] completion
+|{{Members|yes}}
+|-
+|[[File:Rat Pits logo.png]]||[[Rat Pits]] - [[Keldagrim]] (overgrown cats)||{{Map|group=17|width=200|height=200|text=Map|mapID=-1|2914,10193|mtype=square|r=2.5}}||[[Ratcatchers]] completion
+|{{Members|yes}}
+|-
+|[[File:Rat Pits logo.png]]||[[Rat Pits]] - [[Port Sarim]] (wily cats)||{{Map|group=18|width=200|height=200|text=Map|mapID=-1|3018,3232|mtype=square|r=2.5}}||[[Ratcatchers]] completion
+|{{Members|yes}}
+|-
+|[[File:Shades of Mort'ton logo.png]]||[[Shades of Mort'ton (minigame)|Shades of Mort'ton]]||{{Map|group=19|width=200|height=200|text=Map|mapID=-1|3506,3304|mtype=square|r=2.5}}||[[Shades of Mort'ton]] completion
+|{{Members|yes}}
+|-
+|[[File:Sorceress's Garden logo.png]]||[[Sorceress's Garden]]||{{Map|group=20|width=200|height=200|text=Map|mapID=-1|3321,3138|mtype=square|r=2.5}}||Spoken to Osman (Selim after [[Beneath Cursed Sands]]) after completion of [[Prince Ali Rescue]]
+|{{Members|yes}}
+|-
+|[[File:Soul Wars logo (Minigame Teleport).png]]||[[Soul Wars]]||{{Map|group=21|width=200|height=200|text=Map|mapID=-1|2018,5929|mtype=square|r=2.5}}||{{NA}}
+|{{Members|yes}}
+|-
+|[[File:Tithe Farm logo.png]]||[[Tithe Farm]]||{{Map|group=22|width=200|height=200|text=Map|mapID=-1|1792,3501|mtype=square|r=2.5}}||34 [[Farming]] and entering the minigame area at least once
+|{{Members|yes}}
+|-
+|[[File:Trouble Brewing logo.png]]||[[Trouble Brewing]]||{{Map|group=23|width=200|height=200|text=Map|mapID=-1|3801,3015|mtype=square|r=2.5}}||40 [[Cooking]] and [[Cabin Fever]] completion
+|{{Members|yes}}
+|-
+|[[File:Tzhaar Fight Pit logo.png]]||[[TzHaar Fight Pit]]||{{Map|group=24|width=200|height=200|text=Map|mapID=-1|2399,5177|mtype=square|r=2.5}}||{{NA}}
+|{{Members|yes}}
+|}
+
+{{Teleport spells}}

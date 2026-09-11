@@ -1,0 +1,64 @@
+{{External|rs=Bones to Bananas|rsc=Bones to bananas}}
+{{otheruses|the spell|the tablet|Bones to bananas (tablet)}}
+{{Infobox Spell
+|name = Bones to Bananas
+|image = [[File:Bones to Bananas.png]]
+|release = [[26 May]] [[2001]]
+|update = Prayers last 50% percent longer
+|members = No
+|level = 15
+|spellbook = Normal
+|type = Utility
+|exp = 25
+|cost = {{RuneReq|Nature=1|Earth=2|Water=2}}
+|speed = 1 tick
+|description = Changes held bones into bananas
+|anim = [[File:Bones to Bananas.gif|200px]]
+|sound = [[File:Bones to Bananas.ogg]]
+}}
+[[File:Bones to Bananas icon (mobile).png|left]]
+'''Bones to Bananas''' is a [[spell]] that can be used to turn all [[Bones|normal bones]], [[burnt bones]], [[bat bones]], [[bleached bones]], [[jogre bones]], [[wolf bones]], [[monkey bones]], [[Alan's bones]], [[animals' bones]], and [[big bones]] in the inventory into [[banana]]s. It requires two [[water rune]]s, two [[earth rune]]s, and one [[Nature rune]] to be cast, with a [[Magic]] level of 15. This spell can be useful when fighting monsters which drop bones as a 100% drop, as the [[banana]]s produced heal 2 Hitpoints each.
+
+If you are casting the spell only for magic experience, add only one bone to your inventory at a time as it turns ALL bones in inventory into bananas for only 25 exp per spell regardless of number of bones. At least one bone or big bone must be in your inventory to be able to cast the spell.
+
+Players can unlock the next tier of the Bones to Bananas spell, [[Bones to Peaches]], using [[Pizazz points]] at the [[Mage Training Arena]]. Players can then use the spell with a [[Magic]] level of 60, and the resulting [[peach]]es heal 8 Hitpoints.
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 2
+|Rune3 = nature
+|Rune3num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll = Poll 81 - Mage Training Arena
+|change = Casting Bones to Bananas will no longer stall the player.
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|change = Adjusted the delays of the Bones to Bananas and Bones to Peaches to match the behaviour of the tablet versions of the spells.
+}}
+{{Subject changes
+|date = 23 May 2013
+|update = Patch Notes (23 May 2013)
+|poll = Old School feature poll 4 – May 2013
+|change = The 'Bones to Bananas' and 'Bones to Peaches' spells now work on more types of bone, including big bones.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Attempting to cast the spell inside the [[Tombs of Amascut]] gives the message {{mes|The time for fruit is not now.}}
+* According to [[Smith]], it is possible to cast the spell on a living being.{{CiteNPC|npc=Smith|quote=Are ye familiar with the spell bones to bananas? [Yes, why?] Well, due to a blow to the head he took in the fight, the surgeon cast that spell, thinking it was some sort of new healing spell. And he did so while touching Jenkins' ribs. (...) See, he survived, his bones turned to bananas, as a huge storm blew up and the crew debated what to do with him.|loc=|notes=|name=}}
+
+==References==
+{{Reflist}}
+
+{{Standard spellbook}}

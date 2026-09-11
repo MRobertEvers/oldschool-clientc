@@ -1,0 +1,228 @@
+From 9ec362d81ebc61ad21e40aba5811d685ddefc5b9 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:27 -0500
+Subject: [PATCH] wip(r3-texshort): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-texshort.
+
+files: 3rd/toridraw/graphics/raster/span_census.c 3rd/toridraw/graphics/raster/span_census.h 3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+---
+ 3rd/toridraw/graphics/raster/span_census.c    | 50 ++++++++++++
+ 3rd/toridraw/graphics/raster/span_census.h    | 78 +++++++++++++++++++
+ .../raster/texture/span/tex.span.sse2.u.c     |  8 ++
+ 3 files changed, 136 insertions(+)
+
+diff --git a/3rd/toridraw/graphics/raster/span_census.c b/3rd/toridraw/graphics/raster/span_census.c
+index e9699b523..ecaeb4258 100644
+--- a/3rd/toridraw/graphics/raster/span_census.c
++++ b/3rd/toridraw/graphics/raster/span_census.c
+@@ -84,6 +84,56 @@ ToriDraw_TexSpanCensusDump(void)
+         100.0 *
+             (c->pixels - c->blocks_lerp8 * 8.0 - c->pixels_exact - c->pixels_tail) /
+             c->pixels);
++
++    if( c->o_spans )
++    {
++        double n = (double)c->o_spans;
++        unsigned int cum = 0;
++        double pcum = 0.0;
++        fprintf(
++            stderr,
++            "texspan-OPAQUE: %u spans, %.0f px, %.2f px/span; rows_empty %u; first_w0 %u\n",
++            c->o_spans,
++            c->o_pixels,
++            c->o_pixels / n,
++            c->o_rows_empty,
++            c->o_first_w_zero);
++        fprintf(stderr, "  steps,count,pct,cum_span_pct,cum_px_pct\n");
++        for( int i = 0; i < 32; i++ )
++        {
++            cum += c->o_steps_hist[i];
++            pcum += (double)c->o_steps_hist[i] * (double)i;
++            if( c->o_steps_hist[i] == 0 )
++                continue;
++            fprintf(
++                stderr,
++                "  %2d,%u,%.2f,%.2f,%.2f\n",
++                i,
++                c->o_steps_hist[i],
++                100.0 * c->o_steps_hist[i] / n,
++                100.0 * cum / n,
++                100.0 * pcum / c->o_pixels);
++        }
++        fprintf(stderr, "  remain(steps&7):");
++        for( int i = 0; i < 8; i++ )
++            fprintf(stderr, " %d=%.2f%%", i, 100.0 * c->o_remain_hist[i] / n);
++        fprintf(stderr, "\n");
++        fprintf(
++            stderr,
++            "  no-block spans: lerp %u  exact %u  w==0 %u  (%.2f%% of spans, %.2f%% of px)\n",
++            c->o_noblk_lerp,
++            c->o_noblk_exact,
++            c->o_noblk_wzero,
++            100.0 * (c->o_noblk_lerp + c->o_noblk_exact + c->o_noblk_wzero) / n,
++            100.0 * c->o_noblk_pixels / c->o_pixels);
++        fprintf(stderr, "  tail-lerp remaining:");
++        for( int i = 0; i < 8; i++ )
++            fprintf(stderr, " %d=%u", i, c->o_taillerp_hist[i]);
++        fprintf(stderr, "\n  tail-exact remaining:");
++        for( int i = 0; i < 8; i++ )
++            fprintf(stderr, " %d=%u", i, c->o_tailexact_hist[i]);
++        fprintf(stderr, "\n");
++    }
+     fflush(stderr);
+ }
+ 
+diff --git a/3rd/toridraw/graphics/raster/span_census.h b/3rd/toridraw/graphics/raster/span_census.h
+index 453566acf..127cfab07 100644
+--- a/3rd/toridraw/graphics/raster/span_census.h
++++ b/3rd/toridraw/graphics/raster/span_census.h
+@@ -212,6 +212,28 @@ struct ToriDraw_TexSpanCensus
+     double pixels_tail;
+     /** Spans that never ran a single eight-pixel block. */
+     unsigned int spans_no_block;
++
++    /* --- r3-texshort additions: OPAQUE path only, so the numbers line up
++     *     with toridraw_textri_opaque_lerp8_v3_asm and not with the
++     *     transparent C twin that shares this file. --- */
++    unsigned int o_spans;
++    double       o_pixels;
++    /** steps histogram, index min(steps, 31). */
++    unsigned int o_steps_hist[32];
++    /** steps & 7 over every opaque span. */
++    unsigned int o_remain_hist[8];
++    /** blocks == 0 spans, split by which tail they took. */
++    unsigned int o_noblk_lerp;
++    unsigned int o_noblk_exact;
++    unsigned int o_noblk_wzero;
++    double       o_noblk_pixels;
++    /** remaining, for tails that took the linear walk / the exact walk. */
++    unsigned int o_taillerp_hist[8];
++    unsigned int o_tailexact_hist[8];
++    /** rows whose x0 >= x1 -- the walk set a span up and drew nothing. */
++    unsigned int o_rows_empty;
++    /** spans whose FIRST block had w == 0 (cur_u == -1 in the asm). */
++    unsigned int o_first_w_zero;
+ };
+ 
+ extern struct ToriDraw_TexSpanCensus g_toridraw_texspan_census;
+@@ -254,6 +276,58 @@ toridraw_texspan_census_exact(int count)
+     g_toridraw_texspan_census.pixels_exact += (double)count;
+ }
+ 
++static inline void
++toridraw_texspan_census_ospan(int steps)
++{
++    struct ToriDraw_TexSpanCensus* c = &g_toridraw_texspan_census;
++    int b = steps < 0 ? 0 : (steps > 31 ? 31 : steps);
++    c->o_spans++;
++    c->o_pixels += (double)steps;
++    c->o_steps_hist[b]++;
++    c->o_remain_hist[steps & 7]++;
++    if( (steps >> 3) == 0 )
++    {
++        c->spans_no_block += 0;
++        c->o_noblk_pixels += (double)steps;
++    }
++}
++
++static inline void
++toridraw_texspan_census_otail(int steps, int remaining, int kind)
++{
++    struct ToriDraw_TexSpanCensus* c = &g_toridraw_texspan_census;
++    int r = remaining & 7;
++    if( kind == 0 )
++        c->o_taillerp_hist[r]++;
++    else if( kind == 1 )
++        c->o_tailexact_hist[r]++;
++    if( (steps >> 3) == 0 )
++    {
++        if( kind == 0 )
++            c->o_noblk_lerp++;
++        else if( kind == 1 )
++            c->o_noblk_exact++;
++        else
++            c->o_noblk_wzero++;
++    }
++}
++
++static inline void
++toridraw_texspan_census_orow_empty(void)
++{
++    g_toridraw_texspan_census.o_rows_empty++;
++}
++
++static inline void
++toridraw_texspan_census_ofirstw0(void)
++{
++    g_toridraw_texspan_census.o_first_w_zero++;
++}
++
++#define TORIDRAW_TEXSPAN_CENSUS_OSPAN(steps) toridraw_texspan_census_ospan((steps))
++#define TORIDRAW_TEXSPAN_CENSUS_OTAIL(steps, rem, kind)                                       toridraw_texspan_census_otail((steps), (rem), (kind))
++#define TORIDRAW_TEXSPAN_CENSUS_OROWEMPTY() toridraw_texspan_census_orow_empty()
++#define TORIDRAW_TEXSPAN_CENSUS_OFIRSTW0() toridraw_texspan_census_ofirstw0()
+ #define TORIDRAW_TEXSPAN_CENSUS_SPAN(steps) toridraw_texspan_census_span((steps))
+ #define TORIDRAW_TEXSPAN_CENSUS_LERP8() toridraw_texspan_census_lerp8()
+ #define TORIDRAW_TEXSPAN_CENSUS_EXACT(count) toridraw_texspan_census_exact((count))
+@@ -261,6 +335,10 @@ toridraw_texspan_census_exact(int count)
+ 
+ #else
+ 
++#define TORIDRAW_TEXSPAN_CENSUS_OSPAN(steps) ((void)0)
++#define TORIDRAW_TEXSPAN_CENSUS_OTAIL(steps, rem, kind) ((void)0)
++#define TORIDRAW_TEXSPAN_CENSUS_OROWEMPTY() ((void)0)
++#define TORIDRAW_TEXSPAN_CENSUS_OFIRSTW0() ((void)0)
+ #define TORIDRAW_TEXSPAN_CENSUS_SPAN(steps) ((void)0)
+ #define TORIDRAW_TEXSPAN_CENSUS_LERP8() ((void)0)
+ #define TORIDRAW_TEXSPAN_CENSUS_EXACT(count) ((void)0)
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+index 6954be769..0e69f378b 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+@@ -718,7 +718,10 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+     if( x1 >= screen_width )
+         x1 = screen_width - 1;
+     if( x0 >= x1 )
++    {
++        TORIDRAW_TEXSPAN_CENSUS_OROWEMPTY();
+         return;
++    }
+ 
+     int adjust = x0 - (screen_width >> 1);
+     au += step_au_dx * adjust;
+@@ -738,6 +741,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+     int remaining = steps & 7;
+ 
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
++    TORIDRAW_TEXSPAN_CENSUS_OSPAN(steps);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+      * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+@@ -840,6 +844,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+             toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
+     }
+ 
++    if( !(remaining > 0 && (cw >> texture_shift) != 0) )
++        TORIDRAW_TEXSPAN_CENSUS_OTAIL(steps, remaining, 2);
+     if( remaining > 0 && (cw >> texture_shift) != 0 )
+     {
+         int w = cw >> texture_shift;
+@@ -865,6 +871,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+         if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
+         {
+             TORIDRAW_TEXSPAN_CENSUS_EXACT(remaining);
++            TORIDRAW_TEXSPAN_CENSUS_OTAIL(steps, remaining, 1);
+             tex_span_exact_block(
+                 pixel_buffer,
+                 offset,
+@@ -890,6 +897,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
+ 
+         TORIDRAW_TEXSPAN_CENSUS_TAIL(remaining);
++        TORIDRAW_TEXSPAN_CENSUS_OTAIL(steps, remaining, 0);
+         TORIDRAW_ABLATE_TEX_RETURN_IF(2);
+         for( int i = 0; i < remaining; i++ )
+         {

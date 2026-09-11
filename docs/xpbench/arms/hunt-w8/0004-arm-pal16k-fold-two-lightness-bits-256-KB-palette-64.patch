@@ -1,0 +1,302 @@
+From 5be957f87ee94e01325a071e3174390fae10bc1d Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:14:05 -0500
+Subject: [PATCH 4/4] arm(pal16k): fold two lightness bits, 256 KB palette ->
+ 64 KB
+
+---
+ .../flat/flat.screen.alpha.branching.s4.c     |  2 +-
+ .../raster/flat/flat.screen.alpha.sort.s4.u.c |  2 +-
+ .../flat/flat.screen.opaque.branching.s4.c    |  2 +-
+ .../flat/flat.screen.opaque.sort.s4.u.c       |  2 +-
+ .../gouraudhsllightness/gouraud_span_fill.h   | 10 ++---
+ .../gouraudhsllightness/gouraud_tri_i686.S    |  8 ++--
+ .../raster/scanline/scanline.flat.screen.u.c  |  4 +-
+ .../graphics/raster/zbuffer/zbuf.screen.u.c   |  2 +-
+ 3rd/toridraw/graphics/shared_tables.c         |  6 +--
+ 3rd/toridraw/graphics/shared_tables.h         | 39 ++++++++++++++++---
+ 3rd/toridraw/toridraw_hsl16.h                 |  2 +-
+ 3rd/toridraw/toridraw_render_hd.u.c           |  2 +-
+ src/game/rs_worldmap_render.c                 |  2 +-
+ 13 files changed, 55 insertions(+), 28 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+index 67b50d531..b7c94f826 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+@@ -164,7 +164,7 @@ raster_flat_screen_alpha_branching_s4_ordered(
+     if( sarea == 0 )
+         return;
+ 
+-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
++    int rgb_color = ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     int step_edge_x_AC_ish16;
+     int step_edge_x_AB_ish16;
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.sort.s4.u.c b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.sort.s4.u.c
+index b51731826..76253e2ed 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.sort.s4.u.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.sort.s4.u.c
+@@ -185,7 +185,7 @@ raster_flat_screen_alpha_sort_s4(
+     if( x0 == x1 && x1 == x2 )
+         return;
+ 
+-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
++    int rgb_color = ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     int dx_AC = x2 - x0;
+     int dy_AC = y2 - y0;
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+index 0225f1bf8..e0b0d5f03 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+@@ -136,7 +136,7 @@ raster_flat_screen_opaque_branching_s4_ordered(
+     if( sarea == 0 )
+         return;
+ 
+-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
++    int rgb_color = ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     int step_edge_x_AC_ish16;
+     int step_edge_x_AB_ish16;
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.sort.s4.u.c b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.sort.s4.u.c
+index b946a73c2..155272bf9 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.sort.s4.u.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.sort.s4.u.c
+@@ -163,7 +163,7 @@ raster_flat_screen_opaque_sort_s4(
+     if( x0 == x1 && x1 == x2 )
+         return;
+ 
+-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
++    int rgb_color = ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     int dx_AC = x2 - x0;
+     int dy_AC = y2 - y0;
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_span_fill.h b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_span_fill.h
+index 607bac87d..2199a5450 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_span_fill.h
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_span_fill.h
+@@ -73,11 +73,11 @@
+ static inline int
+ toridraw_gouraud_span_index(int color_hsl16_ish8)
+ {
+-    int hsl16 = color_hsl16_ish8 >> 8;
++    int index = color_hsl16_ish8 >> (8 + TORIDRAW_HSL16_PAL_SHIFT);
+ 
+-    if( (unsigned)hsl16 > 0xFFFFu )
+-        hsl16 = hsl16 < 0 ? 0 : 0xFFFF;
+-    return hsl16;
++    if( (unsigned)index > (unsigned)(TORIDRAW_HSL16_PAL_LEN - 1) )
++        index = index < 0 ? 0 : TORIDRAW_HSL16_PAL_LEN - 1;
++    return index;
+ }
+ 
+ /**
+@@ -195,7 +195,7 @@ toridraw_gouraud_span_fill_run(
+         } while( steps > 0 && toridraw_gouraud_span_index(color_hsl16_ish8) == index );
+ 
+         toridraw_gouraud_span_store(
+-            pixel_buffer + offset, blocks << 2, g_hsl16_to_rgb_table[index]);
++            pixel_buffer + offset, blocks << 2, g_hsl16_to_rgb_lq14[index]);
+         offset += blocks << 2;
+     }
+ 
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index 974877e12..b09fc57ea 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -150,16 +150,16 @@
+  */
+ .macro	LOOKUP src, dst
+ 	movl	\src, \dst
+-	sarl	$20, \dst		/* ABLATION: was $8. One palette line. */
+-	cmpl	$0xFFFF, \dst
++	sarl	$10, \dst		/* >> 8 to hsl16, >> 2 to the lq14 index */
++	cmpl	$0x3FFF, \dst
+ 	jbe	7000f
+ 	/* Out of range. Negative -> 0, positive -> 0xFFFF, branchlessly:
+ 	 * sar 31 gives -1 or 0, not gives 0 or -1, mask gives 0 or 0xFFFF. */
+ 	sarl	$31, \dst
+ 	notl	\dst
+-	andl	$0xFFFF, \dst
++	andl	$0x3FFF, \dst
+ 7000:
+-	movl	_g_hsl16_to_rgb_table(,\dst,4), \dst
++	movl	_g_hsl16_to_rgb_lq14(,\dst,4), \dst
+ .endm
+ 
+ /*
+diff --git a/3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c b/3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c
+index b6282deb0..8fd4dc48b 100644
+--- a/3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c
++++ b/3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c
+@@ -39,7 +39,7 @@ raster_flat_screen_opaque_scanline_s8(
+     if( !scanline_edges_build(&edges, &tri, screen_height) )
+         return;
+ 
+-    toripixel_t rgb_color = (toripixel_t)g_hsl16_to_rgb_table[color_hsl16];
++    toripixel_t rgb_color = (toripixel_t)ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     for( int seg = 0; seg < 2; seg++ )
+     {
+@@ -107,7 +107,7 @@ raster_flat_screen_alpha_scanline_s8(
+     if( !scanline_edges_build(&edges, &tri, screen_height) )
+         return;
+ 
+-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
++    int rgb_color = ToriDraw_Hsl16PalRgb(color_hsl16);
+ 
+     for( int seg = 0; seg < 2; seg++ )
+     {
+diff --git a/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c b/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
+index f18084620..e61907db9 100644
+--- a/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
++++ b/3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c
+@@ -402,7 +402,7 @@ raster_zbuf_screen_ordered(
+     }
+     else if( tri->mode == TORIDRAW_ZBUF_MODE_FLAT )
+     {
+-        s.rgb = g_hsl16_to_rgb_table[tri->shade[0] & 0xFFFF];
++        s.rgb = ToriDraw_Hsl16PalRgb(tri->shade[0] & 0xFFFF);
+     }
+     else
+     {
+diff --git a/3rd/toridraw/graphics/shared_tables.c b/3rd/toridraw/graphics/shared_tables.c
+index 448a9eefa..78eb6b9e1 100644
+--- a/3rd/toridraw/graphics/shared_tables.c
++++ b/3rd/toridraw/graphics/shared_tables.c
+@@ -10,7 +10,7 @@ _Alignas(64) int g_projection_model_yaw_table[2048][2];
+ //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
+ //             for hue, 3 for saturation and 7 for lightness, bitpacked and
+ //             represented as a short.
+-int g_hsl16_to_rgb_table[65536];
++int g_hsl16_to_rgb_lq14[TORIDRAW_HSL16_PAL_LEN];
+ 
+ static int g_sin_table_builtin[2048];
+ static int g_cos_table_builtin[2048];
+@@ -78,7 +78,7 @@ pix3d_init_palette(
+     {
+         double hue = (double)(y / 8) / 64.0 + 0.0078125;
+         double saturation = (double)(y & 0x7) / 8.0 + 0.0625;
+-        for( int x = 0; x < 128; x++ )
++        for( int x = 0; x < 128; x += TORIDRAW_HSL16_PAL_STEP )
+         {
+             double lightness = (double)x / 128.0;
+             double r = lightness;
+@@ -210,7 +210,7 @@ void
+ init_hsl16_to_rgb_table(void)
+ {
+     // 0 and 128 are both black.
+-    pix3d_init_palette(g_hsl16_to_rgb_table, 0.8);
++    pix3d_init_palette(g_hsl16_to_rgb_lq14, 0.8);
+ }
+ 
+ void
+diff --git a/3rd/toridraw/graphics/shared_tables.h b/3rd/toridraw/graphics/shared_tables.h
+index f3feb1637..c9676752e 100644
+--- a/3rd/toridraw/graphics/shared_tables.h
++++ b/3rd/toridraw/graphics/shared_tables.h
+@@ -1,6 +1,7 @@
+ #ifndef SHARED_TABLES_H
+ #define SHARED_TABLES_H
+ 
++#include <assert.h>
+ #include <math.h>
+ #include <stdint.h>
+ 
+@@ -26,12 +27,38 @@ typedef TORIDRAW_PIXEL_T toripixel_t;
+ //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
+ //             for hue, 3 for saturation and 7 for lightness, bitpacked and
+ //             represented as a short.
++/*
++ * The palette carries one entry per FOUR lightness steps, not one per step.
++ *
++ * A full hsl16 palette is 65,536 entries of 4 bytes -- 256 KB, sixteen times
++ * the P4's 16 KB L1D and a quarter of its 1 MB L2, streamed against a 1.5 MB
++ * frame buffer.  Within one triangle only lightness moves, so the live slice
++ * is small; ACROSS triangles hue and saturation move and the index walks the
++ * whole 256 KB.  Folding the low two lightness bits away costs 128 shades per
++ * hue/saturation pair instead of 128 -- VISIBLE banding on a long gradient --
++ * and buys a 64 KB table.  This is an arm of the cache experiment, not a
++ * shipping decision; g_hsl16_to_rgb_lq14 is deliberately a NEW name so that
++ * any consumer left indexing the old table fails to link rather than reading
++ * four times past the end.
++ */
++#define TORIDRAW_HSL16_PAL_SHIFT 2
++#define TORIDRAW_HSL16_PAL_STEP  (1 << TORIDRAW_HSL16_PAL_SHIFT)
++#define TORIDRAW_HSL16_PAL_LEN   (65536 >> TORIDRAW_HSL16_PAL_SHIFT)
++
+ #ifdef TORIDRAW_PIXEL16
+-extern TORIDRAW_TABLE_QUAL uint16_t g_hsl16_to_rgb_table[65536];
++extern TORIDRAW_TABLE_QUAL uint16_t g_hsl16_to_rgb_lq14[TORIDRAW_HSL16_PAL_LEN];
+ #else
+-extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
++extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_lq14[TORIDRAW_HSL16_PAL_LEN];
+ #endif
+ 
++/** One hsl16, already known to be in range, to its palette entry. */
++static inline int
++ToriDraw_Hsl16PalRgb(int hsl16)
++{
++    assert((unsigned)hsl16 <= 0xFFFFu);
++    return g_hsl16_to_rgb_lq14[hsl16 >> TORIDRAW_HSL16_PAL_SHIFT];
++}
++
+ /*
+  * Gouraud rasterizers carry packed HSL16 in 8.8 fixed point while walking a
+  * span.  A triangle edge can land one subpixel past its last vertex after the
+@@ -44,10 +71,10 @@ extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
+ static inline int
+ ToriDraw_Hsl16Ish8ToRgb(int hsl16_ish8)
+ {
+-    int hsl16 = hsl16_ish8 >> 8;
+-    if( (unsigned)hsl16 > 0xFFFFu )
+-        hsl16 = hsl16 < 0 ? 0 : 0xFFFF;
+-    return g_hsl16_to_rgb_table[hsl16];
++    int index = hsl16_ish8 >> (8 + TORIDRAW_HSL16_PAL_SHIFT);
++    if( (unsigned)index > (unsigned)(TORIDRAW_HSL16_PAL_LEN - 1) )
++        index = index < 0 ? 0 : TORIDRAW_HSL16_PAL_LEN - 1;
++    return g_hsl16_to_rgb_lq14[index];
+ }
+ 
+ extern const int* g_sin_table;
+diff --git a/3rd/toridraw/toridraw_hsl16.h b/3rd/toridraw/toridraw_hsl16.h
+index 2405aec5c..63168a4c8 100644
+--- a/3rd/toridraw/toridraw_hsl16.h
++++ b/3rd/toridraw/toridraw_hsl16.h
+@@ -12,7 +12,7 @@ ToriDraw_InitHsl16(void);
+ static inline int
+ ToriDraw_Hsl16ToRgb(uint16_t hsl16)
+ {
+-    return g_hsl16_to_rgb_table[hsl16];
++    return ToriDraw_Hsl16PalRgb(hsl16);
+ }
+ 
+ #endif
+\ No newline at end of file
+diff --git a/3rd/toridraw/toridraw_render_hd.u.c b/3rd/toridraw/toridraw_render_hd.u.c
+index 2bc19db3d..6a07765eb 100644
+--- a/3rd/toridraw/toridraw_render_hd.u.c
++++ b/3rd/toridraw/toridraw_render_hd.u.c
+@@ -166,7 +166,7 @@ hd_face_tint(int hsl16, int material_neutral, struct ToriDraw_TexSampler* sample
+     int lightness = g_hd_tuning.tint_lightness < 0 ? (hsl16 & 0x7F)
+                                                    : (g_hd_tuning.tint_lightness & 0x7F);
+     int keyed = (hsl16 & 0xFF80) | lightness;
+-    int rgb = g_hsl16_to_rgb_table[keyed & 0xFFFF];
++    int rgb = ToriDraw_Hsl16PalRgb(keyed & 0xFFFF);
+     int scale = g_hd_tuning.tint_scale > 0 ? g_hd_tuning.tint_scale : 100;
+     /*
+      * The material's own average is the rule; an explicitly tuned neutral
+diff --git a/src/game/rs_worldmap_render.c b/src/game/rs_worldmap_render.c
+index ff1e39296..dcd52882f 100644
+--- a/src/game/rs_worldmap_render.c
++++ b/src/game/rs_worldmap_render.c
+@@ -431,7 +431,7 @@ worldmap_overlay_rgb(
+         hsl = palette_rgb_to_hsl16(overlay->rgb_color & 0xFFFFFF);
+     }
+ 
+-    return g_hsl16_to_rgb_table[terrain_adjust_lightness(hsl, 96) & 0xFFFF] & 0xFFFFFF;
++    return ToriDraw_Hsl16PalRgb(terrain_adjust_lightness(hsl, 96) & 0xFFFF) & 0xFFFFFF;
+ }
+ 
+ /* =========================================================================

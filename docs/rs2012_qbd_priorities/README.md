@@ -61,7 +61,7 @@ can be compared in the engine rather than only in this folder:
 ```sh
 tools/rs2012_qbd_prio.sh                          # solve -> docs/rs2012_qbd_priorities/run/
 python3 tools/rs2012_qbd_register_authored.py     # register, idempotent
-make -C src mock230-cache-rs2012                  # re-pack
+make -C src torirsserver-cache-rs2012                  # re-pack
 ```
 
 | | symbol | npc id | model1 / model2 |

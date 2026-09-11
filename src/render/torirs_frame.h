@@ -2,6 +2,7 @@
 #define SRC_RENDER_TORIRS_FRAME_H
 
 #include "render/torirs_render.h"
+#include "ui/uitree_scroll.h"
 
 #include <stdbool.h>
 
@@ -19,6 +20,42 @@ enum ToriRS_FramePassKind
     TORIRS_FRAME_PASS_3D,
 };
 
+/** Views the frame can hold transforms for; matches PAINTER_MAX_WORLD_VIEWS
+ * and WORLDVIEW_MAX, and doubles as the descent depth cap. */
+#define TORIRS_FRAME_MAX_VIEWS 16
+/** Slots in the emit loop's lookahead ring; a power of two, and more than
+ *  the deepest prefetch pipeline reaches (cur..cur+4). */
+#define TORIRS_FRAME_LOOKAHEAD_RING 8
+
+/**
+ * One world view's descent transform (SAILING_PLAN C3, SAILING.md §5.2).
+ *
+ * Applied to every element of the view, in this order, before the camera
+ * subtract: deck-local → pivot recenter → [flatten scale + y offset] →
+ * [animation bob/roll] → yaw rotate → entity translate → parent space.
+ *
+ * Flattening renders the live scene through Y scale 0.01 with a pre-scale
+ * offset of -1200 and a flat HSL override. Identity views use scale 1.
+ */
+struct ToriRS_FrameViewXform
+{
+    /** Terrain commands inside this view resolve through its own World. */
+    struct World* world;
+    /** -size_tiles*64 - cfgPivot, per axis: recenters on the rotation pivot. */
+    int recenter_x;
+    int recenter_z;
+    /** The entity pose in its PARENT view's scene-local fine units. */
+    int translate_x;
+    int translate_y;
+    int translate_z;
+    /** Entity heading, 0..2047; composes additively down the stack. */
+    int yaw;
+    float flatten_scale;
+    int flatten_y_offset;
+    int flat_hsl;
+    bool live;
+};
+
 /**
  * Greedy frame emitter: one GFX command per ToriRS_FrameNextCommand call.
  * Translates UITreeEmitBuffer; WORLD opens a 3D pass and walks PaintersBuffer
@@ -32,6 +69,31 @@ struct ToriRS_Frame
 
     struct World* world;
     struct PaintersBuffer* painters;
+    /** Slot 0 is the root (identity, world == frame->world); 1.. are entities.
+     * Rebuilt every frame by the App; a cleared table means no boats. */
+    struct ToriRS_FrameViewXform views[TORIRS_FRAME_MAX_VIEWS];
+    /**
+     * The descent stack the BEGIN_WORLD / END_WORLD commands drive, holding the
+     * transform COMPOSED from the root down — `root = R(yaw) * local + off` —
+     * so an element costs one rotate regardless of how deep it is nested.
+     */
+    struct
+    {
+        struct World* world;
+        int off_x;
+        int off_y;
+        int off_z;
+        int yaw;
+        float scale_y;
+        int flat_hsl;
+        /** Which view opened this level; slot 0 (the root) is 0. Kept so a
+         *  close that names a different view than the open is caught here
+         *  rather than resolving terrain against the wrong world. */
+        int view_id;
+    } view_stack[TORIRS_FRAME_MAX_VIEWS];
+    int view_depth;
+    /** Shared with a world-only iterator; the owning FrameEnd frees it. */
+    struct ToriRS_FrameFlatArena* flat_arena;
     struct ToriDraw_Camera world_camera;
     int cam_x;
     int cam_y;
@@ -43,17 +105,47 @@ struct ToriRS_Frame
     enum ToriRS_FramePassKind pass;
     int emit_index;
     int painters_index;
+    /* The element ids of the next few painter commands, resolved once when
+     * they are prefetched (a terrain command's id is a pool lookup) and
+     * reused when the command comes round. Slot i & (RING-1) holds command
+     * i. Eight slots, not four: the deepest pipeline the emit loop offers
+     * (TORIRS_FRAME_PREFETCH_MODEL=2) resolves cur+4 while cur is still
+     * pending, and a four-slot ring put both in the same slot -- the
+     * prefetch evicted the current command's own id, which was then resolved
+     * a second time at its turn. */
+    int lookahead_index[TORIRS_FRAME_LOOKAHEAD_RING];
+    int lookahead_id[TORIRS_FRAME_LOOKAHEAD_RING];
+    /** ToriDraw_SceneEvents(scene), taken once at ToriRS_FrameBegin instead of
+     *  per command (TORIRS_FRAME_TRIM); `scene_events_of` is the scene it was
+     *  taken from, so a re-pointed scene cannot be served a stale queue. */
+    struct ToriDraw_EventQueue* scene_events;
+    const struct ToriDraw_Scene* scene_events_of;
     /* TORIRS_FRAME_DEBUG counters — painted commands that did / did not become
      * draws. Diagnostic only; nothing reads them outside the debug print. */
     int dbg_emit_element;
     int dbg_emit_terrain;
     int dbg_drop_not_live;
     int dbg_drop_no_model;
+    /** One-shot latch so the wev trace reports the FIRST draw of each descent
+     * and not all hundred of them. Cleared by frame_view_push. */
+    bool dbg_view_traced;
     /** Sub-step within UITREE_EMIT_SCROLLBAR_V/H expansion (0 = not mid-bar). */
     int scrollbar_step;
     bool in_world;
     bool world_begun;
     bool has_queued;
+    /**
+     * Emit ONLY the world pass: no scene events, no interface commands, just
+     * BEGIN_3D, the painter's model commands and END_3D. Set by
+     * ToriRS_FrameBeginWorldOnly for a second iterator that replays the
+     * painter walk somewhere other than the renderer -- the dual-core lane's
+     * worker, which projects and sorts one command ahead of the draw. The
+     * model commands it yields are the same ones, in the same order, as the
+     * full iteration's.
+     */
+    bool world_only;
+    /** GPU lane: pose on this owning thread before publishing model inputs. */
+    bool prepare_gpu_poses;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;
@@ -105,8 +197,68 @@ ToriRS_FrameSetWorld(
     int cam_y,
     int cam_z);
 
+/**
+ * Drop every world-entity transform, keeping the root. Called once per frame
+ * before the entity walk: a despawned boat must not leave a stale World here.
+ */
+void
+ToriRS_FrameClearViewXforms(struct ToriRS_Frame* frame);
+
+/**
+ * Bind one world entity's view (SAILING_PLAN C3). `view_id` is 1..15 — view 0
+ * is the root and is set by ToriRS_FrameSetWorld. `translate_*` is the entity
+ * pose in its PARENT view's scene-local fine units; `recenter_*` is
+ * `-size_tiles*64 - cfgPivot`. The reserved flatten/HSL slots are set to
+ * identity here; C4 grows the setter rather than the caller.
+ */
+void
+ToriRS_FrameSetViewXform(
+    struct ToriRS_Frame* frame,
+    int view_id,
+    struct World* world,
+    int recenter_x,
+    int recenter_z,
+    int translate_x,
+    int translate_y,
+    int translate_z,
+    int yaw);
+
 void
 ToriRS_FrameBegin(struct ToriRS_Frame* frame);
+
+/**
+ * Begin a WORLD-ONLY replay of the frame (see ToriRS_Frame::world_only).
+ *
+ * `frame` is a copy of a frame ToriRS_FrameBegin has already begun, sharing
+ * that frame's buffers; this rewinds the copy's cursors without touching the
+ * process-wide paint-limit step, which the original's Begin already took for
+ * this frame. A world-only frame is never ended: ToriRS_FrameEnd finishes the
+ * SCENE's frame (pending poses, the event queue), and that is the original's
+ * to do, once.
+ */
+void
+ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame);
+
+/*
+ * The element id of the painter command `distance` (1..3) after the one the
+ * last ToriRS_FrameNextCommand emitted, when the emit loop's lookahead has
+ * already resolved it; -1 outside the world pass, past the end, at a view
+ * marker, or when it is not resolved. A renderer uses it to warm its own
+ * per-element tables a step ahead of the dispatch that reads them.
+ */
+int
+ToriRS_FrameLookaheadElementId(
+    const struct ToriRS_Frame* frame,
+    int distance);
+
+/*
+ * Whether a world pass is still to come this frame: an interface desc not
+ * yet translated that opens one (UITREE_EMIT_WORLD), or the current pass
+ * itself when it has not emitted its END_3D. A consumer that runs a per-pass
+ * helper uses it at END_3D to tell "between passes" from "after the last".
+ */
+bool
+ToriRS_FrameHasWorldPassAhead(const struct ToriRS_Frame* frame);
 
 bool
 ToriRS_FrameNextCommand(

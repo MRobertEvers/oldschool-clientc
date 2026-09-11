@@ -13,6 +13,16 @@ CompileFlags:
     - -I.
     - -Isrc
     - -I3rd/rscache/include
+    # Android lane (platform_android*.c) and the GLES2 renderer it shares with
+    # the web lane need EGL/, GLES2/, android/ and jni.h, which macOS has none
+    # of. These come from the NDK gradle actually builds with -- see
+    # android/build.gradle's ndkVersion -- so clangd sees the same headers the
+    # device build does. -idirafter, NOT -isystem: it is searched AFTER the
+    # macOS system dirs, so bionic's stdio.h/stdint.h can never shadow Apple's
+    # on a desktop TU, and only the headers macOS genuinely lacks are picked
+    # up. Bump the version here when android/build.gradle's ndkVersion moves.
+    - -idirafter/Users/matthewevers/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include
+    - -idirafter/Users/matthewevers/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android
   Remove:
     - -W*
     - -w

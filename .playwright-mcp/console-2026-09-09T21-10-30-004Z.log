@@ -1,0 +1,6 @@
+[     968ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/143562399603:0
+[    1211ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1278ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1279ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1279ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1280ms] [WARNING] The PerformanceObserver does not support buffered flag with the entryTypes argument. @ https://ir.ebaystatic.com/rs/c/discoveryplatformweb/_bP75HFWL.js:0

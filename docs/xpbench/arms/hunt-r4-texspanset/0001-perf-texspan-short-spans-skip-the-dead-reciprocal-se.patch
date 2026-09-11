@@ -1,0 +1,70 @@
+From 65cc29439a1db92c65f483a5c6f1920418a7d362 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 03:51:02 -0500
+Subject: [PATCH 1/3] perf(texspan): short spans skip the dead reciprocal seed
+
+61.4% of textured spans on the moving Lumbridge camera (21,271 of 34,643
+per frame) fill no eight-pixel block. The reciprocal seeded into xmm7 for
+block 2 is read in exactly one place, the movaps at the top of .Lblk, so
+on those spans all twelve setup instructions -- three integer plus
+RECIP7's cvtsi2ss/rcpss/mulss/mulss/addss/subss -- computed a value
+nothing ever read.
+
+Testing BLKN before the seed instead of after costs nothing; the test ran
+one instruction later anyway. The short path also enters the tail below
+its 'remaining > 0' test, which is provably true when BLKN == 0: both
+SPANBODY expanders establish x0 < x1 before entry, so steps >= 1.
+
+Bit-exact: xmm7 is dead on every path this reorders.
+---
+ .../raster/texture/span/tex_span_body.inc     | 25 ++++++++++++++++---
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+index 33caa4842..fa557c30d 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
++++ b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+@@ -459,15 +459,31 @@
+ 	movl    $-1, NXT_U(%esp)
+ 4:
+ 
+-	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2. */
++	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2.
++	 *
++	 * SHORT SPANS SKIP IT. xmm7 is read in exactly one place -- the movaps
++	 * at the top of .Lblk -- so a span with no whole block never reads the
++	 * seed, and every instruction that builds it is dead. That is not a rare
++	 * case: 61.4% of textured spans on the moving camera run no eight-pixel
++	 * block at all, 21,271 of 34,643 per frame. The twelve instructions
++	 * below -- three integer, then RECIP7's cvtsi2ss, rcpss and four more
++	 * SSE ops, a serial chain about forty cycles long -- were being issued
++	 * for a block that does not exist, on three spans in five. Testing BLKN
++	 * first costs nothing: the test had to run anyway, one instruction on.
++	 *
++	 * .Lshort enters the tail BELOW its `remaining > 0` test, which is
++	 * provably true there. Both files that expand SPANBODY reach it only
++	 * after a `cmpl %ecx, %eax; jge <skip>` has established x0 < x1, so
++	 * steps >= 1; BLKN == 0 then puts steps in 1..7 and REMAIN == steps.
++	 */
++	cmpl    $0, BLKN(%esp)
++	jle     .Lshort\tag
++
+ 	movl    CW(%esp), %eax
+ 	addl    ST_CW16(%esp), %eax
+ 	sarl    $\sh, %eax
+ 	RECIP7  %eax, %edx
+ 
+-	cmpl    $0, BLKN(%esp)
+-	jle     .Ltail\tag
+-
+ .Lblk\tag:
+ 	/*
+ 	 * Two hoists in one. The reciprocal for block k+3 is issued here, into
+@@ -591,6 +607,7 @@
+ .Ltail\tag:
+ 	cmpl    $0, REMAIN(%esp)
+ 	jle     \done
++.Lshort\tag:
+ 	cmpl    $-1, CUR_U(%esp)
+ 	je      \done
+ 	cmpl    $-1, NXT_U(%esp)

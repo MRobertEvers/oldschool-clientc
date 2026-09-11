@@ -1,0 +1,60 @@
+{{Infobox Monster
+|name = Akkha's Shadow
+|image = [[File:Akkha's Shadow.png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 108
+|size = 3
+|examine = A shadow of vengeance.
+|xpbonus = 
+|max hit = 22
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = 6
+|hitpoints = 70
+|scaledhp = Yes
+|att = 100
+|str = 140
+|def = 30
+|mage = 100
+|range = 100
+|attbns = 115
+|strbns = 30
+|amagic = 115
+|mbns = 40
+|arange = 115
+|rngbns = 40
+|dstab = 60
+|dslash = 120
+|dcrush = 120
+|dmagic = 10
+|dlight = 60
+|dstandard = 60
+|dheavy = 60
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 60
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11797,11798,11799
+}}
+'''Akkha's Shadows''' are summoned by [[Akkha]] in the [[Tombs of Amascut]]. After reaching 80% of his health, he will generate four shadows of himself in the four corners of the arena. Once one of these four shadows are dispelled, Akkha must be lured to the quadrant of the dispelled shadow to be damaged, as he will channel immunity from his shadows otherwise. This will be repeated at 60%, 40% and 20% intervals.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change = Attacking Akkha's Shadows with the [[Eye of Ayak]] no longer causes him to turn invisible.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Akkha's Shadows now have a 60% [[elemental weakness]] to [[wind spells]].
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

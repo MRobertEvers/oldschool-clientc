@@ -1,0 +1,168 @@
+{{External|rs}}
+{{Dangerous}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Barrows
+|image = [[File:Barrows minigame.png|300px]]
+|release = [[9 May]] [[2005]]
+|update = Barrows
+|type = Boss
+|members = Yes
+|location = East of [[Mort'ton]]
+|players = 1
+|skills = [[Combat]]
+|currency = N/A
+|tutorial = No
+|music = [[Dangerous Way]], [[Dance of the Undead]]
+|map = {{Map|name=Barrows|zoom=2|x=3567|y=3291}}
+|leagueRegion = Morytania
+}}
+[[File:Barrows logo.jpg|left]]
+The '''Barrows''' is a series of six burial mounds east of Mort'ton in which the [[Barrows brothers]] were entombed after their deaths during the [[Third Age]]. 'Barrows' also commonly refers to the minigame-like dungeon-delving experience of looting [[Chest (Barrows)|the chest]] at the centre of the tunnels beneath the crypts, released on [[9 May]] [[2005]].
+
+Players can attempt to rob valuable items from the Barrows brothers' crypts. However, due to an ancient spell, the brothers' [[wight]]s continued to dwell in the barrows, protecting these treasures.
+
+Looting the Barrows is popular due to the potential of receiving valuable rewards, including the unique [[Barrows equipment]], with increasingly valuable rewards for killing more monsters in the crypts, including the [[Barrows brothers]] themselves.
+
+In the [[Miniquests|miniquest]] [[His Faithful Servants]] players are tasked to slay all six [[Barrows brothers]] and then loot the chest for the [[strange icon]]. Completing the miniquest rewards some Prayer experience and the ability to use your [[minimap]] within the [[Barrows tunnels]].
+
+==History==
+The [[Barrows brothers]] were ancient warriors of [[Saradomin]] who established a reputation of near invincibility while fighting in the [[God Wars]].
+
+They launched a massive attack, known as the [[Morytania Campaign]], to liberate [[Morytania]] from the clutches of [[Lord Lowerniel Vergidiyad Drakan]] and his [[vampyre]]s. As the brothers departed, a mysterious stranger granted them superhuman power to battle Drakan's forces, by supplying them with the weapons and armour now known as the [[Barrows equipment]]. It succeeded, for the brothers, who were in the front line, seemed invincible. They had not anticipated, however, that the stranger had ulterior motives for helping them.
+
+As the brothers and their accompanying army progressed further into enemy territory in [[Morytania]], the stranger followed them until the brothers became weakened. The brothers were grievously wounded in battle near the western wall of [[Meiyerditch]], and thus the army set up camp in the area. Soon, the brothers died of their infected wounds simultaneously in the army's camp. The army quickly decided to retreat from Morytania, realising they could never succeed without their former leaders' prowess, but as a reflection of the brothers' bravery, they vowed to honour their martyred heroes as a final act before retreating.
+
+The army spent six days and nights holding off the attacking vampyres to construct burial mounds, the Barrows, to honour the fallen brothers.
+
+As the army began its return, the stranger slowly started walking towards the brothers, now dead and interred in their barrows. Arms outstretched atop the central mound, the stranger chanted in some foul, ancient language, casting his old magic. A vulgar purple light formed in front of him, fell to the earth, and bled into each of the barrows.
+
+Not many of the original army made it back on the journey home, but tales were told of how each night an unnatural glow could be seen on the horizon where they had buried the brothers. Even today there are stories told about those mounds of earth, and of the sights and sounds that have been witnessed nearby.
+
+A [[crumbling tome]], obtained by searching the hut near the mounds or by talking to the [[Strange Old Man]] found digging the crypts, provides a detailed account of how the brothers came to be buried.
+{{Clear}}
+
+==Transportation==
+[[File:Barrows Map.png|thumb|right|295px|
+1. (Red) Using the [[Barrows Teleport]] ([[Barrows teleport (tablet)|tab]]) is the quickest route.<br/>
+2. (Blue, Green and Orange) Using the [[Minigame Teleport|Mort'ton minigame teleport]], [[Mort'ton teleport|Mort'ton teleport scroll]] and [[Morytania legs 3]] & [[Morytania legs 4|4]] are good alternatives to players who don't have access to the Barrows teleport.<br/>
+3. (Pink and Light blue) Travelling using the [[Swamp Boaty]] is a valid method for ironmen who don't have access to abovementioned options.<br/>
+4. (Yellow) Using the {{Fairycode|BIP}} fairy ring is the longest of the routes, but takes the player close to the [[Nature Grotto]], which players can visit to restore their prayer points.]]
+
+There are several different methods for travelling to the Barrows. The best options, ordered from fast to slow, are:
+
+*Casting [[Barrows Teleport]] in the [[Arceuus spellbook]] (requires level 83 [[Magic]]), or using a [[Barrows teleport (tablet)|Barrows teleport tablet]] or [[Portal Chamber|house portal]] to teleport right next to the entrance.
+*Using the [[Mort'ton teleport]] scroll and then running east to Barrows.
+*Using the [[Morytania legs 3]] or [[Morytania legs 4|4]] to [[Burgh de Rott]] and running north through [[Mort'ton]] towards Barrows.
+*Using the [[Minigame Teleport]] to [[Shades of Mort'ton (minigame)|Shades of Mort'ton]] (requires completion of the [[Shades of Mort'ton]] quest). This method is free and takes up no inventory or equipment spaces, though there is a 20-minute cooldown between uses.
+*Casting [[Kharyrll Teleport]] in the [[Ancient Magicks|Ancient spellbook]] (requires level 66 Magic and completion of [[Desert Treasure I]]), or using a [[Kharyrll teleport (tablet)|Kharyrll teleport tablet]] or house portal to teleport to [[Canifis]], then using the [[Myreque Hideout]] shortcut south of the pub and running south, crossing the rope bridge, continuing south and using the [[Swamp Boaty|swamp boaty]] to travel to Mort'ton, then running east.
+*Using the [[Fairy rings|fairy ring]] code {{Fairycode|BKR}}, running south-east and using the swamp boaty to travel to Mort'ton, then running east.
+*Using the fairy ring code {{Fairycode|bip}}, hopping across the [[Stepping stone (Mort Myre Swamp)|stepping stone]] shortcut (requires level 50 [[Agility]]), then going east and south, following the path through Mort'ton.
+*Using [[Drakan's medallion]] to teleport to [[Ver Sinhaza]] (requires completion of [[A Taste of Hope]]), leaving through the western door, running south-west to board the [[Boat (Darkness of Hallowvale)|boat]] to Burgh de Rott, and running north through Mort'ton to Barrows.
+*Running east from Canifis, then south through the swamp, turning east at the northmost hunter spot, looping around to the other nearby hunter spot, then running south-west to the swamp exit.
+Non-[[Ironman Mode|Ironman]] players may attempt to visit a [[player-owned house]] on a [[house party]] world with a [[portal nexus]] for a quick and cheap teleport to Barrows or Canifis. Additionally, players with level 72 [[Agility]] can use the [[Dry stone wall (Barrows)|dry stone wall]] shortcut on the south west side of the mounds, just east of the bridge.
+
+==Requirements==
+*Completion of [[Priest in Peril]] is required to enter [[Morytania]].
+*Started [[His Faithful Servants]] to begin digging into the crypts.
+
+==Money making==
+{{Mmgsection|Barrows}}
+
+==Rewards==
+{{Listen
+|title = [[Grave Robber (Barrows)|Grave Robber]]
+|align = right
+|filename = Grave Robber (Barrows).ogg
+|desc = The jingle that plays upon opening the chest.}}
+{{Main|Chest (Barrows)}}
+The table below lists the possible rewards from the chest at the centre of the Barrows crypt. For more information about reward mechanics and rarities, see [[Chest (Barrows)]].
+{{Barrows/Rewards}}
+
+{{Clear}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Barrows}}
+
+==Gallery==
+<gallery captionalign="left">
+File:Ahrim the Blighted.png|[[Ahrim the Blighted]]
+File:Dharok the Wretched.png|[[Dharok the Wretched]]
+File:Guthan the Infested.png|[[Guthan the Infested]]
+File:Karil the Tainted.png|[[Karil the Tainted]]
+File:Torag the Corrupted.png|[[Torag the Corrupted]]
+File:Verac the Defiled.png|[[Verac the Defiled]]
+Barrows Brothers (Blood Moon Rises illustrated).png|An official depiction of the brothers.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 September 2025
+|update = Interface Uplift
+|change = A chat message will now appear alongside the floating face effect telling the player that their prayer has been drained.
+}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = Increased [[Combat Achievement#Rewards|Combat Achievement]] buffs when choosing how many Barrows Brothers to kill for a Boss Slayer Task, so that the maximum is always a multiple of 6.
+}}
+{{Subject changes
+|date = 14 June 2023
+|update = Ruinous Powers Beta v2
+|change = A detailed minimap was added as a reward for completion of the miniquest [[His Faithful Servants]].
+}}
+{{Subject changes
+|date = 3 August 2022
+|update = Maximum Hitsplats & Clan Hall Changes
+|change = Camera effects found after looting the [[Chest (Barrows)|Barrows' chest]] can now be toggled in the [[Settings]] menu.
+}}
+{{Subject changes
+|date = 31 August 2017
+|update = Fossil Island Kudos Display, the Champion's Cape, and much more.
+|change = If being assigned a Barrows [[Slayer task]], a total of 36 can be chosen instead of 35.
+}}
+{{Subject changes
+|date = 3 September 2015
+|update = Barrows Features & Saradomin's Light
+|poll = Old School Content Poll 35: The Max Cape
+|change = * A check list now appears that will show which of the Barrows brothers you have killed.
+* A reward interface has been added that will appear when opening the Barrows loot chest.
+** Monsters will not attack for a few seconds after the interface appears.
+}}
+{{Subject changes
+|date = 30 July 2015
+|update = Custom F-Keys & Music Cape
+|change = Doing Barrows in fixed screen mode no longer causes your hitsplats and overhead chat to appear distorted.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = The message stating that you have received more runes from the Barrows as result of the hard tier of the Morytania achievement diary will now only appear once.
+}}
+{{Subject changes
+|date = 9 January 2014
+|update = Minigame Grouping
+|poll = Old School feature poll 14: Minigames
+|change = Two [[spade]] spawns have been added to the building by the entrance to the Barrows.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* There is currently a glitch where if [[Guthan the Infested|Guthan]] is slain and he heals simultaneously, a message will appear in the player's chatbox stating {{mes|We'll finish this later...}}. This message can also appear if players run too far away from a brother in the crypts.
+* Despite the fact that the brothers appear to be ghosts, the [[Crumble Undead]] spell cannot be used on them.
+** Because they are not ghosts, they do not count toward [[Slayer task/Ghosts|ghost Slayer tasks]]. Instead, they count toward boss tasks.
+* If your inventory is full when you loot the chest and you get a Barrows item, it will be dropped on the ground but will be in 100% condition. This and Falador Party Room drop parties are the only ways to drop Barrows weapons, chest pieces and leg pieces on the ground without them degrading. Barrows helms can also be dropped by using them on a [[hat stand]].
+* The Barrows may be inspired by the barrows in The Lord of the Rings, which are also protected by evil spirits. Notably, both The Lord of the Rings and RuneScape call these spirits "wights", a term which (at the time of Barrows' release) was not used anywhere else in the game.
+* Parts of the [[Meiyerditch Laboratories]] can be seen from the tombs of the Barrows brothers, with Dharok's tomb offering the clearest view. This is because the Barrows tombs, like all areas not on the overworld map, are actually located on a section of the world map above the [[Wilderness]] which houses all of the underground and other non-surface areas of the game. 
+
+[[File:Meiyerditch Laboratories From Barrows.png|thumb|right|The Meiyerditch Laboratories as seen from Dharok's tomb.]]
+
+
+{{Barrows}}
+{{Dungeons}}
+{{The Fall of Six}}
+{{Bosses}}
+[[Category:Morytania]]
+{{Burial sites}}

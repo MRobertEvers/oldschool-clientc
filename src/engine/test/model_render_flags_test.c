@@ -254,8 +254,8 @@ static struct ToriDraw_Camera
 camera(void)
 {
     struct ToriDraw_Camera cam = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
     };
     return cam;
@@ -377,7 +377,7 @@ main(void)
         return 2;
     }
 
-    emblem_rgb = (toripixel_t)g_hsl16_to_rgb_table[HSL_EMBLEM];
+    emblem_rgb = (toripixel_t)g_hsl16_to_pixel_table[HSL_EMBLEM];
 
     /* 2. As converted: the priority wins over depth. */
     count = sort_faces(scene, hnd);

@@ -1,0 +1,47 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Cure Me
+|image = [[File:Cure Me.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 71
+|spellbook = Lunar
+|type = combat
+|exp = 69
+|cost = {{RuneReq|Astral=2|Cosmic=2|Law=1}}
+|speed = 
+|description = Cure poison
+|anim = [[File:Cure Me.gif|150pxpx]]
+|sound = [[File:Cure Me.ogg]]
+}}
+[[File:Cure Me icon (mobile).png|left]]
+'''Cure Me''' cures the caster of [[poison]]. However, unlike [[antipoison]]s, this spell '''does not''' give the player poison immunity of any kind. Therefore, if the spell is cast whilst fighting a monster that can inflict poison, it is possible that the player can be poisoned again immediately afterwards, wasting the required runes. As a result, this spell is more suited for one-off situations where the player would be exposed to poison, such as the poison Trip Wire traps in [[Isafdar]]. The spell will also convert [[venom]] to poison. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+This can also be useful in [[minigames]] such as [[Pyramid Plunder]] to avoid needing anti-poison [[potions]]. As [[runes]] are stackable and potions are not, using the cure me spell can mean staying there for longer. However this is not generally used due to the fact that there is an altar in [[Sophanem]] and players can use the free [[prayer book]] to cure themselves (although to acquire this book the quest [[The Great Brain Robbery]] must be completed at least up until the point where players must travel to the [[Monastery]]).
+
+[[Ironman Mode|Ironmen]] may opt to use Cure Me as a more accessible alternative to [[anti-venom]] while fighting envenoming monsters if they do not have 87 [[Herblore]]. This has the downside of preventing the use of spells from the [[Standard spellbook]] such as [[Iban Blast]] or [[Magic Dart]], or [[Thrall]]s from the [[Arceuus spellbook]] without use of [[Spellbook swap]].
+
+Repeatedly casting Cure Me in the [[Morytania Spider Cave]], while expensive, is a fast [[Pay-to-play Magic training#Level 71+ Cure Me|Magic training method]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Cosmic
+|Rune1num = 2
+|Rune2 = Astral
+|Rune2num = 2
+|Rune3 = Law
+|Rune3num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 May 2023
+|update = Bounty Hunter is Back!
+|change = The Cure Me spell can now only be cast once per game [[tick]].
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

@@ -259,7 +259,7 @@ def _row(shop, owner_name, owner_page, npc_id, gamevals, spawned, source) -> dic
     # The wiki's npc id often names a *multinpc variant* — the display form a
     # varbit picks between at runtime — while the world only ever spawns the
     # multinpc *base*, `<variant>_multi` (same pattern as the Lumbridge
-    # doomsayer: docs/mock230-lumbridge-content.md). `contact_market_baker`
+    # doomsayer: docs/torirsserver-lumbridge-content.md). `contact_market_baker`
     # (Nathifa's wiki id) never appears in a `.spawn` file; `.spawn` names
     # `contact_market_baker_multi`. Binding the variant is how a trigger goes
     # dead silently — the npc genuinely stands in the world, under the other

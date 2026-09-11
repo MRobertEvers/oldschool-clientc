@@ -48,6 +48,75 @@ test_click_event_coords(void)
     UITree_Free(tree);
 }
 
+/*
+ * An overlay drawn over the tree in the same canvas owns the pointer: the
+ * component under it is neither hovered, clicked, nor right-clicked.
+ *
+ * The client's regression is the plugin window rasterised into the game frame
+ * (the buffer executor). Its clicks reached the chrome AND the game beneath
+ * it, because "the chrome took this" cannot be read downstream off a consumed
+ * flag the shell sets on every frame.
+ */
+void
+test_pointer_owner_blocks_tree(void)
+{
+    struct UITree* tree;
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t btn;
+    int clicked = 0;
+
+    printf("TEST: an owned pointer reaches no component\n");
+    tree = UITree_New(8);
+    UITree_TestHostInit(&host, &hs);
+    btn = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 700, 100, 40, 200, 20);
+    tree->components[btn].if3 = 1;
+    UITree_HooksMut(&tree->components[btn])->on_click.script_id = 9226;
+    /* A hover hook as well, so "was it hovered" is a question with a yes: the
+     * hover walk reports components the reference would offer options for. */
+    UITree_HooksMut(&tree->components[btn])->on_mouse_over.script_id = 9227;
+    UITree_TestResolve(tree);
+
+    UIInteraction_Init(&interact);
+    input = LibToriRS_Input_Init(&storage, 0);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 0, 0, 1, &out);
+
+    for( int i = 0; i < out.intent_count; i++ )
+        if( out.intents[i].hook && out.intents[i].hook->script_id == 9226 )
+            clicked = 1;
+    TEST_ASSERT(!clicked, "a press under the overlay runs no onClick");
+    TEST_ASSERT(out.hover_com_id == -1, "nothing under the overlay is hovered");
+
+    /* And no Choose Option menu: its rows would describe what the overlay is
+     * drawn over. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 20, 0, 1, &out);
+    TEST_ASSERT(!out.right_click, "a right press under the overlay asks for no menu");
+
+    /* The same press with nobody owning the pointer is the control: this is a
+     * gate, not a component that stopped working. */
+    LibToriRS_Input_Begin(input, 40);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 40, 0, 0, &out);
+    TEST_ASSERT(out.right_click, "the same press unowned does ask for one");
+    TEST_ASSERT(out.hover_com_id == 700, "and the component hovers again");
+
+    UITree_Free(tree);
+}
+
 void
 test_hover_input(void)
 {
@@ -289,7 +358,7 @@ test_hover_input(void)
         UITree_Free(st);
     }
 
-    /* Regression: app-pushed decorative overlays are late root siblings, and
+    /* Regression: configured decorative overlays are late root siblings, and
      * UITree_HitTestInteractive lets a later root win — so a non-passthrough
      * one shadows the entire interface, not just the world. */
     {
@@ -478,6 +547,80 @@ test_hover_input(void)
             !UITree_PointBlocksWorld(mt, &host, 150, 50),
             "blank host space for an overlay remains transparent");
         UITree_Free(mt);
+    }
+
+    /* Hover events retain an exact node incarnation. A cycle rebuild may put
+     * the same component id back into the same slot while the pointer never
+     * moves; the replacement gets a fresh over, never its own leave on behalf
+     * of the reclaimed occupant. */
+    {
+        struct UITree* ht = UITree_New(8);
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int const parent_id = (700 << 16) | 0;
+        int32_t parent =
+            UITree_TestPushXy(ht, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 200, 200);
+        int32_t old = UITree_CcCreate(ht, parent, parent_id, UIELEM_RS_RECT, 0);
+        uint64_t old_incarnation;
+        int saw_old_over = 0;
+        int saw_new_over = 0;
+        int saw_replacement_leave = 0;
+
+        printf("TEST: hover identity survives same-id/same-slot recycle\n");
+        ht->components[old].position.x = 10;
+        ht->components[old].position.y = 10;
+        ht->components[old].position.width = 100;
+        ht->components[old].position.height = 100;
+        UITree_HooksMut(&ht->components[old])->on_mouse_over.script_id = 851;
+        UITree_HooksMut(&ht->components[old])->on_mouse_leave.script_id = 852;
+        UITree_TestResolve(ht);
+        old_incarnation = ht->components[old].incarnation;
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 0, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 851 )
+                saw_old_over = 1;
+        TEST_ASSERT(saw_old_over, "initial occupant receives mouse-over");
+
+        UITree_CcDeleteAll(ht, parent);
+        {
+            int32_t replacement = UITree_CcCreate(
+                ht, parent, parent_id, UIELEM_RS_RECT, 0);
+            TEST_ASSERT(replacement == old, "hover fixture reuses the same array slot");
+            TEST_ASSERT(
+                ht->components[replacement].incarnation != old_incarnation,
+                "replacement has a fresh incarnation");
+            ht->components[replacement].position.x = 10;
+            ht->components[replacement].position.y = 10;
+            ht->components[replacement].position.width = 100;
+            ht->components[replacement].position.height = 100;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_over.script_id = 861;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_leave.script_id = 862;
+        }
+        UITree_TestResolve(ht);
+        interact.client_cycle++;
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 20, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 861 )
+                saw_new_over = 1;
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 862 )
+                saw_replacement_leave = 1;
+        }
+        TEST_ASSERT(saw_new_over, "same-id replacement receives a fresh mouse-over");
+        TEST_ASSERT(
+            !saw_replacement_leave,
+            "replacement never inherits reclaimed occupant's mouse-leave");
+        UITree_Free(ht);
     }
 
     (void)graphic;

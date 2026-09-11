@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define RS_WORLDMAP_DEFAULT_ZOOM 100
 #define RS_WORLDMAP_DEFAULT_MAX_FLASH_COUNT 3
@@ -353,9 +354,7 @@ RS_WorldMap_Sync(struct RS_WorldMapState* state)
 
     if( getenv("TORIRS_WORLDMAP_DEBUG") )
     {
-        fprintf(
-            stderr,
-            "worldmap: %d areas, current=%d (%s) display=(%d,%d) zoom=%d size=%dx%d tiles "
+        TORIRS_ERR("worldmap: %d areas, current=%d (%s) display=(%d,%d) zoom=%d size=%dx%d tiles "
             "regions x=%d..%d y=%d..%d\n",
             areas->count,
             RS_WorldMap_CurrentMapId(state),

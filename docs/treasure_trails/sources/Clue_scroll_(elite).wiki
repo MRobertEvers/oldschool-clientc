@@ -1,0 +1,488 @@
+{{External|rs}}
+{{HasStrategy|page=Treasure Trails/Full guide/Elite}}
+{{Infobox Item
+|name = Clue scroll (elite)
+|image = [[File:Clue scroll (elite).png]]
+|release = [[12 June]] [[2014]]
+|update = Treasure Trail Expansion
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = A clue!<br>
+'''Sherlock:''' A clue suggested by (Player's Name)!
+|value = 20
+|weight = 0.020
+|id = N/A
+}}
+[[File:Clue scroll (elite) detail.png|left|150px]]
+A '''clue scroll (elite)''' is the second highest tier of [[Treasure Trail]]. It rewards an [[reward casket (elite)|elite reward casket]] upon completion.
+
+Elite clue scrolls can be between 5 and 7 steps long.
+
+After completing 200 elite clues, the player will be awarded a [[heavy casket]]. Elite clue scrolls are a random drop from a large variety of high-levelled monsters, [[impling]]s, [[raids]] rewards, and skilling clues such as [[clue nest]]s, [[clue bottle]]s, and [[clue geode]]s. 
+
+Clue scrolls are the start of a [[treasure trail]] — a treasure hunt that sends players hunting all around [[Gielinor]] and other [[realms]]. At the end of the hunt, players receive a reward of items randomly selected from a specific list, with the possibility of receiving rare and valuable items. Elite clue scrolls are usually long and complex, and take significant effort to be completed — though not more so than their [[clue scroll (master)|master-tier]] counterparts. These clue scrolls have a greater list of requirements with respect to quests and item possession (for [[Ironman Mode|ironmen]]). For this reason, many players prefer to complete easy, medium, or hard clues, instead. Venturing into the [[Wilderness]] may be required in order to complete the steps, whilst coordinate clues will require the player to fight an [[Armadylean guard]] or a [[Bandosian guard]].
+
+Completion of [[Elite Combat Achievements]] gives a 5% increased chance to receive an elite clue scroll from all sources, excluding implings. 
+
+An elite clue scroll can be given to [[Watson]] along with an easy, medium, and hard clue scroll to receive a [[Clue scroll (master)|master clue scroll]].
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one elite clue scroll can be held, kept in Death's Office or stored in a bank at one time; attempting to open a [[scroll box (elite)]] while holding an elite clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Types of clues==
+''Note that it is possible to receive the same clue more than once.''
+*[[Treasure Trails/Guide/Anagrams/Elite|Anagrams]]
+*[[Sherlock/Elite|Sherlock]]
+*[[Treasure Trails/Guide/Challenge scrolls|Challenge scrolls]]
+*[[Treasure Trails/Guide/Puzzle boxes|Puzzle box]]
+*[[Treasure Trails/Guide/Coordinates/Elite|Coordinates]]
+*[[Treasure Trails/Guide/Cryptic clues/Elite|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Elite|Emote clues]]
+*[[Treasure Trails/Guide/Maps/Elite|Maps]]
+*[[Cecilia|Music]]
+
+==Requirements==
+<onlyinclude>
+
+===Skill requirements===
+Some clues will require items that have a certain skill requirement in order to wear, wield, or access. The table below shows the '''highest''' skill requirement, in order to complete every elite clue. Quest skill requirements are not noted in this table. [[Sherlock]] may also give you skill challenges which require certain skill levels to complete. [[Temporary skill boost]]s '''can''' be used for most non-combat skill challenges.
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Skill level'''
+! '''Details'''
+|-
+| {{SCP|Agility|60|sort=y}} {{Boostable|yes}}
+| Required to enter the [[Seers' Village Rooftop Course]].
+|-
+| {{SCP|Attack|70|sort=y}} {{Boostable|no}}
+| Required to wield a [[black salamander]].
+|-
+| {{SCP|Cooking|70|sort=y}} {{Boostable|yes}}
+| Required to complete [[Recipe for Disaster]] to wear Barrows gloves.
+|-
+| {{SCP|Crafting|63|sort=y}} {{Boostable|yes}}
+| Required to craft a [[green d'hide body]] for Sherlock.
+|-
+| {{SCP|Defence|65|sort=y}} {{Boostable|no}}
+| Required to activate [[Chivalry]] for Sherlock.
+|-
+| {{SCP|Farming|47|sort=y}} {{Boostable|yes}}
+| Required to plant a [[watermelon seed]] for Sherlock.
+|-
+| {{SCP|Firemaking|60|sort=y}} {{Boostable|yes}}
+| Required to light [[yew logs]] for Sherlock.
+|-
+| {{SCP|Fishing|76|sort=y}} {{Boostable|yes}}
+| Required to fish a [[shark]] for Sherlock.
+|-
+| {{SCP|Fletching|70|sort=y}} {{Boostable|yes}}
+| Required to create a [[yew longbow]] for Sherlock.
+|-
+| {{SCP|Herblore|66}}{{Boostable|yes}} 
+|Required to create a [[super defence potion]] for Sherlock.
+|-
+| {{SCP|Hunter|68}}{{Boostable|yes}} 
+|Required to catch a [[mottled eel]] for Sherlock.
+|-
+| {{SCP|Magic|75|sort=y}} {{Boostable|no}}
+| Required to start [[Dragon Slayer II]].
+|-
+| {{SCP|Mining|74|sort=y}} {{Boostable|yes}}
+| Required to mine [[Nickel ore]] for Sherlock.
+|-
+| {{SCP|Prayer|60|sort=y}} {{Boostable|no}}
+| Required to activate [[Chivalry]] for Sherlock.
+|-
+| {{SCP|Ranged|70|sort=y}} {{Boostable|no}}
+| Required to wear [[black dragonhide armour]] and wield a [[black salamander]].
+|-
+| {{SCP|Runecraft|59|sort=y}} {{Boostable|yes}}
+| Required to runecraft double cosmic runes for Sherlock.
+|-
+| {{SCP|Sailing|66|sort=y}} {{Boostable|no}}
+| Required to moor at [[Lledrith Island]]. 
+|-
+| {{SCP|Slayer|65|sort=y}} {{Boostable|yes}}
+| Required to kill a [[dust devil]] for Sherlock.
+|-
+| {{SCP|Smithing|64|sort=y}} {{Boostable|yes}}
+| Required to smith a [[mithril 2h sword]] for Sherlock.
+|-
+| {{SCP|Strength|50|sort=y}} {{Boostable|no}}
+| Required to equip [[granite shield]].
+|-
+| {{SCP|Thieving|72|sort=y}} {{Boostable|yes}}
+| Required to picklock the [[Chest_(Ardougne_Castle)|Ardougne Castle Chest]] for Sherlock.
+|-
+| {{SCP|Woodcutting|60|sort=y}} {{Boostable|yes}}
+| Required to cut a [[yew log]] for Sherlock.
+|-
+| data-sort-value=130|{{SCP|Attack}}+{{SCP|Strength|130}} {{Boostable|no}}<br/>'''OR'''<br/>{{SCP|Attack|99}} {{Boostable|no}}<br/>'''OR'''<br/>{{SCP|Strength|99}} {{Boostable|no}}
+| Required to access [[Warriors' Guild]].
+|-
+| data-sort-value=85|{{SCP|Combat}} 85
+| Required for [[Dream Mentor]], which is required to start [[Dragon Slayer II]].
+|}
+
+===Additional Ironman requirements===
+[[Ironman]] players need to meet some more skill requirements to be able to solve all the clues, if they don't receive the [[amulet of glory (t)]] or [[black d'hide chaps]] from [[Reward casket (hard)|hard clues]].
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Skill level'''
+! '''Details'''
+|-
+| {{SCP|Crafting|82|sort=y}} {{Boostable|yes}}
+| Required to make [[black d'hide chaps]]
+|-
+| {{SCP|Hunter|67|sort=y}} {{Boostable|yes}}
+| Required to obtain a [[black salamander]]
+|-
+| {{SCP|Crafting|80|sort=y}} {{Boostable|yes}} and {{SCP|Magic|68}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Hunter|83}} {{Boostable|yes}}
+| Required to obtain an [[amulet of glory]]
+|-
+| {{SCP|Slayer|83|sort=y}} {{Boostable|yes}}
+| Required to obtain [[dragon boots]]
+|}
+
+===Quest requirements===
+Some clues require access to areas or [[NPC]]s which may require quests. Some only require to start the quest in order to gain access.
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Quest'''
+! '''Details'''
+|-
+| [[Another Slice of H.A.M.]]
+| Gives access to [[Ambassador Alvijar]].
+|-
+| [[Beneath Cursed Sands]] 
+| Gives access to [[Necropolis]]. 
+Required to play "The Pharaoh" music track for [[Cecilia]] in Falador Park.
+|-
+| [[Cabin Fever]]
+| Gives access to [[Mos Le'Harmless]] and its nearby [[Mos Le'Harmless Cave|cave]].
+|-
+| [[Darkness of Hallowvale]] (started)
+| Gives access to [[Meiyerditch]].
+|-
+| [[Death to the Dorgeshuun]]
+| Gives access to [[Dorgesh-Kaan]].
+|-
+| [[Desert Treasure I]] (partial completion)
+| Gives access to the [[Shadow Dungeon]].
+|-
+| [[Dragon Slayer II]] (partial completion)
+| Gives access to [[Lithkren]].
+|-
+| [[Eagles' Peak]]
+| Required to catch a [[carnivorous chinchompa]] for Sherlock.
+|-
+| [[Elemental Workshop II]]
+| Required to wield the [[mind shield]].
+|-
+| [[Fairytale II - Cure a Queen]] (partial completion)
+| Gives access to [[fairy rings]].
+|-
+|[[The Final Dawn]] (partial completion)
+|Required to kill an [[Earthen Nagua]].
+|-
+| [[The Fremennik Exiles]]  (partial completion) 
+| Gives access to the [[Island of Stone]].
+|-
+| [[The Fremennik Isles]]
+| Gives access to [[Neitiznot]] and [[Jatizso]]; required to wear [[helm of neitiznot]].
+|-
+| [[The Great Brain Robbery]] (partial completion)
+| Gives access to [[Harmony Island]].
+|-
+| [[Haunted Mine]]
+| Gives access to [[Tarn's Lair]].
+|-
+| [[The Heart of Darkness]]  (partial completion)
+| Gives access to [[Ruins of Tapoyauik]].
+|-
+| [[Heroes' Quest]]
+| Gives access to the [[Heroes' Guild]] and required to wield [[dragon battleaxe]].
+|-
+| [[Horror from the Deep]]
+| Required to equip a filled [[god book]].
+|-
+| [[In Aid of the Myreque]]
+| Gives Access to [[Burgh de Rott]].
+|-
+| [[Jungle Potion]]
+| Gives access to the [[Hardwood Grove]].
+|-
+| [[Legends' Quest]]
+| Gives access to the [[Kharazi Jungle]], [[Legends' Guild]] and [[cape of legends]].
+|-
+| [[Lunar Diplomacy]]
+| Gives access to [[Lunar Isle]] and [[Pirates' Cove]].
+|-
+| [[Making Friends with My Arm]] (partial completion)
+| Gives access to [[Weiss]].
+|-
+| [[Mourning's End Part I]] (started)
+| Gives access to [[Lletya]] and [[mourner gear]].
+|-
+| [[Monkey Madness I]]
+| Gives access to [[Crash Island]] and [[Ape Atoll]].
+|-
+| [[Plague City]] (partial completion)
+| Gives access to [[West Ardougne]].
+|-
+| [[Priest in Peril]]
+| Gives access to [[Canifis]].
+|-
+| [[Recipe for Disaster]]
+| Required to wear [[Barrows gloves]].
+|-
+| [[Regicide]] (started)
+| Gives access to [[Tirannwn]]. Highly recommended to complete the quest, as travelling becomes easier with using a [[charter ship]] to [[Port Tyras]].
+|-
+| [[Shilo Village]]
+| Gives access to [[Shilo Village (location)|Shilo Village]].
+|-
+| [[Sins of the Father]] (partial completion)
+| Required to unlock music track [[Lament for the Hallowed]].
+|-
+| [[The Slug Menace]]
+| Required to wear [[proselyte hauberk]].
+|-
+| [[Troubled Tortugans]]
+| Required to kill [[Shellbane gryphon]].
+|-
+| [[Song of the Elves]]
+| Gives access to [[Prifddinas]].
+|-
+| [[Spirits of the Elid]]
+| Gives access to the crack west of [[Nardah]].
+|-
+| [[Swan Song]]
+| Gives access to the [[Piscatoris Fishing Colony]].
+|-
+| [[Troll Romance]] (partial completion)
+| Gives access to [[Trollweiss Mountain]].
+|-
+| [[Troll Stronghold]] (partial completion)
+| Gives access to [[Trollheim]].
+|-
+| [[Underground Pass]]
+| Gives access to [[Tirannwn]].
+|}
+
+===Music requirements===
+{| class="wikitable sortable lighttable"
+! Music Track
+! Unlock location
+! Notes
+|-
+| [[Lament for the Hallowed]]
+| [[Darkmeyer]]
+| Requires partial completion of [[Sins of the Father]] to travel to [[Icyene Graveyard]].
+|-
+|[[The Pharaoh (music track)|The Pharaoh]]
+|[[Sophanem]]
+|Unlocks during [[Beneath Cursed Sands]]
+|}
+
+=== Item requirements ===
+'Minimum level requirements' indicates the level required to equip all items on the list in order to complete their respective clue steps.
+
+Any quantities below indicate how many of each item is required to fill all available elite [[STASH]] units. The STASH units require 2 [[Mahogany plank|mahogany planks]] and 10 [[Nails]] to build.
+{| class="wikitable lighttable individual" style="width:50%; text-align:center;"
+|-
+! colspan="4" |Minimum level requirements
+|-
+|{{SCP|Attack|70|link=yes}}
+|{{SCP|Strength|50|link=yes}}
+|{{SCP|Ranged|70|link=yes}}
+|{{SCP|Magic|70|link=yes}}
+|-
+| colspan="2" |{{SCP|Defence|60|link=yes}}
+| colspan="2" |{{SCP|Prayer|60|link=yes}}
+|-
+! colspan="4" | Items required
+|-
+|2 × {{plink|Amulet of glory}}
+|{{plink|Barrows gloves}}
+|{{plink|Black d'hide chaps}}
+|{{plink|Black d'hide vambraces}}
+|-
+|{{plink|Black salamander}}
+|{{plink|Blue d'hide vambraces}}
+|{{plink|Bob shirt|pic=Bob's black shirt}}
+|{{plink|Cape of legends}}
+|-
+|{{plink|Castle wars bracelet}}
+|{{plink|Climbing boots}}
+|{{plink|Combat bracelet}}
+|{{plink|Dragon battleaxe}}
+|-
+|{{plink|Dragon boots}}<ref group="n">The [[Dragon boots (g)]], [[Primordial boots]], and [[Avernic treads (pr)]](and upgrades of it) can also be stored and used for this clue step.</ref>
+|{{plink|Dragon med helm}}
+|{{plink|Dragon necklace}}
+|2 × {{plink|Dragon spear}}
+|-
+|{{plink|Dragonstone amulet}}
+|{{plink|Dragonstone ring}} 
+|Any full {{plink|god book|pic=Book of Balance}}
+|{{plink|Granite shield}}
+|-
+|{{plink|Helm of neitiznot}} 
+|Any rune {{plink|heraldic helm|pic=Rune helm (h1)}}
+|{{plink|Lava battlestaff}}
+|{{plink|Magic longbow}}
+|-
+|{{plink|Mind shield}} 
+|Any god {{plink|mitre|pic=Guthix mitre}}
+|{{plink|Mystic robe bottom}}
+|{{plink|Pirate bandana|pic=Pirate bandana (brown)}}
+|-
+|{{Plink|Proselyte hauberk}}
+|{{plink|Red d'hide chaps}}
+|{{plink|Ring of forging}}
+|{{plink|Rolling pin}}
+|-
+|{{plink|Rune boots}}
+|{{plink|Rune crossbow}}
+|{{plink|Rune kiteshield}}
+|{{plink|Rune longsword}}
+|-
+|{{plink|Rune plateskirt}}
+|{{plink|Seercull}}
+|{{plink|Splitbark body}}
+|{{plink|Splitbark legs}}
+|-
+|{{plink|Spotted cape}}
+|{{plink|Pyromancer robe}}
+|{{plink|Farmer's strawhat}}
+|{{plink|Shayzien body (5)}}
+|-
+|Any {{plink|Sunfire fanatic armour|pic=Sunfire fanatic helm}} piece
+|{{plink|Crab helmet}}
+|{{plink|Crab claw}}
+|}
+<references group="n" /></onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (elite)}}
+
+The average loot roll is worth {{Coins|floor({{EliteClueValue}})}}. On average, elite clues are worth {{Coins|floor(5 * {{EliteClueValue}})}}.
+
+{{Clue scroll (elite)/Rewards}}
+
+==Item sources==
+Skilling sources are not listed here; see [[clue bottle]], [[clue geode]], and [[clue nest]] for drop rate calculators.
+
+''Some of the below rates have rarities provided by Jagex.''{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}
+{{Drop sources|Clue scroll (elite)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes 
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = Clue Scrolls dropped by a player now last one hour on the ground rather than two minutes. This does not change existing behaviour for Clue Scrolls dropped by NPCs or other entities. Additionally, you are now told if you would have gotten a clue but didn't because you already have one.
+}}
+{{Subject changes
+|date = 17 February 2021
+|update = The Isle of Souls
+|change = Two new elite Treasure Trail steps were added.
+}}
+{{Subject changes 
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 13 July 2017
+|update = Lizardman Shaman Improvements
+|change = Possible amount of steps changed from 9-12 to 5-7.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The item's value was increased from 1 to 20.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = Elite clue scrolls have been added to dragon impling drop tables.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Typo fixed on an elite clue scroll.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|poll = Old School Content Poll 33
+|change = You will now be able to have up to one clue scroll of each tier and will be able to complete clue scrolls of different tiers simultaneously.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Clue scroll stages no longer increase when bouncing different clue scrolls.
+}}
+{{Subject changes
+|date = 12 March 2015
+|update = Diary Skillcape Emote
+|poll =
+|change = Crafting anything with leather no longer completes an elite skill challenge.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|change = The spelling of 'Lathas' in an elite clue challenge has now been fixed.
+}}
+{{Subject changes
+|date = 6 November 2014
+|update = Amulet of the Damned & CWA
+|change = Fixed a typo on an elite clue scroll.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Clue scroll (v1) detail.png|center|300x150px]]
+|[[File:Clue scroll (elite) detail.png|center|300x150px]]
+|-
+|[[File:Clue scroll v1.png|center]]
+|[[File:Clue scroll (elite).png|center]]
+|-
+|12 June 2014 –<br/>11 April 2019
+|11 April 2019 –<br/>present
+|}
+
+==Trivia==
+* After the update of [[Update:Multiple Clues & Midsummer|18 June 2015]] it is now possible to have one clue scroll of each tier at a time, while previously the player could not get any clue scroll at all until completing or dropping the current one.
+* Upon release, elite treasure trails were 9-12 steps long. Due to complaints about the substantial jump in the number of steps required, it was changed to 5-7 steps in [[Update:Lizardman Shaman Improvements|an update]] on [[13 July]] [[2017]].
+* The cryptic clue "''Green is the colour of my death as the winter-guise, I swoop towards the ground.''" is part of the lyrics to the song ''December Flower'' by {{WP|In Flames}}. 
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

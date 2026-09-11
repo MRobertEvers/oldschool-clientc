@@ -1,0 +1,553 @@
+{{External|rs=Fremennik achievements}}
+{{Infobox Achievement Diary
+|name = Fremennik Diary
+|image = [[File:Fremennik Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Rellekka]], [[Lunar Isle]], [[Jatizso]], [[Neitiznot]], [[Keldagrim]], [[God Wars Dungeon]], [[Troll Stronghold (location)|Troll Stronghold]]
+|members = Yes
+|reward = [[Fremennik sea boots|Boots]]
+|taskmasters = [[Thorodin]]
+|leagueRegion = Fremennik
+}}
+The '''Fremennik Diary''' is an [[Achievement Diary]] whose tasks revolve around areas within the [[Fremennik Province]], such as [[Neitiznot]] and [[Jatizso]], [[Miscellania]] and [[Etceteria]], the [[God Wars Dungeon]], [[Lunar Isle]], and [[Waterbirth Island]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Thorodin]] just south of [[Rellekka]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+{{Map|name=Thorodin|x=2659|y=3627|align=left|width=250|height=250|r=4|mtype=square|caption=Thorodin's location}}{{Clear|left}}
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 20
+|Smithing = 20
+|Thieving = 5
+|Crafting = 23
+|Firemaking = 15
+|Woodcutting = 15
+|Hunter = 11
+|Total = 134
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="The Fremennik Trials"
+|[[The Fremennik Trials]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[The Giant Dwarf]]
+|-
+|Started [[Troll Stronghold]]
+|}
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 40
+|Agility = 35
+|Smithing = 50
+|Defence = 30
+|Thieving = 42
+|Crafting = 31
+|Firemaking = 40
+|Woodcutting = 50
+|Slayer = 47
+|Construction = 37
+|Hunter = 35
+|Total = 458
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Between a Rock..."
+|[[Between a Rock...]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Horror from the Deep"
+|[[Horror from the Deep]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[The Giant Dwarf]]
+|-
+|Started [[Troll Stronghold]]
+|-
+|Partial completion of [[Olaf's Quest]]
+|}
+|}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 70
+|Agility = 35
+|Smithing = 60
+|SmithingNotes = {{boostable|n}}
+|Defence = 40
+|DefenceNotes = {{boostable|n}}
+|Herblore = 66
+|Fishing = 53
+|Thieving = 75
+|Cooking = 53
+|Crafting = 61
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 49
+|FiremakingNotes = {{boostable|n}}
+|Magic = 72
+|Woodcutting = 56
+|Slayer = 47
+|Construction = 37
+|Hunter = 55
+|Quest = 55
+|Total = 846
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Between a Rock..."
+|[[Between a Rock...]]
+|- data-rowid="Eadgar's Ruse"
+|[[Eadgar's Ruse]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Horror from the Deep"
+|[[Horror from the Deep]]
+|- data-rowid="Lunar Diplomacy"
+|[[Lunar Diplomacy]]
+|- data-rowid="Throne of Miscellania"
+|[[Throne of Miscellania]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[The Giant Dwarf]]
+|-
+|Partial completion of [[The Fremennik Isles]]
+|-
+|Partial completion of [[Olaf's Quest]]
+|}
+|}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Hitpoints = 70
+|HitpointsNotes = {{boostable|n}}
+|Mining = 70
+|Strength = 70
+|StrengthNotes = {{boostable|n}}
+|Agility = 80
+|Smithing = 60
+|SmithingNotes = {{boostable|n}}
+|Defence = 40
+|DefenceNotes = {{boostable|n}}
+|Herblore = 66
+|Fishing = 53
+|Ranged = 70
+|RangedNotes = {{boostable|n}}
+|Thieving = 75
+|Cooking = 53
+|Crafting = 80
+|Firemaking = 49
+|FiremakingNotes = {{boostable|n}}
+|Magic = 72
+|Woodcutting = 56
+|Runecraft = 82
+|Slayer = 83
+|Construction = 37
+|Hunter = 55
+|Quest = 55
+|Total = 1225
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Between a Rock..."
+|[[Between a Rock...]]
+|- data-rowid="Eadgar's Ruse"
+|[[Eadgar's Ruse]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Horror from the Deep"
+|[[Horror from the Deep]]
+|- data-rowid="Lunar Diplomacy"
+|[[Lunar Diplomacy]]
+|- data-rowid="Throne of Miscellania"
+|[[Throne of Miscellania]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[The Giant Dwarf]]
+|-
+|Partial completion of [[Olaf's Quest]]
+|-
+|Defeat each of the [[Dagannoth Kings]]
+|-
+|Defeat all [[God_Wars_Dungeon#Generals|God Wars Dungeon generals]], except [[Nex]]
+|}
+|}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Fremennik" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Cerulean twitch]].
+''Note: These birds are found in the [[Rellekka Hunter area]]. While you're here, with a high enough [[Hunter]] level you can also complete a [[#Medium|medium]] and a [[#Hard|hard task]] by catching a [[Snowy knight]] and [[Sabre-toothed kyatt]], respectively.
+|
+*{{SCP|Hunter|11|link=y}}
+*[[Bird snare]]
+|-
+|2. Change your boots at [[Yrsa]]'s Shoe Store.
+''Note: Her [[Yrsa's Shoe Store|shoe store]] has been removed in an update. You'll now have to talk to her for a [[Makeover#Shoes|makeover]] for 500 [[coins]]. Alternatively, you can freely browse her [[Yrsa's Accoutrements|regular clothing store]] for the task to count as completed.
+|
+*{{SCP|Quest}} Completion of [[The Fremennik Trials]]
+*500 [[coins]] (optional)
+|-
+|3. Kill 5 [[Rock crab]]s.
+''Note: The [[giant rock crab]]s and [[rock lobster]]s on [[Waterbirth Island]] do not count.
+|
+*[[Weaponry]]
+|-
+|4. Craft a [[tiara]] from scratch in [[Rellekka]].
+''Note: You have to mine [[silver ore]] from the [[Rellekka mine]], then use it on the [[furnace]] in the city's westernmost building. Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Quest}} Completion of [[The Fremennik Trials]]
+*{{SCP|Crafting|23|link=y}}, {{SCP|Mining|20|link=y}} and {{SCP|Smithing|20|link=y}}
+*Any [[pickaxe]] (can be found north of the [[Rellekka mine]]) and a [[tiara mould]]
+|-
+|5. Browse the [[Stonemason|Stonemasons shop]].
+''Note: He is located in western [[Keldagrim]]. Right-click him to trade.
+|
+*{{SCP|Quest}} Started [[The Giant Dwarf]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] recommended to travel to [[Fairy ring]] code {{Fairycode|dks}} for quick access to the city
+|-
+|6. Collect 5 [[Snape grass]] on [[Waterbirth Island]].
+''Note: You can drop and pick up the same [[snape grass]] five times.''
+|
+*[[Waterbirth teleport (tablet)|Waterbirth teleport tablet]] to directly access the island, or either 1000 [[coins]] or quest completion of [[The Fremennik Trials]] to travel via [[Jarvald]]
+|-
+|7. Steal from the [[Keldagrim]] crafting or baker's stall.
+''Note: These are located on the eastern side of the [[Keldagrim Palace]].
+|
+*{{SCP|Quest}} Started [[The Giant Dwarf]]
+*{{SCP|Thieving|5|link=y}}
+|-
+|8. Fill a [[bucket]] with [[water]] at the [[Well|Rellekka well]].
+''Note: There's a [[bucket of milk]] north of the well that can be emptied and filled with water.
+|
+*[[Bucket]]
+|-
+|9. Enter the [[Troll Stronghold (location)|Troll Stronghold]].
+|
+*{{SCP|Quest}} Partial completion of the [[Troll Stronghold]], or completion of the [[Combat Achievements/Easy|Easy Combat Achievements]] for [[Ghommal's hilt 1]]
+|-
+|10. Chop and burn some [[oak logs]] in the [[Fremennik Province]].
+''Note: [[Oak tree]]s can be found near the [[Portal (Player-owned house)|Rellekka house portal]].
+|
+*{{SCP|Woodcutting|15|link=y}} and {{SCP|Firemaking|15|link=y}}
+*Any [[axe]] (can be found north of the [[Rellekka mine]]) and a [[tinderbox]]
+|}
+
+===Rewards===
+*[[Fremennik sea boots 1]]:
+**One daily teleport to the [[Rellekka]] marketplace
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*[[Peer the Seer]] will act as a [[bank deposit box]]
+*[[Fossegrimen]] gives your [[enchanted lyre]] an extra charge per offering
+*[[Fossegrimen]] will [[enchanted lyre(i)|imbue your lyre]] with infinite charges for 800 of each required fish, down from 1,000
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Fremennik" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Slay a [[Brine rat]].
+|
+*{{SCP|Quest}} Partial completion of [[Olaf's Quest]]
+*{{SCP|Slayer|47|link=y}}
+*[[Weaponry]], and a [[spade]] to enter the [[Brine Rat Cavern]]
+|-
+|2. Travel to the [[Snowy Hunter Area]] via [[Eagle transport system|Eagle]].
+''Note: You'll unlock travel from the [[Eagles' Peak Dungeon]] after the required quest.
+|
+*{{SCP|Quest}} Completion of [[Eagles' Peak]]
+*[[Rope]]
+|-
+|3. Mine some [[coal]] in [[Rellekka]].
+|
+*{{SCP|Quest}} Completion of [[The Fremennik Trials]]
+*{{SCP|Mining|30|link=y}}
+*Any [[pickaxe]] (can be found north of the [[Rellekka mine]])
+|-
+|4. Steal from the [[Rellekka]] [[Fish stall]]s.
+|
+*{{SCP|Quest}} Completion of [[The Fremennik Trials]]
+*{{SCP|Thieving|42|link=y}}
+|-
+|5. Travel to [[Miscellania]] by [[Fairy ring]].
+|
+*{{SCP|Quest}} Completion of [[The Fremennik Trials]] and having started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|cip}}
+|-
+|6. Catch a [[Snowy knight]].
+|
+*{{SCP|Hunter|45|link=y}}
+*{{SCP|Hunter|35|link=y}} with a [[butterfly net]] and [[butterfly jar|jar]]
+|-
+|7. Pick up your [[Pet Rock]] from your [[POH]] [[Menagerie]].
+''Note: You need to use your [[pet rock]] on a [[pet house]], then retrieve it off the ground. You cannot be in [[building mode]].
+|
+*{{SCP|Quest}} Partial completion of [[The Fremennik Trials]]
+*{{SCP|Construction|37|link=y}}
+*30,000 [[coins]], 4 [[oak plank]]s, [[saw]], and [[hammer]] to construct a [[menagerie]] with a [[Menagerie#Pet house|pet house]], if you haven't already
+*[[Pet rock]]
+|-
+|8. Visit the [[Lighthouse]] from [[Waterbirth island]].
+''Note: You must exit the [[Waterbirth Island Dungeon]] on the 5th sublevel.
+|
+*{{SCP|Quest}} Completion of [[Horror from the Deep]]
+*[[Food]] and {{SCP|Prayer|43|link=y}} for [[protection prayer]]s recommended
+*Way of getting past the two-man doors at the [[Waterbirth Island Dungeon|dungeon]] entrance (help from another player, [[pet rock]] and [[rune thrownaxe]]s, or {{SCP|Agility|85|link=y}} {{Boostable|y}} for the [[Rocks (Waterbirth Island)|rock shortcut]])
+|-
+|9. Mine some [[gold]] at the [[Arzinian mine]].
+''Note: This task is automatically completed during [[Between a Rock...]].
+|
+*{{SCP|Quest}} Partial completion of [[Between a Rock...]] 
+*{{SCP|Mining|40|link=y}}
+*{{SCP|Defence|30|link=y}}
+*Any [[pickaxe]] and the [[gold helmet]]
+|}
+
+===Rewards===
+*[[Fremennik sea boots 2]]:
+**Three daily teleports to the [[Rellekka]] marketplace
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*10% increased chance of gaining approval in [[Managing Miscellania]] when fishing or woodcutting (other activities always give approval){{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1295656001136480256|date=18 August 2020|archiveurl=https://reldo.runescape.wiki/i/102109|archivedate=18 November 2022|quote=For Fishing & Woodcutting, approval tends to be given as a random chance of an increase; the 10% or 15% buff may not make much visible difference. And for the other skills, approval had a 100% chance of being given, so the buff is immaterial.|name=miscapprove}}
+*[[Fossegrimen]] will [[enchanted lyre(i)|imbue your lyre]] with infinite charges for 600 of each required fish, down from 800
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Fremennik" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Teleport to [[Trollheim]].
+|
+*{{SCP|Quest}} Completion of [[Eadgar's Ruse]]
+*{{SCP|Magic|61|link=y}}
+*Means to cast [[Trollheim Teleport]] ({{RuneReq|Law=2|Fire=2}})
+|-
+|2. Catch a [[Sabre-toothed Kyatt]].
+|
+*{{SCP|Hunter|55|link=y}}
+*[[Teasing stick]], [[logs]], and a [[knife]]
+|-
+|3. Mix a [[Super defence|super defence]] potion in the [[Fremennik Province]].
+''Note: This has to be done in or near [[Rellekka]].
+|
+*{{SCP|Herblore|66|link=y}}
+*[[Cadantine potion (unf)]] and [[white berries]]
+|-
+|4. Steal from the [[Green_Gemstone_Gems|Keldagrim Gem Stall]].
+|
+*{{SCP|Quest}} Started [[The Giant Dwarf]]
+*{{SCP|Thieving|75|link=y}}
+|-
+|5. Craft a [[Neitiznot shield]] on [[Neitiznot]].
+|
+*{{SCP|Quest}} Partial completion of [[The Fremennik Isles]]
+*{{SCP|Woodcutting|56|link=y}}
+*[[Hammer]], [[rope]], a set of [[bronze nails]], and 2 [[arctic pine logs]].
+|-
+|6. Mine 5 [[Adamantite ore]]s on [[Jatizso]].
+|
+*{{SCP|Quest}} Started [[The Fremennik Isles]]
+*{{SCP|Mining|70|link=y}}
+*Any [[pickaxe]]
+|-
+|7. Obtain 100% [[Managing Miscellania|support]] from your kingdom subjects.
+|
+*{{SCP|Quest}} Partial completion of [[Throne of Miscellania]]
+*[[Rake]], [[pickaxe]], [[axe]], [[harpoon]] and/or [[lobster pot]], depending on how you plan to [[Managing_Miscellania#Approval_rating_calculations|gain]] support
+|-
+|8. Teleport to [[Waterbirth Island]].
+|
+*{{SCP|Quest}} Completion of [[Lunar Diplomacy]]
+*{{SCP|Magic|72|link=y}}
+*[[Lunar spellbook]] selected
+*Means to cast [[Waterbirth Teleport]] ({{RuneReq|Law=1|Astral=2|Water=1}})
+|-
+|9. Obtain the [[Blast Furnace Foreman]]s permission to use the [[Blast Furnace]] for free.<br/>
+''Note: With the requirements, talk to him and use the following dialogue options {{Chat option|1What?|3Can I use the furnace to smelt ore?|1I have level 60!}}. Selecting the wrong choices may require you to pay him, in which case you can [[World switching|hop to another world]] to try again.
+|
+*{{SCP|Quest}} Started [[The Giant Dwarf]]
+*{{SCP|Smithing|60|link=y}} {{Boostable|n}}
+|}
+
+===Rewards===
+*[[Fremennik sea boots 3]]:
+**Five daily teleports to the [[Rellekka]] marketplace
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*Roughly 18% increased experience and 25% more [[mark of grace|marks of grace]] from the [[Rellekka Rooftop Course]]{{CiteDiscord|author=Mod Lykos|url=https://discord.com/channels/177206626514632704/514602892292784139/1397002033911038144|date=21 July 2025|quote=for the Pollnivneach and Rellekka courses, there is a 1/3 chance to have the timer be two minutes if you've completed the hard tier of the respective diary|image=Lykos Desert and Frem diary mark of grace bonus.png|archiveurl=https://reldo.runescape.wiki/i/27962785#chat-messages-514602892292784139-1397002033911038144|archivedate=2026-03-07}}
+*[[Adamantite bar]]s from [[aviansie]] killed in the [[God Wars Dungeon]] are now [[noted]]
+*[[Enchanted lyre]] and its [[Enchanted lyre(i)|imbued variant]] can now be played to teleport to [[Waterbirth Island]], aside from [[Rellekka]]
+*Access to [[Tan Leather]] and [[Recharge Dragonstone]] from the [[Lunar spellbook]]
+*[[Stony basalt]] now teleports you on top of the [[Troll Stronghold (location)|Troll Stronghold]], past the [[Rocks (Troll Stronghold)|rocky shortcut]] (this requires 73 [[Agility]])
+*[[Fossegrimen]] will [[enchanted lyre(i)|imbue your lyre]] with infinite charges for 400 of each required fish, down from 600
+*Access to [[Bosun Zarah]] as a crewmate after the completion of [[Royal Trouble]] (requires 80 [[Sailing]])
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Fremennik" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Kill each of the [[Dagannoth Kings]].
+''Note: Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*Way of getting past the two-player doors at the [[Waterbirth Island Dungeon|dungeon]] entrance (help from another player, [[pet rock]] and [[rune thrownaxe]]s, or {{SCP|Agility|85|link=y}} {{Boostable|y}} for the [[Rocks (Waterbirth Island)|rock shortcut]])
+*See the [[Dagannoth_Kings/Strategies|strategy guide]]
+|-
+|2. Craft 56 [[astral rune]]s simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Quest}} Completion of [[Lunar Diplomacy]]
+*{{SCP|Runecraft|82|link=y}}{{boostable|y}}
+*28 [[Pure essence|pure]] or [[daeyalt essence]] (this task is not bypass-able with [[Raiments of the Eye]])
+|-
+|3. Create a [[dragonstone amulet]] in the [[Clay forge|Neitiznot furnace]].
+''Note: Crafting a [[dragonstone amulet (u)]] is sufficient, you don't need a [[ball of wool]] for this task.''
+|
+*{{SCP|Quest}} Started [[The Fremennik Isles]]
+*{{SCP|Crafting|80|link=y}}{{boostable|y}}
+*[[Dragonstone]], [[gold bar]], and an [[amulet mould]]
+|-
+|4. Complete a lap of the [[Rellekka Rooftop Course|Rellekka agility course]].
+|
+*{{SCP|Agility|80|link=y}} {{boostable|y}}
+|-
+|5. Kill the generals of [[Kree'arra|Armadyl]], [[General Graardor|Bandos]], [[Commander Zilyana|Saradomin]] and [[K'ril Tsutsaroth|Zamorak]] in the [[God Wars Dungeon]].
+''Note: Having started the [[The Frozen Door]] miniquest is recommended to simultaneously unlock the [[Frozen key (The Frozen Door)|key to Nex]]. You do not have to kill the generals' bodyguards for this task. Unlike most tasks that involve multiple steps, your progress towards this task will not reset when doing other tasks.''
+|
+*{{SCP|Quest}} Partial completion of the [[Troll Stronghold]], or completion of the {{SCP|combatachievement}} [[Combat Achievements/Easy|Easy Combat Achievements]] for [[Ghommal's hilt 1]]
+*{{SCP|Agility|70|link=y}}, {{SCP|Strength|70|link=y}}, {{SCP|Hitpoints|70|link=y}}, and {{SCP|Ranged|70|link=y}} (only Hitpoints is [[boostable]])
+*See the [[God_Wars_Dungeon#Generals|boss overview]] (or see the individual strategy guides for [[Kree'arra/Strategies|Kree'arra]], [[General Graardor/Strategies|General Graardor]], [[Commander Zilyana/Strategies|Commander Zilyana]], and [[K'ril Tsutsaroth/Strategies|K'ril Tsutsaroth]])
+|-
+|6. Slay a [[Spiritual mage]] within the [[God Wars Dungeon|Godwars Dungeon]]{{sic}}.
+|
+*{{SCP|Quest}} Partial completion of the [[Troll Stronghold]], or completion of the [[Combat Achievements/Easy|Easy Combat Achievements]] for [[Ghommal's hilt 1]]
+*{{SCP|Slayer|83|link=y}}{{boostable|y}}
+*[[Weaponry]]
+|}
+===Rewards===
+*[[Fremennik sea boots 4]]:
+**Unlimited teleports to the [[Rellekka]] marketplace
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*[[Dagannoth bones]] from the [[Dagannoth Kings]] are now [[noted]], unless this feature is disabled by talking to [[Thorodin]] south of [[Rellekka]]
+*15% increased chance of gaining approval in [[Managing Miscellania]] when fishing or woodcutting (other activities always give approval)<ref name="miscapprove"/>
+*[[Enchanted lyre]] and its [[Enchanted lyre(i)|imbued variant]] can now be played to teleport to [[Waterbirth Island]], [[Jatizso]], and [[Neitiznot]], aside from [[Rellekka]]
+*The [[seal of passage]] is no longer needed to interact with anyone on [[Lunar Isle]], which means you'll no longer be kicked off the island to [[Rellekka]] for doing so (you'll instead gain access to the [[Return Orb]] as a new way of reaching Rellekka)
+*[[Fossegrimen]] will [[enchanted lyre(i)|imbue your lyre]] with infinite charges for 200 of each required fish, down from 400
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = * The [[Agility]] [[experience]] received for completing the [[Rellekka Rooftop Course]] has been increased from 780 to 920 upon completion of the hard Fremennik Diary.
+** The diary also increases the amount of [[marks of grace]] given by the Rellekka course.
+* The Hard diary completion is not a requirement to use the Troll Stronghold agility shortcut anymore. However, the diary completion still changes the Stony Basalt teleport location to the rooftop, closer to the herb patch.
+}}
+{{Subject changes
+|date = 5 January 2022
+|update = Nex: The Fifth General
+|change = "Kill each of the God Wars Dungeon Generals" was changed to "Kill the generals of Armadyl, Bandos, Saradomin and Zamorak in the God Wars Dungeon."
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they can only be completed without extracts.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|poll = 
+|change = The spelling of Fremennik has been corrected in the Fremennik diary's journal.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = The Fremennik Achievement diary task to collect 5 Snape grass on Waterbirth Island has been updated to track your progress more consistently.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Adamant bar drops from Aviansie in the God Wars Dungeon are now noted after completing the hard Fremennik achievement diary.
+}}
+{{Subject changes
+|date = 13 August 2015
+|update = Zoom & The Herb Sack
+|change = Picking up a pet cat in the PoH Menagerie no longer completes the task "Pick up your Pet Rock from your PoH Menagerie".
+}}
+{{Subject changes
+|date = 4 June 2015
+|update = Resizable Mode
+|change = Fixed a typo in Fremennik Hard Diary.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = You must now kill each of the Dagannoth kings to complete the respective task.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Achievement diary}}

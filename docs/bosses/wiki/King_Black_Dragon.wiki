@@ -1,0 +1,311 @@
+{{External|rs|rsc}}
+{{Instance|optional=true}}
+{{HasStrategy}}
+{{Infobox Monster
+|name = King Black Dragon
+|image = [[File:King Black Dragon.png|290px]]
+|release = [[24 September]] [[2002]]
+|update = Tutorial island
+|aka = KBD
+|members = Yes
+|combat = 276
+|size = 5
+|examine = One of the biggest, meanest dragons around.
+|attributes = dragon,fiery
+|xpbonus = 7.5
+|max hit = 25 ([[Melee]]), 65 ([[Dragonfire]])
+|aggressive = Yes
+|poisonous = Yes (8)
+|attack style = [[Stab]], [[Dragonfire]]
+|attack speed = 4
+|respawn = 16
+|slayxp = 258
+|cat = Black Dragons, Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints = 240
+|att = 240
+|str = 240
+|def = 240
+|mage = 240
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 40
+|dslash = 90
+|dcrush = 90
+|dmagic = 80
+|dlight = 70
+|dstandard = 70
+|dheavy = 40
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 50
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|immuneburn = Immune to weak burns
+|id = 239,2642
+}}
+[[File:King Black Dragon chathead.png|left]]
+The '''King Black Dragon''', commonly referred to as '''KBD''', is a three-headed dragon located in [[King Black Dragon Lair|his lair]], accessible only through the deep [[Wilderness]]. With a [[combat level]] of 276, he is one of the strongest [[Dragon (race)|dragons]] in ''[[Old School RuneScape]]''.
+
+His lair is a [[multicombat area]]. Though designated as a [[Wilderness]] boss, the lair itself is not in the Wilderness, so players cannot attack each other and there are no teleport restrictions. Completion of the [[Wilderness Diary]] also '''does not''' note his bone drops.
+
+Players can pay {{NoCoins|50,000|c}} to fight the King Black Dragon in an [[instanced]] area inaccessible by other players (right-click ''Private'' option on lever). Players do not need to carry coins on them, as the fee may be deducted from the bank. Items dropped by the boss in this instance will disappear after 30 minutes, though items dropped by the player will disappear after the typical 3 minutes.
+
+The King Black Dragon counts towards a [[black dragon]] [[Slayer task]], '''except''' when assigned by [[Krystilia]].
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = King Black Dragon
+|location = [[King Black Dragon Lair]] (Wilderness)
+|levels = 276
+|members = Yes
+|mapID = 26
+|plane = 0
+|x:3109,y:10265
+|mtype = pin
+|leagueRegion = wilderness
+}}
+{{LocTableBottom}}
+
+==Transportation==
+'''{{Colour|red|Warning}}:''' The entrance to the [[King Black Dragon Lair]] (aka '''KBD Lair''') is located in the [[Wilderness]]; '''watch out for player killers!'''
+[[File:KBD Routes.png|thumb|left|300px|The routes that lead up to the KBD lair.]]
+'''Note:''' After climbing down the ladder near the [[lesser demon]]s, players must pull a lever surrounded by [[poisonous spider]]s to access the lair.
+
+*The [[burning amulet]] teleports the player to the [[Lava Maze]] just south-east of the fenced area containing the entrance to the lair. This is the fastest and most reliable method of getting there.
+*[[Wilderness Obelisk]]s can be used, but be wary that using them will make encountering high-level monsters or [[PKers]] more likely. Players who have completed the [[hard Wilderness Diary]] can choose the obelisk they wish to teleport to, namely the obelisk closest to the lair at level 44 Wilderness. The nearest obelisk can be accessed if the player teleports to the [[Corporeal Beast]] area via a [[games necklace]], exits the cave, and runs south-east to the obelisk and then south-east again.
+*From [[Edgeville]], players can make a [[waka canoe]] (requires 57 [[Woodcutting]]) at the canoe station and take it to the Wilderness. Upon arrival, the player will have to trek westward past some [[green dragon]]s on the southern end of the Lava Maze before going slightly north-west toward the western part of the maze.
+*North-west of [[Ardougne Castle]], there's a [[Lever (Ardougne)|lever]] that takes the player to the [[Deserted Keep]]. From there, after slashing the [[web]]s, head southward to a long fence and follow it either east or west to an opening. If following it east, '''beware of the [[Chaos Elemental]].''' Once out, trek westward past the northern end of the Lava Maze before going slightly south-west toward the western part of the maze.
+*The [[Ice Plateau Teleport|Ice Plateau]] or [[Ghorrock Teleport]] is among the fastest ways to get there. After teleporting, run south-east.
+*The [[Arceuus spellbook]]'s [[Cemetery Teleport]] teleports players to the [[Forgotten Cemetery]], just south.
+
+==Fight overview==
+{{Main|King Black Dragon/Strategies}}
+[[File:Fighting the King Black Dragon.png|thumb|280px|A group of players take on the King Black Dragon.]]
+
+Players should be prepared to fight as soon as they enter the lair, as the King Black Dragon is aggressive and may attack immediately from a distance.
+
+The King Black Dragon uses melee and [[dragonfire]], which is of a higher tier compared to those made by adult chromatic dragons. It makes use of four different breath attacks; normal dragonfire alongside three special dragonfire attacks; shock, ice, and poison. These special dragonfire attacks deal less damage than normal dragonfire, but require more tiers of protection to reduce its damage. Without any protection, the normal dragonfire can deal up to 65 damage and special dragonfire 50. 
+
+The special dragonfire attacks have a chance of applying a second effect on the player when it hits them. Shock dragonfire reduces all of the player's stats by two, poison dragonfire can inflict [[poison]] starting at 8 if not protected against, and ice dragonfire freezes the player for 10 ticks (6.0 seconds).
+
+An [[anti-dragon shield]] in combination with an [[antifire potion]] will prevent his regular dragonfire damage, and reduce his special dragonfire damage to 10. For more information, see the relevant section on the [[King Black Dragon/Strategies#Dragonfire|strategy]] page.
+
+==Money making==
+{{Mmgsection|Killing the King Black Dragon|mobname=the King Black Dragon}}
+
+==Drops==
+{{DropLogProject|jagex=yes}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+{{Average drop value|alch=yes}}
+
+{{Average drop value|brimstone=yes|alch=y}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Dragon bones|quantity=1|rarity=Always}}
+{{DropsLine|name=Black dragonhide|quantity=2|rarity=Always}}
+{{DropsTableBottom}}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Dragon pickaxe|quantity=1|rarity=1/1000}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune longsword|quantity=1|rarity=10/128}}
+{{DropsLine|name=Adamant platebody|quantity=1|rarity=9/128}}
+{{DropsLine|name=Adamant kiteshield|quantity=1|rarity=3/128}}
+{{DropsLine|name=Dragon med helm|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Fire rune|quantity=300|rarity=5/128|raritynotes=<ref group=d>If [[Monkey Madness II]] has not been completed, the drop rate of fire runes is 10/128.</ref>|altrarity=10/128}}
+{{DropsLine|name=Air rune|quantity=300|rarity=10/128}}
+{{DropsLine|name=Iron arrow|quantity=690|rarity=10/128}}
+{{DropsLine|name=Runite bolts|quantity=10-20|rarity=10/128}}
+{{DropsLine|name=Law rune|quantity=30|rarity=5/128}}
+{{DropsLine|name=Blood rune|quantity=30|rarity=5/128}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Yew logs|quantity=150 (noted)|rarity=10/128}}
+{{DropsLine|name=Adamantite bar|quantity=3|rarity=5/128}}
+{{DropsLine|name=Runite bar|quantity=1|rarity=3/128}}
+{{DropsLine|name=Gold ore|quantity=100 (noted)|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Amulet of power|quantity=1|rarity=7/128}}
+{{DropsLine|name=Dragon arrowtips|quantity=5-14|rarity=5/128}}
+{{DropsLine|name=Dragon dart tip|quantity=5-14|rarity=5/128}}
+{{DropsLine|name=Dragon javelin tips|quantity=15|rarity=5/128|raritynotes=<ref group=d>Dragon javelin tips are only dropped after completion of [[Monkey Madness II]].</ref>}}
+{{DropsLine|name=Runite limbs|quantity=1|rarity=4/128}}
+{{DropsLine|name=Shark|quantity=4|rarity=4/128}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Rare and Gem drop table===
+{{RareDropTable|8/128|2/128|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Key (elite)|quantity=1|rarity=Always|raritynotes=<ref group=d>The key is only dropped when completing an elite clue scroll asking you to kill the King Black Dragon. It will only be dropped if the player does not have a copy of the key in their bank or inventory, however the [[Drop trick]] can be used to obtain duplicates.</ref>|gemw=No}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|276}}|raritynotes=<ref group=d>Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Wilderness&Kourend}}
+{{DropsLine|name=Kbd heads|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLineClue|type=elite|rarity=1/450}}
+{{DropsLine|name=Prince Black Dragon|quantity=1|rarity=1/3000|gemw=No}}
+{{DropsLine|name=Draconic visage|quantity=1|rarity=1/5000}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Treasure Trails==
+*{{CrypticNPC|Killing the King Black Dragon for a [[key (elite)|key]] to open the closed chest in the north-east corner of his lair|elite|Scattered coins and gems fill the floor. The chest you seek is in the north east. }}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|King Black Dragon}}
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* The King Black Dragon's heavy [[Ranged]] defence has been decreased from 50 to 40.
+* The King Black Dragon's [[stab]] defence has been decreased from 60 to 40.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The King Black Dragon now has a 50% weakness to [[Water spells|water spells]].
+}}
+{{Subject changes
+|date = 25 January 2023
+|update = Wilderness Boss Rework
+|change = The drop rate of the dragon pickaxe has been increased from 1/1,500 to 1/1,000.
+}}
+{{Subject changes
+|date = 17 October 2019
+|update = Bounty Hunter Rework Beta
+|change = King Black Dragon boss tasks are no longer offered to players until they've started Dragon Slayer and gained access to anti-dragon equipment.
+}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = The examine text was changed. Previously, it was ''The biggest, meanest dragon around''.
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|poll = Quality of Life - Ten PvM Suggestions
+|change = The King Black Dragon respawn timer has been reduced to 10 seconds.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|poll = 
+|change = The King Black Dragon's drops will now appear where it died if you are lucky enough to receive a Prince Black Dragon. Previously, the drops would appear under the pet.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = A private instance option has been added to the King Black Dragon lair lever costing 50,000 coins in your inventory.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Added a 'peek' option to the entrance of this boss, allowing players to see the number of other players currently in the boss room.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = Players can now receive a pet version of this boss after defeating it.
+}}
+{{Subject changes
+|date = 13 March 2014
+|update = Rejuvenating the Wilderness: More risk, more reward
+|poll = Old School feature poll 15: Rejuvenating the Wilderness
+|change = The King Black Dragon and Chaos Elemental have had their drop tables improved and both have a chance of dropping the dragon pickaxe.
+}}
+{{Subject changes
+|date = 6 February 2014
+|update = Quick-prayers & Loot Broadcast
+|poll = Old School feature poll 15: Rejuvenating the Wilderness
+|change = The [[Kalphite Queen]], King Black Dragon, the [[Chaos Elemental]] and the [[Dagannoth Kings]] now notify all nearby players of the loot they're dropping.
+}}
+{{Subject changes
+|date = 29 August 2006
+|update = Demons, Dragons and Giants
+|change = *The NPC was graphically updated.
+*The NPC was renamed from 'King black dragon' to 'King Black Dragon'.
+}}
+{{Subject changes
+|date = 26 April 2005
+|update = Desert Month Finale
+|change = The NPC's examine was changed from "''The biggest meanest dragon around.''" to "''The biggest, meanest dragon around.''"
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery captionalign="center" widths="180">
+King Black Dragon artwork.jpg|A group of players fighting the King Black Dragon as depicted in art.
+A Tail of Two Cats - Bob talking to KBD.png|Bob talking to the King Black Dragon.
+A Tail of Two Cats - R4ng3rNo0b889 dying.png|R4ng3rno0b889 is killed by the King Black Dragon.
+</gallery>
+
+===Historical===
+{|style="text-align: center" cellpadding="15"
+|[[File:King Black Dragon (historical).png|center|300x150px]]
+|[[File:King Black Dragon.png|center|300x150px]]
+|-
+|[[File:King Black Dragon chathead (historical).png|center]]
+|[[File:King Black Dragon chathead.png|center]]
+|-
+|29 March 2004 –<br/>29 August 2006
+|29 August 2006 –<br/>present
+|}
+
+==Trivia==
+[[File:Postbag from the Hedge - King Black Dragon stamp.png|thumb|King Black Dragon as he appears on the [[Postbag from the Hedge]] stamp.]]
+*King Black Dragon appears on one of the seven [[Postbag from the Hedge]] stamps.
+*Engaging in combat with the King Black Dragon while not having any form of [[dragonfire]] protection gives unique messages in the player's chatbox when they are harmed by the various types of dragonfire:
+**'''Freezing''': {{mes|You're chilled to the bone by the dragon's icy breath!}}
+**'''Poison''': {{mes|You're badly scalded by the dragon's toxic breath!}}
+**'''Shocking''': {{mes|You're zapped by the dragon's shocking breath!}}
+**'''Burning''': {{mes|You're horribly burnt by the dragon's fiery breath!}}
+*The King Black Dragon can talk, as seen in [[A Tail of Two Cats]]. During the first part of the final cutscene, when he is visited by [[Bob the cat]], they have a conversation before being interrupted by [[R4ng3rno0b889]].
+*The King Black Dragon had a festive override wearing a [[santa hat]], [[purple partyhat]], and [[green partyhat]] during the [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], [[2019 Christmas event/Gallery|2019]], [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+*The King Black Dragon was the strongest monster in ''[[RuneScape Classic]]'' and retained the title until the introduction of ''[[RuneScape 2]]''{{'}}s first new boss, the [[Kalphite Queen]].
+
+{{Succession|predecessor=[[Black dragon]]|title=[[Strongest monster|Strongest monster in ''RuneScape'']]|successor=[[Kalphite Queen]]}}
+
+{{Dragon}}
+{{Wilderness bosses}}
+{{Bosses}}
+{{A Tail of Two Cats}}
+{{Rulers}}
+[[Category:Monsters that do not become tolerant]]
+[[Category:Monarchs and Rulers]]

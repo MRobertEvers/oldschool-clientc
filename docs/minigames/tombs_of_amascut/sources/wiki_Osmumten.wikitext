@@ -1,0 +1,45 @@
+{{external|rs}}
+{{Infobox NPC
+|defver = 2
+|version1 = Spirit
+|version2 = Osmumten
+|name1 = Spirit
+|name2 = Osmumten
+|image = [[File:Osmumten.png|140px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Ghost
+|quest = [[Into the Tombs]]
+|location = [[Jaltevas Pyramid]]
+|gender = Male
+|options = Talk-to
+|examine1 = A long-dead spirit.
+|examine2 = A long-dead pharaoh.
+|map = {{Map|name=Osmumten|3680,5144|mapID=-1|r=2|mtype=square}}
+|id1 = 11691
+|id2 = 11689,11690,11692,11693
+|leagueRegion = Desert
+}}
+[[File:Osmumten chathead.png|left]]
+'''Osmumten''' was the last pharaoh of the line of pharaohs chosen by [[Tumeken]], the God of the Sun. Besides being ruler, Osmumten was a passionate hunter, wielding his [[Osmumten's fang|specially designed weapon]], he adventured across the land, fighting the greatest beasts. Osmumten was the pharaoh somewhere around the [[Second Age]], when the present-day [[Kharidian Desert]] was invaded by the [[Zarosian Empire]] in the [[Kharidian–Zarosian War]].
+
+Osmumten was fighting on the frontline in the war, which ended when Tumeken sacrificed himself to stop the invading forces. Following Tumeken's supposed death, his widow [[Elidinis]], the Goddess of Fertility, gave Osmumten [[Tumeken's shadow]] and the [[Elidinis' ward]] before retreating to mourn her husband's death and the unfortunate fate of her daughter [[Amascut]].
+[[File:Tombs of Amascut - Osmumten's burial chamber.png|thumb|left|250px|Osmumten's spirit in his burial chamber.]]
+Osmumten would continue ruling as the last pharaoh appointed by Tumeken. However it was not long after the pyrrhic victory against the [[Zaros]]ians that Osmumten was blamed by a group of usurpers (the ancestors of the modern day [[Menaphite thug|Menaphite gang]]), who killed him and his entire family, save his son [[Mehhar]], who was saved by the family's servants and brought to [[Ullek]], where he would live with the Sect of [[Scabaras]].
+
+His spirit can be found besides his sarcophagus inside the [[Tombs of Amascut]], commending the player on their apparent victory over Amascut after defeating the [[Warden]], but also warning that Amascut's forces will be back again and that the player's help is still needed.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Osmumten concept art.png|Concept art of Pharaoh Osmumten by [[Mod Jerv]].
+</gallery>
+
+{{Tombs of Amascut}}
+{{Into the Tombs}}
+{{Rulers}}
+[[Category:Characters from the Second Age]]
+[[Category:Monarchs and Rulers]]

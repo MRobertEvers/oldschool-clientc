@@ -1,0 +1,567 @@
+torirsserver-selftest-evidence-v1
+wire	osrs239
+index	status	message
+000001	PASS	a second player joins to hold the far window
+000002	PASS	the fixture has to separate them by more than half a scene, got 129
+000003	PASS	the home player's window should be built
+000004	PASS	and the far player's own, at the same time
+000005	PASS	the far player's own tile is inside their window
+000006	PASS	which cannot also hold the home player's tile
+000007	PASS	the home player's window holds the home player
+000008	PASS	and not the far ground
+000009	PASS	both tiles are covered by the union of windows
+000010	PASS	the far window should have collision for level 0
+000011	PASS	the far player routes on their own local ground
+000012	PASS	the courtyard route still exists in it
+000013	PASS	five ticks with both standing still move nobody's window
+000014	PASS	the far one included
+000015	PASS	neither window is reconstructed at the same centre while stationary
+000016	PASS	the real ocean's 17x17 area permits boats and blocks walking
+000017	PASS	boat and player collision maps have independent storage
+000018	PASS	empty sky over the sea is not another ocean
+000019	PASS	a 2x3 vessel spawns on it
+000020	PASS	and is addressable by its handle
+000021	PASS	the pool holds exactly the one vessel
+000022	PASS	the vessel owns a live deck instance
+000023	PASS	allocated out of the shared reservation pool
+000024	PASS	the pivot maps to the hull position at angle 0
+000025	PASS	the pivot maps to the hull position at angle 512
+000026	PASS	the pivot maps to the hull position at angle 1024
+000027	PASS	the pivot maps to the hull position at angle 1536
+000028	PASS	the pivot maps to the hull position at angle 256
+000029	PASS	the pivot maps to the hull position at angle 300
+000030	PASS	the pivot maps to the hull position at angle 1877
+000031	PASS	deck (64,64) round-trips at angle 0, got (64,64)
+000032	PASS	deck (192,320) round-trips at angle 0, got (192,320)
+000033	PASS	deck (32,160) round-trips at angle 0, got (32,160)
+000034	PASS	deck (128,0) round-trips at angle 0, got (128,0)
+000035	PASS	deck (64,64) round-trips at angle 512, got (65,64)
+000036	PASS	deck (192,320) round-trips at angle 512, got (193,320)
+000037	PASS	deck (32,160) round-trips at angle 512, got (33,160)
+000038	PASS	deck (128,0) round-trips at angle 512, got (129,0)
+000039	PASS	deck (64,64) round-trips at angle 1024, got (65,65)
+000040	PASS	deck (192,320) round-trips at angle 1024, got (193,321)
+000041	PASS	deck (32,160) round-trips at angle 1024, got (33,161)
+000042	PASS	deck (128,0) round-trips at angle 1024, got (129,1)
+000043	PASS	deck (64,64) round-trips at angle 1536, got (64,65)
+000044	PASS	deck (192,320) round-trips at angle 1536, got (192,321)
+000045	PASS	deck (32,160) round-trips at angle 1536, got (32,161)
+000046	PASS	deck (128,0) round-trips at angle 1536, got (128,1)
+000047	PASS	deck (64,64) round-trips at angle 256, got (63,63)
+000048	PASS	deck (192,320) round-trips at angle 256, got (192,319)
+000049	PASS	deck (32,160) round-trips at angle 256, got (32,159)
+000050	PASS	deck (128,0) round-trips at angle 256, got (127,-2)
+000051	PASS	deck (64,64) round-trips at angle 300, got (63,63)
+000052	PASS	deck (192,320) round-trips at angle 300, got (192,319)
+000053	PASS	deck (32,160) round-trips at angle 300, got (32,158)
+000054	PASS	deck (128,0) round-trips at angle 300, got (127,-1)
+000055	PASS	deck (64,64) round-trips at angle 1877, got (62,64)
+000056	PASS	deck (192,320) round-trips at angle 1877, got (191,319)
+000057	PASS	deck (32,160) round-trips at angle 1877, got (31,159)
+000058	PASS	deck (128,0) round-trips at angle 1877, got (127,-1)
+000059	PASS	the bow points south at angle 0, got (393280,404416)
+000060	PASS	and west at angle 512, got (393152,404544)
+000061	PASS	the deck's south-west tile projects half a deck box away, got (392896,404160)
+000062	PASS	heading fixture has a live deck
+000063	PASS	a passenger cannot steer with SET_HEADING
+000064	PASS	native compass heading 0 reaches the hull
+000065	PASS	native compass heading 1 reaches the hull
+000066	PASS	native compass heading 2 reaches the hull
+000067	PASS	native compass heading 3 reaches the hull
+000068	PASS	native compass heading 4 reaches the hull
+000069	PASS	native compass heading 5 reaches the hull
+000070	PASS	native compass heading 6 reaches the hull
+000071	PASS	native compass heading 7 reaches the hull
+000072	PASS	native compass heading 8 reaches the hull
+000073	PASS	native compass heading 9 reaches the hull
+000074	PASS	native compass heading 10 reaches the hull
+000075	PASS	native compass heading 11 reaches the hull
+000076	PASS	native compass heading 12 reaches the hull
+000077	PASS	native compass heading 13 reaches the hull
+000078	PASS	native compass heading 14 reaches the hull
+000079	PASS	native compass heading 15 reaches the hull
+000080	PASS	malformed headings are rejected without wrapping
+000081	PASS	a stale helm after leaving the deck cannot steer
+000082	PASS	the reach fixture reads the deck base
+000083	PASS	the rider is aboard for the reach seam
+000084	PASS	the projected tile is at the hull, got 3073,3161
+000085	PASS	reach against a shore point answers the projected tile
+000086	PASS	and against the own deck, the raw pool tile
+000087	PASS	a goblin stands one tile off the gunwale
+000088	PASS	the latched attack faces the shore npc, got 2081
+000089	PASS	combat engages across the gunwale, got 2081
+000090	PASS	and holds at range from the projected tile, got 2081
+000091	PASS	the ranged fixture's crossbow resolves
+000092	PASS	a goblin stands four tiles off the gunwale
+000093	PASS	the crossbow is at-range ready across the gunwale
+000094	PASS	the attack dispatched as reached, got kind 0
+000095	PASS	without the rider taking a single step, at 6404,68
+000096	PASS	tick 1 turns to exactly 128, got 128
+000097	PASS	tick 1 lands on the quarter-tile quantum, got (393248,404480)
+000098	PASS	tick 2 turns to exactly 256, got 256
+000099	PASS	tick 2 lands on the quarter-tile quantum, got (393216,404448)
+000100	PASS	tick 3 turns to exactly 384, got 384
+000101	PASS	tick 3 lands on the quarter-tile quantum, got (393152,404416)
+000102	PASS	tick 4 turns to exactly 512, got 512
+000103	PASS	tick 4 lands on the quarter-tile quantum, got (393088,404416)
+000104	PASS	tick 5 turns to exactly 640, got 640
+000105	PASS	tick 5 lands on the quarter-tile quantum, got (393024,404448)
+000106	PASS	tick 6 turns to exactly 768, got 768
+000107	PASS	tick 6 lands on the quarter-tile quantum, got (392992,404480)
+000108	PASS	tick 7 turns to exactly 896, got 896
+000109	PASS	tick 7 lands on the quarter-tile quantum, got (392960,404544)
+000110	PASS	tick 8 turns to exactly 1024, got 1024
+000111	PASS	tick 8 lands on the quarter-tile quantum, got (392960,404608)
+000112	PASS	a heading sail never parks on its own
+000113	PASS	the sail ends parked
+000114	PASS	exactly on the target tile center, got (393280,405056)
+000115	PASS	and took exactly four ticks, got 4
+000116	PASS	the arena edge gives a shoreline running north
+000117	PASS	a 1x1 vessel spawns at the shore
+000118	PASS	the blocked sail parks
+000119	PASS	short of the land tile, at tile z 3139 of 3140
+000120	PASS	still afloat where it parked
+000121	PASS	and stays parked
+000122	PASS	a goblin stands past the far rail
+000123	PASS	the rider closed deck distance to the west rail, at 6403,68
+000124	PASS	and faces the target across it, got 1519
+000125	PASS	engaged melee holds across the rail, got 1519
+000126	PASS	the vessel frees
+000127	PASS	and its handle is dead
+000128	PASS	freeing it again answers 0, the deallocator contract
+000129	PASS	no vessel survives the rows
+000130	PASS	and the deck reservations went back to the pool
+000131	PASS	a 6x12 hull spawns in the arena
+000132	PASS	whose deck reserves 1x2 zones, got 1x2
+000133	PASS	the spawn tick sends WORLDENTITY_INFO
+000134	PASS	and the deck map after it, inside a set-active-world sandwich
+000135	PASS	the client's own read consumes the packet exactly, 0 byte(s) left over
+000136	PASS	with no positional records on the spawn tick, got 0
+000137	PASS	and exactly one spawn trailer, got 1
+000138	PASS	the trailer names the hull's view id 1, got 1
+000139	PASS	which has to be a registry slot the client will accept, got 1
+000140	PASS	the size nibbles are the deck's zone counts, x first, got 1x2
+000141	PASS	the config id survives its little-endian transform, got 9
+000142	PASS	as does the priority group, got 0
+000143	PASS	the trailer's transform is the ABSOLUTE position (393280,404544), got (393280,404544)
+000144	PASS	with no height, got 0
+000145	PASS	and the hull's yaw, got 0
+000146	PASS	flag bit 0x2 announces the op mask, got 0x2
+000147	PASS	which reads back as all five ops, got 31
+000148	PASS	and the observer's list now mirrors the client's, slot 0 holding view 1
+000149	PASS	the spawn tick sends the deck's REBUILD_WORLDENTITY
+000150	PASS	its header is the deck's SW tile (6400,64), got (6400,64)
+000151	PASS	zone-aligned, as the client asserts
+000152	PASS	and names the one source map square the deck came from, got 1
+000153	PASS	the descriptor grid is 60 bits over 1x2 zones, so the packet is 14 bytes, got 14
+000154	PASS	the deck map is bracketed by two world selects
+000155	PASS	the first names the hull's view 1, got 1
+000156	PASS	and the second puts the cursor back on the root, got 0
+000157	PASS	relocation observer receives entity info
+000158	PASS	watcher0 sees one teleport then idle, got op3
+000159	PASS	relocation observer receives entity info
+000160	PASS	watcher1 sees one teleport then idle, got op3
+000161	PASS	relocation observer receives entity info
+000162	PASS	watcher2 sees one teleport then idle, got op1
+000163	PASS	every tick under way carries an op-2 record, got 3 of 3
+000164	PASS	the hull actually moved (heading 0 sails north), 404544 -> 404352
+000165	PASS	and the deltas sum to the path (0,-192), got (0,-192)
+000166	PASS	with no yaw change on a heading it already held, got 0
+000167	PASS	nor any on the hull itself
+000168	PASS	a second player joins to stand on the deck
+000169	PASS	the deck tile answers with the hull that owns it
+000170	PASS	the sailor's OWN position stays the deck tile (6403,70), got (6403,70)
+000171	PASS	while their OBSERVED position is the root projection (3072,3156), got (3072,3156)
+000172	PASS	which lands beside the shore player, 3072,3156 vs 3081,3160
+000173	PASS	while their FEET are out of range of each other, 6403,70 vs 3081,3160
+000174	PASS	revision239 sends both sides of shore/deck visibility
+000175	PASS	so PLAYER_INFO admits them to the shore player's set
+000176	PASS	and the shore player to the deck player's
+000177	PASS	ashore again, observed and own coordinates are one thing
+000178	PASS	with no offset left over
+000179	PASS	and the shore player still has them in view
+000180	PASS	both observers continue tracking after disembarking
+000181	PASS	a rider joins to stand on the deck
+000182	PASS	on a tile the hull owns, which is the whole of the server's definition of aboard
+000183	PASS	boarding does not arm the rev-239 scene barrier (rebuild_scene_pending=0) — a vessel deck carries no cutscene zone events to protect and phase_players skips whoever holds one
+000184	PASS	nor is the login barrier still up (login_scene_pending=0)
+000185	PASS	the arena leaves the bow at least three ticks of water, got 8 of 8
+000186	PASS	a standing rider's OWN tile never moves — the deck tile is the whole of their position, and 0 tick(s) moved it
+000187	PASS	while their observed tile is that deck tile projected through the hull, on every tick, got 8 of 8
+000188	PASS	and it travelled: 3072,3157 -> 3072,3153
+000189	PASS	observation offset changed on 4 of 8 moving ticks; the other 4 stayed within the same root tile
+000190	PASS	fine hull motion also occurs without changing the rider visibility tile: 4 of 8 moving ticks
+000191	PASS	the deck has a neighbouring tile to walk to — a deck with nowhere to stand is a deck nobody can walk
+000192	PASS	and the route to 6404,70 comes back with waypoints — a failed route leaves the queue empty and the rider simply stands there
+000193	PASS	the rider takes a walk step along the deck while it sails, 6403,70 -> 6404,70
+000194	PASS	and their step and the hull's compose into the ONE observed tile every tick, got 4 of 4
+000195	PASS	with the hull genuinely under way for the walk, 4 tick(s)
+000196	PASS	the observation offset tracks the hull while the rider walks (2 of 4 under-way ticks)
+000197	PASS	a deck hand spawns on the deck beside the rider
+000198	PASS	onto a tile the hull owns
+000199	PASS	the rider is standing next to it, 0,1 away
+000200	PASS	and may address it
+000201	PASS	it is OBSERVED somewhere other than it stands, 3073,3156 rather than 6404,71
+000202	PASS	and observed beside the rider it is standing beside, 3073,3156 vs 3073,3155 — the projection carries the pair together
+000203	PASS	so the shore player measures it at 8,4 — the projected gap, not the pool one
+000204	PASS	the shore player's zonemap cannot offer a deck npc — it subscribes to no pool zone
+000205	PASS	so the cross-frame query is what puts it in their candidate set, and it does
+000206	PASS	and the rider standing beside it is in that range too, 3073,3155 vs 3081,3160 — deck and deckhand arrive together rather than one without the other
+000207	PASS	an ocean NPC spawns beside the hull
+000208	PASS	rider's root zones offer the nearby ocean NPC despite distant deck coordinates
+000209	PASS	the hull frees with the rider still on its deck
+000210	PASS	the free does not leave them on the pool square the deck used to occupy (6404,70)
+000211	PASS	free evacuates the rider to walkable shore, got 3058,2978
+000212	PASS	on a tile no hull owns any more
+000213	PASS	so observed and own coordinates are one thing again, 3058,2978
+000214	PASS	the ocean observer retires the rider after safe shore evacuation
+000215	PASS	a fresh hull takes the fixture back
+000216	PASS	the hull frees mid-tick
+000217	PASS	and another takes its place before the encode
+000218	PASS	reusing view 1, as lowest-free must
+000219	PASS	but never the serial, 4 vs 5
+000220	PASS	the swap tick sends WORLDENTITY_INFO
+000221	PASS	retiring the old hull's slot with op 0, got count 1 op 0
+000222	PASS	and respawning view 1 in the trailer, got 1 spawns
+000223	PASS	carrying the NEW hull's config 11, got 11
+000224	PASS	with nothing left over, 0
+000225	PASS	after which the observer's slot holds the new serial
+000226	PASS	the hull frees
+000227	PASS	the tick after it still sends WORLDENTITY_INFO
+000228	PASS	carrying op 0 in view 1's slot, got count 1 op 0
+000229	PASS	and op 0 carries no flags byte, 0 left over
+000230	PASS	after which the observer tracks nothing, got 0
+000231	PASS	no hull survives the wire rows
+000232	PASS	and the deck went back to the pool with it
+000233	PASS	multiplayer test has an actual ocean hull
+000234	PASS	a runner and same-deck observer join alongside the shore observer
+000235	PASS	the native source map provides three consecutive walkable deck tiles
+000236	PASS	second hull and actual native mast resolve
+000237	PASS	shore observer receives the other hull's initial native facility snapshot
+000238	PASS	passenger receives facilities on a different vessel's published view
+000239	PASS	deck facility snapshot never mutates the root world
+000240	PASS	later facility animations reach shore and another hull's passenger
+000241	PASS	quiet published decks do not replay their state or expired animations
+000242	PASS	the multiplayer packet capture did not overflow
+000243	PASS	the production PLAYER_INFO is fully captured
+000244	PASS	the actual client decodes the production packet (11 operations)
+000245	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000246	PASS	observer 0 receives the rider and a native appearance
+000247	PASS	the multiplayer packet capture did not overflow
+000248	PASS	the production PLAYER_INFO is fully captured
+000249	PASS	the actual client decodes the production packet (3 operations)
+000250	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000251	PASS	RUN takes exactly two deck tiles while the hull moves (observer 0): 6403,67
+000252	PASS	the hull actually translates during RUN (observer 0)
+000253	PASS	actual decoder preserves authoritative deck coordinates for observer 0: 6403,67 expected 6403,67
+000254	PASS	the real packet preserves RUN traversal without a snap for observer 0
+000255	PASS	moving aboard keeps the same remote player without remove/re-add (observer 0)
+000256	PASS	the multiplayer packet capture did not overflow
+000257	PASS	the production PLAYER_INFO is fully captured
+000258	PASS	the actual client decodes the production packet (11 operations)
+000259	PASS	one consecutive PLAYER_INFO reaches selected observer 2, got 1
+000260	PASS	observer 1 receives the rider and a native appearance
+000261	PASS	the multiplayer packet capture did not overflow
+000262	PASS	the production PLAYER_INFO is fully captured
+000263	PASS	the actual client decodes the production packet (3 operations)
+000264	PASS	one consecutive PLAYER_INFO reaches selected observer 2, got 1
+000265	PASS	RUN takes exactly two deck tiles while the hull moves (observer 1): 6403,67
+000266	PASS	the hull actually translates during RUN (observer 1)
+000267	PASS	actual decoder preserves authoritative deck coordinates for observer 1: 6403,67 expected 6403,67
+000268	PASS	the real packet preserves RUN traversal without a snap for observer 1
+000269	PASS	moving aboard keeps the same remote player without remove/re-add (observer 1)
+000270	PASS	the multiplayer packet capture did not overflow
+000271	PASS	the production PLAYER_INFO is fully captured
+000272	PASS	the actual client decodes the production packet (11 operations)
+000273	PASS	one consecutive PLAYER_INFO reaches selected observer 1, got 1
+000274	PASS	observer 2 receives the rider and a native appearance
+000275	PASS	the multiplayer packet capture did not overflow
+000276	PASS	the production PLAYER_INFO is fully captured
+000277	PASS	the actual client decodes the production packet (3 operations)
+000278	PASS	one consecutive PLAYER_INFO reaches selected observer 1, got 1
+000279	PASS	RUN takes exactly two deck tiles while the hull moves (observer 2): 6403,67
+000280	PASS	the hull actually translates during RUN (observer 2)
+000281	PASS	actual decoder preserves authoritative deck coordinates for observer 2: 6403,67 expected 6403,67
+000282	PASS	the real packet preserves RUN traversal without a snap for observer 2
+000283	PASS	moving aboard keeps the same remote player without remove/re-add (observer 2)
+000284	PASS	real movable deck NPC spawns for shore and same-deck observer checks
+000285	PASS	native NPC movement takes a legal step on the retained deck
+000286	PASS	NPC walks one deck tile while its hull translates: 6401,67 -> 6402,67; hullZ 404480 -> 404416
+000287	PASS	moving deck NPC produces an actual NPC_INFO for observer 0
+000288	PASS	actual client decodes the complete NPC movement packet
+000289	PASS	observer 0 decodes the NPC's step plus hull motion at 3071,3153 (expected 3071,3153)
+000290	PASS	moving deck NPC produces an actual NPC_INFO for observer 2
+000291	PASS	actual client decodes the complete NPC movement packet
+000292	PASS	observer 2 decodes the NPC's step plus hull motion at 3071,3153 (expected 3071,3153)
+000293	PASS	the multiplayer packet capture did not overflow
+000294	PASS	the production PLAYER_INFO is fully captured
+000295	PASS	the actual client decodes the production packet (11 operations)
+000296	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000297	PASS	the multiplayer packet capture did not overflow
+000298	PASS	the production PLAYER_INFO is fully captured
+000299	PASS	the actual client decodes the production packet (0 operations)
+000300	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000301	PASS	the multiplayer packet capture did not overflow
+000302	PASS	the production PLAYER_INFO is fully captured
+000303	PASS	the actual client decodes the production packet (0 operations)
+000304	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000305	PASS	standing passenger stays on its deck tile while root visibility travels with the hull
+000306	PASS	a standing passenger gets no fake PLAYER_INFO walk, respawn or placement as the hull moves
+000307	PASS	the retained deck provides a longitudinal RUN corridor
+000308	PASS	the multiplayer packet capture did not overflow
+000309	PASS	the production PLAYER_INFO is fully captured
+000310	PASS	the actual client decodes the production packet (11 operations)
+000311	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000312	PASS	the multiplayer packet capture did not overflow
+000313	PASS	the production PLAYER_INFO is fully captured
+000314	PASS	the actual client decodes the production packet (3 operations)
+000315	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000316	PASS	two deck RUN tiles plus hull movement compose to three root tiles
+000317	PASS	root visibility moves three tiles while high-resolution staging retains a two-tile RUN
+000318	PASS	native cargo privacy setting resolves
+000319	PASS	owner starts with helm/cargo access while an ungranted passenger has neither
+000320	PASS	another passenger cannot promote themselves to navigator
+000321	PASS	captain grants the selected guest navigation and default navigator-only cargo
+000322	PASS	the native sidepanel role varbit resolves
+000323	PASS	captain/navigator/passenger publish native roles 10/6/3, got 10/6/3
+000324	PASS	the crew npc shell (15255) switches on this very varbit in the cache: 12 rungs on varbit 19233
+000325	PASS	a captain (role 10) resolves the crew shell to a real npc, got 15256
+000326	PASS	a navigator (role 6) resolves the crew shell to a real npc, got 15257
+000327	PASS	a passenger (role 3) resolves the crew shell to a real npc, got 15257
+000328	PASS	and the old published role 2 is exactly the hidden rung that left a passenger's deck empty
+000329	PASS	invalid navigator masks are rejected without changing the existing grant
+000330	PASS	All players cargo privacy admits the ordinary passenger
+000331	PASS	No players cargo privacy excludes the navigator but retains the owner
+000332	PASS	revoking navigation immediately releases a guest's held helm
+000333	PASS	captain can grant again before departure
+000334	PASS	leaving the hull removes navigation rights
+000335	PASS	boarding again cannot revive an old navigator grant
+000336	PASS	regrant before player-slot reuse test
+000337	PASS	logout clears the actual navigator lease
+000338	PASS	a new guest reuses the released player slot
+000339	PASS	even a stale saved grant cannot authorize a different login in the same pid
+000340	PASS	the multiplayer packet capture did not overflow
+000341	PASS	the production PLAYER_INFO is fully captured
+000342	PASS	the actual client decodes the production packet (11 operations)
+000343	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000344	PASS	the multiplayer packet capture did not overflow
+000345	PASS	the production PLAYER_INFO is fully captured
+000346	PASS	the actual client decodes the production packet (2 operations)
+000347	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000348	PASS	shore observer decodes the disembark placement without stale deck offsets
+000349	PASS	the multiplayer packet capture did not overflow
+000350	PASS	the production PLAYER_INFO is fully captured
+000351	PASS	the actual client decodes the production packet (1 operations)
+000352	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000353	PASS	different-plane distant rider leaves the actual client's high-resolution table
+000354	PASS	the multiplayer packet capture did not overflow
+000355	PASS	the production PLAYER_INFO is fully captured
+000356	PASS	the actual client decodes the production packet (4 operations)
+000357	PASS	one consecutive PLAYER_INFO reaches selected observer 0, got 1
+000358	PASS	coarse-region re-entry promotes the same rider into its real deck space and appearance
+000359	PASS	resolve the actual revision230 adapter
+000360	PASS	revision230 refuses vessel packets and does not mutate v239 observer tracking
+000361	PASS	capacity fixture starts with no live hulls
+000362	PASS	live hull 1 reserves a visible view and an independent deck window
+000363	PASS	hull 1 owns unique view/window resources
+000364	PASS	live hull 2 reserves a visible view and an independent deck window
+000365	PASS	hull 2 owns unique view/window resources
+000366	PASS	live hull 3 reserves a visible view and an independent deck window
+000367	PASS	hull 3 owns unique view/window resources
+000368	PASS	live hull 4 reserves a visible view and an independent deck window
+000369	PASS	hull 4 owns unique view/window resources
+000370	PASS	live hull 5 reserves a visible view and an independent deck window
+000371	PASS	hull 5 owns unique view/window resources
+000372	PASS	live hull 6 reserves a visible view and an independent deck window
+000373	PASS	hull 6 owns unique view/window resources
+000374	PASS	live hull 7 reserves a visible view and an independent deck window
+000375	PASS	hull 7 owns unique view/window resources
+000376	PASS	live hull 8 reserves a visible view and an independent deck window
+000377	PASS	hull 8 owns unique view/window resources
+000378	PASS	live hull 9 reserves a visible view and an independent deck window
+000379	PASS	hull 9 owns unique view/window resources
+000380	PASS	live hull 10 reserves a visible view and an independent deck window
+000381	PASS	hull 10 owns unique view/window resources
+000382	PASS	live hull 11 reserves a visible view and an independent deck window
+000383	PASS	hull 11 owns unique view/window resources
+000384	PASS	live hull 12 reserves a visible view and an independent deck window
+000385	PASS	hull 12 owns unique view/window resources
+000386	PASS	live hull 13 reserves a visible view and an independent deck window
+000387	PASS	hull 13 owns unique view/window resources
+000388	PASS	live hull 14 reserves a visible view and an independent deck window
+000389	PASS	hull 14 owns unique view/window resources
+000390	PASS	live hull 15 reserves a visible view and an independent deck window
+000391	PASS	hull 15 owns unique view/window resources
+000392	PASS	fifteen real vessel instances coexist within the sixteen-view client bound
+000393	PASS	player activity instance 1 remains available alongside fifteen boats
+000394	PASS	player activity instance 2 remains available alongside fifteen boats
+000395	PASS	player activity instance 3 remains available alongside fifteen boats
+000396	PASS	player activity instance 4 remains available alongside fifteen boats
+000397	PASS	player activity instance 5 remains available alongside fifteen boats
+000398	PASS	player activity instance 6 remains available alongside fifteen boats
+000399	PASS	player activity instance 7 remains available alongside fifteen boats
+000400	PASS	player activity instance 8 remains available alongside fifteen boats
+000401	PASS	sixteenth hull is rejected cleanly before acquiring any deck resource
+000402	PASS	refused spawn leaks neither a hull nor a private map instance
+000403	PASS	all fifteen world-entity spawns fit a complete actual packet
+000404	PASS	the packet publishes all fifteen actual views, with no invisible hull
+000405	PASS	freeing one hull permits a visible replacement with a new serial
+000406	PASS	all boat and activity resources are returned after capacity testing
+000407	PASS	lifecycle validation requires the real compiled content
+000408	PASS	owned slot 1 has its native varbit
+000409	PASS	owned slot 2 has its native varbit
+000410	PASS	owned slot 3 has its native varbit
+000411	PASS	owned slot 4 has its native varbit
+000412	PASS	owned slot 5 has its native varbit
+000413	PASS	spawn a real skiff in the actual ocean
+000414	PASS	furnish native skiff
+000415	PASS	retrieve at the real Pandemonium gangplank
+000416	PASS	retrieved berth permits native heading0 at393408,382016
+000417	PASS	retrieved berth permits native heading1 at393408,382016
+000418	PASS	retrieved berth permits native heading2 at393408,382016
+000419	PASS	retrieved berth permits native heading3 at393408,382016
+000420	PASS	retrieved berth permits native heading4 at393408,382016
+000421	PASS	retrieved berth permits native heading5 at393408,382016
+000422	PASS	retrieved berth permits native heading6 at393408,382016
+000423	PASS	retrieved berth permits native heading7 at393408,382016
+000424	PASS	retrieved berth permits native heading8 at393408,382016
+000425	PASS	retrieved berth permits native heading9 at393408,382016
+000426	PASS	retrieved berth permits native heading10 at393408,382016
+000427	PASS	retrieved berth permits native heading11 at393408,382016
+000428	PASS	retrieved berth permits native heading12 at393408,382016
+000429	PASS	retrieved berth permits native heading13 at393408,382016
+000430	PASS	retrieved berth permits native heading14 at393408,382016
+000431	PASS	retrieved berth permits native heading15 at393408,382016
+000432	PASS	place the upgraded helm on the real deck
+000433	PASS	write the upgraded native owned-slot varps
+000434	PASS	board the native walkable deck
+000435	PASS	an open sea has no gangplank landing
+000436	PASS	native cargo and ammunition resolve
+000437	PASS	save while physically aboard
+000438	PASS	capture owned slot and actual damage
+000439	PASS	logout destroys its vessel identity
+000440	PASS	logout releases the deck reservation
+000441	PASS	logout's fallback is the real recorded shore, got 3058,2978,0
+000442	PASS	no helm identity survives logout
+000443	PASS	read the durable save
+000444	PASS	save never persisted the deck pool coordinates
+000445	PASS	save records an owned slot and relative deck tile
+000446	PASS	login rebuilds a fresh boat/deck identity and boards it
+000447	PASS	fine ocean pose and heading survive restart exactly
+000448	PASS	furnishing cannot replace saved HP/name with template defaults
+000449	PASS	all native facility/cosmetic choices reconstruct
+000450	PASS	rejoined boat is stopped, anchored and has no stale helm lease
+000451	PASS	stored motes and facility resource pairs survive
+000452	PASS	running work and reusable operator uids are not persisted
+000453	PASS	native boat cargo survives the save roundtrip
+000454	PASS	stale callback fixture has real content and a replacement hull identity
+000455	PASS	[queue,sailing_salvage_tick] accepts its persisted callback signature
+000456	PASS	stale [queue,sailing_salvage_tick] cannot stop replacement work, reschedule or award XP
+000457	PASS	current-identity [queue,sailing_salvage_tick] executes its real operator stop control
+000458	PASS	[queue,sailing_trawling_tick] accepts its persisted callback signature
+000459	PASS	stale [queue,sailing_trawling_tick] cannot stop replacement work, reschedule or award XP
+000460	PASS	current-identity [queue,sailing_trawling_tick] executes its real operator stop control
+000461	PASS	[queue,sailing_cannon_tick] accepts its persisted callback signature
+000462	PASS	stale [queue,sailing_cannon_tick] cannot stop replacement work, reschedule or award XP
+000463	PASS	current-identity [queue,sailing_cannon_tick] executes its real operator stop control
+000464	PASS	the sort fixture has a backpack and a real native salvage
+000465	PASS	stale [queue,sailing_sort_tick] cannot sort the replacement hull's salvage
+000466	PASS	current-identity sort consumes the actual salvage and awards Sailing XP
+000467	PASS	stale arrival cannot open a replacement hull's customization interface
+000468	PASS	current arrival reaches the actual native customization interface
+000469	PASS	a second session can board as a guest
+000470	PASS	the guest waits on the real Pandemonium shore, got 3058,2978,0
+000471	PASS	guest boards retained deck
+000472	PASS	boarding records the shore the guest actually left, got 3058,2978,0
+000473	PASS	guest logout retires its job lease without deleting the captain's boat
+000474	PASS	guest logout preserves the loaded facility resources
+000475	PASS	guest can board again
+000476	PASS	free evacuates both captain and guest to walkable shore
+000477	PASS	guest keeps no reference to the freed instance
+000478	PASS	no vessel or deck reservation leaks after reconnect/free
+000479	PASS	write an old-format save
+000480	PASS	a save with no [chat] section keeps the all-ON defaults, got 0/0/0
+000481	PASS	create an owner for the actual disconnect path
+000482	PASS	the disconnect fixture has a base-37 name
+000483	PASS	spawn the disconnect owner's raft
+000484	PASS	furnish disconnect raft
+000485	PASS	board before disconnect
+000486	PASS	production logout frees both session and owned vessel
+000487	PASS	no boat remains bound to recyclable pid 2
+000488	PASS	no boat remains bound to recyclable pid 2
+000489	PASS	no boat remains bound to recyclable pid 2
+000490	PASS	no boat remains bound to recyclable pid 2
+000491	PASS	no boat remains bound to recyclable pid 2
+000492	PASS	no boat remains bound to recyclable pid 2
+000493	PASS	no boat remains bound to recyclable pid 2
+000494	PASS	no boat remains bound to recyclable pid 2
+000495	PASS	no boat remains bound to recyclable pid 2
+000496	PASS	no boat remains bound to recyclable pid 2
+000497	PASS	no boat remains bound to recyclable pid 2
+000498	PASS	no boat remains bound to recyclable pid 2
+000499	PASS	no boat remains bound to recyclable pid 2
+000500	PASS	no boat remains bound to recyclable pid 2
+000501	PASS	no boat remains bound to recyclable pid 2
+000502	PASS	no boat remains bound to recyclable pid 2
+000503	PASS	no boat remains bound to recyclable pid 2
+000504	PASS	no boat remains bound to recyclable pid 2
+000505	PASS	no boat remains bound to recyclable pid 2
+000506	PASS	no boat remains bound to recyclable pid 2
+000507	PASS	no boat remains bound to recyclable pid 2
+000508	PASS	no boat remains bound to recyclable pid 2
+000509	PASS	no boat remains bound to recyclable pid 2
+000510	PASS	no boat remains bound to recyclable pid 2
+000511	PASS	no boat remains bound to recyclable pid 2
+000512	PASS	no boat remains bound to recyclable pid 2
+000513	PASS	no boat remains bound to recyclable pid 2
+000514	PASS	no boat remains bound to recyclable pid 2
+000515	PASS	no boat remains bound to recyclable pid 2
+000516	PASS	no boat remains bound to recyclable pid 2
+000517	PASS	no boat remains bound to recyclable pid 2
+000518	PASS	no boat remains bound to recyclable pid 2
+000519	PASS	new session logs in after disconnect
+000520	PASS	chat filter modes survive logout/login, got 2/1/1
+000521	PASS	this cache packs varbits into varp 1054 (chat_filter_clan)
+000522	PASS	the varbit starts at the fresh-session default, got 0
+000523	PASS	the social login dump publishes the saved private mode into varbit 13674, got 1
+000524	PASS	content declares varp 1054 transmit=yes so the varbit reaches the client (server/scripts/**/chat_filter.varp)
+000525	PASS	a trade-only change leaves the private mode alone, got 1
+000526	PASS	and leaves varbit 13674 alone, got 1
+000527	PASS	while the modes that did change are stored, got 0/2
+000528	PASS	the trade-only change is written back to the save
+000529	PASS	the trade-only change rewrote the save
+000530	PASS	[chat] private survives a trade-only change, got 1
+000531	PASS	production login restores aboard its raft under the new session uid
+000532	PASS	production logout/login keeps the ocean location
+000533	PASS	the native Pandemonium dock row resolves
+000534	PASS	Board-friend needs a captain session
+000535	PASS	Board-friend needs a guest session
+000536	PASS	Board-friend needs a third session for its control
+000537	PASS	the captain gets a real skiff
+000538	PASS	furnish the captain's skiff
+000539	PASS	moor the captain's skiff at the real Pandemonium gangplank
+000540	PASS	the native owned/port varbits for slot 1 resolve
+000541	PASS	the captain stands on their own deck
+000542	PASS	the guest starts ashore at the dock
+000543	PASS	the guest runs the production Board-friend proc
+000544	PASS	Board-friend parks on p_namedialog for the captain's name
+000545	PASS	the name reply resumes the parked proc
+000546	PASS	Board-friend runs to completion
+000547	PASS	the guest boards the captain's hull found by p_findvisibleplayer
+000548	PASS	the guest stands on the deck plane, not the dock
+000549	PASS	the captain was never moved by the guest's boarding
+000550	PASS	boarding by name never reassigns the hull to the guest
+000551	PASS	a passenger receives no navigation permission by boarding
+000552	PASS	vessel_board under p_finduid leaves the ticking player bound, got pid 5, wanted 5
+000553	PASS	the captain is still on the deck plane too
+000554	PASS	the second boarder gets its own deck tile, not the captain's: captain 6404,67 guest 6403,66
+000555	PASS	and that tile is still this hull's deck
+000556	PASS	the moored hull has a real gangplank landing for the guest
+000557	PASS	vessel_disembark restores the binding it borrowed, got pid 4, wanted 4
+000558	PASS	and moved only the named player, leaving the captain aboard
+000559	PASS	the guest returns to the deck for the control below
+000560	PASS	the return trip restores the binding as well, got pid 4
+000561	PASS	the control guest runs the same proc
+000562	PASS	the control name reply resumes the parked proc
+000563	PASS	naming a passenger who owns no boat boards nobody
+summary	sailing	563	0

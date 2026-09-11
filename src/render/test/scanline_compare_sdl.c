@@ -252,6 +252,9 @@ run_task(
     struct ToriRS_Task* task)
 {
     assert(task);
+    /* Asset loads: a world rebuild fans its models and textures out as
+     * sibling tasks, which only a parallel runner will step. */
+    viewer->runner.parallel = 1;
     ToriRS_TaskQueue_Add(viewer->runner.queue, task);
     TaskRunner_Drain(&viewer->runner);
 }
@@ -543,7 +546,7 @@ world_load(
     run_task(
         viewer,
         CreateTask_WorldLoad(
-            viewer->provider, viewer->world_builder, chunks, 1, -1, -1, NULL, NULL, NULL));
+            viewer->provider, viewer->world_builder, viewer->runner.queue, chunks, 1, -1, -1, 104, NULL, NULL, NULL));
 
     if( !viewer->world->load_complete )
     {
@@ -586,8 +589,8 @@ world_replay(
     desc.world_level_mask = 0xF;
 
     struct ToriDraw_Camera camera = { 0 };
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = viewer->yaw & 2047;
@@ -607,18 +610,19 @@ world_replay(
         viewer->world_cam_y,
         viewer->world_cam_z);
 
-    struct ToriRS_Soft3D soft;
-    ToriRS_Soft3D_Init(&soft, viewer->scene, pane, PANE_W, PANE_H);
+    struct ToriRS_Soft3D* soft = ToriRS_Soft3D_New();
+    ToriRS_Soft3D_Init(soft, viewer->scene, pane, PANE_W, PANE_H);
 
     int drawn = 0;
     struct ToriRS_RenderCommand cmd;
     ToriRS_FrameBegin(&frame);
     while( ToriRS_FrameNextCommand(&frame, &cmd) )
     {
-        ToriRS_Soft3D_Execute(&soft, &cmd);
+        ToriRS_Soft3D_Execute(soft, &cmd);
         drawn++;
     }
     ToriRS_FrameEnd(&frame);
+    ToriRS_Soft3D_Free(soft);
 
     return drawn;
 }
@@ -771,8 +775,8 @@ render_frame(struct Viewer* viewer)
     camera.pitch = viewer->pitch & 2047;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 50;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
@@ -1436,7 +1440,7 @@ main(
     viewer.provider = dat1_buildcache_as_provider(viewer.buildcache);
 
     /* The decoders branch on cache identity, and the world load asserts it has
-     * been stated. cache254 is the rev-254 RS2 dat1 cache (manifest_rs254.ini
+     * been stated. cache254 is the rev-254 RS2 dat1 cache (manifests/manifest_rs254lc.ini
      * [cache:boot]); TORIRS_SCANLINE_REV overrides the revision for other dat1
      * caches. */
     {

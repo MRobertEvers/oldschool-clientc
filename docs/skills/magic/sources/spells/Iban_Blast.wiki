@@ -1,0 +1,54 @@
+{{External|rsc=Iban blast|rs=Iban Blast (historical)}}
+{{Infobox Spell
+|name = Iban Blast
+|image = [[File:Iban Blast.png]]
+|release = [[3 March]] [[2003]]
+|update = New Quest Online - Part Three
+|members = Yes
+|level = 50
+|spellbook = Normal
+|type = Combat
+|exp = 30
+|damage = 25
+|cost = {{RuneReq|Fire=5|Death=1}}{{plinkp|Iban's staff}}
+|speed = 5 ticks
+|quest = [[Underground Pass]]
+|description = Summons the wrath of Iban
+|anim = [[File:Iban Blast.gif|300px]]
+|sound = [[File:Iban Blast.ogg]]
+}}
+[[File:Iban Blast icon (mobile).png|left]]
+'''Iban Blast''' is a [[combat spell]] that can be cast at 50 [[Magic]] while on the standard spellbook.  Without [[Magic damage]] boosts, it can inflict up to 25 damage. Because of its very high max hit compared to other spells on the standard spellbook, it is often recommended for casters in situations where another staff is not required. 
+
+To cast this spell, the player must be wielding [[Iban's staff]]; thus, the player must complete [[Underground Pass]] and have level 50 [[Attack]] in order to be able to cast this spell. Each cast consumes one charge from Iban's staff when cast on an NPC, or two charges if cast on another player. Thus this spell can be cast a total of 120 times (60 in [[PvP]]) before the staff must be recharged. This is increased to 2,500 (1,250 in PvP) with [[Iban's upgraded staff]].
+
+This spell may be [[autocast]] with Iban's staff.
+==Damage==
+[[File:Iban blast.png|right|120px|Close up of the Iban's Blast projectile.]]
+===Calculator===
+{{Magic damage calculator|Iban Blast}}
+
+==Cost==
+{{Spell cost table
+|nostaff = 1
+|Rune1 = fire
+|Rune1num = 5
+|Rune2 = death
+|Rune2num = 1
+}}
+If the player chooses to pay the [[Dark Mage]] to recharge the [[Iban's staff]], at a price of {{NoCoins|100000|c}}, an additional cost of {{NoCoins|100000/120|c}} per spell should be considered. For the [[Iban's upgraded staff]], the price for recharging is {{NoCoins|250000|c}} for 2,500 spells, reducing the additional cost to {{NoCoins|250000/2500|c}} per spell. There's also a way to recharge it for free if you enter the cave from the [[Underground Pass (dungeon)|Underground Pass]] through the other side. Travel to [[Lletya]] with the teleport crystal and walk north towards the cave entrance. Enter the cave and climb down the well. Make your way to the throne room and open the doors. Use your staff on the [[Well (Paladin badges)|well]] and it will be recharged for free. 
+
+Because Iban's staff is required to cast this spell, the player ''cannot'' use [[elemental staves]] to substitute any of the runes. However, a [[tome of fire]] (with charges) in the shield slot may be used to substitute [[fire runes]].
+Note that Iban Blast is not classified as a [[fire spell]], so casting it will not consume any of the tome's charges and will not provide the 10% damage boost.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 August 2014
+|update = In-Game Polls & Pet Insurance
+|poll = Old School feature poll - Content Poll 23
+|change = Iban's staff can now auto-cast Iban Blast.
+}}
+{{Subject changes footer}} 
+
+{{Standard spellbook}}

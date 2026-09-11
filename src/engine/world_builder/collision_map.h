@@ -215,6 +215,23 @@ collision_map_add_floor(
     int tile_x,
     int tile_z);
 
+/*
+ * Flood one tile: erase the map-derived collision on it and leave open water.
+ *
+ * Deliberately not `collision_map_add_floor`, which ORs COLL_FLAG_FLOOR in and
+ * leaves whatever is already there. FLOOR present *and* LOC present is blocked
+ * for every mover, so a "water" tile stamped over a fence still refuses a hull
+ * — the difference between "there is water here" and "there is only water
+ * here". Only COLL_FLAG_BOUNDS (bits 0..23, everything the scene build put
+ * down) is cleared; the runtime occupancy bits above it are the server's own
+ * add/remove bookkeeping and clobbering them would strand an npc's square.
+ */
+void
+collision_map_set_water(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z);
+
 void
 collision_map_add_loc(
     struct CollisionMap* cm,

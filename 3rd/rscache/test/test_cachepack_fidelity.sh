@@ -64,7 +64,7 @@ fi
 # back — caught by running the bar by hand, which is not a system. Scripts are also on the *semantic*
 # bar rather than the byte one — compiling decompiled source back gives this
 # compiler's bytes, not Jagex's — and that bar is measured by test_cs2.
-ASSETS=interfaces,sprites,textures,dbindex,worldmap/areas,worldmap/geography,fonts
+ASSETS=interfaces,sprites,textures,dbindex,worldmap/areas,worldmap/geography,fonts,defaults
 
 rm -rf "$TMP"
 echo "cachepack-fidelity: configs + $ASSETS against $CACHE"
@@ -124,6 +124,42 @@ else
     exit 1
 fi
 rm -f "$TMP.import.log"
+
+# ---------------------------------------------------------------------------
+# The grow bar: pack with no --base, so every reference table is created from
+# nothing and every archive written takes cp_reference_sync's grow path.
+#
+# --check-only can never reach that path (it writes nothing), and pack --base
+# reaches it only for archives past the base table's end — which is why the
+# 2026-08-24 present-bitmap rework could abort every from-scratch pack on its
+# first asset archive and no bar noticed. Scoped to one config type and the
+# three smallest codec tables (24 archives all told) so the whole bar costs
+# seconds; growth is growth regardless of how many archives follow.
+echo "cachepack-fidelity: grow — a tree-only pack creates its reference tables"
+rm -rf "$TMP.grow"
+if tools/cachepack/cachepack pack \
+        --src "$SRC" --rev "$REV" --out "$TMP.grow" \
+        --types hitsplat --assets=defaults,textures,fonts >"$TMP.grow.log" 2>&1; then
+    if [ ! -f "$TMP.grow/main_file_cache.idx17" ]; then
+        echo "cachepack-fidelity: FAILED — the tree-only pack wrote no idx17"
+        exit 1
+    fi
+    # The undecoded config groups ride as raw bytes (README, "Raw passthrough");
+    # a tree that indexes them must land every one, or the from-scratch cache is
+    # missing archives the client can ask for.
+    if grep -q "raw config group" "$TMP.grow.log" &&
+       ! grep -q "raw config group(s), 0 indexed but missing" "$TMP.grow.log"; then
+        echo "cachepack-fidelity: FAILED — an indexed raw config group has no file"
+        grep "raw config group" "$TMP.grow.log"
+        exit 1
+    fi
+    echo "   idx17 present; $(grep -c 'reference table updated' "$TMP.grow.log") table(s) grown; $(grep -o 'Imported [0-9]* raw config group' "$TMP.grow.log" | grep -o '[0-9]*' || echo 0) raw group(s)"
+else
+    echo "cachepack-fidelity: FAILED — the tree-only pack did not complete"
+    tail -5 "$TMP.grow.log"
+    exit 1
+fi
+rm -rf "$TMP.grow" "$TMP.grow.log"
 
 # ---------------------------------------------------------------------------
 # Per-record digests against the committed golden.

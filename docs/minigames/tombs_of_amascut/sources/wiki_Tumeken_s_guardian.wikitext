@@ -1,0 +1,246 @@
+{{Multi Infobox
+|text1 = Follower
+|item1 =
+{{Infobox NPC
+|version1 = Tumeken's Guardian
+|version2 = Tumeken's Damaged Guardian
+|version3 = Elidinis' Guardian
+|version4 = Elidinis' Damaged Guardian
+|version5 = Akkhito
+|version6 = Babi
+|version7 = Kephriti
+|version8 = Zebo
+|name1 = Tumeken's Guardian
+|name2 = Tumeken's Damaged Guardian
+|name3 = Elidinis' Guardian
+|name4 = Elidinis' Damaged Guardian
+|name5 = Akkhito
+|name6 = Babi
+|name7 = Kephriti
+|name8 = Zebo
+|image1 = [[File:Tumeken's Guardian (follower).png|250px]]
+|image2 = [[File:Tumeken's Damaged Guardian (follower).png|250px]]
+|image3 = [[File:Elidinis' Guardian (follower).png|250px]]
+|image4 = [[File:Elidinis' Damaged Guardian (follower).png|250px]]
+|image5 = [[File:Akkhito (follower).png|220px]]
+|image6 = [[File:Babi (follower).png|280px]]
+|image7 = [[File:Kephriti (follower).png|250px]]
+|image8 = [[File:Zebo (follower).png|280px]]
+|release1 = [[24 August]] [[2022]]
+|release2 = [[8 September]] [[2022]]
+|release3 = [[24 August]] [[2022]]
+|release4 = [[8 September]] [[2022]]
+|release5 = [[8 September]] [[2022]]
+|release6 = [[8 September]] [[2022]]
+|release7 = [[8 September]] [[2022]]
+|release8 = [[8 September]] [[2022]]
+|update1 = Tombs of Amascut
+|update2 = Tombs of Amascut: Ornament Kits & More!
+|update3 = Tombs of Amascut
+|update4 = Tombs of Amascut: Ornament Kits & More!
+|update5 = Tombs of Amascut: Ornament Kits & More!
+|update6 = Tombs of Amascut: Ornament Kits & More!
+|update7 = Tombs of Amascut: Ornament Kits & More!
+|update8 = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|race1 = Automaton
+|race2 = Automaton
+|race3 = Automaton
+|race4 = Automaton
+|race5 = Human manifestation
+|race6 = Undead baboon
+|race7 = Dawn scarab
+|race8 = Crocodile
+|location = [[Tombs of Amascut]]
+|examine1 = A tiny automaton imbued with a trace of Tumeken's power.
+|examine2 = A tiny automaton imbued with a trace of Tumeken's power.
+|examine3 = A tiny automaton imbued with a trace of Elidinis' power.
+|examine4 = A tiny automaton imbued with a trace of Elidinis' power.
+|examine5 = Small, but still strong.
+|examine6 = Her mother's daughter. Fond of bananas.
+|examine7 = The tiniest bug can still make worlds fall over.
+|examine8 = Chomp.
+|map = No
+|id1 = 11652,11812
+|id2 = 11844,11850
+|id3 = 11653,11813
+|id4 = 11845,11851
+|id5 = 11840,11846
+|id6 = 11841,11847
+|id7 = 11842,11848
+|id8 = 11843,11849
+|leagueRegion = Desert
+}}
+|text2 = Item
+|item2 =
+{{Infobox Item
+|version1 = Tumeken's Guardian
+|version2 = Tumeken's Damaged Guardian
+|version3 = Elidinis' Guardian
+|version4 = Elidinis' Damaged Guardian
+|version5 = Akkhito
+|version6 = Babi
+|version7 = Kephriti
+|version8 = Zebo
+|name1 = Tumeken's guardian
+|name2 = Tumeken's damaged guardian
+|name3 = Elidinis' guardian
+|name4 = Elidinis' damaged guardian
+|name5 = Akkhito
+|name6 = Babi
+|name7 = Kephriti
+|name8 = Zebo
+|image1 = [[File:Tumeken's guardian.png]]
+|image2 = [[File:Tumeken's damaged guardian.png]]
+|image3 = [[File:Elidinis' guardian.png]]
+|image4 = [[File:Elidinis' damaged guardian.png]]
+|image5 = [[File:Akkhito.png]]
+|image6 = [[File:Babi.png]]
+|image7 = [[File:Kephriti.png]]
+|image8 = [[File:Zebo.png]]
+|release1 = [[24 August]] [[2022]]
+|release2 = [[8 September]] [[2022]]
+|release3 = [[24 August]] [[2022]]
+|release4 = [[8 September]] [[2022]]
+|release5 = [[8 September]] [[2022]]
+|release6 = [[8 September]] [[2022]]
+|release7 = [[8 September]] [[2022]]
+|release8 = [[8 September]] [[2022]]
+|update1 = Tombs of Amascut
+|update2 = Tombs of Amascut: Ornament Kits & More!
+|update3 = Tombs of Amascut
+|update4 = Tombs of Amascut: Ornament Kits & More!
+|update5 = Tombs of Amascut: Ornament Kits & More!
+|update6 = Tombs of Amascut: Ornament Kits & More!
+|update7 = Tombs of Amascut: Ornament Kits & More!
+|update8 = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = 
+|options = Drop
+|examine1 = A tiny automaton imbued with a trace of Tumeken's power.
+|examine2 = A tiny automaton imbued with a trace of Tumeken's power.
+|examine3 = A tiny automaton imbued with a trace of Elidinis' power.
+|examine4 = A tiny automaton imbued with a trace of Elidinis' power.
+|examine5 = Small, but still strong.
+|examine6 = Her mother's daughter. Fond of bananas.
+|examine7 = The tiniest bug can still make worlds fall over.
+|examine8 = Chomp.
+|value = 1
+|alchable = No
+|weight = 0.015
+|id1 = 27352
+|id2 = 27386
+|id3 = 27354
+|id4 = 27387
+|id5 = 27382
+|id6 = 27383
+|id7 = 27384
+|id8 = 27385
+|leagueRegion = Desert
+}}
+}}
+{{Synced switch
+|version1 = [[File:Tumeken's Guardian chathead.png|left]]
+|version2 = [[File:Tumeken's Damaged Guardian chathead.png|left]]
+|version3 = [[File:Elidinis' Guardian chathead.png|left]]
+|version4 = [[File:Elidinis' Damaged Guardian chathead.png|left]]
+|version5 = [[File:Akkhito chathead.png|left]]
+|version6 = [[File:Babi chathead.png|left]]
+|version7 = [[File:Kephriti chathead.png|left]]
+|version8 = [[File:Zebo chathead.png|left]]
+|version9 = [[File:Tumeken's guardian detail.png|left|140px]]
+|version10 = [[File:Tumeken's damaged guardian detail.png|left|140px]]
+|version11 = [[File:Elidinis' guardian detail.png|left|100px]]
+|version12 = [[File:Elidinis' damaged guardian detail.png|left|100px]]
+|version13 = [[File:Akkhito detail.png|left|120px]]
+|version14 = [[File:Babi detail.png|left|110px]]
+|version15 = [[File:Kephriti detail.png|left|160px]]
+|version16 = [[File:Zebo detail.png|left|160px]]
+}}
+'''Tumeken's Guardian''' is a [[pet]] that can be obtained from completing the [[Tombs of Amascut]]. It is a much smaller version of [[Tumeken's Warden]]. Players have a chance of receiving the pet when looting the [[Chest (Tombs of Amascut)|reward chest]] in the burial chamber. It is possible for it to be obtained in Entry mode, although at a much lower rate.
+
+When a player receives the pet, it will automatically try to appear as their follower. At the same time, a message in the [[Chat Interface|chatbox]] will state {{mes|You have a funny feeling like you're being followed.|color=red}} However, if a player receives a pet while having a follower out (for example, a [[cat]]), it will be placed into their [[inventory]]. When this occurs, the message in the chatbox will instead state {{mes|You feel something weird sneaking into your backpack.|color=red}}
+
+If a player's inventory is full '''and''' they have a follower already, they '''will not''' receive the pet; it must instead be claimed from [[Probita]] in [[East Ardougne]].
+
+On [[death]], if a player loses their pet (as a follower or in your inventory) it will wander around the area for 30 seconds before despawning. Even if the player returns in time, the pet cannot be picked up, and can be reclaimed from Probita.
+
+==Metamorphosis==
+Players can, by default, right click "''[[Metamorphosis]]"'' to change between Tumeken's Guardian and Elidinis' Guardian, a smaller version of [[Elidinis' Warden]].
+
+Players can unlock further metamorphoses by acquiring various items, which are acquired from the reward chest after completing a raid whilst satisfying the following conditions; note that only one remnant can be obtained by the player per raid. If the requirements for multiple remnants are met, the following order of priority determines which one is awarded: Akkha, Zebak, Ba-Ba, Kephri, Ancient.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1683875076234522636|date=25 July 2023|archiveurl=https://reldo.runescape.wiki/i/105942|archivedate=25 July 2023|quote=It's checking in this order: Akkha, Zebak, Baba, Kephri, Tumeken, Ancient.}}
+
+* Raid Level at 450+
+* Zero deaths for all party members
+* All invocations for the specific boss enabled
+* Path level must be at level 4+ (excluding the Wardens)
+
+{| class="wikitable" style="text-align:left;"
+! colspan="2" |Item
+! colspan="2" |Metamorphosis
+! Acquisition
+|-
+|{{plinkt|Remnant of akkha|txt=Remnant of Akkha}}
+|{{plinkt|Akkhito}}
+|[[Akkha]]
+|-
+|{{plinkt|Remnant of ba-ba|txt=Remnant of Ba-Ba}}
+|{{plinkt|Babi}}
+|[[Ba-Ba]]
+|-
+|{{plinkt|Remnant of kephri|txt=Remnant of Kephri}}
+|{{plinkt|Kephriti}}
+|[[Kephri]]
+|-
+|{{plinkt|Remnant of zebak|txt=Remnant of Zebak}}
+|{{plinkt|Zebo}}
+|[[Zebak]]
+|-
+| rowspan="2" |{{plinkp|Ancient remnant}}
+| rowspan="2" |[[Ancient remnant]]
+|{{plinkt|Tumeken's damaged guardian}}
+|[[Tumeken's Warden]]
+|-
+|{{plinkt|Elidinis' damaged guardian}}
+|[[Elidinis' Warden]]
+|}
+
+==Item sources==
+{{Drop sources|Tumeken's guardian}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2022
+|update = Quest Speedrunning Launch
+|change = Variations of the pet now have attack animations and overhead dialogue when placed in the [[menagerie]]'s [[arena space]].
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = * Items have been added to allow the pet to metamorphose into other variants.
+* Overhead dialogue has been added when placed inside the [[menagerie]] [[arena space]].
+* The inventory icons for Tumeken's guardian and Elidinis' guardian were adjusted slightly.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The damaged guardians' dialogue is a reference to various errors in software. 404 being a reference to error message: {{WP|HTTP 404}}.
+*The name Akkhito may be a reference to {{WP|Akihito}}, the Emperor Emeritus of Japan. In Spanish the suffix ''-ito'' is a diminutive that can be added to many nouns and adjectives to create a smaller or more affectionate form (Small Akkha).
+*The name Kephriti may be a reference to {{WP|Nefertiti}}, an ancient Egyptian queen, particularly known for an iconic and well-preserved {{WP|Nefertiti Bust|bust}} portraying her.
+*When a player uses raw beef or raw chicken on Zebo, special dialogue will occur between the pet and the player referencing the "On a diet" invocation.
+*Dropping Babi from the inventory then changing to a different metamorphosis variant will cause the chosen variant to inherit Babi's run speed. The same can be done in reverse to make Babi walk.
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}
+{{Pets}}
+[[Category:Collection log items]]

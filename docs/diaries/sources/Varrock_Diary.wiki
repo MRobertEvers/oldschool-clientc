@@ -1,0 +1,579 @@
+{{External|rs=Varrock achievements}}
+{{Infobox Achievement Diary
+|name = Varrock Diary
+|image = [[File:Varrock Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Varrock]], [[Barbarian Village]], and [[Edgeville]]
+|members = Yes
+|reward = [[Varrock armour|Armour]]
+|taskmasters = [[Toby]]
+|leagueRegion = Misthalin
+}}
+{{Map|name=Toby|x=3225|y=3415|plane=0|r=3|mtype=square|width=250|height=250|align=left|caption=Toby's location}}
+The '''Varrock Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in and near [[Varrock]], such as the [[Barbarian Village]] and [[Edgeville]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Toby]] in [[Varrock]], just behind the [[Varrock General Store]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Agility = 13
+|Fishing = 20
+|Thieving = 5
+|Crafting = 8
+|Runecraft = 9
+|Total = 96
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Reach 50 [[kudos]] with the [[Varrock Museum]]
+|}
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Agility = 30
+|Herblore = 10
+|Fishing = 20
+|Thieving = 25
+|Crafting = 36
+|Firemaking = 40
+|Magic = 25
+|MagicNotes = <ref name="IronHard">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 49 [[Magic]].</ref>
+|Runecraft = 9
+|Farming = 30
+|Combat = 40
+|Quest = 32
+|Total = 262
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="The Dig Site"
+|[[The Dig Site]]
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="Garden of Tranquillity"
+|[[Garden of Tranquillity]]
+|- data-rowid="Gertrude's Cat"
+|[[Gertrude's Cat]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="A Soul's Bane"
+|[[A Soul's Bane]]
+|- data-rowid="Tree Gnome Village"
+|[[Tree Gnome Village]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Own a [[Jagex Account]], or set up the older [[RuneScape Authenticator]]
+|-
+|Reach 50 [[kudos]] with the [[Varrock Museum]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Agility = 51
+|Herblore = 10
+|Smithing = 20
+|Fishing = 20
+|Ranged = 40
+|Thieving = 53
+|Prayer = 52
+|Crafting = 36
+|Firemaking = 60
+|Magic = 54
+|Fletching = 10
+|Woodcutting = 60
+|Runecraft = 9
+|Farming = 68
+|Construction = 50
+|Hunter = 66
+|HunterNotes = {{boostable|n}} <ref name="IronKebbit">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 69 [[Hunter]] {{boostable|y}} to catch a [[dashing kebbit]].</ref>
+|Combat = 40
+|Quest = 32
+|Total = 689
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="Garden of Tranquillity"
+|[[Garden of Tranquillity]]
+|- data-rowid="Gertrude's Cat"
+|[[Gertrude's Cat]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="A Soul's Bane"
+|[[A Soul's Bane]]
+|- data-rowid="Tree Gnome Village"
+|[[Tree Gnome Village]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Own a [[Jagex Account]], or set up the older [[RuneScape Authenticator]]
+|-
+|Reach 153 [[kudos]] with the [[Varrock Museum]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 60
+|Agility = 51
+|Smithing = 89
+|Defence = 40
+|Herblore = 90
+|Fishing = 20
+|Ranged = 40
+|Thieving = 53
+|Cooking = 95
+|Prayer = 52
+|Crafting = 61
+|Firemaking = 60
+|Magic = 86
+|Fletching = 81
+|Woodcutting = 60
+|Runecraft = 78
+|RunecraftNotes = <ref name="RunecraftHard">The minimally required [[Runecraft]] level is 52 with 2+ [[Raiments of the Eye]] pieces, or 78 with less.</ref>
+|Farming = 68
+|Construction = 50
+|Hunter = 66
+|HunterNotes = <ref name="IronKebbit">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 69 [[Hunter]] {{boostable|y}} to catch a [[dashing kebbit]].</ref>
+|Combat = 40
+|Quest = 32
+|Total = 1187
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Dream Mentor"
+|[[Dream Mentor]]
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="Garden of Tranquillity"
+|[[Garden of Tranquillity]]
+|- data-rowid="Gertrude's Cat"
+|[[Gertrude's Cat]]
+|- data-rowid="A Soul's Bane"
+|[[A Soul's Bane]]
+|- data-rowid="Tree Gnome Village"
+|[[Tree Gnome Village]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Own a [[Jagex Account]], or set up the older [[RuneScape Authenticator]]
+|-
+|Reach 153 [[kudos]] with the [[Varrock Museum]]
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Varrock" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Browse [[Thessalia's Fine Clothes|Thessalia's store]].
+|{{NA|None}}
+|-
+|2. Have [[Aubury]] teleport you to the [[Rune essence mine|Essence mine]].
+''Note: You can right-click him to teleport.''
+|
+*{{SCP|Quest}} Completion of [[Rune Mysteries]]
+|-
+|3. Mine some [[iron ore|Iron]] in the [[South-east Varrock mine|south-east mining patch]] near [[Varrock]].
+|
+*{{SCP|Mining|15|link=y}}
+*Any [[pickaxe]]
+|-
+|4. Make a [[Plank|normal plank]] at the [[Sawmill]].
+|
+*100 [[coins]]
+*[[Logs]], obtainable from a [[dying tree]] here with any [[axe]] for another easy task
+|-
+|5. Enter the second level of the [[Stronghold of Security]].
+|
+*[[Food]] recommended at low [[combat level]]s
+|-
+|6. Jump over the [[Fence (Varrock)|fence]] south of [[Varrock]].
+|
+*{{SCP|Agility|13|link=y}}
+|-
+|7. Chop down a [[dying tree]] in the [[Lumber Yard]].
+|
+*Any [[axe]]
+*100 [[coins]] recommended, to have the [[Sawmill operator]] turn the [[logs]] from the tree into a [[plank]] for another easy task
+|-
+|8. Buy a [[newspaper]].
+''Note: Can be bought from [[Benny]] in [[Varrock Square]].''
+|
+*50 [[coins]]
+|-
+|9. Give a [[Stray dog|dog]] a [[bone]]!
+''Note: This does not count when done during the investigation segment of [[Children of the Sun]].''
+|
+* [[Bones]]
+|-
+|10. Spin a [[bowl]] on the [[Potter's Wheel|pottery wheel]] and fire it in the [[pottery oven|oven]] in [[Barbarian Village|Barb Village]]{{sic}}.
+|
+*{{SCP|Crafting|8|link=y}}
+*[[Soft clay]]
+|-
+|11. Speak to [[Curator Haig Halen|Haig Halen]] after obtaining at least 50 [[Kudos]].
+|
+*See [[Kudos]] for all activities that grant them
+|-
+|12. Craft some [[Earth rune]]s from Essence.
+|
+*{{SCP|Runecraft|9|link=y}}
+*[[Pure essence|Pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]]
+*Access to the [[Earth Altar]] ([[earth talisman]]/[[Earth tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+|-
+|13. Catch some [[trout]] in the [[River Lum]] at [[Barbarian Village]].
+|
+*{{SCP|Fishing|20|link=y}}
+*[[Fly fishing rod]] and some [[feather]]s
+|-
+|14. Steal from the [[Ye olde Tea Shoppe.|Tea stall]] in [[Varrock]].
+|
+*{{SCP|Thieving|5|link=y}}
+|}
+
+===Rewards===
+*[[Varrock armour 1]]:
+**While worn, 10% chance of mining double [[clay]], [[limestone]], [[guardian fragments]], [[tephra]], and [[ore]]s up to and including [[gold ore|gold]] (experience granted for both minerals)
+**While worn, 10% chance of smelting 2 [[bar]]s at once, up to [[steel bar|steel]], when using the [[Edgeville furnace]] (experience granted for both bars)
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*[[Zaff]] will sell you 15 [[bank note|noted]] [[Battlestaff|battlestaves]] as a single stack every day for 105,000 [[coins]], resellable on the [[Grand Exchange]] for a profit of {{NoCoins|{{GEPT|Battlestaff|15}}-105000}} [[coins]] (after tax)<ref name="WhyWasThisInTheLead">Only one noted stack of [[Battlestaff|battlestaves]] can be claimed from [[Zaff]] each day, irrespective of the stack's size or the amount of diary tiers completed that day.</ref>
+*The [[skull sceptre]] will now hold up to 14 [[Skull_sceptre#Using_the_Sceptre|charges]], up from 10
+*Individual parts used to make the [[skull sceptre]] now give an extra [[Bone fragments|bone fragment]] per component when chiselled
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Varrock" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Have the [[Apothecary]] in [[Varrock]] make you a [[strength potion]].
+|
+*[[Limpwurt root]], [[red spiders' eggs]], and 5 [[coins]]
+|-
+|2. Enter the [[Champions' Guild]].
+|
+*{{SCP|Quest|32|link=y}}
+|-
+|3. Select a colour for your [[kitten]].
+''Note: You can only have one [[kitten]] (or [[cat]]) following you at a time. If you already have one, you'll have to shoo it away, store it in a [[menagerie]], or sell it for [[death runes]] to [[Civilian|West Ardougne civilians]]. Storing it in your [[inventory]] or [[bank]] does not allow you to purchase a new one.''
+|
+*{{SCP|Quest}} Completion of [[Gertrude's Cat]] and partial completion of [[Garden of Tranquillity]]
+*100 [[coins]]
+*Wear an activated [[Ring of charos (a)|ring of charos]]
+|-
+|4. Use the [[spirit tree]] north of [[Varrock]].
+''Note: This tree is located in the north-eastern corner of the [[Grand Exchange]].
+|
+*{{SCP|Quest}} Completion of [[Tree Gnome Village]]
+|-
+|5. Perform the 4 emotes from the [[Stronghold of Security]].
+|
+*[[Jagex Account]] or the older [[RuneScape Authenticator]]
+*[[Food]], [[protection prayers]], and/or enough [[hitpoints]] to run through all four floors of the stronghold
+|-
+|6. Enter the [[Tolna's rift|Tolna dungeon]] after completing [[A Soul's Bane]].
+|
+*{{SCP|Quest}} Completion of [[A Soul's Bane]]
+|-
+|7. Teleport to the [[digsite]] using a [[Digsite pendant]].
+|
+*{{SCP|Quest}} Completion of [[The Dig Site]]
+*[[Digsite pendant]], or a [[mounted digsite pendant]] inside any [[player-owned house]] (see the [[House party]] worlds)
+**Creating the [[digsite pendant]] for the first time requires {{SCP|Magic|49|link=y}}, the [[clean necklace]], and means to cast [[Lvl-3 Enchant]] ({{RuneReq|Fire=5|Cosmic=1}})
+|-
+|8. Cast the teleport to [[Varrock]] spell.
+|
+*{{SCP|Magic|25|link=y}}
+*Means to cast [[Varrock Teleport]] ({{RuneReq|Law=1|Air=3|Fire=1}})
+|-
+|9. Get a [[Slayer task]] from [[Vannaka]].
+|
+*{{SCP|Combat|40|link=y}}
+|-
+|10. Make 20 [[Mahogany Plank]]s in one go.
+''Note: You can right-click the [[Sawmill operator]] to turn your logs into planks. You'll always need 20 [[mahogany logs]], regardless of whether you're using [[sawmill voucher]]s.''
+|
+*20 [[mahogany logs]] and 30,000 [[coins]]
+|-
+|11. Pick a [[White tree fruit]].
+|
+*{{SCP|Quest}} Completion of [[Garden of Tranquillity]]
+*{{SCP|Farming|25|link=y}}
+|-
+|12. Use the [[Balloon transport system|balloon]] to travel from [[Varrock]].
+''Note: The destination does not matter for this task. You can even pick a locked destination and not take the trip.''
+|
+*{{SCP|Quest}} Completion of [[Enlightened Journey]]
+*{{SCP|Farming|30|link=y}}
+*{{SCP|Firemaking|40|link=y}}
+*One set of [[Logs|normal logs]], [[oak logs]], [[yew logs]], or [[magic logs]], depending on the chosen destination
+*If the starting point in [[Varrock]] has not been unlocked yet, an additional 10 [[willow log]]s are needed to first [[Balloon_transport_system#Varrock|fly towards it]] from [[Entrana]]
+|-
+|13. Complete a lap of the [[Varrock Rooftop Course|Varrock Agility course]].
+|
+*{{SCP|Agility|30|link=y}}
+|}
+
+===Rewards===
+*[[Varrock armour 2]]:
+**While worn, 10% chance of mining double [[ore]]s up to and including [[mithril ore|mithril]], as well as [[Mining enhancers#List of affected rocks|various other minerals]] (experience granted for both minerals)
+**While worn, 10% chance of smelting 2 [[bar]]s at once, up to and including [[mithril bar|mithril]], when using the [[Edgeville furnace]] (experience granted for both bars)
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*[[Zaff]] will sell you 30 [[bank note|noted]] [[Battlestaff|battlestaves]] as a single stack every day for 210,000 [[coins]], resellable on the [[Grand Exchange]] for a profit of {{NoCoins|{{GEPT|Battlestaff|30}}-210000}} [[coins]] (after tax)<ref name="WhyWasThisInTheLead"/>
+*The ability to toggle the destination of [[Varrock Teleport]] from [[Varrock Square]] to the [[Grand Exchange]]
+*The [[skull sceptre]] will now hold up to 18 [[Skull_sceptre#Using_the_Sceptre|charges]], up from 14
+*Individual parts used to make the [[skull sceptre]] now give two extra [[Bone fragments|bone fragments]] per component when chiselled
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style="width:750px;" data-diary-name="Varrock" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Trade furs with the [[Fancy-dress shop owner|Fancy Dress Seller]] for a [[spottier cape]] and equip it.
+|
+*{{SCP|Hunter|66|link=y}} {{Boostable|n}}
+*800 [[coins]]
+*2 [[dashing kebbit fur]] (requires {{SCP|Hunter|69|link=y}} {{Boostable|y}} if playing as [[Ironman Mode|Ironman]])
+|-
+|2. Speak to [[Orlando Smith]] when you have achieved 153 [[Kudos]].
+|
+*See [[Kudos]] for all activities that grant them
+|-
+|3. Make a [[Waka canoe]] near [[Edgeville]].
+|
+*{{SCP|Woodcutting|57|link=y}}
+*Any [[axe]]
+|-
+|4. Teleport to [[Paddewwa]].
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+*{{SCP|Magic|54|link=y}}
+*[[Ancient Magicks]] selected
+*Means to cast [[Paddewwa Teleport]] ({{RuneReq|Law=2|Air=1|Fire=1}})
+|-
+|5. Teleport to [[Barbarian Village]] with a [[skull sceptre]].
+|
+*[[Skull sceptre]], or the required items to [[Skull_sceptre#Creating_the_Sceptre|create]] it
+|-
+|6. Chop some [[yew logs]] in [[Varrock]] and burn them at the top of the [[Varrock church]].
+''Note: There is a [[yew tree]] next to the church. Completing or updating any other task in-between these steps will reset the progress for this task. In Deadman Mode, the task is instead "Burn some Yew logs at the top of the Varrock church with 60 Woodcutting."''
+|
+*{{SCP|Woodcutting|60|link=y}} and {{SCP|Firemaking|60|link=y}}
+*Any [[axe]] and [[tinderbox]]
+|-
+|7. Have the [[Estate agent|Varrock estate agent]] decorate your [[Player-owned house|house]] with [[Fancy Stone]].
+''Note: You must finish the dialogue or the task will not count as completed.''
+|
+*{{SCP|Construction|50|link=y}} {{Boostable|n}}
+*25,000 [[coins]]
+*Additional 5,000 [[coins]] if already using [[Fancy Stone]], to change to something else and back
+|-
+|8. Collect at least 2 [[yew roots]] from the [[Tree patch]] in [[Varrock Palace]].
+''Note: While 60 [[Farming]] is required to grow the [[Yew tree (Farming)|yew tree]], you'll need 68 [[Farming]] to dig up more than a single [[Yew root|root]].
+|
+*{{SCP|Farming|68|link=y}} and {{SCP|Woodcutting|60|link=y}}
+*[[Yew sapling]], any [[axe]], and a [[spade]]
+*10 [[cactus spine]]s recommended to pay the [[Treznor|gardener]]''
+|-
+|9. Pray at the [[altar]] in [[Varrock palace]] with [[Smite]] active.
+''Note: The altar is found on the {{FloorNumber|uk=1}} of the palace.
+|
+*{{SCP|Prayer|52|link=y}} {{boostable|n}}
+|-
+|10. Squeeze through the [[Obstacle pipe (Edgeville Dungeon)|obstacle pipe]] in [[Edgeville dungeon]].
+|
+*{{SCP|Agility|51|link=y}}
+|}
+
+===Rewards=== 
+*[[Varrock armour 3]]:
+**Can be worn in place of a [[chef's hat]] to access the [[Cooks' Guild]]
+**While worn, 10% chance of mining double [[ore]]s up to and including [[adamantite ore|adamantite]], as well as [[Mining enhancers#List of affected rocks|various other minerals]] (experience granted for both minerals)
+**While worn, 10% chance of smelting 2 [[bar|bars]] at once, up to and including [[adamantite bar|adamantite]], when using the [[Edgeville furnace]] (experience granted for both bars)
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*[[Zaff]] will sell you 60 [[bank note|noted]] [[Battlestaff|battlestaves]] as a single stack every day for 420,000 [[coins]], resellable on the [[Grand Exchange]] for a profit of {{NoCoins|{{GEPT|Battlestaff|60}}-420000}} [[coins]] (after tax)<ref name="WhyWasThisInTheLead"/>
+*The [[skull sceptre]] will now hold up to 22 [[Skull_sceptre#Using_the_Sceptre|charges]], up from 18
+*Individual parts used to make the [[skull sceptre]] now give three extra [[Bone fragments|bone fragments]] per component when chiselled
+*Access to the [[bank]] in the [[Cooks' Guild]] and a [[range]] at only 2 tiles away from it
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style="width:750px;" data-diary-name="Varrock" data-diary-tier="Elite"
+! style="width:50%;" |Task
+! style="width:50%;" |Requirements 
+|-
+|1. Create a [[super combat potion]] in [[Varrock west bank]].
+|
+*{{SCP|Quest}} Completion of [[Druidic Ritual]]
+*{{SCP|Herblore|90|link=y}}
+*[[Super attack (4)]], [[super strength (4)]], [[super defence (4)]], and a [[torstol]]
+|-
+|2. Use [[Lunar magic]] to make 20 [[mahogany plank]]s at the [[Lumberyard]].
+''Note: You must stand within the [[Lumber Yard]], past the fence.''
+|
+*{{SCP|Quest}} Completion of [[Dream Mentor]]
+*{{SCP|Magic|86|link=y}}
+*[[Lunar spellbook]] selected
+*21,000 [[coins]] and 20 [[mahogany logs]]{{efn|name=voucher|You may use ten [[sawmill voucher]]s to halve the required items and runes for the [[Plank Make]] task.}}
+*Means to cast [[Plank Make]] twenty times ({{RuneReq|Nature=20|Astral=40|Earth=300}}){{efn|name=voucher}}
+|-
+|3. Bake a [[summer pie]] in the [[Cooks' Guild|Cooking Guild]].
+''Note: Instead of using a [[range]], you can use the [[Bake Pie]] spell to prevent burning the pie.
+|
+*{{SCP|Cooking|95|link=y}}
+*[[Raw summer pie]]
+*[[Chef's hat]], [[golden chef's hat]], [[Varrock armour 3]], or [[Cooking cape]]
+|-
+|4. Smith and fletch ten [[rune dart]]s within [[Varrock]].
+|
+*{{SCP|Quest}} Completion of [[The Tourist Trap]]
+*{{SCP|Smithing|89|link=y}} and {{SCP|Fletching|81|link=y}}
+*[[Runite bar]], 10 [[feather]]s and a [[hammer]]
+|-
+|5. Craft 100 or more [[earth runes]] simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Runecraft|78|link=y}}
+*{{SCP|Runecraft|52|link=y}} with 2+ [[Raiments of the Eye]] pieces
+*28 [[Pure essence|pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]] (fewer may suffice with more [[Raiments of the Eye]] pieces)
+*Access to the [[Earth Altar]] ([[earth talisman]]/[[Earth tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+|}
+{{Notelist}}
+
+===Rewards=== 
+*[[Varrock armour 4]]:
+**Can be worn in place of a [[prospector jacket]] for [[clue step]]s and the experience bonus (also provides the set bonus when worn with rest of the [[Prospector kit|full outfit]])
+**While worn, 10% chance of mining double of any [[ore]], as well as [[Mining enhancers#List of affected rocks|various other minerals]] (experience granted for both minerals)
+**While worn, 10% chance of smelting 2 [[bar]]s at once, of any kind, when using the [[Edgeville furnace]] (experience granted for both bars)
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*[[Zaff]] will sell you 120 [[bank note|noted]] [[Battlestaff|battlestaves]] as a single stack every day for 840,000 [[coins]], resellable on the [[Grand Exchange]] for a profit of {{NoCoins|{{GEPT|Battlestaff|120}}-840000}} [[coins]] (after tax)<ref name="WhyWasThisInTheLead"/>
+*The [[skull sceptre]] will now hold up to 26 [[Skull_sceptre#Using_the_Sceptre|charges]], up from 22
+*Individual parts used to make the [[skull sceptre]] now give four extra [[Bone fragments|bone fragments]] per component when chiselled
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they only can be completed with essence.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|poll = 
+|change = Corrected some capitalisation on Orlando Smith's name in the Varrock Achievement Diary.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = The Varrock diary task to purchase 20 mahogany planks from the Sawmill now ensures you have enough coins to pay for the planks.
+}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = 
+|change = The task to create 20 Mahogany planks at the sawmill will now complete consistently.
+}}
+{{Subject changes
+|date = 3 December 2015
+|update = Skill Cape Perks
+|change = *A typo in the Varrock diary interface for the spelling of 'Paddewwa' has been fixed.
+*When purchasing battlestaves as part of the Varrock diary reward from Zaff's barrel, you will no longer be told your inventory is full when it already contains a stack of noted battlestaves.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Having Sedridor teleport you to the Essence mine now consistently completes the achievement diary task.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Additional ores gathered by Varrock armours now provide the bonus experience from the Prospector's outfit.
+}}
+{{Subject changes
+|date = 6 August 2015
+|update = XP Drops, Jad Pet & Slayer
+|change = It is no longer possible to complete the Varrock Diary task, "Make 20 Mahogany Planks in one go" without having enough coins to pay the Sawmill Operator.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Performing the same Stronghold of Security emote 4 times no longer completes the task asking you to perform each of the 4 emotes.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = Players that have completed the Varrock medium achievement diary can now toggle their Varrock teleport to take them just south of the Grand Exchange.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Achievement diary}}
+[[Category:Backported and extracted content]]

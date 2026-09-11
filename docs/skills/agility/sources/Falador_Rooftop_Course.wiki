@@ -1,0 +1,123 @@
+{{Infobox Location
+|name = Falador Rooftop Course
+|image = [[File:Falador Rooftop Course (9).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Falador]]
+|map = {{Map|3036:3342|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Asgarnia
+}}
+{{Relativelocation
+|location = Agility course
+|north = Party Room
+|west = Mining Guild
+|south = Falador
+|east = Falador
+}}
+The '''Falador Rooftop Agility Course''' is a [[Rooftop Agility Course|rooftop course]] located in eastern [[Falador]] available to players with an [[Agility]] level of 50. It is preceded by the [[Canifis Rooftop Course]] and followed by the [[Seers' Village Rooftop Course]].
+
+The Falador Rooftop Agility Course can be started by climbing the south side wall of the house directly east of the [[Mining Guild]] in Falador. Players get 586 experience from completing the course, including the 241 experience from the last roof jump. One lap from start to start takes roughly one minute, making the maximum hourly experience rate approximately 35,000 experience per hour, whereas the average rate of experience would lie between 27,200–29,100 experience per hour, depending on Agility levels, as higher Agility means failing obstacles less. From levels 50 to 60 Agility, it will take about 295 laps.
+
+[[Mark of grace|Marks of grace]] can spawn on any of the accessible roofs with flat portions, excluding the first and last roofs and the most western roof of the Mining Guild. The rate of spawn is roughly once per 5-6 laps.
+
+It's possible to fail during the "Hand Holds" section, dealing 3–8 damage.
+
+At 66 [[Agility]] you will stop failing the course.
+
+Completing a lap at this course is a requirement for the [[Falador Diary#Hard|hard Falador Diary]].
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Course Breakdown
+|-
+!Image
+!Obstacle
+!Experience
+! style="text-align:center;" |Chance to Fail
+|-
+|[[File:Falador Rooftop Course (1).png|200px]]
+|[[Rough wall (Falador Rooftop Course)|Rough wall]]
+|{{+=|xp|11|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (2).png|200px]]
+|[[Tightrope (Falador Rooftop Course)#1|Tightrope]]
+|{{+=|xp|22|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (3).png|200px]]
+|[[Hand holds (Falador Rooftop Course)|Hand holds]]
+|{{+=|xp|61|echo=2}}
+| style="text-align:center;" |Yes (until 66)
+|-
+|[[File:Falador Rooftop Course (4).png|200px]]
+|[[Gap (Falador Rooftop Course)#1|Gap]]
+|{{+=|xp|27|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (5).png|200px]]
+|[[Gap (Falador Rooftop Course)#2|Gap]]
+|{{+=|xp|26|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (6).png|200px]]
+|[[Tightrope (Falador Rooftop Course)#2|Tightrope]]
+|{{+=|xp|61|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (7).png|200px]]
+|[[Tightrope (Falador Rooftop Course)#3|Tightrope]]
+|{{+=|xp|53|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (8).png|200px]]
+|[[Gap (Falador Rooftop Course)#3|Gap]]
+|{{+=|xp|30|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (9).png|200px]]
+|[[Ledge (Falador Rooftop Course)#1|Ledge]]
+|{{+=|xp|14|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (10).png|200px]]
+|[[Ledge (Falador Rooftop Course)#2|Ledge]]
+|{{+=|xp|13|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (11).png|200px]]
+|[[Ledge (Falador Rooftop Course)#3|Ledge]]
+|{{+=|xp|13|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (12).png|200px]]
+|[[Ledge (Falador Rooftop Course)#4|Ledge]]
+|{{+=|xp|14|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Falador Rooftop Course (13).png|200px]]
+|[[Edge (Falador Rooftop Course)|Edge]]
+|{{+=|xp|241|echo=2}}
+| style="text-align:center;" |No
+|-
+! colspan="2" style="text-align:right;" |Total
+!{{#var:xp}}
+! style="text-align:center;" |1
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* The [[experience]] per hour gained at the course has been increased from 27,200 to 35,000.
+* Players can no longer fail the [[Tightrope (Falador Rooftop Course)|tightrope]] obstacle.
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Falador}}

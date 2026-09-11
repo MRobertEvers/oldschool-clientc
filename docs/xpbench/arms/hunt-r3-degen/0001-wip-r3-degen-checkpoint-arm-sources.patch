@@ -1,0 +1,141 @@
+From 05819d5fbaf1197cd53cac60463bc23a81381ef6 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:36 -0500
+Subject: [PATCH] wip(r3-degen): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-degen.
+
+files: 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_render.u.c | 102 +++++++++++++++++++++++++++++++
+ 1 file changed, 102 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..baa146779 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1544,6 +1544,104 @@ toridraw_dbg_check_face_order(
+ }
+ /* #endregion */
+ 
++/*
++ * ============================================================================
++ * r3-degen WINDING SLOPE PROBE  (measurement build only -- never ship)
++ * ============================================================================
++ *
++ * Purpose: turn "a face examined and rejected by the sorter costs somewhere
++ * between 57 instructions at IPC 1.0 and 361 cycles" into a measured constant.
++ * The census says the sorter examines 46,935 faces/frame and rejects 27,251 of
++ * them (11,568 degenerate + 15,683 back-facing). Everything that route can be
++ * worth is (rejects) x (cost of one examination), and the second factor was
++ * never measured.
++ *
++ * The probe re-runs the examination -- and only the examination -- once more
++ * per model, over exactly the same faces, immediately after the real sort. It
++ * writes to a volatile sink and nothing else, so rendering is untouched: this
++ * binary draws what the control draws, it just draws it slower, by a known
++ * number of extra examinations.
++ *
++ *   arm  wpx2 (TORIDRAW_WIND_PROBE=2): full winding + front-facing test.
++ *   arm  wpld (TORIDRAW_WIND_PROBE=1): the three index loads and six vertex
++ *                                      loads only, no multiply.
++ *
++ *   (wpx2 - ctl) / 46,935            = cycles per examination
++ *   (wpx2 - wpld) / 46,935           = cycles attributable to the widening
++ *                                      32x32->64 multiply pair and the 64-bit
++ *                                      compare -- i.e. the part a 32-bit
++ *                                      winding (facesort w32) or a
++ *                                      model-space normal test would remove.
++ *
++ * Lower bound, deliberately: the probe is its own function, so it does not
++ * inherit the mega-function's register pressure, and it runs with the vertex
++ * lines already hot in L1 from the real sort it follows. A real examination
++ * costs at least this much.
++ */
++#if defined(TORIDRAW_WIND_PROBE) && TORIDRAW_WIND_PROBE
++
++volatile int g_toridraw_wind_probe_sink = 0;
++
++__attribute__((noinline)) static void
++toridraw_wind_probe(
++    const int* vx,
++    const int* vy,
++    const faceint_t* fa,
++    const faceint_t* fb,
++    const faceint_t* fc,
++    int n)
++{
++    assert(vx);
++    assert(vy);
++    assert(fa);
++    assert(fb);
++    assert(fc);
++
++    int sink = 0;
++    for( int f = 0; f < n; f++ )
++    {
++        int const a = (int)fa[f];
++        int const b = (int)fb[f];
++        int const c = (int)fc[f];
++#if TORIDRAW_WIND_PROBE >= 2
++        long long const w = toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
++        sink += toridraw_winding_front_facing(w) ? 1 : 0;
++#else
++        sink += vx[a] + vy[a] + vx[b] + vy[b] + vx[c] + vy[c];
++#endif
++    }
++    g_toridraw_wind_probe_sink += sink;
++}
++
++/* REPS: one extra examination per face is ~0.2-0.6 ms, under the 1.2%
++ * best-of-4 noise floor. Eight puts both arms clearly above it; the constant
++ * is recovered by dividing the delta by 8 x faces_examined = 375,480/frame.
++ * The repeat is 8 separate calls to a noinline function that updates a
++ * volatile global, so the compiler cannot hoist the invariant inner sum out
++ * and multiply it by 8 -- which is exactly what it would do to a rep loop
++ * placed inside the kernel. */
++#define TORIDRAW_WIND_PROBE_REPS 8
++#define TORIDRAW_WIND_PROBE_RUN(scene_, fa_, fb_, fc_, n_)                                         \
++    do                                                                                             \
++    {                                                                                              \
++        if( (n_) > 0 )                                                                             \
++            for( int rep_ = 0; rep_ < TORIDRAW_WIND_PROBE_REPS; rep_++ )                           \
++                toridraw_wind_probe(                                                               \
++                    (scene_)->screen_vertices_x,                                                   \
++                    (scene_)->screen_vertices_y,                                                   \
++                    (fa_),                                                                         \
++                    (fb_),                                                                         \
++                    (fc_),                                                                         \
++                    (n_));                                                                         \
++    } while( 0 )
++
++#else
++#define TORIDRAW_WIND_PROBE_RUN(scene_, fa_, fb_, fc_, n_)                                         \
++    do                                                                                             \
++    {                                                                                              \
++    } while( 0 )
++#endif
++
+ static inline void
+ ToriDraw_ComputeProjectedFaceOrder(
+     struct ToriDraw_Scene* scene,
+@@ -1658,6 +1756,8 @@ ToriDraw_ComputeProjectedFaceOrder(
+         fib,
+         fic);
+ 
++    TORIDRAW_WIND_PROBE_RUN(scene, fia, fib, fic, face_count);
++
+     model_min_depth = bounds & 0xFFFF;
+     int model_max_depth = bounds >> 16;
+ 
+@@ -2108,6 +2208,8 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
+         fib,
+         fic);
+ 
++    TORIDRAW_WIND_PROBE_RUN(scene, fia, fib, fic, face_count);
++
+     model_min_depth = bounds & 0xFFFF;
+     int model_max_depth = bounds >> 16;
+ 

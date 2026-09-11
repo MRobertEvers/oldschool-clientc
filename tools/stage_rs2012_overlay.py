@@ -25,6 +25,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 LANE = Path("ported") / "rs2012_qbd_td"
 BASE_PLACEMENTS = "BASE_PLACEMENTS.tsv"
+# `ported/<lane>/lane.ini` is the lane descriptor the ServerScript compiler reads
+# (src/serverscript/ssc_lane.c).  It names and gates the lane for script builds;
+# cachepack has no use for it, so it is skipped rather than staged.
+LANE_DESCRIPTOR = "lane.ini"
 ASSET_ROOTS = (
     "models",
     "animsets",
@@ -590,6 +594,8 @@ def stage(tree: Path, out: Path, full: bool = False) -> int:
         if child.name == BASE_PLACEMENTS:
             # Evidence/merge metadata, consumed below rather than passed to
             # cachepack as an unknown content source.
+            continue
+        if child.name == LANE_DESCRIPTOR:
             continue
         if child.is_dir() and child.name in allowed_lane_dirs:
             copied += copy_tree(child, out / child.name)

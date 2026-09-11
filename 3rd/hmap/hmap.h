@@ -88,8 +88,56 @@ struct HMapIter
     struct HMap* m;
 };
 
+/*
+ * THE HASH IS A PLATFORM CHOICE, AND SO IS THE SLOT INDEX.
+ *
+ * The original default was FNV-1a over 64 bits, one byte at a time, and the
+ * slot was `hash % capacity`. On an ARMv7 core that is three 32-bit multiplies
+ * per key BYTE and a software 64-bit divide (__aeabi_uldivmod, ~100 cycles)
+ * per lookup: the Moto X profile put the divide alone at 0.5% of a frame
+ * with the byte loop on top. The default now depends on the target word:
+ *
+ *   HMAP_HASH_FNV64     the original. Kept for 64-bit hosts so their slot
+ *                       placement and iteration order do not move.
+ *   HMAP_HASH_MURMUR32  MurmurHash3 x86_32: a word at a time, 32-bit
+ *                       arithmetic only, finished with fmix32. Selected on
+ *                       32-bit targets.
+ *
+ * The slot index goes with it: FNV64 keeps `%`; MURMUR32 uses Fibonacci
+ * hashing -- multiply the low word by 2^32/phi and take the high product
+ * bits against the capacity (Lemire's fastrange) -- one mul and one umull,
+ * no divide, and the golden-ratio multiply spreads a poorly mixed
+ * caller-supplied hash (an identity on a small int) across the table.
+ *
+ * -DHMAP_HASH_DEFAULT=HMAP_HASH_MURMUR32 (or _FNV64) overrides the choice.
+ * A map's own hash_fn_nullable still wins over the default.
+ */
+#define HMAP_HASH_FNV64 1
+#define HMAP_HASH_MURMUR32 2
+#if !defined(HMAP_HASH_DEFAULT)
+#if defined(__LP64__) || defined(_WIN64) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8)
+#define HMAP_HASH_DEFAULT HMAP_HASH_FNV64
+#else
+#define HMAP_HASH_DEFAULT HMAP_HASH_MURMUR32
+#endif
+#endif
+
+/* The default hash for this build: see HMAP_HASH_DEFAULT. */
 uint64_t
 hmap_hash_bytes(
+    const void* key,
+    size_t len,
+    void* arg);
+
+/* Both hashes, by name, for a map that wants one regardless of platform. */
+uint64_t
+hmap_hash_fnv64(
+    const void* key,
+    size_t len,
+    void* arg);
+
+uint64_t
+hmap_hash_murmur32(
     const void* key,
     size_t len,
     void* arg);
@@ -227,7 +275,7 @@ hmap_entry_key_ptr(
 }
 
 uint64_t
-hmap_hash_bytes(
+hmap_hash_fnv64(
     const void* key,
     size_t len,
     void* arg)
@@ -243,6 +291,99 @@ hmap_hash_bytes(
     if( h == 0 )
         h = 1;
     return h;
+}
+
+static inline uint32_t
+hmap_rotl32(uint32_t x, int r)
+{
+    return (x << r) | (x >> (32 - r));
+}
+
+uint64_t
+hmap_hash_murmur32(
+    const void* key,
+    size_t len,
+    void* arg)
+{
+    /* MurmurHash3_x86_32 (public domain, Austin Appleby), seed 0. Whole
+     * words through memcpy -- an aligned ldr where the target allows it and
+     * never a misaligned access where it does not. */
+    const unsigned char* p = (const unsigned char*)key;
+    uint32_t const c1 = 0xcc9e2d51u;
+    uint32_t const c2 = 0x1b873593u;
+    uint32_t h = 0;
+    size_t i;
+    (void)arg;
+    for( i = 0; i + 4 <= len; i += 4 )
+    {
+        uint32_t k;
+        memcpy(&k, p + i, 4);
+        k *= c1;
+        k = hmap_rotl32(k, 15);
+        k *= c2;
+        h ^= k;
+        h = hmap_rotl32(h, 13);
+        h = h * 5u + 0xe6546b64u;
+    }
+    {
+        uint32_t k = 0;
+        switch( len & 3 )
+        {
+        case 3:
+            k ^= (uint32_t)p[i + 2] << 16;
+            /* fallthrough */
+        case 2:
+            k ^= (uint32_t)p[i + 1] << 8;
+            /* fallthrough */
+        case 1:
+            k ^= (uint32_t)p[i];
+            k *= c1;
+            k = hmap_rotl32(k, 15);
+            k *= c2;
+            h ^= k;
+            break;
+        default:
+            break;
+        }
+    }
+    h ^= (uint32_t)len;
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16;
+    if( h == 0 )
+        h = 1;
+    return (uint64_t)h;
+}
+
+uint64_t
+hmap_hash_bytes(
+    const void* key,
+    size_t len,
+    void* arg)
+{
+#if HMAP_HASH_DEFAULT == HMAP_HASH_FNV64
+    return hmap_hash_fnv64(key, len, arg);
+#else
+    return hmap_hash_murmur32(key, len, arg);
+#endif
+}
+
+/* The slot a hash starts probing at; see HMAP_HASH_DEFAULT for why the
+ * reduction is tied to the hash choice. */
+static inline size_t
+hmap_slot_index(
+    uint64_t hash,
+    size_t capacity)
+{
+#if HMAP_HASH_DEFAULT == HMAP_HASH_FNV64
+    return (size_t)(hash % capacity);
+#else
+    uint32_t x = (uint32_t)hash ^ (uint32_t)(hash >> 32);
+    x *= 0x9E3779B1u;
+    return (size_t)(((uint64_t)x * (uint64_t)capacity) >> 32);
+#endif
 }
 
 int
@@ -409,7 +550,7 @@ hmap_search(
     if( hash == 0 )
         hash = 1;
 
-    size_t idx = hash % m->capacity;
+    size_t idx = hmap_slot_index(hash, m->capacity);
     size_t start = idx;
     ptrdiff_t tomb_i = -1;
 

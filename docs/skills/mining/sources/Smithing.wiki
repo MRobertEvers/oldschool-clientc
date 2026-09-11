@@ -1,0 +1,588 @@
+{{External|rs|rsc}}
+{{Otheruses|def=no|a list of all requirements and unlockables within the Smithing skill|Smithing/Level up table}}
+{{Has calculator|Calculator:Smithing}}
+{{Has skill guide|members=Pay-to-play Smithing training|free=Free-to-play Smithing training|iron=Ironman Guide/Smithing|UIM=Ultimate Ironman Guide/Smithing}}
+{{Infobox Skill
+|name = Smithing
+|image = [[File:Smithing icon.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|type = Production
+}}
+[[File:Smithing icon (detail).png|left]]
+'''Smithing''' is a production [[skill]] through which players create a wide variety of metal items from [[ore]] and metal [[bar]]s. It is the companion skill of [[Mining]], which generates raw materials used in Smithing. Ores acquired from Mining are smelted into metal bars at [[furnace]]s, and then [[hammer]]ed into [[items]] at [[anvil]]s. Many smithable items are useful in [[combat]], [[quests]], and the training of a number of other skills such as [[Crafting]] and [[Fletching]].
+
+{{Listen
+|align = right
+|title = [[Smithing Level Up!]]
+|filename = Smithing Level Up!.ogg
+|desc = The music that plays when levelling up without a notification of unlocking new content.}}
+
+{{Listen
+|align = right
+|title = [[Smithing Level Up! (Unlocks)]]
+|filename = Smithing Level Up! (Unlocks).ogg
+|desc = The music that plays when levelling up and unlocking new content.}}
+
+==Smelting==
+[[File:Smelting.gif|thumb|right|A player smelting some ore.]]
+{{Otheruses|def=no|a list of furnaces|Furnace}}Smelting is the process of extracting a metal [[bar]] from a metal [[ore]]. To obtain a metal bar, a player must use an ore of the desired metal with a [[furnace]]. Some metals require multiple ores, and some require [[coal]] to be added to the furnace to raise the furnace's temperature.
+
+Metal bars can be smelted by either using ores directly on a furnace or by clicking on the furnace, right-clicking on the desired bar to smelt, and selecting the number of bars to smelt.
+
+[[Members]] can also smelt bars at the [[Blast Furnace]], which can be a quicker and more cost-effective alternative to usual smelting at a furnace.
+
+===Smelting using Magic===
+With level 43 [[Magic]], players can smelt [[bar]]s using the [[Superheat Item]] [[spell]]. Doing so grants the same amount of Smithing [[experience]] as smelting using a furnace, and has a few advantages:
+*The player can emerge from a [[List of mines|mine]] with a near full inventory of bars (aside from the spaces taken by nature runes and either fire rune or staff of fire), instead of a full inventory of ores which will smelt into only a fraction of the bars.
+*The player receives both Smithing and Magic experience.
+*The player saves time by not having to commute between a [[bank]] and a [[furnace]].
+*The player is granted a 100% success rate in smelting [[iron ore]].
+*The player can smelt [[Lovakite bar]]s without the need to use the special [[Lovakite furnace]].
+
+===Success rate===
+All metals have a 100% success rate with the exception of [[iron ore]], which has a 50% chance of success, regardless of level; however, wearing a [[ring of forging]], using the [[Superheat Item]] spell, or using the [[Blast Furnace]] provides a 100% success rate for smithing [[iron bars]]. A failed smelting attempt results in the loss of the iron ore.
+
+=== Bar chart ===
+{| class="wikitable sortable align-left-3 align-left-6" style="text-align:center;"
+!{{SCP|Smithing}} Level
+!colspan="2"|Bar
+!Ore<br/>required
+!Experience
+!Notes
+!Material cost
+!Value
+!Profit/Loss<ref group="n">These are based on smelting in a [[furnace]]. For using magic to smelt items, see [[Superheat Item]]</ref>
+!Members
+|-
+|1
+|{{plinkt|Bronze bar|txt=Bronze}}
+|{{plinkp|Tin ore}}<sup>x1</sup><br/>{{plinkp|Copper ore}}<sup>x1</sup>
+|6.2
+|The lowest tier [[metal]].
+|{{Coins|{{GEP|Copper ore}}+{{GEP|Tin ore}}}}
+|{{Coins|{{GEP|Bronze bar}}}}
+|{{Coins|{{GEP|Bronze bar}}-{{GEP|Copper ore}}-{{GEP|Tin ore}}}}
+|{{members|no}}
+|-
+|13<ref group="n">Even though the in-game guide states smelting blurite bars has a requirement of level 8 Smithing, attempting to do so with less than 13 Smithing will prompt the player that the level requirement is 13 Smithing.</ref>
+|{{plinkt|Blurite bar|txt=Blurite}}
+|{{plinkp|Blurite ore}}<sup>x1</sup>
+|8 (9.5) <ref group="n"> Casting Super Heat on blurite ore grants 9.5 xp, furnaces give 8 xp.</ref>
+|Requires completion of [[The Knight's Sword]] [[quest]].
+|{{NA|colspan=3}}
+|{{members|yes}}
+|-
+|15
+|{{plinkt|Iron bar|txt=Iron}}
+|{{plinkp|Iron ore}}<sup>x1</sup>
+|12.5
+|Smelting [[iron ore]] at a [[furnace]] will fail 50% of the time. See [[Iron ore#Smelting|smelting iron ore]].
+|{{Coins|{{GEP|Iron ore}}}}<br/>{{Coins|{{GEP|Iron ore}}+{{GEP|Ring of forging}}/140}}<ref name="forging" group="n">This is based on using the [[ring of forging]] for smelting, guaranteeing successful smelting of iron.</ref>
+|{{Coins|{{GEP|Iron bar}}}}
+|{{Coins|{{GEP|Iron bar}}/2-{{GEP|Iron ore}}}}<br/>{{Coins|{{GEP|Iron bar}}-{{GEP|Iron ore}}-{{GEP|Ring of forging}}/140}}<ref name="forging" group="n" />
+|{{members|no}}
+|-
+|20
+|{{plinkt|Silver bar|txt=Silver}}
+|{{plinkp|Silver ore}}<sup>x1</sup>
+|13.7
+|A [[Crafting]] [[metal]]. Used to create various [[Crafting#Silver jewellery|silver items]].
+|{{Coins|{{GEP|Silver ore}}}}
+|{{Coins|{{GEP|Silver bar}}}}
+|{{Coins|{{GEP|Silver bar}}-{{GEP|Silver ore}}}}
+|{{members|no}}
+|-
+|20
+|{{plinkt|Elemental metal|txt=Elemental}}
+|{{plinkp|Elemental ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x4</sup>
+|7.5
+|Used in the [[Elemental Workshop I]] and [[Elemental Workshop II]] [[quests]].
+|{{NA|colspan=3}}
+|{{members|yes}}
+|-
+|25
+|{{plinkt|Lead bar|txt=Lead}}
+|{{plinkp|Lead ore}}<sup>x2</sup>
+|15.5
+|Used in building ships for [[Sailing]].
+|{{Coins|{{GEP|Lead ore}}+{{GEP|Lead ore}}}}
+|{{Coins|{{GEP|Lead bar}}}}
+|{{Coins|{{GEP|Lead bar}}-{{GEP|Lead ore}}-{{GEP|Lead ore}}}}
+|{{members|yes}}
+|-
+|30
+|{{plinkt|Steel bar|txt=Steel}}
+|{{plinkp|Iron ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x2</sup>
+|17.5
+|The most average [[metal]].
+|{{Coins|{{GEP|Iron ore}}+{{GEP|Coal|2}}}}
+|{{Coins|{{GEP|Steel bar}}}}
+|{{Coins|{{GEP|Steel bar}}-{{GEP|Iron ore}}-{{GEP|Coal|2}}}}
+|{{members|no}}
+|-
+|40
+|{{plinkt|Gold bar|txt=Gold}}
+|{{plinkp|Gold ore}}<sup>x1</sup>
+|22.5<br/>(56.2)<ref group="n">Wearing [[goldsmith gauntlets]] increases the [[experience]] gained from smelting [[gold bar]]s.</ref>
+|A [[Crafting]] [[metal]], more valuable than silver, used to create various [[Crafting#Gold jewellery|gold items]] (but not [[coins]]).
+|{{Coins|{{GEP|Gold ore}}}}
+|{{Coins|{{GEP|Gold bar}}}}
+|{{Coins|{{GEP|Gold bar}}-{{GEP|Gold ore}}}}
+|{{members|no}}
+|-
+|45
+|{{plinkt|Lovakite bar|txt=Lovakite}}
+|{{plinkp|Lovakite ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x2</sup>
+|20
+|Used to make the [[Shayzien armour]].
+|{{NA|colspan=3}}
+|{{members|yes}}
+|-
+|50
+|{{plinkt|Mithril bar|txt=Mithril}}
+|{{plinkp|Mithril ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x4</sup>
+|30
+|The [[Weight|lightest]] smithable [[metal]].
+|{{Coins|{{GEP|Mithril ore}}+{{GEP|Coal|4}}}}
+|{{Coins|{{GEP|Mithril bar}}}}
+|{{Coins|{{GEP|Mithril bar}}-{{GEP|Mithril ore}}-{{GEP|Coal|4}}}}
+|{{members|no}}
+|-
+|70
+|{{plinkt|Adamantite bar|txt=Adamantite}}
+|{{plinkp|Adamantite ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x6</sup>
+|37.5
+|The [[Weight|heaviest]] smithable [[metal]].
+|{{Coins|{{GEP|Adamantite ore}}+{{GEP|Coal|6}}}}
+|{{Coins|{{GEP|Adamantite bar}}}}
+|{{Coins|{{GEP|Adamantite bar}}-{{GEP|Adamantite ore}}-{{GEP|Coal|6}}}}
+|{{members|no}}
+|-
+|74
+|{{plinkt|Cupronickel bar|txt=Cupronickel}}
+|{{plinkp|Nickel ore}}<sup>x1</sup><br/>{{plinkp|Copper ore}}<sup>x2</sup>
+|42
+|Used in building high level ships for [[Sailing]].
+|{{Coins|{{GEP|Nickel ore}}+{{GEP|Copper ore|2}}}}
+|{{Coins|{{GEP|Cupronickel bar}}}}
+|{{Coins|{{GEP|Cupronickel bar}}-{{GEP|Nickel ore}}-{{GEP|Copper ore|2}}}}
+|{{members|yes}}
+|-
+|85
+|{{plinkt|Runite bar|txt=Runite}}
+|{{plinkp|Runite ore}}<sup>x1</sup><br/>{{plinkp|Coal}}<sup>x8</sup>
+|50
+|The highest tier smithable [[metal]].
+|{{Coins|{{GEP|Runite ore}}+{{GEP|Coal|8}}}}
+|{{Coins|{{GEP|Runite bar}}}}
+|{{Coins|{{GEP|Runite bar}}-{{GEP|Runite ore}}-{{GEP|Coal|8}}}}
+|{{members|no}}
+|}
+<references group="n" />
+
+==Smithing==
+{{Otheruses|def=no|a list of anvils|Anvil}}
+Smithing is the process by which players craft a [[metal]] item out of one or more metal [[bar]]s. Smithing is always done at an [[anvil]], using a [[hammer]] or an [[imcando hammer]]. When a player clicks on an anvil or uses a metal bar with one, an overlay is shown in which the player selects which item to forge. The player can either click the item to smith one such item, or right-click on the item and select a higher quantity of items to smith. Smithing takes place at a time interval of 5 [[tick]]s (roughly 3 seconds) per item created, regardless of the items being created or how many bars are being used per item.  Each piece of the [[Smiths' Uniform]] gives a 20% chance to speed up actions performed at an anvil by 1 tick (from 5 to 4), up to a 100% chance with the full set.
+
+:'''Note:''' Once a player has selected a quantity of items to smith, the player's character will only cease smithing once the quantity is filled, the player has run out of bars, the player levels up, or the player is attacked.
+
+===Smithing tables===
+Different Smithing levels are required to make different items. Below is a table with information about Smithing and what players can create. It is important to note that [[Black equipment|black armour and weapons]] '''cannot''' be smithed.
+
+Smithing experience is calculated by taking the experience granted from 1 bar and multiplying it by the number of bars used. For example, a [[bronze platebody]] is 62.5 experience using 5 bars. 1 bar is 12.5 exp, so go 5 * 12.5 = 62.5. This works for all bars and all smithing items, with a few exceptions such as [[cannonball]]s.
+
+====Bronze====
+{{Smithing/Bronze bar|displayHA=yes}}
+
+====Iron====
+{{Smithing/Iron bar|displayHA=yes}}
+====Steel====
+{{Smithing/Steel bar|displayHA=yes}}
+====Gold====
+{{Smithing/Gold bar}}
+====Mithril====
+{{Smithing/Mithril bar}}
+
+====Adamant====
+{{Smithing/Adamantite bar}}
+====Rune====
+{{Smithing/Runite bar}}
+
+==Crystal singing==
+{{main|Crystal singing}}
+{{:Crystal singing}}
+
+==Minigames==
+The '''[[Blast Furnace]]''' is a special furnace that takes half the usual amount of [[coal]] to smelt bars, and processes all loaded ore at once instead of one by one. Other players must be operating and repairing various parts of the furnace in order to power it, but on designated blast furnace [[world]]s, there are non-players characters who perform this action in exchange for payment.
+
+The '''[[Giants' Foundry]]''' is an activity in which players take commissions to smith giant swords from bars or recycled metal items. These swords must be hammered, ground and polished at precise temperatures, which can be controlled by dipping it in water or lava. The player is rewarded with smithing experience, [[coins]] and [[Foundry Reputation]].
+
+==Other smithing activities==
+*Players fighting [[Zalcano]] have to refine [[tephra]] at the furnace in her prison, and will deal more damage with a higher smithing level.
+*[[Barronite deposit]]s can be crushed (yielding 30 XP per deposit) to recover [[barronite shards]] and a variety of items at the [[barronite crusher]] in [[Camdozaal]].
+*[[Elemental shield]]s, [[elemental helmet]]s, [[mind helmet]]s and [[mind shield]]s can be smithed at the [[workbench]]es in the [[Elemental Workshop]].
+*Sigils from the [[Corporeal Beast]] can be affixed to [[Blessed spirit shield|Blessed spirit shields]] and the [[Elidinis' ward]] to create powerful shields.
+*[[Godsword blade]]s, [[dragonfire shield]]s, [[dragonfire ward]]s and [[ancient wyvern shield]]s can be assembled at regular anvils.
+*[[Dragon platebody|Dragon platebodies]] and [[dragon kiteshield]]s can be made from their components at the [[Dragon Forge]].
+*[[Bandosian components]] can be combined with the damaged [[Torva full helm#Damaged|Torva full helm]], [[Torva platebody#Damaged|platebody]], and [[Torva platelegs#Damaged|platelegs]] at an [[anvil]] to create [[Torva armour]].
+*[[Iron bar]]s can be made into [[iron sheet]]s for little experience and then exchanged for very little money in the [[Piscatoris Fishing Colony]].
+
+==Smithing equipment and tools==
+ 
+{| class="wikitable"
+!colspan="2" | Item
+!Description
+|-
+| {{plinkt|Hammer}}
+| Used to smith bars into items at an anvil.
+|-
+| {{plinkt|Imcando hammer}}
+| Same as a hammer, but it can be wielded in the [[Weapon slot table|weapon slot]], saving a space in inventory.
+|-
+| {{plinkt|Goldsmith gauntlets}}
+| Increases the amount of experience gained from smelting [[gold bar]]s from 22.5 to 56.2.
+|-
+| {{plinkt|Ice gloves}}
+| Used at the [[Blast Furnace]] and [[Giants' Foundry]] to pick up bars and giant swords respectively without having to cool them down.
+|-
+| {{plinkt|Smiths tunic}}
+| rowspan=4 | Each piece of the [[smiths' uniform]] grants a 20% chance to increase the speed of actions performed at an anvil by one tick when worn, with the whole outfit granting a 100% chance.
+|-
+| {{plinkt|Smiths trousers}}
+|-
+| {{plinkt|Smiths gloves}}
+|-
+| {{plinkt|Smiths boots}}
+|-
+| {{plinkt|Smiths gloves (i)}}
+| Combines the effects of the smiths gloves and the ice gloves.
+|-
+| {{plinkt|Ring of forging}}
+| Grants a 100% chance to smelt an [[iron bar]].
+|-
+| {{plinkt|Smithing cape}}
+| rowspan=3 | Has the same effect as the goldsmith gauntlets, and lets the coal bag store 9 extra pieces of coal.
+|-
+| {{plinkt|Smithing cape(t)}}
+|-
+| {{plinkt|Max cape}}
+|-
+| {{plinkt|Varrock armour 1}}
+| rowspan=4 | Grants a 10% chance to smelt two bars at once at the [[Edgeville furnace]]; tier 1 works up to [[steel bar|steel]], tier 2 up to [[mithril bar|mithril]], tier 3 up to [[adamantite bar|adamantite]] and tier 4 works on all bars.
+|-
+| {{plinkt|Varrock armour 2}}
+|-
+| {{plinkt|Varrock armour 3}}
+|-
+| {{plinkt|Varrock armour 4}}
+|-
+| {{plinkt|Bucket of water}}
+| Used at the Blast Furnace and Giants' Foundry to cool down bars and giant swords respectively.
+|-
+| {{plinkt|Smithing catalyst}}
+| At regular furnaces, it provides double experience from bars that require coal to smelt, and halves the amount of coal needed.
+|-
+| {{plinkt|Ammo mould}}
+| Used to smelt 4 [[Cannonball (disambiguation)|cannonballs]] from a [[bar]].
+|-
+| {{plinkt|Double ammo mould}}
+| Used to smelt 8 [[Cannonball (disambiguation)|cannonballs]] from 2 [[bar|bars]] at once.
+|-
+| {{plinkt|Coal bag}}
+| Stores 27 pieces of coal.
+|}
+
+The [[blacksmith's helm]] does not play any role in smithing. [[Weight-reducing clothing]] is useful for some smithing activities. Mining rocks with an [[infernal pickaxe]] gives a 1/3 chance to combust the ore, granting smithing experience.
+
+==Smelting and Smithing tips==
+*The closest [[furnace]]s to a [[bank]] are the [[Shilo Village (location)|Shilo Village]], [[Prifddinas]] and [[Deepfin Point]] furnace for [[members]] and the [[Edgeville furnace]] for [[free players]]. The F2P title was held by the [[Al Kharid]] furnace until an [[Update:POH Portals, DHCB Recolour and Planned Changes|update]] on [[15 November]] [[2018]]. However, the furnace at Shilo Village costs [[coins]] to use before the completion of the elite [[Karamja Diary]], so many players find the Edgeville furnace preferable or the [[Prifddinas]] furnace once [[Song of the Elves]] has been completed. The [[Port Phasmatys]], [[Neitiznot]] and [[Falador]] furnaces are also all quite close to banks. The Edgeville furnace also gives a chance to smelt two ores at once while wearing Varrock armour with each completed set of [[Varrock Diary]].
+*It is often more efficient to break up the tasks of [[mining]], smelting (unless [[Superheat Item|superheating]]), and smithing, rather than trying to mine 28 [[ores]], smelt them, and then smith them (although in Al Kharid the furnace is on the way to the bank).
+*The [[anvil]]s located nearest a bank are at the south-east area of [[Prifddinas]], [[Deepfin Point]], the [[Void Knights' Outpost]], [[Yanille]] (just south of the bank), and [[Varrock]] (just south of the west bank). To reach the Void Knights' Outpost island, talk to the squire south of the [[Port Sarim]] dock or use the [[Minigame teleport]] to [[Pest Control]].
+
+==Making money==
+{{Otheruses|def=no|making money by smelting ore into bars|Calculator:Smithing/Smelting}}
+{{Otheruses|def=no|making money by smithing bars into items|Calculator:Smithing/Bars}}
+
+Smithing offers several opportunities to make money. Players have the option to cast [[High Level Alchemy]] on the items they made with smithing, sell them to specialty [[general store]]s, or sell them on the [[Grand Exchange]]. Furthermore, members have the ability to smelt metal [[bars]] at the [[Blast Furnace]] for lowered ore costs and therefore greater profits.
+
+Smithing in conjunction with casting High Level Alchemy is responsible for bringing significant amount of coins into the game. At a [[Magic]] level of 55, a player can "high alch" items using 5 [[fire rune]]s and 1 [[nature rune]] to turn items into coins. Several items made by Smithing can be profitable when [[High Alchemy]] is cast on them. Some high alchemy values are found in the table below.
+
+Specialty stores are general stores that purchase items from the player for more coins than most general stores. The [[Jiminua's Jungle Store]] north of [[Tai Bwo Wannai]] village on [[Karamja]] with the [[Karamja gloves]] [[Karamja gloves 3|3]]/[[Karamja gloves 4|4]] purchases items at above the high alchemy value.
+
+Other stores include: the general store run by [[Martin Thwait]] in the [[Rogues' Den]] ([[Martin Thwait's Lost and Found]]), the [[West Ardougne General Store]], and the [[Bandit Duty Free]] in the [[Bandit Camp (Wilderness)|Bandit Camp]] in the [[Wilderness]] (although this one is '''NOT''' recommended due to its dangerous location). Keep in mind that the buy price at general stores decreases rapidly the more items it has in stock, so it's recommended to hop around frequently if you decide to sell your items.
+
+Other ways for making money include at level 40 Smithing with level 6 [[Crafting]] and a [[necklace mould]], [[gold necklace]] can be made at the same furnace in which [[gold ore]] is smelted into [[gold bar]]s. [[Grum's Gold Exchange]] in [[Port Sarim]] buys a gold necklace for 315 coins if his stock is zero; the price decreases 9 coins for each gold necklace in stock, dropping to 45 coins at a stock of 30 or more
+
+===High Level Alchemy table===
+The items listed below are the ones most players use in [[High Level Alchemy]]. A more comprehensive list for steel through rune items with updated profit margins can be found here: [[Calculator:Magic/High alchemy]].
+{|class="wikitable" style="text-align:center;"
+!rowspan="2"|Item
+!rowspan="2"|Bars
+!colspan="6"|High alch/Specialist store price
+|-
+!{{plink|Bronze|pic=Bronze bar}}
+!{{plink|Iron|pic=Iron bar}}
+!{{plink|Steel|pic=Steel bar}}
+!{{plink|Mithril|pic=Mithril bar}}
+!{{plink|Adamant|pic=Adamantite bar}}
+!{{plink|Rune|pic=Runite bar}}
+|-
+|[[Dagger]]||1||6||21||75||195||480||4,800
+|-
+|[[Axe]]||1||9||33||120||312||768||7,280
+|-
+|[[Mace]]||1||10||37||135||351||864||8,640
+|-
+|[[Medium helmet]]||1||14||50||180||468||1,152||11,520
+|-
+|[[Sword]]||1||15||54||195||507||1,249||12,480
+|-
+|[[Scimitar]]||2||19||67||240||624||1,536||15,360
+|-
+|[[Longsword]]||2||24||84||300||780||1,919||19,200
+|-
+|[[Full helmet]]||2||26||92||330||858||2,112||21,120
+|-
+|[[Square shield]]||2||28||100||360||936||2,304||23,040
+|-
+|[[Warhammer]]||3||28||103||384||996||2,472||24,900
+|-
+|[[Battleaxe]]||3||31||109||390||1,014||2,490||24,960
+|-
+|[[Chainbody]]||3||36||126||450||1,170||2,880||30,000
+|-
+|[[Kiteshield]]||3||40||142||510||1,326||3,264||32,640
+|-
+|[[Two-handed sword]]||3||48||168||600||1,560||3,840||38,400
+|-
+|[[Platelegs]]/[[Plateskirt]]||3||48||168||600||1,560||3,840||38,400
+|-
+|[[Platebody]]||5||96||336||1,200||3,120||9,984 ||39,000
+|}
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Smithing}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Smithing===
+{| class="wikitable sortable lighttable mw-collapsible qc-active" style="text-align:center;"
+!Quest
+!Smithing<br/>requirement
+!Other skill requirements
+|-
+|[[Zogre Flesh Eaters]]||{{SCP|Smithing|4}}||{{SCP|Fletching|30}}, {{SCP|Herblore|8}}, {{SCP|Ranged|30}}
+|-
+|[[Sleeping Giants]]
+|{{SCP|Smithing|15}}
+|
+|-
+|[[Elemental Workshop I]]||{{SCP|Smithing|20}}|| {{SCP|Crafting|20}}, {{SCP|Mining|20}}
+|-
+|[[The Tourist Trap]]||{{SCP|Smithing|20}}||{{SCP|Fletching|10}}
+|-
+|[[Elemental Workshop II]]||{{SCP|Smithing|30}}|| {{SCP|Magic|20}}, {{SCP|Crafting|20}}
+|-
+|[[One Small Favour]]||{{SCP|Smithing|30}}|| {{SCP|Agility|36}}, {{SCP|Crafting|25}}, {{SCP|Herblore|18}}
+|-
+|[[Prying Times]]||{{SCP|Smithing|30}}|| {{SCP|Sailing|12}}
+|-
+|[[Scrambled!]]||{{SCP|Smithing|35}}|| {{SCP|Construction|38}}, {{SCP|Cooking|36}}
+|-
+|[[Family Crest]]||{{SCP|Smithing|40}}||{{SCP|Magic|59}}, {{SCP|Mining|40}}, {{SCP|Crafting|40}}
+|-
+|[[Swan Song]]||{{SCP|Smithing|45}}||{{SCP|Quest|100}}, {{SCP|Magic|66}}, {{SCP|Cooking|62}}, {{SCP|Fishing|62}}, {{SCP|Firemaking|42}}, {{SCP|Crafting|40}}
+|-
+|[[The Red Reef]]||{{SCP|Smithing|48}}||{{SCP|Sailing|52}}
+|-
+|[[Between a Rock...]]||{{SCP|Smithing|50}}|| {{SCP|Defence|30}}, {{SCP|Mining|40}}
+|-
+|[[Cabin Fever]]||{{SCP|Smithing|50}}|| {{SCP|Agility|42}}, {{SCP|Crafting|45}}, {{SCP|Ranged|40}}
+|-
+|[[Legends' Quest]]||{{SCP|Smithing|50}}||{{SCP|Magic|56}}, {{SCP|Agility|50}}, {{SCP|Crafting|50}}, {{SCP|Herblore|45}}, {{SCP|Mining|52}}, {{SCP|Prayer|42}}, {{SCP|Strength|50}}, {{SCP|Thieving|50}}, {{SCP|Woodcutting|50}}
+|-
+|[[Defender of Varrock]]||{{SCP|Smithing|55}}||{{SCP|Hunter|52}}
+|-
+|[[The Fremennik Exiles]]
+|{{SCP|Smithing|60}}
+|{{SCP|Crafting|65}}, {{SCP|Slayer|60}}, {{SCP|Fishing|60}}, {{SCP|Runecraft|55}}
+|-
+|[[Devious Minds]]||{{SCP|Smithing|65}}|| {{SCP|Runecraft|50}}, {{SCP|Fletching|50}}
+|-
+|[[Song of the Elves]]||{{SCP|Smithing|70}}||{{SCP|Agility|70}}, {{SCP|construction|70}}, {{SCP|Farming|70}}, {{SCP|Herblore|70}}, {{SCP|Hunter|70}}, {{SCP|Mining|70}}, {{SCP|Woodcutting|70}}
+|-
+|[[Dragon Slayer II]]||{{SCP|Smithing|70}}|| {{SCP|Quest|200}}, {{SCP|Magic|75}}, {{SCP|Mining|68}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Thieving|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+|[[The Blood Moon Rises]]
+|{{SCP|Smithing|72}}
+|{{SCP|Slayer|74}}, {{SCP|Woodcutting|74}}, {{SCP|Cooking|72}}, {{SCP|Fletching|70}}, {{SCP|Mining|66}}, {{SCP|Hunter|65}}, {{SCP|Crafting|64}}, {{SCP|Herblore|64}}, {{SCP|Magic|57}}
+|}
+
+===Quests rewarding Smithing experience===
+{{Main|Quest experience rewards}}
+{| class="wikitable sortable lighttable mw-collapsible qc-active" style="text-align:center;"
+!Quest
+!Experience<br/>reward
+!data-sort-type="number"|Smithing<br/>requirement
+!Other requirements
+|-
+|[[The Forsaken Tower]]||500|| - || -
+|-
+|[[Recipe for Disaster/Freeing Pirate Pete]]||1,000|| - ||{{SCP|Cooking|31}}
+|-
+|[[Prying Times]]||1,000|| {{SCP|Smithing|30|sort=y}} ||{{SCP|Sailing|12}}
+|-
+|[[Heroes' Quest]]||2,275|| - || {{SCP|Quest|55}}, {{SCP|Cooking|53}}, {{SCP|Fishing|53}}, {{SCP|Herblore|25}}, {{SCP|Mining|50}}
+|-
+|[[The Giant Dwarf]]||2,500|| - || {{SCP|Thieving|14}}, {{SCP|Crafting|12}}, {{SCP|Firemaking|16}}, {{SCP|Magic|33}}
+|-
+|[[Between a Rock...]]||5,000||{{SCP|Smithing|50|sort=y}}|| {{SCP|Defence|30}}, {{SCP|Mining|40}}
+|-
+|[[Elemental Workshop I]]||5,000||{{SCP|Smithing|20|sort=y}}|| {{SCP|Crafting|20}}, {{SCP|Mining|20}}
+|-
+|[[Scrambled!]]||5,000||{{SCP|Smithing|35|sort=y}}|| {{SCP|Construction|38}}, {{SCP|Cooking|36}}
+|-
+|[[The Red Reef]]||5,000||{{SCP|Smithing|48|sort=y}}|| {{SCP|Sailing|52}}
+|-
+|[[Sleeping Giants]]||6,000||{{SCP|Smithing|15|sort=y}}|| -
+|-
+|[[Devious Minds]]||6,500||{{SCP|Smithing|65|sort=y}}|| {{SCP|Runecraft|50}}, {{SCP|Fletching|50}}
+|-
+|[[Cabin Fever]]||7,000||{{SCP|Smithing|50|sort=y}}|| {{SCP|Agility|42}}, {{SCP|Crafting|45}}, {{SCP|Ranged|40}}
+|-
+|[[Elemental Workshop II]]||7,500||{{SCP|Smithing|30|sort=y}}|| {{SCP|Magic|20}}, {{SCP|Crafting|20}}
+|-
+|[[The Knight's Sword]]||12,725|| - || {{SCP|Mining|10}}
+|-
+|[[Defender of Varrock]]||15,000||{{SCP|Smithing|55|sort=y}}||{{SCP|Hunter|52}}
+|-
+|[[Song of the Elves]]||40,000||{{SCP|Smithing|70|sort=y}}||{{SCP|Agility|70}}, {{SCP|Construction|70}}, {{SCP|Farming|70}}, {{SCP|Herblore|70}}, {{SCP|Hunter|70}}, {{SCP|Mining|70}}, {{SCP|Woodcutting|70}}
+|-
+|[[Dragon Slayer II]]||80,000|| {{SCP|Smithing|70|sort=y}}|| {{SCP|Quest|200}}, {{SCP|Magic|75}}, {{SCP|Mining|68}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Thieving|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+!Total
+!201,000
+!colspan="2"|
+|}
+
+===Achievement Diaries requiring Smithing===
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Smithing<br/>requirement
+!Other requirements for tasks<br/>requiring smithing
+|-
+|[[Falador Easy Diary]]
+|{{SCP|Smithing|13}}
+|{{SCP|Mining|10}}
+|-
+|[[Fremennik Easy Diary]]
+|{{SCP|Smithing|20}}
+|{{SCP|Crafting|23}},{{SCP|Mining|20}}
+|-
+|[[Morytania Medium Diary]]
+|{{SCP|Smithing|35}}
+| -
+|-
+|[[Wilderness Medium Diary]]
+|{{SCP|Smithing|50}}
+| -
+|-
+|[[Ardougne Hard Diary]]
+|{{SCP|Smithing|60}}
+| -
+|-
+|[[Ardougne Hard Diary]]
+|{{SCP|Smithing|68}}
+| -
+|-
+|[[Desert Hard Diary]]
+|{{SCP|Smithing|68}}
+| -
+|-
+|[[Fremennik Hard Diary]]
+|{{SCP|Smithing|60}}
+| -
+|-
+|[[Kandarin Hard Diary]]
+|{{SCP|Smithing|75}}
+| -
+|-
+|[[Kourend & Kebos Hard Diary]]
+|{{SCP|Smithing|70}}
+| -
+|-
+|[[Wilderness Hard Diary]]
+|{{SCP|Smithing|75}}
+|
+|-
+|[[Ardougne Elite Diary]]
+|{{SCP|Smithing|91}}
+|{{SCP|Crafting|10}},{{SCP|Fletching|69}}
+|-
+|[[Kandarin Elite Diary]]
+|{{SCP|Smithing|90}}
+| -
+|-
+|[[Lumbridge & Draynor Elite Diary]]
+|{{SCP|Smithing|88}}
+| -
+|-
+|[[Varrock Elite Diary]]
+|{{SCP|Smithing|89}}
+|{{SCP|Fletching|81}}
+|-
+|[[Wilderness Elite Diary]]
+|{{SCP|Smithing|90}}
+|{{SCP|Mining|85}}
+|}
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Smithing. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Smithing}}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 January 2026
+|update = Holy Moleys and the Hooded Slayer Helm are Here!
+|change = Corrected a mistake in the Skill Interactions section of the new-style Smithing skill guide interface. Previously, it incorrectly stated players were able to smith pickaxes.
+}}
+{{Subject changes
+|date = 18 May 2022
+|update = Poll 76 Improvements
+|poll = Old School Content Poll 76: Game Improvements
+|change = The Smithing interface now remembers the last item crafted, outlined with a highlight, and can be selected with space bar if all the required materials are current held. Without the correct items, Smithing via spacebar will be disabled and the highlight will be removed. 
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = A Left-click 'Smith' option has been added to anvils.
+}}
+{{Subject changes
+|date = 9 January 2014
+|update = Minigame Grouping
+|poll = Old School feature poll 14: Minigames
+|change = The Smithing menu now offers a Make-X option.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In the early days, Smithing was considered one of the best [[skills]] for [[making money]]. As such, [[Jagex]] deliberately kept [[anvils]] and [[furnaces]] far away from each other in an attempt to prevent people from levelling Smithing too quickly.
+*For a time after the release of ''RuneScape 2'' through around [[2006]], the in-game skill guide for Smithing had a tab for smithing [[black equipment]], although this is not possible.
+*Smithing is one of only two [[skills]] that unlocks something new at every level; [[Construction]] being the other.
+
+==See also==
+* [[Smithing/Experience table]], a list of all Smithing experience sources
+* [[Smithing/Level up table]], a list of all requirements and unlockables within the Smithing skill
+
+{{Smithing}}
+{{Skills}}
+[[Category:Free-to-play skills]]

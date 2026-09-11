@@ -1,0 +1,74 @@
+{{Infobox NPC
+|name = Watson
+|image = [[File:Watson.png|140px]]
+|release = [[6 July]] [[2016]]
+|update = Treasure Trail Expansion (2016)
+|members = Yes
+|race = [[Human]]
+|location = [[Hosidius]]
+|gender = Male
+|options = Talk-to, Check
+|examine = Give him a clue.
+|map = {{Map|name=Watson|x=1646|y=3574|plane=0|r=4|mtype=square}}
+|id = 7303,7304
+|leagueRegion = Kourend
+}}
+[[File:Watson chathead.png|left]]
+'''Watson''' is a [[Treasure Trails]] expert who lives in [[Hosidius]]. He can be found in the large, fenced-in house west of the [[Forthos Ruin]]. Players can trade him one each of [[easy clue|easy]], [[medium clue|medium]], [[hard clue|hard]], and [[elite clue scroll]]s to receive a [[master clue scroll]]/[[master scroll box]]. He will not accept clue scrolls that are still in a box, they must be opened first. [[Sherlock]] skill challenge scrolls may also be given to Watson. Trading in one of each of these clue scrolls for a master clue scroll yields an average profit of {{NoCoins|floor((6 * {{MasterClueValue}} + 1/15*{{MasterMimicValue}}) - (3*{{EasyClueValue}} + 4*{{MediumClueValue}} + 5*{{HardClueValue}} + 5*{{EliteClueValue}} + 1/35 * {{EliteMimicValue}} + (1/5+1/15+1/30+1/50)*(6*{{MasterClueValue}} + 1/15*{{MasterMimicValue}})))}} coins (when including the possible master clues as rewards from the lower-tier clues). While there may be a loss on average, the time saved from doing a single master clue versus one of each of the traded in clues can be significant, and the chance at obtaining the [[Bloodhound]] pet is exclusive to master clues.
+
+If you are holding an unfinished master clue in the bank, Watson will hold onto all 4 clues you have given him until you have finished or discarded the master clue you are holding. The player may also use the [[Astral Contact]] spell to check which types of clue they have given to Watson.
+
+Players can receive additional clues of the same type as clues they currently have stored with Watson.
+
+[[Watson's house|Watson's House]] has an upstairs portion that contains the [[Strange casket|Strange Casket]] which is used to fight [[The Mimic]].
+
+[[Watson's house]] also contains a [[Noticeboard (Watson's house)|noticeboard]] where players can view a list of the [[STASH]] units they have built and/or filled. For a fee of 500 coins, one can buy a [[s.t.a.s.h blueprint|blueprint]] so they can build a [[S.t.a.s.h chart|STASH unit tracker]] in their [[player-owned house]]'s [[Study]], which works just like Watson's noticeboard. 
+
+He owns a [[bloodhound]] named [[Gruff McScruff]].
+
+==Transportation==
+*Using a [[Watson teleport]] is the quickest way to get here.
+*Use the 'Lunch by the Lancalliums' - Hosidius option on the [[Kharedst's memoirs]] or [[Book of the Dead]], and run south-west.
+*Use of the [[Lovakengj Minecart Network]] to the Hosidius West stop.
+*Use the [[spirit tree]] from the Hosidius [[spirit tree patch]].
+*Use the [[Kourend Castle Teleport]] from the [[standard spellbook]], and run south.
+*Use the Xeric's Glade option on the [[Xeric's talisman]], and run north-west over the bridge, then west to Watson's house.
+*Use the [[Woodcutting Guild]] option on the [[Skills necklace]], and run north.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Stock==
+{{StoreTableHead|hidecaption=y|hidebuy=y|hidestock=y|hiderestock=y}}
+{{StoreLine|name=S.t.a.s.h blueprint|stock=inf|restock=N/A|sell=500|buy=N/A|gemw=no}}
+{{StoreTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 April 2021
+|update = Collection Log Improvements and The Last of Poll 74
+|change = A [[S.t.a.s.h blueprint|S.T.A.S.H blueprint]] can now be bought from Watson to build a [[S.t.a.s.h chart|S.T.A.S.H chart]] for 500 coins.
+}}
+{{Subject changes
+|date = 23 May 2019
+|update = Hosidius Rework and Deadman Beta
+|change = Watson's house was renovated with Hosidius's rework.
+}}
+{{Subject changes
+|date = 22 November 2018
+|update = Bird Nest Balancing and PvP Changes
+|change = Watson will no longer be expressionless when a player uses a master clue on him.
+}}
+{{Subject changes
+|date = 29 September 2016
+|update = Duel Arena Improvements
+|change = Watson can now be contacted via the [[Astral Contact]] spell.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Watson's name is a reference to {{wp|Dr. Watson|Dr John Watson}}, partner of the famous fictional detective {{wp|Sherlock Holmes}}.
+
+{{Hosidius}}
+{{Astral Contact}}

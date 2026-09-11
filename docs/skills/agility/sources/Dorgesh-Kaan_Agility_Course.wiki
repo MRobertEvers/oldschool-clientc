@@ -1,0 +1,247 @@
+{{External|rs}}
+{{Infobox Location
+|name = Dorgesh-Kaan Agility Course
+|image = [[File:Dorgesh-Kaan Agility Course.png]]
+|release = [[20 March]] [[2007]]
+|update = Dorgesh-Kaan
+|members = Yes
+|location = [[Dorgesh-Kaan]]
+|map = {{Map|x = 2741|y = 5241|plane=2|mapID=-1|mtype=pin}}
+|type = agility course
+|leagueRegion = Misthalin
+}}
+The '''Dorgesh-Kaan Agility Course''' is an Agility training area located in [[Dorgesh-Kaan]], available to players with level 70 [[Agility]]. Completion of the [[quest]] [[Death to the Dorgeshuun]] is also required. Optionally, level 70 [[Strength]] and [[Ranged]] (in addition to 70 [[Agility]]), are required to traverse the grapple route, which gives experience in Agility, Strength and Ranged. To train at the Agility course, the player also has to bring a [[Light sources|light source]].
+
+The Agility course rewards 2,750 Agility [[experience]] per completed lap. With an average time of 156 seconds per lap, it is possible to get upwards of 63,000 Agility experience per hour from this course. At lower Agility levels expect to get around 50,000–60,000 Agility experience per hour, depending on concentration levels. In addition to experience, players can also receive [[marks of grace]] during this course.
+
+While having very similar experience rates per hour to the [[Ardougne Rooftop Course]], the chance to get the [[giant squirrel]] pet is around 15% higher at the Dorgesh-Kaan Agility Course.
+
+==Introduction==
+The Dorgesh-kaan Agility Course requires level 70 Agility, completion of {{SCP|Quest}} [[Death to the Dorgeshuun]] and a [[Light sources|light source]] to access. The basic premise of the course is to cross obstacles using one of two routes to retrieve an item requested by Turgall. If the requested item is delivered to [[Turgall]], bonus experience is rewarded, depending on which route was taken.
+
+==Transportation==
+The Dorgesh-Kaan agility course located at the southernmost point of the upper level of Dorgesh-Kaan. There are several different methods for travelling there. The best options, ordered from fast to slow, are:
+*Dial the [[Fairy rings|fairy ring]] code {{fairycode|AJQ}}. Run to the northernmost part of the cave and go up the ladder to the right.
+*Break a [[Dorgesh-kaan sphere|Dorgesh-Kaan teleport sphere]] and run to the course from there.
+*Take a [[Keldagrim minecart]] from the [[Grand Exchange]] to [[Keldagrim]]. Head east through a doorway and take the [[Dorgesh-Kaan–Keldagrim_train_system|train]] at the station to [[Dorgesh-Kaan]]. Exit the train station and go up the stairs to the south.
+*Enter the [[Lumbridge Swamp Caves]] from the cellar in [[Lumbridge Castle]]. Use the travel option on [[Kazgar]] to travel to the mines. From there, run south to enter the city of [[Dorgesh-Kaan]]. The Agility course is located on the {{FloorNumber|uk=2}} to the south.
+
+==Strategies==
+===Equipment===
+*Wear [[weight-reducing clothing]] to achieve a weight of 0&nbsp;kg or lower. This results in a lower run energy depletion rate.
+*When planning on taking the grapple route, bring any [[Crossbow (weapon)|crossbow]], as well as multiple [[mith grapple]]s, since there is a 1/25{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1051989319781498880|date=15 October 2018|archiveurl=https://reldo.runescape.wiki/i/96587|archivedate=28 May 2020|quote=1/25, which I think is standard for such short-cuts and access routes.}} chance of the grapple being destroyed upon usage.
+
+===Inventory===
+*A [[Light sources|lightsource]]
+*A [[spanner]], which is obtained by talking to [[Turgall]].
+*Bring some [[food]] to restore lost [[Hitpoints]] from taking damage from failing Agility obstacles.
+*Bring enough [[Energy#Energy-restoring items|energy-restoring items]] for enough [[energy]] to constantly run around the course.
+
+==Gameplay==
+First, talk to [[Turgall]] to offer help. He is found in the well-lit power generator in the north-eastern part of the Agility course. Turgall will then hand a [[spanner]] to disassemble a part from the old power generator in the south-west corner. He will always mention two components he needs. Depending on the desired route, one of those two items should be retrieved. The heavy items can only be taken back via the Agility route, while the delicate items can only be taken back via the grapple route.
+
+'''Warning:''' Teleporting with any components causes them to break.
+
+{|class="wikitable align-center-1 align-center-3"
+! colspan=2 |Heavy items (Agility route)
+! colspan=2 |Delicate items (Grapple route)
+|-
+|{{plinkt|Powerbox}}
+|{{plinkt|Capacitor}}
+|-
+|{{plinkt|Lever (Dorgesh-Kaan Agility Course)|txt=Lever}}
+|{{plinkt|Fuse}}
+|-
+|{{plinkt|Cog}}
+|{{plinkt|Meter}}
+|}
+
+The Agility route will solely reward Agility experience, while the Grapple route will mainly reward Ranged experience and small amounts of Agility and Strength experience. It is also possible to take different routes back and forth, which will split the experience between Agility and Ranged (plus a small amount of Strength experience). The part that was disassembled from the old power generator will dictate whether to take the Agility or the grapple route back. The route there is open to the player's choice: whether they want to focus on Agility or Ranged experience.
+
+===Route options===
+{{Map|align=right|plane=3|mapID=-1|x=2723|y=5219
+|caption={{mapkey|col=2
+|line1=...#66ff00,text=Grapple
+|line2=...#00FFFF,text=Tight rope
+|line3=...#f0ff00,text=Cable swing
+|line4=...#FF69B4,text=Monkey bars
+|line5=dot...#800080,text=Wall
+|line6=dot...#FF0000,text=Tunnel}}
+|mtype:line,stroke:#f0ff00,2742.5:5238.5,2742.5:5236,2741:5236,2731.5:5245.5,2728:5245.5,2726.8:5244.3,2724:5244.3,2721:5241.3,2721:5231,2723:5229,2727:5229
+,2728:5228,2737:5228,2740:5225,2740:5216,2739:5215,2728:5215,2723:5220,2721:5220,2721:5206,2720:5205,2720:5194,2708:5194,2705:5197,2702.5:5197,2702.5:5194.5
+|mtype:rectangle,rectY:7,rectX:2,stroke-opacity:0,fill-opacity:1,fill:#66ff00,2705:5228,2704:5216,desc:Grapple
+|mtype:rectangle,rectY:2,rectX:7,stroke-opacity:0,fill-opacity:1,fill:#66ff00,2714:5242,desc:Grapple
+|mtype:rectangle,rectY:7,rectX:2,stroke-opacity:0,fill-opacity:1,fill:#00FFFF,2721.5:5235.5,2720.5:5200,desc:Tight rope
+|mtype:rectangle,rectY:5,rectX:4,stroke-opacity:0,fill-opacity:0.7,fill:#F0FF00,2731:5228,2730:5215.4,desc:Cable swing
+|mtype:rectangle,rectY:7,rectX:2,stroke-opacity:0,fill-opacity:1,fill:#FF69B4,2740.5:5220.5,desc:Monkey bars
+|mtype:rectangle,rectY:2,rectX:7,stroke-opacity:0,fill-opacity:1,fill:#FF69B4,2712.5:5194.5,desc:Monkey bars
+|mtype:dot,stroke-opacity:0,fill-opacity:1,fill:#800080,2721:5214,desc:Wall
+|mtype:dot,stroke-opacity:0,fill-opacity:1,fill:#FF0000,2721:5207,desc:Tunnel
+|mtype:rstext,label:Turgall,2742:5246
+|mtype:rstext,label:Old generator,2702:5187}}
+
+After offering Turgall some help and knowing which two parts to choose from, decide which route to take: the Agility route for more Agility experience, or the grapple route for more Ranged experience.
+
+If not failed:
+*The Agility route back and forth takes 2:36 minutes.
+*The grapple route back and forth takes 1:30 minutes.
+*A combination of both routes takes 2:03 minutes.
+
+====Agility route====
+{| class="wikitable align-center-1 align-center-3"
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Dorgesh-Kaan Agility Course (1).png|250px]]
+|[[Cable (Dorgesh-Kaan Agility Course)#Walk-across|Cable]]
+|{{SCP|Agility|25}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (2).png|250px]]
+|[[Cable (Dorgesh-Kaan Agility Course)#Swing|Cable]]
+|{{SCP|Agility|22}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (3).png|250px]]
+|[[Ladder (Dorgesh-Kaan Agility Course)|Ladder]]
+|{{SCP|Agility|25}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (4).png|250px]]
+|[[Cable (Dorgesh-Kaan Agility Course)#Swing|Cable]]
+|{{SCP|Agility|22}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (5).png|250px]]
+|[[Jutting wall (Dorgesh-Kaan Agility Course)|Jutting wall]]
+|{{SCP|Agility|7.5}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (6).png|250px]]
+|[[Tunnel (Dorgesh-Kaan Agility Course)|Tunnel]]
+|{{SCP|Agility|7.5}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (7).png|250px]]
+|[[Cable (Dorgesh-Kaan Agility Course)#Walk-across|Cable]]
+|{{SCP|Agility|25}}
+|-
+|[[File:Dorgesh-Kaan Agility Course (8).png|250px]]
+|[[Ladder (Dorgesh-Kaan Agility Course)|Ladder]]
+|{{SCP|Agility|25}}
+|-
+|{{NA}}
+|Delivery bonus
+|{{SCP|Agility|2,432}} <ref group="d">If the Agility route was taken back and forth. If this route was taken only once, 1,216 bonus experience will be rewarded, as well as 571 Ranged experience.</ref>
+|-
+! colspan=2 |Total <ref group="d">Assuming the Agility route was taken back and forth.</ref>
+!{{SCP|Agility|2,750}}
+|}
+
+{{Agility info
+|name = Dorgesh-Kaan Agility Route Completion Bonus
+|skill1name = Agility
+|skill1lvl = 70
+|skill1exp = 2432
+|course = [[Dorgesh-Kaan Agility Course]]
+|type = Completion Bonus
+}}
+
+{{Reflist|group="d"}}
+
+It is possible to fail the tightrope cable and monkeybar ladder obstacles, even at level 99 Agility. A fall will drop a player to the lower level of the dungeon, causing about 10 damage and damaging any item retrieved from the generator. To return to the course, use the ladder found at the north side of the dungeon near the entrance from Dorgesh-Kaan.
+
+====Grapple route====
+{| class="wikitable align-center-1 align-center-3"
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Dorgesh-Kaan Agility Course Grapple (1).png|250px]]
+|[[Pylon (Dorgesh-Kaan Agility Course)|Pylon]]
+|{{SCP|Agility|18}}<br/>{{SCP|Ranged|18}}<br/>{{SCP|Strength|18}}
+|-
+|[[File:Dorgesh-Kaan Agility Course Grapple (2).png|250px]]
+|[[Pylon (Dorgesh-Kaan Agility Course)|Pylon]]
+|{{SCP|Agility|18}}<br/>{{SCP|Ranged|18}}<br/>{{SCP|Strength|18}}
+|-
+|[[File:Dorgesh-Kaan Agility Course Grapple (3).png|250px]]
+|[[Pylon (Dorgesh-Kaan Agility Course)|Pylon]]
+|{{SCP|Agility|18}}<br/>{{SCP|Ranged|18}}<br/>{{SCP|Strength|18}}
+|-
+|{{NA}}
+|Delivery bonus
+|{{SCP|Ranged|1,142}} <ref group="d">If the grapple route was taken back and forth. If this route was taken only once, 571 bonus experience will be rewarded, as well as 1,216 Agility experience.</ref>
+|-
+! colspan=2 |Total <ref group="d">Assuming the grapple route was taken back and forth</ref>
+!{{SCP|Agility|108}}<br/>{{SCP|Ranged|1,250}}<br/>{{SCP|Strength|108}}
+|}
+
+{{Agility info
+|name = Dorgesh-Kaan Grapple Route Completion Bonus
+|skill1name = Agility
+|skill3name = Ranged
+|skill4name = Strength
+|skill1lvl = 70
+|skill3lvl = 70
+|skill4lvl = 70
+|skill1exp = 108
+|skill3exp = 1250
+|skill4exp = 108
+|course = [[Dorgesh-Kaan Agility Course]]
+|type = Completion Bonus
+}}
+
+{{Reflist|group="d"}}
+
+===Disassembling the parts===
+Once arrived at the old power generator in the south-west corner, decide which route to choose back: the Agility route or the grapple route.
+*For the Agility route, disassemble either the powerbox, lever or cog from the [[boiler]].
+*For the grapple route, disassemble either the capacitor, fuse or meter from the [[console]].
+
+To disassemble a part, use the [[spanner]] on either of the two machines described above.
+
+===Returning the parts===
+Return to Turgall to deliver him one of the parts he requested, in return for bonus experience.
+
+==Experience rates==
+Due to the success rate of the obstacles, the experience rates scale with the player's Agility level. Additionally, should players choose the grapple route, the pylons should be approached first before grappling to avoid a lengthy animation delay.
+
+===Agility only===
+When following the Agility route back and forth at level 99, expect to be able to complete a maximum of 23 laps per hour resulting in 63,000 Agility experience per hour.
+
+At lower Agility levels or lower concentration expect to get around 50,000–60,000 Agility experience per hour.
+
+===Grapple only===
+When following the grapple route back and forth, expect to be able to complete a maximum of 40 laps per hour resulting in 50,000 Ranged experience, 4,300 Agility experience, and 4,300 Strength experience per hour.
+
+===Both===
+When following the grapple route one way and the Agility route at level 99 the other way, expect to be able to complete a maximum of 29 laps per hour resulting in 41,000 Agility experience, 18,000 Ranged experience, and 1,500 Strength experience per hour.
+
+==Marks of grace rates==
+{{Incomplete|Missing information}}
+This course spawns [[marks of grace]] at only one location, which is at the south end of the east ladder obstacle. These are awarded regardless of the routes taken, meaning that when taking the grapple route both ways, marks are awarded but cannot be collected. If doing the grapple only route and marks are valued, consider detouring to the Agility route once every nine minutes to collect any marks that may be waiting.
+
+===Agility only===
+Expect to obtain around 10-14 marks of grace per hour.
+
+===Grapple only===
+Unknown{{fact|Missing experimental data}}
+
+===Both===
+Unknown{{fact|Missing experimental data}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Players will now receive [[marks of grace]] during the course.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Unlike most other agility obstacles, it is not possible to have a follower while attempting the obstacles here.
+
+==References==
+{{Reflist}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Dorgesh-Kaan South Dungeon}}
+{{Dorgesh-Kaan}}

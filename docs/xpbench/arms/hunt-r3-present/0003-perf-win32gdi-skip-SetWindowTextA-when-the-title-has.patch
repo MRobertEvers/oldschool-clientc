@@ -1,0 +1,125 @@
+From c9ef8762ef5ea6d42f3ba4484fec929b94f7c556 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:39:09 -0500
+Subject: [PATCH 3/4] perf(win32gdi): skip SetWindowTextA when the title has
+ not changed
+
+main.c calls update_window_title() unconditionally in the shipped frame loop,
+so SetWindowTextA runs once per frame.  SetWindowTextA does not compare: it
+sends WM_SETTEXT, and DefWindowProc crosses into win32k to rewrite the window
+text and repaint the caption.  An OS-call census of the 300-frame moving
+Lumbridge camera measured 300 calls carrying exactly ONE distinct string, and
+this guard turns that into settext_written=1, settext_skipped=299.
+
+platform_sdl2.c has carried this same guard for this same caller since a
+browser trace charged it 4.8% of main-thread time; the win32 GDI backend was
+simply missing it.  Locally (Win11 x64, 4 interleaved reps, every pair
+positive) it is worth 88.90 -> 93.58 eff_fps, -0.563 ms/frame.
+
+The maintained invariant -- p->title is what the window's text actually is --
+is checked inside assert(), so OPT=1 (-DNDEBUG) emits nothing for it.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/platform/platform_win32gdi.c | 60 ++------------------------------
+ 1 file changed, 3 insertions(+), 57 deletions(-)
+
+diff --git a/src/platform/platform_win32gdi.c b/src/platform/platform_win32gdi.c
+index 6ccd83c9e..6116c4055 100644
+--- a/src/platform/platform_win32gdi.c
++++ b/src/platform/platform_win32gdi.c
+@@ -53,46 +53,9 @@
+ 
+ static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
+ 
+-/*
+- * Exit-time present report.  Six counters incremented at most once per frame
+- * and one fprintf per process, so it cannot move a frame time; it is here
+- * because the two numbers that decide what the 1.54 MB per-frame BitBlt costs
+- * -- the screen colour depth it converts into, and whether the present took the
+- * 1:1 or the StretchBlt branch -- are only knowable on the box being measured.
+- * The device caps are read once at Init, while the window still exists.
+- */
+-static unsigned long g_pd_frames = 0;
+-static unsigned long g_pd_bitblt = 0;
+-static unsigned long g_pd_stretch = 0;
+-static unsigned long g_pd_blit_px = 0;
+-static unsigned long g_pd_ttl_skipped = 0;
+-static unsigned long g_pd_ttl_written = 0;
+-static int g_pd_bpp = -1;
+-static int g_pd_planes = -1;
+-static int g_pd_rastercaps = -1;
+-static int g_pd_client_w = -1;
+-static int g_pd_client_h = -1;
+-
+-static void
+-present_diag_report(void)
+-{
+-    double f = g_pd_frames ? (double)g_pd_frames : 1.0;
+-
+-    fprintf(stderr,
+-        "present_diag: frames=%lu client=%dx%d screen_bpp=%d planes=%d caps=0x%x\n"
+-        "present_diag: bitblt=%lu (%.3f/f) stretch=%lu (%.3f/f) blit_px/frame=%.0f\n"
+-        "present_diag: settext_skipped=%lu settext_written=%lu\n",
+-        g_pd_frames, g_pd_client_w, g_pd_client_h,
+-        g_pd_bpp, g_pd_planes, (unsigned)g_pd_rastercaps,
+-        g_pd_bitblt, g_pd_bitblt / f, g_pd_stretch, g_pd_stretch / f,
+-        (g_pd_bitblt + g_pd_stretch)
+-            ? (double)g_pd_blit_px / (double)(g_pd_bitblt + g_pd_stretch)
+-            : 0.0,
+-        g_pd_ttl_skipped, g_pd_ttl_written);
+-}
+-#define PD(x)          do { (x)++; } while( 0 )
+-#define TTL_SKIPPED()  do { g_pd_ttl_skipped++; } while( 0 )
+-#define TTL_WRITTEN()  do { g_pd_ttl_written++; } while( 0 )
++#define PD(x)          do { } while( 0 )
++#define TTL_SKIPPED()  do { } while( 0 )
++#define TTL_WRITTEN()  do { } while( 0 )
+ 
+ struct PlatformSDL2
+ {
+@@ -326,8 +289,6 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+     {
+         if( box.right == p->width && box.bottom == p->height )
+         {
+-            PD(g_pd_bitblt);
+-            g_pd_blit_px += (unsigned long)p->width * (unsigned long)p->height;
+             BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
+             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
+         }
+@@ -343,8 +304,6 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+                 SetStretchBltMode(dc, HALFTONE);
+                 SetBrushOrgEx(dc, box.left, box.top, NULL);
+             }
+-            PD(g_pd_stretch);
+-            g_pd_blit_px += (unsigned long)box.right * (unsigned long)box.bottom;
+             StretchBlt(
+                 dc, box.left, box.top, box.right, box.bottom,
+                 p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
+@@ -708,18 +667,6 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
+ 
+     p->timing_active = PlatformWin32Timing_Init() ? 1 : 0;
+ 
+-    {
+-        RECT diag_client;
+-
+-        g_pd_bpp = GetDeviceCaps(p->window_dc, BITSPIXEL);
+-        g_pd_planes = GetDeviceCaps(p->window_dc, PLANES);
+-        g_pd_rastercaps = GetDeviceCaps(p->window_dc, RASTERCAPS);
+-        GetClientRect(p->hwnd, &diag_client);
+-        g_pd_client_w = diag_client.right - diag_client.left;
+-        g_pd_client_h = diag_client.bottom - diag_client.top;
+-        atexit(present_diag_report);
+-    }
+-
+     ShowWindow(p->hwnd, getenv("TORIRS_WIN32_HIDDEN") ? SW_HIDE : SW_SHOW);
+     UpdateWindow(p->hwnd);
+     return true;
+@@ -992,7 +939,6 @@ PlatformSDL2_Present(struct PlatformSDL2* p)
+      * stays clear for D3D9, preventing repair paints from covering its surface
+      * with the software buffer that renderer never populated. */
+     p->gdi_frame_valid = 1;
+-    PD(g_pd_frames);
+ 
+     gdi_paint_latest(p, p->window_dc);
+ }

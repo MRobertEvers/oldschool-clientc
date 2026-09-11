@@ -1,0 +1,216 @@
+{{Switch infobox
+|text1 = Aggressive
+|item1 =
+{{Infobox Monster
+|version = Aggressive
+|bucketname = Aggressive
+|name = Kephri
+|image = [[File:Kephri.png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 341
+|size = 5
+|examine = The cursed mother.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 24
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 6
+|hitpoints = 80
+|scaledhp = Yes
+|att = 0
+|str = 0
+|def = 80
+|mage = 125
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 125
+|mbns = 50
+|arange = 0
+|rngbns = 0
+|dstab = 60
+|dslash = 300
+|dcrush = 100
+|dmagic = 200
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 35
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11721
+|leagueRegion = Desert
+}}
+|text2 = Shielded
+|item2 = 
+{{Infobox Monster
+|version = Shielded
+|bucketname = Shielded
+|name = Kephri
+|image = [[File:Kephri.png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 341
+|size = 5
+|examine = The cursed mother.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 24
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 6
+|hitpoints = 150
+|scaledhp = Yes
+|att = 0
+|str = 0
+|def = 80
+|mage = 125
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 125
+|mbns = 50
+|arange = 0
+|rngbns = 0
+|dstab = 60
+|dslash = 300
+|dcrush = 100
+|dmagic = 200
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11719
+|leagueRegion = Desert
+}}
+|text3 = Recovering
+|item3 = 
+{{Infobox NPC
+|name = Kephri
+|image = [[File:Kephri (recovering).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = [[Dawn scarab]]
+|location = [[Tombs of Amascut]]
+|gender = Female
+|examine = The cursed mother.
+|map = {{Map|name=Kephri|3551,5409|mapID=-1|r=2|mtype=square}}
+|id = 11720
+|leagueRegion = Desert
+}}
+|text4 = Dead
+|item4 = 
+{{Infobox NPC
+|name = Kephri
+|image = [[File:Kephri (dead).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = [[Dawn scarab]]
+|location = [[Tombs of Amascut]]
+|gender = Female
+|examine = She's a bit dead.
+|map = {{Map|name=Kephri|3551,5409|mapID=-1|r=2|mtype=square}}
+|id = 11722
+|leagueRegion = Desert
+}}
+}}
+'''Kephri''' is a [[dawn scarab]] encountered at the end of the Path of Scabaras, within the [[Tombs of Amascut]] [[raid]]. Kephri, as the last of her kind, was tricked with an offer to be granted offspring and instead came under [[Amascut]]'s servitude to be able to lure and capture Kephri's god [[Scabaras]].
+
+==History==
+The last of her kind, the dawn scarabs were an extremely long-lived and intelligent race, wiped out during the [[Kharidian–Zarosian War]].{{CiteText|text=Scabaras' capture|quote=The last of her race, Kephri is a dawn scarab - one of an extremely long-lived and intelligent race of beetles. The rest of her kind were wiped out during the great war with the Ruinous Powers, but Kephri escaped death thanks to Scabaras himself.}} Having been rescued by [[Scabaras]], Kephri dedicated herself to his teachings by living in isolation, gathering knowledge as she watched the desert from afar.{{CiteText|text=Scabaras' capture|quote=Over the years, Kephri dedicated herself to Scabaras, living a content life of isolation.}}
+
+While initially content with her isolation, she began to desire children to pass on the knowledge she would gather over the course of her life.{{CiteText|text=Scabaras' capture|quote=However, no being is infallible, and her isolation soon began to take its toll. Fearing for the end of her race, Kephri longed for children to pass on her knowledge.}} Like with [[Ba-Ba]], [[Amascut]] eventually learned of Kephri's desires, and promised her a way to save her race from extinction and to give her offspring that were even smarter than she was, in exchange for her servitude.{{CiteText|text=Scabaras' capture|quote=The Devourer learnt of her desires and a pact was soon made. In return for her help, the Devourer would revive her race, making Kephri children even smarter than herself.}}
+
+As promised, Amascut did indeed give her offspring by warping another race of scarabs. However, they did not have the intelligence that Amascut implied they would have.{{CiteText|text=Scabaras' capture|quote=By warping another race of scarabs, the Devourer granted Kephri her children as promised, but they had no more intelligence than a common locust.}} Instead, Amascut destroyed Kephri's mind and intelligence, leaving her as a mindless thrall and technically fulfilling Amascut's promise of giving Kephri offspring smarter than her.{{CiteText|text=Scabaras' capture|quote=However, the Devourer had promised children even smarter than Kephri herself, and that was a vow she intended to keep. She bound Kephri and destroyed her mind, leaving nothing more than a husk.}} Kephri, now having realised Amascut's deception, called out to [[Scabaras]] in her final moments of consciousness, luring him to Amascut, which resulted in his capture.{{CiteText|text=Scabaras' capture|quote=In her final moments of consciousness, Kephri called out to Scabaras, but by the time he arrived, it was too late. The plan had worked perfectly, and thanks to Kephri, The Devourer had captured her first lesser deity.}}
+
+An [[Player character|adventurer]] would later slay Kephri in order to free Scabaras, where they would acquire some of her [[scarab dung|dung]] after the fight. When they cleaned the dung, they found a [[dawn scarab egg|scarab egg]] inside, which they brought to the [[High Priest of Scabaras]], who would take the egg to care for it.
+
+==Mechanics==
+{{Main|Tombs of Amascut/Strategies#Kephri, Guardian of Scabaras}}
+[[File:Tombs of Amascut - Fighting Kephri.png|thumb|left|280px|A player fighting Kephri, the Guardian of Scabaras.]]
+Kephri's main attack is a fireball that she launches into the air every few ticks. Players must move away from where it will land, which is indicated by the shadow on the ground. Her base defence level can be lowered by a maximum of 20 damage, reducing her base defence level down to a minimum of 60, however the defence level is reset for the final phase.
+
+She is also shielded by scarab swarms, and must be defeated to disperse them. Whilst shielded, she will use two special attacks:
+* '''Dung Strike''' - Kephri knocks the player backwards, dropping a row of dung along and blocking the way. This attack is forewarned by flies buzzing around a player, giving teammates a warning.
+* '''Mass Incubation''' - Kephri will lay [[Egg (Tombs of Amascut)|eggs]] around the arena. If left unattended, they will explode in a 3x3 area with the larger, darker eggs hatching [[Agile Scarab]]s, while the smaller dormant eggs will deal surrounding damage.
+
+Should players have the '''Path Level''' invocations active, every two levels will cause the following:
+
+* Kephri's auto-attacks will be faster.
+* During the shield recharge phase, groups of three scarab swarms may appear instead of one. The frequency of these increase at raid level 4.
+{{Clear|left}}
+
+Once Kephri's shield is depleted, she will summon her children which should be dealt with before resuming the fight. After two phases of shields, Kephri will finally be vulnerable to attacks and can be attacked directly.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Scabaras' capture|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players do not have it stored in their bank.</ref>}}
+{{DropsLine|name=Scarab dung|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players dealt the most damage to Kephri.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Kephri concept art.jpg|Concept art of Kephri, by [[Mod Grub]].
+Tombs of Amascut - Path of Scabaras concept art.jpg|Concept art of the Path of Scabaras, by [[Mod Jerv]].
+Kephri boss room concept art.png||Concept art of Kephri's room, by Mod Grub.
+File:Mural (Scabaras).png|The mural in Kephri's lecture theatre depicting [[Scabaras]] and Kephri.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = The [[bone dagger]]'s [[special attack]] now correctly guarantees a hit on Kephri when used on the first hit.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = Kephri now has a 40% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = The Arcane Scarab now plays the correct spawn animation during the Kephri encounter.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = An issue has been fixed in which Kephri's defence was unable to be reduced.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = 
+* Kephri no longer regenerates HP during her final phase.
+* Arcane Scarabs should no longer nullify damage in various situations, or teleport immediately after firing.
+* Bomber scarabs should detonate more consistently.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Kephri's name is derived from {{WP|Khepri}}, a scarab-headed god from Egyptian mythology.
+* The object floating above Kephri's head is the heirloom crest of the dawn scarabs.{{CitePostbag|issue=37|author=[[Helpful Spirit|Akila]]|letter=4|quote=Kephri tells me that object is the heirloom crest of her people, from the days when the gods walked the earth.}}
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}
+{{Bosses}}

@@ -1,0 +1,574 @@
+{{External|rs}}
+{{HasStrategy|page=Treasure Trails/Full guide/Master}}
+{{Infobox Item
+|name = Clue scroll (master)
+|image = [[File:Clue scroll (master).png]]
+|release = [[6 July]] [[2016]]
+|update = Treasure Trail Expansion (2016)
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = Hopefully leads to treasure.
+|value = 20
+|weight = 0.020
+|id = 19835
+}}
+[[File:Clue scroll (master) detail.png|left|150px]]
+A '''clue scroll (master)''' is the highest tier of [[clue scroll]]. It rewards a [[reward casket (master)|master reward casket]] upon completion. After completing 100 master clues, the player will be awarded the [[scroll sack]].
+
+Master clue scrolls can be ''between 6 and 8 steps'' long.
+
+Players can obtain a master clue scroll from the following methods:
+*By bringing one each of the [[Clue scroll (easy)|easy]], [[Clue scroll (medium)|medium]], [[Clue scroll (hard)|hard]], and [[Clue scroll (elite)|elite]] clue scrolls to [[Watson]], who is located in the large, fenced-in house west of the [[Forthos Ruin]] in [[Hosidius]]. Clue scrolls may be handed in individually. It should be noted that if you already have the maximum number of master clue scrolls (see [[scroll case]]) for your account, Watson will still take all lower tier scrolls but NOT give you a new master scroll until you either complete or discard one of your existing master scrolls. You will not be allowed to give Watson any more lower tier scrolls until the master scroll has been claimed.
+*As a potential reward from completing any easy, medium, hard or elite treasure trails, with the chances of obtaining them being 1/50, 1/30, 1/15, and 1/5 respectively.
+
+Like elite and hard clue scrolls, master clue scrolls also have combat encounters. They include a [[Brassican Mage]], [[Double agent]] or three [[Ancient Wizard]]s (in multi-combat areas). As their tier suggests, master clues require numerous high-levelled items, requirements, and [[quests]] in order to complete them.
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one master clue scroll can be held, kept in Death's Office, or stored in a bank at one time; attempting to open a [[scroll box (master)]] while holding a master clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Types of clues==
+''Please note that it is possible to receive the same clue more than once.''
+*[[Falo the Bard]]
+*[[Sherlock]]
+*[[Treasure Trails/Guide/Anagrams/Master|Anagrams]]
+*[[Treasure Trails/Guide/Coordinates/Master|Coordinates]]
+*[[Treasure Trails/Guide/Puzzle boxes|Puzzle box]]
+*[[Treasure Trails/Guide/Light boxes|Light box]]
+*[[Treasure Trails/Guide/Cryptic clues/Master|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Master|Emote clues]]
+*[[Treasure Trails/Guide/Hot Cold/Master|Hot & Cold]]
+
+==Requirements==
+<onlyinclude>
+
+===Skill requirements===
+Certain clues will require items that need a certain skill requirement in order to wear, wield or access. The table below shows the '''highest''' skill requirement, in order to complete every master clue. Quest skill requirements are not noted in this table. [[Sherlock]] may also give you skill challenges which require certain skill levels to complete. [[Temporary skill boost]]s '''can''' be used for non-combat skill challenges.
+
+{| class="wikitable sortable lighttable"
+|-
+! Skill level
+! Skill level<br/>(with +5 [[spicy stew]] boost)
+! Skill level <br/>(with consistent [[temporary boost]] item)
+! Details
+|-
+| {{SCP|Agility|80|sort=y}} {{Boostable|yes}}
+| {{SCP|Agility|75|sort=y}}
+| {{SCP|Agility|75|sort=y}} with [[summer pie]]
+| Required to complete a lap of the [[Rellekka Rooftop Course]] with full [[graceful outfit]] for Sherlock.
+|-
+| {{SCP|Attack|75|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to wield [[godsword]]s and [[Arclight]].
+|-
+| {{SCP|Cooking|72|sort=y}} {{Boostable|yes}}
+| {{SCP|Cooking|67|sort=y}}
+| {{SCP|Cooking|67|sort=y}} with [[chef's delight(m)]]
+| Required to dissect a [[sacred eel]] for Sherlock.
+|-
+| {{SCP|Construction|72|sort=y}}{{note|It's also possible to ride there on someone else's boat.}} {{Boostable|yes}}
+| {{SCP|Construction|67|sort=y}}
+| {{SCP|Construction|69|sort=y}} with [[crystal saw]]
+| Required to build an [[eternal brazier]] to dock at [[Brittle Isle]].
+|-
+| {{SCP|Crafting|87|sort=y}} {{Boostable|yes}}
+| {{SCP|Crafting|82|sort=y}}
+| {{SCP|Crafting|83|sort=y}} with [[mushroom pie]]
+| Required to craft a [[light orb]] for Sherlock.
+|-
+| {{SCP|Defence|70|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to wear any [[Barrows armour]] for an emote clue.
+|-
+| {{SCP|Farming|85|sort=y}} {{Boostable|yes}}
+| {{SCP|Farming|80|sort=y}}
+| {{SCP|Farming|82|sort=y}} with [[garden pie]], or {{SCP|Farming|80}} if [[bottle of potterington's marrow wine]] has not been used
+| Required to enter the high tier of the [[Farming Guild]].
+|-
+| {{SCP|Firemaking|90|sort=y}} {{Boostable|yes}}
+| {{SCP|Firemaking|85|sort=y}}
+| {{SCP|Firemaking|89|sort=y}} with [[chilhuac red]]
+| Required to light [[redwood logs]] for Sherlock.
+|-
+| {{SCP|Fishing|87|sort=y}} {{Boostable|yes}}
+| {{SCP|Fishing|82|sort=y}}
+| {{SCP|Fishing|81|sort=y}} with [[super fishing potion]]
+| Required to fish a [[sacred eel]] for Sherlock.
+|-
+| {{SCP|Fletching|81|sort=y}} {{Boostable|yes}}
+| {{SCP|Fletching|76|sort=y}}
+| {{SCP|Fletching|77|sort=y}} with [[dragonfruit pie]]
+| Required to fletch [[rune dart]]s for Sherlock.
+|-
+| {{SCP|Herblore|87|sort=y}} {{Boostable|yes}}
+| {{SCP|Herblore|82|sort=y}}
+| {{SCP|Herblore|83|sort=y}} with [[botanical pie]]
+| Required to make [[anti-venom]] for Sherlock.
+|-
+| {{SCP|Hitpoints|70|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to cross the river into Zamorak's Fortress in the [[God Wars Dungeon]].
+|-
+| {{SCP|Hunter|79|sort=y}}{{Boostable|yes}}
+| {{SCP|Hunter|74|sort=y}}
+| {{SCP|Hunter|73|sort=y}} with [[super hunter potion]]
+| Required to catch a [[Tecu salamander (Hunter)|tecu salamander]] for Sherlock.
+|-
+| {{SCP|Magic|90|sort=y}} {{Boostable|yes}}
+| {{SCP|Magic|85|sort=y}}
+| {{SCP|Magic|74|sort=y}} with [[super magic potion]]
+| Required to cast [[Master Reanimation]] for Sherlock.
+|-
+| {{SCP|Mining|85|sort=y}} {{Boostable|yes}}
+| {{SCP|Mining|80|sort=y}}
+| {{SCP|Mining|82|sort=y}} with [[special attack]] of the [[dragon pickaxe]], [[infernal pickaxe]], [[3rd age pickaxe]], or [[crystal pickaxe]]
+| Required to mine [[runite ore]] with full [[prospector kit]] for Sherlock.
+|-
+| {{SCP|Prayer|50|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to show Falo the [[barrelchest anchor]] (must be repaired).
+|-
+| {{SCP|Ranged|70|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to wear [[black dragonhide armour]], [[crystal bow]], and [[Karil the Tainted's equipment|Karil's equipment]] for emote clues.
+|-
+| {{SCP|Runecraft|77|sort=y}} {{Boostable|yes}}
+| {{SCP|Runecraft|72|sort=y}}
+| {{SCP|Runecraft|76|sort=y}} with [[metztonalli white]]
+| Required to runecraft [[blood rune]]s for Sherlock.
+|-
+| {{SCP|Sailing|81|sort=y}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to dock at [[Brittle Isle]].
+|-
+| {{SCP|Slayer|85|sort=y}} {{Boostable|yes}}
+| {{SCP|Slayer|80|sort=y}}
+| {{SCP|Slayer|80|sort=y}} with [[wild pie]]
+| Required to kill a [[reanimated abyssal]] for Sherlock.
+|-
+| {{SCP|Smithing|88|sort=y}} {{Boostable|yes}}
+| {{SCP|Smithing|83|sort=y}}
+| {{SCP|Smithing|84|sort=y}} with [[Kovac's grog]]
+| Required to smith a [[Rune med helm]] for Sherlock.
+|-
+| {{SCP|Strength|50|sort=y}} {{Boostable|yes}}
+| {{SCP|Strength|45|sort=y}}
+| {{SCP|Strength|40|sort=y}} with [[super combat potion]]
+| Required for [[Legends' Quest]].
+|-
+| {{SCP|Thieving|85|sort=y}} {{Boostable|yes}}
+| {{SCP|Thieving|81|sort=y}}
+| {{SCP|Thieving|82|sort=y}} with [[summer sq'irkjuice]]
+| Required to pickpocket an [[elf]] for Sherlock.
+Note: a [[Clue_scroll_(master)_-_Yawn_in_the_7th_room_of_Pyramid_Plunder|different master clue step]] has a requirement of 81 Thieving which '''cannot''' be boosted.
+|-
+| {{SCP|Woodcutting|90|sort=y}} {{Boostable|yes}}
+| {{SCP|Woodcutting|85|sort=y}}
+| {{SCP|Woodcutting|87|sort=y}} with special attack of [[dragon axe]], [[infernal axe]], [[3rd age axe]], [[crystal axe]], and felling axe equivalents
+| Required to cut a [[redwood]] with full [[lumberjack outfit]] for Sherlock.
+Note: Wearing a [[Forestry kit]] with the outfit in an attached [[Clothes pouch]] does not count.
+|-
+| data-sort-value=130|{{SCP|Attack}}+{{SCP|Strength|130}} {{Boostable|no}}<br/>'''OR'''<br/>{{SCP|Attack|99}} {{Boostable|no}}<br/>'''OR'''<br/>{{SCP|Strength|99}} {{Boostable|no}}
+| ''Not boostable''
+| ''Not boostable''
+| Required to access [[Warriors' Guild]].
+|}
+
+===Quest requirements===
+Some clues require access to areas or [[NPC]]s which may require quests. Some only require to start the quest in order to gain access.
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Quest'''
+! '''Details'''
+|-
+| [[Cold War]] (partial completion)
+| Required for the [[clockwork suit]] and access to the [[Iceberg]].
+|-
+| [[Curse of the Empty Lord]]
+| Required to talk to [[Viggora]].
+|-
+| [[Darkness of Hallowvale]]
+| Required for access to [[Meiyerditch]].
+|-
+| [[Desert Treasure I]]
+| Required for access to the [[Shadow Dungeon]] and ability to wield [[Ancient staff]]. Required for access to the [[Ice Path]].
+|-
+| [[Dragon Slayer I]]
+| Required to equip [[rune platebody]].
+|-
+| [[Dragon Slayer II]]
+| Required to access [[Myths' Guild]].
+|-
+| [[Fairytale II - Cure a Queen]]
+| Required for access to [[Enchanted Valley]].
+|-
+| [[Family Crest]]
+| Required to equip [[cooking gauntlets]].
+|-
+| [[The Fremennik Isles]]
+| Required to equip [[helm of neitiznot]].
+|-
+| [[The Fremennik Trials]] (started)
+| Required to talk to [[Falo the Bard]].
+|-
+| [[Garden of Tranquillity]] (partial completion)
+| Required to use [[angry]] emote on the [[Garden of Tranquillity#Statue of Saradomin, Falador|Statue of Saradomin]]
+|-
+| [[The General's Shadow]]
+| Required to wear [[shadow sword]].
+|-
+| [[The Great Brain Robbery]] (partial completion)
+| Required to show Falo the [[barrelchest anchor]] (must be repaired).
+|-
+| [[Heroes' Quest]]
+| Required to wield [[dragon battleaxe]].
+|-
+| [[Icthlarin's Little Helper]] (started)
+| Required for access to [[Jalsavrah]].
+|-
+| [[In Aid of the Myreque]]
+| Required to wield the [[Rod of Ivandis|rod of Ivandis]].
+|-
+| [[Legends' Quest]]
+| Required for access to the [[Legends' Guild]], [[bullroarer]], wear [[cape of legends]] and [[dragon sq shield]].
+|-
+| [[Lunar Diplomacy]] (started)
+| Required to access [[Lunar Isle]].
+|-
+| [[The Lost Tribe]] (partial completion)
+| Gives access to [[Goblin Salute]] emote.
+|-
+| [[Making Friends with My Arm]]
+| Required to talk to [[Snowflake]].
+|-
+| [[Making History]]
+| Required to talk to [[Jorral]] at his [[outpost]].
+|-
+| [[Monkey Madness I]]
+| Required to wield [[dragon scimitar]].
+|-
+| [[Mourning's End Part II]]
+| Gives access to the [[Death Altar]] and the area around it.
+|-
+| [[Priest in Peril]]
+| Required for access to [[Mort'ton]] and [[Barrows]].
+|-
+| [[Recipe for Disaster]]
+| Required to show [[Falo the Bard]] [[Barrows gloves]].
+|-
+| [[Regicide]] (started)
+| Required for access to [[Port Tyras]] and [[Zul-Andra]].
+|-
+| [[Roving Elves]]
+| Required to wield [[crystal bow]].
+|-
+| [[Royal Trouble]]
+| Required for access to the [[Miscellania and Etceteria Dungeon]].
+|-
+| [[Shades of Mort'ton]]
+| Required to burn a [[Fiyr remains|Fiyr]] remain.
+|-
+| [[Shadow of the Storm]]
+| Prerequisite for [[Arclight]].
+|-
+| [[Song of the Elves]]
+| Required to access [[Prifddinas]] and [[Gwenith]].
+|-
+| [[Swan Song]]
+| Required to access [[Piscatoris Fishing Colony]].
+|-
+| [[The Tourist Trap]] (partial completion)
+| Required to fletch a [[rune dart]].
+|-
+| [[Underground Pass]]
+| Required for [[Iban's staff]] and for access to [[Iban's Temple]].
+|-
+| [[Wanted!]]
+| Required to wear [[White equipment#Armour|white armour]].
+|}
+
+=== Item requirements (Emote clues)===
+'Minimum level requirements' indicates the level required to equip all items on the list in order to complete their respective clue steps.
+
+Any quantities below indicate how many of each item is required to fill all available master [[STASH]] units. The STASH units require 2 [[Mahogany plank|mahogany planks]], a [[gold leaf]] and 10 [[Nails]] to build.
+{| class="wikitable lighttable individual" style="width:50%; text-align:center;"
+|-
+! colspan="4" |Minimum level requirements
+|-
+|{{SCP|Attack|75|link=yes}}
+|{{SCP|Ranged|70|link=yes}}
+|{{SCP|Magic|75|link=yes}}
+|{{SCP|Defence|70|link=yes}}
+|-
+| colspan="4" | {{SCP|Agility|50|link=yes}}
+|-
+! colspan="4" | Items required
+|-
+|{{plink|Abyssal whip}}<ref group="n">The [[Abyssal whip (or)|Abyssal whip (or)]], [[Volcanic abyssal whip]], [[Frozen abyssal whip]], [[Abyssal tentacle]] and [[Abyssal tentacle (or)]] can also be used and stored for this clue step.</ref>
+|{{plink|Amulet of glory}}
+|{{plink|Amulet of the damned}}
+|{{plink|Arclight}}
+|-
+|{{plink|Bandos boots}}<ref group="n">The [[Guardian boots]] or [[Echo boots]] can also be used and stored for this clue step.</ref>
+|{{plink|Bandos cloak}}
+|{{plink|Bandos godsword}}
+|{{plink|Bandos platebody}}
+|-
+|{{plink|Barrows equipment|pic=Torag's hammers}}<ref group="n">Requires any one complete set</ref>
+|2 × {{plink|Black d'hide body}}
+|{{plink|Black d'hide chaps}}
+|2 × {{plink|Black d'hide vambraces}}
+|-
+|{{plink|Black dragon mask}} 
+|{{plink|Blue moon chestplate}}
+|{{plink|Blue moon helm}}
+|{{plink|Blue moon spear}}
+|-
+|{{plink|Blue moon tassets}}
+|Any colour {{plink|Boater|pic=Blue boater}}
+|{{plink|Brine sabre}}
+|{{plink|Bryophyta's staff}}
+|-
+|{{plink|Bullroarer}}
+|2 × {{plink|Cape of legends}}
+|{{plink|Climbing boots}}<ref group="n">The [[Climbing boots (g)]] can also be used and stored for this clue step.</ref>
+|{{plink|Crystal bow}}
+|-
+|{{plink|Death tiara}}
+|{{plink|Dragon 2h sword}}
+|{{plink|Dragon axe}}{{Refn|group="n"|Variants such as the [[infernal axe]] and [[crystal axe]] can be used and stored for the emote clue at the [[Enchanted Valley]].{{CiteNews|author=|url=https://secure.runescape.com/m=news/poll-71-and-darkmeyer-updates?oldschool=1|title=Poll 71 and Darkmeyer Updates|newsdate=18 June 2020}}}}
+|{{plink|Dragon battleaxe}}
+|-
+|{{plink|Dragon chainbody}}
+|{{plink|Dragon defender}}
+|{{plink|Dragon med helm}}
+|{{plink|Dragon pickaxe}}<ref group="n">Variants such as the [[infernal pickaxe]], [[dragon pickaxe (upgraded)]], and [[Dragon pickaxe(or)|dragon pickaxe (or)]] can be used and stored for the emote clue at the [[Soul Altar]].</ref>
+|-
+|{{plink|Dragon plateskirt}}
+|{{plink|Dragon sq shield}}
+|{{plink|Fire cape}}
+|{{plink|Flared trousers}}
+|-
+|{{plink|Helm of neitiznot}}
+|{{plink|Hueycoatl hide coif}}
+|{{plink|Hueycoatl hide vambraces}}
+|{{plink|Iban's staff}}
+|-
+|{{plink|Medallion of the deep}}
+|{{plink|Menaphite purple hat}}
+|{{plink|Menaphite purple robe}}
+|{{plink|Menaphite purple top}}
+|-
+|{{plink|Pharaoh's sceptre}}
+|{{plink|Mystic robe top (dark)}}
+|{{plink|Nature tiara}}
+|{{plink|Obsidian cape}}
+|-
+|{{plink|Mystic robe bottom (dark)}}
+|{{plink|Ring of wealth}}
+|{{plink|Rosewood blowpipe}}
+|{{plink|Rune boots}}
+|-
+|{{plink|Rune platebody}}
+|{{plink|Shadow sword}}
+|{{plink|Slayer helmet}}
+|{{plink|Spined chaps}}
+|-
+|{{plink|Splitbark body}}
+|{{plink|Toktz-ket-xil}}
+|{{plink|Toktz-xil-ul}}
+|{{plink|Zamorak full helm}}
+|-
+|{{plink|Zamorak godsword}}
+|}
+<references group='n' />
+
+=== Item requirements (Falo the Bard) ===
+This is a list of all items that Falo the Bard may ask you to show.
+{| class="wikitable lighttable"
+!Lyric
+! colspan="2" |Item
+|-
+| rowspan="3" |A blood red weapon, a strong curved sword, found on the island of primate lords.
+|{{plinkt|Dragon scimitar}}
+|-
+|{{plinkt|Dragon scimitar (or)}}
+|-
+|{{plinkt|Dragon scimitar (cr)}}
+|-
+| rowspan="2" |A book that preaches of some great figure, lending strength, might and vigour.
+|{{plinkt|God book|pic=Book of Balance}}<ref group=n name=god>The book must be completed. Any book will be accepted.</ref>
+|-
+|{{plinkt|God book (or)|pic=Book of Balance (or)}}<ref group=n name=god />
+|-
+| rowspan="2" |A bow of elven craft was made, it shimmers bright, but will soon fade.
+|{{plinkt|Crystal bow}}<ref group=n name=crystal>An inactive Crystal bow does '''not work'''.</ref>
+|-
+|{{plinkt|Bow of Faerdhinen}}<ref group=n>The [[Bow of Faerdhinen (c)]] and all colour variations can also be used for this clue step.</ref>
+|-
+| rowspan="2" |A fiery axe of great inferno, when you use it, you'll wonder where the logs go.
+|{{plinkt|Infernal axe}}<ref group=n name=infernal>The uncharged version can also be used for this clue step.</ref>
+|-
+|{{plinkt|Infernal axe (or)}}<ref group=n name=infernal /><ref group=n>The [[Infernal axe (or) (Trailblazer Reloaded)]] variant does '''not work''' for this clue step.</ref>
+|-
+|A mark used to increase one's grace, found atop a seer's place.
+|{{plinkt|Mark of Grace}}
+|-
+|A molten beast with fiery breath, you acquire these with its death.
+|{{plinkt|Lava dragon bones}}
+|-
+|A shiny helmet of flight, to obtain this with melee, struggle you might.
+|{{plinkt|Armadyl helmet}}
+|-
+| rowspan="3" |A sword held in the other hand, red its colour, Cyclops strength you must withstand.
+|{{plinkt|Dragon defender}}<ref group=n name=locked>The [[locked]] variation can be used for this clue step.</ref>
+|-
+|{{plinkt|Dragon defender (t)}}<ref group=n name=locked/>
+|-
+|{{plinkt|Avernic defender}}<ref group=n name=locked/><ref group=n>The [[Ghommal's avernic defender 5]], [[Ghommal's avernic defender 6]], and their [[locked]] variations can be used for this clue step.</ref>
+|-
+|A token used to kill mythical beasts, in hopes of a blade or just for an xp feast.
+|{{plinkt|Warrior guild token}}
+|-
+|Green is my favourite, mature ale I do love, this takes your herblore above.
+|{{plinkt|Greenman's ale(m)}}
+|-
+| rowspan="2" |It can hold down a boat or crush a goat, this object, you see, is quite heavy.
+|{{plinkt|Barrelchest anchor}}<ref group=n>A broken anchor does '''not work'''.</ref>
+|-
+|{{plinkt|Barrelchest anchor (bh)}}
+|-
+|It comes from the ground, underneath the snowy plain. Trolls aplenty, with what looks like a mane.
+|{{plinkt|Basalt}}
+|-
+| rowspan="2" |No attack to wield, only strength is required, made of obsidian, but with no room for a shield.
+|{{plinkt|Tzhaar-ket-om}}
+|-
+|{{plinkt|Tzhaar-ket-om (t)}}
+|-
+| rowspan="2" |Penance healers runners and more, obtaining this body often gives much deplore.
+|{{plinkt|Fighter torso}}<ref group=n name=locked />
+|-
+|{{plinkt|Fighter torso (or)}}<ref group=n name=locked />
+|-
+|Strangely found in a chest, many believe these gloves are the best.
+|{{plinkt|Barrows gloves}}
+|-
+|These gloves of white won't help you fight, but aid in cooking, they just might.
+|{{plinkt|Cooking gauntlets}}
+|-
+|They come from some time ago, from a land unto the east. Fossilised they have become, this small and gentle beast.
+|{{plinkt|Numulite}}
+|-
+|To slay a dragon you must first do, before this chest piece can be put on you.
+|{{plinkt|Rune platebody}}<ref group=n>[[Rune trimmed armour|Trimmed]], [[Rune god armour|god]], and [[Rune heraldic armour|heraldic]] variants do '''not work'''.</ref>
+|-
+| rowspan="4" |Vampyres are agile opponents, damaged best with a weapon of many components.
+|{{plinkt|Ivandis flail}}
+|-
+|{{plinkt|Rod of Ivandis}}
+|-
+|{{plinkt|Blisterwood flail}}
+|-
+|{{plinkt|Hallowed flail}}
+|-
+|You won't bring me to heel, unless you have a bright red keel.
+|{{plinkt|Dragon keel parts}}<ref group=n>[[Large dragon keel parts]] do '''not work'''.</ref> 
+|}{{reflist|group=n}}
+
+===Other requirements===
+{| class="wikitable sortable lighttable"
+|-
+! '''Requirement'''
+! '''Details'''
+|-
+| Full [[angler's outfit]]
+| To complete a challenge for [[Sherlock]].
+|-
+| Full [[graceful outfit]]
+| To complete a challenge for [[Sherlock]]; an [[Agility cape]] can be substituted for [[graceful cape]].
+|-
+| Full [[lumberjack outfit]]
+| To complete a challenge for [[Sherlock]].
+|-
+| Full [[prospector's outfit]]
+| To complete a challenge for [[Sherlock]]; [[Varrock armour 4]] can be substituted for [[prospector jacket]].
+|-
+| [[Fire cape]]
+| To complete an emote clue.
+|}</onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (master)}}
+
+The average loot roll is worth {{Coins|floor({{MasterClueValue}})}}. On average, master clues are worth {{Coins|floor(6 * {{MasterClueValue}})}}.
+
+{{Clue scroll (master)/Rewards}}
+
+==Item sources==
+{{Drop sources|Clue scroll (master)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes 
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = A restriction has been removed which prevented players from receiving a master clue for 30 seconds after they last received one.
+}}
+{{Subject changes 
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = Clue Scrolls dropped by a player now last one hour on the ground rather than two minutes. This does not change existing behaviour for Clue Scrolls dropped by NPCs or other entities. Additionally, you are now told if you would have gotten a clue but didn't because you already have one.
+}}
+{{Subject changes 
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The item's value was increased from 1 to 20.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Clue scroll (v1) detail.png|center|300x150px]]
+|[[File:Clue scroll (master) detail.png|center|300x150px]]
+|-
+|[[File:Clue scroll v1.png|center]]
+|[[File:Clue scroll (master).png|center]]
+|-
+|6 July 2016 –<br/>11 April 2019
+|11 April 2019 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

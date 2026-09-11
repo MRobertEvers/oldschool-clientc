@@ -1,0 +1,79 @@
+{{External|rs|rsc=Enchant lvl-5 amulet}}
+{{otheruses|the spell|the magic tablet|Enchant dragonstone}}
+{{Infobox Spell
+|name = Lvl-5 Enchant
+|image = [[File:Lvl-5 Enchant.png]]
+|release = [[27 February]] [[2002]]
+|update = Latest RuneScape News (27 February 2002)
+|members = Yes
+|level = 68
+|spellbook = Normal
+|type = Utility
+|exp = 78
+|cost = {{RuneReq|Earth=15|Water=15|Cosmic=1}}
+|speed = 3 [[RuneScape clock|ticks]] (7 on autocast)
+|lectern = [[Mahogany demon lectern|Mahogany demon]]
+|description = For use on dragonstone jewellery
+|anim = [[File:Lvl-5 Enchant.gif|300px]]
+|sound = [[File:Lvl-5 Enchant.ogg]]
+}}
+[[File:Lvl-5 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-5 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 68 [[Magic]] to cast. The spell enchants [[dragonstone]] [[jewellery]], granting 78 Magic experience when doing so.
+
+This spell can be transferred to a [[Enchant dragonstone|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting 58.5 Magic experience.
+
+Like other jewellery enchantment spells, Lvl-5 Enchant will automatically re-cast every 7 ticks (4.2 seconds). While less click-intensive, it is much slower than enchanting each piece of jewellery individually. An inventory of 27 pieces of jewellery would take about one minute and fifty seconds to enchant at this rate.
+
+When cast actively, a player could theoretically achieve 2,000 casts per hour for a total of 156,000 experience. When cast passively only 857 casts can be achieved, worth 66,846 experience. In practice, both of these numbers will be slightly lower due to time spent banking.
+
+In order to cast this spell without consuming any elemental runes, players may use a [[mud battlestaff]], or an earth staff together with a [[tome of water]] that is charged with at least one [[soaked page]], or a water staff together with a [[tome of earth]] that is charged with at least one [[soiled page]]. Given that only combat spells drain charges from the tomes, the staff + tome combo will provide unlimited water and earth runes without the need for recharging the tome.
+
+==List of items==
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs; column assumes an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Dragonstone ring}} 
+|{{Coins|{{GEP|Dragonstone ring}}}}
+|{{plinkt|Ring of wealth (uncharged)}}
+|{{Coins|{{GEP|Ring of wealth}}}}
+|{{coins|{{GEP|Ring of wealth}} - ({{GEP|Dragonstone ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Dragon necklace}}
+|{{Coins|{{GEP|Dragon necklace}}}}
+|{{plinkt|Skills necklace (uncharged)}}
+|{{Coins|{{GEP|Skills necklace}}}}
+|{{coins|{{GEP|Skills necklace}} - ({{GEP|Dragon necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Dragonstone bracelet}}
+|{{Coins|{{GEP|Dragonstone bracelet}}}}
+|{{plinkt|Combat bracelet (uncharged)}} 
+|{{Coins|{{GEP|Combat bracelet}}}}
+|{{coins|{{GEP|Combat bracelet}} - ({{GEP|Dragonstone bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Dragonstone amulet}}
+|{{Coins|{{GEP|Dragonstone amulet}}}}
+|{{plinkt|Amulet of glory (uncharged)}}
+|{{Coins|{{GEP|Amulet of glory}}}}
+|{{coins|{{GEP|Amulet of glory}} - ({{GEP|Dragonstone amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 15
+|Rune2 = earth
+|Rune2num = 15
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}

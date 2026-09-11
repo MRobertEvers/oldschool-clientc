@@ -1,0 +1,314 @@
+{{External|rs}}
+{{confuse|Monster Inspect}}
+{{Infobox Spell
+|name = Monster Examine
+|image = [[File:Monster Examine.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 66
+|spellbook = Lunar
+|type = Combat
+|exp = 61
+|cost = {{RuneReq|Astral=1|Cosmic=1|Mind=1}}
+|speed = 
+|quest = [[Dream Mentor]]
+|description = Detect the combat statistics of a monster
+|anim = [[File:Monster Examine.gif|200px]]
+|sound = [[File:Monster Examine.ogg]]
+}}
+[[File:Monster Examine icon (mobile).png|left]]
+'''Monster Examine''' is a [[lunar spell]] that requires 66 [[Magic]] plus the quests [[Dream Mentor]] and [[Lunar Diplomacy]] to be cast. It costs 1 [[Mind rune]], 1 [[Cosmic rune]], and 1 [[Astral rune]] to cast and grants 61 Magic experience per cast. There are [[:Category:Monster examine impossible|a few monsters]] in the game which can not be examined by this spell. 
+
+Casting this spell on a [[mountain troll]] south of [[Mount Quidamortem]] is a requirement for the [[hard Kourend]] diary. 
+{{clear|left}}
+
+==Information==
+[[File:Monster Examine (interface).png|thumb|The interface that appears after casting Monster Examine.]]
+The spell gives a large amount of information about the monster examined in four tabs:
+=== [[File:Monster_Examine_general.png|width=25x25]] Stats ===
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+|-
+|Monster's [[combat level]] 
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[hitpoints]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Attack]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Defence]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Strength]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Magic]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Ranged]]
+|{{Yes}}
+|{{Yes}}
+|-
+|[[Max Hit]] (excluding [[special attacks]])
+|{{No}}
+|{{Yes}}
+|-
+|Main [[attack style]]
+|{{No}}
+|{{Yes}}
+|}
+
+=== [[File:Attack_icon.png]] Aggressive Stats ===
+''(If a monster does not have a bonus of any kind, it is omitted from the interface.''
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+!Remark
+|-
+|[[Attack speed]]
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Attack bonus
+|{{Yes}}
+|{{Yes}}
+|Applicable to whatever melee style the NPC uses by default.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/966611692259078144|date=20 February 2018|archiveurl=https://archive.is/vWkVt|archivedate=30 May 2020|quote=You know how that spell lists "Main attack style"? If the listed main attack style is stab, slash or crush, the attack bonus will be its accuracy bonus in that style.}} For example, casting the spell on [[Justiciar Zachariah]] would display an Attack bonus of 200 under the Aggressive Stats tab. This means that in actuality, he has a Slash bonus of +200, as slash is the only melee style he uses.
+|-
+|Stab bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Slash bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Crush bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Strength bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Ranged strength bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic strength bonus
+|{{Yes}}
+|{{Yes}}
+|Is equal to [[Magic damage]] for the player.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1009727169998835712|date=21 June 2018|archiveurl=https://archive.is/kakJu|archivedate=30 May 2020|quote=[Is ["Magic str bonus"] equivalent to the Magic Damage % for players?] Yup.}}
+|}
+
+=== [[File:Defence_icon.png]] Defensive Stats ===
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+!Remark
+|-
+|Stab bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Slash bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Crush bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Light ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Standard ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Heavy ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|[[Flat armour|Armour]]
+|{{No}}
+|{{Yes}}
+|Armour value applies a flat reduction to all melee and ranged damage. For example, an armour value of 5 means that any melee/ranged damage it receives is decreased by 5.
+|}
+
+=== [[File:Monster_Examine_other_attributes.png]] Other Attributes ===
+''(If a monster does not possess a certain criteria, it is omitted from the interface.)''
+{| class="wikitable"
+|+
+!Informs whether the monster...
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+|-
+|can be killed for a [[slayer task]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[slayer boss]] that can be killed for a Slayer task.
+|{{No}}
+|{{Yes}}
+|-
+|can be [[poisoned]] or is immune to [[venom]].
+|{{Yes}}
+|{{Yes}}
+|-
+|can be attacked using a [[dwarf multicannon]].
+|{{No}}
+|{{Yes}}
+|-
+|is immune to [[Thrall|thralls]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is immune to [[Burn|burns]], and the tier of burn it is immune to.
+|{{Yes}}
+|{{Yes}}
+|-
+|has [[freeze]] resistance, and the percentage of that resistance.
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[demonic]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[Draconic (attribute)|draconic.]]
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[vampyric]], and the tier of vampyrism it is classified under.
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[spectral]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[rat]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[golem]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[Flying (attribute)|flying]].
+|{{No}}
+|{{Yes}}
+|-
+|has a certain [[elemental weakness]].
+|{{Yes}}
+|{{Yes}}
+|}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Mind
+|Rune1num = 1
+|Rune2 = Cosmic
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 January 2021
+|update = Soul Wars And 20th Anniversary Event
+|change = The spell now informs whether a monster is classified as a spectral creature.
+}}
+{{Subject changes
+|date = 24 May 2018
+|update = A Taste of Hope
+|change = Magic damage and tier of vampyre is now shown.
+}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|change = Weaknesses to [[dragonbane weapons]] are now shown.
+}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = The Monster Examine spell can now reflect the true poison immunity of cows.
+}}
+{{Subject changes
+|date = 14 June 2016
+|update = Deadman Invitational II: Now Open
+|change = Weaknesses to [[demonbane weapons]] are now shown.
+}}
+{{Subject changes
+|date = 11 February 2016
+|update = Tournament Stats & Skilling QoL
+|change = Ranged strength is now shown.
+}}
+{{Subject changes
+|date = 12 November 2015
+|update = Monster Examine & Deadman
+|poll = Old School Content Poll 37: Skillcape Perks
+|change = 
+Monster examine now provides the following information:
+*Stats
+*Offensive stats
+*Defensive stats
+*Other attributes (is/isn't a slayer monster, can/can't be poisoned, can/can't be cannoned)
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Following [[Nex]]'s release, bosses may not have their stats visible when Monster Examine is used on them. This was confirmed by [[Mod Kieren]] to be intentional to add an element of mystery to the bosses.{{CiteReddit|author=Mod Kieren|url=https://www.reddit.com/r/2007scape/comments/rwkclb/nex_the_fifth_general_weekly_game_update_january/hrc9m42/|title=Nex: The Fifth General - Weekly Game Update (January 5th 2022)|quote=Just to confirm this [disabling Monster Examine for Nex] is intentional, we were discussing it only in last week about adding this mystery back. If popular it may be something we do with future bosses too.|date=17 December 2015|archiveurl=https://archive.ph/qQJv2|archivedate=5 January 2022}} The spell was re-enabled in the game update two weeks later.
+**[[The Forgotten Four]] later had this apply to them, but only partially; their combat levels and offensive bonuses could be examined, but not their defensive ones. A week after their release, their defensive stats could be seen.
+
+==References==
+{{Reflist}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

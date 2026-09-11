@@ -1,0 +1,406 @@
+From 0c1dfabb7580fbad975fb845332a626aa11ce866 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:20 -0500
+Subject: [PATCH] wip(hunt-w25): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w25.
+
+files: 3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c 3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.c 3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.h 3rd/toridraw/toridraw_unity.c
+---
+ ...ightness.screen.opaque.bary.branching.s4.c |  15 ++
+ .../raster/gouraudhsllightness/tiny_census.c  | 166 ++++++++++++++++++
+ .../raster/gouraudhsllightness/tiny_census.h  | 128 ++++++++++++++
+ 3rd/toridraw/toridraw_unity.c                 |   1 +
+ 4 files changed, 310 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+index da89af14b..ad3949a2d 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+@@ -10,6 +10,7 @@
+ #include "graphics/raster/span_census.h"
+ #include "graphics/raster/raster_ablate.h"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.h"
++#include "graphics/raster/gouraudhsllightness/tiny_census.h"
+ 
+ #include "graphics/shared_tables.h"
+ 
+@@ -32,7 +33,10 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+ {
+     TORI_UNUSED(y);
+     if( x_start_ish16 == x_end_ish16 )
++    {
++        TORIDRAW_TINY_CENSUS_EMPTY();
+         return;
++    }
+ 
+     int x_end = x_end_ish16 >> 16;
+ 
+@@ -44,7 +48,10 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+         x_start = 0;
+ 
+     if( x_start >= x_end )
++    {
++        TORIDRAW_TINY_CENSUS_EMPTY();
+         return;
++    }
+ 
+     offset += x_start;
+     /* Modular: the reference client relies on int wraparound here, and an edge-on
+@@ -53,6 +60,7 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_TINY_CENSUS_SPAN(stride);
+     TORIDRAW_SPAN_CENSUS_RECORD(
+         stride, offset, 1, color_hsl16_ish8, color_step_hsl16_ish8);
+ 
+@@ -78,19 +86,26 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
+     int color_step_hsl16_ish8)
+ {
+     if( x_start_ish16 == x_end_ish16 )
++    {
++        TORIDRAW_TINY_CENSUS_EMPTY();
+         return;
++    }
+ 
+     int x_start = x_start_ish16 >> 16;
+     int x_end = x_end_ish16 >> 16;
+ 
+     if( x_start >= x_end )
++    {
++        TORIDRAW_TINY_CENSUS_EMPTY();
+         return;
++    }
+ 
+     offset += x_start;
+     color_hsl16_ish8 = toridraw_wrap_add(
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_TINY_CENSUS_SPAN(stride);
+     TORIDRAW_SPAN_CENSUS_RECORD(
+         stride, offset, 0, color_hsl16_ish8, color_step_hsl16_ish8);
+ 
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.c
+new file mode 100644
+index 000000000..db30d9120
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.c
+@@ -0,0 +1,166 @@
++#include "graphics/raster/gouraudhsllightness/tiny_census.h"
++
++#if defined(TORIDRAW_TINY_CENSUS) && TORIDRAW_TINY_CENSUS
++
++struct ToriDraw_TinyCensus g_toridraw_tiny_census;
++int g_tiny_cur_rows;
++int g_tiny_cur_empty;
++int g_tiny_cur_spans;
++int g_tiny_cur_px;
++
++void
++toridraw_tiny_census_triangle(int sarea, int inside, int noclip, int vclipped)
++{
++    struct ToriDraw_TinyCensus* c = &g_toridraw_tiny_census;
++    unsigned mag = (sarea < 0) ? (unsigned)(-(unsigned)sarea) : (unsigned)sarea;
++    int k = 0;
++    int rb;
++    int pb;
++    int i;
++
++    while( mag )
++    {
++        mag >>= 1;
++        k++;
++    }
++    c->sarea_bucket[k] += 1.0;
++    c->prologued += 1.0;
++
++    if( inside )
++    {
++        c->inside += 1.0;
++        c->inside_px += (double)g_tiny_cur_px;
++    }
++    if( noclip )
++        c->noclip_both += 1.0;
++    if( vclipped )
++        c->vclipped += 1.0;
++
++    c->rows_total += (double)g_tiny_cur_rows;
++    c->rows_empty += (double)g_tiny_cur_empty;
++    c->spans += (double)g_tiny_cur_spans;
++    c->pixels += (double)g_tiny_cur_px;
++
++    rb = toridraw_tiny_bucket(g_tiny_cur_rows);
++    pb = toridraw_tiny_bucket(g_tiny_cur_px);
++    c->joint[rb][pb] += 1.0;
++    c->joint_px[rb][pb] += (double)g_tiny_cur_px;
++
++    for( i = 0; i <= 16; i++ )
++    {
++        if( g_tiny_cur_rows <= i )
++        {
++            c->byrows_tri[i] += 1.0;
++            c->byrows_px[i] += (double)g_tiny_cur_px;
++            c->byrows_spans[i] += (double)g_tiny_cur_spans;
++            if( inside )
++                c->byrows_inside[i] += 1.0;
++        }
++    }
++}
++
++void
++ToriDraw_TinyCensusDump(void)
++{
++    const char* path = getenv("TORIDRAW_TINY_CENSUS_FILE");
++    FILE* out = stderr;
++    struct ToriDraw_TinyCensus* c = &g_toridraw_tiny_census;
++    double running = 0.0;
++    int k;
++    int r;
++    int p;
++
++    if( c->calls <= 0.0 )
++        return;
++
++    if( path )
++    {
++        FILE* f = fopen(path, "w");
++        if( f )
++            out = f;
++    }
++
++    fprintf(out, "\n=== gouraud tiny-triangle census ===\n");
++    fprintf(out, "calls           %.0f\n", c->calls);
++    fprintf(out, "sort_reject     %.0f  (%.3f%%)\n", c->sort_reject,
++            100.0 * c->sort_reject / c->calls);
++    fprintf(out, "dy0_reject      %.0f  (%.3f%%)\n", c->dy0_reject,
++            100.0 * c->dy0_reject / c->calls);
++    fprintf(out, "sarea_reject    %.0f  (%.3f%%)\n", c->sarea_reject,
++            100.0 * c->sarea_reject / c->calls);
++    fprintf(out, "prologued       %.0f  (%.3f%%)\n", c->prologued,
++            100.0 * c->prologued / c->calls);
++    fprintf(out, "inside bbox     %.0f  (%.3f%% of prologued)  px %.0f (%.3f%%)\n",
++            c->inside, 100.0 * c->inside / c->prologued, c->inside_px,
++            100.0 * c->inside_px / c->pixels);
++    fprintf(out, "noclip both     %.0f  (%.3f%%)\n", c->noclip_both,
++            100.0 * c->noclip_both / c->prologued);
++    fprintf(out, "vclipped        %.0f  (%.3f%%)\n", c->vclipped,
++            100.0 * c->vclipped / c->prologued);
++    fprintf(out, "rows walked     %.0f  (%.3f per prologued tri)\n", c->rows_total,
++            c->rows_total / c->prologued);
++    fprintf(out, "rows empty      %.0f  (%.3f%% of rows walked)\n", c->rows_empty,
++            100.0 * c->rows_empty / c->rows_total);
++    fprintf(out, "spans           %.0f  (%.3f per tri)\n", c->spans,
++            c->spans / c->prologued);
++    fprintf(out, "pixels          %.0f  (%.3f per tri, %.3f per span)\n", c->pixels,
++            c->pixels / c->prologued, c->pixels / c->spans);
++
++    fprintf(out, "\n-- |sarea| log2 --\n");
++    fprintf(out, "%12s %14s %8s %9s\n", "|sarea| <", "count", "share", "cumul");
++    for( k = 0; k <= 32; k++ )
++    {
++        if( c->sarea_bucket[k] == 0.0 )
++            continue;
++        running += c->sarea_bucket[k];
++        fprintf(out, "%12.0f %14.0f %7.3f%% %8.3f%%\n",
++                (k >= 31) ? 2147483648.0 : (double)(1u << k), c->sarea_bucket[k],
++                100.0 * c->sarea_bucket[k] / c->prologued,
++                100.0 * running / c->prologued);
++    }
++
++    fprintf(out, "\n-- cumulative by ROWS WALKED --\n");
++    fprintf(out, "%6s %12s %8s %14s %8s %12s %10s\n", "rows<=", "tris", "tri%",
++            "pixels", "px%", "spans", "inside%");
++    for( k = 0; k <= 16; k++ )
++    {
++        fprintf(out, "%6d %12.0f %7.3f%% %14.0f %7.3f%% %12.0f %9.3f%%\n", k,
++                c->byrows_tri[k], 100.0 * c->byrows_tri[k] / c->prologued,
++                c->byrows_px[k], 100.0 * c->byrows_px[k] / c->pixels,
++                c->byrows_spans[k],
++                c->byrows_tri[k] > 0.0
++                    ? 100.0 * c->byrows_inside[k] / c->byrows_tri[k]
++                    : 0.0);
++    }
++
++    fprintf(out, "\n-- joint (rows x pixels), triangle counts --\n");
++    fprintf(out, "%8s", "rows\px");
++    fprintf(out, " %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "0", "1",
++            "2", "3", "4", "5-8", "9-16", "17-32", "33-64", "65+");
++    for( r = 0; r < TINY_ROWB; r++ )
++    {
++        const char* rn[TINY_ROWB] = { "0",    "1",    "2",     "3",     "4",
++                                      "5-8",  "9-16", "17-32", "33-64", "65+" };
++        fprintf(out, "%8s", rn[r]);
++        for( p = 0; p < TINY_PXB; p++ )
++            fprintf(out, " %10.0f", c->joint[r][p]);
++        fprintf(out, "\n");
++    }
++
++    fprintf(out, "\n-- joint (rows x pixels), PIXEL counts --\n");
++    for( r = 0; r < TINY_ROWB; r++ )
++    {
++        const char* rn[TINY_ROWB] = { "0",    "1",    "2",     "3",     "4",
++                                      "5-8",  "9-16", "17-32", "33-64", "65+" };
++        fprintf(out, "%8s", rn[r]);
++        for( p = 0; p < TINY_PXB; p++ )
++            fprintf(out, " %10.0f", c->joint_px[r][p]);
++        fprintf(out, "\n");
++    }
++
++    fflush(out);
++    if( out != stderr )
++        fclose(out);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.h b/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.h
+new file mode 100644
+index 000000000..79fe86ca9
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/tiny_census.h
+@@ -0,0 +1,128 @@
++#ifndef TORIDRAW_GOURAUD_TINY_CENSUS_H
++#define TORIDRAW_GOURAUD_TINY_CENSUS_H
++
++/**
++ * How small is a gouraud triangle, really, and what does the small one cost?
++ *
++ * The |sarea| census next door answers one question (how big is the divisor)
++ * for one purpose (sizing a reciprocal table). This one answers the question a
++ * SMALL-TRIANGLE FAST PATH needs: of the triangles that reach the kernel, how
++ * many draw so few rows and so few pixels that the per-triangle setup is the
++ * whole cost, and how many of those could skip the clipping machinery outright
++ * because their bounding box is provably inside the viewport?
++ *
++ * Compile-time gated. Counts live in the C reference, so a build that carries
++ * this must also drop the asm kernel -- put TORIDRAW_SPAN_CENSUS in the same
++ * probe flags, which is what the makefile gate reads.
++ */
++
++#if defined(TORIDRAW_TINY_CENSUS) && TORIDRAW_TINY_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++#define TINY_ROWB 10
++#define TINY_PXB  10
++
++struct ToriDraw_TinyCensus
++{
++    double calls;          /**< entries to the unsorted wrapper            */
++    double sort_reject;    /**< returned inside the y sort (offscreen)     */
++    double dy0_reject;     /**< y2 - y0 == 0                               */
++    double sarea_reject;   /**< sarea == 0                                 */
++    double prologued;      /**< reached the prologue                       */
++
++    double sarea_bucket[33];
++
++    double inside;         /**< bbox provably inside the viewport          */
++    double inside_px;
++    double noclip_both;    /**< both segments proved free of h-clipping    */
++    double vclipped;       /**< took a vertical clip or clamp branch       */
++
++    double rows_total;     /**< rows the walk actually iterates            */
++    double rows_empty;     /**< of those, rows that emit no span           */
++    double spans;
++    double pixels;
++
++    double joint[TINY_ROWB][TINY_PXB];
++    double joint_px[TINY_ROWB][TINY_PXB];
++
++    /* cumulative-by-rows table: triangles, spans, pixels for rows <= k */
++    double byrows_tri[17];
++    double byrows_px[17];
++    double byrows_spans[17];
++    double byrows_inside[17];
++
++    int registered;
++};
++
++extern struct ToriDraw_TinyCensus g_toridraw_tiny_census;
++
++/* live accumulators for the triangle currently being walked */
++extern int g_tiny_cur_rows;
++extern int g_tiny_cur_empty;
++extern int g_tiny_cur_spans;
++extern int g_tiny_cur_px;
++
++void
++ToriDraw_TinyCensusDump(void);
++
++static inline void
++toridraw_tiny_census_register(void)
++{
++    if( !g_toridraw_tiny_census.registered )
++    {
++        g_toridraw_tiny_census.registered = 1;
++        atexit(ToriDraw_TinyCensusDump);
++    }
++}
++
++static inline int
++toridraw_tiny_bucket(int v)
++{
++    if( v <= 0 )
++        return 0;
++    if( v <= 4 )
++        return v;          /* 1,2,3,4 */
++    if( v <= 8 )
++        return 5;
++    if( v <= 16 )
++        return 6;
++    if( v <= 32 )
++        return 7;
++    if( v <= 64 )
++        return 8;
++    return 9;
++}
++
++void
++toridraw_tiny_census_triangle(int sarea, int inside, int noclip, int vclipped);
++
++#define TORIDRAW_TINY_CENSUS_CALL()   (g_toridraw_tiny_census.calls += 1.0)
++#define TORIDRAW_TINY_CENSUS_SORTREJ() (g_toridraw_tiny_census.sort_reject += 1.0)
++#define TORIDRAW_TINY_CENSUS_DY0()    (g_toridraw_tiny_census.dy0_reject += 1.0)
++#define TORIDRAW_TINY_CENSUS_SAREA0() (g_toridraw_tiny_census.sarea_reject += 1.0)
++#define TORIDRAW_TINY_CENSUS_BEGIN()  \
++    (g_tiny_cur_rows = 0, g_tiny_cur_empty = 0, g_tiny_cur_spans = 0, g_tiny_cur_px = 0)
++#define TORIDRAW_TINY_CENSUS_ROW()    (g_tiny_cur_rows += 1)
++#define TORIDRAW_TINY_CENSUS_EMPTY()  (g_tiny_cur_empty += 1)
++#define TORIDRAW_TINY_CENSUS_SPAN(n)  \
++    (g_tiny_cur_spans += 1, g_tiny_cur_px += (n))
++#define TORIDRAW_TINY_CENSUS_END(sarea, inside, noclip, vclipped) \
++    toridraw_tiny_census_triangle((sarea), (inside), (noclip), (vclipped))
++
++#else
++
++#define TORIDRAW_TINY_CENSUS_CALL()   ((void)0)
++#define TORIDRAW_TINY_CENSUS_SORTREJ() ((void)0)
++#define TORIDRAW_TINY_CENSUS_DY0()    ((void)0)
++#define TORIDRAW_TINY_CENSUS_SAREA0() ((void)0)
++#define TORIDRAW_TINY_CENSUS_BEGIN()  ((void)0)
++#define TORIDRAW_TINY_CENSUS_ROW()    ((void)0)
++#define TORIDRAW_TINY_CENSUS_EMPTY()  ((void)0)
++#define TORIDRAW_TINY_CENSUS_SPAN(n)  ((void)0)
++#define TORIDRAW_TINY_CENSUS_END(a, b, c, d) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..6f1da4437 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -28,6 +28,7 @@
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
++#include "graphics/raster/gouraudhsllightness/tiny_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
+ #include "graphics/shared_tables.c"

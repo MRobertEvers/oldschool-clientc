@@ -1,0 +1,319 @@
+{{External|rs}}
+{{Instance}}
+{{HasStrategy}}
+{{HasTask|Araxytes}}
+{{Multi Infobox
+|text1 = In combat
+|item1 =
+{{Infobox Monster
+|version1 = In combat
+|version2 = Enraged
+|bucketname1 = In combat
+|bucketname2 = Enraged
+|name = Araxxor
+|image1 = [[File:Araxxor.png|280px]]
+|image2 = [[File:Araxxor (enraged).png|280px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|combat = 890
+|size = 7
+|examine = A seriously scary spider.
+|xpbonus = 67.5
+|max hit = 38 (melee) <br/> 21 (magic) <br/> 34 (ranged)
+|aggressive = Yes
+|poisonous = Yes ([[venom]])
+|attack style1 = [[Crush]],{{CiteReddit|author=Mod Blossom|url=https://www.reddit.com/r/2007scape/comments/1fe6y5o/araxxor_cas_poll_82_updates_more/lml7bwo/|title=Araxxor CAs, Poll 82 Updates & More!|quote=Hey :) he's using Crush. Hope that helps!|date=11/09/2024|archiveurl=https://archive.md/NMWUt|archivedate=11/09/2024|notes=|name=}} [[Magic]], [[Ranged]]
+|attack style2 = All
+|attack speed1 = 6
+|attack speed2 = 4
+|respawn = 15
+|slaylvl = 92
+|slayxp = 1708
+|cat = Araxytes, Bosses, Spiders
+|assignedby = nieve,duradel,turael,spria,konar, Mortimer
+|hitpoints = 1020
+|att = 320
+|str = 320
+|def1 = 135
+|def2 = 170
+|mage1 = 190
+|mage2 = 218
+|range1 = 210
+|range2 = 241
+|attbns = 218
+|strbns = 10
+|amagic = 260
+|mbns = 5
+|arange = 283
+|rngbns = 35
+|dstab = 160
+|dslash = 75
+|dcrush = 15
+|dmagic = 237
+|dlight = 218
+|dstandard = 218
+|dheavy = 218
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 13668
+|leagueRegion = Morytania
+}}
+|text2 = Dead
+|item2 =
+{{Infobox NPC
+|bucketname = Dead
+|name = Araxxor
+|image = [[File:Araxxor (dead).png|280px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|race = [[Araxyte]]
+|location = [[Morytania Spider Cave]]
+|gender = [[#Trivia|Male]]
+|options = Harvest, Destroy
+|examine = A seriously dead spider.
+|map = No
+|id = 13669
+|leagueRegion = Morytania
+}}
+}}
+'''Araxxor''' is the [[boss]] version of [[araxyte]]s found within the [[Morytania Spider Cave]], requiring level 92 [[Slayer]] and access to [[Morytania]] to kill. As a [[Slayer boss]], he may only be killed while on a spider or araxyte [[Slayer task]]. [[Konar quo Maten]] can also assign Araxxor specifically when she assigns a [[boss task]].
+
+Araxxor is currently the strongest Slayer boss in-game by combat level. He uniquely drops pieces of the [[noxious halberd]], a strong two-handed slash weapon, and the [[araxyte fang]], which can be combined with the [[amulet of torture]] to create the [[amulet of rancour]], the best-in-slot melee amulet.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Araxxor
+|location = [[Morytania Spider Cave]]
+|levels = 890
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:3630,y:9813
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{LocTableBottom}}
+
+Araxxor's lair is accessible from the [[Morytania Spider Cave]], with the cave itself being accessible via [[Cave (Morytania Spider Cave)|an entrance]] north-east of [[Darkmeyer]]. The lair can be entered via a [[web tunnel]] just north-west of the cave entrance.
+
+A [[Scoreboard (Araxxor)|scoreboard]] by the web tunnel shows statistics related to Araxxor.
+
+==Fight overview==
+{{main|Araxxor/Strategies}}
+
+As with all araxytes, Araxxor’s attacks can inflict [[venom]]. He spawns in the centre of his chamber and primarily attacks with melee. If the player is outside melee range, Araxxor will close the distance and attack with either magic or ranged, selecting whichever targets the player’s lower{{CiteReddit|author=ThePtScreamSucks|url=https://www.reddit.com/r/2007scape/comments/1iyvrro/how_to_force_araxxor_range_attacks/|title=How to force Araxxor range attacks?|quote=|date=26 February 2025|archiveurl=https://web.archive.org/web/20250312051211/https://www.reddit.com/r/2007scape/comments/1iyvrro/how_to_force_araxxor_range_attacks/|archivedate=12 March 2025|notes=|name=}} Defence roll [2]. [[Aranea boots]] can be worn to negate damage from his ranged attack once every 8 [[tick]]s (every other attack); however, they '''do not''' protect against his magic attacks.
+
+Around Araxxor’s lair are nine eggs—three red, three white, and three green. The first egg hatches after three standard attacks from Araxxor, beginning clockwise from the south-easternmost egg. Each subsequent egg hatches after every six standard attacks. Both the eggs and the araxytes spawned from them count as on-task monsters for the purpose of receiving the [[slayer helmet]] damage bonus, but the spawned araxytes '''do not''' reduce the player’s task kill count.
+
+Every six standard attacks, Araxxor will use one of three special attacks. The special attack can be identified by the colour of the south-easternmost egg:
+
+* '''Red egg first – Acid Drip:''' Acid lands beneath the player and follows their movement for several seconds.
+* '''White egg first – Acid Spray:''' Acid sprays randomly outward in the player’s general direction.
+* '''Green egg first – Acid Bullet:''' An acid projectile travels in a straight line toward the player, leaving a trail of acid and creating an acid spray when it impacts the cave wall.
+* All of these attacks leave acid pools, which inflict venom and deal increasingly larger damage (starting from 4) the longer the player stays on them.
+
+When Araxxor reaches 25% health, he enters an enrage phase. During this phase, his Defence level increases by 35 and his attack speed increases from 6 ticks to 4 ticks. He also replaces his melee attack with a cleave attack for the remainder of the fight. The cleave deals melee damage in a 1×3 area and leaves acid pools on the ground. If the player steps underneath Araxxor during the attack, the cleave can damage him and the affected area is reduced to 1×1. As with his ranged attack, aranea boots can negate damage from the cleave once every 12 seconds (20 ticks).
+
+Finally, be cautious around the edges of the room, as some tiles may appear walkable but cannot be moved onto.
+
+==Money making==
+{{Mmgsection|Killing Araxxor}}
+
+==Drops==
+{{DropLogProject|kills=859630}}
+
+{{Average drop value}}
+
+Creating the [[Noxious halberd]] and [[Amulet of rancour]] (subtracting the cost of [[Amulet of torture]] required in creation) result in an additional average of {{Coins|{{GEP|Noxious halberd}}/600+{{GEP|Amulet of rancour}}/600-{{GEP|Amulet of torture}}/600}} per kill.
+
+When Araxxor dies, players can either choose to harvest or destroy the corpse; he will not respawn until the player makes their choice or leaves the instance.
+* Choosing the "Harvest" option rolls the drop table as normal, with excess loot dropped to the ground.
+* Choosing the "Destroy" option will roll for the pet [[Nid]] at double the drop rate, but will forfeit the potential loot that comes with harvesting. [[Elite clue scroll]]s will still be rolled, however.
+** When selecting "Destroy", players are asked to confirm whether they really wish to destroy their regular loot for a 1/1,500 chance at receiving [[Nid]] instead of 1/3,000. Players can disable this prompt by selecting "Yes, and don't ask again."
+
+===Unique===
+{{Listen
+|filename = Unique drop sound effect.ogg
+|title = Unique drop [[sound effect]]
+|desc = The sound that plays when receiving a unique drop.
+|align = right
+}}
+''There is a 1/150 chance of rolling the unique drop table. Below lists the effective drop rates.''{{CiteNews|url=https://secure.runescape.com/m=news/araxxor-tweaks--poll-82-updates?oldschool=1|title=Araxxor Tweaks & Poll 82 Updates|newsdate=4 September 2024|quote=Before we move on, we'd like to confirm that the drop rates for Araxxor's uniques on the OSRS Wiki are accurate! The Araxyte Fang has a drop rate of 1 in 600, while Noxious Halberd pieces drop at a rate of 1 in 200. They use a similar system to the Abyssal Bludgeon to prevent you from obtaining any duplicate pieces until you've completed a full weapon. Plus, don't think we forgot... Pet drop rate! Nid, the little cutie, has a 1 in 3,000 chance, increased to 1 in 1,500 if you use the 'Destroy' option.}}
+{{DropsTableHead}}
+{{DropsLine|name=Noxious pommel|quantity=1|rarity=1/600|raritynotes={{Refn|The rate to receive any halberd piece is 1/200. Players will not receive duplicate pieces until each full set is obtained.|name=Halberd|group=d}}}}
+{{DropsLine|name=Noxious point|quantity=1|rarity=1/600|raritynotes={{NamedRef|Halberd|group=d}}}}
+{{DropsLine|name=Noxious blade|quantity=1|rarity=1/600|raritynotes={{NamedRef|Halberd|group=d}}}}
+{{DropsLine|name=Araxyte fang|quantity=1|rarity=1/600}}
+{{DropsTableBottom}}
+{{Reflist|group="d"}}
+
+===Supplies===
+There is approximately a 1/8 chance of getting a supply drop. It will include:
+* Either 1 [[araxyte venom sac]] or one [[super combat potion(1)]]
+* One [[prayer potion(4)]]
+* Either 2-3 [[wild pie]]s or 2-3 [[shark]]s
+{{DropsTableHead}}
+{{DropsLine|name=Araxyte venom sac|quantity=1|rarity=1/16|approx=Yes}}
+{{DropsLine|name=Super combat potion(1)|quantity=1|rarity=1/16|approx=Yes}}
+{{DropsLine|name=Prayer potion(4)|quantity=1|rarity=1/8|approx=Yes}}
+{{DropsLine|name=Shark|quantity=2-3|rarity=1/16|approx=Yes}}
+{{DropsLine|name=Wild pie|quantity=2-3|rarity=1/16|approx=Yes}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune kiteshield|quantity=2 (noted)|rarity=8/115|approx=Yes}}
+{{DropsLine|name=Rune platelegs|quantity=2 (noted)|rarity=8/115|approx=Yes}}
+{{DropsLine|name=Dragon mace|quantity=2|rarity=6/115|approx=Yes}}
+{{DropsLine|name=Rune 2h sword|quantity=5 (noted) |rarity=1/115|approx=Yes}}
+{{DropsLine|name=Dragon platelegs|quantity=2|rarity=1/115|approx=Yes}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Death rune|quantity=250|rarity=5/115|approx=Yes}}
+{{DropsLine|name=Nature rune|quantity=80|rarity=2/115|approx=Yes}}
+{{DropsLine|name=Mud rune|quantity=100|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Blood rune|quantity=180|rarity=1/115|approx=Yes}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{DropsTableHead}}
+{{DropsLine|name=Yew seed|quantity=1|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Toadflax seed|quantity=4|rarity=3/115|approx=Yes}}
+{{DropsLine|name=Ranarr seed|quantity=3|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Snapdragon seed|quantity=3|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Magic seed|quantity=2|rarity=1/115|approx=Yes}}
+{{DropsTableBottom}}
+
+===Tree-herb seed drop table===
+{{TreeHerbSeedDropTableInfo|1/115}}
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|1/115|approx=Yes}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Coal|quantity=120 (noted)|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Adamantite ore|quantity=85 (noted)|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Raw shark|quantity=21 (noted)|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Yew logs|quantity=70 (noted)|rarity=3/115|approx=Yes}}
+{{DropsLine|name=Runite ore|quantity=12 (noted)|rarity=2/115|approx=Yes}}
+{{DropsLine|name=Raw shark|quantity=100 (noted)|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Raw monkfish|quantity=120 (noted)|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Pure essence|quantity=1200 (noted)|rarity=1/115|approx=Yes}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Spider cave teleport|quantity=3|rarity=8/115|approx=Yes}}
+{{DropsLine|name=Earth orb|quantity=45 (noted)|rarity=6/115|approx=Yes}}
+{{DropsLine|name=Araxyte venom sac|quantity=6|rarity=5/115|approx=Yes}}
+{{DropsLine|name=Mort myre fungus|quantity=24 (noted)|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Antidote++(3)|quantity=6 (noted)|rarity=4/115|approx=Yes}}
+{{DropsLine|name=Wine of Zamorak|quantity=8 (noted)|rarity=3/115|approx=Yes}}
+{{DropsLine|name=Red spiders' eggs|quantity=40 (noted)|rarity=2/115|approx=Yes}}
+{{DropsLine|name=Araxyte venom sac|quantity=12|rarity=2/115|approx=Yes}}
+{{DropsLine|name=Bark|quantity=15 (noted)|rarity=1/115|approx=Yes}}
+{{DropsLine|name=Araxyte head|quantity=1|rarity=1/250}}
+{{DropsLine|name=Jar of Venom|quantity=1|rarity=1/1500}}
+{{DropsTableBottom}}
+
+===Rare drop table===
+{{RareDropTable|1/115|approx=Yes|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Coagulated venom|quantity=1|rarity=Always|raritynotes=<ref group=d>Guaranteed reward for defeating Araxxor in under 1:15, provided that the player does not already have one in their possession, or has not already used one on Nid.</ref>}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|350|bonus=yes}}|raritynotes=<ref group='d'>Brimstone keys are dropped if killed on a boss [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Morytania&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/50|raritynotes=<ref group=d>Can be dropped even if the player chooses to destroy Araxxor's corpse instead of harvesting it.</ref>}}
+{{DropsLine|name=Nid|quantity=1|rarity=1/3000|altrarity=1/1500|raritynotes=<ref group=d>The pet drop rate is doubled if the player chooses to destroy Araxxor's corpse instead of harvesting it.</ref>}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Araxxor}}
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+Araxxor concept art.png|Concept art of Araxxor, by [[Mod Skylark]].
+New Slayer Boss - The Araxyte (4).png|Work-in-progress model of Araxxor at various angles, by [[Mod Harold]].
+Araxxor artwork 3D.jpg|Poster announcing Araxxor's release date, made by FalcoAJ and commissioned by Jagex.
+Araxxor artwork 3D no text.png|The poster in high-quality without text and overlays.
+Araxxor logo.png|The logo for Araxxor, used in marketing and social media.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 July 2026
+|update = The Blood Moon Rises & Bank Tags Tweaks
+|change = Inventory overflow drops when looting Araxxor will now remain on the ground for 3 hours before despawning, instead of using the normal despawn timer.
+}}
+{{Subject changes
+|date = 27 November 2024
+|update = Leagues V: Raging Echoes OUT NOW!
+|change = The safety measure to ensure players don't get stuck under Araxxor's corpse has been refined.
+}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = 
+* [[Combat Achievements]] have been added for Araxxor. As criteria for Araxxor's speed tasks were tracked on release, these were automatically completed upon opening the Combat Achievements interface.
+* The "step-under" technique now works on any tile Araxxor is on, rather than just the four south-west tiles he occupies.
+* A new safety measure has been added to push players out of Araxxor's corpse more aggressively to ensure they don't get stuck under it.
+* An oversight in which players could kill Araxxor off-task, by never directly dealing damage to him, has been fixed.
+* Global Best times for Araxxor on the [[Scoreboard (Araxxor)|scoreboard]] were reset.
+* On [[Deadman Mode]] worlds, players can no longer enter Araxxor's lair if they're [[skulled]].
+}}
+{{Subject changes
+|date = 4 September 2024
+|update = Araxxor Tweaks & Poll 82 Updates
+|change = 
+* A different attack sound has been added for Araxxor's venom spit attacks to distinguish it from his regular attacks.
+* The damage Araxxor deals to himself during his enrage phase whilst performing the "step-under" technique has been reduced from 25-38 to 8-12.
+* An active [[Death Charge]] will now restore [[special attack]] energy upon Araxxor's death.
+* Araxxor should now properly push players away when his corpse appears.
+* The timer tracking eligibility for the [[coagulated venom]] drop now stops upon Araxxor's death, rather than upon looting his corpse.
+* The rune platelegs and kiteshield drops are now noted when dropped.
+* The 1-2 [[prayer potion(2)]] drop has been replaced by 1 [[prayer potion(4)]].
+}}
+{{Subject changes footer}}
+
+==Historical==
+{{RSL|Araxxor}} is a boss in ''RuneScape 3'' that was released on [[28 July]] [[2014]], just over ten years before the boss released in ''Old School RuneScape'' on [[28 August]] [[2024]]. However, the later version is not considered a backport, and instead features a fight unique from the ''RuneScape'' counterpart:
+*Araxxor in ''RuneScape 3'' consists of four phases, and is a high-level boss with no Slayer requirement. In the last phase, he is eaten by his mate, {{RSL|Araxxi}}, who gives the drops at the end of the encounter.
+** Araxxor can also be fought in a solo or duo encounter in ''RuneScape 3'', whereas the ''Old School'' variant is solo-only and can only be killed as part of an araxyte or spider slayer task. The ''RuneScape 3'' variant also utilises an enrage system that resets daily.
+** Much fewer spiders partake in the overall fight; in ''RuneScape 3'', there are five different types of araxytes that could support Araxxor, while in ''Old School RuneScape'', only three types do so.
+*** While both variants have a "mirrorback", their mechanics are different:
+**** In ''RuneScape 3'', the {{RSL|Mirrorback spider}} reflects all damage to the player which also scales with enrage. Attacking the spider also reflected 50% of the damage it would have taken to Araxxor. It is also unaggressive. In ''Old School RuneScape'', the [[Mirrorback Araxyte]] instead reduces the damage Araxxor takes by 20%, taking that amount as damage to itself and reflecting 50% of that absorbed damage back to the player. If the player attacked it with melee, it would reflect 50% of the damage it took back to them unless countered with [[Vengeance]].
+** Araxxor acts much like Araxxi does in ''RuneScape 3'' terms of loot, with the player searching his corpse for rewards. This also includes a pet drop, though Araxxor's pet, [[Nid]], has a static 1/3000 rate, or 1/1500 if the player chooses to destroy his body, with no chance to see the sacrificed loot. In ''RuneScape'', the first {{RSL|araxyte pet}} has a drop rate of 1/1000 to 1/500, depending on the enrage accumulated during the fight. Similarly to ''Old School'', gambling the drops increased the drop rate by 50%. They are also given a chance to see their loot before deciding to gamble it.
+*Araxxor in ''Old School RuneScape'' is primarily a melee-based encounter. In ''RuneScape'', the player can determine Araxxor's primary combat style with an {{RSL|araxyte pheromone}} or an instance, which also changes his affinity (defence). 
+** In ''RuneScape 3'', this would result in Araxxor being mage, ranged or melee dominant. Both the magic and ranged forms could also use melee, though not as often compared to the primary style. In ''Old School'', Araxxor uses all three combat styles, but only using magic and ranged attacks if the player is not in melee distance. He still decides to use ranged or magic attacks depending on the player's defence bonuses.
+***The ranged attack also drains stats (Defence for ranged, Prayer for magic); in ''RuneScape 3'', Araxxor's magic attack drains all combat stats, whereas the ranged attack inflicts poison.
+*Araxxor can only inflict [[poison]] in ''RuneScape'' (only in its ranged form), as [[venom]] does not exist.
+*The rewards are also different:
+**In ''RuneScape 3'', Araxxi drops parts of a spider leg (determined by the path selected in phase 1), which can be combined with a "hilt" piece (fang, eye, or web) to create {{RSL|noxious weaponry}}, powerful two-handed tier 90 weapons. Additionally, it drops a unique kind of arrow. In ''Old School RuneScape'', only the [[noxious halberd]] can be created, though it is still made from three separate pieces to create.
+**An araxyte fang is also dropped, used to convert the [[amulet of torture]] to an [[amulet of rancour]] with 86 Crafting. There are no amulet upgrades in the ''RuneScape 3'' variant.
+**An [[araxyte head]] is also a potential drop to recolour the slayer helmet into an [[Araxyte slayer helmet]] with 1,000 slayer points. This does not exist in ''RuneScape 3''.
+
+==Trivia==
+*Despite common misconceptions, Araxxor is a male spider. His mate, the {{RSL|colossus}} araxyte {{RSL|Araxxi}}, is not present ingame, but is referenced during [[A Night at the Theatre]].{{CiteNPC|npc=Ranis Drakan|quote=The arachnids there are highly unique. Lowerniel thinks their queen might be of a higher power. (A higher power? He doesn't think that silly stone he used to have is involved, does he?) No, he suspects something more natural.|loc=A Night at the Theatre|notes=|name=}}
+*Unlike most other [[jar]]-dropping bosses, Araxxor's jar drop, the [[jar of venom]], is untradeable. This is because the ''Old School'' Team considered boss jars overall to be in a position of being a rare "flex" cosmetic that can be traded between players, and wished to try having the jar of venom be more exclusive.{{CiteNews|url=https://secure.runescape.com/m=news/new-slayer-boss---the-araxyte?oldschool=1|title=New Slayer Boss - The Araxyte|newsdate=17 June 2024|quote=Our final untradeable is the Jar of Venom – which might seem a bit odd, because all our other ‘Jar’ items have been tradeable. This puts them in a weird spot of being rare ‘flex’ cosmetics that you can purchase for a relatively inconsequential price – and for the Jar of Venom, we want to try something a bit more exclusive.}}
+*Unlike most other bosses with speed-based [[Combat Achievements]], Araxxor's speed-based Combat Achievements are based on a set amount of kills in a set amount of time, rather than one kill only. This is due to player complaints over other speed-based Combat Achievements, such as [[Whisperer Speed-Runner]] and [[Vorkath Speed-Runner]], requiring luck more than consistently good performance.{{CiteNews|url=https://secure.runescape.com/m=news/araxxor-cas-poll-82-updates--more?oldschool=1|title=Araxxor CAs, Poll 82 Updates & More!|newsdate=11 September 2024|quote=We’ve also heard your frustrations regarding RNG resets in speedrun tasks, so this time we’re trying something new. Our new approach encourages steady, repeated quick kills within a set time frame, rather than relying on a single lucky attempt. For example, instead of "Kill Araxxor in X minutes" which was the previous approach, we're now going with "Kill Araxxor 4 times in 10:00". This way, RNG balances out over multiple kills.}} Since his release, some other bosses have had their speed times also function in the same way, like [[Yama]] and the [[Shellbane gryphon]].
+
+==References==
+{{Reflist}}
+
+{{Araxxor}}
+{{Slayer monsters}}
+{{Bosses}}
+{{spiders}}
+[[Category:Slayer monsters that can only be fought on task]]

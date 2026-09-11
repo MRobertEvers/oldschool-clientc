@@ -1,0 +1,62 @@
+{{otheruses|the teleport spell|the teleport tablet|Salve graveyard teleport (tablet)}}
+{{Infobox Spell
+|name = Salve Graveyard Teleport
+|image = [[File:Salve Graveyard Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 40
+|spellbook = Arceuus
+|type = Teleport
+|exp = 30
+|cost = {{RuneReq|Law=1|Soul=2}}
+|speed = 4 ticks
+|description = Teleports you to the graveyard on the River Salve
+|anim = [[File:Arceuus teleport.gif|x300px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Salve Graveyard Teleport icon (mobile).png|left|class=pageimage]]
+'''Salve Graveyard Teleport''' teleports the caster to the [[River Salve]] graveyard, by the [[ghoul]]s at the entrance to [[Mort Myre Swamp]]. This spell is one of the quickest ways to a [[fairy ring]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]]. In addition, the player must have completed the [[Priest in Peril]] quest and spoke to [[Drezel]], otherwise they will receive a message in the chatbox stating ''You must have completed Priest in Peril and received Drezel's warning to cast this spell.''
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Soul
+|Rune2num = 2
+}}
+
+==Destination==
+{{Map|3433,3461|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Salve Graveyard Teleport v1.png|center]]
+|[[File:Salve Graveyard Teleport v2.png|center]]
+|[[File:Salve Graveyard Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>16 June 2021
+|16 June 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

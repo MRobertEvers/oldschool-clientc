@@ -1,0 +1,5 @@
+[    1795ms] [ERROR] Failed to load resource: net::ERR_TRUST_TOKEN_OPERATION_FAILED @ https://www.amazon.com/tt/i:0
+[    1860ms] [WARNING] VIDEOJS: WARN: Using hls options is deprecated. Use vhs instead. @ https://m.media-amazon.com/images/I/3175HHgX+OL._RC%7C11KFCxsEshL.js,11uNd0zHc-L.js,51ocjucRF0L.js,41tLmUCnr0L.js,91G7VmlBk7L.js,11cPgPsKKOL.js_.js?AUIClients/Brila:1867
+[    1865ms] [WARNING] VIDEOJS: WARN: Using hls options is deprecated. Use vhs instead. @ https://m.media-amazon.com/images/I/3175HHgX+OL._RC%7C11KFCxsEshL.js,11uNd0zHc-L.js,51ocjucRF0L.js,41tLmUCnr0L.js,91G7VmlBk7L.js,11cPgPsKKOL.js_.js?AUIClients/Brila:1867
+[    2007ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.amazon.com/gp/product/ajax/billOfMaterial?ref=bom_pw_initialLoad&viewID=billOfMaterial-primary-widget&bomPageNum=1&searchTerm=&_=1788998001108:0
+[    3726ms] [WARNING] Unrecognized feature: 'attribution-reporting'. @ https://m.media-amazon.com/images/I/21vARlfe4pL._RC%7C11WTF6kPMoL.js_.js?AUIClients/ARARegisterTriggerSubAssets-dpv:4

@@ -49,7 +49,7 @@ which three were already standing is what made the fifth affordable.
 | ids and names share one namespace per type | **built** | unchanged | `content.ini`; one name table per namespace |
 | a field goes to a side only if declared for it | **built** | unchanged | `fields/<type>.ini` |
 | server value wins over a duplicative client value | **built** | unchanged | `cp_merge.c`, rank 1 over rank 0 |
-| the server merges both into one runtime structure at load | **built, transitional** | unchanged — see §11 | `mock230_boot.c` step 2 + 2b |
+| the server merges both into one runtime structure at load | **built, transitional** | unchanged — see §11 | `torirs_server_boot.c` step 2 + 2b |
 | **an entity goes to a side only if it is in that side's pack** | not built | **built** (§10) | `cp_pack.c`'s entity gate, on `pack/<ns>.{client,server}` |
 
 None of the first three were rebuilt, and the fourth did not touch them. The
@@ -102,7 +102,7 @@ reason to declare arity, and §11 says what to do instead.
 
 ### The load merge, as built
 
-`mock230_boot.c` step 2 parses the text overlays; step 2b loads
+`torirs_server_boot.c` step 2 parses the text overlays; step 2b loads
 `<tree>/server/pack` and **verifies every archive identical to the text parse
 before applying it**, reporting `LOADED` / `MISSING` / `STALE` each boot.
 `server/pack` is a generated dat2 (`main_file_cache.dat2` + `idx128/129/6/9`),
@@ -303,7 +303,7 @@ recorded at §9.6:
 
 ### 3.4 The load side — **not built, deliberately** (§11)
 
-`mock230_content_load` gains the membership files so the runtime knows which
+`ToriRSServer_ContentLoad` gains the membership files so the runtime knows which
 entities have a server half, and step 2b's three-way verification extends to
 cover membership as well as field values. The merge into one runtime structure
 already happens; what changes is that "does this record have a server half" stops
@@ -314,7 +314,7 @@ not archives, so 2,158 of the 2,199 npc bands are verified and then discarded �
 the runtime has no def to apply them to. Making membership the source of "has a
 server half" therefore means **creating 2,158 defs**, and each new def carries
 its cache combat bonuses where today it inherits `[default]`'s
-(`mock230_world.c:1322`, `npc_def_seed_from_cache`). That is a behaviour change,
+(`torirs_server_world.c:1322`, `npc_def_seed_from_cache`). That is a behaviour change,
 probably a desirable one, and it is emphatically not byte- or behaviour-identical
 — so it belongs in step 4, not inside a migration whose whole evidence is that
 nothing moved.
@@ -451,7 +451,7 @@ all.
   maps name to id and that mapping *is* the answer — and `ids` never participates
   in resolving one. Measured across all three consumers it: unions into
   `ss_allocate.py`'s allocatable set (which also has a hardcoded default tuple, so
-  two tables must agree by hand); flips one `mock230_pack.c` diagnostic between
+  two tables must agree by hand); flips one `torirs_server_pack.c` diagnostic between
   error and information; and is validated as incompatible with a nonzero base when
   it is `protocol`. No routing, no resolution.
 
@@ -506,7 +506,7 @@ all.
 
 This lands **after** the two lanes in flight (`lane-triggers`,
 `lane-droptables`), both of which write content and one of which owns
-`make -C src mock230-scripts`. It also wants
+`make -C src torirsserver-scripts`. It also wants
 [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6 item 1 finished first — deleting the
 text parse for band-carried fields — so that step 2b's verification has one
 source to check membership against rather than two.
@@ -530,7 +530,7 @@ dropped**, on measurement rather than convenience:
   byte-diff nor be perturbed by it. The two changes share no file.
 - **It has an unpaid prerequisite of its own.** `authored_combat` is set by the
   *presence of the `hitpoints` key*, not by its value
-  (`mock230_content.c:1110`), and is read twice in `mock230_pack.c`. Deleting the
+  (`torirs_server_content.c:1110`), and is read twice in `torirs_server_pack.c`. Deleting the
   branch zeroes it silently and disables two checks. It needs an opcode or a
   derivation first, as its own reviewable step.
 - Two of the 19 npc fields cannot move at all until the band grows a symbolic
@@ -549,7 +549,7 @@ What each step cost, what it asserted, and what it found. Detail in §§8–10.
 
 | | step 1 — emit (§8) | step 2 — check (§9) | step 3 — enforce (§10) |
 |---|---|---|---|
-| **built** | `cachepack membership`, `cp_membership.{h,c}`, 10 files, `membership = authored` | `membership --check-only`; `validate_membership_ids` in `mock230_pack` | the entity gate in `cp_pack.c`, both sides |
+| **built** | `cachepack membership`, `cp_membership.{h,c}`, 10 files, `membership = authored` | `membership --check-only`; `validate_membership_ids` in `ToriRSServer_Pack` | the entity gate in `cp_pack.c`, both sides |
 | **routing** | unchanged (provenance) | unchanged (provenance) | **membership** |
 | **evidence** | `diff -r --brief` empty, 232 MB + `server/pack` | same, from step-1 code | same, from step-2 code |
 | **proof it can fail** | 2 of 47 suite checks mutated to fail | 9 tree mutations, each reverted | 7 tree mutations, each reverted |
@@ -567,7 +567,7 @@ Standing numbers on this tree, all re-measured for this write-up:
 | …by the type default (both hitsplat, both cell (c) errors) | 2 |
 | server bands, all routed by name | 2,975 |
 | §2 cell (a) / (b) / (c) | 0 / 32 / 2 |
-| `mock230_pack --check-only` | 0 errors, 15 warnings |
+| `ToriRSServer_Pack --check-only` | 0 errors, 15 warnings |
 | membership id check | 5 namespaces, 3,073 names: 2,975 below base and in the cache, 54 above base in `.server`, 44 above base in `.client` |
 | `make -C 3rd/rscache test` membership suite | 54 checks |
 
@@ -712,7 +712,7 @@ Five things the seed makes visible that were not on disk before:
 3. **`obj` gets no pair at all, and has a real server half.** 857 authored blocks,
    every one an overlay on a cache record, and `levelrequire` is `client = drop`
    with no `server = opcode:` row — so the packer has no answer, while
-   `mock230_content.c` reads 1,496 requirement rows out of the text at boot. Its
+   `torirs_server_content.c` reads 1,496 requirement rows out of the text at boot. Its
    server half is real and invisible to every artifact.
 
    Step 2 measured this and it is **not confined to `obj`**: 1,698 records across
@@ -754,7 +754,7 @@ Five things the seed makes visible that were not on disk before:
   no code with the packer: npc ~~2,200~~ 2,199 (see item 1 above) / loc 776 /
   enum 32 / varp 22 / param 44, exact match in both directions.
 - Gates: `make -C 3rd/rscache test`, `make -C src test-content`,
-  `test-content-register`, `test-mock230`. `mock230_pack --check-only` unchanged
+  `test-content-register`, `test-ToriRSServer`. `ToriRSServer_Pack --check-only` unchanged
   at 0 errors, 15 warnings.
 - The membership suite's assertions were mutated to prove they can fail (drop the
   preamble on save → 2 of 47 checks fail, and exactly the two that should).
@@ -798,7 +798,7 @@ byte-identical to what step 1 produced (§9.5).
 | check | where | authority it needs |
 |---|---|---|
 | membership vs **provenance** | `cachepack membership --check-only` | the two-rank walk + merge, and the two gates themselves |
-| membership vs the **id range** | `mock230_pack`, `validate_membership_ids` | `server_base`, and the base cache |
+| membership vs the **id range** | `ToriRSServer_Pack`, `validate_membership_ids` | `server_base`, and the base cache |
 
 Splitting them is the point rather than a compromise. `server_base` is a field of
 `struct ContentNamespace`, defaulted in `src/content/content_register.c` and
@@ -809,7 +809,7 @@ already paying for. Symmetrically, the provenance check needs `cp_merge`'s
 `origin_rank`/`overlaid`, which only the packer has.
 
 The *format* is not duplicated: `3rd/rscache/tools/cachepack/cp_membership.c`
-compiles into `mock230_pack` (it depends on nothing but stdio). One parser, two
+compiles into `ToriRSServer_Pack` (it depends on nothing but stdio). One parser, two
 callers. The borrowing goes src ← cachepack and never the other way, so
 cachepack stays usable apart from the client.
 
@@ -873,7 +873,7 @@ not fail the build.
 
    Each is declared `client = drop` with no `server = opcode:` row, so the packer
    reads the value and drops it, and the only reader left is
-   `mock230_content.c`'s parse of the same text. **No membership statement can
+   `torirs_server_content.c`'s parse of the same text. **No membership statement can
    route one of these**, which is why the entity split alone does not finish the
    job: `pack/obj.server` would be a true statement about 857 records whose server
    half still reaches no packed file. Cell (a)/(b) work, and it belongs to step 4.
@@ -927,10 +927,10 @@ file verified byte-identical afterwards by `shasum`.
   test becoming a named predicate with an identical body, and this is the
   assertion that it is inert.
 - `pack --server-only` likewise byte-identical (2,975 archives).
-- `mock230_pack` unchanged at **0 errors, 15 warnings**; its server-band
+- `ToriRSServer_Pack` unchanged at **0 errors, 15 warnings**; its server-band
   verification still reports 2,975 archives identical to the text parse.
 - Gates: `make -C src test-content` (which now runs both checks),
-  `test-content-register`, `test-mock230`, `make -C 3rd/rscache test` — all green,
+  `test-content-register`, `test-ToriRSServer`, `make -C 3rd/rscache test` — all green,
   membership suite 47/47.
 
 ### 9.6 Corrections to §3.3, from building it
@@ -1085,14 +1085,14 @@ checks, up from 47).
   step-2 code and from the step-3 code: **`diff -r --brief` empty** over the
   232 MB output (227,820,840-byte `main_file_cache.dat2`).
 - `server/pack` after the same two runs: byte-identical, 2,975 archives.
-- `cachepack pack --server-only` (what `make mock230-servpack` runs): **exit 0**,
+- `cachepack pack --server-only` (what `make torirsserver-servpack` runs): **exit 0**,
   byte-identical to the full pack's bands.
 - `cachepack pack`'s exit status is 1, as it was before: 10 failed records
   (8 param encode failures, 2 hitsplat) — and now also the 2 cell (c) errors,
   which are the *same two records*. The byte-diff remains the signal.
 - Gates: `make -C src test-content` (0 errors, 15 warnings; membership id check
   unchanged at 5 namespaces / 3,073 names), `test-content-register`,
-  `test-mock230`, `make -C 3rd/rscache test` — all green.
+  `test-ToriRSServer`, `make -C 3rd/rscache test` — all green.
 
 ### 10.6 Corrections to this document, from building it
 
@@ -1169,8 +1169,8 @@ the two is the mistake this table exists to prevent.
 - **`stat` and `category` membership files.** They are 100 % server, already
   derivable from `cp_server_group_for(ns) >= 0`, and a file would be a second
   copy of what the codec tables state (§8.3).
-- **Anything under `src/` beyond `mock230_pack`'s new check.** `cp_membership.c`
-  compiles into `mock230_pack` so the *format* has one parser; the borrowing goes
+- **Anything under `src/` beyond `ToriRSServer_Pack`'s new check.** `cp_membership.c`
+  compiles into `ToriRSServer_Pack` so the *format* has one parser; the borrowing goes
   src ← cachepack and never the other way, so cachepack stays usable apart from
   the client (§9.1).
 

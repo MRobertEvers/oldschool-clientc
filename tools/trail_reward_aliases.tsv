@@ -1,0 +1,10 @@
+# Treasure-trail reward name -> obj symbol.
+#
+# Hand-owned, read by tools/gen_trail_rewards.py. One row per wiki display name
+# whose automatic resolution is wrong or impossible. An empty symbol means
+# "deliberately not an item" and the entry is dropped without being reported.
+#
+# name<TAB>symbol
+Zombie head (Treasure Trails)	zombie_head
+Uri transform	
+Explore 1	

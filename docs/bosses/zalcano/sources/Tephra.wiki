@@ -1,0 +1,41 @@
+{{Infobox Item
+|name = Tephra
+|image = [[File:Tephra.png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Destroy
+|destroy = You can obtain more tephra by mining it in Zalcano's prison.
+|examine = This needs refining.
+|value = 1
+|weight = 2.267
+|id = 23905
+}}
+[[File:Tephra detail.png|left|130px]]
+'''Tephra''' are fragmental materials mined from rock formations within [[Zalcano]]'s prison beneath [[Prifddinas]], granting 35 [[Mining]] experience per tephra mined. [[Rock formation]]s that are glowing will yield tephra at a much faster rate. The [[Varrock armour]]'s double ore mining effect works here as well. Both the [[celestial ring]] and [[celestial signet]] (when charged) can give multiple tephra per mining action. As with all other suitable ore, a charge will be lost from the ring whether or not additional tephra is mined.
+
+These are refined in the furnace to the east to create [[refined tephra]], then imbued at the altar to create [[imbued tephra]], which is used to deal damage to Zalcano's stone armour.
+
+There is a 1/65 chance that 1-3 [[crystal shard]]s will be obtained while mining tephra.
+
+Casting [[Superheat Item]] does not work. The [[Infernal pickaxe]] does not work on tephra.
+
+==Mining info==
+{{Mining info
+|level = 1
+|skill1note = Has no direct level requirement, but requires completion of [[Song of the Elves]] to access ({{SCP|Mining|70}})
+|xp = 35.2
+|tool = [[Pickaxe]]
+|rock = [[Rock Formation (glowing)]]
+|time = N/A
+}}
+
+==Products==
+{{Uses material list|Tephra}}
+
+{{Zalcano}}

@@ -1,0 +1,40 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Trollheim teleport (tablet)|teleport to the [[Troll Stronghold]]|stony basalt}}
+{{Infobox Spell
+|name = Trollheim Teleport
+|image = [[File:Trollheim Teleport.png]]
+|release = [[5 October]] [[2004]]
+|update = Eadgars Ruse
+|members = Yes
+|level = 61
+|spellbook = Normal
+|type = Teleport
+|exp = 68
+|cost = {{RuneReq|Law=2|Fire=2}}
+|speed = 4 ticks
+|quest = [[Eadgar's Ruse]]
+|description = Teleports you to Trollheim
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Trollheim Teleport icon (mobile).png|left|class=pageimage]]
+'''Trollheim Teleport''' [[teleport]]s the caster to the top of [[Trollheim]], just outside of [[Eadgar]]'s cave. Players must have completed the [[Eadgar's Ruse]] quest to use this spell.
+
+Teleporting here allows players to reach the [[God Wars Dungeon]] and [[Troll_Stronghold_(location)|Troll Stronghold]] easily where there is a disease-free [[herb patch]] (usable only after completing [[My Arm's Big Adventure]]).
+
+Players can also [[Teleport to house (redirected)|redirect]] their [[house tablet]] by using a [[scroll of redirection]] on it and directing it to Trollheim.
+
+Casting this spell is a requirement for the [[Fremennik Diary#Hard|Hard Fremennik diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 2
+|Rune2 = law
+|Rune2num = 2
+}}
+==Destination==
+{{Map|2890,3679|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

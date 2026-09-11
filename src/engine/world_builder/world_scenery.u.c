@@ -14,6 +14,7 @@
 #include "toridraw_scene.h"
 #include "varp/varp_manager.h"
 #include "world_builder.h"
+#include "world_scenery_mapfuncs.h"
 #include <rscache.h>
 
 // clang-format off
@@ -45,26 +46,22 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
 };
 
 static struct ToriRS_Location*
-world_builder_resolve_loc(
-    struct WorldBuilder* builder,
-    struct ToriRS_Location* base_loc)
+world_builder_resolve_loc(struct WorldBuilder* builder, struct ToriRS_Location* base_loc)
 {
-    int resolved_id;
-
+    assert(builder);
     assert(base_loc);
-    if( base_loc->transform_count <= 0 || !base_loc->transforms )
-        return base_loc;
-
-    resolved_id = VarPManager_ResolveTransform(
-        builder->varp,
-        base_loc->transforms,
-        base_loc->transform_count,
-        base_loc->transform_varbit,
-        base_loc->transform_varp);
-    if( resolved_id < 0 )
-        return NULL;
-
-    return CacheProvider_LocationGet(builder->cache, resolved_id);
+    struct ToriRS_Location* resolved = base_loc;
+    for( int depth = 0; depth < 16; ++depth )
+    {
+        if( resolved->transform_count <= 0 || !resolved->transforms ) return resolved;
+        int id = VarPManager_ResolveTransform(builder->varp, resolved->transforms,
+            resolved->transform_count, resolved->transform_varbit, resolved->transform_varp);
+        if( id < 0 ) return NULL;
+        if( id == resolved->id ) return resolved;
+        resolved = CacheProvider_LocationGet(builder->cache, id);
+        if( !resolved ) return NULL; /* async loader has not supplied this variant yet */
+    }
+    return NULL; /* malformed cyclic transform chain */
 }
 
 /**
@@ -77,8 +74,22 @@ world_builder_resolve_loc(
  * model over the wrong span (a base-4x1 loc placed as its 1x1 target lands 192
  * units west of where it belongs, geometry still four tiles wide).
  *
- * The anim id follows the same rule for the same reason: the reference makes
- * any transformed loc a DynamicObject driven by the BASE `animationId`.
+ * The anim id does NOT follow that rule, and used to. What makes a transformed
+ * loc a DynamicObject is the BASE `animationId` *or* the presence of a
+ * transform table, and the frame it draws comes from the def the transform
+ * resolved to -- the reference re-reads the transformed `animationId` and
+ * re-arms when it differs, which is how a state that animates only in one rung
+ * animates at all. Taking the base's unconditionally meant a base with no
+ * `anim=` of its own froze every animated child: 474 multiloc families in this
+ * cache are exactly that shape (`blast_furnace_dispenser`, `golem_portal`, the
+ * mourning doors, and every canoe station -- the felled tree never fell and the
+ * canoe in the water never bobbed).
+ *
+ * The base stays as the FALLBACK rather than being dropped, so the 445 families
+ * whose shell carries the anim and whose children carry none keep animating
+ * exactly as before. What changes is "the child has one and the base does not"
+ * -- and "both have one", where the state's own anim is the one that belongs to
+ * the state being drawn.
  *
  * Writes through `storage` (caller-owned, so this allocates nothing) and
  * returns it. NULL means the varbit selected a state with no loc — the caller
@@ -98,7 +109,7 @@ world_builder_resolve_loc_for_place(
     if( !resolved )
         return NULL;
 
-    if( getenv("TORIRS_SCENERY_DEBUG") &&
+    if( WB_ENV_SCENERY_DEBUG() &&
         (resolved->size_x != base_loc->size_x || resolved->size_z != base_loc->size_z) )
         fprintf(
             stderr,
@@ -113,7 +124,8 @@ world_builder_resolve_loc_for_place(
             64 * (base_loc->size_x - resolved->size_x));
 
     *storage = *resolved;
-    storage->seq_id = base_loc->seq_id;
+    if( resolved->seq_id < 0 )
+        storage->seq_id = base_loc->seq_id;
     storage->size_x = base_loc->size_x;
     storage->size_z = base_loc->size_z;
     return storage;
@@ -197,6 +209,101 @@ world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
     }
 }
 
+/*
+ * Shade / occluder / decor accumulators: build-only, and the scenery_add_*
+ * family below has two callers.
+ *
+ * A static build allocates all three in WorldBuilder_Rebuild*Begin and frees
+ * them once their bake has been applied. A runtime loc spawn
+ * (WorldBuilder_ApplyLocChange -> scenery_add, `scenery_runtime_spawn`) reuses
+ * that same code with no build in flight: there is no accumulator to write to,
+ * and nothing downstream would read one — the spawned loc is drawn by
+ * world_cycle's per-frame scenery pass and lit on the spot
+ * (scenery_register_sharelight). "Is a build in flight?" is knowledge the
+ * builder holds and the maps do not, so the test lives here, at the one point
+ * every scenery_add_* writer passes through, rather than in the map modules —
+ * they assert their pointer, so a genuine bad pointer still stops there.
+ */
+static void
+scenery_shade_wall(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int orientation,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_wall(builder->shademap, sx, sz, slevel, orientation, shade);
+}
+
+static void
+scenery_shade_wall_corner(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int orientation,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_wall_corner(builder->shademap, sx, sz, slevel, orientation, shade);
+}
+
+static void
+scenery_shade_sized(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int size_x,
+    int size_z,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_sized(builder->shademap, sx, sz, slevel, size_x, size_z, shade);
+}
+
+static void
+scenery_occluder_mark(struct WorldBuilder* builder, int x, int z, int level, uint16_t bits)
+{
+    if( !builder->occluder_buildmap )
+        return;
+    occluder_buildmap_or_mark(builder->occluder_buildmap, x, z, level, bits);
+}
+
+static void
+scenery_decor_set_wall_offset(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    int wall_offset)
+{
+    if( !builder->decor_buildmap )
+        return;
+    decor_buildmap_set_wall_offset(builder->decor_buildmap, x, z, level, wall_offset);
+}
+
+static void
+scenery_decor_add_element(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    int element_id,
+    int orientation,
+    enum DecorDisplacementKind displacement_kind)
+{
+    if( !builder->decor_buildmap )
+        return;
+    decor_buildmap_add_element(
+        builder->decor_buildmap, x, z, level, element_id, orientation, displacement_kind);
+}
+
 static inline enum MinimapWallFlag
 orientation_wall_flag(int orientation)
 {
@@ -266,6 +373,65 @@ scenery_minimap_wall_flags(
     return flags;
 }
 
+/*
+ * True when a loc's built model is identical for every placement of the same
+ * (resolved id, shape, rotation) — the set the scenery model prototype cache
+ * may serve (scenery_load_model). Three placement-dependent effects disqualify:
+ * contour ground deforms the vertices to the tile heights under each instance,
+ * sharelight merges vertex normals with whatever happens to stand next door,
+ * and a seq animates the instance's own copy every frame.
+ *
+ * Both scenery_load_model (build + pre-light + cache) and
+ * scenery_register_sharelight (skip the End-batch lighting for pre-lit models)
+ * key off this one predicate; if they ever disagree a model is lit twice or
+ * not at all.
+ */
+/* Why a placement had to build its own model (TORIRS_SCENERY_CENSUS=1). */
+int g_wb_share_hit;
+int g_wb_share_clone;
+int g_wb_share_proto;
+int g_wb_share_no_contour;
+int g_wb_share_no_sharelight;
+int g_wb_share_no_seq;
+
+static bool
+scenery_loc_model_shareable(const struct ToriRS_Location* loc)
+{
+    assert(loc);
+    /* seq test spelled as the shape helpers spell theirs
+     * (`seq_id != -1 ? orientation : 0`), so "has a deferred draw-time angle"
+     * and "not shareable" can never disagree on an odd negative id. */
+    return loc->contour_ground_type == 0 && loc->sharelight == 0 && loc->seq_id == -1;
+}
+
+/*
+ * Key a loc's geometry within one build: the resolved config id, which shape of
+ * it was selected, and the rotation baked into the vertices.
+ *
+ * Everything a build does to a loc model past that point -- the model ids it
+ * merges, the recolours and retextures, the mirror, the resize, the offset --
+ * is read off the same config, so two placements agreeing on these three agree
+ * on the finished geometry. Placement enters only through contouring, borrowed
+ * lighting and animation, and those are exactly what
+ * scenery_loc_model_shareable rules out.
+ *
+ * One key, two stores. A whole-model prototype and a lendable face-buffer set
+ * can exist for the same loc, and they used to be told apart by a tag bit in
+ * this key that both callers had to remember to set -- with a faces-only entry
+ * returned to a whole-model Acquire being a model with no vertices. They are
+ * different types in different stores now (ToriDraw_SceneSharedModels,
+ * ToriDraw_SceneSharedFaces) and cannot collide.
+ */
+static int64_t
+scenery_model_key(
+    int loc_id,
+    int shape_select,
+    int rotation)
+{
+    return ((int64_t)loc_id << 9) | ((int64_t)(shape_select & 0x1F) << 4) |
+           (int64_t)(rotation & 0xF);
+}
+
 static void
 scenery_register_sharelight(
     struct WorldBuilder* builder,
@@ -277,7 +443,12 @@ scenery_register_sharelight(
     int size_x,
     int size_z)
 {
-    struct World* world = builder->world;
+
+    /* Prototype-cacheable locs were lit when their model was built
+     * (scenery_load_model) — the End-batch defaultlight pass would only
+     * recompute the identical colours. */
+    if( scenery_loc_model_shareable(config_loc) )
+        return;
 
     /* Runtime loc spawn (zone LOC_ADD_CHANGE): the sharelight accumulator is
      * build-only (already freed), so the batch defaultlight_build pass will
@@ -291,7 +462,7 @@ scenery_register_sharelight(
     if( builder->scenery_runtime_spawn )
     {
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
-        if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model &&
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model &&
             ToriDraw_ModelIsLightable(el->model.u.model.model) )
         {
             struct ToriDraw_ModelHandle hnd = {
@@ -338,6 +509,24 @@ scenery_record_runtime_wall(
         scenery->painter_wall_ab = wall_ab;
         scenery->painter_wall_side = side;
     }
+}
+
+/* Runtime ground-decor spawn: painter_add_ground_decor is suppressed (its
+ * static slot is baked), so mark the pool entry — world_cycle's per-frame
+ * re-registration replays it via painter_add_ground_decor_dynamic instead of
+ * painter_add_normal_scenery, which is what puts the puddle in the tile's base
+ * step and therefore underneath anything standing on it. */
+static void
+scenery_record_runtime_ground_decor(
+    struct WorldBuilder* builder,
+    int element_id)
+{
+    struct WorldEntity_Scenery* scenery;
+    if( !builder->scenery_runtime_spawn || element_id < 0 )
+        return;
+    scenery = World_SceneryGetByElementId(builder->world, element_id);
+    if( scenery )
+        scenery->painter_ground_decor = 1;
 }
 
 /* Loc recolour endpoints <= this are texture ids (retexture), not HSL colours.
@@ -446,7 +635,7 @@ scenery_debug_record(
     struct WorldEntity_Scenery* scenery,
     struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
-    struct ToriDraw_Model* model,
+    const struct ToriDraw_Model* model,
     int element_id,
     int pool_idx,
     int size_x,
@@ -533,19 +722,17 @@ scenery_debug_note_position(
     }
 }
 
-static int
-scenery_load_model(
+/* Convert + merge + transform one loc model, exactly as scenery_load_model
+ * always has — split out so the prototype-cache hit path can skip it whole.
+ * NULL: shape absent, model not loaded, or empty geometry (the instance is
+ * silently dropped, as before). */
+static struct ToriDraw_Model*
+scenery_build_loc_model(
     struct WorldBuilder* builder,
-    struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
     int shape_select,
-    int rotation,
-    int scene_x,
-    int scene_z,
-    int size_x,
-    int size_z)
+    int rotation)
 {
-    struct World* world = builder->world;
     int model_ids[10] = { 0 };
     int models_count = 0;
 
@@ -577,28 +764,30 @@ scenery_load_model(
         if( !found )
         {
             /* Shape not present on this loc config — skip (common for mismatched map/loc data). */
-            if( getenv("TORIRS_SCENERY_DEBUG") )
+            if( WB_ENV_SCENERY_DEBUG() )
                 fprintf(
                     stderr,
                     "  scenery_load_model: loc %d shape %d NOT in config (groups=%d)\n",
                     builder->scenery_base_loc_id,
                     shape_select,
                     config_loc->shapes_and_model_count);
-            return -1;
+            return NULL;
         }
     }
 
     if( models_count <= 0 )
     {
-        if( getenv("TORIRS_SCENERY_DEBUG") )
+        if( WB_ENV_SCENERY_DEBUG() )
             fprintf(
                 stderr,
                 "  scenery_load_model: loc %d shape %d NO MODEL IDS (shapes=%s)\n",
                 builder->scenery_base_loc_id,
                 shape_select,
                 config_loc->shapes ? "yes" : "no");
-        return -1;
+        return NULL;
     }
+
+    double t_convert0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
@@ -607,7 +796,7 @@ scenery_load_model(
         if( !rs_model )
         {
             /* Model not preloaded into the cache: skip this scenery loc. */
-            if( getenv("TORIRS_SCENERY_DEBUG") )
+            if( WB_ENV_SCENERY_DEBUG() )
                 fprintf(
                     stderr,
                     "  scenery_load_model: loc %d shape %d model %d NOT LOADED\n",
@@ -616,7 +805,7 @@ scenery_load_model(
                     model_ids[i]);
             for( int j = 0; j < i; j++ )
                 ToriDraw_ModelFree(models[j]);
-            return -1;
+            return NULL;
         }
         models[i] = ToriDraw_ModelFromToriRS(rs_model);
         assert(models[i] && "scenery_load_model: failed to convert model instance");
@@ -625,7 +814,7 @@ scenery_load_model(
          * texture map; the raster skips faces whose texture is absent.
          * TORIRS_STRIP_TEXTURES=1 restores the old stripped behavior (A/B
          * debugging aid for texture regressions). */
-        if( getenv("TORIRS_STRIP_TEXTURES") )
+        if( WB_ENV_STRIP_TEXTURES() )
         {
             if( models[i]->face_textures )
                 for( int f = 0; f < models[i]->face_count; f++ )
@@ -645,6 +834,14 @@ scenery_load_model(
     }
     else
         model = models[0];
+
+    if( wb_timing_on() )
+    {
+        g_wb_t_model_convert_ms += wb_now_ms() - t_convert0;
+        g_wb_n_model_builds++;
+        g_wb_n_model_srcs += models_count;
+    }
+    double t_transform0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* Recolour pairs partition into texture swaps (endpoints <= 50) and HSL
      * recolours (see apply_transforms). Without the texture-swap half, scenery
@@ -669,7 +866,7 @@ scenery_load_model(
 
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
-        if( getenv("TORIRS_SCENERY_DEBUG") )
+        if( WB_ENV_SCENERY_DEBUG() )
             fprintf(
                 stderr,
                 "  scenery_load_model: loc %d shape %d model EMPTY (v=%d f=%d)\n",
@@ -678,7 +875,7 @@ scenery_load_model(
                 model->vertex_count,
                 model->face_count);
         ToriDraw_ModelFree(model);
-        return -1;
+        return NULL;
     }
 
     /* TORIRS_SCENERY_DEBUG: geometry extent of the first few scenery models. A
@@ -688,7 +885,7 @@ scenery_load_model(
     static int dbg_seen_locs[1024];
     static int dbg_seen_count;
     bool dbg_fresh_loc = false;
-    if( getenv("TORIRS_SCENERY_DEBUG") && dbg_seen_count < 1024 )
+    if( WB_ENV_SCENERY_DEBUG() && dbg_seen_count < 1024 )
     {
         dbg_fresh_loc = true;
         for( int s = 0; s < dbg_seen_count; s++ )
@@ -747,9 +944,245 @@ scenery_load_model(
             rotation);
     }
 
+    /*
+     * TORIRS_ZBUFFER_LOCS=1: draw every loc model through the depth-tested
+     * kernels, the way `zbuffer_model` already does for imported NPCs
+     * (app_npc_wants_zbuffer / app_model_apply_import_render_flags).
+     *
+     * An investigation knob, not a feature: locs have no `zbuffer_model`
+     * equivalent, so a backported model whose parts interpenetrate is resolved
+     * by the painter's face sort alone — and the rs2012 bake stripped its face
+     * priorities on the stated premise that "the lane is drawn with
+     * param=zbuffer_model", which is true of its npcs and false of its locs.
+     * Flipping this says whether a reported flicker is that gap or something
+     * else, without editing content.
+     */
+    {
+        static int zbuffer_locs = -1;
+        if( zbuffer_locs < 0 )
+        {
+            char const* env = getenv("TORIRS_ZBUFFER_LOCS");
+            zbuffer_locs = (env && *env && *env != '0') ? 1 : 0;
+        }
+        if( zbuffer_locs )
+            model->flags |= (uint8_t)(TORIDRAW_MODEL_FLAG_ZBUFFER |
+                                      TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY);
+    }
+
     ToriDraw_ModelSetBoundsCylinder(model);
 
-    int element_id = ToriDraw_SceneElementAdd(builder->scene);
+    if( wb_timing_on() )
+        g_wb_t_model_transform_ms += wb_now_ms() - t_transform0;
+
+    return model;
+}
+
+static int
+scenery_load_model(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc* map_tile,
+    struct ToriRS_Location* config_loc,
+    int shape_select,
+    int rotation,
+    int scene_x,
+    int scene_z,
+    int size_x,
+    int size_z)
+{
+    struct World* world = builder->world;
+    /*
+     * The placement's geometry AND who owns it, for the whole function. Both
+     * stores take and return this, so there is never a raw ToriDraw_Model* here
+     * outliving the build that produced it -- which is what let a spent shell
+     * be read after Publish freed it.
+     */
+    struct ToriDraw_ModelHandle hnd = { 0 };
+    int64_t proto_key = 0;
+    bool from_cache = false;
+    bool const proto_shareable = scenery_loc_model_shareable(config_loc);
+
+    /*
+     * Prototype cache: within one build a scene places the same tree, fence or
+     * rock hundreds of times, and each instance used to redo the whole
+     * convert-merge-transform-light chain. For placement-independent locs
+     * (scenery_loc_model_shareable) the finished, LIT model is cached once per
+     * (resolved id, shape, rotation) — Client-TS keeps LocType model caches at
+     * the same seam — and every later instance is the SAME model, not a copy.
+     *
+     * One model for N placements is the whole point: the copies were the
+     * largest single pool in the process. The scene's shared-model store owns
+     * it and each placement holds it (toridraw_shared_model.h), so a runtime
+     * removal drops one holder rather than freeing geometry the rest of the
+     * scene is still drawing, and the two paths that edit a placed loc's model
+     * take ToriDraw_SceneElementModelForWrite to get a private copy first.
+     *
+     * The store keeps nothing alive by itself, so it needs no clearing seam: a
+     * rebuild's ToriDraw_SceneClearPool drops the placements and the entries go
+     * with them, which is also what stops a prototype baked from a reloaded loc
+     * config from ever being served stale.
+     *
+     * Pre-lighting is what makes the cache worth having, so a shareable model
+     * is lit HERE rather than in the End-batch defaultlight pass;
+     * scenery_register_sharelight skips these by the same predicate. The
+     * colours are identical either way: default lighting reads only the
+     * model's own geometry and the loc's ambient/contrast, and the vertices
+     * never change between here and End for a non-contoured, non-animated loc.
+     */
+    if( proto_shareable )
+    {
+        proto_key = scenery_model_key(config_loc->id, shape_select, rotation);
+        hnd = ToriDraw_SharedModelStoreAcquire(
+            ToriDraw_SceneSharedModels(builder->scene), proto_key);
+    }
+    else
+    {
+        if( config_loc->contour_ground_type != 0 )
+            g_wb_share_no_contour++;
+        else if( config_loc->sharelight != 0 )
+            g_wb_share_no_sharelight++;
+        else
+            g_wb_share_no_seq++;
+    }
+    if( hnd.kind != TORIDRAWMK_NONE )
+        g_wb_share_hit++;
+    else if( proto_shareable )
+        g_wb_share_proto++;
+
+    /*
+     * Not shareable whole, but the faces (and everything else the build
+     * decides) are the same at every placement of this key -- so if a previous
+     * placement has already published a set, clone from its template instead
+     * of running the build to produce arrays this placement would immediately
+     * hand back. @see ToriDraw_SharedFacesStoreClone.
+     *
+     * Animated locs are excluded here for the same reason they are excluded
+     * from the loan below: an alpha transform rewrites face_alphas in place
+     * every frame, which a shared set cannot carry.
+     */
+    if( hnd.kind == TORIDRAWMK_NONE && !proto_shareable && config_loc->seq_id == -1 &&
+        !WB_ENV_NO_FACE_CLONE() )
+    {
+        hnd = ToriDraw_SharedFacesStoreClone(
+            ToriDraw_SceneSharedFaces(builder->scene),
+            scenery_model_key(config_loc->id, shape_select, rotation));
+        if( hnd.kind != TORIDRAWMK_NONE )
+        {
+            /* The build this replaced ended with a wants report off its final
+             * face_textures; the registry outlives any one model, so the clone
+             * reports in its place -- the same rule the whole-model cache hit
+             * below follows. */
+            ToriDraw_ModelNoteTextureWants(ToriDraw_ModelRead(hnd));
+            builder->scenery_deferred_angle = 0;
+            g_wb_share_clone++;
+        }
+    }
+
+    if( hnd.kind != TORIDRAWMK_NONE )
+    {
+        from_cache = true;
+        /* Deferred draw-time rotation is an animated-loc mechanism, and
+         * animated locs are never shareable — a non-zero value here means the
+         * predicate and the shape helpers disagree about this loc. */
+        assert(builder->scenery_deferred_angle == 0);
+        /* The wants registry outlives any one model; re-report from the copy
+         * exactly as a fresh build reports from its final face_textures. */
+        ToriDraw_ModelNoteTextureWants(ToriDraw_ModelRead(hnd));
+    }
+    else
+    {
+        struct ToriDraw_Model* built =
+            scenery_build_loc_model(builder, config_loc, shape_select, rotation);
+        if( !built )
+            return -1;
+
+        /* Owned from here, and it says so. Whichever store takes it below
+         * spends this handle and returns one of its own kind. */
+        hnd = ToriDraw_ModelHandleOwned(built);
+
+        if( proto_shareable )
+        {
+            if( ToriDraw_ModelIsLightable(built) )
+            {
+                ToriDraw_LightModelScene(hnd, config_loc->contrast, config_loc->ambient);
+                ToriDraw_ModelFreeNormals(built);
+            }
+            /* Hand the freshly built model to the store and take it straight
+             * back as this placement's copy -- the same object, now shared,
+             * with this placement as its first holder and a handle that says
+             * so. */
+            hnd = ToriDraw_SharedModelStorePublish(
+                ToriDraw_SceneSharedModels(builder->scene), proto_key, hnd);
+        }
+        else if( config_loc->seq_id == -1 )
+        {
+            /*
+             * Not shareable whole, but shareable in half. This loc is contoured
+             * to the ground or lit from a neighbour, so its vertices and its
+             * per-corner colours have to be its own -- but the faces indexing
+             * those vertices are the same at every placement of it, and there
+             * are far more faces than there is anything else. A census of a
+             * settled scene put 6915 such placements over 754 distinct
+             * (id, shape, rotation) keys.
+             *
+             * Safe HERE and not earlier: the build's recolour, retexture and
+             * mirror all write the face arrays, so the loan can only be taken
+             * once they have finished. Past this point, contouring and the
+             * End-batch defaultlight pass touch vertices and per-corner
+             * colours, and sharelight touches face_infos -- none of which the
+             * loan covers.
+             *
+             * Animated locs are excluded rather than handled: an alpha
+             * transform (ToriDraw_ModelAnimateFrame op 5) writes face_alphas in
+             * place every frame, and they are 150 placements out of the 6915.
+             *
+             * face_infos is not in the lendable set at all, because that is
+             * the array the neighbour merge writes: World.shareLight hides the
+             * seam faces where two of these meet, and lending it would hide
+             * them at every placement of the loc. See
+             * TORIDRAW_SHARED_FACE_FIELDS.
+             */
+            hnd = ToriDraw_SharedFacesStoreBorrow(
+                ToriDraw_SceneSharedFaces(builder->scene),
+                scenery_model_key(config_loc->id, shape_select, rotation),
+                hnd);
+        }
+        /* else: nothing shared -- animated, or shareable neither whole nor in
+         * half -- and `hnd` already says this placement owns what it built. */
+    }
+
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
+
+    if( wb_census_on() )
+    {
+        /* Duplicates are counted at what they WOULD cost unshared -- the
+         * bytes a copy of this model needs -- so the dup line still reads as
+         * the size of the saving. Actual retained bytes are the proto line
+         * alone: a key with N placements now holds one model, built on the
+         * miss below. */
+        size_t const bytes = ToriDraw_ModelHeapBytes(ToriDraw_ModelRead(hnd));
+        if( from_cache )
+        {
+            g_wb_census_dup_n++;
+            g_wb_census_dup_b += bytes;
+        }
+        else if( proto_shareable )
+        {
+            g_wb_census_proto_n++;
+            g_wb_census_proto_b += bytes;
+        }
+        else
+        {
+            g_wb_census_unique_n++;
+            g_wb_census_unique_b += bytes;
+        }
+    }
+
+    /* The builder's own static pool, not the scene's default one: a boat
+     * deck's geometry has to be freeable without touching the mainland's
+     * (WorldBuilder_SetSceneView). */
+    int element_id = ElementId_Raw(ElementId_Make(
+        TORIDRAW_ELEMENT_KIND_SCENERY,
+        ToriDraw_SceneElementAddPool(builder->scene, builder->static_pool)));
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
     /* ToriRS actions are [5][64]; the entity facet stores [5][32]. Repack at
@@ -784,8 +1217,13 @@ scenery_load_model(
             force_approach =
                 ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
 
+        /* Plain bounded copy: snprintf("%s") ran the printf engine five times
+         * per model, which showed in a whole-rebuild profile. */
         for( int a = 0; a < 5; a++ )
-            snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
+        {
+            strncpy(actions32[a], config_loc->actions[a], sizeof(actions32[a]) - 1);
+            actions32[a][sizeof(actions32[a]) - 1] = '\0';
+        }
         /* Register the MAP orientation (0-3), not the render rotation: the
          * reference typecode2 stores angle<<6 with the map angle, and both
          * consumers of this field want that — the tryMove wall approach
@@ -826,16 +1264,15 @@ scenery_load_model(
                 if( builder->scenery_runtime_spawn )
                     sc->runtime_spawn = 1;
                 scenery_debug_record(
-                    builder, sc, map_tile, config_loc, model, element_id, pool_idx, size_x,
-                    size_z);
+                    builder, sc, map_tile, config_loc, ToriDraw_ModelRead(hnd), element_id,
+                    pool_idx, size_x, size_z);
             }
         }
     }
 
-    struct ToriDraw_ModelHandle hnd = {
-        .kind = TORIDRAWMK_MODEL,
-        .u.model.model = model,
-    };
+    /* `hnd` came from whichever store served this placement, or from
+     * ToriDraw_ModelHandleOwned when none did -- so the type it carries was
+     * never a claim this function made up. */
     ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
     /* LocType.raiseobject: stamp model minY (max of -vy) onto every tile of the
@@ -850,11 +1287,12 @@ scenery_load_model(
          (shape_select >= RSCACHE_LOC_SHAPE_ROOF_SLOPED &&
           shape_select <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER)) )
     {
+        const struct ToriDraw_Model* m = ToriDraw_ModelRead(hnd);
         int raise = 0;
         int level = map_tile->chunk_pos_level;
-        for( int v = 0; v < model->vertex_count; v++ )
+        for( int v = 0; v < m->vertex_count; v++ )
         {
-            int h = -(int)model->vertices_y[v];
+            int h = -(int)m->vertices_y[v];
             if( h > raise )
                 raise = h;
         }
@@ -933,6 +1371,16 @@ scenery_load_animation(
     if( element_id < 0 || seq_id < 0 )
         return;
     anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
+    /* Under TORIRS_SCENERY_DEBUG, say whether the bind took. "The loc does not
+     * animate" has two halves -- the seq never reached the element, or it did
+     * and the tick is not advancing it -- and only this line separates them. */
+    if( WB_ENV_SCENERY_DEBUG() )
+        fprintf(
+            stderr,
+            "  loc anim: element=%d seq=%d frames=%d\n",
+            element_id,
+            seq_id,
+            anim ? anim->frame_count : -1);
     if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
         return;
     element = ToriDraw_SceneElementGet(builder->scene, element_id);
@@ -983,32 +1431,32 @@ scenery_add_wall_single(
         switch( orientation )
         {
         case 0: /* WEST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 1: /* NORTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 2: /* EAST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 3: /* SOUTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
@@ -1017,8 +1465,8 @@ scenery_add_wall_single(
         }
     }
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1026,8 +1474,8 @@ scenery_add_wall_single(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall(
-            builder->shademap,
+        scenery_shade_wall(
+            builder,
             scene_x,
             scene_z,
             map_loc->chunk_pos_level,
@@ -1069,8 +1517,8 @@ scenery_add_wall_tri_corner(
     scenery_record_runtime_wall(
         builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1078,8 +1526,8 @@ scenery_add_wall_tri_corner(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall_corner(
-            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
+        scenery_shade_wall_corner(
+            builder, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
     }
 
     scenery_register_sharelight(
@@ -1143,8 +1591,8 @@ scenery_add_wall_two_sides(
     scenery_record_runtime_wall(
         builder, element_id2, WALL_B, ROTATION_WALL_TYPE[next_orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1161,56 +1609,56 @@ scenery_add_wall_two_sides(
         switch( orientation )
         {
         case 0: /* WEST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 1: /* NORTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 2: /* EAST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 3: /* SOUTH — both marks land on the same tile in the reference */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
@@ -1249,8 +1697,8 @@ scenery_add_wall_rect_corner(
     scenery_record_runtime_wall(
         builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1258,8 +1706,8 @@ scenery_add_wall_rect_corner(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall_corner(
-            builder->shademap,
+        scenery_shade_wall_corner(
+            builder,
             scene_x,
             scene_z,
             map_loc->chunk_pos_level,
@@ -1310,8 +1758,8 @@ scenery_add_wall_decor_inside(
         0,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1365,8 +1813,8 @@ scenery_add_wall_decor_outside(
         0,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1420,8 +1868,8 @@ scenery_add_wall_decor_diagonal_outside(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1476,8 +1924,8 @@ scenery_add_wall_decor_diagonal_inside(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1567,8 +2015,8 @@ scenery_add_wall_decor_diagonal_double(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, inside_element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1576,8 +2024,8 @@ scenery_add_wall_decor_diagonal_double(
         outside_orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1619,8 +2067,8 @@ scenery_add_wall_diagonal(
         1,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1689,8 +2137,8 @@ scenery_add_normal(
         shade = 30;
     if( config_loc->shadowed )
     {
-        shademap2_set_sized(
-            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
+        scenery_shade_sized(
+            builder, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
     }
 
     scenery_register_sharelight(
@@ -1740,8 +2188,8 @@ scenery_add_roof(
             shape != RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER &&
             map_loc->chunk_pos_level > 0 )
         {
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
@@ -1773,6 +2221,7 @@ scenery_add_floor_decoration(
 
     painter_add_ground_decor(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id);
+    scenery_record_runtime_ground_decor(builder, element_id);
 
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
@@ -1836,12 +2285,17 @@ world_builder_minimap_add_chunk_mapfunctions(
 }
 
 /* Post-build pass: nudge icons off their loc tile with the reference's
- * 10-step collision-respecting random walk (bounded ±3 tiles; a fixed set of
- * funcs stays put). Runs once per rebuild, after collision maps are final. */
+ * 10-step collision-respecting random walk (bounded ±3 tiles; on dat1 a fixed
+ * set of atlas frames stays put — see world_scenery_mapfuncs.h). Runs once per
+ * rebuild, after collision maps are final. */
 void
 world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
+    /* The exemption list is dat1 atlas frame indices; a dat2 `func` is a
+     * mapelement id from an unrelated numbering, so it cannot be tested
+     * against them. */
+    bool const dat1 = RSCache_IsDat1(CacheProvider_Profile(builder->cache));
 
     for( int i = 0; i < world->mapfunc_count; i++ )
     {
@@ -1850,8 +2304,7 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
         int func = icon->func;
         if( !cm )
             continue;
-        if( func == 22 || func == 29 || func == 34 || func == 36 || func == 46 || func == 47 ||
-            func == 48 )
+        if( dat1 && World_MapFunctionDat1StaysPut(func) )
             continue;
 
         int x = icon->x;
@@ -2109,7 +2562,6 @@ scenery_add(
     int scene_x,
     int scene_z)
 {
-    struct World* world = builder->world;
     switch( map_loc->shape_select )
     {
     case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:

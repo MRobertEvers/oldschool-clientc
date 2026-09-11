@@ -1,0 +1,850 @@
+[[File:Arceuus spells.png|frame|The Arceuus spellbook.]]
+[[File:Arceuus spellbook.png|left|The Arceuus spellbook icon.]]
+The '''Arceuus spellbook''' is a [[spellbook]] that players can immediately access upon speaking to [[Tyss]] in [[Arceuus]]; with a focus on [[necromancy]], [[prayer]], demon-slaying, and augmenting combat. Like the [[standard spellbook]], it has a variety of combat and utility spells at its disposal, unlike the [[Lunar spellbook]], which is primarily focused on utility spells, and the [[Ancient Magicks]], which is heavily combat-oriented. A larger set of combat and utility spells are accessible to players upon completion of [[A Kingdom Divided]].
+
+Players can only have one type of spellbook at a time. If the player chooses to access the Arceuus spellbook it will replace their current one. You can speak to [[Tyss]] to have it lifted at any time.
+
+Making extensive use of [[blood rune|blood]], [[nature rune|nature]], and [[soul rune]]s, this spellbook is notable for its [[reanimation spells|reanimation]] and [[offering spells|offering]] spells used in [[Prayer training]], and is also known for its vast array of [[teleportation]] spells which primarily transport players to destinations associated with death, such as graveyards and dungeons occupied by the [[undead]].
+
+==History==
+[[File:Arceuus icon detail.png|left|120px]]
+The spellbook was likely developed after the discovery of the [[Dark Altar]] during the [[God Wars]] by refugees who founded Arceuus, where it is primarily used to help free trapped souls by way of reanimation. Occasionally, a soul does not successfully free itself from its physical body upon death, leaving behind a tormented soul trapped in their own corpse.{{CiteText|text=Soul Journey|author=Aretha|quote=The soul does not always succeed in freeing itself from its flesh-temple at the time of death. Many warriors have found, to their horror, that the soul of their foe remains trapped in the corpse.}} The magicks of the Dark Altar allows the reanimation of ensouled cadavers, giving them a rudimentary body that can be killed to properly free the soul and pass on to the next world.{{CiteNPC|npc=Lord Trobin Arceuus|quote=There are many souls that find themselves trapped here after death. My people and I do our best to release them.}}{{CiteText|text=Soul Journey|author=Aretha|quote=Ensouled heads are a sign of a soul in torment; it is therefore our duty to free such souls from their prison with all due speed. The magic of the Dark Altar enables the ensouled head to re-form itself a rudimentary body; this may be slain in order to grant liberty to the soul at last.}}
+
+Additionally, due to Arceuus' low supply of [[law rune]]s and lack of practical means to access the [[Law Altar]], the study of teleportation magic has always been very limited throughout [[Great Kourend]]'s history, with [[Xeric]] being the only known user of teleportation spells.{{CiteText|text=Transportation Incantations|author=Amon Ducot|quote=Unfortunately our supplies of law runes are extremely limited at this time, making the spell of little use. Indeed, the study of teleportation magicks has always been very limited throughout Kourend's history for this reason, aside from whatever sorcery was practiced by Xeric.}} However, after establishment of safe trade routes from the mainland,{{CiteNPC|npc=Commander Fullore|quote=It was under [the Council] that trade with your lands to the east was established. Without those trade routes, you would have no easy way of getting here.}} a steady supply of law runes became available, allowing Arceuus to research and create new teleportation spells.{{CiteNews|url=http://services.runescape.com/m=news/devblog-38---zeah-deadman-mode-and-jad-2?oldschool=1|title=Devblog 38 - Zeah, Deadman Mode and Jad 2|newsdate=11 January 2016|quote=Teleportation – the inhabitants of Zeah have never had law runes before and so have not been able to investigate the ability of teleportation. Since your arrival on Zeah new teleports have been researched and discovered using the power of the dark altar.}}
+
+After the removal of the [[Kourend Council]] from power, [[Lord Trobin Arceuus]] and a team of mages searched [[Xamphur]]'s lair in [[Molch]], who had played a role in the killing of [[King Kharedst IV]] decades ago, as well as the death of [[Thana]]. Though most of his research was removed from the area, some were left behind and proved to be practical for Arceuus' use, with the more dangerous spells left out.{{CiteNPC|npc=Lord Trobin Arceuus|quote=...we did manage to search his [Xamphur's] lair in Molch. Most of it had been cleared out before we arrived. There was some research left behind though. Notes on potential new spells. Some are far too dangerous to use, but others we've found to be safe. We're preparing a tome of all the ones that are suitable.}}
+
+==Switching spellbooks==
+Players may speak with [[Tyss]] to switch to the Arceuus spellbook without any additional requirements, who can be found near the [[Dark Altar]] just north of [[Arceuus]]. Players can get to Tyss by using the [[fairy ring]] code {{Fairycode|CIS}}. Another option is to use the [[games necklace]] teleport to the [[Wintertodt Camp]] and run south-west until the snowy area exit, then run east afterwards. Another teleport closeby is [[Arceuus Library Teleport]] and run north, then east, which can be added as a portal in a [[player-owned house]]. If currently on the lunar spellbook, [[Spellbook Swap]] can be used to switch to the arceuus spellbook and then use [[Arceuus Home Teleport]], which takes the player directly next to Tyss.
+
+Alternatively, players who have level 80 [[Construction]] can build a [[Dark altar (Construction)|dark altar]] within their [[Achievement Gallery]], allowing them to freely switch between the standard and Arceuus spellbooks without having to travel to the real [[Dark Altar]].
+
+==Teleportation spells==
+[[File:Arceuus teleport.gif|thumb|150px|A player uses a teleport spell from the Arceuus spellbook.]]
+Players are free to use all teleportation spells upon unlocking the Arceuus spellbook; completion of [[A Kingdom Divided]] is not required.
+
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Notes
+|-
+|[[File:Arceuus Home Teleport.png|center]]
+|[[File:Arceuus Home Teleport icon (mobile).png|center]]
+|[[Arceuus Home Teleport]]
+|1
+|None
+|0
+| style="text-align: left;" | Teleports the player to the [[Dark Altar]]. It can only be used once every 30 minutes and can be interrupted by combat.
+|-
+|[[File:Minigame Teleport.png|center]]
+|[[File:Minigame Teleport icon (mobile).png|center]]
+|[[Minigame Teleport]]
+|{{NA}}
+|None
+|0
+| style="text-align: left;" | Teleports the player to a minigame of their choice. It can only be used once every 20 minutes and can be interrupted by combat.
+|-
+|[[File:Arceuus Library Teleport.png|center]]
+|[[File:Arceuus Library Teleport icon (mobile).png|center]]
+|[[Arceuus Library Teleport]]
+|6
+|{{RuneReq|Law=1|Earth=2}}
+|9
+| style="text-align: left;" | Teleports the player north of the [[Arceuus Library]].
+|-
+|[[File:Draynor Manor Teleport.png|center]]
+|[[File:Draynor Manor Teleport icon (mobile).png|center]]
+|[[Draynor Manor Teleport]]
+|17
+|{{RuneReq|Law=1|Earth=1|Water=1}}
+|16
+| style="text-align: left;" | Teleports the player to [[Draynor Manor]].
+|-
+|[[File:Battlefront Teleport.png|center]]
+|[[File:Battlefront Teleport icon (mobile).png|center]]
+|[[Battlefront Teleport]]
+|23
+|{{RuneReq|Law=1|Earth=1|Fire=1}}
+|19
+| style="text-align: left;" | Teleports the player to the [[Ancient Grave]], just beyond the [[Battlefront]].
+|-
+|[[File:Mind Altar Teleport.png|center]]
+|[[File:Mind Altar Teleport icon (mobile).png|center]]
+|[[Mind Altar Teleport]]
+|28
+|{{RuneReq|Law=1|Mind=2}}
+|22
+| style="text-align: left;" | Teleports the player to the [[Mind Altar]] whose entrance is near the Wilderness.
+|-
+|[[File:Respawn Teleport.png|center]]
+|[[File:Respawn Teleport icon (mobile).png|center]]
+|[[Respawn Teleport]]
+|34
+|{{RuneReq|Law=1|Soul=1}}
+|27
+| style="text-align: left;" | Teleports the player to their current [[respawn point]].
+|-
+|[[File:Salve Graveyard Teleport.png|center]]
+|[[File:Salve Graveyard Teleport icon (mobile).png|center]]
+|[[Salve Graveyard Teleport]]
+|40
+|{{RuneReq|Law=1|Soul=2}}
+|30
+| style="text-align: left;" | Teleports the player to the [[ghoul]] area by the entrance to [[Mort Myre Swamp]]. Requires completion of [[Priest in Peril]].
+|-
+|[[File:Fenkenstrain's Castle Teleport.png|center]]
+|[[File:Fenkenstrain's Castle Teleport icon (mobile).png|center]]
+|[[Fenkenstrain's Castle Teleport]]
+|48
+|{{RuneReq|Law=1|Soul=1|Earth=1}}
+|50
+| style="text-align: left;" | Teleports the player to [[Fenkenstrain's Castle]]. Requires completion of [[Priest in Peril]].
+|-
+|[[File:West Ardougne Teleport.png|center]]
+|[[File:West Ardougne Teleport icon (mobile).png|center]]
+|[[West Ardougne Teleport]]
+|61
+|{{RuneReq|Law=2|Soul=2}}
+|68
+| style="text-align: left;" | Teleports the player to the [[West Ardougne]] graveyard. Requires completion of [[Biohazard]].
+|-
+|[[File:Harmony Island Teleport.png|center]]
+|[[File:Harmony Island Teleport icon (mobile).png|center]]
+|[[Harmony Island Teleport]]
+|65
+|{{RuneReq|Law=1|Soul=1|Nature=1}}
+|74
+| style="text-align: left;" | Teleports the player to [[Harmony Island]]. Requires completion of [[The Great Brain Robbery]].
+|-
+|[[File:Cemetery Teleport.png|center]]
+|[[File:Cemetery Teleport icon (mobile).png|center]]
+|[[Cemetery Teleport]]
+|71
+|{{RuneReq|Law=1|Soul=1|Blood=1}}
+|82
+| style="text-align: left;" | Teleports the player to [[The Forgotten Cemetery]] in the [[Wilderness]].
+|-
+|[[File:Barrows Teleport.png|center]]
+|[[File:Barrows Teleport icon (mobile).png|center]]
+|[[Barrows Teleport]]
+|83
+|{{RuneReq|Law=2|Soul=2|Blood=1}}
+|90
+| style="text-align: left;" | Teleports the player to the [[Barrows]]. Requires completion of [[Priest in Peril]].
+|-
+|[[File:Teleport to Target.png|center]]
+|[[File:Teleport to Target icon (mobile).png|center]]
+|[[Teleport to Target]]
+|85
+|{{RuneReq|Law=1|Death=1|Chaos=1}}
+|45
+| style="text-align: left;" | Teleports the player to their assigned target inside [[Daimon's Crater]]. Can only be cast on [[Bounty Hunter]] worlds.
+|-
+|[[File:Ape Atoll Teleport (Arceuus).png|center]]
+|[[File:Ape Atoll Teleport (Arceuus) icon (mobile).png|center]]
+|[[Ape Atoll Teleport (Arceuus)|Ape Atoll Teleport]]
+|90
+|{{RuneReq|Law=2|Soul=2|Blood=2}}
+|100
+| style="text-align: left;" | Teleports the player to the [[Ape Atoll Dungeon]]. Requires completion of [[Monkey Madness I]].
+|}
+
+==Combat spells==
+The combat spells of the Arceuus spellbook possess a mix of offensive and support spells, which includes spells to resurrect [[thrall]]s, which fight alongside the player for a set amount of time.
+
+With the exception of [[Ghostly Grasp]] and [[Inferior Demonbane]], all combat spells in the Arceuus spellbook require completion of the quest [[A Kingdom Divided]].
+
+===Autocasting===
+Offensive Arceuus spells can only be [[autocast]] with particular magic weapons:
+{{Infotable Bonuses|Ahrim's staff#Undamaged|Blue moon spear|Kodai wand|Master wand|Purging staff|Skull sceptre|Skull sceptre (i)|Slayer's staff|Slayer's staff (e)|Staff of the Dead|Toxic staff of the dead#Charged|nototals=yes}}
+
+===Grasp spells===
+Grasp spells deal damage and provide a chance to stop the target from moving for a short time. The bind chance is doubled when the caster is under the effect of the [[Mark of Darkness]] spell, though the bind duration remains the same. However, if the target is under the effect of the [[Ward of Arceuus]] spell, they will only be bound in place for 0.6 seconds if successfully bound by the caster.
+
+{|class="wikitable sortable" style="text-align:center; width:900px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!Class="unsortable"|[[Coins]]{{refn|group=g|Price will vary when using [[combination rune]]s.}}
+!XP
+!Base max hit{{Refn|group=g|Maximum hit may be increased by using equipment which increases [[magic damage]], wearing a [[black mask (i)]] or [[Slayer helmet (i)]] and attacking an on-task enemy, or by other methods. To see how these affect a spell's max hit, consult the magic damage calculator on that spell's page.}}
+!Bind<br/>chance
+!Bind time<br/>(seconds)
+|-
+|[[File:Ghostly Grasp.png]]
+|[[File:Ghostly Grasp icon (mobile).png]]
+|[[Ghostly Grasp]]
+|35
+|{{RuneReq|Air=4|Chaos=1}}
+|{{NoCoins|({{GEP|Air rune}} * 4 + {{GEP|Chaos rune}} )}} 
+
+|22.5
+|12
+|10%
+|1.2
+|-
+|[[File:Skeletal Grasp.png]]
+|[[File:Skeletal Grasp icon (mobile).png]]
+|[[Skeletal Grasp]]
+|56
+|{{RuneReq|Earth=8|Death=1}}
+|{{NoCoins|{{GEP|Earth rune}} * 8 + {{GEP|Death rune}} }} 
+
+|33
+|17
+|25%
+|1.8
+|-
+|[[File:Undead Grasp.png]]
+|[[File:Undead Grasp icon (mobile).png]]
+|[[Undead Grasp]]
+|79
+|{{RuneReq|Fire=12|Blood=1}}
+|{{NoCoins|{{GEP|Fire rune}} * 12 + {{GEP|Blood rune}}}} 
+
+|46.5
+|24
+|50%
+|2.4
+|}
+{{reflist|group=g}}
+
+===Demonbane spells===
+Demonbane spells deal damage (with a 20% accuracy bonus) much like any other offensive spells, but can only be cast on [[Demon (attribute)|demonic]] creatures. They will have an additional 25% damage and 40% accuracy bonus if the caster is under the effect of the [[Mark of Darkness]] spell. The damage bonus is applied after any bonus damage from gear.
+
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!Class="unsortable"|[[Coins]]{{refn|group=b|Price will vary when using [[combination rune]]s.}}
+!XP
+!Base max hit{{Refn|group=b|Maximum hit may be increased by using equipment which increases [[magic damage]], wearing a [[black mask (i)]] or [[Slayer helmet (i)]] and attacking an on-task enemy, or by other methods. To see how these affect a spell's max hit, consult the magic damage calculator on that spell's page.}}
+|-
+|[[File:Inferior Demonbane.png]]
+|[[File:Inferior Demonbane icon (mobile).png]]
+|[[Inferior Demonbane]]
+|44
+|{{RuneReq|Fire=3|Chaos=1}}
+|{{NoCoins|({{GEP|Fire rune}} * 3 + {{GEP|Chaos rune}} )}} 
+
+|27
+|16
+|-
+|[[File:Superior Demonbane.png]]
+|[[File:Superior Demonbane icon (mobile).png]]
+|[[Superior Demonbane]]
+|62
+|{{RuneReq|Fire=5|Soul=1}}
+|{{NoCoins|({{GEP|Fire rune}} * 5 + {{GEP|Soul rune}} )}} 
+
+|36
+|23
+|-
+|[[File:Dark Demonbane.png]]
+|[[File:Dark Demonbane icon (mobile).png]]
+|[[Dark Demonbane]]
+|82
+|{{RuneReq|Fire=7|Soul=2}}
+|{{NoCoins|{{GEP|Fire rune}} * 7 + {{GEP|Soul rune}} * 2}} 
+|43.5
+|30
+|}
+{{reflist|group=b}}
+
+===Corruption spells===
+Corruption spells provide a chance to inflict [[Corruption (status)|corruption]] (draining the target's prayer) on the caster's next [[successful hit]]. If a player with corruption spells active attacks an opposing player with [[Ward of Arceuus]] active, the attacker's corruption spells will remain active until the target's Ward expires, after which the next successful attack post-expiration will roll the chance for corruption.
+
+Players cannot cast corruption spells on a player if they are currently corrupted, nor can they do so while the target is under the effects of the [[Ward of Arceuus]] spell. There is no immunity period after corruption wears off on a player.
+
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Corruption<br>chance
+!Corruption<br/>prayer drain
+|-
+|[[File:Lesser Corruption.png]]
+|[[File:Lesser Corruption icon (mobile).png]]
+|[[Lesser Corruption]]
+|64
+|{{RuneReq|Death=1|Soul=2}}
+|75
+|50%
+|[[File:Corruption hitsplat.png]] 1, 2, 3 (6 total)
+|-
+|[[File:Greater Corruption.png]]
+|[[File:Greater Corruption icon (mobile).png]]
+|[[Greater Corruption]]
+|85
+|{{RuneReq|Blood=1|Soul=3}}
+|95
+|50%
+|[[File:Corruption hitsplat.png]] 2, 4, 6 (12 total)
+|}
+
+===Resurrection spells===
+Requires having the [[Book of the Dead]] equipped or in the player's inventory (which is obtained upon completion of [[A Kingdom Divided]]). Casting resurrection spells requires [[prayer points]] in addition to runes and will summon a [[thrall]] that attacks the same target that the player is attacking for a certain amount of time (<math>0.6 * \text{Magic Level}</math> seconds). The duration of the thrall is extended an additional 100% if the player has completed the [[Combat Achievements/Master|Master]] Combat Achievements.
+
+Players can only summon one thrall at a time, and it cannot attack other players. Thralls have an [[attack speed]] of 4 (attacking every 2.4 seconds), cannot be damaged, and ignore accuracy checks when attacking, making them very powerful in long encounters such as raids and other high-levelled bosses such as [[Nex]].
+
+These spells cannot be used in various locations; the full list of which can be found [[Thrall#Restrictions|here]].
+
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Prayer<br/>points cost
+!Thrall<br/>attack style
+!Thrall<br/>max hit
+|-
+|[[File:Resurrect Lesser Ghost.png]]
+|[[File:Resurrect Lesser Ghost icon (mobile).png]]
+|[[Resurrect Lesser Ghost]]
+|38
+|{{RuneReq|Air=10|Mind=5|Cosmic=1}}
+|55
+|2
+|Magic
+|1
+|-
+|[[File:Resurrect Lesser Skeleton.png]]
+|[[File:Resurrect Lesser Skeleton icon (mobile).png]]
+|[[Resurrect Lesser Skeleton]]
+|38
+|{{RuneReq|Air=10|Mind=5|Cosmic=1}}
+|55
+|2
+|Ranged
+|1
+|-
+|[[File:Resurrect Lesser Zombie.png]]
+|[[File:Resurrect Lesser Zombie icon (mobile).png]]
+|[[Resurrect Lesser Zombie]]
+|38
+|{{RuneReq|Air=10|Mind=5|Cosmic=1}}
+|55
+|2
+|Melee
+|1
+|-
+|[[File:Resurrect Superior Ghost.png]]
+|[[File:Resurrect Superior Ghost icon (mobile).png]]
+|[[Resurrect Superior Ghost]]
+|57
+|{{RuneReq|Earth=10|Death=5|Cosmic=1}}
+|70
+|4
+|Magic
+|2
+|-
+|[[File:Resurrect Superior Skeleton.png]]
+|[[File:Resurrect Superior Skeleton icon (mobile).png]]
+|[[Resurrect Superior Skeleton]]
+|57
+|{{RuneReq|Earth=10|Death=5|Cosmic=1}}
+|70
+|4
+|Ranged
+|2
+|-
+|[[File:Resurrect Superior Zombie.png]]
+|[[File:Resurrect Superior Zombie icon (mobile).png]]
+|[[Resurrect Superior Zombie]]
+|57
+|{{RuneReq|Earth=10|Death=5|Cosmic=1}}
+|70
+|4
+|Melee
+|2
+|-
+|[[File:Resurrect Greater Ghost.png]]
+|[[File:Resurrect Greater Ghost icon (mobile).png]]
+|[[Resurrect Greater Ghost]]
+|76
+|{{RuneReq|Fire=10|Blood=5|Cosmic=1}}
+|88
+|6
+|Magic
+|3
+|-
+|[[File:Resurrect Greater Skeleton.png]]
+|[[File:Resurrect Greater Skeleton icon (mobile).png]]
+|[[Resurrect Greater Skeleton]]
+|76
+|{{RuneReq|Fire=10|Blood=5|Cosmic=1}}
+|88
+|6
+|Ranged
+|3
+|-
+|[[File:Resurrect Greater Zombie.png]]
+|[[File:Resurrect Greater Zombie icon (mobile).png]]
+|[[Resurrect Greater Zombie]]
+|76
+|{{RuneReq|Fire=10|Blood=5|Cosmic=1}}
+|88
+|6
+|Melee
+|3
+|}
+
+===Other spells===
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Description
+|-
+|[[File:Dark Lure.png]]
+|[[File:Dark Lure icon (mobile).png]]
+|[[Dark Lure]]
+|50
+|{{RuneReq|Nature=1|Death=1}}
+|60
+|Lures monsters to attack players, and stops them from [[retreat]]ing. Can also be cast on [[impling]]s.
+|-
+|[[File:Mark of Darkness.png]]
+|[[File:Mark of Darkness icon (mobile).png]]
+|[[Mark of Darkness]]
+|59
+|{{RuneReq|Cosmic=1|Soul=1}}
+|70
+|Gives various offensive buffs to the caster that last for a set amount of time.
+|-
+|[[File:Ward of Arceuus.png]]
+|[[File:Ward of Arceuus icon (mobile).png]]
+|[[Ward of Arceuus]]
+|73
+|{{RuneReq|Cosmic=1|Nature=2|Soul=4}}
+|83
+|Gives various defensive buffs to the caster that last for a set amount of time.
+|}
+
+==Utility spells==
+With the exception of [[Resurrect Crops]] and [[reanimation spells]], all utility spells in the Arceuus spellbook require completion of the quest [[A Kingdom Divided]].
+
+===Reanimation spells===
+{{main|Reanimation spells}}
+
+Reanimation spells will reanimate certain creatures whose [[ensouled head|heads]] still contain their souls. Players are awarded [[Magic]] experience for casting the spell, and [[Prayer]] experience for killing the reanimated creature. A majority of reanimated creatures will have a maximum of 35 [[Hitpoints]].
+
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Compatible [[ensouled head]]s
+|-
+|[[File:Basic Reanimation.png]]
+|[[File:Basic Reanimation icon (mobile).png]]
+|[[Basic Reanimation]]
+|16
+|{{RuneReq|Body=4|Nature=2}}
+|32
+|[[Ensouled goblin head|Goblin]], [[Ensouled monkey head|monkey]], [[Ensouled imp head|imp]], [[Ensouled minotaur head|minotaur]], [[Ensouled scorpion head|scorpion]], [[Ensouled bear head|bear]], [[Ensouled unicorn head|unicorn]]
+|-
+|[[File:Adept Reanimation.png]]
+|[[File:Adept Reanimation icon (mobile).png]]
+|[[Adept Reanimation]]
+|41
+|{{RuneReq|Body=4|Nature=3|Soul=1}}
+|80
+|[[Ensouled dog head|Dog]], [[Ensouled chaos druid head|chaos druid]], [[Ensouled ogre head|ogre]], [[Ensouled giant head|giant]], [[Ensouled elf head|elf]], [[Ensouled troll head|troll]], [[Ensouled horror head|horror]]
+|-
+|[[File:Expert Reanimation.png]]
+|[[File:Expert Reanimation icon (mobile).png]]
+|[[Expert Reanimation]]
+|72
+|{{RuneReq|Nature=3|Blood=1|Soul=2}}
+|138
+|[[Ensouled kalphite head|Kalphite]], [[Ensouled dagannoth head|dagannoth]], [[Ensouled bloodveld head|bloodveld]], [[Ensouled tzhaar head|TzHaar]], [[Ensouled demon head|demon]], [[Ensouled hellhound head|hellhound]]
+|-
+|[[File:Master Reanimation.png]]
+|[[File:Master Reanimation icon (mobile).png]]
+|[[Master Reanimation]]
+|90
+|{{RuneReq|Nature=4|Blood=2|Soul=4}}
+|170
+|[[Ensouled aviansie head|Aviansie]], [[Ensouled abyssal head|abyssal demon]], [[Ensouled dragon head|dragon]]
+|}
+
+===Offering spells===
+Offering spells convert up to three sets of remains to [[prayer points]], granting three times the normal experience of burying or scattering remains. They take the same amount of time as offering three remains at an altar in a [[player-owned house]] [[chapel]].
+
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Remains converted
+|-
+|[[File:Demonic Offering.png]]
+|[[File:Demonic Offering icon (mobile).png]]
+|[[Demonic Offering]]
+|84
+|{{RuneReq|Soul=1|Wrath=1}}
+|175
+|Ashes
+|-
+|[[File:Sinister Offering.png]]
+|[[File:Sinister Offering icon (mobile).png]]
+|[[Sinister Offering]]
+|92
+|{{RuneReq|Blood=1|Wrath=1}}
+|180
+|Bones
+|}
+
+===Other spells===
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Description
+|-
+|[[File:Shadow Veil.png]]
+|[[File:Shadow Veil icon (mobile).png]]
+|[[Shadow Veil]]
+|47
+|{{RuneReq|Earth=5|Fire=5|Cosmic=5}}
+|58
+|Grants a 15% chance (36.25% if wearing the [[dodgy necklace]]) to avoid being [[Stun (status)|stunned]] and damaged while [[pickpocketing]] [[NPC]]s for a set amount of time.
+|-
+|[[File:Vile Vigour.png]]
+|[[File:Vile Vigour icon (mobile).png]]
+|[[Vile Vigour]]
+|66
+|{{RuneReq|Air=3|Soul=1}}
+|76
+|Converts remaining [[prayer points]] into [[run energy]] at a 1:1 ratio.
+|-
+|[[File:Degrime.png]]
+|[[File:Degrime icon (mobile).png]]
+|[[Degrime]]
+|70
+|{{RuneReq|Earth=4|Nature=2}}
+|83
+|Cleans all grimy [[herbs]] in the player's inventory that the player has the [[Herblore]] level to clean, giving only half the usual XP for cleaning them.
+|-
+|[[File:Resurrect Crops.png]]
+|[[File:Resurrect Crops icon (mobile).png]]
+|[[Resurrect Crops]]
+|78
+|{{RuneReq|Soul=8|Nature=12|Blood=8|Earth=25}}
+|90
+|Gives a chance for a dead [[farming patch]] to be brought back to life. If the spell fails, the patch is cleared out.
+|-
+|[[File:Death Charge.png]]
+|[[File:Death Charge icon (mobile).png]]
+|[[Death Charge]]
+|80
+|{{RuneReq|Death=1|Blood=1|Soul=1}}
+|90
+|Restores 15% of the player's [[special attack]] energy upon killing a monster.
+|}
+
+==Discontinued spells==
+[[File:Arceuus spells pre-merge.png|frame|The Arceuus spellbook prior to the merging of reanimation spells.]]
+With [[Update:Arceuus Spellbook Beta and A Kingdom Divided Preparation|an update]] on [[28 April]] [[2021]], the spellbook was significantly reduced in size to prepare for the release of the quest [[A Kingdom Divided]].
+
+There were formerly reanimation spells for each [[ensouled head]], which were merged into four reanimation spells in the update. In addition, the [[Lumbridge Graveyard Teleport]] was replaced with the [[Arceuus Library Teleport]].
+
+{|class="wikitable sortable" style="text-align:center; width:500px;"
+!class="unsortable"|Icon
+! class="unsortable" |[[Mobile]]<br/>icon
+!Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+|-
+|[[File:Reanimate Goblin.png]]
+|[[File:Reanimate Goblin icon (mobile).png]]
+|[[Reanimate Goblin]]
+|3
+|{{RuneReq|Body=2|Nature=1}}
+|6
+|-
+|[[File:Lumbridge Graveyard Teleport.png]]
+|[[File:Lumbridge Graveyard Teleport icon (mobile).png]]
+|[[Lumbridge Graveyard Teleport]]
+|6
+|{{RuneReq|Law=1|Earth=2}}
+|9
+|-
+|[[File:Reanimate Monkey.png]]
+|[[File:Reanimate Monkey icon (mobile).png]]
+|[[Reanimate Monkey]]
+|7
+|{{RuneReq|Body=3|Nature=1}}
+|14
+|-
+|[[File:Reanimate Imp.png]]
+|[[File:Reanimate Imp icon (mobile).png]]
+|[[Reanimate Imp]]
+|12
+|{{RuneReq|Body=3|Nature=2}}
+|24
+|-
+|[[File:Reanimate Minotaur.png]]
+|[[File:Reanimate Minotaur icon (mobile).png]]
+|[[Reanimate Minotaur]]
+|16
+|{{RuneReq|Body=4|Nature=2}}
+|32
+|-
+|[[File:Reanimate Scorpion.png]]
+|[[File:Reanimate Scorpion icon (mobile).png]]
+|[[Reanimate Scorpion]]
+|19
+|{{RuneReq|Soul=1|Nature=1}}
+|38
+|-
+|[[File:Reanimate Bear.png]]
+|[[File:Reanimate Bear icon (mobile).png]]
+|[[Reanimate Bear]]
+|21
+|{{RuneReq|Soul=1|Nature=1|Body=1}}
+|42
+|-
+|[[File:Reanimate Unicorn.png]]
+|[[File:Reanimate Unicorn icon (mobile).png]]
+|[[Reanimate Unicorn]]
+|22
+|{{RuneReq|Soul=1|Nature=1|Body=2}}
+|44
+|-
+|[[File:Reanimate Dog.png]]
+|[[File:Reanimate Dog icon (mobile).png]]
+|[[Reanimate Dog]]
+|26
+|{{RuneReq|Soul=1|Nature=2|Body=2}}
+|52
+|-
+|[[File:Reanimate Chaos Druid.png]]
+|[[File:Reanimate Chaos Druid icon (mobile).png]]
+|[[Reanimate Chaos Druid]]
+|30
+|{{RuneReq|Soul=1|Nature=2|Body=3}}
+|60
+|-
+|[[File:Reanimate Giant.png]]
+|[[File:Reanimate Giant icon (mobile).png]]
+|[[Reanimate Giant]]
+|37
+|{{RuneReq|Soul=1|Nature=2|Body=4}}
+|74
+|-
+|[[File:Reanimate Ogre.png]]
+|[[File:Reanimate Ogre icon (mobile).png]]
+|[[Reanimate Ogre]]
+|40
+|{{RuneReq|Soul=1|Nature=3|Body=4}}
+|80
+|-
+|[[File:Reanimate Elf.png]]
+|[[File:Reanimate Elf icon (mobile).png]]
+|[[Reanimate Elf]]
+|43
+|{{RuneReq|Soul=2|Nature=2|Body=2}}
+|86
+|-
+|[[File:Reanimate Troll.png]]
+|[[File:Reanimate Troll icon (mobile).png]]
+|[[Reanimate Troll]]
+|46
+|{{RuneReq|Soul=2|Nature=2|Body=3}}
+|92
+|-
+|[[File:Reanimate Horror.png]]
+|[[File:Reanimate Horror icon (mobile).png]]
+|[[Reanimate Horror]]
+|52
+|{{RuneReq|Soul=2|Nature=2|Body=4}}
+|104
+|-
+|[[File:Reanimate Kalphite.png]]
+|[[File:Reanimate Kalphite icon (mobile).png]]
+|[[Reanimate Kalphite]]
+|57
+|{{RuneReq|Soul=2|Nature=3|Body=4}}
+|114
+|-
+|[[File:Reanimate Dagannoth.png]]
+|[[File:Reanimate Dagannoth icon (mobile).png]]
+|[[Reanimate Dagannoth]]
+|62
+|{{RuneReq|Soul=3|Nature=3|Body=4}}
+|124
+|-
+|[[File:Reanimate Bloodveld.png]]
+|[[File:Reanimate Bloodveld icon (mobile).png]]
+|[[Reanimate Bloodveld]]
+|65
+|{{RuneReq|Soul=2|Nature=2|Blood=1}}
+|130
+|-
+|[[File:Reanimate TzHaar.png]]
+|[[File:Reanimate TzHaar icon (mobile).png]]
+|[[Reanimate TzHaar]]
+|69
+|{{RuneReq|Soul=2|Nature=3|Blood=1}}
+|138
+|-
+|[[File:Reanimate Demon.png]]
+|[[File:Reanimate Demon icon (mobile).png]]
+|[[Reanimate Demon]]
+|72
+|{{RuneReq|Soul=2|Nature=4|Blood=1}}
+|144
+|-
+|[[File:Reanimate Aviansie.png]]
+|[[File:Reanimate Aviansie icon (mobile).png]]
+|[[Reanimate Aviansie]]
+|78
+|{{RuneReq|Soul=3|Nature=4|Blood=1}}
+|156
+|-
+|[[File:Reanimate Abyssal Creature.png]]
+|[[File:Reanimate Abyssal Creature icon (mobile).png]]
+|[[Reanimate Abyssal Creature]]
+|85
+|{{RuneReq|Soul=4|Nature=4|Blood=1}}
+|170
+|-
+|[[File:Reanimate Dragon.png]]
+|[[File:Reanimate Dragon icon (mobile).png]]
+|[[Reanimate Dragon]]
+|93
+|{{RuneReq|Soul=4|Nature=4|Blood=2}}
+|186
+|}
+
+==Unused spells==
+Some spells designs were cut from the Arceuus spellbook rework, although [[Mod West]] had still made spell icons for them and can be found within the game cache.
+
+<gallery heights="30px">
+Unused Arceuus bone conversion spell.png|A bone conversion spell resembling [[bones to bananas]]/[[bones to peaches|peaches]]
+Unused Arceuus teleport spell.png|A teleport spell to the Wilderness
+Unused Arceuus teleport spell (mobile).png|A teleport spell to the Wilderness ([[Old School RuneScape Mobile|mobile]])
+Unused Arceuus resurrection spell.png|A resurrection spell
+Unused Arceuus resurrection spell (mobile).png|A resurrection spell (mobile)
+Unused Arceuus corruption spell.png|A corruption spell
+Unused Arceuus corruption spell (mobile).png|A corruption spell (mobile)
+Unused Arceuus dart spell.png|A spell resembling [[Magic Dart]]
+Unused Arceuus red demobane spell (mobile).png|A red demonbane spell (mobile)
+Unused Arceuus yellow-green demobane spell (mobile).png|A yellow-green demonbane spell (mobile)
+Unused Arceuus unknown spell.png|A spell resembling [[Crumble Undead]]
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change = Fixed an issue where Sinister Offering was missing from the Arceuus spellbook when spell filtering was disabled.
+}}
+{{Subject changes
+|date = 22 May 2025
+|update = Yama: The Calm Before the Contract Storm
+|change = All demonbane spells now have reduced Fire Rune costs. From 4/8/12 to 3/5/7.
+}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The Teleport to Target Spell is now accessible via the Arceuus spellbook. 
+}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|poll = Varlamore Activities & Kourend Changes
+|change = As [[Kourend Favour]] has been removed, accessing the spellbook now requires simply speaking to [[Tyss]].
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll =
+|change =
+* Demonbane spells now have a 20% accuracy bonus, increasing to 40% for demonic creatures under the effects of the [[Mark of Darkness]] spell.
+* An animation will now play when a target is no longer under the effects of the Mark of Darkness spell.
+* Offering spells are now cast instantly, and have a cooldown timer before it can be cast again.
+* Death Charge now restores special attack energy when fighting the [[Grotesque Guardians]].
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = A Kingdom Divided
+|change =
+* New [[combat spells]] and [[utility spells]] have been added to the spellbook, most of which require completion of [[A Kingdom Divided]] to cast.
+* The spellbook icon was graphically updated.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = A Kingdom Divided
+|change =
+* Reanimation spells were merged into four spells.
+* The Lumbridge Graveyard Teleport spell was replaced with the Arceuus Library Teleport spell.
+* Various teleport spell icons were graphically updated.
+}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = The Battlefront Teleport spell was added.
+}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|change = The spellbook icons for reanimation spells were graphically updated.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|change = The spellbook is now referred to as the "Arceuus spellbook" instead of the "Necromancy spellbook".
+}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|change =
+* Teleport spells in the Arceuus spellbook now use combination runes correctly.
+* Casting the Resurrect Crops spell after having used [[Spellbook Swap]] will now swap the spellbook back.
+}}
+{{Subject changes
+|date = 28 January 2016
+|update = Necromancy Improvements
+|poll = Old School Content Poll 38: Jad II, Deadman & Zeah
+|change =
+* Eleven teleport spells were added to the spellbook.
+* The Resurrect Crops spell has been added.
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Spellbooks}}
+{{Arceuus spellbook}}
+[[Category:Members' spellbooks]]

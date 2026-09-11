@@ -58,9 +58,28 @@ enum ToriRS_NetOutType
     TORIRS_NET_OUT_DISCONNECT = 3,
 };
 
+/**
+ * The login screen could not reach a server at all.
+ *
+ * Outside the protocol's own byte range so it can share ToriRS_Network's
+ * login_reply, and negative so a profile spells it by name
+ * ([login_reply:connect_failed]) rather than by number.
+ */
+#define TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED (-100)
+
 struct ToriRS_Network
 {
     enum ToriRS_NetState state;
+    /**
+     * The server's rejection byte from the last failed login, or -1.
+     *
+     * Survives the drop back to DISCONNECTED on purpose: that transition is
+     * how the login screen learns the attempt failed, and the code is the only
+     * thing that says WHY. TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED is the
+     * transport's own answer for a socket that never got far enough to be
+     * refused.
+     */
+    int login_reply;
     struct GameProtoRevTable const* rev;
 
     struct Isaac* random_in;
@@ -84,6 +103,15 @@ struct ToriRS_Network
     char host[128];
     char username[64];
     char password[64];
+
+    /** What the login block says this client is: the revision-239 login
+     *  header's clientType / platformType (rsprot LoginClientType /
+     *  LoginPlatformType: 7 = enhanced android, 10 = enhanced linux;
+     *  platform 2 = android, 0 = default). The app sets them from the same
+     *  resolved identity the cache scripts are told (CS2VM2_SetClientIdentity),
+     *  so the server and the scripts agree on which gameframe this is. */
+    int client_type;
+    int platform_type;
 
     loginproto_seed_fn seed_fn;
     void* seed_user;
@@ -144,11 +172,12 @@ ToriRS_Network_ConnectLogin(
  * session back instead of logging it in again. Callers own the client-side
  * reset; this touches only the connection.
  *
- * Only revision 239 has the reconnect handshake wired up. On every other
- * revision the login driver ignores the flag and sends an ordinary
- * GAMELOGIN — which re-establishes the session all the same, because a server
- * that persists a character on disconnect hands the same one back. The
- * difference is a password round trip, not an outcome.
+ * Which handshake that is, is the revision's to state: `rev->reconnect_kind`
+ * picks between LostCity's credential block behind opcode 18, RSProt's
+ * cipher-seed block behind the same opcode, and having no reconnect at all.
+ * The last of those still re-establishes the session — it sends an ordinary
+ * GAMELOGIN, and a server that persists a character on disconnect hands the
+ * same one back. The difference is a password round trip, not an outcome.
  *
  * Returns 0 when there is nothing to reconnect to (no prior ConnectLogin).
  */

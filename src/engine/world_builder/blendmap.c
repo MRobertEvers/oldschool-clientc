@@ -100,7 +100,6 @@ blendmap_get_blended_hsl16(
 void
 blendmap_build(struct Blendmap* blendmap)
 {
-    struct RSCacheDat2A_MapFloor* tile = NULL;
 
     struct HSL hsl;
     int size_x = blendmap->width;
@@ -194,7 +193,6 @@ blendmap_build(struct Blendmap* blendmap)
             if( xi < 0 || xi >= size_x )
                 continue;
 
-            int running_hues = 0;
             int running_sat = 0;
             int running_light = 0;
             int running_luminance = 0;

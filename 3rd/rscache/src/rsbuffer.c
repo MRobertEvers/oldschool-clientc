@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rscache_log.h"
 #define RSCACHE_BUFFER_DEFAULT_CAPACITY 256
 
 void
@@ -796,7 +797,7 @@ RSCache_BufferReadParams(
 {
     if( buffer->position >= buffer->size )
     {
-        printf("RSCache_BufferReadParams: Buffer overflow\n");
+        RSCACHE_LOG("RSCache_BufferReadParams: Buffer overflow\n");
         return;
     }
     int length = RSCache_BufferG1(buffer) & 0xFF;
@@ -811,7 +812,7 @@ RSCache_BufferReadParams(
 
     if( !params->keys || !params->values || !params->kinds )
     {
-        printf(
+        RSCACHE_LOG(
             "RSCache_BufferReadParams: Failed to allocate params arrays of capacity %d\n",
             capacity);
         free(params->keys);
@@ -830,7 +831,7 @@ RSCache_BufferReadParams(
     {
         if( buffer->position >= buffer->size )
         {
-            printf(
+            RSCACHE_LOG(
                 "RSCache_BufferReadParams: Buffer overflow while reading params at index %d\n", i);
             params_cleanup_partial(params);
             return;
@@ -852,7 +853,7 @@ RSCache_BufferReadParams(
             }
             if( buffer->position + str_len >= buffer->size )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Buffer overflow while reading param string at "
                     "index %d\n",
                     i);
@@ -862,7 +863,7 @@ RSCache_BufferReadParams(
             value = malloc((size_t)str_len + 1);
             if( !value )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Failed to allocate param string of length %d at "
                     "index %d\n",
                     str_len,
@@ -877,7 +878,7 @@ RSCache_BufferReadParams(
             kind = RSCACHE_PARAM_LONG;
             if( buffer->position + 7 >= buffer->size )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Buffer overflow while reading param long at index "
                     "%d\n",
                     i);
@@ -887,7 +888,7 @@ RSCache_BufferReadParams(
             value = malloc(sizeof(int64_t));
             if( !value )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Failed to allocate param long at index %d\n", i);
                 params_cleanup_partial(params);
                 return;
@@ -899,7 +900,7 @@ RSCache_BufferReadParams(
             kind = RSCACHE_PARAM_INT;
             if( buffer->position + 3 >= buffer->size )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Buffer overflow while reading param int at index "
                     "%d\n",
                     i);
@@ -909,7 +910,7 @@ RSCache_BufferReadParams(
             value = malloc(sizeof(int));
             if( !value )
             {
-                printf(
+                RSCACHE_LOG(
                     "RSCache_BufferReadParams: Failed to allocate param int at index %d\n", i);
                 params_cleanup_partial(params);
                 return;

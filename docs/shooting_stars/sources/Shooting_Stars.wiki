@@ -1,0 +1,936 @@
+{{External|rs=Shooting Star}}
+{{Infobox Activity
+|name = Shooting Stars
+|image = [[File:Shooting Stars.png|300px]]
+|release = [[17 March]] [[2021]]
+|update = Shooting Stars
+|type = Distraction and Diversion
+|members = No
+|location = Global
+|skills = [[Mining]]
+|currency = [[Stardust]]
+|music = Varies on location of star
+|map = {{Map|zoom=-1|x=3290|y=3353|width=400|align=right|group=Stars|caption=A map of landing sites.}}
+|leagueRegion = General
+}}
+
+'''Shooting Stars''' is a [[Distraction and Diversion]] activity in which players mine [[crashed star]]s for [[stardust]]. A star will crash roughly every 90 minutes on each [[server]] (with a variation of up to 15 minutes), falling at a random spot selected from a predetermined list. The activity is notable for providing idle [[Mining]] training, only requiring input every 7 minutes while mining a star.
+
+Stardust may be exchanged at [[Dusuri's Star Shop]] by the [[Mining Guild]] entrance in [[Falador]] for various [[Shooting Stars#Rewards|rewards]]. Although the activity is available in [[Free-to-play]], players will be unable to use the shop and receive half the experience points from mining the stars.
+
+==Locating==
+[[File:Shooting Stars - telescope view.png|thumb|300px|A shooting star viewed through a telescope.]]
+Members can use a [[Telescope space|telescope]] in a [[Study|study room]] in a [[player-owned house]] to find the approximate area and time of the next landing. It is also possible to use telescopes in another player's house for this purpose.
+* If the telescope is blocked by another room in the house, (not including outdoor rooms such as the [[Menagerie]]), or the room is underground, it will not work.
+* Better telescopes provide a more accurate time window:
+** [[Oak telescope]] - 24-minute window
+** [[Teak telescope]] - 9-minute window
+** [[Mahogany telescope]] - 2-minute window
+* If a star has recently fallen, the following text appears:
+** "You look through the telescope but you don't see anything interesting."
+Join the Shooting Stars [[grouping]] chat via the grouping menu to share locations with other players. 
+
+There are also many websites available on the internet which list known star sites allowing players to quickly find stars meeting their criteria.
+
+If a player is standing near the crash site where a shooting star is falling, they will hear a whistling sound as it falls from the sky and the crash as it impacts the ground.
+
+==Mining==
+[[File:Shooting Star crashing.gif|frame|A shooting star crashing.]]
+
+[[Crashed stars]] may be mined through a number of layers before they will be fully depleted.  Each layer will '''always''' deplete at a fixed rate of 7 minutes, provided there is at least one player mining it. On first appearance, stars will range in size from 6 to 9 layers, and the star will crumble and disappear once the final layer has been mined. Only one star may be active at a time on any given world; the previous star will disappear if another star appears before it is fully depleted. {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1392938928341200901|date=13 May 2021|archiveurl=https://web.archive.org/web/20210513202538/https://twitter.com/JagexAsh/status/1392938928341200901|archivedate=13 May 2021|quote=[do shooting stars reset if not being mined?] Looks to me like an old star would be deleted at the time when the next spawns, if it hasn't already gone.}}
+
+Each layer has an associated [[Mining]] level requirement, decreasing with each layer that is mined through. Players can find out how large the star is by prospecting it, which will also reveal the percentage progress towards depleting the current layer.
+
+{| class="wikitable" style="text-align:center"
+!Size
+!{{SCP|Mining}} Level
+!Crash chance
+|-
+|9 || 90 || 20%
+|-
+|8 || 80 || 25%
+|-
+|7 || 70 || 30%
+|-
+|6 || 60 || 25%
+|-
+|5 || 50 || {{NA}}
+|-
+|4 || 40 || {{NA}}
+|-
+|3 || 30 || {{NA}}
+|-
+|2 || 20 || {{NA}}
+|-
+|1 || 10 || {{NA}}
+|}
+
+While mining the crashed star, a roll to receive stardust is performed regularly based on the player's [[Mining]] level, scaling from 29% to 46% at levels 1 to 99. Players will additionally receive 32 (32.8 with the full [[Prospector kit|prospectors kit]]) experience each time a piece of stardust is mined (halved to 16 on Free-to-play worlds). [[Mining enhancers]] that multiply yield do '''not''' affect stars.
+
+{{Listen
+|title = [[Star of Your Own (Shooting Stars)|Star of Your Own]]
+|align = right
+|filename = Star of Your Own (Shooting Stars).ogg
+|desc = The jingle that plays upon discovering a crashed star.}}
+
+There is a star discovery bonus available to the first player that attempts to mine a crashed star, who will receive double stardust for the next 300 mined from '''any''' shooting star. Experience is '''not''' doubled. This bonus persists through logouts and server updates, and will reset to 300 if another star is discovered while the bonus is active. You do not need to meet the skill requirements for the layer to receive the bonus. 
+
+In addition to receiving this bonus, their name will be added to the [[Shooting Star Noticeboard]] in the reception room north of the [[Observatory]], which records the last five players to discover stars on the server.
+
+It is possible to receive the pet [[rock golem]] whilst mining, where the base chance is 1/521,550.
+
+===Mining Success Chance===
+{{Skilling success chart|color1=goldenrod|high1=117|image1=Stardust_175.png|label=Stardust mining chance|label1=Stardust|low1=73|req1=10|showbefore=no}}
+
+===Notes===
+*The shooting star cycle will reset during a system update; stars on the ground before the update will vanish. Stars will begin landing again 20–50 minutes after the game goes back online, and then cycle as normal (every ~90 minutes)
+*It is possible that the telescopes of two POH will show different timers. In such a case, the landing time can be narrowed down to the time when the timers overlap. For example, if one telescope says a star is 10-12 minutes from landing and another says 9-11 minutes, the star must be 10-11 minutes from landing.
+*The [[adamant pickaxe]]'s 4-[[tick]] cycle allows it to be used for [[tick manipulation]] while mining shooting stars, unlike other pickaxes.
+*Gems are able to be obtained from mining stars. A charged [[amulet of glory]] will increase this rate. A [[gem bag]] or [[gem sack]] may be worth bringing, or a [[chisel]] to craft [[bolt tips]].
+*In [[Varlamore]], crashed stars can reward the [[Loop half of key (moon key)]].
+*When attempting to mine a star you do not have the required level for, it is possible to degrade the star by up to 1% even though you are unable to mine it for stardust. This may be done every 7 ticks, and is a result of the check for the remaining time on a star occuring earlier than the check for the required level. This is not affected by other players.
+
+== Money making ==
+{{Mmgsection|Mining crashed stars}}
+
+==Rewards==
+{{Main|Dusuri's Star Shop}}
+[[Stardust]] is obtained by mining the [[crashed star]]. Stardust is used as currency at [[Dusuri's Star Shop]] to purchase the [[celestial ring]] along with other rewards.
+
+{| class="wikitable align-center-1"
+|+Dusuri's Star Shop
+! colspan="2" |Reward
+!Price sold at
+!Price bought at
+|-
+|{{plinkt|Celestial ring#Uncharged|pic=Celestial ring (uncharged)|txt=Celestial ring (uncharged)}}
+| {{Currency|Stardust|2000}}
+|{{Currency|Stardust|1600}}
+|-
+|{{plinkt|Star fragment}}
+|{{Currency|Stardust|3000}}
+|{{Currency|Stardust|2400}}
+|-
+|{{plinkt|Bag full of gems#Stardust|pic=Bag full of gems (stardust)|txt=Bag full of gems}}
+| {{Currency|Stardust|300}} 
+|{{Currency|Stardust|240}}
+|-
+|{{plinkt|Soft clay pack#Stardust|pic=Soft clay pack|txt=Soft clay pack}}
+|{{Currency|Stardust|150}} 
+|{{Currency|Stardust|120}}
+|}
+Experience rates vary greatly based on level, the tier of pickaxe used, and time spent locating stars. If mining consistently with a [[Dragon pickaxe]] and 90+ mining, players can expect approximately 30,000 experience per hour.
+
+==Equipment==
+{{Recommended equipment
+|style = Shooting Stars
+|head1 = {{plink|Prospector helmet}}
+|neck1 = {{plink|Amulet of glory|txt=Amulet of glory (Charged)}}{{efn|Increases the chance of rolling an uncut gem table instead of receiving stardust from 1/256 to 1/86}}
+|cape1 = {{plink|Ardougne cloak|pic=Ardougne cloak 4}}
+|body1 = {{plink|Prospector jacket}} / {{plink|Varrock armour 4}}{{efn|Can be substituted for the Prospector jacket, but the bonuses from the Varrock diary do not work for the stars}}
+|legs1 = {{plink|Prospector legs}}
+|weapon1 = {{plink|Crystal pickaxe}}
+|weapon2 = {{plink|Dragon pickaxe}} / {{plink|Infernal pickaxe}}{{efn|The bonus from the Infernal pickaxe of combusting ores cannot be used at the stars|name=infernal}}
+|weapon3 = {{plink|Rune pickaxe}}
+|shield1 = {{plink|Book of the Dead}}
+|shield2 = {{plink|Falador shield 4}}{{efn|Can restore 100% [[Prayer]] points twice a day}}{{efn|name=prayer}}
+|shield3 = {{plink|God book|pic=Book of Darkness}}{{efn|Gives [[Prayer items|Prayer bonus]] if using Preserve|name=prayer}} / {{plink|Broodoo shield|pic=Broodoo shield (combat)}}{{efn|name=prayer}}<br> / {{plink|Antler guard}}{{efn|name=prayer}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|Rada's blessing 3}}
+|ammo3 = {{plink|Rada's blessing 2}}{{efn|name=prayer}} / {{plink|God blessings|pic=Peaceful blessing}}{{efn|name=prayer}}
+|hands1 = {{plink|Karamja gloves 4}} / {{plink|Karamja gloves 3}}
+|hands2 = {{plink|Holy wraps}}{{efn|name=prayer}}
+|feet1 = {{plink|Prospector boots}}
+|ring1 = {{plink|Celestial ring}}{{efn|Gives an invisible +4 boost to Mining}}
+|ring2 = {{plink|Lightbearer}}{{efn|Increases gain of [[Special_attacks#Energy|Special attack energy]], allowing for two specials per tier of star}}
+|ring3 = {{plink|Ring of the gods (i)}}{{efn|name=prayer}}
+|special1 = {{plink|Crystal pickaxe}} / {{plink|Dragon pickaxe}} / {{plink|Infernal pickaxe}}{{efn|name=infernal}}
+}}
+{{notelist}}
+
+{{Clear}}
+
+==Inventory==
+{{Inventory
+|align = right|Dramen staff|Necklace of passage|Drakan's medallion|Xeric's talisman|Morytania legs 3|Crystal teleport seed|Master scroll book|Chronicle|Royal seed pod|Digsite pendant|Ring of dueling|Ring of the elements|Teleport to house (tablet)|Ectophial|Mythical cape|Desert amulet 4
+|25 = Coins
+|27 = Gem sack
+|28 = Rune pouch|Perfected quetzal whistle
+}}
+
+* [[Dramen Staff]] / Elite [[Lumbridge & Draynor Diary]]
+* Teleport jewellery
+* [[Royal seed pod]]
+* [[Master scroll book]]
+* [[Morytania legs 3]] or above
+* [[Chronicle]]
+* [[Teleport crystal]] / [[Eternal teleport crystal]]
+* [[Teleport to house (tablet)]] / [[construct. cape]] / [[max cape]]
+* [[Perfected quetzal whistle|Quetzal whistle]]
+* [[Mythical cape]] after DS2 quest
+* Max POH with [[Portal nexus]] and [[rejuvenation pool]]
+* Coins for charter ships
+* [[Gem bag]] or [[gem sack]]
+* [[Rune pouch]] with teleport runes
+* [[Brown apron]] to gain access inside the [[Crafting Guild]]
+
+==Landing sites==
+Members may make use of a [[Telescope space|telescope]] to reveal the general area in which the star will fall, wherein there are a number of set locations in which the star may land. A star will not land in the same spot twice in a row.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1469848696179376128|date=12 December 2021|archiveurl=https://reldo.runescape.wiki/i/100596|archivedate=25 April 2023|quote=If I'm reading the code correctly, it rolls randomly from a list that *excludes* this Darkmeyer spot. And if it rolls the same place it used before, it'll instead go to this spot.}}
+
+The only way to locate the actual crash site is to search each possible crash site in the given area until the [[Crashed Star|crashed star]] is found; this process, as well as the mining process, can be greatly expedited with the assistance of other players.
+
+There are a total of 82 possible landing sites, 21 of which are located in free-to-play areas. Stars may land in members areas on free-to-play worlds.
+
+Some crash site areas contain aggressive mobs; low level players should take care when selecting a star location to mine at, especially if they do not intend to pay attention while mining. Star locations contained within cities are typically safe.
+
+===Asgarnia===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" | Map
+|-
+|[[Dwarven Mine]] northern entrance
+| 
+*[[Lassar Teleport]]
+*[[Combat bracelet]] to [[Edgeville Monastery]]
+*[[Skull sceptre]]
+|{{Map|mtype=pin|3018,3444|height=200|width=200|title=Asgarnia|desc=Dwarven Mine northern entrance|group=Stars|icon=bluePin}}
+|-
+|[[Mining Guild]] entrance
+|
+*[[Skills necklace]] to [[Mining Guild]]
+*[[Ring of wealth]] to [[Falador Park]]
+* [[Falador Teleport]]
+|{{Map|mtype=pin|3030,3348|height=200|width=200|title=Asgarnia|desc=Mining Guild entrance|group=Stars|icon=bluePin}}
+|-
+|[[West Falador mine]]
+|
+*[[Falador Teleport]] with 5 agility to use the [[Crumbling wall (Falador)]]
+*[[Skills necklace]] to [[Crafting Guild]]
+*[[Crafting Cape]]
+*[[Balloon transport system]]
+| {{Map|mtype=pin|2906,3355|height=200|width=200|title=Asgarnia|desc=West Falador mine|group=Stars|icon=bluePin}} 
+|-
+|[[Taverley]] ([[White Wolf Tunnel]] entrance)
+|
+*[[Teleport to House]] (Taverley)
+*[[Games necklace]] to [[Burthorpe]]
+*[[Combat bracelet]] to the [[Warriors' Guild]]
+|{{Map|mtype=pin|2882,3474|height=200|width=200|title=Asgarnia|desc=Taverley (White Wolf Tunnel entrance)|group=Stars|icon=bluePin}}
+|-
+|[[Crafting Guild]]
+| 
+*[[Skills necklace]]
+*[[Crafting cape]]
+*[[Teleport to House]] (Rimmington)
+*[[Balloon transport system]]
+*[[Ring of the elements]] to [[Air Altar]]
+| {{Map|mtype=pin|2940,3280|height=200|width=200|title=Asgarnia|desc=Crafting Guild|group=Stars|icon=bluePin}}
+|-
+|[[Rimmington mine]]
+|
+*[[Teleport to House]] (Rimmington)
+*[[Minigame teleport]] to the [[Rat Pits]] of [[Port Sarim]]
+*[[Explorer's ring]]
+*[[Ring of the elements]] to [[Air Altar]]
+|{{Map|mtype=pin|2974,3241|height=200|width=200|title=Asgarnia|desc=Rimmington mine|group=Stars|icon=bluePin}}
+|}
+
+===Crandor and Karamja===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" | Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[South Crandor mine]]
+|
+*[[Achievement diary cape]] to [[TzHaar-Mej (Diary)|TzHaar-Mej]]
+*[[Fairy ring]] (code {{Fairycode|blp}})
+*[[Minigame teleport]] to the [[TzHaar Fight Pit]]
+*[[Amulet of glory]] to [[Karamja]]
+|{{Map|mtype=pin|2822,3238|height=200|width=200|title=Crandor and Karamja|desc=South Crandor mine|group=Stars|icon=greenPin}}
+|-
+|[[North Crandor mine]]
+|
+* [[Achievement diary cape]] to [[TzHaar-Mej (Diary)|TzHaar-Mej]]
+*[[Fairy ring]] (code {{Fairycode|blp}})
+*[[Minigame teleport]] to the [[TzHaar Fight Pit]]
+*[[Amulet of glory]] to Karamja
+|{{Map|mtype=pin|2835,3296|height=200|width=200|title=Crandor and Karamja|desc=North Crandor mine|group=Stars|icon=greenPin}}
+|-
+|[[North Brimhaven mine]]
+|
+*{{Fairycode|bjr}} and a [[magic whistle]]
+*[[Teleport to House]] (Brimhaven)
+*[[Spirit tree]] to Brimhaven
+*[[Amulet of glory]] to Karamja
+|{{Map|mtype=pin|2736,3221|height=200|width=200|title=Crandor and Karamja|desc=North Brimhaven mine|group=Stars|icon=greenPin}}
+|-
+|[[South Brimhaven mine]]
+|
+*[[Teleport to House]] (Brimhaven)
+*[[Tai bwo wannai teleport]]
+|{{Map|mtype=pin|2742,3143|height=200|width=200|title=Crandor and Karamja|desc=South Brimhaven mine|group=Stars|icon=greenPin}}
+|-
+|[[Karamja Jungle mine]] (Nature Altar)
+|
+*[[Achievement diary cape]] to [[Kaleb Paramaya]]
+* [[Tai bwo wannai teleport]]
+*[[Fairy ring]] (code {{Fairycode|ckr}})
+*Nature Altar via Abyss
+|{{Map|mtype=pin|2845,3037|height=200|width=200|title=Crandor and Karamja|desc=Karamja Jungle mine (Nature Altar)|group=Stars|icon=greenPin}}
+|-
+|[[Shilo Village mine]]
+|
+*[[Karamja gloves 3]]
+*[[Achievement diary cape]] to [[Kaleb Paramaya]]
+* [[Shilo Village cart system]] (accessed from Brimhaven for 10 coins - [[Spirit Tree]], [[Achievement diary cape]] to Pirate Jackie the Fruit, or [[Teleport to House]] (Brimhaven))
+| {{Map|mtype=pin|2827,2999|height=200|width=200|title=Crandor and Karamja|desc=Shilo Village mine|group=Stars|icon=greenPin}}
+|}
+
+===Feldip Hills and the Isle of Souls===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" | Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Feldip Hunter area]]
+|
+*[[Fairy ring]] (code {{Fairycode|aks}})
+|{{Map|mtype=pin|2571,2964|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Feldip Hunter area|group=Stars|icon=yellowPin}}
+|-
+|[[Rantz's cave]]
+|
+*[[Fairy ring]] (code {{Fairycode|aks}})
+|{{Map|mtype=pin|2630,2993|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Rantz's cave|group=Stars|icon=yellowPin}}
+|-
+|[[Corsair Cove]]
+|
+*[[Charter ship]] from Rimmington dock to Corsair Cove
+*[[Spirit Tree]]
+*[[Cabin Boy Colin]] in [[Rimmington]]
+*[[Hunter cape]] to Carnivorous chinchompas
+*[[Mythical cape]]
+|{{Map|mtype=pin|2567,2858|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Corsair Cove|group=Stars|icon=yellowPin}}
+|-
+|[[Corsair Cove Resource Area]]
+|
+*[[Spirit Tree]]
+*[[Mythical cape]]
+*[[Hunter cape]] to Carnivorous chinchompas
+|{{Map|mtype=pin|2483,2886|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Corsair Cove Resource Area|group=Stars|icon=yellowPin}}
+|-
+|[[Myths' Guild]]
+|
+* [[Mythical cape]]
+*[[Spirit Tree]]
+|{{Map|mtype=pin|2468,2842|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Myths' Guild|group=Stars|icon=yellowPin}}
+|-
+|[[Isle of Souls mine]]
+| 
+*[[Amulet of glory]] to Edgeville
+*[[Ring of dueling]] to [[Ferox Enclave|Ferox enclave]], and enter the [[Ferox Enclave Dungeon|dungeon]]
+|{{Map|mtype=pin|2200,2792|height=200|width=200|title=Feldip Hills and the Isle of Souls|desc=Isle of Souls mine|group=Stars|icon=yellowPin}}
+|}
+
+===Fossil Island and Mos Le'Harmless===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" | Map
+|-
+|[[Fossil Island mine]]
+| 
+*[[Volcanic mine teleport]]
+*[[Digsite pendant]] to [[Digsite]], boat to Fossil Island
+|{{Map|mtype=pin|3774,3814|height=200|width=200|title=Fossil Island and Mos Le'Harmless|desc=Fossil Island mine|group=Stars|icon=magentaPin}}
+|-
+|[[Volcanic Mine]] entrance
+|
+*[[Volcanic mine teleport]]
+*[[Digsite pendant]] to [[House on the Hill]], [[Mycelium Transportation System]] to [[Verdant Valley]]
+|{{Map|mtype=pin|3818,3801|height=200|width=200|title=Fossil Island and Mos Le'Harmless|desc=Volcanic Mine entrance|group=Stars|icon=magentaPin}}
+|-
+|[[Mos Le'Harmless]]
+|
+*[[Mos le'harmless teleport]]
+*[[Charter ship]]
+*[[Harmony Island Teleport]]
+*[[Ectophial]]
+|{{Map|mtype=pin|3686,2969|height=200|width=200|title=Fossil Island and Mos Le'Harmless|desc=Mos Le'Harmless|group=Stars|icon=magentaPin}}
+|}
+
+===Fremennik Lands and Lunar Isle===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Rellekka mine]]
+|
+*[[Fremennik sea boots]] (any tier)
+*[[Enchanted lyre]]/[[Enchanted lyre(i)|(i)]] to [[Rellekka]]
+* [[Teleport to House]] (Rellekka)
+*[[Achievement diary cape]] to [[Thorodin]]
+|{{Map|mtype=pin|2683,3699|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Rellekka mine|group=Stars|icon=magentaPin}}
+|-
+|[[Keldagrim entrance mine]]
+|
+*[[Fairy ring]] (code {{Fairycode|dks}})
+*[[Slayer ring]] to [[Rellekka Slayer Caves]]
+|{{Map|mtype=pin|2727,3683|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Keldagrim entrance mine|group=Stars|icon=magentaPin}}
+|-
+|[[Miscellania mine]]
+|
+* [[Fairy ring]] (code {{Fairycode|cip}})
+*[[Ring of wealth]] to [[Miscellania]]
+*[[Fremennik sea boots]]
+|{{Map|mtype=pin|2528,3887|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Miscellania mine|group=Stars|icon=magentaPin}}
+|-
+|[[Jatizso mine]] entrance
+|
+*[[Enchanted lyre]]/[[Enchanted lyre(i)|(i)]] to [[Jatizso]]
+*[[Fremennik sea boots]]
+*[[Enchanted lyre]]/[[Enchanted lyre(i)|(i)]] to [[Rellekka]]
+*[[Teleport to House]] (Rellekka)
+|{{Map|mtype=pin|2393,3814|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Jatizso mine entrance|group=Stars|icon=magentaPin}}
+|-
+|[[Central Fremennik Isles mine]]
+|
+* [[Enchanted lyre]]/[[Enchanted lyre(i)|(i)]] to [[Neitiznot]]
+*[[Fremennik sea boots]]
+*[[Enchanted lyre]]/[[Enchanted lyre(i)|(i)]] to [[Rellekka]]
+*[[Teleport to House]] (Rellekka)
+|{{Map|mtype=pin|2375,3832|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Central Fremennik Isles mine|group=Stars|icon=magentaPin}}
+|-
+|[[Lunar Isle mine]] entrance
+|
+*[[Moonclan Teleport]]
+*[[Lunar Home Teleport]]
+*[[Lunar isle teleport]]
+| {{Map|mtype=pin|2139,3938|height=200|width=200|title=Fremennik Lands and Lunar Isle|desc=Lunar Isle mine entrance|group=Stars|icon=magentaPin}}
+|}
+
+===Great Kourend===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Hosidius mine]]
+|
+*[[Teleport to House]] (Hosidius)
+*[[Minigame Teleport]] ([[Tithe Farm]])
+*[[Xeric's talisman]] (Xeric's Glade)
+| {{Map|mtype=pin|1778,3493|height=200|width=200|title=Great Kourend|desc=Hosidius mine|group=Stars|icon=bluePin}}
+|-
+|[[Shayzien mine]]
+|
+*[[Kourend Castle Teleport]]
+*[[Xeric's talisman]] (Xeric's Heart)
+|{{Map|mtype=pin|1597,3648|height=200|width=200|title=Great Kourend|desc=Shayzien mine|group=Stars|icon=bluePin}}
+|-
+|Port [[Piscarilius mine]]
+|
+*[[Kharedst's memoirs]]/[[Book of the Dead]] (The Fisher's Flute)
+*[[Lovakengj Minecart Network]]
+*[[Kourend Castle Teleport]]
+|{{Map|mtype=pin|1769,3709|height=200|width=200|title=Great Kourend|desc=Port Piscarilius mine|group=Stars|icon=bluePin}}
+|-
+|[[Dense essence mine]]
+|
+*[[Arceuus Home Teleport]]
+*[[Fairy ring]] (code {{Fairycode|cis}})
+*[[Kharedst's memoirs]]/[[Book of the Dead]] (A Dark Disposition)
+|{{Map|mtype=pin|1760,3853|height=200|width=200|title=Great Kourend|desc=Dense essence mine|group=Stars|icon=bluePin}}
+|-
+|[[Lovakite mine]]
+|
+*[[Xeric's talisman]] (Xeric's Inferno)
+|{{Map|mtype=pin|1437,3840|height=200|width=200|title=Great Kourend|desc=Lovakite mine|group=Stars|icon=bluePin}}
+|-
+|[[Lovakengj]] (bank)
+|
+*[[Kharedst's memoirs]]/[[Book of the Dead]] (Jewellery of Jubilation)
+*[[Xeric's talisman]] (Xeric's Inferno)
+*[[Lovakengj Minecart Network]]
+|{{Map|mtype=pin|1534,3747|height=200|width=200|title=Great Kourend|desc=Lovakengj (bank)|group=Stars|icon=bluePin}}
+|}
+
+===Kandarin===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Catherby]] bank
+|
+*[[Catherby Teleport]]
+*[[Camelot Teleport]]
+|{{Map|mtype=pin|2804,3434|height=200|width=200|title=Kandarin|desc=Catherby bank|group=Stars|icon=redPin}}
+|-
+|[[Yanille]] bank
+|
+*[[Watchtower Teleport]] to Yanille
+*[[Minigame Teleport]]<br />([[Nightmare Zone]])
+*[[Teleport to House]] (Yanille)
+*regular [[Watchtower Teleport]]
+|{{Map|mtype=pin|2602,3086|height=200|width=200|title=Kandarin|desc=Yanille bank|group=Stars|icon=redPin}}
+|-
+|[[Port Khazard mine]]
+|
+*[[Ardougne cloak]]
+*[[Minigame Teleport]]<br />([[Nightmare Zone]]/[[Fishing Trawler]])
+*[[Watchtower Teleport]]
+|{{Map|mtype=pin|2624,3141|height=200|width=200|title=Kandarin|desc=Port Khazard mine|group=Stars|icon=redPin}}
+|-
+|[[Legends' Guild mine]]
+| 
+*[[Quest cape]]
+*[[Ardougne Teleport]]
+*[[Fairy ring]] (code {{Fairycode|blr}})
+|{{Map|mtype=pin|2705,3333|height=200|width=200|title=Kandarin|desc=Legends' Guild mine|group=Stars|icon=redPin}}
+|-
+|[[Coal Trucks]]
+|
+*[[Combat bracelet]] to the [[Ranging Guild]]
+*[[Fishing cape]] or [[Skills necklace]] to the [[Fishing Guild]]
+*[[Fairy ring]] (code {{Fairycode|als}})
+*[[Camelot Teleport]] to [[Seers' Village]]
+*[[Camelot Teleport]]
+|{{Map|mtype=pin|2589,3478|height=200|width=200|title=Kandarin|desc=Coal Trucks|group=Stars|icon=redPin}}
+|-
+|[[South-east Ardougne mine]] (monastery)
+|
+*[[Ardougne cloak]]
+*[[Fairy ring]] (code {{Fairycode|djp}})
+|{{Map|mtype=pin|2608,3233|height=200|width=200|title=Kandarin|desc=South-east Ardougne mine (monastery)|group=Stars|icon=redPin}}
+|}
+
+===Kebos Lowlands===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Kebos Lowlands mine]] (Kebos Swamp)
+|
+*[[Skills necklace]] or [[Farming cape]]  to the [[Farming Guild]]
+*[[Fairy ring]] (code {{Fairycode|cir}})
+|{{Map|mtype=pin|1210,3651|height=200|width=200|title=Kebos Lowlands|desc=Kebos Lowlands mine (Kebos Swamp)|group=Stars|icon=yellowPin}}
+|-
+|[[Mount Karuulm mine]]
+|
+*[[Rada's blessing 3]] or [[Rada's blessing 4|4]]
+*[[Fairy ring]] (code {{Fairycode|cir}})
+|{{Map|mtype=pin|1279,3817|height=200|width=200|title=Kebos Lowlands|desc=Mount Karuulm mine|group=Stars|icon=yellowPin}}
+|-
+|[[Mount Karuulm]] (bank)
+|
+*[[Rada's blessing 3]] or [[Rada's blessing 4|4]]
+*[[Fairy ring]] (code {{Fairycode|cir}})
+|{{Map|mtype=pin|1322,3816|height=200|width=200|title=Kebos Lowlands|desc=Mount Karuulm (bank)|group=Stars|icon=yellowPin}}
+|-
+| [[Mount Quidamortem]] (bank)
+|
+*[[Xeric's talisman]] (Xeric's Honour)
+* [[Lovakengj Minecart Network]]
+*[[Mountain Guide]]
+*[[Fairy ring]] (code {{Fairycode|bls}})
+|{{Map|mtype=pin|1258,3564|height=200|width=200|title=Kebos Lowlands|desc=Mount Quidamortem (bank)|group=Stars|icon=yellowPin}} 
+|}
+
+===Kharidian Desert===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Al Kharid mine]]
+|
+*[[Ring of the elements]] to [[Fire Altar]]
+*[[Ring of dueling]] to the [[Emir's Arena]]
+|{{Map|mtype=pin|3296,3298|height=200|width=200|title=Kharidian Desert|desc=Al Kharid mine|group=Stars|icon=yellowPin}}
+|-
+|[[Al Kharid]] (bank)
+|
+*[[Amulet of glory]] to [[Al Kharid]]
+*[[Gnome glider]] to Kar-Hewo
+*[[Ring of dueling]] to the [[Emir's Arena]]
+| {{Map|mtype=pin|3276,3164|height=200|width=200|title=Kharidian Desert|desc=Al Kharid (bank)|group=Stars|icon=yellowPin}}
+|-
+|[[Uzer mine]]
+|
+*[[Necklace of passage]] to the [[Eagle's Eyrie]]
+*[[Magic carpet]] from [[Shantay Pass]] to the [[Ruins of Uzer]]
+|{{Map|mtype=pin|3424,3160|height=200|width=200|title=Kharidian Desert|desc=Uzer mine|group=Stars|icon=yellowPin}}
+|-
+|[[Desert quarry]]
+|
+*[[Camulet]] to the Mine Entrance
+*[[Pharaoh's sceptre]] to [[Jaldraocht]]
+*Ferry from [[Al Kharid]] to the [[Ruins of Unkah]]
+|{{Map|mtype=pin|3171,2910|height=200|width=200|title=Kharidian Desert|desc=Desert quarry|group=Stars|icon=yellowPin}}
+|-
+|[[Agility Pyramid mine]]
+|
+*[[Pharaoh's sceptre]] to [[Jalsavrah]], exit pyramid, climb through hole in the eastern wall of Sophanem
+*[[Nardah teleport]]
+*[[Desert amulet 2]], [[Desert amulet 3|3]] or [[Desert amulet 4|4]]
+| {{Map|mtype=pin|3316,2867|height=200|width=200|title=Kharidian Desert|desc=Agility Pyramid mine|group=Stars|icon=yellowPin}}
+|-
+|[[Nardah]]
+|
+*[[Nardah teleport]]
+* [[Desert amulet 2]], [[Desert amulet 3|3]] or [[Desert amulet 4|4]]
+*[[Fairy ring]] (code {{Fairycode|dlq}})
+|{{Map|mtype=pin|3434,2889|height=200|width=200|title=Kharidian Desert|desc=Nardah|group=Stars|icon=yellowPin}}
+|-
+|[[Emir's Arena]]
+|
+*[[Ring of the elements]] to [[Fire Altar]] and run through the gate to the east
+*[[Ring of dueling]] to the [[Emir's Arena]]
+|{{Map|mtype=pin|3351,3281|height=200|width=200|title=Kharidian Desert|desc=Emir's Arena|group=Stars|icon=yellowPin}}
+|}
+
+===Misthalin===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+| [[East Lumbridge Swamp mine]]
+|
+*[[Ring of the elements]] to [[Water Altar]]
+* [[Achievement diary cape]] to [[Hatius Cosaintus]]
+*[[Lumbridge Teleport]]
+*[[Lumbridge home teleport]]
+|{{Map|mtype=pin|3230,3155|height=200|width=200|title=Misthalin|desc=East Lumbridge Swamp mine|group=Stars|icon=redPin}}
+|-
+|[[West Lumbridge Swamp mine]]
+|
+*[[Ring of the elements]] to [[Water Altar]]
+*[[Fairy ring]] to [[Zanaris]], exit to shed via the fairy ring near the Evil Chicken's Lair
+*[[Achievement diary cape]] to [[Twiggy O'Korn]]
+*[[Fairy ring]] (code {{Fairycode|biq}}); [[Mith grapple]] and [[crossbow (weapon)|crossbow]] required
+* [[Necklace of passage]] to the [[Wizards' Tower]]
+*[[Glory amulet]] to [[Draynor Village]]
+*[[Lumbridge Teleport]]
+|{{Map|mtype=pin|3153,3150|height=200|width=200|title=Misthalin|desc=West Lumbridge Swamp mine|group=Stars|icon=redPin}}
+|-
+|[[Draynor Village]]
+|
+*[[Achievement diary cape]] to [[Twiggy O'Korn]]
+*[[Amulet of glory]] to [[Draynor Village]]
+|{{Map|mtype=pin|3094,3235|height=200|width=200|title=Misthalin|desc=Draynor Village|group=Stars|icon=redPin}}
+|-
+|[[Varrock]] (East bank)
+|
+*[[Achievement diary cape]] to [[Toby]]
+*[[Varrock Teleport]]
+|{{Map|mtype=pin|3258,3408|height=200|width=200|title=Misthalin|desc=Varrock (East bank)|group=Stars|icon=redPin}}
+|-
+|[[South-east Varrock mine]]
+|
+*[[Senntisten Teleport]]
+*[[Chronicle]] teleport
+*[[Combat bracelet]] to the [[Champions' Guild]]
+|{{Map|mtype=pin|3290,3353|height=200|width=200|title=Misthalin|desc=South-east Varrock mine|group=Stars|icon=redPin}}
+|-
+|[[South-west Varrock mine]]
+|
+*[[Chronicle]] teleport
+*[[Combat bracelet]] to the [[Champions' Guild]]
+|{{Map|mtype=pin|3175,3362|height=200|width=200|title=Misthalin|desc=South-west Varrock mine|group=Stars|icon=redPin}}
+|}
+
+===Morytania===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+| [[Canifis]] (bank)
+|
+*[[Kharyrll Teleport]]
+*[[Fairy ring]] (code {{Fairycode|cks}})
+*[[Salve Graveyard Teleport]]
+|{{Map|mtype=pin|3505,3485|height=200|width=200|title=Morytania|desc=Canifis (bank)|group=Stars|icon=greenPin}}
+|-
+|[[Burgh de Rott]] (bank)
+|
+*[[Morytania legs 3]] or [[Morytania legs 4|4]]
+*[[Mort'ton teleport]]
+*[[Minigame Teleport]]<br />([[Shades of Mort'ton (minigame)|Shades of Mort'ton]])
+|{{Map|mtype=pin|3500,3219|height=200|width=200|title=Morytania|desc=Burgh de Rott (bank)|group=Stars|icon=greenPin}}
+|-
+|[[Abandoned Mine]]
+|
+*[[Morytania legs 3]] or [[Morytania legs 4|4]]
+*[[Mort'ton teleport]]
+*[[Minigame Teleport]]<br />([[Shades of Mort'ton (minigame)|Shades of Mort'ton]])
+|{{Map|mtype=pin|3451,3233|height=200|width=200|title=Morytania|desc=Abandoned Mine|group=Stars|icon=greenPin}}
+|-
+|[[Ver Sinhaza]] (bank)
+|
+*[[Drakan's medallion]] to [[Ver Sinhaza]]
+*[[Andras]]' boat
+|{{Map|mtype=pin|3650,3214|height=200|width=200|title=Morytania|desc=Ver Sinhaza (bank)|group=Stars|icon=greenPin}} 
+|-
+|[[Daeyalt essence mine]] entrance
+|
+*[[Drakan's medallion]] to [[Ver Sinhaza]] and being sent to [[Meiyerditch mine]] by [[Vyrewatch]] next to bank while wearing [[Vyrewatch outfit]], then being released by [[Vampyre Juvinate]] and hopping the wall
+*[[Hallowed crystal shard]]
+*[[Drakan's medallion]] ([[Darkmeyer]])
+|{{Map|mtype=pin|3635,3340|height=200|width=200|title=Morytania|desc=Daeyalt essence mine entrance|group=Stars|icon=greenPin}}
+|}
+
+===Piscatoris and the Gnome Stronghold===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+|[[Piscatoris mine]]
+|
+*[[Piscatoris teleport]]
+*[[Fairy ring]] (code {{Fairycode|akq}})
+*[[Western banner 3]] or [[Western banner 4|4]]
+| {{Map|mtype=pin|2341,3635|height=200|width=200|title=Piscatoris and the Gnome Stronghold|desc=Piscatoris mine|group=Stars|icon=greenPin}}
+|-
+|[[Grand Tree]]
+|
+*[[Grand seed pod]] or [[Royal seed pod]]
+*[[Achievement diary cape]] to Western Provinces
+*[[Spirit tree]] to [[Gnome Stronghold]]
+*[[Balloon transport system]]
+*[[Gnome glider]]
+|{{Map|mtype=pin|2444,3490|height=200|width=200|title=Piscatoris and the Gnome Stronghold|desc=Grand Tree|group=Stars|icon=greenPin}}
+|-
+|[[Tree Gnome Stronghold]] bank
+|
+*[[Spirit tree]] to [[Gnome Stronghold]]
+*[[Slayer ring]] to [[Stronghold Slayer Cave]]
+*[[Achievement diary cape]] to Western Provinces
+*[[Balloon transport system]]
+*[[Grand seed pod]] or [[Royal seed pod]]
+|{{Map|mtype=pin|2448,3436|height=200|width=200|title=Piscatoris and the Gnome Stronghold|desc=Tree Gnome Stronghold bank|group=Stars|icon=greenPin}}
+|}
+
+===Tirannwn===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+| [[Isafdar mine]]
+|
+*[[Teleport crystal]] to [[Lletya]]
+|{{Map|mtype=pin|2269,3158|height=200|width=200|title=Tirannwn|desc=Isafdar mine|group=Stars|icon=cyanPin}}
+|-
+|[[Arandar mine]]
+|
+*[[Iorwerth camp teleport]]
+*[[Necklace of passage]]
+*[[Teleport crystal]] to [[Prifddinas]]
+| {{Map|mtype=pin|2318,3269|height=200|width=200|title=Tirannwn|desc=Arandar mine|group=Stars|icon=cyanPin}}
+|-
+|[[Lletya]]
+|
+*[[Teleport crystal]] to Lletya
+|{{Map|mtype=pin|2329,3163|height=200|width=200|title=Tirannwn|desc=Lletya|group=Stars|icon=cyanPin}}
+|-
+|[[Trahaearn mine]] entrance
+|
+*[[Teleport crystal]] to Prifddinas
+*[[Spirit Tree]] to Prifddinas
+*[[Teleport to House]] (Prifddinas)
+|{{Map|mtype=pin|3274,6055|height=200|width=200|title=Tirannwn|desc=Trahaearn mine entrance|mapID=29|group=Stars|icon=cyanPin|text=Maplink (Prifddinas)}}
+{{Map|mtype=pin|2253,3299|height=200|width=200|title=Tirannwn|desc=Trahaearn mine entrance|mapID=0|group=Stars|icon=cyanPin|text=Maplink (overworld)}}
+|-
+|[[Mynydd mine]]
+|
+*[[Charter ship]] to Prifddinas
+*[[Spirit Tree]] to Prifddinas
+*[[Teleport to House]] (Prifddinas)
+*[[Teleport crystal]] to Prifddinas
+|{{Map|mtype=pin|2173,3409|height=200|width=200|title=Tirannwn|desc=Mynydd mine|group=Stars|icon=cyanPin}}
+|}
+
+===Varlamore===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+| [[Civitas illa Fortis]] (east bank)
+|
+*[[Ring of dueling]] to [[Fortis Colosseum]] 
+*[[Quetzal Transport System]] to Fortis Colosseum 
+* [[Civitas illa Fortis Teleport]]
+|{{Map|mtype=pin|1771,3102|height=200|width=200|title=Varlamore|desc=Civitas illa Fortis|group=Stars|icon=redPin}}
+|-
+| [[Stonecutter Outpost]] (Varlamore South East mine)
+|
+* [[Quetzal Transport System]] to [[Colossal Wyrm Remains]]
+* [[Fairy ring]] (code {{Fairycode|ajp}})
+|{{Map|mtype=pin|1742,2954|height=200|width=200|title=Varlamore|desc=Stonecutter Outpost|group=Stars|icon=redPin}}
+|-
+| [[Ralos' Rise]] mining site (south-east of mountain)
+|
+* [[Pendant of ates|Pendent of ates]] to Ralos' Rise, climb down nearby rocks (47 [[agility]] required)
+* [[Quetzal Transport System]] to [[Cam Torum]] Entrance
+* [[Calcified moth|Calcified Moth]] to Cam Torum
+|{{Map|mtype=pin|1486,3089|height=200|width=200|title=Varlamore|desc=Ralos' Rise mining site|group=Stars|icon=redPin}}
+|-
+|[[Mistrock]] mine
+|
+* [[Quetzal Transport System]] to [[Aldarin]]
+* [[Fairy ring]] (code {{Fairycode|ckq}})
+* [[Teleport to House]] (Aldarin)
+|{{Map|mtype=pin|1422,2873|height=200|width=200|title=Varlamore|desc=Mistrock mine|group=Stars|icon=redPin}}
+|-
+|[[Salvager Overlook]] mine
+|
+* [[Quetzal Transport System]] to [[Salvager Overlook]]
+* [[Pendant of ates]] teleport to [[Twilight Temple]]
+|{{Map|mtype=pin|1625,3275|height=200|width=200|title=Varlamore|desc=Salvager Overlook mine|group=Stars|icon=redPin}}
+|-
+|[[Custodia Mountains]] mine
+|
+* [[Quetzal Transport System]] to [[Auburnvale]], run west then north
+* [[Fairy ring]] (code {{Fairycode|bls}})
+|{{Map|mtype=pin|1287,3413|height=200|width=200|title=Varlamore|desc=Custodia Mountains mine|group=Stars|icon=redPin}}
+
+|}
+
+===Wilderness===
+{| class="wikitable" style="text-align:left; width:805px;"
+! style="width:25%;" |Location
+! style="width:60%;" |Fastest way to get there
+! style="width:15%;" |Map
+|-
+| [[South Wilderness mine]] (Mage of Zamorak)
+|
+*[[Achievement diary cape]] to the [[Lesser Fanatic]]
+* [[Amulet of glory]] to [[Edgeville]]
+*[[Ring of dueling]] to [[Ferox Enclave]]
+|{{Map|mtype=pin|3108,3569|height=200|width=200|title=Wilderness|desc=South Wilderness mine (Mage of Zamorak)|group=Stars|icon=greyPin}}
+|-
+|[[South-west Wilderness mine]] (South of [[Dark Warriors' Fortress]])
+|
+*[[Burning amulet]] to the [[Bandit Camp (Wilderness)|Bandit Camp]]
+*[[Mind Altar Teleport]]
+*[[Dareeyak Teleport]]
+*[[Combat bracelet]] to the [[Edgeville Monastery]]
+|{{Map|mtype=pin|3018,3593|height=200|width=200|title=Wilderness|desc=South-west Wilderness mine (South of Dark Warriors' Fortress)|group=Stars|icon=greyPin}}
+|-
+|[[Bandit Camp mine]] (Hobgoblins)
+|
+* [[Wilderness Obelisk]] to level 35 or 27 Wilderness
+*[[Cemetery Teleport]]
+*[[Ring of dueling]] to Ferox Enclave
+*[[Burning amulet]] to the [[Lava Maze]] or [[Bandit Camp (Wilderness)|Bandit Camp]]
+|{{Map|mtype=pin|3093,3756|height=200|width=200|title=Wilderness|desc=Bandit Camp mine (Hobgoblins)|group=Stars|icon=greyPin}}
+|-
+|[[Lava Maze runite mine]]
+|
+*[[Wilderness Obelisk]] to level 44 Wilderness
+*[[Ice Plateau Teleport]]
+* [[Ghorrock Teleport]]
+*[[Burning amulet]] to the [[Lava Maze]]
+| {{Map|mtype=pin|3057,3887|height=200|width=200|title=Wilderness|desc=Lava Maze runite mine|group=Stars|icon=greyPin}}
+|-
+|[[Resource Area]]
+|
+*[[Deserted Keep]] lever
+|{{Map|mtype=pin|3188,3932|height=200|width=200|title=Wilderness|desc=Resource Area|group=Stars|icon=greyPin}}
+|-
+|[[Mage Arena]]
+|
+*[[Deserted Keep]] lever
+|{{Map|mtype=pin|3091,3962|height=200|width=200|title=Wilderness|desc=Mage Arena|group=Stars|icon=greyPin}}
+|-
+|[[Pirates' Hideout mine]]
+|
+*[[Deserted Keep]] lever
+*[[Ice Plateau Teleport]]
+*[[Ghorrock Teleport]]
+|{{Map|mtype=pin|3049,3940|height=200|width=200|title=Wilderness|desc=Pirates' Hideout mine|group=Stars|icon=greyPin}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 October 2023
+|update = Forestry: Part Two
+|change = * [[Crashed star]]s will now only spawn sizes 6 to 9, with updated chances of spawning for each.
+* The total time of each "wave" of stars has been reduced from ~128 minutes to ~90 minutes.
+* Crashed stars now consistently deplete at a rate of 7 minutes for each layer it has.
+* Mining experience gained when acquiring stardust has been changed to be 32 for all star sizes.
+* The [[skilling success rate]] whilst mining crashed stars is now identical for all star sizes.
+* [[Clue geode]]s are once again obtainable from crashed stars.
+* [[Crystal shard]]s are no longer obtainable from crashed stars that land in [[Prifddinas]].
+* [[Random event]]s and the [[dwarf multicannon]] can no longer occur and be placed within the vicinity of a landing site.
+}}
+{{Subject changes
+|date = 2 October 2023
+|type = hotfix
+|change = Receiving clue geodes from crashed stars has been disabled in an effort to help server performance.{{CiteTwitter|author=Old School RuneScape|date=2 October 2023|url=https://twitter.com/OldSchoolRS/status/1708861719051661384|archiveurl=https://reldo.runescape.wiki/i/98812|archivedate=2 October 2023|quote=As an initial measure to help server performance, we've disabled the ability for players to receive Clue Geodes from mining Shooting Stars.}}
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = * [[Crashed star]]s no longer deplete faster when more people are mining them.
+* Player characters will no longer occasionally render behind the crashed star they are mining.
+}}
+{{Subject changes
+|date = 10 November 2021
+|update = Wilderness & Small Changes
+|change = Shooting Stars now have a chance to land in Darkmeyer, as previously intended.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Experience from mining crashed stars have been increased per stardust mined.
+}}
+{{Subject changes
+|date = 24 March 2021
+|update = Fishing Skill Boss and Easter Event
+|change = *Shooting Stars should now deplete more slowly when large groups are mining them.
+*Cannons can once again be placed where a Shooting Star would land. However, if a Star lands on it, it will be destroyed and will need to be reclaimed from Nulodion.
+*There is now a chance players might receive additional stardust when mining Shooting Stars.
+}}
+{{Subject changes
+|date = 17 March 2021
+|type = hotfix
+|change = Players with the Twisted, Hosidius, and Cosy Cabin house styles can now properly use the telescope.
+}}
+{{Subject changes footer}}
+
+==Historical==
+As a piece of content brought into ''Old School RuneScape'' via [[backporting]], Shooting Stars were originally released on 2 September 2008 in ''RuneScape 3'' as one of three {{RSL|Distractions and Diversions}}, alongside {{RSL|Balthazar Beauregard's Big Top Bonanza}} and {{RSL|Penguin Hide and Seek}}.
+
+Like most content backported into ''Old School RuneScape'', the Shooting Stars for ''Old School'' has a few differences which aim to better adapt it for ''Old School RuneScape''.
+*''RuneScape 3'' has 44 possible landing sites; ''Old School RuneScape'' has 82.
+*Originally, Shooting Stars were only available for [[members]]. This was changed on 9 October 2017 in ''RuneScape 3''.
+**On free-to-play worlds, Shooting Stars may crash in a members area, rendering it out of reach.
+**Mining experience on free-to-play servers is half that of on members servers.
+*There is no additional experience given for the first player to mine the fallen star.
+*Players receive a reduced amount of experience per stardust.
+* In ''RuneScape 3,'' players could hold only up to 200 stardust, and could only exchange it once per day. ''Old School RuneScape'' does not have either of these limits.
+*[[Star Sprite]]s do not exist in ''Old School RuneScape''; rewards are exchanged for stardust via a shop run by Dusuri instead.
+
+==Developers==
+*'''Main developer(s)''': [[Mod Ed]] and [[Mod Lenny]]
+*'''Quality Assurance''': [[Mod Curse]]
+* '''Art''': [[Mod Ry]]
+
+==References==
+{{reflist}}
+
+{{Shooting Stars}}
+{{DnD}}
+[[Category:Backported and extracted content]]
+[[Category:Free-to-play minigames]]

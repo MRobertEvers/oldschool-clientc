@@ -58,7 +58,7 @@ This is the single load-bearing corpus gap, same class as loottools'
   **already landed**: content varp `option_run`
   (`server/scripts/player/configs/player_controls.varp:39-41`, confirmed),
   written from `interface_orbs/scripts/orbs.rs2`, wired server-side at
-  `src/net/mock/mock230_world.c:966,1896,2711` (confirmed present). Nothing
+  `src/torirsserver/torirs_server_world.c:966,1896,2711` (confirmed present). Nothing
   to do here.
 - **"Private/public chat filter mode" is also not part of this interface.**
   The Chat-category structs under that label are chatbox text-*colour*
@@ -74,7 +74,7 @@ This is the single load-bearing corpus gap, same class as loottools'
 
 ## 3. Server obligations
 
-| state | mock230 status |
+| state | ToriRSServer status |
 |---|---|
 | `option_acceptaid` (varbit 4180 / varp `option_aid`, 427) | **not declared anywhere** — clean gap, no conflicting content; needs a `.varp` overlay (`transmit=yes`, likely `scope=perm`) on the already-working generic varp wire |
 | `chat_filter_assist` (var1055) | **not declared anywhere** |
@@ -84,7 +84,7 @@ This is the single load-bearing corpus gap, same class as loottools'
 | Panel chrome (tab, search, declutter) | undeclared but low-priority — cosmetic session UI, not gameplay |
 | `script6716`/`settings_clicked_toggle` bodies | **corpus gap** — re-decompile before implementing any specific toggle; this is what actually determines each toggle id's real varp/varbit |
 
-`grep -rniE "accept.?aid|settings" src/net/mock/ src/game/` finds only the
+`grep -rniE "accept.?aid|settings" src/torirsserver/ src/game/` finds only the
 bank's own unrelated settings (varbit-packed withdrawal mode) and the
 already-landed CS2-host audio/zoom fields — **zero existing wiring for any
 of interface 134's own toggle values**.

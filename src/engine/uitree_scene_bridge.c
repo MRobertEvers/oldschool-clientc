@@ -8,6 +8,8 @@
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
+#include "engine/torirs_chrome_skin_baked.h"
+#include "ui/torirs_chrome_inkwell.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
@@ -25,15 +27,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* #region agent log — texture publish trace, defined in app.c. */
 int
 app_tex_trace_enabled(void);
 /* #endregion */
 
-#define BRIDGE_SPRITE_MAP_CAP 4096
-#define BRIDGE_MODEL_MAP_CAP 4096
-#define BRIDGE_OBJ_ICON_MAP_CAP 4096
+/*
+ * Initial sizes, not ceilings -- the map doubles itself past 75% load. Sprites
+ * are the only channel a boot fills (517 of them); the model and icon maps hold
+ * what the open interfaces happen to show, which is tens, not thousands. All
+ * three used to reserve 4096 slots apiece across eight maps -- 1 MB to hold 559
+ * entries.
+ */
+#define BRIDGE_SPRITE_MAP_CAP 2048
+#define BRIDGE_MODEL_MAP_CAP 256
+/*
+ * NOT tens. tournament_supplies (interface 100) builds an icon per PvP-world
+ * supply item and blew straight through 256 — hmap_search(HMAP_INSERT)
+ * answered NULL and the entry write was a null store, which the OPT build's
+ * disabled assert turned into a segfault instead of a message. The pvp_arena
+ * supply interfaces (757, 758) die the same way. Sized for the largest icon
+ * roster an interface actually opens, with slack for the map's load factor.
+ */
+#define BRIDGE_OBJ_ICON_MAP_CAP 2048
 
 static struct ToriDraw_Texture*
 bridge_texture_from_torirs(const struct ToriRS_Texture* rs);
@@ -138,6 +156,36 @@ bridge_hmap_free(struct HMap* map)
     free(hmap_free(map));
 }
 
+static void
+bridge_assets_changed(struct UITreeSceneBridge* bridge)
+{
+    assert(bridge);
+    bridge->asset_revision++;
+    if( bridge->asset_revision == 0 )
+        bridge->asset_revision++;
+}
+
+static void
+bridge_set_scene_id(
+    struct UITreeSceneBridge* bridge,
+    int* slot,
+    int scene_id)
+{
+    assert(bridge);
+    assert(slot);
+    if( *slot == scene_id )
+        return;
+    *slot = scene_id;
+    bridge_assets_changed(bridge);
+}
+
+uint64_t
+UITreeSceneBridge_AssetRevision(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->asset_revision;
+}
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,
@@ -165,6 +213,8 @@ UITreeSceneBridge_Init(
     bridge->obj_model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
         bridge->static_sprite_scene[slot] = -1;
+    /* 0 is a real seq id; -1 is "the profile has not said". */
+    bridge->player_idle_seq = -1;
     bridge->player_scene_id = -1;
     bridge->local_player_scene_id = -1;
     bridge->player_head_scene_id = -1;
@@ -206,16 +256,28 @@ bridge_map_get(
 
 static void
 bridge_map_put(
+    struct UITreeSceneBridge* bridge,
     struct HMap* map,
     int cache_id,
     int scene_id)
 {
     struct MapEntry_BridgeId* entry;
+    assert(bridge);
     assert(map);
+    entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_FIND);
+    if( entry )
+    {
+        if( entry->scene_id == scene_id )
+            return;
+        entry->scene_id = scene_id;
+        bridge_assets_changed(bridge);
+        return;
+    }
     entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_INSERT);
     assert(entry);
     entry->cache_id = cache_id;
     entry->scene_id = scene_id;
+    bridge_assets_changed(bridge);
 }
 
 int
@@ -278,7 +340,7 @@ UITreeSceneBridge_EnsureSprite(
 
     scene_id = bridge->next_scene_id++;
     ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, count);
-    bridge_map_put(bridge->sprite_map, cache_graphic_id, scene_id);
+    bridge_map_put(bridge, bridge->sprite_map, cache_graphic_id, scene_id);
     return scene_id;
 }
 
@@ -297,7 +359,7 @@ UITreeSceneBridge_EnsureStaticSprite(
 
     scene_id = UITreeSceneBridge_EnsureSprite(bridge, cache_graphic_id);
     if( scene_id > 0 )
-        bridge->static_sprite_scene[slot] = scene_id;
+        bridge_set_scene_id(bridge, &bridge->static_sprite_scene[slot], scene_id);
     return scene_id;
 }
 
@@ -359,10 +421,32 @@ UITreeSceneBridge_EnsureFont(
     return cache_font_id;
 }
 
+void
+UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale)
+{
+    assert(bridge);
+    assert(scale >= TORIRS_CHROME_SCALE_MIN);
+    assert(scale <= TORIRS_CHROME_SCALE_MAX);
+    /* Fonts already uploaded at the old scale stay in the scene. They cost a
+     * few tens of KB and a display that changed scale once can change back;
+     * dropping them would make that flip a re-upload rather than a lookup. */
+    bridge->chrome_scale = scale;
+}
+
 int
-UITreeSceneBridge_EnsureDebugFont(
+UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    /* Init memsets the bridge, so an unset scale reads as 0. Report the native
+     * size for that: a 0 would multiply every chrome metric to nothing. */
+    return bridge->chrome_scale > 0 ? bridge->chrome_scale : 1;
+}
+
+static int
+bridge_ensure_debug_font_at(
     struct UITreeSceneBridge* bridge,
-    int font_slot)
+    int font_slot,
+    int scale)
 {
     struct ToriDraw_Font const* baked;
     struct ToriDraw_Font* copy;
@@ -371,15 +455,29 @@ UITreeSceneBridge_EnsureDebugFont(
     assert(bridge);
     assert(bridge->scene);
 
+    /* One switch over (slot, scale), because the two must not be resolvable
+     * apart: the advance table the overlay measured with and the glyphs drawn
+     * here come from the same bake at the same size, or text lays out to one
+     * width and paints at another. */
     switch( font_slot )
     {
-    case TORIDBG_FONT_SMALL:
-        baked = ToriDbgFont_Small();
-        scene_id = UITREE_SCENE_DEBUG_FONT_SMALL_ID;
+    case TORIRS_CHROME_FONT_SMALL:
+        baked = scale == 3 ? ToriRSChromeFont_Small3x() : scale == 2 ? ToriRSChromeFont_Small2x()
+                                                                : ToriRSChromeFont_Small();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_SMALL_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_SMALL, scale);
         break;
-    case TORIDBG_FONT_MENU:
-        baked = ToriDbgFont_Menu();
-        scene_id = UITREE_SCENE_DEBUG_FONT_MENU_ID;
+    case TORIRS_CHROME_FONT_MENU:
+        baked = scale == 3 ? ToriRSChromeFont_Menu3x() : scale == 2 ? ToriRSChromeFont_Menu2x()
+                                                               : ToriRSChromeFont_Menu();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_MENU_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_MENU, scale);
+        break;
+    case TORIRS_CHROME_FONT_BODY:
+        baked = scale == 3 ? ToriRSChromeFont_Body3x() : scale == 2 ? ToriRSChromeFont_Body2x()
+                                                               : ToriRSChromeFont_Body();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_BODY_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_BODY, scale);
         break;
     default:
         assert(0 && "unknown debug font slot");
@@ -415,6 +513,316 @@ UITreeSceneBridge_EnsureDebugFont(
 }
 
 int
+UITreeSceneBridge_EnsureDebugFont(
+    struct UITreeSceneBridge* bridge,
+    int font_slot)
+{
+    return bridge_ensure_debug_font_at(
+        bridge, font_slot, UITreeSceneBridge_ChromeScale(bridge));
+}
+
+int
+UITreeSceneBridge_EnsureDebugFont1x(
+    struct UITreeSceneBridge* bridge,
+    int font_slot)
+{
+    return bridge_ensure_debug_font_at(bridge, font_slot, 1);
+}
+
+int
+UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = ToriRSChromeSkin_Count();
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( count <= 0 )
+        return -1;
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID) )
+        return UITREE_SCENE_CHROME_SKIN_ID;
+
+    /* One scene entry holding every skin image, so a chrome slot is just an
+     * atlas index into it -- the same shape a multi-frame cache sprite already
+     * has, which is why the render command needs no new field to reach these. */
+    sprites = calloc((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeSkin_Sprite const* baked = ToriRSChromeSkin_Get(i);
+        struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+        size_t const bytes = (size_t)baked->w * (size_t)baked->h * sizeof(uint32_t);
+
+        assert(spr);
+        spr->width = baked->w;
+        spr->height = baked->h;
+        spr->crop_width = baked->w;
+        spr->crop_height = baked->h;
+        /* Baked chrome art carries real coverage (rounded corners, soft
+         * shadows). @see ToriDraw_Sprite::alpha_channel. */
+        spr->alpha_channel = 1;
+        /* Deep copy, for the reason the font path above deep-copies: the scene
+         * frees every sprite it holds, and these pixels are `static const`. */
+        spr->pixels_argb = malloc(bytes);
+        assert(spr->pixels_argb);
+        memcpy(spr->pixels_argb, baked->argb, bytes);
+        sprites[i] = spr;
+    }
+
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
+    return UITREE_SCENE_CHROME_SKIN_ID;
+}
+
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = TORIRS_INKWELL_ATLAS_COUNT;
+    /* The density's square, asked for once: the upload below and the emit that
+     * places the marker must agree, and the generator is the one that knows. */
+    int const size = ToriRSInkwell_Size();
+    int at = 0;
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_INKWELL_ID) )
+        return UITREE_SCENE_INKWELL_ID;
+
+    /*
+     * Every style and colour in one entry. 48 frames of a fingertip-sized
+     * square is a few hundred KB, which buys the profile the freedom to name
+     * any style -- and a touch the freedom to pick a colour -- without either
+     * causing an upload mid-frame.
+     */
+    sprites = calloc((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int style = 0; style < TORIRS_INKWELL_STYLE_COUNT; style++ )
+    {
+        for( int colour = 0; colour < TORIRS_INKWELL_COLOUR_COUNT; colour++ )
+        {
+            for( int frame = 0; frame < TORIRS_INKWELL_FRAMES; frame++, at++ )
+            {
+                struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+                size_t const bytes = (size_t)size * (size_t)size * sizeof(uint32_t);
+
+                assert(spr);
+                spr->width = size;
+                spr->height = size;
+                spr->crop_width = size;
+                spr->crop_height = size;
+                /* The frames carry real coverage -- soft edges, and coloured
+                 * pixels under alpha 0 where the baker padded -- so a consumer
+                 * must read the alpha byte, never derive one from the colour.
+                 * @see ToriDraw_Sprite::alpha_channel. */
+                spr->alpha_channel = 1;
+                /* Deep copy: the scene frees every sprite it holds, and the
+                 * generator hands back a pointer into its own static table. */
+                spr->pixels_argb = malloc(bytes);
+                assert(spr->pixels_argb);
+                memcpy(spr->pixels_argb,
+                       ToriRSInkwell_Frame(style, colour, frame), bytes);
+                assert(at == ToriRSInkwell_AtlasIndex(style, colour, frame));
+                sprites[at] = spr;
+            }
+        }
+    }
+
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_INKWELL_ID, sprites, count);
+    return UITREE_SCENE_INKWELL_ID;
+}
+
+/** @see UITREE_SCENE_PLUGIN_IMAGE_SLOTS, which the header states so that the
+ *  plugin host's ceiling can be checked against it. */
+#define BRIDGE_PLUGIN_IMAGE_SLOTS UITREE_SCENE_PLUGIN_IMAGE_SLOTS
+
+int
+UITreeSceneBridge_PublishPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite* sprite;
+    size_t bytes;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(argb);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return -1;
+    /* Geometry comes off a decoded FILE, so a wrong one is bad input rather
+     * than a caller's bug: refuse it and let the plugin hear that its asset
+     * did not become an image. */
+    if( width <= 0 || height <= 0 || width > 4096 || height > 4096 )
+        return -1;
+
+    scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
+    bytes = (size_t)width * (size_t)height * sizeof(uint32_t);
+
+    sprite = calloc(1, sizeof(*sprite));
+    assert(sprite);
+    sprite->width = width;
+    sprite->height = height;
+    sprite->crop_width = width;
+    sprite->crop_height = height;
+    /* A plugin image is a decoded PNG: alpha is a channel, and a plugin that
+     * drew a transparent coloured pixel meant it. @see
+     * ToriDraw_Sprite::alpha_channel. */
+    sprite->alpha_channel = 1;
+    /* Deep copy, for the reason the skin path above deep-copies: the scene
+     * frees every sprite it holds, and these pixels belong to the decode the
+     * caller is about to free. */
+    sprite->pixels_argb = malloc(bytes);
+    assert(sprite->pixels_argb);
+    memcpy(sprite->pixels_argb, argb, bytes);
+
+    sprites = calloc(1, sizeof(*sprites));
+    assert(sprites);
+    sprites[0] = sprite;
+
+    /* Add over an occupied id frees what was there, which is what a re-saved
+     * asset wants. */
+    ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, 1);
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_ReadPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    uint32_t* out,
+    int max)
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite const* sprite;
+    int count = 0;
+    int pixels;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(out);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return 0;
+    sprites = ToriDraw_SceneSpriteGet(bridge->scene, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot, &count);
+    if( !sprites || count <= 0 )
+        return 0;
+    sprite = sprites[0];
+    if( !sprite || !sprite->pixels_argb )
+        return 0;
+    pixels = sprite->width * sprite->height;
+    if( pixels <= 0 || pixels > max )
+        return 0;
+    memcpy(out, sprite->pixels_argb, (size_t)pixels * sizeof(uint32_t));
+    return pixels;
+}
+
+void
+UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot)
+{
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return;
+    ToriDraw_SceneSpriteRemove(bridge->scene, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot);
+}
+
+int
+UITreeSceneBridge_LocModelIds(struct ToriRS_Location const* loc, int const** ids)
+{
+    assert(loc);
+    assert(ids);
+    *ids = NULL;
+    if( !loc->models || !loc->lengths || loc->shapes_and_model_count <= 0 )
+        return 0;
+    for( int group = 0; group < loc->shapes_and_model_count; group++ )
+    {
+        if( loc->shapes && loc->shapes[group] != 10 )
+            continue;
+        *ids = loc->models[group];
+        return loc->lengths[group];
+    }
+    return 0;
+}
+
+int
+UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id)
+{
+    struct ToriRS_Location* loc;
+    struct ToriDraw_Model** parts;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle handle;
+    int const* ids;
+    int count;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->provider);
+    if( loc_id < 0 )
+        return -1;
+    scene_id = UITREE_SCENE_LOC_MODEL_BASE | loc_id;
+    if( ToriDraw_SceneModelHas(bridge->scene, scene_id) )
+        return scene_id;
+    if( !CacheProvider_LocationHas(bridge->provider, loc_id) )
+        return -1;
+    loc = CacheProvider_LocationGet(bridge->provider, loc_id);
+    count = UITreeSceneBridge_LocModelIds(loc, &ids);
+    if( count <= 0 )
+        return -1;
+    for( int i = 0; i < count; i++ )
+        if( !CacheProvider_ModelHas(bridge->provider, ids[i]) )
+            return -1;
+    parts = calloc((size_t)count, sizeof(*parts));
+    assert(parts);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRS_Model* source = CacheProvider_ModelGet(bridge->provider, ids[i]);
+        assert(source);
+        parts[i] = ToriDraw_ModelFromToriRS(source);
+        assert(parts[i]);
+    }
+    model = count == 1 ? parts[0] : ToriDraw_ModelMerge(parts, count);
+    assert(model);
+    if( count > 1 )
+        for( int i = 0; i < count; i++ )
+            ToriDraw_ModelFree(parts[i]);
+    free(parts);
+
+    /* rev239 class37.method607 -> LocType.getModel(10, 0, null terrain).
+     * Unlike a placed multiloc, this uses the supplied config directly: CS2
+     * chooses the preview override. No terrain contour or world translation. */
+    if( loc->mirrored )
+        ToriDraw_ModelMirror(model);
+    for( int i = 0; i < loc->recolor_count; i++ )
+        ToriDraw_ModelRecolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+    for( int i = 0; i < loc->retexture_count; i++ )
+        ToriDraw_ModelRetexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+    if( loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128 )
+        ToriDraw_ModelScale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+    if( loc->offset_x || loc->offset_y || loc->offset_z )
+        ToriDraw_ModelTranslate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+    ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
+    ToriDraw_ModelNoteTextureWants(model);
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = model;
+    ToriDraw_LightModelScene(handle, loc->contrast, loc->ambient);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, handle);
+    bridge_assets_changed(bridge);
+    return scene_id;
+}
+
+int
 UITreeSceneBridge_EnsureModel(
     struct UITreeSceneBridge* bridge,
     int cache_model_id)
@@ -437,7 +845,7 @@ UITreeSceneBridge_EnsureModel(
 
     if( ToriDraw_SceneModelHas(bridge->scene, cache_model_id) )
     {
-        bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
+        bridge_map_put(bridge, bridge->model_map, cache_model_id, cache_model_id);
         return cache_model_id;
     }
 
@@ -467,7 +875,7 @@ UITreeSceneBridge_EnsureModel(
     /* Rest-pose snapshot enables IF/CC_SETMODELANIM sequence playback on widgets. */
     ToriDraw_ModelCaptureOriginalVertices(model);
     ToriDraw_SceneModelAdd(bridge->scene, cache_model_id, hnd);
-    bridge_map_put(bridge->model_map, cache_model_id, cache_model_id);
+    bridge_map_put(bridge, bridge->model_map, cache_model_id, cache_model_id);
     return cache_model_id;
 }
 
@@ -531,13 +939,13 @@ UITreeSceneBridge_BuildPlayerDesignModel(
     {
         struct ToriDraw_ModelHandle old =
             ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID);
-        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model &&
+        if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model &&
             old.u.model.model != merged )
             ToriDraw_ModelFree(old.u.model.model);
     }
 
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID, hnd);
-    bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+    bridge_set_scene_id(bridge, &bridge->player_scene_id, UITREE_SCENE_PLAYER_MODEL_ID);
     return bridge->player_scene_id;
 }
 
@@ -552,14 +960,14 @@ UITreeSceneBridge_EnsurePlayerModel(struct UITreeSceneBridge* bridge)
         return bridge->player_scene_id;
     if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_MODEL_ID) )
     {
-        bridge->player_scene_id = UITREE_SCENE_PLAYER_MODEL_ID;
+        bridge_set_scene_id(bridge, &bridge->player_scene_id, UITREE_SCENE_PLAYER_MODEL_ID);
         return bridge->player_scene_id;
     }
 
     {
         int resolved = PlayerAppearance_ResolveDefaultMale(bridge->provider, &app);
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+            TORIRS_LOG("EnsurePlayerModel: resolved=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
                 resolved, app.kits[0], app.kits[1], app.kits[2], app.kits[3],
                 app.kits[4], app.kits[5], app.kits[6]);
         if( resolved <= 0 )
@@ -593,7 +1001,7 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     {
         struct ToriDraw_ModelHandle old =
             ToriDraw_SceneModelGet(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID);
-        if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+        if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model && old.u.model.model != merged )
             ToriDraw_ModelFree(old.u.model.model);
     }
 
@@ -601,7 +1009,8 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID, hnd);
-    bridge->local_player_scene_id = UITREE_SCENE_LOCAL_PLAYER_MODEL_ID;
+    bridge_set_scene_id(
+        bridge, &bridge->local_player_scene_id, UITREE_SCENE_LOCAL_PLAYER_MODEL_ID);
     return bridge->local_player_scene_id;
 }
 
@@ -624,7 +1033,7 @@ UITreeSceneBridge_BuildInterfacePlayerModel(
         return -1;
 
     old = ToriDraw_SceneModelGet(bridge->scene, scene_id);
-    if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+    if( ToriDraw_ModelKindIsFull(old.kind) && old.u.model.model && old.u.model.model != merged )
         ToriDraw_ModelFree(old.u.model.model);
 
     memset(&hnd, 0, sizeof(hnd));
@@ -713,7 +1122,7 @@ UITreeSceneBridge_EnsureNpcHead(
 
     scene_id = (int)(UITREE_SCENE_NPC_HEAD_BASE | (unsigned)npc_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
-    bridge_map_put(bridge->npc_head_map, npc_id, scene_id);
+    bridge_map_put(bridge, bridge->npc_head_map, npc_id, scene_id);
     return scene_id;
 }
 
@@ -733,7 +1142,7 @@ UITreeSceneBridge_EnsurePlayerHead(
         return bridge->player_head_scene_id;
     if( ToriDraw_SceneModelHas(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID) )
     {
-        bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+        bridge_set_scene_id(bridge, &bridge->player_head_scene_id, UITREE_SCENE_PLAYER_HEAD_ID);
         return bridge->player_head_scene_id;
     }
 
@@ -769,7 +1178,7 @@ UITreeSceneBridge_EnsurePlayerHead(
         ToriDraw_LightModelScene(hnd, 0, 0);
     }
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
-    bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
+    bridge_set_scene_id(bridge, &bridge->player_head_scene_id, UITREE_SCENE_PLAYER_HEAD_ID);
     return bridge->player_head_scene_id;
 }
 
@@ -1076,6 +1485,7 @@ bridge_ensure_obj_icon(
     entry->obj_id = obj_id;
     entry->count = count;
     entry->scene_id = scene_id;
+    bridge_assets_changed(bridge);
     return scene_id;
 }
 
@@ -1132,7 +1542,7 @@ UITreeSceneBridge_EnsureObjModel(
 
     scene_id = (int)(UITREE_SCENE_OBJ_MODEL_BASE | (unsigned)obj_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
-    bridge_map_put(bridge->obj_model_map, obj_id, scene_id);
+    bridge_map_put(bridge, bridge->obj_model_map, obj_id, scene_id);
     return scene_id;
 }
 
@@ -1218,7 +1628,7 @@ UITreeSceneBridge_CollectMissingTextures(
         if( !ToriDraw_SceneElementIsLive(bridge->scene, element_id) )
             continue;
         el = ToriDraw_SceneElementGet(bridge->scene, element_id);
-        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
             continue;
         model = el->model.u.model.model;
         if( !model->face_textures )
@@ -1239,11 +1649,21 @@ UITreeSceneBridge_CollectMissingTextures(
     return count;
 }
 
+/*
+ * The scene's view of a cached material, pointing at the cache's pixels.
+ *
+ * The texels are not copied. `rs` comes from CacheProvider_TextureGet, whose
+ * table holds every texture it has ever baked for the life of the provider --
+ * it has no eviction and CacheProvider_TextureCacheClear has no callers -- and
+ * the provider outlives every scene built against it, so the borrow cannot
+ * dangle. Nothing downstream writes through the pointer either: the raster
+ * only samples it, and no other consumer of CacheProvider_TextureGet reads
+ * `texels` at all. Copying cost 1.75 MB of duplicate atlases at peak.
+ */
 static struct ToriDraw_Texture*
 bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
 {
     struct ToriDraw_Texture* texture;
-    size_t texel_bytes;
 
     assert(rs);
     if( !rs->texels || rs->width <= 0 || rs->height <= 0 )
@@ -1252,10 +1672,8 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     texture = calloc(1, sizeof(*texture));
     assert(texture);
 
-    texel_bytes = (size_t)rs->width * (size_t)rs->height * sizeof(int);
-    texture->texels = malloc(texel_bytes);
-    assert(texture->texels);
-    memcpy(texture->texels, rs->texels, texel_bytes);
+    texture->texels = rs->texels;
+    texture->borrowed_texels = true;
     texture->width = rs->width;
     texture->height = rs->height;
     texture->opaque = rs->opaque;
@@ -1285,7 +1703,7 @@ UITreeSceneBridge_PublishTextures(
         if( texture_id < 0 || texture_id >= 2048 )
         {
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
             continue;
         }
 
@@ -1294,7 +1712,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(stderr, "tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
         }
 
@@ -1303,9 +1721,7 @@ UITreeSceneBridge_PublishTextures(
         {
             bridge->texture_failed[texture_id] = 1;
             if( app_tex_trace_enabled() )
-                fprintf(
-                    stderr,
-                    "tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
+                TORIRS_ERR("tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
                     texture_id,
                     (void*)rs->texels,
                     rs->width,
@@ -1315,9 +1731,7 @@ UITreeSceneBridge_PublishTextures(
 
         ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
         if( app_tex_trace_enabled() )
-            fprintf(
-                stderr,
-                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
+            TORIRS_LOG("tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
                 texture_id,
                 UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
                                                                       : "SET BUT NOT RESIDENT",

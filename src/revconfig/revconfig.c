@@ -1,5 +1,7 @@
 #include "revconfig.h"
 
+#include "ui/torirs_chrome_inkwell.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -7,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #if defined(_WIN32)
 #define strcasecmp _stricmp
@@ -33,11 +36,681 @@ revconfig_strncpy_trimmed(
             src[len - 1] == '\n') )
         len--;
 
+    /*
+     * A quoted value keeps its inner whitespace.
+     *
+     * Trimming is right for almost everything a profile writes -- a stray
+     * space after `w=360` must not become part of the number -- but a
+     * DISPLAY string is different: the reference's login label is
+     * "Username: ", space included, and a trimmed one draws the value hard
+     * against the colon. Quotes are how an INI has always said "this
+     * whitespace is content", and no shipped profile had a quoted value
+     * before this, so nothing changes meaning by our reading them.
+     */
+    if( len >= 2 && src[0] == '"' && src[len - 1] == '"' )
+    {
+        src++;
+        len -= 2;
+    }
+
     if( len >= n )
         len = n - 1;
     memcpy(dest, src, len);
     dest[len] = '\0';
 }
+/* ---------------------------------------------------------------------------
+ * Numbers
+ *
+ * A profile spells ids, masks and colours the way the reference does, so the
+ * value of a key is a small integer EXPRESSION rather than a decimal run:
+ *
+ *   hex          0x1088      1088h      0FFh
+ *   binary       0b1010_1010
+ *   grouping     0x1000_0000            (underscores between digits)
+ *   colours      rgb(255, 0, 0)         rgba(0, 0, 0, 128)    #FF0000
+ *   palette      hsl16(0, 7, 64)        -- hue, saturation, lightness
+ *   uids         if(1088, 255)          -- (interface << 16) | component
+ *   arithmetic   (1088 << 16) | 0xFF
+ *
+ * Precedence is C's, lowest binding first:
+ *
+ *   |    ^    &    << >>    + -    * / %    unary + - ~    primary
+ *
+ * A primary is a literal, a parenthesised expression, or one of the three
+ * named forms above. Everything is evaluated at 64 bits and the result must
+ * land in [INT32_MIN, UINT32_MAX]; the 32-bit pattern is what the caller gets,
+ * so `rgba(255,255,255,255)` (0xFFFFFFFF) reaches an `int` field as -1, which
+ * is the same word the client would have blitted.
+ * ------------------------------------------------------------------------- */
+
+/** Advance past spaces and tabs. */
+static char const*
+revconfig_skip_space(char const* p)
+{
+    assert(p);
+    while( *p == ' ' || *p == '\t' )
+        p++;
+    return p;
+}
+
+struct RevConfigNumCursor
+{
+    char const* p;
+    /** Cleared by the first thing that does not parse; nothing after it runs. */
+    int ok;
+    /** Why, for the one message the caller prints. NULL until something fails. */
+    char const* error;
+};
+
+static void
+revconfig_num_fail(struct RevConfigNumCursor* c, char const* reason)
+{
+    assert(c);
+    assert(reason);
+    if( c->ok )
+    {
+        c->ok = 0;
+        c->error = reason;
+    }
+}
+
+static void
+revconfig_num_skip_space(struct RevConfigNumCursor* c)
+{
+    assert(c);
+    c->p = revconfig_skip_space(c->p);
+}
+
+/** Value of `ch` as a hex digit, or -1. */
+static int
+revconfig_num_hex_digit(char ch)
+{
+    if( ch >= '0' && ch <= '9' )
+        return ch - '0';
+    if( ch >= 'a' && ch <= 'f' )
+        return ch - 'a' + 10;
+    if( ch >= 'A' && ch <= 'F' )
+        return ch - 'A' + 10;
+    return -1;
+}
+
+static int
+revconfig_num_ident_char(char ch)
+{
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+           (ch >= '0' && ch <= '9') || ch == '_';
+}
+
+static int
+revconfig_num_ident_start(char ch)
+{
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+}
+
+static int64_t
+revconfig_num_expr(struct RevConfigNumCursor* c);
+
+/**
+ * One literal.
+ *
+ * The `h` suffix has to be found before the first digit is read -- it is what
+ * says the digits are hex -- so the run is scanned twice: once for the suffix,
+ * once for the value.
+ */
+static int64_t
+revconfig_num_literal(struct RevConfigNumCursor* c)
+{
+    char const* p;
+    char const* scan;
+    int base = 10;
+    int digits = 0;
+    int suffixed = 0;
+    uint64_t value = 0;
+
+    assert(c);
+
+    p = c->p;
+    scan = p;
+    while( revconfig_num_hex_digit(*scan) >= 0 || *scan == '_' )
+        scan++;
+    if( scan != p && (*scan == 'h' || *scan == 'H') && !revconfig_num_ident_char(scan[1]) )
+    {
+        base = 16;
+        suffixed = 1;
+    }
+    else if( p[0] == '0' && (p[1] == 'x' || p[1] == 'X') )
+    {
+        base = 16;
+        p += 2;
+    }
+    /* `#RRGGBB`, the spelling a wiki page, a stylesheet and this tree's own
+     * plugin_prefs.ini all carry. It marks the digits as hex and says nothing
+     * about how many there are, so `#FFF` and `#FF0000FF` are both numbers --
+     * a colour's WIDTH is the field's business, not the literal's. */
+    else if( p[0] == '#' )
+    {
+        base = 16;
+        p += 1;
+    }
+    else if( p[0] == '0' && (p[1] == 'b' || p[1] == 'B') )
+    {
+        base = 2;
+        p += 2;
+    }
+
+    for( ; *p; p++ )
+    {
+        int digit;
+
+        if( *p == '_' )
+            continue;
+        digit = revconfig_num_hex_digit(*p);
+        if( digit < 0 || digit >= base )
+            break;
+        if( value > (UINT64_C(0x7FFFFFFFFFFFFFFF) - (uint64_t)digit) / (uint64_t)base )
+        {
+            revconfig_num_fail(c, "number is too large");
+            return 0;
+        }
+        value = value * (uint64_t)base + (uint64_t)digit;
+        digits++;
+    }
+    if( suffixed && (*p == 'h' || *p == 'H') )
+        p++;
+
+    if( digits == 0 )
+    {
+        revconfig_num_fail(c, "expected a number");
+        return 0;
+    }
+    /* `12abc` and `0b12` are typos, not a number followed by something. */
+    if( revconfig_num_ident_char(*p) )
+    {
+        revconfig_num_fail(c, "unexpected character after a number");
+        return 0;
+    }
+
+    c->p = p;
+    return (int64_t)value;
+}
+
+/** Comma-separated arguments up to the closing ')', which is consumed. */
+static int
+revconfig_num_args(
+    struct RevConfigNumCursor* c,
+    int64_t* out_args,
+    int max_args)
+{
+    int count = 0;
+
+    assert(c);
+    assert(out_args);
+    assert(max_args > 0);
+
+    revconfig_num_skip_space(c);
+    if( *c->p == ')' )
+    {
+        c->p++;
+        return 0;
+    }
+    for( ;; )
+    {
+        int64_t arg = revconfig_num_expr(c);
+        if( !c->ok )
+            return count;
+        if( count >= max_args )
+        {
+            revconfig_num_fail(c, "too many arguments");
+            return count;
+        }
+        out_args[count++] = arg;
+
+        revconfig_num_skip_space(c);
+        if( *c->p == ',' )
+        {
+            c->p++;
+            continue;
+        }
+        if( *c->p == ')' )
+        {
+            c->p++;
+            return count;
+        }
+        revconfig_num_fail(c, "expected ',' or ')'");
+        return count;
+    }
+}
+
+/** 0..255, the range every rgb()/rgba() channel has to be in. */
+static int
+revconfig_num_channel(struct RevConfigNumCursor* c, int64_t v)
+{
+    assert(c);
+    if( v < 0 || v > 255 )
+    {
+        revconfig_num_fail(c, "rgb()/rgba() channels are 0..255");
+        return 0;
+    }
+    return (int)v;
+}
+
+/**
+ * One hsl16() axis, each with its own width.
+ *
+ * Separate from the rgb() channel check because the widths differ and the
+ * message has to name the axis: "0..7" on a saturation somebody wrote as 255
+ * is the whole answer.
+ */
+static int
+revconfig_num_hsl_axis(
+    struct RevConfigNumCursor* c,
+    int64_t v,
+    int64_t limit,
+    char const* reason)
+{
+    assert(c);
+    assert(reason);
+    if( v < 0 || v > limit )
+    {
+        revconfig_num_fail(c, reason);
+        return 0;
+    }
+    return (int)v;
+}
+
+/** 0..65535, or -1 for the "no component" half of a uid. */
+static int
+revconfig_num_uid_half(struct RevConfigNumCursor* c, int64_t v)
+{
+    assert(c);
+    if( v == -1 )
+        return 0xFFFF;
+    if( v < 0 || v > 0xFFFF )
+    {
+        revconfig_num_fail(c, "if() halves are 0..65535 (or -1)");
+        return 0;
+    }
+    return (int)v;
+}
+
+/** rgb(), rgba(), hsl16(), if() -- the spellings worth having a name for. */
+static int64_t
+revconfig_num_call(struct RevConfigNumCursor* c, char const* name)
+{
+    int64_t args[4];
+    int count;
+
+    assert(c);
+    assert(name);
+
+    count = revconfig_num_args(c, args, (int)(sizeof(args) / sizeof(args[0])));
+    if( !c->ok )
+        return 0;
+
+    if( strcasecmp(name, "rgb") == 0 && count == 3 )
+        return ((int64_t)revconfig_num_channel(c, args[0]) << 16) |
+               ((int64_t)revconfig_num_channel(c, args[1]) << 8) |
+               (int64_t)revconfig_num_channel(c, args[2]);
+    /* ARGB, the word the client blits. */
+    if( strcasecmp(name, "rgba") == 0 && count == 4 )
+        return ((int64_t)revconfig_num_channel(c, args[3]) << 24) |
+               ((int64_t)revconfig_num_channel(c, args[0]) << 16) |
+               ((int64_t)revconfig_num_channel(c, args[1]) << 8) |
+               (int64_t)revconfig_num_channel(c, args[2]);
+    /* The client's own colour unit: a packed palette index, hue 0..63,
+     * saturation 0..7, lightness 0..127. What a model recolour, a face colour
+     * and a text tint are addressed in, and a number no rgb() can spell --
+     * the palette is not a cube, so there is no exact RGB for most entries. */
+    if( strcasecmp(name, "hsl16") == 0 && count == 3 )
+        return ((int64_t)revconfig_num_hsl_axis(c, args[0], 63, "hsl16() hue is 0..63") << 10) |
+               ((int64_t)revconfig_num_hsl_axis(c, args[1], 7, "hsl16() saturation is 0..7")
+                << 7) |
+               (int64_t)revconfig_num_hsl_axis(c, args[2], 127, "hsl16() lightness is 0..127");
+    if( strcasecmp(name, "if") == 0 && count == 2 )
+        return ((int64_t)revconfig_num_uid_half(c, args[0]) << 16) |
+               (int64_t)revconfig_num_uid_half(c, args[1]);
+
+    revconfig_num_fail(c, "unknown function, or wrong argument count");
+    return 0;
+}
+
+static int64_t
+revconfig_num_primary(struct RevConfigNumCursor* c)
+{
+    assert(c);
+
+    revconfig_num_skip_space(c);
+    if( *c->p == '(' )
+    {
+        int64_t v;
+
+        c->p++;
+        v = revconfig_num_expr(c);
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        if( *c->p != ')' )
+        {
+            revconfig_num_fail(c, "expected ')'");
+            return 0;
+        }
+        c->p++;
+        return v;
+    }
+    if( revconfig_num_ident_start(*c->p) )
+    {
+        char name[16];
+        size_t len = 0;
+
+        while( revconfig_num_ident_char(c->p[len]) )
+            len++;
+        if( len >= sizeof(name) )
+        {
+            revconfig_num_fail(c, "unknown function");
+            return 0;
+        }
+        memcpy(name, c->p, len);
+        name[len] = '\0';
+        c->p += len;
+
+        revconfig_num_skip_space(c);
+        if( *c->p != '(' )
+        {
+            revconfig_num_fail(c, "not a number");
+            return 0;
+        }
+        c->p++;
+        return revconfig_num_call(c, name);
+    }
+    return revconfig_num_literal(c);
+}
+
+static int64_t
+revconfig_num_unary(struct RevConfigNumCursor* c)
+{
+    assert(c);
+
+    revconfig_num_skip_space(c);
+    if( *c->p == '-' )
+    {
+        c->p++;
+        return -revconfig_num_unary(c);
+    }
+    if( *c->p == '+' )
+    {
+        c->p++;
+        return revconfig_num_unary(c);
+    }
+    if( *c->p == '~' )
+    {
+        c->p++;
+        return ~revconfig_num_unary(c);
+    }
+    return revconfig_num_primary(c);
+}
+
+/** Multiplication overflows 64 bits only for absurd input; refuse it there. */
+static int64_t
+revconfig_num_mul(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_unary(c);
+    for( ;; )
+    {
+        char op;
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        op = *c->p;
+        if( op != '*' && op != '/' && op != '%' )
+            return lhs;
+        c->p++;
+        rhs = revconfig_num_unary(c);
+        if( !c->ok )
+            return 0;
+
+        if( op == '*' )
+        {
+            if( lhs > INT64_C(0xFFFFFFFFFF) || lhs < -INT64_C(0xFFFFFFFFFF) ||
+                rhs > INT64_C(0xFFFFFFFFFF) || rhs < -INT64_C(0xFFFFFFFFFF) )
+            {
+                revconfig_num_fail(c, "number is too large");
+                return 0;
+            }
+            lhs = lhs * rhs;
+        }
+        else if( rhs == 0 )
+        {
+            revconfig_num_fail(c, "division by zero");
+            return 0;
+        }
+        else if( op == '/' )
+            lhs = lhs / rhs;
+        else
+            lhs = lhs % rhs;
+    }
+}
+
+static int64_t
+revconfig_num_add(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_mul(c);
+    for( ;; )
+    {
+        char op;
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        op = *c->p;
+        if( op != '+' && op != '-' )
+            return lhs;
+        c->p++;
+        rhs = revconfig_num_mul(c);
+        if( !c->ok )
+            return 0;
+        lhs = (op == '+') ? lhs + rhs : lhs - rhs;
+    }
+}
+
+static int64_t
+revconfig_num_shift(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_add(c);
+    for( ;; )
+    {
+        char op;
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        op = *c->p;
+        if( (op != '<' && op != '>') || c->p[1] != op )
+            return lhs;
+        c->p += 2;
+        rhs = revconfig_num_add(c);
+        if( !c->ok )
+            return 0;
+        if( rhs < 0 || rhs > 63 )
+        {
+            revconfig_num_fail(c, "shift count is 0..63");
+            return 0;
+        }
+        /* Shifting is a bit move, not an arithmetic one: the value is carried
+         * through unsigned so a set top bit is neither undefined nor smeared. */
+        if( op == '<' )
+            lhs = (int64_t)((uint64_t)lhs << (unsigned)rhs);
+        else
+            lhs = (int64_t)((uint64_t)lhs >> (unsigned)rhs);
+    }
+}
+
+static int64_t
+revconfig_num_and(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_shift(c);
+    for( ;; )
+    {
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        /* `&&` is not a spelling this grammar has; leave it to the caller's
+         * trailing-text check to complain about. */
+        if( *c->p != '&' || c->p[1] == '&' )
+            return lhs;
+        c->p++;
+        rhs = revconfig_num_shift(c);
+        if( !c->ok )
+            return 0;
+        lhs = lhs & rhs;
+    }
+}
+
+static int64_t
+revconfig_num_xor(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_and(c);
+    for( ;; )
+    {
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        if( *c->p != '^' )
+            return lhs;
+        c->p++;
+        rhs = revconfig_num_and(c);
+        if( !c->ok )
+            return 0;
+        lhs = lhs ^ rhs;
+    }
+}
+
+static int64_t
+revconfig_num_expr(struct RevConfigNumCursor* c)
+{
+    int64_t lhs;
+
+    assert(c);
+
+    lhs = revconfig_num_xor(c);
+    for( ;; )
+    {
+        int64_t rhs;
+
+        if( !c->ok )
+            return 0;
+        revconfig_num_skip_space(c);
+        if( *c->p != '|' || c->p[1] == '|' )
+            return lhs;
+        c->p++;
+        rhs = revconfig_num_xor(c);
+        if( !c->ok )
+            return 0;
+        lhs = lhs | rhs;
+    }
+}
+
+static int
+revconfig_num_parse(
+    char const* str,
+    char const** out_end,
+    int* out_value,
+    char const** out_error)
+{
+    struct RevConfigNumCursor c;
+    int64_t v;
+
+    assert(str);
+    assert(out_value);
+
+    c.p = str;
+    c.ok = 1;
+    c.error = NULL;
+
+    v = revconfig_num_expr(&c);
+    if( !c.ok )
+    {
+        if( out_error )
+            *out_error = c.error ? c.error : "not a number";
+        return 0;
+    }
+    /* One 32-bit word, signed or unsigned as the author spelled it. */
+    if( v > INT64_C(0xFFFFFFFF) || v < INT32_MIN )
+    {
+        if( out_error )
+            *out_error = "number does not fit in 32 bits";
+        return 0;
+    }
+    if( out_end )
+        *out_end = c.p;
+    *out_value = (int)(int32_t)(uint32_t)(uint64_t)v;
+    return 1;
+}
+
+int
+revconfig_parse_int_expr(
+    char const* str,
+    char const** out_end,
+    int* out_value)
+{
+    assert(str);
+    assert(out_value);
+    return revconfig_num_parse(str, out_end, out_value, NULL);
+}
+
+int
+revconfig_parse_int(char const* str)
+{
+    char const* end = NULL;
+    char const* error = NULL;
+    int value = 0;
+
+    assert(str);
+
+    /* An unstated key is not a malformed one. */
+    if( *revconfig_skip_space(str) == '\0' )
+        return 0;
+
+    if( !revconfig_num_parse(str, &end, &value, &error) )
+    {
+        TORIRS_ERR("revconfig: '%s' is not a number: %s\n", str, error);
+        return 0;
+    }
+    if( *revconfig_skip_space(end) != '\0' )
+    {
+        TORIRS_LOG("revconfig: '%s' is not a number: trailing text '%s'\n", str, end);
+        return 0;
+    }
+    return value;
+}
+
 
 char const*
 revconfig_field_kind_str(enum RevConfigFieldKind kind)
@@ -58,6 +731,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_ARCHIVE";
     case RCFIELD_CACHE_ARCHIVE_ID:
         return "RCFIELD_CACHE_ARCHIVE_ID";
+    case RCFIELD_CACHE_DEFAULTS_SLOT:
+        return "RCFIELD_CACHE_DEFAULTS_SLOT";
+    case RCFIELD_CACHE_GROUP:
+        return "RCFIELD_CACHE_GROUP";
     case RCFIELD_CACHE_CONTAINER:
         return "RCFIELD_CACHE_CONTAINER";
     case RCFIELD_CACHE_INDEX_FILENAME:
@@ -84,6 +761,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_FONT_NAME";
     case RCFIELD_CACHE_FONT_ID:
         return "RCFIELD_CACHE_FONT_ID";
+    case RCFIELD_CACHEREF_ID:
+        return "RCFIELD_CACHEREF_ID";
     case RCFIELD_UICOMPONENT_TYPE:
         return "RCFIELD_UICOMPONENT_TYPE";
     case RCFIELD_UICOMPONENT_SPRITE:
@@ -106,10 +785,6 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_INV";
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         return "RCFIELD_UICOMPONENT_PAINT_LEVELS";
-    case RCFIELD_UICOMPONENT_MMB_ROTATE:
-        return "RCFIELD_UICOMPONENT_MMB_ROTATE";
-    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
-        return "RCFIELD_UICOMPONENT_WHEEL_ZOOM";
     case RCFIELD_UICOMPONENT_HOTKEY:
         return "RCFIELD_UICOMPONENT_HOTKEY";
     case RCFIELD_HOTKEY_COMPONENT:
@@ -120,14 +795,58 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_COLOR";
     case RCFIELD_UICOMPONENT_FILLED:
         return "RCFIELD_UICOMPONENT_FILLED";
+    case RCFIELD_UICOMPONENT_TILED:
+        return "RCFIELD_UICOMPONENT_TILED";
     case RCFIELD_UICOMPONENT_FONT:
         return "RCFIELD_UICOMPONENT_FONT";
+    case RCFIELD_UICOMPONENT_INK_STYLE:
+        return "RCFIELD_UICOMPONENT_INK_STYLE";
+    case RCFIELD_UICOMPONENT_INK_WALK_COLOR:
+        return "RCFIELD_UICOMPONENT_INK_WALK_COLOR";
+    case RCFIELD_UICOMPONENT_INK_INTERACT_COLOR:
+        return "RCFIELD_UICOMPONENT_INK_INTERACT_COLOR";
     case RCFIELD_UICOMPONENT_CENTER:
         return "RCFIELD_UICOMPONENT_CENTER";
+    case RCFIELD_UICOMPONENT_VALIGN:
+        return "RCFIELD_UICOMPONENT_VALIGN";
+    case RCFIELD_UICOMPONENT_OVER_COLOR:
+        return "RCFIELD_UICOMPONENT_OVER_COLOR";
     case RCFIELD_UICOMPONENT_SHADOWED:
         return "RCFIELD_UICOMPONENT_SHADOWED";
     case RCFIELD_UICOMPONENT_TEXT:
         return "RCFIELD_UICOMPONENT_TEXT";
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        return "RCFIELD_UICOMPONENT_TITLE_FIELD";
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        return "RCFIELD_UICOMPONENT_TITLE_PREFIX";
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET";
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        return "RCFIELD_UICOMPONENT_TITLE_CARET_BLINK";
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        return "RCFIELD_UICOMPONENT_TITLE_MASK";
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        return "RCFIELD_UICOMPONENT_TITLE_MAXLEN";
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        return "RCFIELD_UICOMPONENT_TITLE_CHARSET";
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        return "RCFIELD_UICOMPONENT_TITLE_ACTION";
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        return "RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX";
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        return "RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT";
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        return "RCFIELD_UICOMPONENT_FLAME_BIAS";
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        return "RCFIELD_UICOMPONENT_FLAME_SWAY";
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        return "RCFIELD_UICOMPONENT_FLAME_RUN";
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        return "RCFIELD_UICOMPONENT_FLAME_ROW";
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        return "RCFIELD_UICOMPONENT_FLAME_BLUR";
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        return "RCFIELD_UICOMPONENT_TEXT_BASELINE";
     case RCFIELD_UICOMPONENT_OPTION:
         return "RCFIELD_UICOMPONENT_OPTION";
     case RCFIELD_UICOMPONENT_OPTION_ACTION:
@@ -176,6 +895,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL";
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         return "RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION";
+    case RCFIELD_UICOMPONENT_CHAT_PROMPT:
+        return "RCFIELD_UICOMPONENT_CHAT_PROMPT";
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
         return "RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER";
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL:
@@ -226,10 +947,76 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_RIGHT";
     case RCFIELD_UILAYOUT_DIRTY:
         return "RCFIELD_UILAYOUT_DIRTY";
+    case RCFIELD_UILAYOUT_XALIGN:
+        return "RCFIELD_UILAYOUT_XALIGN";
     case RCFIELD_UILAYOUT_PARENT:
         return "RCFIELD_UILAYOUT_PARENT";
     case RCFIELD_UILAYOUT_NAME:
         return "RCFIELD_UILAYOUT_NAME";
+    case RCFIELD_FEATURES_ERA:
+        return "RCFIELD_FEATURES_ERA";
+    case RCFIELD_FEATURES_GROUND_CLICK_NEAREST:
+        return "RCFIELD_FEATURES_GROUND_CLICK_NEAREST";
+    case RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED:
+        return "RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED";
+    case RCFIELD_FEATURES_GROUND_CLICK_OFFMAP:
+        return "RCFIELD_FEATURES_GROUND_CLICK_OFFMAP";
+    case RCFIELD_FEATURES_MOVER:
+        return "RCFIELD_FEATURES_MOVER";
+    case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
+        return "RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE";
+    case RCFIELD_FEATURES_CLIENTTYPE:
+        return "RCFIELD_FEATURES_CLIENTTYPE";
+    case RCFIELD_FEATURES_ON_MOBILE:
+        return "RCFIELD_FEATURES_ON_MOBILE";
+    case RCFIELD_CAMERA_REST:
+        return "RCFIELD_CAMERA_REST";
+    case RCFIELD_CAMERA_CONTROLS:
+        return "RCFIELD_CAMERA_CONTROLS";
+    case RCFIELD_FRAME_CAP_FPS:
+        return "RCFIELD_FRAME_CAP_FPS";
+    case RCFIELD_FRAME_CAP_SOURCE:
+        return "RCFIELD_FRAME_CAP_SOURCE";
+    case RCFIELD_CAMERA_WHEEL_STEP:
+        return "RCFIELD_CAMERA_WHEEL_STEP";
+    case RCFIELD_CAMERA_ZOOM_CLOSEST:
+        return "RCFIELD_CAMERA_ZOOM_CLOSEST";
+    case RCFIELD_CAMERA_ZOOM_FURTHEST:
+        return "RCFIELD_CAMERA_ZOOM_FURTHEST";
+    case RCFIELD_CAMERA_VIEWPORT_ZOOM:
+        return "RCFIELD_CAMERA_VIEWPORT_ZOOM";
+    case RCFIELD_CAMERA_PITCH_DISTANCE:
+        return "RCFIELD_CAMERA_PITCH_DISTANCE";
+    case RCFIELD_CAMERA_PITCH_FLATTEST:
+        return "RCFIELD_CAMERA_PITCH_FLATTEST";
+    case RCFIELD_CAMERA_PITCH_STEEPEST:
+        return "RCFIELD_CAMERA_PITCH_STEEPEST";
+    case RCFIELD_CAMERA_DISTANCE_SCALE:
+        return "RCFIELD_CAMERA_DISTANCE_SCALE";
+    case RCFIELD_CHROME_PLUGIN_IFACE:
+        return "RCFIELD_CHROME_PLUGIN_IFACE";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_PARENT";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_X";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_Y";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_W";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_H";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_OP";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
+        return "RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN";
+    case RCFIELD_ROLE_MATCH:
+        return "RCFIELD_ROLE_MATCH";
+    case RCFIELD_UICOMPONENT_ROLE:
+        return "RCFIELD_UICOMPONENT_ROLE";
     default:
         return "UNKNOWN";
     }
@@ -362,9 +1149,45 @@ revconfig_item_set_name(
     case RCITEM_HOTKEY:
         strncpy(item->u.hotkey.name, value, sizeof(item->u.hotkey.name) - 1);
         break;
+    case RCITEM_CACHE_REF:
+        strncpy(item->u.cacheref.name, value, sizeof(item->u.cacheref.name) - 1);
+        break;
+    case RCITEM_ROLE:
+        strncpy(item->u.role.name, value, sizeof(item->u.role.name) - 1);
+        break;
+    case RCITEM_STRING:
+        strncpy(item->u.string.name, value, sizeof(item->u.string.name) - 1);
+        break;
+    case RCITEM_PRELOAD:
+        strncpy(item->u.preload.name, value, sizeof(item->u.preload.name) - 1);
+        break;
+    case RCITEM_LOGIN_REPLY:
+        /* The section name IS the code, except for the two names that stand
+         * for cases the protocol has no byte for. */
+        if( strcmp(value, REVCONFIG_LOGIN_REPLY_DEFAULT_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_DEFAULT;
+        else if( strcmp(value, REVCONFIG_LOGIN_REPLY_CONNECT_FAILED_NAME) == 0 )
+            item->u.login_reply.code = REVCONFIG_LOGIN_REPLY_CODE_CONNECT_FAILED;
+        else
+            item->u.login_reply.code = revconfig_parse_int(value);
+        break;
     default:
         break;
     }
+}
+
+/** True when `type_value` names one of REVCONFIG_CACHEREF_KINDS. */
+static int
+revconfig_type_is_cacheref(const char* type_value)
+{
+    static char const* const kinds[] = { REVCONFIG_CACHEREF_KINDS };
+    assert(type_value);
+    for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
+    {
+        if( strcmp(type_value, kinds[i]) == 0 )
+            return 1;
+    }
+    return 0;
 }
 
 static void
@@ -378,6 +1201,7 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_CACHE_SPRITE;
         item->u.cache.archive_id = -1;
+        item->u.cache.defaults_slot = -1;
     }
     else if( strcmp(type_value, "font") == 0 )
     {
@@ -389,18 +1213,88 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_UICOMPONENT;
         item->u.uicomponent.componentno = -1;
-        /* type=world camera gestures: on unless a revision opts out, so packs
-         * that predate the keys (and the cache-interface build path, which has
-         * no revconfig section at all) behave the same way. */
-        item->u.uicomponent.mmb_rotate = 1;
-        item->u.uicomponent.wheel_zoom = 1;
+        /* Unstated is not zero: 0 is a real style (splash) and a real colour
+         * (yellow), so an unset key must be distinguishable from one set to
+         * the first value. */
+        item->u.uicomponent.ink_style = -1;
+        item->u.uicomponent.ink_walk_color = -1;
+        item->u.uicomponent.ink_interact_color = -1;
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
+    else if( strcmp(type_value, "role") == 0 )
+        item->kind = RCITEM_ROLE;
+    else if( strcmp(type_value, "string") == 0 )
+        item->kind = RCITEM_STRING;
+    else if( strcmp(type_value, "preload") == 0 )
+    {
+        item->kind = RCITEM_PRELOAD;
+        /* Unstated is not zero for these two: id 0 is a real cache index,
+         * and a step with no percent must leave the bar where it was. */
+        item->u.preload.id = -1;
+        item->u.preload.percent = -1;
+    }
+    else if( strcmp(type_value, "login_reply") == 0 )
+    {
+        item->kind = RCITEM_LOGIN_REPLY;
+        /* -1 = "leave the screen alone", which is what most codes want: the
+         * generic error page is already up by the time the lines are read. */
+        item->u.login_reply.screen = -1;
+    }
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
         item->kind = RCITEM_HOTKEY;
+    else if( strcmp(type_value, "features") == 0 )
+    {
+        item->kind = RCITEM_FEATURES;
+        /* Unstated has to be distinguishable from every legal value: 0 is a
+         * real answer for both permissive extensions, and 25 (not 0) is the
+         * painter's smallest real radius. */
+        item->u.features.ground_click_unbounded = -1;
+        item->u.features.ground_click_offmap = -1;
+        item->u.features.clienttype = -1;
+        item->u.features.on_mobile = -1;
+    }
+    else if( strcmp(type_value, "camera") == 0 )
+    {
+        item->kind = RCITEM_CAMERA;
+        /* Neither key is defaulted here. An item carries only what its section
+         * SAID -- has_zoom / has_controls -- so that a later source overriding
+         * `controls=` cannot silently reset `zoom=` back to a default the
+         * earlier source had deliberately moved. RevConfigProfile owns the
+         * defaults, once, for the whole boot. */
+    }
+    else if( strcmp(type_value, "frame") == 0 )
+    {
+        item->kind = RCITEM_FRAME;
+        /* As with the camera: the item carries only what the section said;
+         * RevConfigProfile owns the defaults. */
+    }
+    else if( strcmp(type_value, "chrome") == 0 )
+    {
+        item->kind = RCITEM_CHROME;
+        /* -1 for every number, the same reason the cache-ref id is: 0 is a real
+         * child component, a real column slot and a real pixel size, so a key
+         * this section did not state has to read as something no INI can spell.
+         * The merge below keys off exactly that. */
+        item->u.chrome.plugin_button_parent = -1;
+        item->u.chrome.plugin_button_x = -1;
+        item->u.chrome.plugin_button_y = -1;
+        item->u.chrome.plugin_button_w = -1;
+        item->u.chrome.plugin_button_h = -1;
+        item->u.chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
+        item->u.chrome.plugin_button_margin = -1;
+    }
+    else if( revconfig_type_is_cacheref(type_value) )
+    {
+        item->kind = RCITEM_CACHE_REF;
+        /* -1, not 0: 0 is a real script/iface/seq/varbit id, so a section that
+         * forgot its id= would otherwise read as a binding to whatever thing
+         * happens to be numbered zero. */
+        item->u.cacheref.id = -1;
+        strncpy(item->u.cacheref.kind, type_value, sizeof(item->u.cacheref.kind) - 1);
+    }
     else
         item->kind = RCITEM_NONE;
 }
@@ -420,7 +1314,13 @@ revconfig_item_apply_cache_field(
         strncpy(cache->archive, value, sizeof(cache->archive) - 1);
         break;
     case RCFIELD_CACHE_ARCHIVE_ID:
-        cache->archive_id = atoi(value);
+        cache->archive_id = revconfig_parse_int(value);
+        break;
+    case RCFIELD_CACHE_DEFAULTS_SLOT:
+        cache->defaults_slot = revconfig_parse_int(value);
+        break;
+    case RCFIELD_CACHE_GROUP:
+        strncpy(cache->group, value, sizeof(cache->group) - 1);
         break;
     case RCFIELD_CACHE_CONTAINER:
         strncpy(cache->container, value, sizeof(cache->container) - 1);
@@ -435,10 +1335,10 @@ revconfig_item_apply_cache_field(
         strncpy(cache->format, value, sizeof(cache->format) - 1);
         break;
     case RCFIELD_CACHE_ATLAS_INDEX:
-        cache->atlas_index = atoi(value);
+        cache->atlas_index = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_ATLAS_COUNT:
-        cache->atlas_count = atoi(value);
+        cache->atlas_count = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_TRANSFORM:
         if( cache->transform_count < 4 )
@@ -451,16 +1351,16 @@ revconfig_item_apply_cache_field(
         }
         break;
     case RCFIELD_CACHE_CROP_X:
-        cache->crop_x = atoi(value);
+        cache->crop_x = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_CROP_Y:
-        cache->crop_y = atoi(value);
+        cache->crop_y = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_CROP_WIDTH:
-        cache->crop_width = atoi(value);
+        cache->crop_width = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_CROP_HEIGHT:
-        cache->crop_height = atoi(value);
+        cache->crop_height = revconfig_parse_int(value);
         break;
     default:
         break;
@@ -482,31 +1382,54 @@ revconfig_item_apply_font_field(
         strncpy(font->archive, value, sizeof(font->archive) - 1);
         break;
     case RCFIELD_CACHE_ARCHIVE_ID:
-        font->archive_id = atoi(value);
+        font->archive_id = revconfig_parse_int(value);
         break;
     case RCFIELD_CACHE_FONT_NAME:
         strncpy(font->font_name, value, sizeof(font->font_name) - 1);
         break;
     case RCFIELD_CACHE_FONT_ID:
-        font->cache_font_id = atoi(value);
+        font->cache_font_id = revconfig_parse_int(value);
+        break;
+    case RCFIELD_CACHE_GROUP:
+        strncpy(font->group, value, sizeof(font->group) - 1);
         break;
     default:
         break;
     }
 }
 
+/**
+ * Does `font=` name a font id, or a font in the profile?
+ *
+ * "Parses as a number" is the whole test, so a hex or expression id is a font
+ * id like any other, and the named forms this has to leave alone -- `b12`,
+ * `chrome:bold` -- are exactly the ones that do not parse.
+ */
+/** `yellow` / `red` -> enum ToriRSInkwellColour, or -1 when unrecognised. */
+static int
+revconfig_ink_color_from_name(char const* value)
+{
+    if( !value || !value[0] )
+        return -1;
+    if( strcmp(value, "yellow") == 0 )
+        return TORIRS_INKWELL_YELLOW;
+    if( strcmp(value, "red") == 0 )
+        return TORIRS_INKWELL_RED;
+    return -1;
+}
+
 static int
 revconfig_font_field_is_numeric(const char* value)
 {
+    char const* end = NULL;
+    int parsed = 0;
+
     assert(value);
     if( value[0] == '\0' )
         return 0;
-    for( const char* p = value; *p; p++ )
-    {
-        if( *p < '0' || *p > '9' )
-            return 0;
-    }
-    return 1;
+    if( !revconfig_parse_int_expr(value, &end, &parsed) )
+        return 0;
+    return *revconfig_skip_space(end) == '\0';
 }
 
 static int
@@ -544,6 +1467,8 @@ revconfig_minimenu_action_from_symbol(char const* sym)
     MAP_ACTION(OPHELD4)
     MAP_ACTION(OPHELD5)
     MAP_ACTION(OPHELD6)
+    /* The client's own. @see REVCONFIG_MINIMENU_PLUGIN_PANEL. */
+    MAP_ACTION(PLUGIN_PANEL)
     /* Client.ts aliases */
     if( strcasecmp(sym, "CLOSE_BUTTON") == 0 )
         return REVCONFIG_MINIMENU_CLOSE_MODAL;
@@ -575,12 +1500,12 @@ revconfig_parse_minimenu_action(char const* str)
     if( sym != 0 )
         return sym;
 
-    char* end = NULL;
-    long v = strtol(str, &end, 10);
-    if( end != str && *end == '\0' && v > 0 )
-        return (int)v;
+    char const* end = NULL;
+    int v = 0;
+    if( revconfig_parse_int_expr(str, &end, &v) && *revconfig_skip_space(end) == '\0' && v > 0 )
+        return v;
 
-    fprintf(stderr, "revconfig_parse_minimenu_action: unknown action '%s'\n", str);
+    TORIRS_ERR("revconfig_parse_minimenu_action: unknown action '%s'\n", str);
     assert(false && "unknown minimenu action in revconfig");
     return 0;
 }
@@ -599,7 +1524,7 @@ revconfig_parse_chat_button_filter(char const* value)
         return 2;
     if( strcasecmp(value, "report") == 0 )
         return 3;
-    return atoi(value);
+    return revconfig_parse_int(value);
 }
 
 int
@@ -622,7 +1547,7 @@ revconfig_parse_button_type(char const* str)
     if( strcasecmp(str, "continue") == 0 )
         return REVCONFIG_BUTTON_TYPE_CONTINUE;
 
-    return atoi(str);
+    return revconfig_parse_int(str);
 }
 
 static void
@@ -640,19 +1565,19 @@ revconfig_item_apply_uicomponent_field(
         strncpy(comp->sprite, value, sizeof(comp->sprite) - 1);
         break;
     case RCFIELD_UICOMPONENT_WIDTH:
-        comp->width = atoi(value);
+        comp->width = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_HEIGHT:
-        comp->height = atoi(value);
+        comp->height = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_ANCHOR_X:
-        comp->anchor_x = atoi(value);
+        comp->anchor_x = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_ANCHOR_Y:
-        comp->anchor_y = atoi(value);
+        comp->anchor_y = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_TABNO:
-        comp->tabno = atoi(value);
+        comp->tabno = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_SELECTED:
         comp->selected = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
@@ -661,11 +1586,15 @@ revconfig_item_apply_uicomponent_field(
         strncpy(comp->slot, value, sizeof(comp->slot) - 1);
         comp->slot[sizeof(comp->slot) - 1] = '\0';
         break;
+    case RCFIELD_UICOMPONENT_ROLE:
+        strncpy(comp->role, value, sizeof(comp->role) - 1);
+        comp->role[sizeof(comp->role) - 1] = '\0';
+        break;
     case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         strncpy(comp->sprite_active, value, sizeof(comp->sprite_active) - 1);
         break;
     case RCFIELD_UICOMPONENT_COMPONENTNO:
-        comp->componentno = atoi(value);
+        comp->componentno = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_INV:
         strncpy(comp->inv, value, sizeof(comp->inv) - 1);
@@ -673,12 +1602,6 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         strncpy(comp->paint_levels, value, sizeof(comp->paint_levels) - 1);
         comp->paint_levels[sizeof(comp->paint_levels) - 1] = '\0';
-        break;
-    case RCFIELD_UICOMPONENT_MMB_ROTATE:
-        comp->mmb_rotate = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
-        break;
-    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
-        comp->wheel_zoom = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_HOTKEY:
         /* Repeatable, like transform= and inv item=: each line appends. */
@@ -693,15 +1616,27 @@ revconfig_item_apply_uicomponent_field(
         }
         break;
     case RCFIELD_UICOMPONENT_COLOR:
-        comp->color = atoi(value);
+        comp->color = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_FILLED:
         comp->filled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
+    case RCFIELD_UICOMPONENT_TILED:
+        comp->tiled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_INK_STYLE:
+        comp->ink_style = ToriRSInkwell_StyleFromName(value);
+        break;
+    case RCFIELD_UICOMPONENT_INK_WALK_COLOR:
+        comp->ink_walk_color = revconfig_ink_color_from_name(value);
+        break;
+    case RCFIELD_UICOMPONENT_INK_INTERACT_COLOR:
+        comp->ink_interact_color = revconfig_ink_color_from_name(value);
+        break;
     case RCFIELD_UICOMPONENT_FONT:
         if( revconfig_font_field_is_numeric(value) )
         {
-            comp->font = atoi(value);
+            comp->font = revconfig_parse_int(value);
             comp->has_font_ref = 0;
             comp->font_ref[0] = '\0';
         }
@@ -715,12 +1650,72 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_CENTER:
         comp->center = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
+    case RCFIELD_UICOMPONENT_VALIGN:
+        comp->valign = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_OVER_COLOR:
+        comp->over_color = revconfig_parse_int(value);
+        break;
     case RCFIELD_UICOMPONENT_SHADOWED:
         comp->shadowed = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_TEXT:
         strncpy(comp->text, value, sizeof(comp->text) - 1);
         comp->text[sizeof(comp->text) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_FIELD:
+        strncpy(comp->title_field, value, sizeof(comp->title_field) - 1);
+        comp->title_field[sizeof(comp->title_field) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PREFIX:
+        strncpy(comp->title_prefix, value, sizeof(comp->title_prefix) - 1);
+        comp->title_prefix[sizeof(comp->title_prefix) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET:
+        strncpy(comp->title_caret, value, sizeof(comp->title_caret) - 1);
+        comp->title_caret[sizeof(comp->title_caret) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CARET_BLINK:
+        comp->title_caret_blink = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MASK:
+        strncpy(comp->title_mask, value, sizeof(comp->title_mask) - 1);
+        comp->title_mask[sizeof(comp->title_mask) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MAXLEN:
+        comp->title_maxlen = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_CHARSET:
+        strncpy(comp->title_charset, value, sizeof(comp->title_charset) - 1);
+        comp->title_charset[sizeof(comp->title_charset) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_ACTION:
+        strncpy(comp->title_action, value, sizeof(comp->title_action) - 1);
+        comp->title_action[sizeof(comp->title_action) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_MESSAGE_INDEX:
+        comp->title_message_index = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_TITLE_PX_PER_PERCENT:
+        comp->title_px_per_percent = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BIAS:
+        comp->flame_bias = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_SWAY:
+        comp->flame_sway = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_RUN:
+        comp->flame_run = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_ROW:
+        comp->flame_row = revconfig_parse_int(value);
+        break;
+    case RCFIELD_UICOMPONENT_FLAME_BLUR:
+        strncpy(comp->flame_blur, value, sizeof(comp->flame_blur) - 1);
+        break;
+    case RCFIELD_UICOMPONENT_TEXT_BASELINE:
+        comp->text_baseline = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_OPTION:
         strncpy(comp->option, value, sizeof(comp->option) - 1);
@@ -768,7 +1763,7 @@ revconfig_item_apply_uicomponent_field(
         comp->button_type = revconfig_parse_button_type(value);
         break;
     case RCFIELD_UICOMPONENT_CLIENT_CODE:
-        comp->client_code = atoi(value);
+        comp->client_code = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_OP_REPORT_ABUSE:
         strncpy(comp->chat_op_report_abuse, value, sizeof(comp->chat_op_report_abuse) - 1);
@@ -805,6 +1800,10 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_CHAT_OP_ACCEPT_DUEL_ACTION:
         comp->chat_op_accept_duel_action = revconfig_parse_minimenu_action(value);
         break;
+    case RCFIELD_UICOMPONENT_CHAT_PROMPT:
+        strncpy(comp->chat_prompt, value, sizeof(comp->chat_prompt) - 1);
+        comp->chat_prompt[sizeof(comp->chat_prompt) - 1] = '\0';
+        break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_FILTER:
         comp->chat_button_filter = revconfig_parse_chat_button_filter(value);
         break;
@@ -813,10 +1812,10 @@ revconfig_item_apply_uicomponent_field(
         comp->chat_button_label[sizeof(comp->chat_button_label) - 1] = '\0';
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_LABEL_Y:
-        comp->chat_button_label_y = atoi(value);
+        comp->chat_button_label_y = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE_Y:
-        comp->chat_button_mode_y = atoi(value);
+        comp->chat_button_mode_y = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0:
         strncpy(comp->chat_button_mode_label[0], value, sizeof(comp->chat_button_mode_label[0]) - 1);
@@ -835,16 +1834,16 @@ revconfig_item_apply_uicomponent_field(
         comp->chat_button_mode_label[3][sizeof(comp->chat_button_mode_label[3]) - 1] = '\0';
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE0_COLOR:
-        comp->chat_button_mode_color[0] = atoi(value);
+        comp->chat_button_mode_color[0] = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE1_COLOR:
-        comp->chat_button_mode_color[1] = atoi(value);
+        comp->chat_button_mode_color[1] = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE2_COLOR:
-        comp->chat_button_mode_color[2] = atoi(value);
+        comp->chat_button_mode_color[2] = revconfig_parse_int(value);
         break;
     case RCFIELD_UICOMPONENT_CHAT_BUTTON_MODE3_COLOR:
-        comp->chat_button_mode_color[3] = atoi(value);
+        comp->chat_button_mode_color[3] = revconfig_parse_int(value);
         break;
     default:
         break;
@@ -863,39 +1862,63 @@ revconfig_item_apply_uilayout_field(
         strncpy(layout->component, value, sizeof(layout->component) - 1);
         break;
     case RCFIELD_UILAYOUT_X:
-        layout->x = atoi(value);
+        layout->x = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_Y:
-        layout->y = atoi(value);
+        layout->y = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_WIDTH:
-        layout->width = atoi(value);
+        layout->width = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_HEIGHT:
-        layout->height = atoi(value);
+        layout->height = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_ANCHOR_X:
-        layout->anchor_x = atoi(value);
+        layout->anchor_x = revconfig_parse_int(value);
         layout->has_anchor = 1;
         break;
     case RCFIELD_UILAYOUT_ANCHOR_Y:
-        layout->anchor_y = atoi(value);
+        layout->anchor_y = revconfig_parse_int(value);
         layout->has_anchor = 1;
         break;
     case RCFIELD_UILAYOUT_TOP:
-        layout->top = atoi(value);
+        layout->top = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_LEFT:
-        layout->left = atoi(value);
+        layout->left = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_BOTTOM:
-        layout->bottom = atoi(value);
+        layout->bottom = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_RIGHT:
-        layout->right = atoi(value);
+        layout->right = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_DIRTY:
         layout->dirty = 1;
+        break;
+    case RCFIELD_UILAYOUT_XALIGN:
+        layout->xalign_center = strcmp(value, "center") == 0 || strcmp(value, "centre") == 0;
+        break;
+    case RCFIELD_UILAYOUT_SAFE_AREA:
+        /* `<area>:<edge>`. Both halves are required and both are checked: an
+         * unrecognised half is a typo in a profile, and a typo that silently
+         * means "never move" is a login box under a keyboard on a device the
+         * author cannot see. */
+        if( strcmp(value, "os:bottom") == 0 )
+        {
+            layout->safe_area_source = REVCONFIG_SAFE_AREA_SOURCE_OS;
+            layout->safe_area_flags |= REVCONFIG_SAFE_AREA_FLAG_BOTTOM;
+        }
+        else
+        {
+            TORIRS_ERR(
+                "revconfig: layout safe_area= expects <area>:<edge> "
+                "('os:bottom' is the only one this client resolves), got '%s'\n",
+                value);
+        }
+        break;
+    case RCFIELD_UILAYOUT_SAFE_AREA_MARGIN:
+        layout->safe_area_margin = revconfig_parse_int(value);
         break;
     case RCFIELD_UILAYOUT_PARENT:
         strncpy(layout->parent, value, sizeof(layout->parent) - 1);
@@ -906,6 +1929,402 @@ revconfig_item_apply_uilayout_field(
     case RCFIELD_UILAYOUT_GROUP:
         strncpy(layout->layout_group, value, sizeof(layout->layout_group) - 1);
         break;
+    default:
+        break;
+    }
+}
+
+static void
+revconfig_item_apply_features_field(
+    struct RevConfigFeaturesItem* features,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(features);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_FEATURES_ERA:
+        strncpy(features->era, value, sizeof(features->era) - 1);
+        features->era[sizeof(features->era) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_NEAREST:
+        strncpy(
+            features->ground_click_nearest,
+            value,
+            sizeof(features->ground_click_nearest) - 1);
+        features->ground_click_nearest[sizeof(features->ground_click_nearest) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_MOVER:
+        strncpy(features->mover, value, sizeof(features->mover) - 1);
+        features->mover[sizeof(features->mover) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED:
+        features->ground_click_unbounded = revconfig_parse_int(value) ? 1 : 0;
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_OFFMAP:
+        features->ground_click_offmap = revconfig_parse_int(value) ? 1 : 0;
+        break;
+    case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
+        features->painter_draw_distance = revconfig_parse_int(value);
+        break;
+    case RCFIELD_FEATURES_CLIENTTYPE:
+        features->clienttype = revconfig_parse_int(value);
+        break;
+    case RCFIELD_FEATURES_ON_MOBILE:
+        features->on_mobile = revconfig_parse_int(value) ? 1 : 0;
+        break;
+    default:
+        break;
+    }
+}
+
+/*
+ * Every number in `[camera]` is one integer expression and nothing else.
+ *
+ * Shared rather than repeated per key so that `rest=600`, `zoom_closest=60`
+ * and `wheel_step=(600 / 10)` cannot end up accepting three different
+ * grammars. The trailing check is what makes `240,2160` an error instead of a
+ * silent 240 -- the band is two keys now, and a leftover comma is somebody
+ * still writing the old combined one.
+ */
+static int
+camera_parse_number(char const* value, int* out_number)
+{
+    char const* end;
+
+    assert(value);
+    assert(out_number);
+    if( !revconfig_parse_int_expr(value, &end, out_number) )
+        return 0;
+    return *revconfig_skip_space(end) == '\0';
+}
+
+/** `yes|no` for the one camera key that states a fact rather than a number.
+ *  Returns -1 for anything else, which the caller reports. */
+static int
+camera_parse_bool(char const* value)
+{
+    assert(value);
+    if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+        return 1;
+    if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+        return 0;
+    return -1;
+}
+
+static void
+revconfig_item_apply_frame_field(
+    struct RevConfigFrameItem* frame,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(frame);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_FRAME_CAP_FPS:
+    {
+        int fps;
+        if( camera_parse_number(value, &fps) && fps >= 0 && fps <= 1000 )
+        {
+            frame->cap_fps = fps;
+            frame->has_cap_fps = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [frame] cap_fps must be 0 (none) or a rate up to "
+                "1000, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_FRAME_CAP_SOURCE:
+        if( strcmp(value, "revconfig") == 0 )
+        {
+            frame->cap_source = REVCONFIG_FRAME_CAP_REVCONFIG;
+            frame->has_cap_source = 1;
+        }
+        else if( strcmp(value, "cs2") == 0 )
+        {
+            frame->cap_source = REVCONFIG_FRAME_CAP_CS2;
+            frame->has_cap_source = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [frame] cap_source must be revconfig or cs2, "
+                "got '%s'\n", value);
+        break;
+    default:
+        break;
+    }
+}
+
+static void
+revconfig_item_apply_camera_field(
+    struct RevConfigCameraItem* camera,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(camera);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_CAMERA_REST:
+    {
+        int rest;
+        if( camera_parse_number(value, &rest) && rest > 0 )
+        {
+            camera->rest = rest;
+            camera->has_rest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] rest must be a distance > 0, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_CAMERA_ZOOM_CLOSEST:
+    {
+        int closest;
+        if( camera_parse_number(value, &closest) && closest > 0 )
+        {
+            camera->zoom_closest = closest;
+            camera->has_zoom_closest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_closest must be a distance > 0, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_ZOOM_FURTHEST:
+    {
+        int furthest;
+        if( camera_parse_number(value, &furthest) && furthest > 0 )
+        {
+            camera->zoom_furthest = furthest;
+            camera->has_zoom_furthest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] zoom_furthest must be a distance > 0, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_WHEEL_STEP:
+    {
+        int step;
+        if( camera_parse_number(value, &step) && step > 0 )
+        {
+            camera->wheel_step = step;
+            camera->has_wheel_step = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] wheel_step must be a distance > 0, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_DISTANCE_SCALE:
+    {
+        int percent;
+        /* Bounded rather than merely positive: 1% puts the eye inside the
+         * player's head and 10000% outside the scene, and both arrive as a
+         * black frame nobody would trace back to this line. The band is wide
+         * enough for any view a device could want. */
+        if( camera_parse_number(value, &percent) && percent >= 10 && percent <= 400 )
+        {
+            camera->distance_scale = percent;
+            camera->has_distance_scale = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] distance_scale must be a percentage in "
+                "10..400, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_VIEWPORT_ZOOM:
+    {
+        int on = camera_parse_bool(value);
+        if( on >= 0 )
+        {
+            camera->viewport_zoom = on;
+            camera->has_viewport_zoom = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] viewport_zoom must be yes|no, got '%s'\n", value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_DISTANCE:
+    {
+        int per_angle;
+        /* 0 is allowed and means a camera that does not pull back at all as it
+         * tips -- a real answer, and the one a top-down lane would want. The
+         * ceiling is where the steepest angle alone is already past any band
+         * a profile could state. */
+        if( camera_parse_number(value, &per_angle) && per_angle >= 0 && per_angle <= 16 )
+        {
+            camera->pitch_distance = per_angle;
+            camera->has_pitch_distance = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_distance must be fine units per angle "
+                "unit in 0..16, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_FLATTEST:
+    {
+        int angle;
+        if( camera_parse_number(value, &angle) && angle >= 0 && angle < 512 )
+        {
+            camera->pitch_flattest = angle;
+            camera->has_pitch_flattest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_flattest must be an angle in 0..511 "
+                "(2048 to a turn), got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_PITCH_STEEPEST:
+    {
+        int angle;
+        /* Both ends stop at 512 -- a quarter turn -- because past it the eye
+         * is placed below the anchor and the follow camera is upside down. */
+        if( camera_parse_number(value, &angle) && angle >= 0 && angle < 512 )
+        {
+            camera->pitch_steepest = angle;
+            camera->has_pitch_steepest = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] pitch_steepest must be an angle in 0..511 "
+                "(2048 to a turn), got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_CONTROLS:
+    {
+        int controls = revconfig_parse_camera_controls(value);
+        if( controls >= 0 )
+        {
+            camera->controls = controls;
+            camera->has_controls = 1;
+        }
+        else
+            TORIRS_ERR("revconfig: [camera] controls must be a comma list of "
+                "mmb|arrow_keys, got '%s'\n",
+                value);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/** The INI spelling of one `[chrome]` key, for the complaints below: the reader
+ *  of a bad profile is holding the INI, not this enum. */
+static char const*
+revconfig_chrome_key_str(enum RevConfigFieldKind kind)
+{
+    switch( kind )
+    {
+    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
+        return "plugin_button_parent";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+        return "plugin_button_x";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+        return "plugin_button_y";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+        return "plugin_button_w";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
+        return "plugin_button_h";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        return "plugin_button_align";
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
+        return "plugin_button_margin";
+    default:
+        return revconfig_field_kind_str(kind);
+    }
+}
+
+/**
+ * One `[chrome]` key.
+ *
+ * A number that does not parse is REPORTED and left unstated, rather than
+ * applied as the 0 atoi() hands back: a plate zero pixels tall is an invisible
+ * button in the middle of the logout tab, which is a far worse answer than the
+ * client simply not building one on this revision.
+ */
+static void
+revconfig_item_apply_chrome_field(
+    struct RevConfigChromeItem* chrome,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(chrome);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_CHROME_PLUGIN_IFACE:
+        strncpy(chrome->plugin_iface, value, sizeof(chrome->plugin_iface) - 1);
+        chrome->plugin_iface[sizeof(chrome->plugin_iface) - 1] = '\0';
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
+        strncpy(chrome->plugin_button_op, value, sizeof(chrome->plugin_button_op) - 1);
+        chrome->plugin_button_op[sizeof(chrome->plugin_button_op) - 1] = '\0';
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
+        strncpy(chrome->plugin_button_anchor, value, sizeof(chrome->plugin_button_anchor) - 1);
+        chrome->plugin_button_anchor[sizeof(chrome->plugin_button_anchor) - 1] = '\0';
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
+        /* An edge, by name. An unknown word is REPORTED and left unstated, the
+         * same as an unparseable number below: guessing `top` for a profile
+         * that meant something else puts the plate over the panel's own
+         * heading, which reads as a layout bug rather than as a typo. */
+        if( strcmp(value, "top") == 0 )
+            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_TOP;
+        else if( strcmp(value, "bottom") == 0 )
+            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_BOTTOM;
+        else
+            TORIRS_LOG(
+                "revconfig: [chrome] plugin_button_align must be top or bottom, got '%s'\n",
+                value);
+        break;
+    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
+    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
+    {
+        int const n = revconfig_parse_int(value);
+        /* A geometry of nothing is not a smaller button, it is an invisible
+         * one; a child or a position cannot be negative. */
+        int const floor_value =
+            (kind == RCFIELD_CHROME_PLUGIN_BUTTON_W ||
+             kind == RCFIELD_CHROME_PLUGIN_BUTTON_H)
+                ? 1
+                : 0;
+        if( n < floor_value )
+        {
+            TORIRS_LOG("revconfig: [chrome] %s must be >= %d, got '%s'\n",
+                revconfig_chrome_key_str(kind),
+                floor_value,
+                value);
+            break;
+        }
+        if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN )
+            chrome->plugin_button_margin = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_PARENT )
+            chrome->plugin_button_parent = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_X )
+            chrome->plugin_button_x = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_Y )
+            chrome->plugin_button_y = n;
+        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_W )
+            chrome->plugin_button_w = n;
+        else
+            chrome->plugin_button_h = n;
+        break;
+    }
     default:
         break;
     }
@@ -944,6 +2363,93 @@ revconfig_item_apply_field(
                 sizeof(item->u.inv.items[item->u.inv.item_count]) - 1);
             item->u.inv.item_count++;
         }
+        break;
+    case RCITEM_CACHE_REF:
+        if( kind == RCFIELD_CACHEREF_ID )
+            item->u.cacheref.id = revconfig_parse_int(value);
+        break;
+    case RCITEM_STRING:
+        if( kind == RCFIELD_STRING_TEXT )
+        {
+            strncpy(item->u.string.text, value, sizeof(item->u.string.text) - 1);
+            item->u.string.text[sizeof(item->u.string.text) - 1] = '\0';
+        }
+        break;
+    case RCITEM_PRELOAD:
+        switch( kind )
+        {
+        case RCFIELD_PRELOAD_KIND:
+            strncpy(item->u.preload.kind, value, sizeof(item->u.preload.kind) - 1);
+            break;
+        case RCFIELD_PRELOAD_ARCHIVE:
+            strncpy(item->u.preload.archive, value, sizeof(item->u.preload.archive) - 1);
+            break;
+        case RCFIELD_PRELOAD_SAY:
+            strncpy(item->u.preload.say, value, sizeof(item->u.preload.say) - 1);
+            break;
+        case RCFIELD_PRELOAD_ID:
+            item->u.preload.id = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_PERCENT:
+            item->u.preload.percent = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_WEIGHT:
+            item->u.preload.weight = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_ORDER:
+            item->u.preload.order = revconfig_parse_int(value);
+            break;
+        case RCFIELD_PRELOAD_RENDER:
+            item->u.preload.render = (strcmp(value, "true") == 0 ||
+                                      strcmp(value, "yes") == 0 || strcmp(value, "1") == 0)
+                                         ? 1
+                                         : 0;
+            break;
+        default:
+            break;
+        }
+        break;
+    case RCITEM_LOGIN_REPLY:
+        if( kind == RCFIELD_LOGIN_REPLY_SCREEN )
+        {
+            item->u.login_reply.screen = revconfig_parse_int(value);
+        }
+        else if(
+            kind == RCFIELD_LOGIN_REPLY_LINE1 || kind == RCFIELD_LOGIN_REPLY_LINE2 ||
+            kind == RCFIELD_LOGIN_REPLY_LINE3 )
+        {
+            int line = kind == RCFIELD_LOGIN_REPLY_LINE1   ? 0
+                       : kind == RCFIELD_LOGIN_REPLY_LINE2 ? 1
+                                                           : 2;
+            strncpy(
+                item->u.login_reply.line[line],
+                value,
+                sizeof(item->u.login_reply.line[line]) - 1);
+            item->u.login_reply.line[line][sizeof(item->u.login_reply.line[line]) - 1] = '\0';
+        }
+        break;
+    case RCITEM_ROLE:
+        if( kind == RCFIELD_ROLE_MATCH &&
+            item->u.role.matcher_count < REVCONFIG_ROLE_MAX_MATCHERS )
+        {
+            /* A line that does not parse has already been reported; dropping
+             * it keeps the rungs that DID parse working. */
+            if( revconfig_parse_role_matcher(
+                    value, &item->u.role.matchers[item->u.role.matcher_count]) )
+                item->u.role.matcher_count++;
+        }
+        break;
+    case RCITEM_FEATURES:
+        revconfig_item_apply_features_field(&item->u.features, kind, value);
+        break;
+    case RCITEM_CAMERA:
+        revconfig_item_apply_camera_field(&item->u.camera, kind, value);
+        break;
+    case RCITEM_FRAME:
+        revconfig_item_apply_frame_field(&item->u.frame, kind, value);
+        break;
+    case RCITEM_CHROME:
+        revconfig_item_apply_chrome_field(&item->u.chrome, kind, value);
         break;
     case RCITEM_HOTKEY:
         if( kind == RCFIELD_HOTKEY_COMPONENT )
@@ -1010,4 +2516,328 @@ revconfig_items_build(
             break;
         }
     }
+}
+
+void
+revconfig_camera_default_band(int rest, int* out_closest, int* out_furthest)
+{
+    assert(rest > 0);
+    assert(out_closest);
+    assert(out_furthest);
+
+    *out_closest = rest * REVCONFIG_CAMERA_ZOOM_CLOSEST_PCT / 100;
+    *out_furthest = rest * REVCONFIG_CAMERA_ZOOM_FURTHEST_PCT / 100;
+    /* A rest small enough to round the band flat still has to leave the wheel
+     * somewhere to go, or `closest < furthest` reads as "does not zoom". */
+    if( *out_closest < 1 )
+        *out_closest = 1;
+    if( *out_furthest <= *out_closest )
+        *out_furthest = *out_closest + 1;
+}
+
+int
+revconfig_parse_camera_controls(char const* str)
+{
+    int controls = 0;
+    char const* p;
+
+    assert(str);
+
+    p = revconfig_skip_space(str);
+    while( *p )
+    {
+        char name[32];
+        char const* end = strchr(p, ',');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+
+        while( len > 0 && (p[len - 1] == ' ' || p[len - 1] == '\t') )
+            len--;
+        if( len >= sizeof(name) )
+            return -1;
+        memcpy(name, p, len);
+        name[len] = '\0';
+
+        if( strcmp(name, "mmb") == 0 )
+            controls |= REVCONFIG_CAMERA_CONTROL_MMB;
+        else if( strcmp(name, "arrow_keys") == 0 )
+            controls |= REVCONFIG_CAMERA_CONTROL_ARROW_KEYS;
+        else if( name[0] != '\0' )
+            return -1;
+
+        if( !end )
+            break;
+        p = revconfig_skip_space(end + 1);
+    }
+    return controls;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * [role:…] matcher parsing
+ * ---------------------------------------------------------------------------
+ *
+ * Every form is `<head>(<args>)`, so the whole grammar is one split plus a
+ * per-head reading of the arguments. Nested calls are ordinary here -- both
+ * `id(if(553, 0))` and `cc(iface(xpdrop), 4)` carry a call inside an argument
+ * -- so argument splitting counts parenthesis depth rather than taking the
+ * first comma it sees.
+ */
+
+/** Copy `src[0..len)` into `dst` with the ends trimmed. 0 when it will not fit. */
+static int
+revconfig_role_copy_trimmed(char* dst, size_t cap, char const* src, size_t len)
+{
+    assert(dst);
+    assert(src);
+
+    while( len > 0 && (*src == ' ' || *src == '\t') )
+    {
+        src++;
+        len--;
+    }
+    while( len > 0 && (src[len - 1] == ' ' || src[len - 1] == '\t') )
+        len--;
+
+    if( len >= cap )
+        return 0;
+    memcpy(dst, src, len);
+    dst[len] = '\0';
+    return 1;
+}
+
+/**
+ * Split `str` as `<head>(<body>)`, with nothing but space after the close.
+ *
+ * Returns 1 and points `out_body`/`out_body_len` at the inside of the parens.
+ */
+static int
+revconfig_role_split_call(
+    char const* str,
+    char* out_head,
+    size_t head_cap,
+    char const** out_body,
+    size_t* out_body_len)
+{
+    char const* open;
+    char const* p;
+    int depth;
+
+    assert(str);
+    assert(out_head);
+    assert(out_body);
+    assert(out_body_len);
+
+    open = strchr(str, '(');
+    if( !open )
+        return 0;
+    if( !revconfig_role_copy_trimmed(out_head, head_cap, str, (size_t)(open - str)) )
+        return 0;
+    if( out_head[0] == '\0' )
+        return 0;
+
+    depth = 0;
+    for( p = open; *p; p++ )
+    {
+        if( *p == '(' )
+            depth++;
+        else if( *p == ')' )
+        {
+            depth--;
+            if( depth == 0 )
+                break;
+        }
+    }
+    if( depth != 0 || *p != ')' )
+        return 0;
+
+    /* A trailing tail -- `id(4) junk` -- is a malformed line, not a matcher
+     * with something ignorable after it. */
+    if( *revconfig_skip_space(p + 1) != '\0' )
+        return 0;
+
+    *out_body = open + 1;
+    *out_body_len = (size_t)(p - (open + 1));
+    return 1;
+}
+
+/**
+ * Offset of the comma separating the first argument of `s[0..len)` from the
+ * rest, skipping any nested call's own commas. -1 when there is only one.
+ */
+static long
+revconfig_role_arg_split(char const* s, size_t len)
+{
+    int depth = 0;
+
+    assert(s);
+
+    for( size_t i = 0; i < len; i++ )
+    {
+        if( s[i] == '(' )
+            depth++;
+        else if( s[i] == ')' )
+            depth--;
+        else if( s[i] == ',' && depth == 0 )
+            return (long)i;
+    }
+    return -1;
+}
+
+/** Parse `s[0..len)` as one whole integer expression. */
+static int
+revconfig_role_parse_int(char const* s, size_t len, int* out_value)
+{
+    char buf[64];
+    char const* end;
+
+    assert(s);
+    assert(out_value);
+
+    if( !revconfig_role_copy_trimmed(buf, sizeof(buf), s, len) )
+        return 0;
+    if( buf[0] == '\0' )
+        return 0;
+    if( !revconfig_parse_int_expr(buf, &end, out_value) )
+        return 0;
+    return *revconfig_skip_space(end) == '\0';
+}
+
+/** Parse an `id(<expr>)` or `iface(<name>[, <child>])` reference. */
+static int
+revconfig_role_parse_ref(char const* s, size_t len, struct RevConfigRoleRef* out)
+{
+    char text[64];
+    char head[32];
+    char const* body;
+    size_t body_len;
+    long comma;
+
+    assert(s);
+    assert(out);
+
+    if( !revconfig_role_copy_trimmed(text, sizeof(text), s, len) )
+        return 0;
+    if( !revconfig_role_split_call(text, head, sizeof(head), &body, &body_len) )
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+
+    if( strcmp(head, "id") == 0 )
+    {
+        if( !revconfig_role_parse_int(body, body_len, &out->value) )
+            return 0;
+        out->kind = REVCONFIG_ROLE_MATCH_ID;
+        return 1;
+    }
+
+    if( strcmp(head, "iface") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+        {
+            if( !revconfig_role_copy_trimmed(
+                    out->name, sizeof(out->name), body, body_len) )
+                return 0;
+            /* Child 0 is the group's own root, which is what naming a group
+             * with no child means. */
+            out->value = 0;
+        }
+        else
+        {
+            if( !revconfig_role_copy_trimmed(
+                    out->name, sizeof(out->name), body, (size_t)comma) )
+                return 0;
+            if( !revconfig_role_parse_int(
+                    body + comma + 1, body_len - (size_t)comma - 1, &out->value) )
+                return 0;
+        }
+        if( out->name[0] == '\0' )
+            return 0;
+        out->kind = REVCONFIG_ROLE_MATCH_IFACE;
+        return 1;
+    }
+
+    return 0;
+}
+
+int
+revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out)
+{
+    struct RevConfigRoleMatcher matcher;
+    char head[32];
+    char const* body;
+    size_t body_len;
+    long comma;
+
+    assert(str);
+    assert(out);
+
+    memset(&matcher, 0, sizeof(matcher));
+    matcher.value = -1;
+
+    if( !revconfig_role_split_call(str, head, sizeof(head), &body, &body_len) )
+        goto malformed;
+
+    if( strcmp(head, "slot") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+        {
+            if( !revconfig_role_copy_trimmed(
+                    matcher.slot, sizeof(matcher.slot), body, body_len) )
+                goto malformed;
+        }
+        else
+        {
+            if( !revconfig_role_copy_trimmed(
+                    matcher.slot, sizeof(matcher.slot), body, (size_t)comma) )
+                goto malformed;
+            /* Kept verbatim: which numbering a member is in belongs to the
+             * role -- a chat button's filter has names, a sidebar mount's
+             * tabno does not -- and that is the ui layer's to know. */
+            if( !revconfig_role_copy_trimmed(
+                    matcher.member,
+                    sizeof(matcher.member),
+                    body + comma + 1,
+                    body_len - (size_t)comma - 1) )
+                goto malformed;
+            if( matcher.member[0] == '\0' )
+                goto malformed;
+        }
+        if( matcher.slot[0] == '\0' )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_SLOT;
+    }
+    else if( strcmp(head, "clientcode") == 0 )
+    {
+        if( !revconfig_role_parse_int(body, body_len, &matcher.value) )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_CLIENTCODE;
+    }
+    else if( strcmp(head, "cc") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+            goto malformed;
+        if( !revconfig_role_parse_ref(body, (size_t)comma, &matcher.ref) )
+            goto malformed;
+        if( !revconfig_role_parse_int(
+                body + comma + 1, body_len - (size_t)comma - 1, &matcher.value) )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_CC;
+    }
+    else
+    {
+        /* id() and iface() are references in their own right. */
+        if( !revconfig_role_parse_ref(str, strlen(str), &matcher.ref) )
+            goto malformed;
+        matcher.kind = matcher.ref.kind;
+    }
+
+    *out = matcher;
+    return 1;
+
+malformed:
+    TORIRS_LOG("revconfig: unrecognised role matcher '%s'\n", str);
+    return 0;
 }

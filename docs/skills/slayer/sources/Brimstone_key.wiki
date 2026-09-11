@@ -1,0 +1,68 @@
+{{otheruses|def=no|the corresponding chest|brimstone chest}}
+{{Infobox Item
+|name = Brimstone key
+|image = [[File:Brimstone key 1.png]] [[File:Brimstone key 2.png]] [[File:Brimstone key 3.png]] [[File:Brimstone key 4.png]] [[File:Brimstone key 5.png]] [[File:Brimstone key 10.png]] [[File:Brimstone key 20.png]]
+|release = [[7 February]] [[2019]]
+|update = X Marks The Spot
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Unlocks Konar's chest found atop Mount Karuulm.
+|value = 80000
+|alchable = No
+|weight = 0.000
+|id = 23083
+}}
+[[File:Brimstone key detail.png|left|150px]]
+The '''brimstone key''' can be obtained from killing monsters while on a [[Slayer task]] given by [[Konar quo Maten]]. It is used to open the [[brimstone chest]]. The average value of a drop from the brimstone chest is {{Coins|{{Average drop value|Brimstone chest|raw=yes}}}} (HA: {{Coins|{{Average drop value|Brimstone chest|raw=yes|alch=yes}}}}). Upon [[death]] in the [[Wilderness]], a brimstone key converts to two [[coins]] for the killer.
+
+The probability of receiving a key as a drop increases with the slain monster's [[Combat level]]. For monsters with combat level 100 or higher, the probability is between <math>1/100</math> and <math>1/50</math>, capping at level 350. Specifically, the probability for a monster with combat level <math>L</math> is{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1083781544135847936|date=16 January 2019|archiveurl=https://reldo.runescape.wiki/i/106148|archivedate=26 May 2020|quote=It follows a curve up until level 100 then scales linearly between those 2 values upto level 350 combat. Creatures over thsi{{sic}} will cap at 1/50. [https://pbs.twimg.com/media/DwpdLK2W0AEynZy.jpg]}}
+:<center><math>\frac{1}{120 - \left\lfloor L/5 \right\rfloor}</math></center>
+For monsters with combat level <math>L</math> smaller than level 100, the probability follows the curve{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1083783815141707781|date=16 January 2019|archiveurl=https://reldo.runescape.wiki/i/97247|archivedate=29 April 2020|quote=0.2*(CBLEVEL - 100)^2 + 100}}
+:<center><math>\frac{1}{100 + \left\lfloor (100 - L)^2/5 \right\rfloor}</math></center>
+Additionally, if the monster has a [[Slayer]] level requirement, there is a 20% boost in the drop probability.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1269996125387460608|date=8 June 2020|archiveurl=http://archive.is/mRtA0|archivedate=11 June 2020}}
+
+A brimstone key is always dropped by a [[superior slayer monster]] assigned by Konar.
+
+{{Chart data|Chart data/brimstone key drop rate|width=40vw|height=40vh}}
+
+==Item sources==
+{{Drop sources|Brimstone key}}
+
+==Gallery==
+<gallery mode="package">
+Brimstone key detail.png|One brimstone key
+Brimstone key 2 detail.png|Two brimstone keys
+Brimstone key 3 detail.png|Three brimstone keys
+Brimstone key 4 detail.png|Four brimstone keys
+Brimstone key 5 detail.png|Five brimstone keys
+Brimstone key 10 detail.png|Ten brimstone keys
+Brimstone key 20 detail.png|Twenty brimstone keys
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Superior slayer monsters are now guaranteed to drop brimstone keys when on a task from Konar.
+}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll =
+|change = A bug causing the Brimstone key drop rate to be lower than intended for monsters with a combat level of 100 or higher was fixed.{{CiteTwitter|url=https://twitter.com/JagexAsh/status/1269231714586501120|archiveurl=https://reldo.runescape.wiki/i/100140|archivedate=8 June 2020|author=Mod Ash|date=6 June 2020|quote=Actually Mod Maylea & I had this fixed in the update before last - sorry it didn't make the newspost at the time.}}
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The symbol on the key is a taijitu which represents the concept of {{WP|Yin and yang}} ("<big>阴阳</big>"/"<big>陰陽</big>"), which, in Chinese philosophy, are the two "primal" elements which create, shape, and influence everything in existence and have to be kept in balance. This references the philosophy of the [[Kahlith]] and their masters, the [[Tasakaal]], which is to maintain the balance between life and death.
+
+==References==
+{{reflist}}
+
+{{Keys}}

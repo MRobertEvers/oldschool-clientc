@@ -1,0 +1,1118 @@
+# God Wars Dungeon implementation plan
+
+Last audited: **2026-08-17** against the OSRS revision-239 cache and the live
+OSRS Wiki revisions named below.
+
+## Scope and completion rule
+
+This plan covers the main [God Wars Dungeon](https://oldschool.runescape.wiki/w/God_Wars_Dungeon),
+all four original strongholds and boss rooms, the Frozen Door and Ancient
+Prison, and [Nex](https://oldschool.runescape.wiki/w/Nex). It does not cover the
+[Wilderness God Wars Dungeon](https://oldschool.runescape.wiki/w/Wilderness_God_Wars_Dungeon).
+
+“Implemented” means all of the following are true for **every** NPC variant in
+the roster, not merely that it can spawn and use the default melee handler:
+
+- [x] Its cache ID/gameval, display version, spawn, faction, combat level,
+  Slayer requirement, aggression rule, movement, respawn, and kill-count
+  behavior are recorded and tested.
+- [x] Every player-facing and NPC-vs-NPC attack uses the correct style, range,
+  accuracy stat, maximum hit, cadence, target-selection rule, protection-prayer
+  reduction, and secondary effect.
+- [x] Every attack, defend, death, transform, movement, projectile, spot
+  animation, graphic, overhead icon, sound, forced movement, and hitsplat is
+  mapped to a symbolic cache name and occurs on the correct tick.
+- [x] Every special attack has deterministic tests for selection, safe tiles,
+  target caps, damage, state changes, cleanup, and multiplayer behavior.
+- [x] Every death uses its own exact 100%, unique, regular, shared subtable, and
+  independently rolled tertiary drops. Quantity ranges, noted state,
+  conditions, loot ownership, MVP/contribution rules, and mutually exclusive
+  rolls must be preserved.
+- [x] No GWD NPC silently falls through to a generic animation, generic combat
+  style, `death_drop=bones`, `gwd_drop_main`, or `gwd_minion_drop_body`.
+- [x] A compile check, focused deterministic tests, statistical drop tests, and
+  native-server multiplayer simulations pass. A smoke test on the currently
+  supported client is added when one is available; the optional Java client is
+  never a release gate.
+
+Where the Wiki and available Jagex material do not publish a retail constant,
+completion requires a named, isolated, deterministic approximation with the
+evidence limitation stated beside it; it does not permit claiming that value
+as Wiki-exact. This applies to Ice Prison's fixed defence and the activation
+quantum of Nex's final-phase Turmoil.
+
+The Wiki is the behavior and drop-table reference. Cache configs are the
+authority for IDs and audiovisual assets. Each implemented script must cite the
+Wiki page, exact revision ID, and fetch date in the convention established by
+`docs/NPC_WIKI_DROPTABLES_PLAN.md`; names alone are never sufficient to join a
+cache NPC to a Wiki version.
+
+## Implementation snapshot
+
+This document remains the acceptance plan; checked boxes below are not waived
+by the existence of code. As of the audit date, the repository now has:
+
+- [x] A generated [classic combat ledger](../OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv)
+  covering all **69** main-dungeon gamevals and **126** distinct player/NPC
+  attack paths, with a build-failing one-handler-per-NPC check.
+- [x] Explicit original-general/bodyguard combat, room AOE/assist/reset logic,
+  individual regular/unique/tertiary tables, faction KC, altars, and audiovisual
+  bindings in `areas/area_godwars`; the public doors also report exact bounded
+  room occupancy through their cache-defined Peek option.
+- [x] Explicit ambient four-way NPC warfare, player attribution, exact Gorak
+  prayer/stat-drain behavior, Aviansie melee rules, generated versioned drops,
+  and applicable non-Wilderness tertiaries. A live Gorak kill exposed the
+  shared `randomjewel` table's valid no-drop branch falling off a typed proc;
+  it now returns `(null, 0)`, which the floor-object primitive treats as no
+  award instead of underflowing the VM stack.
+- [x] Frozen Door progression, Ancient Prison population, Zaros essence,
+  Ashuelot services, Ancient Forge, death bank, the four Zarosian soldier drop
+  tables, and their specials/Ancient Magicks effects.
+- [x] A reachable public Nex actor with spawn transform, phase floors/mages,
+  partial-prayer autos, three-hit melee sequences, all eight named phase
+  specials, contribution loot, overhead rotation, Wrath, scoreboard, cleanup,
+  and the cache animations/projectiles/spotanims/sounds named in this plan.
+- [x] Script compilation in an isolated content tree plus deterministic
+  `check-godwars-manifest` and `check-godwars-contract` build gates. The latest
+  focused content compile produced 22,197 scripts and the isolated GWD VM lane
+  passed with zero failures, including the Gorak no-drop correction. Unrelated
+  Theatre of Blood and Zulrah scripts were omitted from that isolated compile
+  because concurrent content work left their temporary dependency overlays
+  incomplete. The current native `ToriRSServer` binary also rebuilds successfully;
+  the isolated script pack intentionally retains the pre-existing shared
+  combat procedures so unrelated in-flight training-dummy hooks cannot abort
+  GWD prayer/stat fixtures.
+- [x] Four-map-square lifecycle triggers which keep the KC overlay present
+  while moving within the dungeon and atomically clear all five counters plus
+  the overlay only after a real departure.
+- [x] The frozen surface's ten-tick all-skill/run/special drain and the complete
+  permanent [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
+  build: quest, 60 Construction/66 Firemaking, tool alternatives, exact salts,
+  cache animation/sound, 600/300 XP, transform varbit, and chill immunity.
+- [x] All six [Ghommal's hilt](https://oldschool.runescape.wiki/w/Ghommal%27s_hilt)
+  Trollheim options, with the documented 3/5/unlimited daily allowances,
+  runeday reset, large-boulder arrival, and intentional Troll Stronghold bypass.
+- [x] Zamorak's ice-river crossing uses the cache-native double-swim sequence,
+  swim/splash sounds and a three-tick exact move before applying the
+  northbound Prayer drain.
+- [x] [Saradomin's light](https://oldschool.runescape.wiki/w/Saradomin%27s_light)
+  has its confirmation transcript, single-item consumption, duplicate guard,
+  and permanent cache varbit; it removes the client-driven fortress darkness
+  without suppressing the crossing's Prayer drain.
+- [x] Armadyl's grapple shortcut keeps its unboostable level/equipment gates
+  and now uses the cache's fast fire-and-climb sequence, player graphic,
+  grapple projectile/sound, and a seven-tick exact move instead of teleporting.
+- [x] Bandos's gong accepts the normal and Imcando hammers, every metal
+  warhammer, Dragon warhammer variants, and both Elder mauls; each selects its
+  held-model-correct `godwars_hammer_gong_*` sequence with embedded gong sound.
+- [x] [Private boss rooms](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#Private_instances)
+  are unlocked by Hard Combat Achievements, charge 150,000/125,000/100,000/
+  75,000 coins by highest completed tier, consume the same reduced KC or
+  one-use ecumenical key as public entry, and clone the faction's revision-239
+  map square. Each room owns an exact boss/bodyguard quartet, instance-relative
+  attack bounds, delayed respawns, three-hour ground drops, and one cleanup
+  path shared by altar exit, arbitrary teleport, logout, and death. Death puts
+  the gravestone outside before releasing the reservation.
+- [x] Nex's cache-defined `Pass (private)` barrier creates a personal
+  revision-239 arena for the current fixed 100,000-coin fee, consumes Ancient
+  essence or one ecumenical key, spawns Nex and all four phase mages at their
+  exact translated tiles, translates every centre/corner/boundary mechanic,
+  restores the complete roster for the next kill, and shares the same
+  departure/death lifecycle and three-hour floor-object policy.
+- [x] Nex private-room guests can enter the creator's display name through the
+  revision-239 name dialogue. Admission requires reciprocal Friends List
+  entries, both players online on the same world, a live room owned by the
+  named creator, and fewer than 20 current occupants. Only the creator needs
+  Hard Combat Achievements; every guest still consumes 40 Ancient essence or
+  an ecumenical key. Guest exit/death/logout clears only that guest, while
+  creator exit/death/logout ejects all guests and releases the room. The
+  focused VM proves one-way-friend rejection, successful no-CA guest entry,
+  access consumption, guest-safe teardown, creator ejection, and the 19/20
+  capacity boundary. A second simultaneous creator/guest pair proves the two
+  room handles, occupants, admission targets, and teardown paths cannot
+  cross-bind, matching Jagex's
+  [Nex Changes & Tweaks](https://store.steampowered.com/news/posts/?enddate=1641985644&feed=steam_community_announcements)
+  rules and the Wiki's [Nex instance](https://oldschool.runescape.wiki/w/Instance#Nex)
+  description.
+- [x] Instance release purges dynamic floor objects in the world-level teardown
+  used by scripted exits and disconnect fallback; an engine self-test proves an
+  instanced pile is removed without deleting an ordinary-world pile.
+- [x] The 69-NPC/126-attack contract now rejects blank asset/timing/mechanic
+  fields, dead handler paths, non-Wiki references, un-translated Nex room
+  coordinates, non-instance-aware Nex loot, and missing faction-war launch,
+  travel, or impact graphics. Runtime NPC metadata accepts those projectile and
+  poison parameters, and ranged max-hit includes cache ammunition strength.
+- [x] `TORIRSSERVER_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
+  an isolated current-content build it reconstructs the four classic map-square
+  roster and proves all **69** unique NPCs retain authored combat, cadence, and
+  attack/defend/death sequences. It separately proves the four bosses retain
+  their exact stats and authored sounds; executes both attack-selection
+  branches for Graardor, Kree'arra, Zilyana, and K'ril (including Kree'arra's
+  target-aware claw/wind split); verifies all 12 bodyguards' non-default
+  stats/assets and executes each bodyguard's exact attack hook; executes the
+  exact player-attack hook for each of the other 53 ambient NPCs and observes
+  its authored attack sequence; checks every Combat
+  Achievement KC/fee reduction; isolates public/private coordinates and loot
+  lifetimes; and executes spectral prayer-drain mitigation. That exhaustive
+  attack pass corrected the Saradomin wizard and Zamorak spiritual mage
+  metadata from staff-pummel to the `human_casting` sequence actually used by
+  their god-spell dbrows.
+- [x] The generated ledger now also emits
+  `src/torirsserver/torirs_server_gwd_manifest.gen.h`, making all **126** reviewed classic
+  attack paths a runtime oracle instead of a CSV-only review artifact. The
+  compiled oracle retains style, maximum hit, prayer rule, and secondary effect
+  as well as every NPC, sequence, projectile, launch graphic, impact graphic,
+  synth, cadence, and exact player/NPC handler. The focused VM resolves those
+  fields against the revision-239 packs, then executes all **53** ambient
+  player hooks, all **51** aligned NPC-target hooks, all **12** bodyguards, and
+  every original-general branch, observing the exact animation, launch graphic,
+  projectile config, target UID, sound, and landing graphic each row declares.
+- [x] The classic outcome matrix now anchors all **75** player-facing rows to
+  six reviewed style classes, nine secondary-effect rows, and two
+  prayer-penetration rows. Real-VM fixtures obtain both accurate and missed
+  rolls for Stab, Slash, Crush, Ranged, and Magic; prove zero, unprotected
+  maximum, and protected maximum landings for all three melee substyles and
+  Ranged; and drive fixed Magic through a miss, minimum 10, maximum 20, and the
+  same seeded maximum under Protect from Magic. Gorak's typeless maximum still
+  lands through Protect from Melee and his maximum four-level drain is tested
+  against all 22 eligible non-Hitpoints skills. Kree's wind produces a
+  collision-checked one-tile `p_exactmove` on an open chamber tile and is
+  cancelled at the chamber boundary. Together with the existing all-22
+  Aviansie rejection, four phase-mage immunity, Ancient spell-effect, K'ril
+  poison/prayer-smash, Kree targeting/AOE, and god-spell impact fixtures, this
+  closes every reviewed classic style/effect outcome class without relying on
+  a random damage zero as evidence of a miss.
+- [x] Projectile traces now inspect the same current-tick zone record consumed
+  by the wire encoder. Every classic targeted projectile is required to use
+  source/destination heights 40/36, launch delay 32, the authored
+  `32 + distance * 5` end cycle, peak/arc 15/11, and the correct signed player
+  or positive NPC target encoding. Delayed bodyguard impacts must use the
+  production `max(duration / 30, 1)` landing tick (accounting for the queue's
+  one-tick storage clock), and dungeon-war target impacts must carry the exact
+  projectile duration.
+- [x] K'ril's 2/27 prayer-smash selection still runs through the live boss
+  selector, while its shared melee branch is factored into a deterministic
+  production procedure for acceptance testing. The focused lane proves the
+  slam reuses `godwars_zamorak_attack`, emits
+  `godwars_zamorak_avatar_attack`, deals 35–49 through protection prayer,
+  halves 80 current Prayer to 40 without a spectral shield, and queues exactly
+  one severity-76 poison job.
+- [x] The bodyguard execution pass corrected seven flattened runtime animation
+  records to their distinct scripted attacks: Steelwill's sonic cast,
+  Grimspike's axe throw, Skree's cannon cast, Geerin's spear throw, Kilisa's
+  sword swing, Growler's magic cast, and Zakl'n's ranged attack. The regenerated
+  server band now agrees for every GWD record; its two remaining stale archives
+  are unrelated NPC membership errors.
+- [x] Five-player classic-room fixtures execute Graardor's ranged AOE and
+  Kree'arra's magic AOE with four players inside each chamber and a fifth still
+  within hunt range but one tile beyond the chamber boundary. Both attacks arm
+  landing queues for all four legal participants and exclude the outsider.
+- [x] Two-player classic-room fixtures repeatedly execute Zilyana's and K'ril's
+  real attack selectors until their magic branches fire, then prove the
+  projectile/landing queues belong only to the boss's current target and never
+  to the second eligible player. Together with the five-player fixtures, this
+  distinguishes the generals' two room-wide attacks from both single-target
+  magic attacks in live VM state.
+- [x] Four quartet lifecycle fixtures execute all **12** bodyguard timer
+  bindings against their own engaged general and verify they target the credited
+  player. A minion processed while its boss is alive retains its ordinary
+  respawn clock; after that boss is removed it copies the boss's absolute
+  respawn deadline, matching
+  [`GodWarsMinionNPC.finalizeDeath`](https://gitlab.com/2009scape/2009scape/-/blob/master/Server/src/main/content/region/asgarnia/trollheim/handlers/gwd/GodWarsMinionNPC.java).
+  A second fixture kills one minion before and one after each general through
+  combat damage, `[ai_queue3]`, death animation/corpse, drop, and reap stages,
+  proving the engine preserves both clocks for all four factions. Moving the
+  player outside each chamber drives the real attack/timer reset paths and
+  restores HP plus Attack, Strength, Defence, Magic, and Ranged for all four
+  generals and all 12 bodyguards.
+- [x] The runtime lane also dispatches all **51** aligned ambient NPC-vs-NPC
+  attack triggers with real primary/secondary NPC contexts, observes their
+  complete audiovisual launch/impact traces, and verifies their damage queues
+  complete. This exposed and fixed both a shared `gwd_war_swing` fall-through
+  which had made successful attacks abort after queuing their hit and a pointer
+  bug which read travel/impact parameters from the victim after `npc_finduid`,
+  causing every ranged or magic dungeon-war soldier to animate but fire no
+  projectile. Attacker-owned projectile parameters are now captured before the
+  active-NPC switch.
+- [x] The runtime lane executes **173** representative boundary rolls: every
+  ordinary row for all four classic bosses, all four bodyguard tables, and all
+  four Ancient Prison combatants. It also executes every one of Nex's 19
+  regular categories (including both paired supply rows), all six unique-table
+  outcomes, quantity bounds, contribution flooring/MVP scaling, and private
+  ownership. The four classic boss tables and all four bodyguard tables now
+  consume one shared production `random(127)` selector; 12,700 real-VM samples
+  must remain below a 250 chi-square guard at 126 degrees of freedom. Nex's
+  actual 31-slot selector is sampled 6,200 times and must remain below 60 at 18
+  degrees of freedom, proving every published common category retains its
+  authored 2-slot or 1-slot weight. The production tertiary selectors are also
+  sampled 250,000 times for each classic boss's independent 1/250 elite clue
+  and 1/5,000 pet rolls, and 12,800 times for the bodyguards' 1/128 hard-clue
+  roll. Forced award codes prove none/clue/pet/both combinations remain
+  independently reachable and privately owned.
+- [x] Nex personal loot now composes three independent production rolls rather
+  than an exclusive branch: contribution-adjusted unique chance over 43,000,
+  contribution-adjusted pet chance over 500,000, and the non-MVP elite-clue
+  chance over 48,000. A 430,000-call real-VM sample guards all three expected
+  frequencies; forced codes exercise all eight unique/pet/clue combinations;
+  and a two-player instance fixture proves two contributors can retain separate
+  private unique awards on the same kill tile. Exact rolls for all six unique
+  outcomes continue to prove the documented 1:2:2:2:2:3 split.
+- [x] A focused private-room lifecycle fixture now builds all five production
+  map-square templates and verifies the four classic quartets and Nex's
+  five-actor starting roster at every exact translated tile. It removes and
+  replaces each classic general twice to prove duplicate suppression, restores
+  Nex's complete roster after a simulated finished encounter, then moves the
+  owner to an unrelated coordinate and dispatches the real lifecycle hook.
+  Every case releases its player ownership state and map reservation while
+  deleting encounter actors and three-hour private floor loot. A second pass
+  reallocates every room and dispatches the global logout trigger, proving all
+  five owners are moved to the faction-correct safe tile and leave a reusable,
+  actor-free reservation. A third pass verifies the two-stage death contract
+  for every room: the faction-correct external grave coordinate is selected,
+  actors are removed while the square remains reserved through the corpse, and
+  post-corpse cleanup finally releases the handle. One creator/guest join and
+  teardown plus two simultaneous owner/guest groups are deterministic-tested.
+  A further **128-cycle** owner/guest soak reallocates the same Nex source,
+  admits the reciprocal friend through the production name dialogue, and
+  rotates normal owner release, owner logout, and two-stage owner death. Every
+  cycle proves both players lose their room state, the old handle is invalid,
+  and the live reservation count returns to zero before the pool is reused.
+- [x] A disk-backed player save/reload fixture proves all four original KC
+  counters, Frozen Door/debrief state, hilt reset day, ecumenical state, Nex
+  personal death/best-time records, and death-storage state survive relog. It
+  also pins the opposite boundary: Zaros trip KC plus altar cooldown, private
+  ownership, contribution, encounter-start, and cough state are temporary and
+  reload as zero. `map_instance_handle` is explicitly included in that
+  opposite boundary. `tools/test_godwars_restart.py` goes beyond an in-process
+  reload: its first server process saves an owner while deliberately retaining
+  one live Nex-room reservation, and its second process boots against the same
+  save directory and proves both the global reservation count and the saved
+  handle/faction reload as zero.
+- [x] The same real-VM lane exercises every Nex phase floor twice: a hit which
+  crosses the threshold and a hit received at the exact threshold. It proves
+  damage is capped at 2,720/2,040/1,360/680 HP, a concurrent follow-up cannot
+  skip the intermission, inactive phase mages are immune, active mages accept
+  damage with the 50-plus-small-tail cap, each death queue advances exactly one
+  phase and resets cadence state, and Glacies transitions to the Soul Split
+  Zaros form with the Turmoil animation.
+- [x] Nex's attack matrix is executable in the focused VM: Smoke/Blood/Ice/
+  Zaros magic autos, ordinary and Zaros melee, the Shadow ranged auto, and both
+  deterministic branches of Smoke, Shadow, Blood, and Ice specials all run in
+  live player/NPC context. Each auto now proves its exact animation, synth,
+  projectile config, signed player target, 32-cycle launch plus distance-based
+  end cycle, and matching landing queue/impact. The eight pre-Zaros special
+  branches prove their authored sounds plus virus impact/cough queue, both dash
+  sounds, Shadow Smash warning loc/landing, darkness queue, siphon graphic/
+  reaver/release queue, Blood Sacrifice mark/delay, Ice Smash charge, and Ice
+  Prison warning graphic/five locs/delayed hit. This uncovered and fixed the engine queue's stale
+  four-integer ceiling: Nex and the Ancient Prison mage legitimately carry five
+  landing arguments, so the fixed-size queue now provides eight slots.
+- [x] The focused VM now crosses the queue boundary for every Nex delayed
+  effect rather than stopping at launch: Smoke poison, Blood healing, Ice
+  freeze, Zaros prayer drain/Soul Split healing, Shadow drain, all four mage
+  landings, cough prayer/stat drain and re-arm, Shadow Smash, Darkness damage
+  and re-arm, Blood Sacrifice damage-to-heal transfer, and the armed Ice Prison
+  3x3 hit. Exact damage/drain values, impact spotanimations, effect queue
+  severities, relational healing, and random damage bounds are asserted. The
+  same landing matrix covers the Ancient Prison warrior Smoke tile, ranger
+  prayer-disabling five-tick bind, and the spiritual mage's accurate
+  Smoke/Shadow/Blood/Ice effects and impact sounds.
+- [x] Nex magic-land protection coverage now includes a zero-damage miss, the
+  33 maximum Smoke hit, protected Blood and Ice hits, Ice freeze immunity under
+  Protect from Magic, Blood healing/prayer drain after its 66% reduction, and
+  all three Zaros prayer timings: activated mid-flight (25%), active at cast
+  and impact (50%), and cancelled before impact (0%). Poison/effect queues,
+  damage, healing, and prayer are asserted together for every case.
+- [x] Nex now has one player-effect teardown used by victory, public chamber
+  departure, private-room release/death, logout, and login relocation. It
+  closes Darkness, clears cough, and removes every mage/auto/special/Wrath
+  landing queue before the encounter releases the player; victory deliberately
+  arms Wrath only after this sweep. A real-VM fixture simultaneously arms seven
+  distinct effect queues and proves teardown removes all seven plus the cough
+  deadline, covering disconnects with attacks in flight.
+
+- [x] The complete [Godsword](https://oldschool.runescape.wiki/w/Godsword)
+  assembly loop now runs through the generic anvil interaction: level 80
+  Smithing and a carried/worn Smithing hammer are mandatory, every two-shard
+  pair and pair-plus-third order works, and three loose shards may be worked in
+  one operation. Every route awards exactly 100 XP per join/200 XP per blade.
+  All four original hilts plus the Ancient hilt attach without a Smithing gate,
+  and all five inventory `Dismantle` options use a confirmation and return the
+  exact blade/hilt pair while refusing atomically when no extra slot is free.
+  Focused real-VM tests cover both gates, all six assembly transitions, direct
+  three-shard completion, five hilt round trips, XP, and the full-inventory
+  boundary.
+- [x] [Ancient godsword/Blood Sacrifice](https://oldschool.runescape.wiki/w/Ancient_godsword)
+  now uses the revision-239-native `ngs_special_player` animation,
+  `ngs_special_spotanim` launch graphic, `spell_blood_siphon_impact` landing
+  graphic, and `blood_sacrifice` sound. A damaging doubled-accuracy/+10%-max
+  hit arms an independent eight-real-tick queue; targets at least five tiles
+  away, outside the original map instance, dead, or despawned escape. Otherwise
+  the target takes up to 25 typeless damage and the attacker heals the least of
+  the damage actually dealt, 15% of the target's base Hitpoints, and 25. Marks
+  stack, block Ancient-godsword dismantling, and are cleared on login, logout,
+  and death. Focused real-VM cases pin asset IDs, stored timing, stacking,
+  cleanup, both cancellation routes, the 15%/25 cap, and a 10-HP transfer.
+- [x] A landing-heal fixture exposed a substantive stat import gap: revision-239
+  stores Nex-family combat levels as cache `stat1..stat6`, but the server's
+  generic NPC overlay does not consume those client fields. Nex and her three
+  overhead/spawn forms had therefore inherited 10 HP, while the phase mages
+  and Ancient Prison soldiers also lacked their exact runtime stats. The area
+  overlay now states all 13 records' HP/Attack/Strength/Defence/Magic/Ranged,
+  defence bonuses, and 4/5-tick rates explicitly, with a full runtime matrix
+  pinning them. Nex's selector is additionally driven across opening Choke,
+  ordinary attack four, mandatory special attack five, and the exact
+  three-swing melee chain; the final-phase cooldown is pinned at four ticks.
+- [x] Zaros-phase state tests drive attack counts 4/8/12 through the actual
+  overhead updater and observe Deflect Melee, no overhead, then Soul Split.
+  The hit-preparation funnel reflects half of a melee hit while Deflect is
+  active and passes a magic hit through unchanged.
+- [x] A real two-player Nex fixture proves shared targeting chooses the nearest
+  participant, then resolves an equal-distance Shadow-phase tie by the lower
+  ranged defence. Swapping a rune platebody between the two players reverses
+  the selected target, proving the result is not player-pool iteration order.
+  A separate five-player layout places participants at five distances and
+  proves only the nearest receives Nex's landing queue.
+- [x] A full-world Nex mass fixture fills all eight player slots (the mock
+  runtime's configured ceiling), includes stacked participant tiles, and fires
+  a room-wide Smoke barrage through the real `huntall` path. Every live slot
+  receives exactly one landing queue, and every participant independently
+  clears it through the production teardown.
+- [x] Ancient Prison attack execution covers the warrior's five-tile Smoke
+  special, the ranger's prayer-disabling bind, the Blood Reaver projectile,
+  and deterministic Smoke/Shadow/Blood/Ice rolls for the spiritual mage. Every
+  route runs in the real VM and now asserts its exact authored animation,
+  launch synth, warning or targeted projectile, geometry/timing, impact config,
+  and landing queue; the public mage rotation still chooses the four paths
+  uniformly with `random(4)`.
+- [x] Runtime testing found and fixed two engine/compiler faults that made
+  source-only review unreliable: floor-object commands now resolve a typed
+  `namedobj` when an NPC shares its name (`shark` object 385 versus NPC 1830),
+  and repeated NPC config blocks now merge generated stat/rig baselines before
+  authored area overlays. Quartet reset testing also corrected `npc_statheal`,
+  which previously ignored every NPC stat except Hitpoints and healed level-1
+  stats from the raw negative drain instead of their observable zero floor.
+  Public respawn synchronization now queries the nearest dead boss's remaining
+  absolute clock rather than applying the old fixed 50-tick approximation; the
+  fixed delay remains only for owner-bound private replacement queues. The
+  current server-band comparison has no GWD mismatch; its two remaining stale
+  records are unrelated NPCs.
+- [x] The attack trace found two further data-path defects. Named
+  `attack_sound`/`defend_sound`/`death_sound` values were previously passed to
+  `atoi`, silently becoming synth 0; the content loader now accepts checked
+  symbolic synth names while preserving legacy numeric IDs. Separately,
+  procedure calls stopped applying later typed-parameter hints after an earlier
+  command expression, so K'ril's magic projectile name (both sequence 7080 and
+  spotanim 1225) compiled as the sequence. Fixed command return arity now keeps
+  parameter position exact, with a compiler regression fixture matching the
+  `npc_coord, coord, uid, spotanim` projectile-helper signature.
+- [x] Extending the same trace to the Ancient Prison found the command-side
+  equivalent: `sound_synth(arrow_launch, ...)` resolved sequence 366 instead of
+  synth 2692 because both packs use the name. `SOUND_SYNTH` now types its first
+  argument as the synth namespace, with a compiler regression fixture using
+  the revision-239 collision.
+- [x] The [Zarosian spiritual mage](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros)
+  now retains the accurate pre-prayer damage roll separately from visible
+  damage. Protect from Magic blocks the hitsplat damage but does not suppress
+  Smoke poison, Shadow's 15-level Attack drain, Blood healing for 20% of the
+  pre-prayer roll, or Ice's six-tick freeze. The real-VM matrix proves all four
+  unprotected landings, all four protected accurate landings, exact healing,
+  and a miss control with no secondary effect.
+- [x] Final-phase [Turmoil](https://oldschool.runescape.wiki/w/Nex/Strategies#Zaros_phase)
+  now drains Attack, Strength, Defence, Ranged, and Magic by the inherited
+  two-level activation quantum on a successful damaging auto and restores the
+  same live drains to Nex. It emits the revision-239 defence-leech projectile,
+  impact graphic, and launch/impact sounds. Real-VM controls prove that
+  pre-Zaros damage and zero-damage Zaros hits cannot activate it, while a
+  landed Zaros hit transfers exactly two levels in all five stats. The quantum
+  follows the original [Nex Turmoil mechanic](https://runescape.wiki/w/Nex/Strategies#Zaros_phase);
+  the exact OSRS activation cadence remains an evidence item below.
+- [x] The live Ice Prison interaction now proves the Wiki's special salamander
+  rule: a black salamander always breaks a clickable outer stalagmite without
+  consuming tar, removes the centre's armed marker, and prevents the delayed
+  3x3 hit. A freshly re-armed prison still damages every player left inside.
+
+The implementation is complete against the published contract. Two provenance
+limitations remain explicit rather than hidden: Turmoil's OSRS activation
+cadence/quantum and Ice Prison's fixed defence roll are not published. Their
+named constants are deterministic compatibility approximations and must be
+revalidated if Jagex or a reproducible retail measurement supplies exact data.
+
+The 2026-08-17 source recheck did not close either constant. The current
+[OSRS Nex strategy](https://oldschool.runescape.wiki/w/Nex/Strategies#Zaros_phase)
+says Turmoil can drain and transfer melee, Ranged, and Magic stats, but does not
+publish its activation roll or exact drain quantum. Its
+[Ice Prison section](https://oldschool.runescape.wiki/w/Nex/Strategies#Ice_phase)
+says stab/crush accuracy affects ordinary stalagmite breaks and a salamander
+never fails, but does not publish the stalagmite's fixed defence or roll
+formula. Do not manufacture either value from the RuneScape 3 implementation.
+
+### Optional revision-239 Java-client diagnostics and restart evidence
+
+The patched Java client is a useful protocol/rendering probe when its revision
+matches the server, but it is not always current and is therefore **not** a God
+Wars release gate. Server/content contracts and the currently supported client
+are authoritative; Java-client results below are retained only as dated
+diagnostic evidence.
+
+- [x] The repository's patched official Java client was launched through
+  `tools/perf/run_java_client.sh` against the real TCP server and a separate
+  cache directory seeded from `cache.osrs239`; the user's existing Jagex cache
+  was not modified. The client logged in, rendered the snowy entrance, entered
+  and rendered the dungeon, displayed the five KC/essence counters, and showed
+  ambient NPC combat with a hitsplat and health bar. Staff commands `::~gwd`,
+  `::~gwdkc`, and `::~gwdboss` all traversed the production client-cheat packet
+  path and were acknowledged by the server.
+- [x] That run found an official-client compatibility defect before it became
+  a silent acceptance claim: the base cache has client varp IDs `0..5704`, but
+  the optional Ancient Curses lane declares later IDs. The server now measures
+  the active cache's actual varp capacity and refuses to encode either
+  `VARP_SMALL` or `VARP_LARGE` beyond it. The automated restart probe pins the
+  base capacity at 5,705, proves ID 3,078 still emits both encodings, and proves
+  boundary ID 5,705 emits neither. An overlay cache that genuinely supplies
+  the extra varps measures the larger boundary and continues to receive them.
+- [x] `tools/test_godwars_restart.py` passes its `arm` and `assert` phases in
+  two distinct native-server processes against one temporary save directory.
+- [x] Retain durable server traces, plus supported-client captures where
+  available, for every boss auto and special,
+  including projectile travel/impact, sound, forced movement, hitsplat, and
+  cooldown timing. The Java entrance/dungeon smoke above proves compatibility
+  with that dated client build, not the full audiovisual matrix and not future
+  Java-client support. The checked
+  [runtime trace](evidence/godwars_runtime_trace.tsv) contains **4,060** passing
+  native-server assertions and is regenerated or verified with
+  `make -C src OBJ_DIR=build_opt godwars-evidence` and
+  `make -C src OBJ_DIR=build_opt check-godwars-evidence`.
+
+## Audit-start repository baseline and known gaps
+
+At the start of this audit, the implementation lived in
+`OSRS-Content/osrs239-content/server/scripts/areas/area_godwars/`, with classic
+spawns in `areas/world/configs/m44_82.spawn`, `m44_83.spawn`, `m45_82.spawn`, and
+`m45_83.spawn`. It is useful scaffolding, but it is not the acceptance baseline:
+
+- `godwars_entrance.rs2` has rope access, four faction counters, 40-KC doors,
+  altars, and the four wing shortcuts. It does not implement faction-item
+  aggression suppression, faction-vs-faction combat, reduced KC from Combat
+  Achievements, ecumenical keys, complete altar rules, private rooms, the Frozen
+  Door, Zaros KC, death/logout relocation, or the Ancient Prison.
+- `godwars_bosses.rs2` has preliminary attack loops for the four original
+  generals. Graardor's 7/10 style split is not the Wiki's 2/3 split; Kree'arra
+  lacks whirlwind knockback/freeze; Zilyana incorrectly uses a chamber-wide
+  magic AOE; K'ril's style split and prayer special are incomplete; target
+  selection, room reset, ownership, and several animation/effect timings remain
+  unverified.
+- The generated NPC style overlay supplies a basic ranged or magic attack for
+  some ambient NPCs and bodyguards. That is not a substitute for their exact
+  projectile, animation, sound, secondary effects, NPC-vs-NPC variant, or
+  Slayer/aggression contract. Several cache gamevals have no generated
+  animation overlay at all.
+- `godwars_drops.rs2` is deliberately simplified and must be replaced. All four
+  bosses share Graardor-like regular loot; boss remains are wrong; shard odds
+  are wrong; Zilyana is missing the Armadyl crossbow and Saradomin's light;
+  K'ril is missing the Staff of the dead; bodyguards currently have a 1/8 shard
+  roll instead of 1/508 for any shard and lack their real unique/regular tables.
+- There is no Ancient Prison, Nex encounter, contribution loot, death bank, or
+  Nex scoreboard implementation even though revision 239 contains the relevant
+  NPCs, locs, interfaces, sequences, spot animations, sounds, and items.
+
+Do not preserve a simplified behavior merely because it is already scripted.
+Replace it behind focused tests, and keep unrelated changes in the dirty parent
+and content worktrees untouched.
+
+## Authoritative roster and combat contract
+
+### Original generals and bodyguards
+
+The following 16 NPCs are the complete original boss-room roster. “Visual
+contract” includes the named attack animation plus an exact cache audit of the
+associated projectile/spotanim/sound and impact tick; a plain generic
+`~npc_rangeattack` or `~npc_magicattack` is insufficient.
+
+| Faction | NPC (cache gameval) | Attack contract | Visual contract | Drop-table source |
+|---|---|---|---|---|
+| Bandos | [General Graardor](https://oldschool.runescape.wiki/w/General_Graardor) (`godwars_bandos_avatar`) | 6 ticks; 2/3 crush up to 60 or 1/3 room-wide ranged 15–35; he must be in melee distance of his primary target even for ranged; independent roll for every player | `godwars_bandos_attack`, `godwars_bandos_ranged`, defend/death, ranged projectile/impact, cries | Graardor rev. 15298421 |
+| Bandos | [Sergeant Strongstack](https://oldschool.runescape.wiki/w/Sergeant_Strongstack) (`godwars_sergeant_goblin1`) | 5 ticks; crush, max 15 | sergeant melee attack/defend/death and sounds | rev. 15298419 |
+| Bandos | [Sergeant Steelwill](https://oldschool.runescape.wiki/w/Sergeant_Steelwill) (`godwars_sergeant_goblin2`) | 5 ticks; magic, max 15 | magic cast, projectile, impact, defend/death | rev. 15298417 |
+| Bandos | [Sergeant Grimspike](https://oldschool.runescape.wiki/w/Sergeant_Grimspike) (`godwars_sergeant_goblin3`) | 5 ticks; ranged, max 21 | ranged attack, projectile, impact, defend/death | rev. 15298415 |
+| Armadyl | [Kree'arra](https://oldschool.runescape.wiki/w/Kree%27arra) (`godwars_armadyl_avatar`) | 3 ticks; room-wide ranged 69 or ranged-magic 21 while attacked; the latter rolls Magic accuracy against Ranged defence and Protect from Missiles; magical melee 25 only when not under attack; both wind attacks can knock back | wind/claw attacks, grey ranged bolt and blue magic whirlwind visuals, impact sound, forced movement, defend/death, cry | rev. 15298481 |
+| Armadyl | [Flight Kilisa](https://oldschool.runescape.wiki/w/Flight_Kilisa) (`godwars_armadyl_bodyguard_kilisa`) | 5 ticks; slash, max 15 | melee swoop/strike, defend/death | rev. 15298482 |
+| Armadyl | [Wingman Skree](https://oldschool.runescape.wiki/w/Wingman_Skree) (`godwars_armadyl_bodyguard_skree`) | 5 ticks; magic, max 16 | cast, projectile/impact, defend/death | rev. 15298484 |
+| Armadyl | [Flockleader Geerin](https://oldschool.runescape.wiki/w/Flockleader_Geerin) (`godwars_armadyl_bodyguard_geerin`) | 5 ticks; ranged, max 25 | ranged attack, projectile/impact, defend/death | rev. 15298486 |
+| Saradomin | [Commander Zilyana](https://oldschool.runescape.wiki/w/Commander_Zilyana) (`godwars_saradomin_avatar`) | 2 ticks; single-target crush up to 27 and magic 10–20, both only at melee distance; very high accuracy; retarget nearby attackers when her target is unreachable | melee and magic attack sequences, magic graphic/sound, defend/death, cries | rev. 15298455 |
+| Saradomin | [Starlight](https://oldschool.runescape.wiki/w/Starlight) (`godwars_saradomin_unicorn`) | 5 ticks; crush, max 15 | unicorn melee, defend/death, sounds | rev. 15298454 |
+| Saradomin | [Growler](https://oldschool.runescape.wiki/w/Growler) (`godwars_saradomin_lion`) | 5 ticks; magic, max 16 | magic cast/projectile/impact, defend/death | rev. 15298447 |
+| Saradomin | [Bree](https://oldschool.runescape.wiki/w/Bree) (`godwars_saradomin_centaur`) | 5 ticks; ranged, max 16 | centaur ranged attack/projectile/impact, defend/death | rev. 15298452 |
+| Zamorak | [K'ril Tsutsaroth](https://oldschool.runescape.wiki/w/K%27ril_Tsutsaroth) (`godwars_zamorak_avatar`) | 6 ticks; 2/3 slash up to 46 or 1/3 magic 10–30; 1/9 of melee choices against Protect from Melee become a 35–49 through-prayer special (2/27 overall) which drains half current Prayer, rounded down; poison starts at 16 | melee/magic/special sequences, projectile/impact, poison, defend/death, cries | rev. 15298476 |
+| Zamorak | [Tstanon Karlak](https://oldschool.runescape.wiki/w/Tstanon_Karlak) (`godwars_ancient_greater_demon`) | 5 ticks; crush, max 15 | demon melee, defend/death | rev. 15298479 |
+| Zamorak | [Balfrug Kreeyath](https://oldschool.runescape.wiki/w/Balfrug_Kreeyath) (`godwars_ancient_black_demon`) | 5 ticks; magic, max 16 | magic cast/projectile/impact, defend/death | rev. 15298477 |
+| Zamorak | [Zakl'n Gritch](https://oldschool.runescape.wiki/w/Zakl%27n_Gritch) (`godwars_ancient_lesser_demon`) | 5 ticks; ranged, max 21 | ranged attack/projectile/impact, defend/death | rev. 15298478 |
+
+Bodyguards must acquire an eligible player who attacked their boss, beginning
+with the boss's current opponent on spawn and while idle, remain independently
+targetable, use only their listed style, and share the room reset/respawn
+lifecycle. If a guard dies while its general is dead, delay it so the next
+quartet begins together. Test corner pathing and reacquisition; do not teleport
+a stuck guard through players.
+
+The current Wiki has a one-point Kree'arra melee discrepancy: the main infobox
+lists 25 while its strategy prose says 26. Phase 0 must resolve this against the
+revision-239 NPC stats/formula or an additional primary source and record the
+decision; do not silently choose whichever number is already in code.
+
+### Main-dungeon combatants
+
+The four map files contain **69 gamevals**, which collapse into the families
+below. Every listed gameval must appear in the generated coverage ledger even
+where several variants share behavior and loot.
+
+| Allegiance | NPC family and revision-239 gamevals | Required attacks and special rules | Drop table |
+|---|---|---|---|
+| Armadyl | [Aviansie](https://oldschool.runescape.wiki/w/Aviansie): 15 `godwars_armadyl_{male,female}_armor*_{blue,green,red}` variants, levels 69–148 | Ranged only; exact per-version max hit/stats; flying movement; reject ordinary melee while allowing the Wiki/cache-supported exceptions; Armadyl aggression immunity | Exact Aviansie version table, including feathers, conditional noted adamantite bars, RDT/tertiaries |
+| Armadyl | `godwars_spiritual_armadyl_warrior`, `_ranger`, `_mage` | Warrior and ranger use ranged; mage uses magic; Aviansie melee restriction; 68/63/83 Slayer gates respectively | ID-matched [Spiritual warrior](https://oldschool.runescape.wiki/w/Spiritual_warrior#Drops), [ranger](https://oldschool.runescape.wiki/w/Spiritual_ranger#Drops), and [mage](https://oldschool.runescape.wiki/w/Spiritual_mage#Drops) version tables |
+| Bandos | [Goblin](https://oldschool.runescape.wiki/w/Goblin#Drops) `godwars_goblin1..5` | Melee; variant stats/animations; Bandos immunity | ID-matched GWD goblin table |
+| Bandos | [Hobgoblin](https://oldschool.runescape.wiki/w/Hobgoblin#Drops) `godwars_ancient_hobgoblin` | Melee | Exact level-47 version table |
+| Bandos | [Ogre](https://oldschool.runescape.wiki/w/Ogre#Drops) `godwars_ancient_ogre` and [Jogre](https://oldschool.runescape.wiki/w/Jogre#Drops) `godwars_ancient_jogre` | Melee; 2x2 pathing and own attack/defend/death sequences | Exact GWD version tables |
+| Bandos | [Cyclops](https://oldschool.runescape.wiki/w/Cyclops#Drops) `godwars_ancient_cyclops`, `godwars_ancient_cyclops2` | Melee; max hit/cadence from the ID-matched level-81 version | Exact GWD cyclops table |
+| Bandos | [Ork](https://oldschool.runescape.wiki/w/Ork#Drops) `godwars_ancient_ork1..4` | Melee; four visual variants share verified behavior | Exact Ork table |
+| Bandos | `godwars_spiritual_bandos_warrior`, `_ranger`, `_mage` | Melee, ranged, magic; Slayer 68/63/83; correct stationary-idle rule for the mage | ID-matched spiritual-creature tables |
+| Saradomin | [Knight of Saradomin](https://oldschool.runescape.wiki/w/Knight_of_Saradomin#Drops) `godwars_saradomin_knight_1`, `_2` | Melee; variant stats and sequences | Exact levels 101/103 tables |
+| Saradomin | [Saradomin priest](https://oldschool.runescape.wiki/w/Saradomin_priest#Drops) `godwars_ancient_saradomin_wizard` | Magic with exact projectile/impact | Exact priest table |
+| Saradomin | `godwars_spiritual_saradomin_warrior`, `_ranger`, `_mage` | Melee, ranged, magic; Slayer 68/63/83 | ID-matched spiritual-creature tables |
+| Zamorak | [Imp](https://oldschool.runescape.wiki/w/Imp#Drops) `godwars_ancient_imp` | Melee | Exact GWD imp version table |
+| Zamorak | [Werewolf](https://oldschool.runescape.wiki/w/Werewolf#Drops) `godwars_ancient_werewolf1`, `_2` | Melee; both cache variants | Exact level-93 table |
+| Zamorak | [Feral Vampyre](https://oldschool.runescape.wiki/w/Feral_Vampyre#Drops) `godwars_ancient_vampire` | Melee | Exact GWD version table |
+| Zamorak | [Hellhound](https://oldschool.runescape.wiki/w/Hellhound#Drops) `godwars_ancient_hellhound` | Melee; GWD dog animations | Exact level-127 table |
+| Zamorak | [Bloodveld](https://oldschool.runescape.wiki/w/Bloodveld#Drops) `godwars_bloodveld` | Magic-based melee attack and 50 Slayer requirement | Exact level-81 GWD version table |
+| Zamorak | [Gorak](https://oldschool.runescape.wiki/w/Gorak#Drops) `godwars_gorak` | Melee with typeless/defence interaction verified against the Wiki and cache | Exact level-149 GWD table |
+| Zamorak | `godwars_spiritual_zamorak_warrior`, `_ranger`, `_mage` | Melee, ranged, Flames-of-Zamorak magic; successful mage hit drains Magic; Slayer 68/63/83 | ID-matched spiritual-creature tables |
+| Unaligned | [Icefiend](https://oldschool.runescape.wiki/w/Icefiend#Drops) `godwars_icefiend_1`; [Pyrefiend](https://oldschool.runescape.wiki/w/Pyrefiend#Drops) `godwars_pyrefiend_1` | Melee, correct Slayer gate for pyrefiend, no faction KC or god-item immunity unless cache/Wiki evidence says otherwise | Exact ID-matched tables |
+
+All aligned soldiers must participate in the dungeon war: they aggress players
+unless an equipped item protects the player from that allegiance, acquire
+opposing NPC factions, do not abandon an NPC fight merely because a player is
+nearby, and award KC only to an eligible player who actually receives kill
+credit. Protection checks must cover every Wiki-listed god item and update when
+equipment changes. Neutral creatures neither protect nor award faction KC.
+
+### Ancient Prison and Nex roster
+
+Revision 239 contains the following records, which form the implemented Ancient
+Prison/Nex roster and the acceptance contract for later regression testing:
+
+| Role | Cache NPC(s) | Complete combat/interaction contract | Drops |
+|---|---|---|---|
+| General | `nex`, `nex_spawning`, `nex_soulsplit`, `nex_deflect`, `nex_dying` | One stateful Nex actor transformed only for the correct overhead/spawn/death visual; five phases described below | Contribution table below |
+| Phase mages | [Fumus, Umbra, Cruor, Glacies](https://oldschool.runescape.wiki/w/Nex#Bodyguards): `nex_smokemage`, `_shadowmage`, `_bloodmage`, `_icemage` | Level 285; magic; initially immune; each becomes attackable at 2,720/2,040/1,360/680 Nex HP; phase cannot advance until the active mage dies; exact Ancient Barrage projectile/effect, animations, sounds, and reset | No personal loot or KC |
+| Prison warrior | `nex_prison_warrior` | Melee, 5 ticks, level 158; Zaros faction aggression and 68 Slayer gate | ID-matched [Spiritual warrior](https://oldschool.runescape.wiki/w/Spiritual_warrior#Zaros) table |
+| Prison ranger | `nex_prison_ranger` | Ranged, 5 ticks, level 158; exact projectile/impact and 63 Slayer gate | ID-matched [Spiritual ranger](https://oldschool.runescape.wiki/w/Spiritual_ranger#Zaros) table |
+| Prison mage | `nex_prison_mage` | Magic, 5 ticks, level 182; rotate smoke/shadow/blood/ice spells and implement poison, Attack drain, 20% heal, and six-tick freeze even where prayer blocks damage; 83 Slayer gate | ID-matched [Spiritual mage](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros) table, including ancient ceremonial pieces, dragon boots, blood essence, and nihil shards |
+| Prison monster/add | [Blood Reaver](https://oldschool.runescape.wiki/w/Blood_Reaver) `nex_prison_blood_reaver`, `_boss` | Prison variant attacks normally; boss-summoned variant is encounter-owned, obeys siphon/sacrifice lifecycle, and despawns without KC/loot | Exact prison table for the normal variant; no loot for summoned adds |
+| Utility NPC | [Ashuelot Reis](https://oldschool.runescape.wiki/w/Ashuelot_Reis) `nex_story_npc_outer`, `_inner`, `_1op`, `_3op`; `nex_messenger` | Frozen Door dialogue progression, safe-room bank/collect operations, correct varbit transforms; never attackable | None |
+
+Nex attack checklist, including every animation/effect path:
+
+- [x] **Shared targeting:** spawn intro; nearest/lowest-relevant-defence target
+  selection; melee triple follow-up while the target remains adjacent; magic in
+  Smoke/Blood/Ice/Zaros and ranged in Shadow; correct partial prayer reduction;
+  spectral-spirit-shield halving with odd-drain random rounding; 8-tick
+  out-of-combat leap; run/leap pathing over the room pits.
+- [x] **Smoke (3,400–2,720 HP):** Smoke Barrage and poison; opening “Let the
+  virus flow through you” cough application, adjacency spread, stat drain,
+  duration reset, raw highest-attack-bonus selection and cough graphics/sounds;
+  random six-tile Drag with a 1/4 base or protected 1/8 chance; “There is no escape” centre teleport and
+  dash/trample for up to 50 with forced movement and safe-line handling; Fumus
+  activation.
+- [x] **Shadow (2,720–2,040):** ranged shadow shot whose damage and darkness
+  scale with distance; prayer drain on a successful shot; “Embrace darkness”
+  room darkening and adjacent damage; one Shadow Smash warning tile per player
+  (including overlapping stacked shadows) and delayed eruption up to 50; Umbra
+  activation.
+- [x] **Blood (2,040–1,360):** 3x3 Blood Barrage, healing and prayer drain;
+  “A siphon will solve this” kneel/immunity window, team-size-capped Blood
+  Reaver summons, damage-to-Nex healing, and surviving-reaver consumption;
+  Blood Sacrifice red mark, escape radius/timer, up-to-80 damage, prayer drain,
+  and healing; Cruor activation and add cleanup.
+- [x] **Ice (1,360–680):** Ice Barrage, 15-tick freeze, prayer drain, immunity;
+  “Contain this” 5x5 icicle burst up to 60 and protection-prayer deactivation;
+  targeted Ice Prison stalagmites, ally break interaction, timeout hit up to 75,
+  and graphics/collision cleanup; Glacies activation.
+- [x] **Zaros (680–0):** stat restoration/empowerment, Turmoil, magic/melee
+  selection, Soul Split healing, Deflect Melee reflection, overhead rotation
+  after four player attacks, and correct reduced protection-prayer values.
+- [x] **Death:** `nex_dying`/Wrath warning, radius and delayed damage, all phase
+  object/add/overlay cleanup, scoreboard, loot contribution, respawn, empty-room
+  reset, logout/death handling, and re-entry safety.
+
+These checks are backed by the focused real-VM lane: it enters every phase by
+both threshold crossing and exact-threshold HP, rejects simultaneous phase
+skips, drives each launch and delayed landing, verifies two- and five-player
+target selection plus a full 32-player barrage, exercises all four mage deaths,
+and tears down every player-owned queue/effect. Contribution, Wrath, relog,
+empty-room, and public/private lifecycle assertions run in the same lane.
+
+Reference the main [Nex mechanics](https://oldschool.runescape.wiki/w/Nex#Fight_overview)
+and [Nex strategy mechanics](https://oldschool.runescape.wiki/w/Nex/Strategies)
+pages. The reviewed Nex page was revision **15293911**, fetched 2026-08-12.
+
+## Required drop tables
+
+### Four original generals
+
+Each boss gets its own 127-roll regular table; never share one approximation.
+The following list is the minimum exact ledger. Also implement the page's GWD
+rare/gem table and independent tertiary rolls.
+
+- [x] **General Graardor:** big bones; Bandos chestplate/tassets/boots each
+  1/381, Bandos hilt 1/508, each shard 1/762; rune longsword, rune 2h,
+  rune platebody 8/127 each, rune pickaxe 6/127; grimy snapdragon x3,
+  snapdragon seed, super restore(4) x3, noted adamantite ore x15–20, noted coal
+  x115–120, noted magic logs x15–20, nature runes x65–70 at 8/127 each; exact
+  two coin bands; elite clue 1/250, long bone 1/400, pet 1/5,000, curved bone
+  1/5,012.5, and conditional Brimstone/frozen-key drops. Source:
+  [Graardor drops](https://oldschool.runescape.wiki/w/General_Graardor#Drops),
+  revision 15298421.
+- [x] **Kree'arra:** big bones, feathers x1–16; Armadyl helmet/chestplate/
+  chainskirt each 1/381, hilt 1/508, each shard 1/762; black d'hide body, rune
+  crossbow, mind runes x586–601, rune arrows x100–105, runite bolts x20–25,
+  dragonstone bolts (e) x5–10, ranging potion(3) x3 plus super defence(3) x3,
+  noted grimy dwarf weed x8–13, dwarf weed seeds x2 at 8/127; crystal key and
+  yew seed 1/127; exact coin bands and independent tertiaries. Source:
+  [Kree'arra drops](https://oldschool.runescape.wiki/w/Kree%27arra#Drops),
+  revision 15298481.
+- [x] **Commander Zilyana:** bones; Saradomin sword 1/127, Saradomin's light
+  1/254, Armadyl crossbow and Saradomin hilt 1/508, each shard 1/762; adamant
+  platebody, rune darts x35–40, rune kiteshield, rune plateskirt, prayer
+  potion(4) x3, paired super defence(3)/magic potion(3), noted diamonds x6, law
+  runes x95–100, noted grimy ranarr x5, ranarr seeds x2 at 8/127; paired
+  Saradomin brew(3)/super restore(4) x3 at 6/127; magic seed 1/127; exact coins
+  and tertiaries. Source:
+  [Zilyana drops](https://oldschool.runescape.wiki/w/Commander_Zilyana#Drops),
+  revision 15298455.
+- [x] **K'ril Tsutsaroth:** infernal ashes; steam battlestaff and Zamorakian
+  spear 1/127, Staff of the dead and Zamorak hilt 1/508, each shard 1/762;
+  adamant arrows(p++) x295–300, rune scimitar, adamant platebody, paired super
+  attack(3)/super strength(3), paired super restore(3)/Zamorak brew(3), noted
+  grimy lantadyme x10, lantadyme seeds x3, death runes x120–125, blood runes
+  x80–85 at 8/127; rune platelegs 7/127, dragon dagger(p++) 2/127; exact coins
+  and tertiaries. Source:
+  [K'ril drops](https://oldschool.runescape.wiki/w/K%27ril_Tsutsaroth#Drops),
+  revision 15298476.
+
+Frozen key pieces are conditional on [The Frozen Door](https://oldschool.runescape.wiki/w/The_Frozen_Door)
+miniquest state. Brimstone keys require the correct Konar task. Clues, champion
+scrolls, long/curved bones, and pets are independent tertiary rolls and require
+their own prerequisite/collection behavior; unsupported prerequisites must be
+implemented or explicitly fail the phase gate, never silently omitted.
+The four generals' elite-clue roll is 1/250 normally and
+[1/237 after the elite Combat Achievement rewards tier](https://oldschool.runescape.wiki/w/General_Graardor#Tertiary);
+elite, master, and grandmaster reward status must all select the improved rate.
+
+### Original bodyguards
+
+The three guards in each faction share a regular table but keep the listed
+per-NPC tertiary difference.
+
+- [x] **Bandos trio:** bones; BCP/tassets/boots each 1/16,256; each shard
+  1/1,524; steel arrows x95–100 7/127; steel darts, nature runes x15–20,
+  cosmic runes x25–30, sharks x2, chilli potatoes x3, noted limpwurt roots x5
+  at 8/127; combat potion(3) and super strength(3) 2/127; exact 1,400–1,500
+  coin fallback; hard clue 1/128, key piece 1/20, champion scroll 1/5,000;
+  Strongstack kebab, Steelwill beer, or Grimspike right-eye patch at 1/6.
+- [x] **Armadyl trio:** bones and feathers x1–11; helmet/chestplate/chainskirt
+  each 1/16,129; each shard 1/1,524; steel arrows x91–101 7/127; steel darts,
+  smoke runes x10–15, manta rays x2, mushroom potatoes x3, noted crushed nests
+  x2, noted grimy kwuarm at 8/127; exact 1,000–1,100 coin fallback; hard clue
+  1/128, key piece 1/20, and a conditional Brimstone key at 1/92 for
+  [Skree](https://oldschool.runescape.wiki/w/Wingman_Skree#Tertiary), 1/91 for
+  [Geerin](https://oldschool.runescape.wiki/w/Flockleader_Geerin#Tertiary), or
+  1/89 for [Kilisa](https://oldschool.runescape.wiki/w/Flight_Kilisa#Tertiary).
+  Arrow/dart quantity is the feather roll plus 90. These rates use the
+  [Brimstone key combat-level formula](https://oldschool.runescape.wiki/w/Brimstone_key#Drop_rate)
+  and only apply when the matching Aviansie task was assigned by Konar.
+- [x] **Saradomin trio:** bones; Saradomin sword 3/16,129; each shard 1/1,524;
+  steel arrows, steel darts, law runes x5–10, monkfish x3, summer pie, noted
+  grimy ranarr, and noted unicorn horns x6 at 8/127; noted snape grass x5 at
+  7/127; exact 1,300–1,400/1,400–1,500 coin fallbacks; hard clue 1/128 and key
+  piece 1/20.
+- [x] **Zamorak trio:** malicious ashes; Zamorakian spear 3/16,129; each shard
+  1/1,524; steel arrows x95–100 7/127; steel darts, death/blood runes x5–10,
+  sharks x3, tuna potatoes x2, noted wines of Zamorak x5–10 at 8/127; combat
+  super attack(3) and super strength(3) at 2/127 each; exact 1,300–1,400 coin
+  fallback; hard clue 1/128 and key piece 1/20; Zakl'n also has the conditional
+  lesser-demon champion scroll.
+
+The individual Wiki pages in the boss/bodyguard table above are the sources;
+the reviewed revisions are recorded there. Build faction-shared procedures only
+after a row-for-row comparison proves them identical.
+
+### Ambient combatants
+
+- [x] Generate an ID-version ledger for all 69 classic gamevals from the four
+  spawn files and the four spiritual/Nex-prison variants. Include every
+  `DropsLine`, shared table, quantity expression, notes flag, and condition from
+  the linked family page above.
+- [x] Reuse the existing verified `npc_stats/<shard>/*.stats` ID joins and
+  `wiki/manifest.tsv`; do not join by display name or bind all of category 422.
+- [x] Reconcile existing `wiki_aviansie.rs2`, `wiki_bloodveld.rs2`,
+  `wiki_feral_vampyre.rs2`, `wiki_hobgoblin.rs2`, `wiki_icefiend.rs2`,
+  `wiki_jogre.rs2`, `wiki_ork.rs2`, `wiki_pyrefiend.rs2`, and
+  `wiki_werewolf.rs2` with the GWD-specific version IDs and conditional rolls.
+- [x] Give every remaining family an exact binding. Add a test which fails if
+  any roster gameval has zero or multiple death handlers or reaches the generic
+  bones fallback.
+
+### Nex contribution loot
+
+Nex does not make one ordinary ground roll. Implement the Wiki's contribution
+distribution, per-player eligibility floor, MVP 10% modifier, multiple
+simultaneous unique recipients, quantity scaling, ownership/visibility, and
+scoreboard before enabling her drops.
+
+- [x] MVP-only big bones.
+- [x] Effective per-kill unique table: Ancient hilt 1/516; nihil horn and each
+  damaged Torva piece 1/258; Zaryte vambraces 1/172 (1/43 total before
+  contribution division, with 1:2:2:2:2:3 weights).
+- [x] Scaled regular categories: air/fire/water/blood/death/soul runes, unfinished
+  dragon bolts, onyx bolts (e), steel cannonballs, noted air orbs/coal/runite
+  ore/rubies/diamonds/wines of Zamorak, paired sharks/prayer potions, paired
+  Saradomin brews/super restores, coins, rune sword, ecumenical key shards, and
+  both nihil-shard bands exactly as listed on
+  [Nex's drop table](https://oldschool.runescape.wiki/w/Nex#Drops).
+- [x] Blood essence 1/82, elite clue 1/48, and independently rolled Nexling
+  1/500, each modified/distributed exactly as documented.
+
+Source: Nex revision 15293911, plus Jagex's
+[Nex Drop Table Changes & Monster Examine](https://oldschool.runescape.wiki/w/Update:Nex_Drop_Table_Changes_%26_Monster_Examine).
+
+## Dungeon systems checklist
+
+- [x] **Entrance and environment:** partial Troll Stronghold (Dad defeated) or
+  Ghommal's-hilt teleport route, dying knight dialogue, permanent rope state,
+  cold-area stat/run/special drain and Fire of Unseasonal Warmth immunity,
+  boulder/crack routes, dungeon overlay open/close, and KC reset on leaving.
+- [x] **Faction simulation:** complete four-way allegiance matrix, Zamorak
+  presence inside the other wings, NPC-vs-NPC accuracy/damage without player
+  side effects or loot exploits, god-item protection, and reacquisition.
+- [x] **Strongholds:** Armadyl 70 Ranged plus crossbow/mith grapple; Bandos 70
+  Strength plus hammer and bang-door behavior; Saradomin 70 Agility and both
+  rope transitions; Zamorak 70 Hitpoints, river crossing, prayer drain, and
+  darkness/Saradomin's-light state. Enforce boostability exactly as the Wiki
+  specifies.
+- [x] **Boss doors:** base 40 KC; Hard/Elite/Master/Grandmaster reductions to
+  35/30/25/15; prefer sufficient KC before consuming a one-use ecumenical key;
+  atomic entry, no double charge, peek count, public/private room
+  selection, room capacity, re-entry/death behavior, and no door escape from
+  inside.
+- [x] **Boss rooms:** multi-combat targeting, damage attribution, kill credit,
+  loot ownership, empty-room reset/despawn, synchronized quartet respawn,
+  private-instance teardown, logout and death relocation, and gravestone or
+  death-bank placement outside the encounter.
+- [x] **Altars:** only while out of combat; ten-minute account cooldown; Prayer
+  restoration plus the correct per-equipped-faction-item overboost; right-click
+  teleport allowed in combat; Nex altar also restores HP, run, and special
+  energy when an eligible Zaros item is worn.
+- [x] **Frozen Door/Ancient Prison:** four conditional key pieces, key assembly,
+  one-time door unlock, permanent access state, 70 Agility/Hitpoints/Ranged/
+  Strength requirements with only Hitpoints boostable, Zaros KC, ecumenical-key
+  access, and a regression proving ancient ceremonial robes do **not** bypass
+  KC in OSRS; safe rooms, Ashuelot bank/collect, ancient forge, logout
+  relocation, chest/death-bank rules, barriers, and Nex instance entry.
+- [x] **Godsword assembly loop:** shard drops, shard combinations in all valid
+  orders, blade completion, all four original hilts, Ancient hilt,
+  smithing/anvil gates, exact XP, confirmation, full-inventory safety, and
+  dismantle behavior.
+- [x] **Godsword special compatibility:** all five special attacks remain
+  compatible after attach/dismantle. Saradomin's Healing Blade uses the
+  successful pre-overkill damage roll, including its guaranteed 10-HP/5-Prayer
+  restoration minimum, and Zamorak's Ice Cleave freezes on every successful
+  accuracy roll, including a zero-damage roll. The Ancient godsword's successful
+  damaging hit now arms Blood Sacrifice with its eight-tick/five-tile escape,
+  delayed typeless 25 damage, 15%-of-base capped healing, instance/logout/death
+  teardown, exact revision-239 animation/graphics/sound, stackable PvM marks,
+  and the active-mark dismantle prohibition.
+
+## Animation, projectile, sound, and timing audit
+
+The cache already exposes the following symbolic asset families. They are the
+starting inventory, not proof that the current scripts use them correctly:
+
+| Actor/attack | Sequences and spot animations which must be wired and timed |
+|---|---|
+| Graardor | `godwars_bandos_attack`, `_ranged`, `_defend`, `_death`, `_walk`, `_ready`, `_proj`, `_spot`; attack/hit/death/punch and magic cast/impact sounds |
+| Bandos sergeants | `slice_surface_goblin_sergent_attack`, `_defend`, `_death`; Steelwill `godwars_sergeant_goblin2_sonic`, sonic launch/projectile/impact; Grimspike `godwars_sergeant_goblin3_ranged` and `godwars_goblin3_handaxe_proj` |
+| Kree'arra | `godwars_armadyl_avatar_wind_attack`, `_claw_attack`, `_defend`, `_death`, `_walk`, `_ready`; wind/magic/ranged spot animations and bolt projectile/impact; avatar attack, whirlwind, wings, ranged, hit, and death sounds |
+| Aviansie/bodyguards | `godwars_armadyl_{cannon,spear,sword}_attack`, `_defend`, `_death`; spear/axe/bolt launch, projectile, and hit assets; the exact variant/style mapping must replace the current shared Saradomin attack sequence |
+| Zilyana | `godwars_saradomin_attack`, `_magic_attack`, `_magic_attack_spotanim`, `_defend`, `_death`, `_walk`, `_ready`; sword glow, cast/impact, hit, shield, special, and death sounds |
+| Starlight/Growler/Bree | `unicorn_rework_{attack,defend,death}`; `godwars_lion_{attack,magic_attack,magic_spot,magic_proj,magic_impact,defend,death}`; `godwars_centaur_{attack_ranged,arrow_launch,arrow_proj,defend,death}` and matching sounds |
+| K'ril | `godwars_zamorak_attack`, `_magic_attack`, `_magic_attack_spotanim`, `_defend`, `_death`, `_walk`, `_ready`; magic start/projectile/impact and avatar attack/death sounds; explicitly identify whether the prayer slam reuses melee or has its own cache event |
+| Zamorak guards | demon melee set; `godwars_black_demon_fireball_spot`/`_proj`; `godwars_zamarok_bdygrd_ranged_spot`, `godwars_zamorak_bdygrd_ranged`, `_proj`; demon attack/death and fire cast/impact sounds |
+| Spiritual/ambient NPCs | Per-family generated attack/defend/death sets plus `godwars_spiritual_ork_{ranger_ranged_attack,mage_magic_attack}` and Armadyl spiritual launch assets; resolve every missing overlay named above |
+| Ancient godsword | Blood Sacrifice uses `ngs_special_player` (9171), `ngs_special_spotanim` (1996), `spell_blood_siphon_impact` (2003), and `blood_sacrifice` (2911); the primary swing has doubled accuracy/+10% max and its marked target resolves after eight ticks |
+| Saradomin godsword | Healing Blade uses `sgs_special_player` (7640), `dh_sword_update_saradomin_special_spotanim` (1209), and `godwars_godsword_special_attack` (3869); it has doubled accuracy/+10% max and restores from the successful pre-overkill roll with minimum 10 HP/5 Prayer |
+| Nex core | `nex_ready`, `_run`, `_attack`, `_alternate_cast_attack`, `_cast_attack`, `_dash_attack`, `_smash_attack`, `_blast_away`, `_spin_out`, `_blood_siphon`, `_summon`, `_turmoil`, `_defend`, `_death` |
+| Nex magic/effects | Smoke, shadow, blood, ice, finale, ice-prison, siphon, Soul Split, leech, mushroom-cloud, summon, and Turmoil projectile/impact spot animations; `nex_soulsplit`/`nex_deflect` overhead transforms and corresponding heal/deflect sounds |
+| Blood Reavers | `blood_reaver_{ready,walk,attack,defend,death}` and the three matching `nex2021_blood_reaver_*` sounds |
+
+Create a generated `wiki/godwars_combat_manifest.csv` (or equivalent checked-in
+ledger) with one row per cache NPC version and one row per distinct attack. At
+minimum record:
+
+`npc_id, gameval, wiki_version, attack_name, style, max_hit, attack_speed,
+range, attack_seq, defend_seq, death_seq, move_seq, projectile, start_spotanim,
+impact_spotanim, sound, launch_tick, impact_tick, hitsplat_tick, aoe_shape,
+forced_move, secondary_effect, prayer_rule, player_or_npc_target`.
+
+- [x] Inventory symbolic assets from `configs/all.npc`, `all.seq`, spotanim,
+  projectile, sound, and DB rows. Never hard-code numeric cache IDs in scripts.
+- [x] Reconcile the current generated animation file. In particular, explicitly
+  resolve missing overlays for the Saradomin priest, Feral Vampyre, some GWD
+  goblins/knights, and Saradomin/Zamorak spiritual variants.
+- [x] Verify that visually shared bodyguard animations still launch distinct
+  magic/ranged effects. Replace the current generic Armadyl bodyguard attack
+  binding where it cannot represent melee, magic, and ranged faithfully.
+- [x] Record and test every Graardor/Kree/Zilyana/K'ril cry and sound, Kree
+  whirlwind, K'ril slam/poison, all Nex voice lines, phase transitions, cough,
+  dash, shadow tiles, blood marks/reavers, ice objects, overheads, Wrath, and
+  scoreboard effects.
+- [x] Add a test-only trace for all 126 classic attack rows which observes the
+  selected attack, animation, launch/impact assets, sound, target UID, and
+  projectile/landing timing without making production combat noisy.
+- [x] Extend synchronous launch traces to every Nex auto, all eight pre-Zaros
+  special branches, and every Ancient Prison attack/spell path.
+- [x] Advance every Nex delayed queue in the deterministic real-VM lane and
+  assert damage/effect state plus the four-tick final cooldown.
+- [x] Retain the verified launch, landing, effect, and cooldown traces as
+  durable server artifacts; attach supported-client video where available.
+  `docs/evidence/godwars_runtime_trace.tsv` is byte-for-byte reproducible and
+  its checker requires one animation-launch trace for all 126 classic attack
+  rows, every Nex auto/special branch, delayed effects, multiplayer targeting,
+  the 128-cycle owner-loss soak, and parallel-instance isolation.
+
+## Implementation sequence
+
+### Phase 0 — Freeze sources and generate coverage
+
+1. Generate the complete NPC/spawn/attack/drop/asset crosswalk described above,
+   including exact cache IDs, Wiki version IDs, revisions, and current handler
+   locations.
+2. Add failing coverage tests for missing/duplicate attack, animation, spawn,
+   faction, KC, and drop bindings.
+3. Capture deterministic reference fixtures for every boss attack and drop
+   table before changing shared combat code.
+
+Exit gate: every scoped NPC and attack has exactly one reviewed ledger row; all
+unknown assets or behaviors are named blockers rather than implicit defaults.
+
+### Phase 1 — Shared encounter and faction primitives
+
+1. Add NPC-vs-NPC allegiance targeting, faction-item protection, correct player
+   kill attribution, and neutral-NPC behavior.
+2. Add reusable room membership, encounter ownership, AOE target snapshots,
+   forced movement, delayed impact, synchronized respawn, reset, and instance
+   teardown primitives.
+3. Add data-driven attack definitions where they reduce duplication without
+   hiding boss-specific state machines.
+
+Exit gate: a mixed central-room fixture fights indefinitely without cross-room
+targets, false KC, duplicate loot, or stalled combat.
+
+### Phase 2 — Entrance, wings, KC, rooms, and altars
+
+Implement and test every item in the dungeon-systems checklist through the four
+original public rooms. Enable private rooms only with explicit ownership,
+actor/floor-object cleanup, departure monitoring, and tested altar/logout/death
+teardown.
+
+Exit gate: a fresh account can enter, traverse every wing, earn/consume/reset
+KC, use each altar/exit, die/logout safely, and cannot bypass a requirement.
+
+### Phase 3 — All ambient combatants
+
+Implement the main-dungeon roster family by family: exact stats/styles first,
+then animations/effects, Slayer and flying gates, faction combat, and exact
+drops. Run the coverage checker after each family.
+
+Exit gate: all 69 classic gamevals have tested combat, audiovisual, KC/faction,
+and drop behavior with no generic fallthrough.
+
+### Phase 4 — Four original boss encounters
+
+Implement one complete quartet at a time—Bandos, Armadyl, Saradomin, then
+Zamorak—including boss attacks, three distinct bodyguard styles, room reset,
+respawn, drops, altar, and multiplayer attribution. Do not mark a faction done
+while its bodyguards still use generic visuals or loot.
+
+Exit gate: every row in the original boss-room table and all four bodyguard
+drop ledgers pass deterministic and multiplayer tests.
+
+### Phase 5 — Frozen Door and Ancient Prison population
+
+Implement key acquisition/assembly/unlock, maps and barriers, Zaros faction
+combatants and exact drops, KC/ecumenical-key access (including the OSRS robes
+non-bypass rule), safe rooms, Ashuelot, bank/collect, death bank, forge, logout
+rules, and Nex-room instance allocation.
+
+Exit gate: permanent unlock and a complete Ancient Prison trip survive relog,
+restart, death, reclaim, and concurrent-player tests.
+
+### Phase 6 — Nex encounter and contribution loot
+
+Implement the shared targeting loop, then Smoke, Shadow, Blood, Ice, and Zaros
+as explicit state-machine phases. Add each phase's mage, specials, visuals,
+sounds, cleanup, and tests before moving to the next. Finish with Wrath,
+scoreboard, contribution/MVP loot, pet/tertiary rolls, reset, and death bank.
+
+Exit gate: solo test harness plus 2-, 5-, and high-player-count simulations can
+complete or wipe in every phase without stale NPCs/locs, and deterministic
+contribution fixtures award the exact expected recipients and quantities.
+
+### Phase 7 — Statistical, visual, and regression sign-off
+
+1. For every table, exhaustively test threshold coverage and mutually exclusive
+   branches; run seeded high-volume simulations with confidence bounds for
+   uniques, shards, tertiaries, paired drops, and Nex contribution outcomes.
+2. Record deterministic server trace captures for every distinct attack and
+   special. Verify animation start, projectile travel, sound, impact, hitsplat,
+   movement, and cooldown on the intended ticks; add supported-client video
+   where available.
+3. Run script compilation, combat/drop coverage checkers, server unit tests,
+   save/reload tests, and compatibility checks on the currently supported
+   client. Run the revision-239 Java client only when it is in sync.
+4. Perform two-player and multi-team public/private-room soak tests, including
+   simultaneous kills, door entry, logout, death, disconnect, instance owner
+   loss, and server restart.
+
+Exit gate: all completion-rule boxes are checked, all linked Wiki tables have a
+revision-pinned implementation, and the repository has no documented GWD
+exceptions beyond the explicitly out-of-scope Wilderness dungeon.
+
+## Required test matrix
+
+- [x] One deterministic success, miss, protected hit, unprotected hit, maximum
+  hit, and effect-immunity case for every attack style/effect.
+  The compiled ledger identifies all six style classes and every secondary
+  effect. The classic shared-primitive matrix covers all five rolled accuracy
+  families plus typeless penetration, protection and maximum boundaries;
+  effect-specific fixtures cover Gorak, Kree, K'ril, god spells, every flying
+  Aviansie, and the original-general selectors/AOEs. The Ancient Prison matrix
+  separately covers unprotected and protected accurate Smoke/Shadow/Blood/Ice
+  landings plus a miss, and the Nex matrix covers phase-mage immunity and every
+  phase effect.
+- [x] One animation/projectile/sound tick trace for every distinct attack and
+  every boss special.
+- [x] Solo, two-player, and many-player targeting/AOE tests for every general.
+- [x] Bodyguard assist, corner pathing, death-before-boss, death-after-boss,
+  synchronized respawn, and empty-room reset for all four original quartets.
+- [x] All five Nex phases entered from both threshold-crossing damage and exact
+  threshold HP; phase mage cannot be skipped; simultaneous damage cannot skip a
+  phase; every temporary add/loc/overlay is cleaned on victory, wipe, logout,
+  and reset.
+- [x] Every one of the 32 faction-item combinations and immediate
+  equipment-change edge case, including Ancient mace's Bandos-only treatment
+  and strict Saradomin/Zamorak holy-item separation.
+- [x] Every Slayer gate at below/exact level, including explicit GWD
+  Pyrefiend/Bloodveld overrides and all 15 spiritual variants; ordinary slash
+  rejection against all 22 flying Aviansie variants.
+- [x] Every level-gated access requirement at below, exact, and boosted-above
+  values, including the base/boosted distinction for every route and Frozen
+  Door's Hitpoints-only boost exception.
+- [x] Atomic KC/key consumption under duplicate inputs. Public, private, and
+  Nex barriers use one check-and-consume VM procedure; repeated runtime calls
+  cover every faction's exact KC payment, KC-before-key priority, exhausted
+  ecumenical keys, four-piece frozen-key assembly, and the permanent Frozen
+  Door unlock without a second charge or item.
+- [x] Every always/unique/regular/shared/tertiary drop row is reachable at both
+  lower and upper branch boundaries: 173 classic/general/bodyguard/Ancient
+  Prison rows, all Nex common and unique categories, and every independent
+  tertiary bit.
+- [x] Every GWD custom death handler passes the repository drop-handler audit:
+  ambient handlers delegate through a non-null `npc_param(death_drop)` guard,
+  classic bosses/bodyguards state the Wiki Always row explicitly, null-remains
+  Nex/Zarosian handlers carry reasoned waivers, and the ordinary
+  [Blood Reaver](https://oldschool.runescape.wiki/w/Blood_Reaver#Drops) real
+  death hook is VM-tested to emit exactly one malicious ashes.
+- [x] Every inclusive variable quantity expression in the four authored GWD
+  drop files is pinned as an exact 98-entry multiset. The VM drives both
+  endpoints of all 62 unique ranges with deterministic Java-RNG seeds; this
+  includes the three ambient offset ranges, all boss/bodyguard/Ancient Prison/
+  Nex quantities, all five classic potion pairs, both Nex pairs, and Armadyl
+  bodyguard arrow/dart `feathers + 90` at 91 and 101.
+- [x] Every authored fixed/noted stack-to-item mapping and every conditional
+  prerequisite used by a GWD table is pinned. The contract fingerprints **335**
+  context/item/quantity rows, including all **35** explicit `cert_*` noted
+  mappings, so changing an item, quantity, noted state, or owning table fails
+  the gate. The real VM tests all five exact clue variants before and all five
+  tier-matched scroll boxes after
+  [X Marks the Spot](https://oldschool.runescape.wiki/w/X_Marks_the_Spot),
+  [Champion's scroll](https://oldschool.runescape.wiki/w/Champion%27s_scroll)
+  eligibility at 31/32 Quest Points plus defeated-champion suppression, and
+  automatic insurance/collection routing for all four classic boss
+  [pets](https://oldschool.runescape.wiki/w/Pet) and Nexling.
+- [x] The implemented GWD-local prerequisite seams are toggled both ways in the
+  real VM: inactive/active/owned/assembled frozen-key states; inactive,
+  collectible, submitted, and already-owned Rag and Bone Man goblin bones;
+  Konar/non-Konar, matching/non-matching, hit/miss Brimstone selection; and
+  base versus elite/master/grandmaster boss-clue rates, pre/post-quest clue-box
+  selection, champion eligibility/duplicate suppression, and every GWD pet's
+  insurance bit.
+- [x] Nex equal/unequal contribution, first-hunt-order MVP tie policy, exact
+  25-damage eligibility threshold, simultaneous private unique winners,
+  death/disconnect/arena-exit teardown, full-inventory floor loot, every value
+  of the three-bit Ironman-mode carrier, and independent unique/pet/clue bits.
+  This follows the Wiki's explicit statement that
+  [Ironmen remain eligible at Nex](https://oldschool.runescape.wiki/w/Nex#Drops)
+  and Jagex's rule that
+  [leaving wipes personal contribution without redistributing it](https://oldschool.runescape.wiki/w/Update:Nex_Rewards#Rewards).
+- [x] Nex private-room admission rejects one-way friendship and admits a named
+  reciprocal online friend on the same world; the guest does not need the
+  creator's Hard Combat Achievement unlock, consumes their own essence, can
+  leave and rejoin without releasing the room, and is ejected when the creator
+  releases it. A second simultaneous creator/guest pair proves room handles,
+  occupants, and teardown cannot cross-bind. The strict 19/20 population
+  boundary is tested independently. A 128-cycle production-dialog soak rotates
+  owner release, logout, and death and returns the reservation count to zero
+  after every cycle.
+- [x] No cross-instance targeting, projectile, floor object, KC, altar cooldown,
+  death-bank, scoreboard, or reset leakage. A simultaneous two-instance Nex VM
+  fixture places identical actors on identical local tiles, then proves each
+  translated room retains its own targets/projectile recipients, private loot
+  owner and quantity, player state, five-actor reset, and teardown.
+- [x] A real server-process restart cannot preserve or alias a private-room
+  reservation. The two-process harness intentionally terminates phase one with
+  one live Nex reservation and a saved owner handle; phase two starts a new
+  native server, loads that same save, and observes zero live reservations,
+  zero `map_instance_handle`, and zero `gwd_private_faction`.
+
+## Reference index
+
+- [God Wars Dungeon overview, access, factions, rooms, and combatants](https://oldschool.runescape.wiki/w/God_Wars_Dungeon)
+- Boss strategy/mechanics pages: [Graardor](https://oldschool.runescape.wiki/w/General_Graardor/Strategies), [Kree'arra](https://oldschool.runescape.wiki/w/Kree%27arra/Strategies), [Zilyana](https://oldschool.runescape.wiki/w/Commander_Zilyana/Strategies), and [K'ril](https://oldschool.runescape.wiki/w/K%27ril_Tsutsaroth/Strategies)
+- [The Frozen Door](https://oldschool.runescape.wiki/w/The_Frozen_Door)
+- [Ancient Prison](https://oldschool.runescape.wiki/w/Ancient_Prison)
+- [Zarosian Spiritual mage combat effects and drop table](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros)
+- [Nex](https://oldschool.runescape.wiki/w/Nex) and [Nex strategies](https://oldschool.runescape.wiki/w/Nex/Strategies)
+- [Original Nex strategies and two-level Turmoil drain](https://runescape.wiki/w/Nex/Strategies#Zaros_phase),
+  retained only as historical compatibility context. It is not proof of the
+  unpublished OSRS drain quantum; the named two-level constant remains an
+  evidence-limited approximation.
+- [Instance rules, including Nex's current 100,000-coin room, outside death
+  storage, logout eviction, and friend joining](https://oldschool.runescape.wiki/w/Instance)
+- Jagex's [Nex Changes & Tweaks (12 January 2022)](https://store.steampowered.com/news/posts/?enddate=1641985644&feed=steam_community_announcements),
+  the primary-source contract for creator-only Hard Combat Achievements,
+  reciprocal online friendship, per-guest Ancient essence, and the 20-player
+  private-room cap.
+- [God equipment and aggression protection](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#God_equipment)
+- [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
+  and the [old fire-pit recipe](https://oldschool.runescape.wiki/w/Old_fire_pit)
+- [Ghommal's hilt teleport tiers](https://oldschool.runescape.wiki/w/Ghommal%27s_hilt)
+- [Saradomin's light and Zamorakian darkness](https://oldschool.runescape.wiki/w/Saradomin%27s_light)
+- [God Wars Dungeon private instances, Combat Achievement unlock, fees, and
+  three-hour drops](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#Private_instances)
+- [Godsword shard 1](https://oldschool.runescape.wiki/w/Godsword_shard_1), [shard 2](https://oldschool.runescape.wiki/w/Godsword_shard_2), and [shard 3](https://oldschool.runescape.wiki/w/Godsword_shard_3)
+- [Godsword assembly, hilt attachment, and dismantling](https://oldschool.runescape.wiki/w/Godsword)
+  and [Ancient godsword/Blood Sacrifice](https://oldschool.runescape.wiki/w/Ancient_godsword)
+- [Project Rebalance: Ancient godsword healing changed to 15% of base Hitpoints](https://oldschool.runescape.wiki/w/Update%3AProject_Rebalance_-_Item_%26_Combat_Adjustments)
+- [Tombs of Amascut Changes: Blood Sacrifice teleport/instance cancellation](https://oldschool.runescape.wiki/w/Update%3ATombs_of_Amascut_Changes_%26_Beta_Tweaks)
+- Original boss/bodyguard and ambient family pages linked directly in the roster
+  tables above; those links, not this summary, define the complete drop rows.

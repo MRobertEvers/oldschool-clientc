@@ -1,0 +1,231 @@
+{{Switch infobox
+|text1 = In-combat
+|item1 =
+{{Infobox Monster
+|name = Xamphur
+|image = [[File:Xamphur (monster, phantom hands).png|280px]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|combat = 239
+|size = 3
+|examine = If evil had a look, this would be it.
+|xpbonus = 0
+|max hit = 18
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 5
+|hitpoints = 450
+|att = 0
+|str = 0
+|def = 100
+|mage = 140
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 20
+|mbns = 12
+|arange = 0
+|rngbns = 0
+|dstab = 180
+|dslash = 180
+|dcrush = 180
+|dmagic = 260
+|dlight = 30
+|dstandard = 30
+|dheavy = 30
+|poisonresistance = 100
+|venomresistance = 100
+|id = 10954,10955
+|leagueRegion = Kourend
+}}
+|text2 = In-combat (phantom hands unleashed)
+|item2 =
+{{Infobox Monster
+|name = Xamphur
+|image = [[File:Xamphur (monster).png|220px]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|combat = 239
+|size = 3
+|examine = If evil had a look, this would be it.
+|xpbonus = 0
+|max hit = 18
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 5
+|hitpoints = 450
+|att = 0
+|str = 0
+|def = 100
+|mage = 140
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 20
+|mbns = 12
+|arange = 0
+|rngbns = 0
+|dstab = 180
+|dslash = 180
+|dcrush = 180
+|dmagic = 260
+|dlight = 30
+|dstandard = 30
+|dheavy = 30
+|poisonresistance = 100
+|venomresistance = 100
+|id = 10953,10956
+|leagueRegion = Kourend
+}}
+|text3 = NPC
+|item3 =
+{{Infobox NPC
+|name = Xamphur
+|image = [[File:Xamphur.png|120px]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|race = [[Citizen of Arceuus]]
+|quest = [[A Kingdom Divided]]
+|location = [[Lizardman Temple]]
+|gender = Male
+|examine = If evil had a look, this would be it.
+|map = No
+|id = 10951
+|leagueRegion = Kourend
+}}
+}}
+[[File:Xamphur chathead.png|left]]
+'''Xamphur''' is one of [[Xeric]]'s closest comrades that players must fight during [[A Kingdom Divided]]. Xamphur mainly attacks using [[grasp spells]], which can bind the player if damage is taken; praying [[Protect from Magic]] will greatly reduce any damage done by his grasp spells. The fight begins with a number of marks on the floor, and walking over these will empower Xamphur with a [[Mark of Darkness]], causing his grasp spells to become twice as effective, and double the chance to be afflicted with [[Corruption (status)|corruption]]. Avoid the marks to fully avoid this effect.
+[[File:Fighting Xamphur.png|thumb|220px|left|A player fighting Xamphur.]]
+Other than grasp spells, he has two special attacks:  Summoning two [[Phantom Hand]]s that have a chance to drain prayer points over the course of the battle, and summoning ghostly hands that come crushing down on the tile the player is standing on every game tick (0.6 seconds) inflicting rapid damage. Players can avoid the crushing hands by walking around the room (while avoiding the Marks of Darkness) until this attack stops. This attack functions similarly to the fire balls in [[Vorkath]]'s acid attack.
+
+== Recommendations ==
+
+* Xamphur is especially weak to ranged.  He uses [[Protect from Magic]] himself during the fight, thus rendering him immune to [[Magic]] spells.
+** Level {{SCP|Defence|60}} or higher
+** Level {{SCP|Ranged|60}} or higher
+** Level {{SCP|Hitpoints|60}} or higher
+** Level {{SCP|Prayer|43}} for protection prayers
+* While Melee can be used, it's generally not a preferred method.
+
+== Fight overview ==
+The first time you reach this encounter, after you use the key on the door - you will then need to walk up to the black gate to trigger a cutscene, after which you'll be immediately in combat.  On subsequent attempts, you'll teleport directly to Xamphur after interacting with the first door. 
+
+Xamphur uses 1 spell throughout the fight:  
+
+* '''Ghostly Grasp'''- An unavoidable [[magic]] attack from the Arceuus Spellbook,  [[Ghostly Grasp]] comes up from the ground and damages the player.  This is cast by Xamphur approximately every 4 ticks. 
+** [[Protect from Magic]] does not negate the damage entirely, but better gear can help mitigate this to almost 0.  This spell has a 10% chance to bind you in place for 2 ticks.
+
+Xamphur will also alternate between his two special attacks, which are announced by various lines of dialog.
+
+* '''Phantom Hands''' - Xamphur will summon two [[Phantom Hand]]s (level 47) with 12 hitpoints each.  Upon a [[successful hit]], these hands will have a 50% chance to inflict [[Corruption (status)|corruption]], draining 12 prayer points over the course of 18 seconds. Kill these as soon as they spawn to avoid being corrupted.
+* '''Crushing Hands''' - Ghostly hands descend from above, and deal significant damage on every game tick for 16 ticks. You can almost entirely avoid the falling ghostly hands that deal damage by '''WALKING''' in a straight line along any row of tiles with no Marks of Darkness.
+
+There are 18 glowing pools spread out around the arena.  Stepping on any of these pools will buff Xamphur with [[Mark of Darkness]] - which gives him two notable boons.
+
+* Mark of Darkness doubles the bind chance of Ghostly Grasp (from 10% to 20%)
+* Phantom Hands are guaranteed to inflict [[Corruption|Greater Corruption]] on their next successful hit.  This drains 12 prayer points over the course of 30 ticks (18s). The first drains 2 prayer points, the second 4 prayer points, and the third drains 6 prayer points
+
+You cannot get more than 4 tiles away from Xamphur as he closes the distance when you move further away. You should only need to move during the Crushing Press attack. It is safe to stand in melee range, as Xamphur has no melee attacks
+
+== Strategies ==
+Enable [[Protect from Magic]] and maintain it throughout the encounter.  Turn off auto retaliate, and disable run mode.  
+
+Some players may find a use for [[Rune thrownaxe|Rune thrownaxes]] (which Ironmen can purchase from the archery guild) - as they can be helpful in disposing of the Phantom hands, since the thrownaxe will bounce to multiple targets.  Be sure to attack a hand when using the special attack for maximum effect. 
+
+If you have a [[Seercull]], its special attack can be used at the start of the fight.  You will still have enough Special Energy to use the chain-hit special of Rune thrownaxes beginning with the second spawn of hands and every spawn thereafter.
+
+Xamphur appears to be immune to the effects of the [[Ring of recoil]], so using one is pointless. For those using the [[Ring of suffering (r)]], disable the Recoil effect before battle so you won't waste charges.
+
+Crossbows are not recommended due to their slow speed, as you'll need to dispatch '''Phantom Hands''' with haste.
+{{Inventory|Rune thrownaxe|Prayer potion(4)|Prayer potion(4)|Ring of dueling|Shark|Shark|Shark|Shark|Cooked karambwan|Cooked karambwan|Cooked karambwan|Cooked karambwan|Shark|Shark|Shark|Shark|Cooked karambwan|Cooked karambwan|Cooked karambwan|Cooked karambwan|Shark|Shark|Shark|Shark|Cooked karambwan|Cooked karambwan|Cooked karambwan|Cooked karambwan
+|align = right
+}}{{Recommended equipment
+| style = Ranged
+| head1 = {{plink|Void ranger helm}}
+| head2 = {{plink|Blessed coif|pic=Ancient coif}}
+| head3 = {{plink|Archer helm}}
+| head4 = 
+| head5 = 
+| neck1 = {{plink|Amulet of fury}}
+| neck2 = {{plink|Amulet of glory}}
+| neck3 = {{plink|Amulet of power}}
+| neck4 = 
+| cape1 = {{plink|Ava's accumulator}}
+| cape2 = {{plink|Ava's attractor}}
+| cape3 = 
+| cape4 = 
+| cape5 = 
+| body1 = {{plink|Void knight top}}
+| body2 = {{plink|Blessed body|pic=Ancient d'hide body}}
+| body3 = {{plink|Black d'hide body}}
+| body4 = {{plink|Red d'hide body}}
+| body5 = 
+| legs1 = {{plink|Void knight robe}}
+| legs2 = {{plink|Blessed chaps|pic=Ancient chaps}}
+| legs3 = {{plink|Black d'hide chaps}}
+| legs4 = {{plink|Red d'hide chaps}}
+| legs5 = 
+| weapon1 = {{plink|Hunters' sunlight crossbow}}
+| weapon2 = {{plink|Magic shortbow (i)}}
+| weapon3 = {{plink|Magic shortbow}}
+| weapon4 = 
+| weapon5 = 
+| shield1 = {{plink|Book of Law}}
+| shield2 = {{plink|Unholy book}}
+| ammo1 = {{plink|Amethyst arrow}} using {{plinkp|Magic shortbow}}
+| ammo2 = {{plink|Moonlight antler bolts}} using {{plinkp|Hunters' sunlight crossbow}}
+| ammo3 = {{plink|Rune arrow}}
+| ammo4 = 
+| hands1 = {{plink|Void knight gloves}}
+| hands2 = {{plink|Barrows gloves}}
+| hands3 = {{plink|Blessed bracers|pic=Ancient bracers}}
+| hands4 = {{plink|Black d'hide vambraces}}
+| hands5 = {{plink|Red d'hide vambraces}}
+| feet1 = {{plink|Blessed boots|pic=Ancient d'hide boots}}
+| feet2 = {{plink|Mixed hide boots}}
+| feet3 = {{plink|Shayzien boots (5)}}
+| feet4 = 
+| ring1 = {{plink|Archers ring (i)}} / {{plink|Steel ring}}
+| ring2 = 
+| ring3 = 
+}}
+
+=== Inventory ===
+
+* Decent food and [[Prayer potion|Prayer potions]].  
+* If you don't have access to Shark, [[Potato with cheese]] can be purchased cheaply from the Warriors Guild
+
+==History==
+{{References needed}}
+Xamphur has over the last century planned a conspiracy spanning the entirety of [[Great Kourend]] with the intention of bringing back his master, Xeric. He is referred to by the lizardmen as '''Yo'kal ahk'''.
+
+Long ago he played a role in plundering and looting [[Dinh's Redoubt]] in search of a location to perform experiments. In a [[Ancient letter|letter]] written to [[Vasa Nistirio|High Priest Nistirio]], Xamphur claims to have looted some of [[Dinh]]'s equipment and taken it back to [[Quidamortem]].
+
+During the 40th decade, Xamphur achieved a breakthrough in the study of teleportation, giving [[Xeric]] the ability to perform a previously impossible feat. This allowed him to instantly travel around [[Great Kourend]] and aided in the creation of his talisman.
+
+After Xeric's fall, Xamphur sought a way to bring him back, but was unable to do so. He would end up imprisoned by the [[lizardmen]] in the [[Lizardman Temple]] in [[Molch]] for centuries, having been accused of causing Xeric's disappearance. Eventually, Xamphur managed to convince their shamans to release him and immediately began setting plans in motions to bring Xeric back. These plans would eventually include planting the seeds that would lead to [[Veos]] discovering and being possessed by Xeric, the corruption of [[King Kharedst IV]] by giving him a cursed flask, an alliance and conspiracy with the future [[Kourend Council|councillors of Kourend]] to gain access to the [[Dark Altar]], the deaths of both King Kharedst and the crown princess [[Rose]], capturing the energy of the Dark Altar for an experiment which created the [[Trapped Soul]], the sabotage of the [[Doors of Dinh]], and presumably other schemes.
+
+At some point after [[Thana]]'s death, [[Mori]], who sought answers from the [[Tasakaal]], was making her way to [[Mount Karuulm]] when she saw a "ghast-like" creature with skin white as bone much like its clothing. The creature casted a spell on the trader, killing him before teleporting away. As Mori went to help the trader, he suddenly got up and rushed towards her. Having never seen such magic and believing the now reanimated man to be dangerous, Mori fled, hoping to never see something like that again. Given Mori's description of the creature, it was likely Xamphur.
+
+Xamphur is later seen conversing with [[Veos]] over the status of his plan before they are discovered by the adventurer. During the conversation, Xeric, in Veos' possessed body, commended Xamphur for the ambition and scale of his plan, but told him that he had no more use for Kourend, much to Xamphur's confusion. Xeric then sensed an eavesdropping adventurer and ordered Xamphur to dispose of them before rendezvousing in the far south, implied to be [[Varlamore]]. The adventurer injured Xamphur, but to very little effect and he in turn cast a lightning spell that he believed killed them, ordering some lizardmen to dispose of their corpse. This proved to be an oversight, as the adventurer had only been knocked unconscious, and when they regained their senses, the lizardmen tasked with disposal fled, believing them to be a zombie.
+
+Nonetheless, Xamphur abandoned the area as it was now compromised. Arceuus mages were sent by [[Lord Trobin Arceuus]] to investigate Xamphur's hideout, where they discovered and tested the many spells that Xamphur had been working on. The ones that were deemed safe were presented to Trobin, who taught the adventurer these spells as a reward for their efforts.
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (1).png|Early concept art for Xamphur by [[Mod Gee]].
+Xamphur concept art.jpg|left|thumb|200px|Concept art of Xamphur by [[Mod Grub]].
+</gallery>
+
+{{A Kingdom Divided}}
+[[Category:Bosses]]
+[[Category:Quest monsters]]

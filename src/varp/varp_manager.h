@@ -65,7 +65,7 @@ struct VarPManager
      * The type table is a cache fact — one record per varplayer the cache
      * declares — while the value arrays are sized by what actually gets
      * written. This tree lets content allocate varps ABOVE the cache's highest
-     * id (mock230.h MOCK230_VARP_SERVER_HEADROOM), so those two numbers
+     * id (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM), so those two numbers
      * genuinely differ: id 6000 has a value and no type. Reading a clientcode
      * for such an id must answer "none", not walk off the end of the table.
      */

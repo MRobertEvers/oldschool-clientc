@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2FlotypeLoad
 {
@@ -41,8 +42,7 @@ Task_Dat2FlotypeLoad_Run(
         archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_OVERLAY);
         if( !archive )
         {
-            fprintf(
-                stderr, "Failed to decode dat2 overlay config group for flo %d\n", task->flo_id);
+            TORIRS_ERR("Failed to decode dat2 overlay config group for flo %d\n", task->flo_id);
             PT_EXIT(&task->pt);
         }
 
@@ -53,14 +53,14 @@ Task_Dat2FlotypeLoad_Run(
     rscache_overlay = dat2_buildcache_overlay_get(task->bc, task->flo_id);
     if( !rscache_overlay )
     {
-        fprintf(stderr, "Failed to load dat2 overlay %d\n", task->flo_id);
+        TORIRS_ERR("Failed to load dat2 overlay %d\n", task->flo_id);
         PT_EXIT(&task->pt);
     }
 
     torirs_flotype = ToriRS_FlotypeFromRSCacheOverlay(task->flo_id, rscache_overlay);
     if( !torirs_flotype )
     {
-        fprintf(stderr, "Failed to convert dat2 overlay %d\n", task->flo_id);
+        TORIRS_ERR("Failed to convert dat2 overlay %d\n", task->flo_id);
         PT_EXIT(&task->pt);
     }
 

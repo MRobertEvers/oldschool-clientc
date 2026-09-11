@@ -1,0 +1,81 @@
+{{Infobox Monster
+|defver = 2
+|version1 = Entry
+|version2 = Normal
+|name = Nylocas Athanatos
+|image = [[File:Nylocas Athanatos.png|250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat = 107
+|size = 3
+|examine = This strain of nylocas does not die easily.
+|xpbonus = 0
+|max hit1 = 1
+|max hit2 = 11
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints1 = 30
+|hitpoints2 = 180
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def1 = 40
+|def2 = 50
+|mage1 = 40
+|mage2 = 50
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10844
+|id2 = 8384
+}}
+'''Nylocas Athanatos''' spawn during the second phase of the [[Verzik Vitur]] encounter during the [[Theatre of Blood]]. 
+
+When spawning, it will launch from Verzik towards a random player. Where it lands it will deal massive damage in an AOE. It can hit up to 78 damage from the very centre tile it lands on with reduced damage 1 tile away from that.
+
+These nylocas do not target players but instead attend to Lady Verzik, healing her much like the [[Nylocas Matomenos]]. If it is hit with a weapon capable of afflicting [[poison]] or [[venom]] (or when the [[serpentine helm]] is equipped), the Nylocas Athanatos will instead burst and deal damage to Verzik, indicated by a green aura appearing over it. It can also be killed by poison inflicted by [[Smoke spells]]. Using raw damage to kill it is not recommended, due to its high health regen rate and damage reduction, and ability to quickly respawn when killed without poison.{{Clarify|Regen rate and damage reduction percentage and respawn mechanic could use more detail}}
+
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Nylocas Athanatos now have a 15% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Nylocas can now be affected by burn damage.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|poll =
+|change = The death animation of a Nylocas Athanatos has been reduced.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word "Nylocas" is very similar to the Hungarian word "Nyolcas", meaning "eight", referencing the eight legs of this arachnid-like creature.
+*The latter part of the name of the Nylocas Athanatos likely derives from the Greek adjective "ἀθάνατος" ("athánatos"), meaning "undying" or "immortal", referencing its background within the lore.
+
+{{Theatre of Blood}}

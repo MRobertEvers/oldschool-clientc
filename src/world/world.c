@@ -1,5 +1,7 @@
 #include "world.h"
 
+#include "features/features.h"
+
 #include "entity_pathing.h"
 
 #include <assert.h>
@@ -7,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define WORLD_PROJECTILE_ANGLE_TO_RAD 0.02454369
 #define WORLD_PROJECTILE_ANGLE_TO_RPI2048 325.949
@@ -35,6 +38,7 @@ World_Free(struct World* world)
 {
     if( !world )
         return;
+    World_EventsClear(world);
     if( world->heightmap )
         heightmap_free(world->heightmap);
     if( world->minimap )
@@ -54,6 +58,14 @@ World_Free(struct World* world)
     free(world->mapscenes);
     free(world->area_sounds);
     World_EntityListFree(&world->entities);
+    for( int i = 0; i < world->scenery_info.count; i++ )
+        free(world->scenery_info.entries[i]);
+    free(world->scenery_info.entries);
+    free(world->scenery_info.hashes);
+    free(world->scenery_info.buckets);
+    free(world->scenery_info.chain);
+    free(world->scenery_info.memo_loc_ids);
+    free(world->scenery_info.memo_infos);
     free(world);
 }
 
@@ -155,6 +167,189 @@ World_TileFlagGet(
     return world->tile_flags[x + z * world->_scene_size + level * world->_scene_size * world->_scene_size];
 }
 
+/* Same values RSCACHE_FLOFLAG_LINK_BELOW / _VIS_BELOW carry, redeclared so this
+ * stays leaf — minimap.h does the same for the two flags its bake reads. */
+#define WORLD_TILE_FLAG_LINK_BELOW 0x02
+#define WORLD_TILE_FLAG_VIS_BELOW 0x08
+
+/* LINK_BELOW is a property of the whole column and is read at cache level 1,
+ * which is why both helpers below ask level 1 whatever level they were given. */
+static int
+world_column_link_below(
+    struct World const* world,
+    int x,
+    int z)
+{
+    return (World_TileFlagGet(world, x, z, 1) & WORLD_TILE_FLAG_LINK_BELOW) != 0;
+}
+
+int
+World_LocPaintLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int cache_level)
+{
+    if( cache_level < 0 || cache_level >= WORLD_MAP_TERRAIN_LEVELS )
+        return cache_level;
+    if( !world_column_link_below(world, x, z) )
+        return cache_level;
+    /* The same shuffle painter_tile_copyto performs: 1->0, 2->1, 3->2, 0->3. */
+    return cache_level == 0 ? WORLD_MAP_TERRAIN_LEVELS - 1 : cache_level - 1;
+}
+
+/*
+ * The level a terrain mesh DRAWS at, which is not the level it was authored on.
+ *
+ * Two flags move a floor off its own plane and this is where they are answered
+ * together (reference class112.method4161 / Client-TS getVisBelowLevel):
+ * VIS_BELOW drops a tile to level 0 outright, and on a LinkBelow column every
+ * plane above 0 is pushed down one by the bridge shuffle. Both leave the mesh
+ * on its own plane and change only the level it is culled and picked against —
+ * which is why callers that want "where is this geometry" still read the mesh
+ * level, and callers asking "can the player standing on level N see or click
+ * this" read this.
+ *
+ * Shared rather than open-coded because the pick guard and the debug readout
+ * have to agree with the value the world builder baked into the painter tile
+ * (painter_tile_set_draw_level, RSCache_MapFloorVisBelowDrawLevel) — three
+ * copies of one rule is how they drift.
+ */
+int
+World_TerrainDrawLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level)
+{
+    if( mesh_level < 0 || mesh_level >= WORLD_MAP_TERRAIN_LEVELS )
+        return mesh_level;
+    if( (World_TileFlagGet(world, x, z, mesh_level) & WORLD_TILE_FLAG_VIS_BELOW) != 0 )
+        return 0;
+    if( mesh_level > 0 && world_column_link_below(world, x, z) )
+        return mesh_level - 1;
+    return mesh_level;
+}
+
+/*
+ * Mesh level -> the level that mesh is walked from.
+ *
+ * A terrain pick hands back the plane the floor was AUTHORED on, and on a
+ * LinkBelow column that is one above the plane the player standing on it walks:
+ * the deck is cache level 1, the player is level 0. Anything that takes that
+ * hit and speaks the wire — an entity position, a height sample, the tile a
+ * plugin draws a marker on — has to come back down first, or it lands a storey
+ * out. Feeding a raw mesh level to app_world_height is the loud case: that
+ * function adds the bridge's +1 itself, so the double shift samples level 2 and
+ * the marker floats 240 units over the deck.
+ *
+ * VIS_BELOW is not part of this and must not be: it lowers the level a mesh is
+ * culled and picked against (World_TerrainDrawLevel) and leaves the geometry —
+ * and the player — on their own plane.
+ */
+int
+World_TerrainWalkLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level)
+{
+    if( mesh_level <= 0 || mesh_level >= WORLD_MAP_TERRAIN_LEVELS )
+        return mesh_level;
+    if( !world_column_link_below(world, x, z) )
+        return mesh_level;
+    return mesh_level - 1;
+}
+
+/*
+ * Debug readouts of a column, shared so the minimenu row and the loc editor
+ * panel cannot describe the same tile differently.
+ *
+ * Settings: one group per cache level, `[L0|L1|L2|L3]`, letters in bit order —
+ * B block, L link-below, R remove-roof, V vis-below, H force-high-detail, `-`
+ * for a level whose byte is zero. Spelled rather than hex because the two that
+ * move a floor off its own plane are L and V, and "0x0a" does not say that at a
+ * glance. The whole column, not one level: LINK_BELOW is read at cache level 1
+ * and speaks for every plane, so a readout of the hovered level alone cannot
+ * explain the level the tile draws at.
+ */
+void
+World_TileSettingsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap)
+{
+    static char const letters[5] = { 'B', 'L', 'R', 'V', 'H' };
+    int used = 0;
+
+    assert(out);
+    assert(cap > 0);
+    out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+    {
+        unsigned flags = (unsigned)World_TileFlagGet(world, x, z, level);
+        int any = 0;
+
+        if( level > 0 && used < cap - 1 )
+            out[used++] = '|';
+        for( int bit = 0; bit < 5 && used < cap - 1; bit++ )
+            if( flags & (1u << bit) )
+            {
+                out[used++] = letters[bit];
+                any = 1;
+            }
+        if( !any && used < cap - 1 )
+            out[used++] = '-';
+    }
+    out[used] = '\0';
+}
+
+/*
+ * Which cache levels of a column actually carry a terrain mesh, as digits, or
+ * `-` for none.
+ *
+ * "There is no floor here" and "the floor is on a plane you did not expect" are
+ * the two states an unclickable or blank patch of ground is in, and they look
+ * identical in the viewport. A Theatre of Blood corridor answers `1` while the
+ * player stands on level 0; a genuinely floorless tile answers `-`.
+ */
+void
+World_TerrainMeshLevelsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap)
+{
+    int used = 0;
+
+    assert(out);
+    assert(cap > 0);
+    out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+        if( World_TerrainElementAt(world, x, z, level) >= 0 )
+            out[used++] = (char)('0' + level);
+    if( used == 0 && used < cap - 1 )
+        out[used++] = '-';
+    out[used] = '\0';
+}
+
+int
+World_LocCacheLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int wire_level)
+{
+    if( wire_level < 0 || wire_level >= WORLD_MAP_TERRAIN_LEVELS - 1 )
+        return wire_level;
+    if( !world_column_link_below(world, x, z) )
+        return wire_level;
+    return wire_level + 1;
+}
+
 static int
 world_obj_raise_idx(
     struct World const* world,
@@ -214,6 +409,61 @@ World_SetHeightFn(
 }
 
 void
+World_SetWorldEntityRegisterFn(
+    struct World* world,
+    World_WorldEntityRegisterFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->world_entity_register_fn = fn;
+    world->world_entity_register_userdata = userdata;
+}
+
+void
+World_SetForeignActorRegisterFn(
+    struct World* world,
+    World_ForeignActorRegisterFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->foreign_actor_register_fn = fn;
+    world->foreign_actor_register_userdata = userdata;
+}
+
+void
+World_SetForeignDynamicClaimFn(
+    struct World* world,
+    World_ForeignDynamicClaimFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->foreign_dynamic_claim_fn = fn;
+    world->foreign_dynamic_claim_userdata = userdata;
+}
+
+
+void
+World_SetActorRootFrameFn(
+    struct World* world,
+    World_ActorRootFrameFn fn,
+    void* userdata)
+{
+    assert(world);
+    world->actor_root_frame_fn = fn;
+    world->actor_root_frame_userdata = userdata;
+}
+
+void
+World_SetLocalPlaneFn(
+    struct World* world,
+    int (*fn)(void* userdata),
+    void* userdata)
+{
+    assert(world);
+    world->local_plane_fn = fn;
+    world->local_plane_userdata = userdata;
+}
+void
 World_SetLoadComplete(
     struct World* world,
     bool complete)
@@ -257,8 +507,14 @@ World_ResetSceneAlloc(
      * relocates them (Client-TS keeps entity slots across a rebuild). */
     World_EntityPoolReset(&world->entities.scenery);
     world->scenery_pick_count = 0;
+    /* "What changed" is "all of it"; no list can say that usefully. */
+    world->scenery_changed_count = 0;
+    world->scenery_changed_overflow = true;
     /* Pending EntityRemoved must be drained (SceneElementRemove) before a
-     * scene reset — wiping the queue here would orphan DYNAMIC elements. */
+     * scene reset — wiping the queue here would orphan DYNAMIC elements. Every
+     * caller drains first: the root rebuild and each boat view's deck rebuild
+     * in task_gameproto_exec.c, the offline load in app.c, App_WevDespawn.
+     * A failure here names the rebuild path that forgot to. */
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
@@ -390,6 +646,8 @@ World_TerrainReset(struct World* world)
 {
     assert(world);
     World_EntityPoolReset(&world->entities.terrain);
+    if( world->painter )
+        painter_clear_terrain_elements(world->painter);
 }
 
 void
@@ -407,13 +665,20 @@ World_TerrainSet(
     if( !World_EntityPoolEnsureSlot(pool, idx) )
         return;
 
-    struct WorldEntity_Terrain* terrain = World_EntityPoolGet(pool, idx);
-    assert(terrain);
+    struct WorldEntity_Terrain* terrain = World_EntityPoolAt(pool, idx);
 
     terrain->element_id = element_id;
     terrain->grid_position.level = level;
     terrain->grid_position.x = x;
     terrain->grid_position.z = z;
+
+    /* Mirror into the painter so the paint walk can stamp the id onto the
+     * terrain command (World_TerrainElementAt is the pool walk the frame
+     * then need not make). The painter is made in World_ResetSceneAlloc,
+     * ahead of the build that sets tiles; a world with no painter is a
+     * headless test. */
+    if( world->painter )
+        painter_set_terrain_element(world->painter, x, z, level, element_id);
 }
 
 int
@@ -461,6 +726,37 @@ World_EmitEntityRemoved(
     int element_id)
 {
     World_EmitEvent(world, WorldEventKind_EntityRemoved, element_id);
+}
+
+/**
+ * Queue the render-side removal together with the NPC as it exists now.
+ *
+ * World_NpcDespawn releases the entity-pool slot immediately. The App drains
+ * World_Event later, so looking the element id up at that point normally finds
+ * nothing (and can find an unrelated replacement after slot reuse). Keeping a
+ * queue-owned copy makes the despawn event a real snapshot rather than an id
+ * whose subject has already vanished.
+ */
+static void
+World_EmitNpcRemoved(
+    struct World* world,
+    struct WorldEntity_NPC const* npc)
+{
+    struct World_Event* event;
+
+    assert(world);
+    assert(npc);
+    if( npc->element_id < 0 )
+        return;
+    assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
+    event = &world->events[world->event_count++];
+    *event = (struct World_Event){
+        .kind = WorldEventKind_EntityRemoved,
+        .element_id = npc->element_id,
+    };
+    event->removed_npc = malloc(sizeof(*event->removed_npc));
+    assert(event->removed_npc);
+    *event->removed_npc = *npc;
 }
 
 static int
@@ -553,7 +849,9 @@ World_PlayerSpawn(
         .element_id = element_id,
         .grid_position = { .x = scene_x, .z = scene_z, .level = level },
         .draw_position = { .x = (uint32_t)(scene_x * 128 + 64),
-                           .z = (uint32_t)(scene_z * 128 + 64) },
+                           .z = (uint32_t)(scene_z * 128 + 64),
+                           .fx = (float)(scene_x * 128 + 64),
+                           .fz = (float)(scene_z * 128 + 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
                      .route_x = { (uint8_t)scene_x },
@@ -570,6 +868,9 @@ World_PlayerSpawn(
         .held_left_applied = -1,
         .held_right_applied = -1,
         .loc_merge_id = -1,
+        /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
+         * spelled rather than left to the pool's zeroing. */
+        .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
     };
@@ -587,8 +888,7 @@ World_PlayerDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    assert(player);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, player->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -616,16 +916,20 @@ World_NpcSpawn(
         .element_id = element_id,
         .grid_position = { .x = scene_x, .z = scene_z, .level = level },
         .draw_position = { .x = (uint32_t)(scene_x * 128 + size * 64),
-                           .z = (uint32_t)(scene_z * 128 + size * 64) },
+                           .z = (uint32_t)(scene_z * 128 + size * 64),
+                           .fx = (float)(scene_x * 128 + size * 64),
+                           .fz = (float)(scene_z * 128 + size * 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
                      .route_x = { (uint8_t)scene_x },
                      .route_z = { (uint8_t)scene_z } },
+        .base_npc_id = npc_id,
         .npc_id = npc_id,
         .size = size,
-        /* Default-on: the config flag only ever clears it, and a spawn whose
+        /* Default-on: both config flags only ever clear, and a spawn whose
          * npc type has not resolved yet must still draw its dot. */
         .minimap_visible = true,
+        .interactable = true,
         .idle_animations = idle_animations,
         .facing = { .entity_id = WORLD_FACING_ENTITY_NONE,
                     .fallback_angle = -1,
@@ -633,6 +937,9 @@ World_NpcSpawn(
                     .turn_speed = 32 },
         .visible_ops = 0x1f,
         .server_slot = -1,
+        /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
+         * spelled rather than left to the pool's zeroing. */
+        .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
     };
@@ -650,9 +957,8 @@ World_NpcDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    assert(npc);
-    World_EmitEntityRemoved(world, npc->element_id);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    World_EmitNpcRemoved(world, npc);
     World_EntityPoolRelease(pool, idx);
 }
 
@@ -718,8 +1024,7 @@ World_ProjectileDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, idx);
-    assert(p);
+    struct WorldEntity_Projectile* p = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, p->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -747,7 +1052,11 @@ World_SpotanimSpawn(
     *s = (struct WorldEntity_Spotanim){
         .element_id = element_id,
         .level = level,
-        .draw_position = { .x = (uint32_t)scene_x, .z = (uint32_t)scene_z, .y = (uint32_t)y },
+        .draw_position = { .x = (uint32_t)scene_x,
+                           .z = (uint32_t)scene_z,
+                           .y = (uint32_t)y,
+                           .fx = (float)scene_x,
+                           .fz = (float)scene_z },
         .orientation = { .yaw = (uint16_t)orientation, .dst_yaw = (uint16_t)orientation },
         .idle_cycles = idle_delay,
         .active_cycle = 0,
@@ -802,10 +1111,97 @@ World_SpotanimDespawn(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
 
-    struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, idx);
-    assert(s);
+    struct WorldEntity_Spotanim* s = World_EntityPoolAt(pool, idx);
     World_EmitEntityRemoved(world, s->element_id);
     World_EntityPoolRelease(pool, idx);
+}
+
+/* ---------------------------------------------- plugin-owned world objects */
+
+int
+World_PluginObjectSpawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int size_x,
+    int size_z)
+{
+    assert(world);
+    assert(element_id >= 0);
+    assert(size_x > 0);
+    assert(size_z > 0);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    int idx = World_EntityPoolAlloc(pool);
+    assert(idx >= 0);
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
+    *obj = (struct WorldEntity_PluginObject){
+        .element_id = element_id,
+        .level = level,
+        .draw_position = { .x = (uint32_t)scene_x,
+                           .z = (uint32_t)scene_z,
+                           .y = (uint32_t)y,
+                           .fx = (float)scene_x,
+                           .fz = (float)scene_z },
+        .orientation = { .yaw = (uint16_t)orientation, .dst_yaw = (uint16_t)orientation },
+        .size_x = size_x,
+        .size_z = size_z,
+        .active = true,
+    };
+    return idx;
+}
+
+void
+World_PluginObjectDespawn(
+    struct World* world,
+    int idx)
+{
+    assert(world);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
+    World_EmitEntityRemoved(world, obj->element_id);
+    World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_PluginObjectSetActive(
+    struct World* world,
+    int idx,
+    bool active)
+{
+    assert(world);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolAt(pool, idx);
+    obj->active = active;
+}
+
+void
+World_PluginObjectClear(struct World* world)
+{
+    struct World_EntityPool* pool;
+    int next;
+
+    assert(world);
+
+    pool = &world->entities.plugin_object;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = next )
+    {
+        next = World_EntityPoolNext(pool, i);
+        World_PluginObjectDespawn(world, i);
+    }
 }
 
 /* --- REBUILD_NORMAL scene-base relocation (Client-TS rebuild handler) ---
@@ -892,7 +1288,11 @@ World_ShiftEntities(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-        if( player )
+        /* An actor homed to a world-entity view carries VIEW-LOCAL
+         * coordinates (entity_facets.h home_view) — its base did not move
+         * when the root scene re-based, so shifting it would drag it across
+         * the deck by the rebuild delta. */
+        if( player && player->view_placement.home_view == 0 )
             world_shift_mover(
                 &player->grid_position,
                 &player->draw_position,
@@ -907,7 +1307,7 @@ World_ShiftEntities(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-        if( npc )
+        if( npc && npc->view_placement.home_view == 0 )
             world_shift_mover(
                 &npc->grid_position,
                 &npc->draw_position,
@@ -931,8 +1331,9 @@ World_ShiftEntities(
          * also owns the element reposition); park them at 255 like movers. */
         stack->grid_position.x = (sx < 0 || sx > 255) ? 255 : sx;
         stack->grid_position.z = (sz < 0 || sz > 255) ? 255 : sz;
-        stack->draw_position.x = (uint32_t)(stack->grid_position.x * 128 + 64);
-        stack->draw_position.z = (uint32_t)(stack->grid_position.z * 128 + 64);
+        World_DrawPositionSet(
+            &stack->draw_position, stack->grid_position.x * 128 + 64,
+            stack->grid_position.z * 128 + 64);
     }
 
     /* Loc-change list (Client-TS locChanges / deob field1353): shift and
@@ -978,6 +1379,172 @@ World_ClearProjectilesAndSpotanims(struct World* world)
     }
 }
 
+/* FNV-1a over the whole block. The block has no interior padding (a 64-byte
+ * name then five 34-byte actions, all of alignment 2) and callers zero their
+ * scratch, so hashing it as bytes is sound. */
+static uint32_t
+world_scenery_info_hash(struct WorldEntity_SceneryInfo const* info)
+{
+    unsigned char const* bytes = (unsigned char const*)info;
+    uint32_t hash = 2166136261u;
+
+    assert(info);
+    for( size_t i = 0; i < sizeof(*info); i++ )
+    {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+static void
+World_CopyMenuActions(
+    struct WorldEntityFacet_Action dest[5],
+    char const src[5][32]);
+
+void
+World_SceneryInfoMemoClear(struct World* world)
+{
+    assert(world);
+    for( int i = 0; i < world->scenery_info.memo_capacity; i++ )
+        world->scenery_info.memo_loc_ids[i] = -1;
+}
+
+/*
+ * The interned info for `loc_id`, assembling and hashing the probe only on the
+ * first placement of that loc in this build.
+ *
+ * A direct-mapped memo, not a hash: loc ids are dense enough that the id is
+ * its own index, and a collision (two locs sharing a slot) simply re-interns,
+ * which is what every placement used to do.
+ */
+void
+World_SceneryInfoMemoInvalidate(struct World* world, int loc_id)
+{
+    assert(world);
+    struct World_SceneryInfoTable* table = &world->scenery_info;
+    if( loc_id < 0 || table->memo_capacity == 0 ) return;
+    int slot = loc_id % table->memo_capacity;
+    if( table->memo_loc_ids[slot] == loc_id ) table->memo_loc_ids[slot] = -1;
+}
+
+static struct WorldEntity_SceneryInfo const*
+world_scenery_info_for_loc(
+    struct World* world,
+    int loc_id,
+    char const* name,
+    char const actions[5][32])
+{
+    struct World_SceneryInfoTable* table = &world->scenery_info;
+    struct WorldEntity_SceneryInfo probe;
+    int slot;
+
+    /* TORIRS_NO_SCENERY_MEMO=1 interns per placement again -- the A/B this
+     * memo was measured with. */
+    static int memo_off = -1;
+    if( memo_off < 0 )
+        memo_off = getenv("TORIRS_NO_SCENERY_MEMO") != NULL;
+
+    if( loc_id >= 0 && !memo_off )
+    {
+        if( table->memo_capacity == 0 )
+        {
+            table->memo_capacity = 4096;
+            table->memo_loc_ids =
+                malloc((size_t)table->memo_capacity * sizeof(*table->memo_loc_ids));
+            table->memo_infos =
+                malloc((size_t)table->memo_capacity * sizeof(*table->memo_infos));
+            assert(table->memo_loc_ids);
+            assert(table->memo_infos);
+            for( int i = 0; i < table->memo_capacity; i++ )
+                table->memo_loc_ids[i] = -1;
+        }
+        slot = loc_id % table->memo_capacity;
+        if( table->memo_loc_ids[slot] == loc_id )
+            return table->memo_infos[slot];
+    }
+    else
+        slot = -1;
+
+    memset(&probe, 0, sizeof(probe));
+    if( name )
+    {
+        strncpy(probe.name, name, sizeof(probe.name) - 1);
+        probe.name[sizeof(probe.name) - 1] = '\0';
+    }
+    World_CopyMenuActions(probe.actions, actions);
+
+    {
+        struct WorldEntity_SceneryInfo const* info = World_SceneryInfoIntern(world, &probe);
+        if( slot >= 0 )
+        {
+            table->memo_loc_ids[slot] = loc_id;
+            table->memo_infos[slot] = info;
+        }
+        return info;
+    }
+}
+
+struct WorldEntity_SceneryInfo const*
+World_SceneryInfoIntern(
+    struct World* world,
+    struct WorldEntity_SceneryInfo const* probe)
+{
+    struct World_SceneryInfoTable* table;
+    struct WorldEntity_SceneryInfo* entry;
+    uint32_t hash;
+    int bucket;
+
+    assert(world);
+    assert(probe);
+
+    table = &world->scenery_info;
+    hash = world_scenery_info_hash(probe);
+    bucket = (int)(hash % WORLD_SCENERY_INFO_BUCKETS);
+
+    if( !table->buckets )
+    {
+        table->buckets = malloc(sizeof(*table->buckets) * WORLD_SCENERY_INFO_BUCKETS);
+        assert(table->buckets);
+        for( int i = 0; i < WORLD_SCENERY_INFO_BUCKETS; i++ )
+            table->buckets[i] = -1;
+    }
+
+    for( int i = table->buckets[bucket]; i >= 0; i = table->chain[i] )
+    {
+        if( table->hashes[i] != hash )
+            continue;
+        if( memcmp(table->entries[i], probe, sizeof(*probe)) == 0 )
+            return table->entries[i];
+    }
+
+    if( table->count == table->capacity )
+    {
+        int capacity = table->capacity ? table->capacity * 2 : 64;
+        struct WorldEntity_SceneryInfo** entries =
+            realloc(table->entries, (size_t)capacity * sizeof(*entries));
+        uint32_t* hashes = realloc(table->hashes, (size_t)capacity * sizeof(*hashes));
+        int* chain = realloc(table->chain, (size_t)capacity * sizeof(*chain));
+        assert(entries);
+        assert(hashes);
+        assert(chain);
+        table->entries = entries;
+        table->hashes = hashes;
+        table->chain = chain;
+        table->capacity = capacity;
+    }
+
+    entry = malloc(sizeof(*entry));
+    assert(entry);
+    memcpy(entry, probe, sizeof(*entry));
+    table->hashes[table->count] = hash;
+    table->entries[table->count] = entry;
+    table->chain[table->count] = table->buckets[bucket];
+    table->buckets[bucket] = table->count;
+    table->count++;
+    return entry;
+}
+
 static void
 World_CopyMenuActions(
     struct WorldEntityFacet_Action dest[5],
@@ -993,6 +1560,31 @@ World_CopyMenuActions(
             dest[i].name[sizeof(dest[i].name) - 1] = '\0';
         }
     }
+}
+
+/*
+ * Record that one scenery element changed.
+ *
+ * Appends rather than de-duplicates: a repeat costs the consumer one
+ * redundant re-test of a single entity, and scanning the list to avoid it
+ * would cost more than that. Overflow is not an error -- it downgrades the
+ * consumer to the full pass it used to do unconditionally.
+ */
+void
+World_SceneryNoteChanged(
+    struct World* world,
+    int element_id)
+{
+    assert(world);
+
+    if( element_id < 0 )
+        return;
+    if( world->scenery_changed_count >= WORLD_SCENERY_CHANGED_MAX )
+    {
+        world->scenery_changed_overflow = true;
+        return;
+    }
+    world->scenery_changed[world->scenery_changed_count++] = element_id;
 }
 
 int
@@ -1016,13 +1608,22 @@ World_SceneryRegister(
     if( element_id < 0 || loc_id < 0 )
         return -1;
 
+    /* The slot IS the element index, so the lookup below is an identity
+     * check and not a search. Same arrangement the terrain pool already
+     * uses (World_TerrainRegister, via a tile index). */
     struct World_EntityPool* pool = &world->entities.scenery;
-    int idx = World_EntityPoolAlloc(pool);
-    if( idx < 0 )
+    int idx = ToriDraw_ElementIndexOfRaw(element_id);
+    if( idx < 0 || !World_EntityPoolEnsureSlot(pool, idx) )
         return -1;
 
-    struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, idx);
-    assert(scenery);
+    struct WorldEntity_Scenery* scenery = World_EntityPoolAt(pool, idx);
+    /* EnsureSlot only bumps the pool epoch when it ACTIVATES a slot, and
+     * re-registering an already-live element (a loc that morphs, or a
+     * region reload writing over the same index) changes what the entity
+     * IS without changing the live set. Anything caching a pass over this
+     * pool has to see that, so say so here. */
+    pool->epoch++;
+    World_SceneryNoteChanged(world, element_id);
     memset(scenery, 0, sizeof(*scenery));
     scenery->element_id = element_id;
     scenery->loc_id = loc_id;
@@ -1034,14 +1635,10 @@ World_SceneryRegister(
     scenery->shape = shape;
     scenery->angle = angle;
     scenery->force_approach = force_approach & 0xf;
-    if( name )
-    {
-        strncpy(scenery->name, name, sizeof(scenery->name) - 1);
-        scenery->name[sizeof(scenery->name) - 1] = '\0';
-    }
-    World_CopyMenuActions(scenery->actions, actions);
+    scenery->info = world_scenery_info_for_loc(world, loc_id, name, actions);
     scenery->interactive = interactive ? 1 : 0;
     scenery->painter_wall_ab = -1;
+    scenery->painter_ground_decor = 0;
     scenery->painter_wall_side = 0;
     return idx;
 }
@@ -1051,15 +1648,22 @@ World_SceneryGetByElementId(
     struct World* world,
     int element_id)
 {
-    assert(world);
     struct World_EntityPool* pool = &world->entities.scenery;
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
-        if( scenery && scenery->element_id == element_id )
-            return scenery;
-    }
-    return NULL;
+    struct WorldEntity_Scenery* scenery;
+    int const idx = ToriDraw_ElementIndexOfRaw(element_id);
+
+    assert(world);
+
+    /* The scenery pool is indexed by the element index, so this is an
+     * identity check: is that slot live, and is the entity in it still
+     * the one this id names? A freed-and-reused slot fails the second
+     * test, which is why both are here rather than just the first. */
+    if( idx < 0 || idx >= pool->count || !World_EntityPoolIsActive(pool, idx) )
+        return NULL;
+    scenery = World_EntityPoolGet(pool, idx);
+    if( !scenery || scenery->element_id != element_id )
+        return NULL;
+    return scenery;
 }
 
 struct WorldEntity_NPC*
@@ -1206,7 +1810,7 @@ World_PlayerPathPushStep(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EntityPathingPushStep(&player->pathing, step_type, direction);
 }
 
@@ -1220,7 +1824,7 @@ World_NpcPathPushStep(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EntityPathingPushStep(&npc->pathing, step_type, direction);
 }
 
@@ -1235,7 +1839,7 @@ World_PlayerPathJump(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_PathJumpEntity(
         &player->pathing, &player->draw_position, &player->grid_position, 1, force_teleport, x, z);
 }
@@ -1253,7 +1857,7 @@ World_PlayerPathJumpCollisionAware(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     enum World_PathingJump jump = World_EntityPathingJumpCollisionAware(
         &player->pathing, collision, force_teleport, x, z, step_type);
     if( jump == WORLD_PATHING_JUMP_TELEPORT )
@@ -1275,7 +1879,7 @@ World_NpcPathJump(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     int size = npc->size > 0 ? npc->size : 1;
     World_PathJumpEntity(
         &npc->pathing, &npc->draw_position, &npc->grid_position, size, force_teleport, x, z);
@@ -1301,7 +1905,7 @@ World_PlayerFaceEntityDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     player->facing.entity_id = entity_id;
     player->facing.fallback_angle = fallback_angle;
     player->facing.instant = instant;
@@ -1327,7 +1931,7 @@ World_NpcFaceEntityDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     npc->facing.entity_id = entity_id;
     npc->facing.fallback_angle = fallback_angle;
     npc->facing.instant = instant;
@@ -1356,7 +1960,7 @@ World_PlayerBeginModernFacing(
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.player, idx));
     struct WorldEntity_Player* player =
-        World_EntityPoolGet(&world->entities.player, idx);
+        World_EntityPoolAt(&world->entities.player, idx);
     World_BeginModernFacing(&player->facing, movement_mode);
 }
 
@@ -1368,7 +1972,7 @@ World_NpcBeginModernFacing(
 {
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.npc, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
     World_BeginModernFacing(&npc->facing, movement_mode);
 }
 
@@ -1382,7 +1986,7 @@ World_PlayerFaceCoord(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     player->facing.square_x = square_x;
     player->facing.square_z = square_z;
 }
@@ -1397,7 +2001,7 @@ World_NpcFaceCoord(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     npc->facing.square_x = square_x;
     npc->facing.square_z = square_z;
 }
@@ -1413,7 +2017,7 @@ World_PlayerFaceAngle(
 
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.player, idx));
-    player = World_EntityPoolGet(&world->entities.player, idx);
+    player = World_EntityPoolAt(&world->entities.player, idx);
     player->facing.direct_angle = angle & 0x7ff;
     player->facing.instant = instant;
 }
@@ -1429,7 +2033,7 @@ World_NpcFaceAngle(
 
     assert(world);
     assert(World_EntityPoolIsActive(&world->entities.npc, idx));
-    npc = World_EntityPoolGet(&world->entities.npc, idx);
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
     npc->facing.direct_angle = angle & 0x7ff;
     npc->facing.instant = instant;
 }
@@ -1468,7 +2072,7 @@ World_PlayerSetAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_SetAnimationTrack(&player->animation, animation_id, animation_type);
 }
 
@@ -1482,7 +2086,7 @@ World_NpcSetAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_SetAnimationTrack(&npc->animation, animation_id, animation_type);
 }
 
@@ -1508,7 +2112,28 @@ void
 World_EventsClear(struct World* world)
 {
     assert(world);
+    for( int i = 0; i < world->event_count; i++ )
+    {
+        free(world->events[i].removed_npc);
+        world->events[i].removed_npc = NULL;
+    }
     world->event_count = 0;
+}
+
+void
+World_SetFeatures(
+    struct World* world,
+    struct ToriRS_FeatureTable const* features)
+{
+    assert(world);
+    world->features = features;
+}
+
+int
+World_MoverModel(struct World const* world)
+{
+    assert(world);
+    return world->features ? world->features->mover_model : TORIRS_MOVER_CYCLE_INTEGER;
 }
 
 void
@@ -1521,6 +2146,18 @@ World_SetSeqSource(
         world->seq_source = *source;
     else
         memset(&world->seq_source, 0, sizeof(world->seq_source));
+}
+
+void
+World_SetAnimSoundSink(
+    struct World* world,
+    struct World_AnimSoundSink const* sink)
+{
+    assert(world);
+    if( sink )
+        world->anim_sound_sink = *sink;
+    else
+        memset(&world->anim_sound_sink, 0, sizeof(world->anim_sound_sink));
 }
 
 /* Seq-source getters with the documented defaults for a NULL source. */
@@ -1544,6 +2181,65 @@ world_seq_duplicate_behavior(
     return -1;
 }
 
+/*
+ * The readyanim's loop point is where an action animation is authored to start.
+ *
+ * A creature's attack clip is not drawn in isolation: the animator builds it as
+ * a departure from the ready loop and brings it back, so its first frame is the
+ * ready loop's first frame and its last is the frame before that. Xarpus is the
+ * case that proves it — seq 8059 frame 0 poses model 35383 IDENTICALLY to seq
+ * 8058 frame 0 (bit-identical render), and 8058 is 120 cycles long, which is
+ * exactly his four-tick attack cadence. The clip only reads as one motion if
+ * the ready loop is at its start when the clip takes over.
+ *
+ * Nothing kept it there. The ready track free-runs underneath the action (it
+ * has to — its frame sounds keep playing, and the reference steps it every
+ * cycle regardless), so whatever phase it happened to be in when the fight
+ * started is the phase every attack cut in at, forever. Measured on Xarpus
+ * before this: the spit began with the ready loop at frame 39 of 52, cycle 87
+ * of 120, on every spit of the fight.
+ *
+ * Restarting it here is invisible at the moment it happens, which is the whole
+ * reason it is safe: while an un-delayed action animation is playing over the
+ * readyanim, the readyanim is not drawn at all — `getModel` passes null for the
+ * movement sequence (reference NPC.getModel; ours is
+ * app_world_apply_entity_anim_tracks, which binds a secondary only when it is
+ * NOT the readyanim). The reset chooses where the ready loop RESUMES, nothing
+ * more, and it resumes at a fixed offset into the loop rather than a drifting
+ * one.
+ *
+ * Three conditions, and each earns its place:
+ *
+ *   - the secondary has to BE the readyanim. A walk animation is drawn while
+ *     an action plays (that is the walkmerge blend), and restarting it would
+ *     stutter the gait mid-stride.
+ *   - the action has to start driving THIS cycle (`delay == 0`). A delayed
+ *     action leaves the readyanim on screen until the delay expires, so a reset
+ *     now would be a visible jump.
+ *   - it is a fresh action, not a re-application of one already playing — that
+ *     branch returns above.
+ *
+ * This is the same rule the reference states at the far end: NpcType opcode 130
+ * restarts the readyanim when an action animation FINISHES (33 npcs in the
+ * rev-239 cache carry it; Xarpus is not one of them). Jagex put the restart on
+ * the exit and left the entry to chance. The entry is the seam the animation
+ * data is authored around, so this client locks that one.
+ */
+static void
+world_restart_readyanim_under_action(
+    struct WorldEntityFacet_Animation* animation,
+    int readyanim,
+    int delay)
+{
+    if( delay != 0 || readyanim < 0 )
+        return;
+    if( animation->secondary.anim_id != (uint16_t)readyanim )
+        return;
+    animation->secondary.frame = 0;
+    animation->secondary.cycle = 0;
+    animation->secondary.loop = 0;
+}
+
 /* Reference readExtendedInfo ANIM application (Client.ts 8401-8430):
  * same-anim RestartMode RESET restarts frame/cycle/loop; RESETLOOP resets
  * only the loop counter; a different anim applies when no primary is playing
@@ -1553,6 +2249,7 @@ world_apply_primary_animation(
     struct World* world,
     struct WorldEntityFacet_Animation* animation,
     struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim,
     int seq_id,
     int delay)
 {
@@ -1569,6 +2266,20 @@ world_apply_primary_animation(
     if( animation->primary.anim_id == (uint16_t)seq_id )
     {
         int restart = world_seq_duplicate_behavior(world, seq_id);
+        /*
+         * Worth a line because of what it looks like from outside. A seq
+         * re-sent while the entity is already on it does NOT restart unless
+         * the seq's own replyMode says so (mode 1), which is the reference's
+         * rule and is right — but a one-shot death seq parked on its last
+         * frame that receives itself again therefore stays parked, and the
+         * corpse is reaped showing a pose that never moved. That reads as "it
+         * just disappeared". The sender is at fault when that happens, not
+         * this branch: see the ToB Matomenos, whose scripted arrival death and
+         * engine kill could both play 8097 on one npc.
+         */
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            TORIRS_LOG("anim: seq %d re-applied while already playing (frame %d, restart mode %d)\n",
+                    seq_id, (int)animation->primary.frame, restart);
         if( restart == 1 ) /* RestartMode.RESET */
         {
             animation->primary.frame = 0;
@@ -1590,9 +2301,7 @@ world_apply_primary_animation(
             world_seq_priority(world, animation->primary.anim_id) )
     {
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
+            TORIRS_ERR("anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
                 seq_id,
                 world_seq_priority(world, seq_id),
                 (int)animation->primary.anim_id,
@@ -1600,12 +2309,13 @@ world_apply_primary_animation(
         return;
     }
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "anim: seq %d (prio %d) applied over %d\n",
+        TORIRS_LOG("anim: seq %d (prio %d) applied over %d [idle seq %d frame %d cycle %d]\n",
             seq_id,
             world_seq_priority(world, seq_id),
-            (int)animation->primary.anim_id);
+            (int)animation->primary.anim_id,
+            (int)(int16_t)animation->secondary.anim_id,
+            (int)animation->secondary.frame,
+            (int)animation->secondary.cycle);
 
     animation->primary.anim_id = (uint16_t)seq_id;
     animation->primary.frame = 0;
@@ -1613,6 +2323,7 @@ world_apply_primary_animation(
     animation->primary.delay = (uint8_t)delay;
     animation->primary.loop = 0;
     animation->preanim_route_length = pathing->route_length;
+    world_restart_readyanim_under_action(animation, readyanim, delay);
 }
 
 void
@@ -1625,8 +2336,14 @@ World_PlayerSetPrimaryAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    world_apply_primary_animation(world, &player->animation, &player->pathing, seq_id, delay);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    world_apply_primary_animation(
+        world,
+        &player->animation,
+        &player->pathing,
+        player->idle_animations.readyanim,
+        seq_id,
+        delay);
 }
 
 void
@@ -1639,8 +2356,14 @@ World_NpcSetPrimaryAnimation(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    world_apply_primary_animation(world, &npc->animation, &npc->pathing, seq_id, delay);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    world_apply_primary_animation(
+        world,
+        &npc->animation,
+        &npc->pathing,
+        npc->idle_animations.readyanim,
+        seq_id,
+        delay);
 }
 
 void
@@ -1676,7 +2399,7 @@ World_PlayerSetExactMoveDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
 
     player->exact_move.start_x = (uint8_t)start_x;
     player->exact_move.start_z = (uint8_t)start_z;
@@ -1724,7 +2447,7 @@ World_NpcSetExactMoveDetailed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
 
     npc->exact_move.start_x = (uint8_t)start_x;
     npc->exact_move.start_z = (uint8_t)start_z;
@@ -1865,7 +2588,7 @@ World_PlayerSetSpotanim(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_set_entity_spotanim(world, &player->spotanim, spotanim_id, height, cycle_delay);
 }
 
@@ -1880,7 +2603,7 @@ World_NpcSetSpotanim(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
 }
 
@@ -1895,7 +2618,7 @@ World_NpcSetType(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
 
     npc->npc_id = npc_id;
     npc->size = size > 0 ? size : 1;
@@ -1942,7 +2665,7 @@ World_PlayerSetAppearance(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
 
     if( slots )
         memcpy(player->appearance.slots, slots, sizeof(player->appearance.slots));
@@ -2001,7 +2724,7 @@ World_PlayerAddHitmarkTimed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     World_EntityAddHitmark(
         player->combat.damage_values,
         player->combat.damage_types,
@@ -2016,25 +2739,32 @@ World_PlayerAddHitmarkTimed(
         slot_policy);
     player->combat.health = health;
     player->combat.total_health = total_health;
-    player->combat.healthbar_width = 0;
     player->combat.combat_cycle = world->cycle + 400;
 }
 
+/*
+ * Record one HEADBAR block.
+ *
+ * The fills are fractions of the healthbar TYPE's own width and mean nothing
+ * without it, so nothing here interprets them -- the caller resolves the type
+ * (it is the side that can reach the config table) and hands over the already
+ * computed expiry. World's job is to remember what the server said until the
+ * overlay build reads it back.
+ */
 void
-World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width)
+World_PlayerSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar)
 {
     struct WorldEntity_Player* player;
 
     assert(world);
-    if( !World_EntityPoolIsActive(&world->entities.player, idx) || width <= 0 )
+    assert(bar.type >= 0);
+    if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
-    if( player->combat.healthbar_width > width )
-        width = player->combat.healthbar_width;
-    player->combat.health = fill;
-    player->combat.total_health = width;
-    player->combat.healthbar_width = width;
-    player->combat.combat_cycle = world->cycle + 400;
+    World_EntityApplyHeadbar(&player->combat, bar);
 }
 
 void
@@ -2046,7 +2776,7 @@ World_PlayerClearHealthbar(struct World* world, int idx)
     if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
-    player->combat.combat_cycle = 0;
+    player->combat.healthbar_type = -1;
 }
 
 int
@@ -2076,10 +2806,15 @@ World_ObjStackAdd(
     stack->grid_position.x = scene_x;
     stack->grid_position.z = scene_z;
     stack->grid_position.level = level;
-    stack->draw_position.x = (uint32_t)(scene_x * 128 + 64);
-    stack->draw_position.z = (uint32_t)(scene_z * 128 + 64);
+    World_DrawPositionSet(&stack->draw_position, scene_x * 128 + 64, scene_z * 128 + 64);
     stack->obj_id = obj_id;
     stack->count = count;
+    /* memset put zeroes here; the ownership half has to read "the server never
+     * said" instead, which is -1. See entity_objstack.h. */
+    stack->public_clock = -1;
+    stack->despawn_clock = -1;
+    stack->owner = 0;
+    stack->never_becomes_public = 0;
     if( name )
     {
         strncpy(stack->name, name, sizeof(stack->name) - 1);
@@ -2087,6 +2822,27 @@ World_ObjStackAdd(
     }
     World_CopyMenuActions(stack->actions, actions);
     return idx;
+}
+
+void
+World_ObjStackSetOwnership(
+    struct World* world,
+    int idx,
+    int public_clock,
+    int despawn_clock,
+    int owner,
+    int never_becomes_public)
+{
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    assert(idx >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    stack->public_clock = public_clock;
+    stack->despawn_clock = despawn_clock;
+    stack->owner = owner;
+    stack->never_becomes_public = never_becomes_public;
 }
 
 int
@@ -2222,6 +2978,34 @@ World_SceneryFindAt(
     return -1;
 }
 
+struct WorldEntity_Scenery*
+World_SceneryFindByLocId(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
+        if( !scenery )
+            continue;
+        if( scenery->loc_id != loc_id )
+            continue;
+        if( scenery->grid_position.x != scene_x || scenery->grid_position.z != scene_z ||
+            scenery->grid_position.level != level )
+            continue;
+        return scenery;
+    }
+    return NULL;
+}
+
 void
 World_SceneryRemove(
     struct World* world,
@@ -2235,6 +3019,7 @@ World_SceneryRemove(
     if( !World_EntityPoolIsActive(pool, idx) )
         return;
     scenery = World_EntityPoolGet(pool, idx);
+    World_SceneryNoteChanged(world, scenery->element_id);
     World_EmitEntityRemoved(world, scenery->element_id);
     World_EntityPoolRelease(pool, idx);
 }
@@ -2277,7 +3062,7 @@ World_NpcAddHitmarkTimed(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EntityAddHitmark(
         npc->combat.damage_values,
         npc->combat.damage_types,
@@ -2292,25 +3077,23 @@ World_NpcAddHitmarkTimed(
         slot_policy);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
-    npc->combat.healthbar_width = 0;
     npc->combat.combat_cycle = world->cycle + 400;
 }
 
 void
-World_NpcSetHealthbar(struct World* world, int idx, int fill, int width)
+World_NpcSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar)
 {
     struct WorldEntity_NPC* npc;
 
     assert(world);
-    if( !World_EntityPoolIsActive(&world->entities.npc, idx) || width <= 0 )
+    assert(bar.type >= 0);
+    if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
-    if( npc->combat.healthbar_width > width )
-        width = npc->combat.healthbar_width;
-    npc->combat.health = fill;
-    npc->combat.total_health = width;
-    npc->combat.healthbar_width = width;
-    npc->combat.combat_cycle = world->cycle + 400;
+    World_EntityApplyHeadbar(&npc->combat, bar);
 }
 
 void
@@ -2322,7 +3105,7 @@ World_NpcClearHealthbar(struct World* world, int idx)
     if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
-    npc->combat.combat_cycle = 0;
+    npc->combat.healthbar_type = -1;
 }
 
 /* Reference chatTimer = 150 on every new message (Client.ts:8166); the per-
@@ -2358,7 +3141,7 @@ World_PlayerSetChat(
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
     world_entity_set_chat(&player->chat, message, colour, effect);
 }
 
@@ -2373,6 +3156,6 @@ World_NpcSetChat(
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
-    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+    struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     world_entity_set_chat(&npc->chat, message, colour, effect);
 }

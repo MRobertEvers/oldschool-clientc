@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2ComponentPackLoad
 {
@@ -40,7 +41,7 @@ Task_Dat2ComponentPackLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load interfaces reference table\n");
+            TORIRS_ERR("Failed to load interfaces reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_INTERFACES, table);
@@ -57,16 +58,20 @@ Task_Dat2ComponentPackLoad_Run(
         CacheProvider_Profile(&task->bc->base));
     if( !rscache_pack )
     {
-        fprintf(stderr, "Failed to decode dat2 component pack %d\n", task->iface_id);
+        TORIRS_ERR("Failed to decode dat2 component pack %d\n", task->iface_id);
         PT_EXIT(&task->pt);
     }
 
-    dat2_buildcache_componentpack_add(task->bc, task->iface_id, rscache_pack);
-
     torirs_pack = ToriRS_ComponentPackFromRSCacheDat2(rscache_pack);
+    /* The converted pack copies every field by value and deep-copies every
+     * array it keeps, so the decoded form has no reader left the moment this
+     * returns. It used to be handed to the build cache, which held all 25 of
+     * them for the session and was never asked for one. */
+    RSCache_Dat2ComponentPackFree(rscache_pack);
+    rscache_pack = NULL;
     if( !torirs_pack )
     {
-        fprintf(stderr, "Failed to convert dat2 component pack %d\n", task->iface_id);
+        TORIRS_ERR("Failed to convert dat2 component pack %d\n", task->iface_id);
         PT_EXIT(&task->pt);
     }
 

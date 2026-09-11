@@ -45,6 +45,10 @@ emit_npc(
 {
     if( entry->name )
         cp_lines_add_str(out, "name", entry->name);
+    /* Opcode 3, the same key a loc states its examine under. No pristine npc
+     * record carries one — this is here so the content tree can author it. */
+    if( entry->desc )
+        cp_lines_add_str(out, "desc", entry->desc);
 
     for( int i = 0; i < entry->models_count; i++ )
         cp_lines_addf(out, "model%d=%d", i + 1, entry->models[i]);
@@ -202,6 +206,13 @@ cp_pack_npc(
             free(entry->name);
             entry->name = strdup(buf);
         }
+        else if( strcmp(key, "desc") == 0 )
+        {
+            char buf[4096];
+            cp_unescape(value, buf, sizeof(buf));
+            free(entry->desc);
+            entry->desc = strdup(buf);
+        }
         else if( (index = cp_indexed_key(key, "model")) >= 0 )
         {
             ok = cp_parse_int(value, &tmp);
@@ -316,7 +327,7 @@ cp_pack_npc(
         else if( strcmp(key, "height") == 0 )
             ok = cp_parse_int(value, &entry->height);
         else if( strcmp(key, "category") == 0 )
-            ok = cp_parse_int(value, &entry->category);
+            ok = cp_resolve_category(ctx, value, &entry->category);
         else if( strcmp(key, "soundidle") == 0 )
             ok = cp_parse_int(value, &entry->sound_idle);
         else if( strcmp(key, "soundcrawl") == 0 )

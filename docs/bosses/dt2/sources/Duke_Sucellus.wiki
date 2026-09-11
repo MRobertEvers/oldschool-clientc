@@ -1,0 +1,438 @@
+{{redirect|Duke|other uses|Duke (disambiguation)}}
+{{External|rs}}
+{{Instance}}
+{{HasStrategy}}
+{{Multi Infobox
+|text1 = Post-quest
+|item1 = 
+{{Infobox Monster
+|version1 = Awake
+|version2 = Asleep
+|version3 = Defeated
+|bucketname1 = Post-quest, Awake
+|bucketname2 = Post-quest, Asleep
+|bucketname3 = Post-quest, Defeated
+|name = Duke Sucellus
+|image1 = [[File:Duke Sucellus.png|280px]]
+|image2 = [[File:Duke Sucellus (asleep).png|280px]]
+|image3 = [[File:Duke Sucellus (defeated).png|280px]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|combat = 758
+|size = 7
+|examine1 = That's a lot of eyes...
+|examine2 = He seems to be asleep.
+|examine3 = Is he dead?
+|attributes = Demon
+|xpbonus = 52.5
+|max hit = 56 ([[Melee]]), 48 ([[Magic]]), 101 (Gaze)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Crush]]
+|attack speed = 5
+|respawn = 20
+|slayxp = 305
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints = 485
+|att = 300
+|str = 345
+|def = 275
+|mage = 310
+|range = 0
+|attbns = 200
+|strbns = 38
+|amagic = 150
+|mbns = 32
+|arange = 0
+|rngbns = 0
+|dstab = 255
+|dslash = 45
+|dcrush = 190
+|dmagic = 440
+|dlight = 320
+|dstandard = 320
+|dheavy = 320
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 12191
+|id2 = 12166,12167
+|id3 = 12192,12196 <!-- Probably just 12192 but needs verification-->
+}}
+|text2 = Awakened
+|item2 = 
+{{Infobox Monster
+|version1 = Awake
+|version2 = Asleep
+|version3 = Defeated
+|bucketname1 = Awakened, Awake
+|bucketname2 = Awakened, Asleep
+|bucketname3 = Awakened, Defeated
+|name = Duke Sucellus
+|image1 = [[File:Duke Sucellus.png|280px]]
+|image2 = [[File:Duke Sucellus (asleep).png|280px]]
+|image3 = [[File:Duke Sucellus (defeated).png|280px]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|combat = 1099
+|size = 7
+|examine1 = That's a lot of eyes...
+|examine2 = He seems to be asleep.
+|examine3 = Is he dead?
+|attributes = Demon
+|xpbonus = 52.5
+|max hit = 81 ([[Melee]]), 71 ([[Magic]]), 121 (Gaze)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Crush]]
+|attack speed = 5
+|respawn = 20
+|slayxp = 1697 <!-- Changed with new hp but needs verification-->
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints = 1697
+|att = 435
+|str = 500
+|def = 316
+|mage = 465
+|range = 0
+|attbns = 200
+|strbns = 38
+|amagic = 150
+|mbns = 32
+|arange = 0
+|rngbns = 0
+|dstab = 255
+|dslash = 65
+|dcrush = 190
+|dmagic = 440
+|dlight = 320
+|dstandard = 320
+|dheavy = 320
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = Yes
+|id1 = 12191
+|id2 = 12166,12167
+|id3 = 12192,12196 <!-- Probably just 12192 but needs verification-->
+}}
+|text3 = Quest
+|item3 =
+{{Infobox Monster
+|version1 = Awake
+|version2 = Asleep
+|version3 = Defeated
+|bucketname1 = Quest, Awake
+|bucketname2 = Quest, Asleep
+|bucketname3 = Quest, Defeated
+|name = Duke Sucellus
+|image1 = [[File:Duke Sucellus.png|280px]]
+|image2 = [[File:Duke Sucellus (asleep).png|280px]]
+|image3 = [[File:Duke Sucellus (defeated).png|280px]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|combat = 538
+|size = 7
+|examine1 = That's a lot of eyes...
+|examine2 = He seems to be asleep.
+|examine3 = Is he dead?
+|attributes = Demon
+|xpbonus = 45
+|max hit = 36 ([[Melee]]), 28 ([[Magic]]), 99 (Gaze)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Crush]]
+|attack speed = 6
+|respawn = 20
+|slayxp = 360
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints = 330
+|att = 250
+|str = 280
+|def = 215
+|mage = 230
+|range = 0
+|attbns = 200
+|strbns = 16
+|amagic = 150
+|mbns = 10
+|arange = 0
+|rngbns = 0
+|dstab = 210
+|dslash = 30
+|dcrush = 160
+|dmagic = 400
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 12195
+|id2 = 12193,12194
+|id3 = 12196 <!--Most likely this rather than 12192-->
+}}
+}}
+'''Duke Sucellus''' (pronounced {{IPAc-en|s|uː|ˈ|k|ɛ|l|ə|s}} {{respell|soo-KELL-əs}}){{CiteVideo|author=Old School RuneScape|title=Desert Treasure II Lore Q&A Livestream!|url=OBQC7mIEQJY|timestamp=29:30|date=|site=|notes=|name=}} is a [[chthonian]]{{CiteNPC|npc=Golem (Desert Treasure II)|quote=Race: Cthonian{{sic}}|loc=|notes=Chthonian is spelled incorrectly ingame|name=}} demon sealed in [[Ghorrock Prison]], who is encountered during [[Desert Treasure II - The Fallen Empire]]. A high-ranking commander of the [[Zarosian Empire]], Sucellus took informal command of the remaining forces of the Empire after the [[Betrayal of Zaros]]. A stronger variant of him can be fought again after the completion of the quest.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Duke Sucellus
+|location = [[Ghorrock Prison]] - Asylum
+|levels = 538, 758, 1,099
+|members = Yes
+|mapID = -1
+|plane = 0
+|3039,6454
+|mtype = pin
+|leagueRegion = Fremennik
+}}
+{{LocTableBottom}}
+
+[[Ghorrock Prison]] is accessible from [[Ghorrock Dungeon]], with the dungeon itself being accessible from [[Weiss]]'s [[Salt Mine]]. Players do not have to traverse the entirety of Ghorrock Prison after the completion of the quest, as they will instead directly reach the asylum when going through the main prison entrance.
+
+A [[Scoreboard (Duke Sucellus)|scoreboard]] by the gates leading to the asylum show statistics related to Duke Sucellus.
+
+==History==
+[[File:Statue (Duke Sucellus).png|thumb|left|180px|The statue of Duke Sucellus in the Ancient Vault.]]
+Duke Sucellus was the leader of [[Zaros]]' Sixth Legion, one of twelve demonic legions from [[Infernus]] sent to [[Gielinor]] at the beginning of the [[Second Age]], and held the rank of Legatus within the [[Zarosian Empire]], which bestowed command of a whole legion. He was also one of four individuals entrusted with a medallion - the means to open the [[Ancient Vault]] where the [[Elder Horn]] was sealed - alongside [[Perseriya]], [[Vardorvis]], and [[the Whisperer]], all of whom were high-ranking personnel in the Empire.
+
+At some point during the [[Third Age]], after the [[Betrayal of Zaros]], Sucellus was sent to [[Ghorrock]], where he became Acting Legatus Maximus (the rank previously held by [[Zamorak]]) and took informal command over what little forces of the [[Zarosian Empire]] remained. During his time in Ghorrock, he took in many refugees from the Empire who managed to make their way there. As the [[God Wars]] dragged on, the fortress was close to running out of room,{{CiteText|text=Refugees note|quote=Another hundred refugees arrived today. This war has already lasted multiple lifetimes for the lesser races, and there is no end in sight. I ask once again that we consider our capacity here. I do not wish to turn away those who are still faithful, but we are running out of room.}} with some humans having been born there and never leaving the fortress.{{CiteText|text=Request note|quote=I understand the need for security, but some of the humans have spent their entire lives in this place. Giving them a glimpse of the outside could be a much needed morale boost for everyone.}}
+
+By the end of the [[God Wars]], Sucellus moved to the prison asylum and began ordering preparations to return to the surface.{{CiteText|text=Prisoner's letter|quote=Something isn't right. The war is over and the gods are gone. We should be leaving this place, but instead we remain. Apparently, the Duke requires us to make preparations before we return to the surface, but there is something we are not being told.}} However, suspicions were raised after more and more people who were taken to the asylum never returned.{{CiteText|text=Prisoner's letter|quote=The Duke hasn't left the asylum in days, and every day, more people are taken down there... never to return. I feel something terrible is fast approaching. We must leave before it does.}} In reality, Sucellus believed that he was the one destined to restore the Empire to its former glory, and ate everyone who was brought to the asylum in order to absorb their essence and gain more power.{{CiteText|text=Warning letter|quote=If you're reading this, you've no doubt already seen the horrifying truth for yourself. The Duke thinks he's destined to restore the empire, at the small cost of all our lives!}}{{CiteText|text=Evacuation note|quote=He ate them... He ate them all!}} This would seem to be the explanation for the tremendous difference in appearance between statues of the Duke seen in Ghorrock's Prison and the Ancient Vault, and Sucellus' current form.
+
+Realising the threat Sucellus posed, [[Jhallan]] and [[Mizzarch]] began to make preparations to seal the prison, handing out evacuation orders to leave within the hour.{{CiteText|text=Evacuation note|quote=Ghorrock is forsaken and must be evacuated at once. Round up all who are left and tell them they have an hour to leave. Jhallan and Mizzarch are preparing to have this place sealed.}} The two [[Mahjarrat]] would each take one half of the Ghorrock Crest used to seal the prison, though it is likely Mizzarch's crest came into [[Hazeel]]'s possession after his sacrifice at one of their rituals, where-after it fell into the hands of the [[Carnillean family]], though it is unlikely they were ever aware of its significance.{{CiteNPC|npc=Hazeel|quote=Half of the crest used to do so came into my possession, but it was seemingly taken by the Carnilleans after my defeat.|loc=Secrets of the North}} The prison was successfully sealed shut, leaving anyone unlucky enough to have not evacuated to die cold, abandoned deaths, or else be eaten by their despotic host. Sucellus remained in the asylum and, eventually running out of food, fell into a very long, deep slumber.
+
+During the [[Fifth Age]], the prison would be unsealed by an [[assassin]] later revealed to be [[Sliske]]. [[player character|An adventurer]] who sought his medallion ventured into the prison, discovering the slumbering Sucellus. After the adventurer woke him up with poison, Sucellus attempted to consume their essence, but was swiftly subdued. He fell back into slumber, while the adventurer discovered his medallion in a locked chest that required a [[Odd key|key]] he had on him.
+
+==Fight overview==
+{{Main|Duke Sucellus/Strategies}}
+Unlike the other members of [[the Forgotten Four]], Duke Sucellus is not available to fight immediately; rather, he is in a deep slumber and must be fed with [[arder powder|arder]], [[musca powder]] or [[Arder-musca poison]] before he is forcefully woken up to fight. During this preparation phase, the player must gather materials from the hallways to his side, avoiding both his ice magic and [[extremity|extremities]], which will bind the player, dealing damage, and draining prayer if caught in one. Vents in the middle of the arena will expel poisonous gas in a predictable manner, which deals damage in a 3x3 from the vent and can be reduced with face protection.
+
+After Sucellus' meter is full, he will awaken and initiate combat with the player. While Sucellus is considered [[Demon (attribute)|demonic]], he has 30% demonbane resistance. This means an [[emberlight]] would only have 49% increased damage and accuracy against him rather than 70%.
+
+[[File:Fighting Duke Sucellus.png|left|thumb|A player fighting Duke Sucellus.]]
+When in melee range (including diagonally across) and a few other select tiles, Sucellus will raise his arms, causing icicles to spike up from the ground and follow up with a slam attack. The slam attack is significantly more powerful than the icicles and will deal heavy damage. [[Protect from Melee]] reduces the icicles' damage by 50% and the slam by ~26%. If the player is outside of melee range and not on those other select tiles, Sucellus will spit a magical cluster of energy that also deals high damage (but less than the slam) even through [[Protect from Magic]].
+
+Every five auto-attacks, Sucellus will gaze at the player, revealing the massive eye in his mouth. The player must hide behind a pillar to avoid his gaze; failing to do so will result in extreme amounts of damage being taken, often enough to kill them in a single hit. After the first sequence of attacks, Sucellus will begin to spit gas from his mouth at the vent closest to the player. He will do this once every five auto-attacks above 75% of his hitpoints, decreasing to four auto-attacks between 26-74% of his hitpoints.
+
+Upon reaching 25% of his health, Sucellus will enter an enrage phase, increasing his attack speed from 5 (3.0 seconds) to 4 (2.4 seconds) and the gas flare cooldown decreases to three auto-attacks. The rest of his mechanics remain unaffected.
+
+After the Duke is defeated, he remains 'dead' for a few seconds and his drops appear in front of him, before beginning to sleep again.
+{{clear|left}}
+
+==Money making==
+{{Mmgsection|Killing Duke Sucellus}}
+
+==Drops==
+{{DropLogProject|kills=318722}}
+
+===Average value===
+Drop values are listed by whether you include the [[Magus ring|Magus Ring]] and [[Soulreaper Axe]] components, which must be completed to be sold, as well as if your kill was credited as perfect.{{BossValue/Duke Sucellus}}
+
+===Mechanics===
+When Duke Sucellus is defeated, a drop will be rolled for until the roll results in a success, as described below:{{CiteNews|url=https://secure.runescape.com/m=news/desert-treasure-ii---tweaks-and-drop-rates?oldschool=1|title=Desert Treasure II - Tweaks and Drop Rates|newsdate=3 August 2023}}
+* Roll 1/90 for the tradeable unique drop table (1/30 for awakened variant).
+** If unsuccessful, roll 1/48 for the [[awakener's orb]].
+** If unsuccessful, roll 1/25 for [[frozen tablet]].
+** If unsuccessful, roll 1/200 for [[ice quartz]].
+** If unsuccessful, roll 1/5 for the supply drop table.
+* If all rolls above were unsuccessful, the standard drop table is rolled.
+* Once the player rolls the entire drop table, roll 1/2,500 for [[Baron]] and 1/40 for a clue scroll.
+
+In addition, defeating the boss perfectly will earn 50% more loot from the standard drop table.{{CiteReddit|author=Mod Ayiza|url=https://www.reddit.com/r/2007scape/comments/15gzjui/desert_treasure_ii_tweaks_and_drop_rates/julpslb/|date=3 August 2023|archiveurl=https://reldo.runescape.wiki/i/27963896|archivedate=26 April 2026|quote=You have to do the fight while avoiding any avoidable damage. Essentially a perfect fight (chip damage does not count).|title=Desert Treasure II - Tweaks and Drop Rates}} This requires the player to kill Duke Sucellus without taking any avoidable damage, which includes:
+* Melee attacks from his slam attack (the chip damage taken from the rising icicles are considered unavoidable)
+* Standard magic attack (praying against them will still fail the achievement, even when hit for a 0)
+* Damage from the Freezing Gaze attack
+* Damage from ignited gas vents in both the preparation and battle phases
+* Damage from ice fall and [[Extremity|extremities]]
+* In the awakened fight, avoid taking poison damage and being hit by a shadow orb
+
+===Uniques===
+{{Listen
+|title = Unique drop [[sound effect]]
+|align = right
+|filename = Unique drop sound effect.ogg
+|desc = The sound that plays when receiving a unique drop.
+}}
+''There is a '''1/90''' chance of rolling the unique drop table per kill. After hitting the table, there is a 1/8 chance to get a piece of the [[Virtus robes]] (then a separate 1/3 roll to determine which piece), a 3/8 chance to get a single vestige roll (each roll will drop a gold ring until the final roll which guarantees the vestige), a 3/8 chance for a [[chromium ingot]], and 1/8 chance for the [[Eye of the Duke]]. Below lists the effective drop rates.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Magus vestige|quantity=1|rarity=1/720|raritynotes=<ref group=d>To receive the magus vestige, the player must roll an invisible 1/240 drop on the tradeable unique table. The first roll will cause a [[gold ring]] to appear and increment a hidden variable, while the second drops two gold rings; when the third such roll occurs, the vestige is dropped and the variable is reset.</ref>}}
+{{DropsLine|name=Chromium ingot|quantity=1|rarity=3/720}}
+{{DropsLine|name=Eye of the Duke|quantity=1|rarity=1/720}}
+{{DropsLine|name=Virtus mask|quantity=1|rarity=1/2160}}
+{{DropsLine|name=Virtus robe top|quantity=1|rarity=1/2160}}
+{{DropsLine|name=Virtus robe bottom|quantity=1|rarity=1/2160}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+===Secondary uniques===
+''The secondary unique table is rolled if the unique drop table roll fails. This table is then rolled in the following sequence: [[awakener's orb]], [[frozen tablet]], [[ice quartz]]. These items will replace the normal loot rolls.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Frozen tablet|quantity=1|rarity=1/25.8|raritynotes=<ref name="secondary_uniques" group="d">The frozen tablet will become more common at an unknown rate as kill count increases until the first drop is received. Afterwards, the item will no longer be dropped.</ref>}}
+{{DropsLine|name=Awakener's orb|quantity=1|rarity=1/48.5}}
+{{DropsLine|name=Ice quartz|quantity=1|rarity=1/206.6|raritynotes={{refn|group=d|If the player has not yet received their first ice quartz, its drop rate scales from 1/200 to 1/50 as the player's kill count increases, where the best rate is reached at 300 kill count. Once players obtain their first ice quartz, the drop rate is reverted back to 1/200.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1707308397186465945|date=28 September 2023|archiveurl=https://reldo.runescape.wiki/i/108079{{^|https://reldo.runescape.wiki/i/27963836}}|archivedate=28 September 2023|quote=If I'm reading my colleagues' code correctly, over your first 300 kills, the chance shifts from 1/200 to 1/50, where it stays thereafter.}}}}}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+===Supplies===
+''These supplies are all dropped together.''
+{{DropsTableHead}}
+{{DropsLine|name=Pineapple pizza|quantity=3-4|rarity=1/5.4}}
+{{DropsLine|name=Prayer potion(3)|quantity=1|rarity=1/5.4}}
+{{DropsLine|name=Super combat potion(2)|quantity=1|rarity=1/5.4}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Bronze chainbody|quantity=11,17 (noted)|rarity=1/100}}
+{{DropsLine|name=Mithril chainbody|quantity=5,7 (noted)|rarity=1/100}}
+{{DropsLine|name=Adamant chainbody|quantity=6,10 (noted)|rarity=1/100}}
+{{DropsLine|name=Dragon platelegs|quantity=5,7|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Pure essence|quantity=200,300 (noted)|rarity=1/100}}
+{{DropsLine|name=Iron ore|quantity=63,95 (noted)|rarity=1/100}}
+{{DropsLine|name=Coal|quantity=216,325 (noted)|rarity=8/100}}
+{{DropsLine|name=Mithril ore|quantity=33,50 (noted)|rarity=1/100}}
+{{DropsLine|name=Adamantite ore|quantity=75,112 (noted)|rarity=8/100}}
+{{DropsLine|name=Runite ore|quantity=30,45 (noted)|rarity=2/100}}
+
+{{DropsLine|name=Sapphire|quantity=28,42 (noted)|rarity=1/100}}
+{{DropsLine|name=Emerald|quantity=28,42 (noted)|rarity=1/100}}
+{{DropsLine|name=Ruby|quantity=28,42 (noted)|rarity=1/100}}
+{{DropsLine|name=Uncut ruby|quantity=41,62 (noted)|rarity=5/100}}
+{{DropsLine|name=Uncut diamond|quantity=41,62 (noted)|rarity=5/100}}
+
+{{DropsLine|name=Bronze bar|quantity=63,95 (noted)|rarity=1/100}}
+{{DropsLine|name=Dragon arrowtips|quantity=166,250|rarity=2/100}}
+{{DropsLine|name=Rune javelin tips|quantity=60,90|rarity=8/100}}
+{{DropsLine|name=Dragon javelin tips|quantity=60,90|rarity=8/100}}
+{{DropsLine|name=Raw sea turtle|quantity=200,300 (noted)|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Air rune|quantity=200,300|rarity=1/100}}
+{{DropsLine|name=Mist rune|quantity=100,150|rarity=8/100}}
+{{DropsLine|name=Chaos rune|quantity=100,150|rarity=9/100}}
+{{DropsLine|name=Soul rune|quantity=666,1000|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Odd key|rarity=Always|quantity=1|raritynotes=<ref group=d>Only dropped by the quest variant.</ref>}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|758}}|raritynotes=<ref group="d">Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Fremennik&Kourend}}
+{{DropsLineClue|type=easy|rarity=1/160}}
+{{DropsLineClue|type=medium|rarity=1/160}}
+{{DropsLineClue|type=hard|rarity=1/160}}
+{{DropsLineClue|type=elite|rarity=1/160}}
+{{DropsLine|name=Baron|quantity=1|rarity=1/2500|gemw=No}}
+{{DropsLine|name=Ancient blood ornament kit|rarity=Always|quantity=1|gemw=no|raritynotes=<ref group=d>Only when defeated in the awakened encounter as the '''last''' of the four.</ref>}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Duke Sucellus}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Duke Sucellus concept art.png|Concept of Duke Sucellus, by [[Mod Jerv]].
+Ghorrock Prison asylum concept art.png|Concept art of the asylum, by Mod Jerv.
+Duke Sucellus concept art (early).png|An early concept of Duke Sucellus, by Mod Jerv. The figure growing out of Sucellus' forehead that resembles a mahjarrat suggests that at one point Mizzarch or Jhallan was supposed to have been eaten by the Duke, and even be incorporated into the fight.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 August 2025
+|update = More Doom Tweaks, Poll 84, & Summer Sweep Up Changes
+|change = Duke Sucellus no longer remains poisoned from one fight to the next.
+}}
+{{Subject changes
+|date = 6 August 2025
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|change = 
+* Duke mushrooms and salts now stack properly if your inventory is full and you have one held.
+* The [[bone dagger]]'s [[special attack]] now correctly guarantees a hit against Duke Sucellus when used on the first hit.
+}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = Repeatedly clicking "Feed" will no longer feed Duke more than two poisons.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = * Duke Sucellus' health has been increased by 45.
+* The poison-brewing phase of the encounter has been reworked:
+** Mushrooms and poisons will no longer be removed from the player's inventory after each kill.
+** Players can now pick up to eight [[arder mushroom]]s and [[musca mushroom]]s, after which the object itself will despawn, effectively allowing players to prepare for 2-4 kills in advance depending on their Herblore level.
+** To prevent lockouts, mushrooms can no longer be fed directly.
+** Duke Sucellus' has been given a "Feed" option when he is asleep.
+* The kill time for Duke Sucellus now start its timer upon him waking up, rather than when the player first enters the asylum or upon him "respawning". As such, the required kill times for all his speed-based [[Combat Achievements]] have been reduced by 45 seconds.
+* Progress towards the magus vestige is now indicated with a [[gold ring]] drop. For players who were in progress before this update, their next kill will guarantee one or two gold rings, indicating 1/3 and 2/3 vestige rolls respectively.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The [[slash]] defence of the post-quest version of Duke Sucellus has been decreased from 65 to 45.
+}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = [[Combat Achievements]] were added for the boss.
+}}
+{{Subject changes
+|date = 16 August 2023
+|update = Desert Treasure II Changes & More
+|change = * Duke Sucellus' Freezing Gaze overlay will now disappear upon leaving the asylum.
+* The rendering of Duke Sucellus' vent and acid walk projectile have been updated to be more clear.
+* Personal best kill times for Duke Sucellus will now broadcast in [[clan chat]] and [[group ironman]] channels.
+}}
+{{Subject changes
+|update = Desert Treasure II - Further Changes
+|date = 9 August 2023
+|change = The vents during the preparation phase will now erupt gas in a set pattern.
+}}
+{{Subject changes
+|date = 3 August 2023
+|update = Desert Treasure II - Tweaks and Drop Rates
+|change = * The combat level for the quest variant was increased from 519 to 538.
+* The drop rate for the tradeable unique drop table was increased from 1/108 to 1/90.
+* Pathing to salt deposits within the asylum has been improved.
+* Vents within the asylum will now correctly despawn when the encounter ends.
+* An issue that could prevent the Duke Sucellus encounter from starting has been resolved.
+* Duke Sucellus can no longer be received as a boss slayer task prior to completing Desert Treasure II.
+* Slayer tasks no longer apply to the Awakened version.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* {{wp|Sucellus}} is the name of a Gallo-Roman god associated with agriculture and wine.
+* The design of Duke Sucellus appears to be heavily inspired by ''RuneScape 3''<nowiki>'s</nowiki> [[RSW:Senecianus|Senecianus]], which both bear strong resemblances to the shoggoths of H.P. Lovecraft's Cthulhu mythos.
+* In ''RuneScape 3'', Sucellus was also a Zarosian duke, though his role was far different - following the destruction of the Zarosian Empire, he devised a long-term plan to steal Saradomin's crown by inserting the Temple Knights as a Saradominist organization. He also died of unknown means.
+* The room Sucellus is fought in greatly resembles a room found in the ''RuneScape 3'' quest "Twilight of the Gods", inside the [[Senntisten]] Asylum.
+* During development, the boss was designed with four types of mushrooms - [[arder mushroom|arder]], [[musca mushroom|musca]], [[resper mushroom|resper]], and [[holos mushrooms]] - which could be used on the [[Fermentation Vat]] to create six combinations of poisons to weaken Duke Sucellus. All but one were scrapped before release, presumably to make the fight simpler.
+
+==References==
+{{Reflist}}
+
+{{The Forgotten Four}}
+{{Desert Treasure II - The Fallen Empire}}
+{{Bosses}}
+{{Demons}}
+
+[[Category:Zarosians]]

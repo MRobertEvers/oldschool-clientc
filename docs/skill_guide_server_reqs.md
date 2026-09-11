@@ -23,8 +23,8 @@ that order. Once the guide is open, tab clicks never reach the server —
 | client VM | `if_getcomponentparam` in neither opcode table — 20 scripts in this cache fail to decompile at it | `CS2_OP_IF_GETCOMPONENTPARAM` **2703**, `(3 in, 1 out)`, arity pinned by a stack-balance argument at script 9181 rather than inferred |
 | content | nothing armed op 2 and nothing opened 860 | `interface_skill_guide/` — `skill_guide.constant` (107 lines) and `skill_guide.rs2` (208 lines): `~skill_guide_login` arms all 24 cells, `~skill_guide_open` mounts and runs 1902, 24 `[if_button2,stats:<cell>]` triggers. One line in `player/login.rs2` |
 
-The permanent check is `mock230 --selftest` section **"skill guide"**
-(`mock230_world.c:7225`), which sends a real `IF_BUTTON2` per cell and asserts
+The permanent check is `ToriRSServer --selftest` section **"skill guide"**
+(`torirs_server_world.c:7225`), which sends a real `IF_BUTTON2` per cell and asserts
 mount-before-clientscript, the type string `"iiii"`, and 24 distinct skill
 indices. Three mutations were run against it and each produced a distinct
 failure — table in [`skill_guide.md`](skill_guide.md) §6.
@@ -34,7 +34,7 @@ failure — table in [`skill_guide.md`](skill_guide.md) §6.
 Zero new packets — `IF_BUTTON2`, `IF_OPENSUB` and `RUNCLIENTSCRIPT` were all
 already on the wire. Two ServerScript surface additions (one trigger family,
 one opcode) and two client CS2 opcodes. **No engine fallback was widened**:
-both new `run_if_button` lookup rungs are content, and `enum Mock230Fallback`
+both new `run_if_button` lookup rungs are content, and `enum ToriRSServerFallback`
 is unchanged. `player->last_verb` turned out to be written by the engine and
 read by nothing — there is no `last_verb` command here or in the reference —
 and the comment claiming otherwise was corrected rather than given a command.
@@ -61,7 +61,7 @@ and the comment claiming otherwise was corrected rather than given a command.
 >    declared `{2,0,1,0,1}` in `cs2vm2_opcode_stack.gen.h`, dispatched at
 >    `cs2vm2.c`, and fully implemented in `src/game/rs_cs2_host.c` — including
 >    the in-flight query intersect this document says the query state has no
->    room for. `mock230_ops_db.c` is the *ServerScript* db surface and was never
+>    room for. `torirs_server_ops_db.c` is the *ServerScript* db surface and was never
 >    in this path. Nothing about the skill guide needed a new db opcode.
 >
 > 2. **The real blocker was the packet, not the query.** `runclientscript_ss`
@@ -106,7 +106,7 @@ and the comment claiming otherwise was corrected rather than given a command.
 # The discovery pass, as written
 
 > Companion to `docs/questlist_chatmenu_levelup.md`, same discovery pass.
-> Dominated by static dbtable content already generic in mock230 — but the
+> Dominated by static dbtable content already generic in ToriRSServer — but the
 > entry point that opens this interface and picks a skill is genuinely
 > missing from the decompiled corpus, not merely untraced.
 
@@ -118,7 +118,7 @@ and the comment claiming otherwise was corrected rather than given a command.
 | real content | two dbtables (`skill_guide_subsections` 212, `skill_features` 213), both already loading generically |
 | player-state reads | `stat_base` (level colouring), the shared per-quest progress battery (same one `questlist` needs), Magic-only owned-rune check (client-local, no new transport) |
 | entry point | **missing from the corpus** — nothing opens interface 860 or picks a skill anywhere in the 9,368 files |
-| mock230 | zero references anywhere — clean unstarted slice |
+| ToriRSServer | zero references anywhere — clean unstarted slice |
 | new opcode needed | `db_find_filter_with_count` (7507) — declared in the CS2 op table, no host case, and the query-state struct has no room for a second predicate |
 
 ---
@@ -183,10 +183,10 @@ narrow — the Magic "Check runes" popup only, entirely client-side.
 
 ## 4. Server obligations
 
-| item | delivery | mock230 status |
+| item | delivery | ToriRSServer status |
 |---|---|---|
 | `skill_guide_subsections`/`skill_features` dbtable load | generic dbtable runtime | **landed** — same mechanism `questlist` uses |
-| `db_find_filter_with_count` (opcode 7507) | new host op | **gap, confirmed** — declared at `cs2_command.gen.h:1045`, but `mock230_ops_db.c` has no case for it (only `SS_OP_DB_FIND`/`_WITH_COUNT`/`FINDNEXT`/`FINDBYINDEX` exist, confirmed at `mock230_ops_db.c:341-395`). Not a one-line add: the player's query state (`db_query_table`/`_index`/`_column`/`_value`, confirmed single-slot) has no room for a second predicate — this needs a query-state change, not just a new `case` |
+| `db_find_filter_with_count` (opcode 7507) | new host op | **gap, confirmed** — declared at `cs2_command.gen.h:1045`, but `torirs_server_ops_db.c` has no case for it (only `SS_OP_DB_FIND`/`_WITH_COUNT`/`FINDNEXT`/`FINDBYINDEX` exist, confirmed at `torirs_server_ops_db.c:341-395`). Not a one-line add: the player's query state (`db_query_table`/`_index`/`_column`/`_value`, confirmed single-slot) has no room for a second predicate — this needs a query-state change, not just a new `case` |
 | `stat_base` | existing generic stat op | **landed** |
 | per-quest progress vars | `.varp`/`.varbit` declaration + transmit | **shared gap with `questlist`** — nothing new to add here beyond what that doc already flags |
 | misc unlock varps (`~script9352`'s ~20 cases) | transmit | not individually checked — presumably pre-existing diary/QP trackers shared across many features, out of scope here |
@@ -213,7 +213,7 @@ scrollbar — is client-only chrome with no server touch at all.
 
 ## 6. Cross-reference
 
-`grep -rniE "skill_guide|skillguide" src/net/mock/ src/game/ docs/` — two
+`grep -rniE "skill_guide|skillguide" src/torirsserver/ src/game/ docs/` — two
 hits, both in `docs/DBTABLES.md`'s generated schema listing, not a feature
 doc. Zero implementation, zero design coverage — a clean unstarted slice,
 not a stale-doc situation.
@@ -229,7 +229,7 @@ with no LostCity reference, not a content-porting slice.
 
 ## 8. Verdict
 
-Dominated by static dbtable content already generic in mock230, with narrow,
+Dominated by static dbtable content already generic in ToriRSServer, with narrow,
 mostly-shared player-state reads (nothing new beyond what `questlist`
 already needs, except the Magic rune-check which is client-only). Two real
 blockers before this could be built: one engine change

@@ -10,12 +10,21 @@
 
 #include "pktnames.h"
 
+#include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct PktMapRebuild
 {
     int zonex;
     int zonez;
+    /* rev 239+ REBUILD_NORMAL: the world-entity view this rebuild rebuilds
+     * (leading wire field; 0 = the root world). The exec resolves it through
+     * the worldview registry, which asserts on an id no view holds — the deob
+     * throws there too. REBUILD_REGION's codec carries no view id; the parse's
+     * memset leaves 0, and an instance is a root-world scene. */
+    int world_area;
     /* dat2 / osrs230 REBUILD_NORMAL carries per-map-square XTEA keys (dat1
      * maps are unencrypted, so these stay 0/NULL there). region_keys holds
      * region_count*4 ints; region_ids[i] = (mapSquareX<<8)|mapSquareZ. Both
@@ -262,6 +271,17 @@ struct PktIfSetPlayerModel
 
 struct PktMessageGame
 {
+    /**
+     * The chat type -- which filter tab the line belongs to and which colour
+     * and prefix the cache's chatbox script gives it. Carried by the packet at
+     * every revision that has one (a p1 at 230, a smart at 239); the client
+     * used to read it and throw it away, which filed every server line under
+     * type 0 whatever the server said.
+     */
+    int type;
+    /** Optional sender, present only when the packet says so. NULL otherwise
+     *  -- a game message has no sender, and "" would be a sender named "". */
+    char* name;
     char* text; /* gjstr / newline-terminated */
 };
 
@@ -298,11 +318,32 @@ struct PktUpdateZoneFullFollows
     int level;  /* header plane, or -1 when absent */
 };
 
+/** Longest replacement loc menu label the client keeps, matching
+ *  WorldEntityFacet_Action.name. Anything longer is truncated rather than
+ *  dropped: a shortened menu row is legible, a missing one is a dead click. */
+#define PKT_LOC_OP_TEXT_MAX 32
+
 struct PktLocAddChange
 {
     int pos;   /* g1: x = base_x + (pos>>4)&7, z = base_z + pos&7 */
     int info;  /* g1: shape = info>>2, angle = info&3 */
     int loc_id; /* g2 */
+    /*
+     * The two fields LOC_ADD_CHANGE_V2 added at rev 228, and they belong to
+     * this PLACEMENT rather than to the loctype.
+     *
+     * `op_flags` is a 5-bit mask of which right-click options are SHOWN (bit 0
+     * is op1); `ops[i]` REPLACES the loctype's label for slot i when non-empty,
+     * including on a slot the loctype leaves empty. The reference applies them
+     * in that order — mask first as a veto, then the loctype's label, then the
+     * override (deob `src_osrs239_rl1_12_33`: class69.method1514/1518/1532, read
+     * by the loc menu builder in class108).
+     *
+     * A revision with no such fields fills `op_flags` with all five bits and
+     * leaves `ops` empty, which is the same menu the loctype alone describes.
+     */
+    int op_flags;
+    char ops[5][PKT_LOC_OP_TEXT_MAX];
 };
 
 struct PktLocDel
@@ -323,6 +364,21 @@ struct PktObjAdd
     int pos;   /* g1 */
     int obj_id; /* g2 */
     int count;  /* g2 */
+    /*
+     * The four fields OldSchool added with per-player loot ownership. All are
+     * in GAME TICKS or are flags, and all are zero on a revision whose codec
+     * does not carry them -- which reads as "public already, never despawns",
+     * the truth for a classic obj pile.
+     *
+     * They are what the cache's ground-items overlay draws its two timers and
+     * its ownership filter from (`_6860`, `_6861`, `_6862`, OBJ_OWNER); the
+     * client used to decode them and throw them away, so every one of those
+     * ops had no answer to give.
+     */
+    int time_until_public;   /* g2  ticks until everyone can see it */
+    int time_until_despawn;  /* g2  ticks until it vanishes */
+    int ownership_type;      /* g1  0/1 mine-or-public, 2 someone else's, 3 group */
+    int never_becomes_public; /* g1  bool: stays private for its whole life */
 };
 
 struct PktObjDel
@@ -586,6 +642,13 @@ struct PktSetMultiway
     int multiway; /* g1: 1=in multicombat zone */
 };
 
+/* Native minimap/compass state. The six-state interpretation is centralized
+ * in game/rs_minimap_state.h; raw wire state is retained for diagnostics. */
+struct PktMinimapToggle
+{
+    int state;
+};
+
 struct PktUpdateIgnoreList
 {
     int count;
@@ -603,6 +666,110 @@ struct PktSetNpcUpdateOrigin
 {
     int x;
     int z;
+};
+
+/* SET_ACTIVE_WORLD: the world view + plane the following entity/zone packets
+ * address (rev 239+). world_id 0 is the root world; non-zero ids name a
+ * WORLDENTITY_INFO-spawned view. SERVER_TICK_END resets the exec cursor to
+ * root. */
+struct PktSetActiveWorld
+{
+    int world_id; /* g2: world-entity/view id, 0 = root */
+    int level;    /* g1: plane the addressed view draws */
+};
+
+/*
+ * WORLDENTITY_INFO (rev 239+): per-view sailing-boat sync. Count movement
+ * entries walk the ACTIVE view's entity list in list order, then a trailer
+ * of new-entity spawns runs while bytes remain. SAILING.md §5.4.
+ *
+ * At most 15 entities can exist client-side (16 world views, id 0 = root),
+ * so a count or spawn run past that is a malformed frame, dropped at parse.
+ */
+#define PKT_WEV_INFO_MAX 15
+
+/* Wire movement ops. */
+#define PKT_WEV_OP_DESPAWN 0
+#define PKT_WEV_OP_FLAGS 1
+#define PKT_WEV_OP_ENQUEUE 2
+#define PKT_WEV_OP_SNAP 3
+
+/**
+ * Default op-enabled mask: the deob's class467 constructor seeds field5694
+ * with 31 (five bits, every right-click op enabled). The updateFlags bit-0x2
+ * payload replaces it; entities that never carry one keep all five.
+ */
+#define PKT_WEV_OP_MASK_ALL 31
+
+struct PktWevUpdate
+{
+    int op; /* PKT_WEV_OP_* */
+    /* Ops 2/3 only: signed deltas off the 2-bit-per-axis bitfield
+     * (0 → 0, 1 → i8, 2 → i16, 3 → i32), fine units / angle units. */
+    int dx;
+    int dy;
+    int dz;
+    int dangle;
+    /* Raw updateFlags byte. Both payload bits are decoded into the fields
+     * below; op 0 (despawn) carries NO flags byte at all and leaves this 0.
+     */
+    unsigned update_flags;
+    /* Bit 0x2: the 5-bit op-enabled mask (deob field5694), read with the
+     * (128 - b) & 0xFF transform. Absent → PKT_WEV_OP_MASK_ALL, which the
+     * exec layer must NOT apply (an absent mask leaves the entity's own). */
+    int has_op_mask;
+    int op_mask;
+    int has_seq;
+    int seq_id; /* -1 = clear (65535 on the wire) */
+    int seq_delay;
+};
+
+struct PktWevSpawn
+{
+    int id; /* g2: world-entity id, 1..15 (0 is the root view) */
+    unsigned update_flags;
+    int has_op_mask;
+    int op_mask;
+    int has_seq;
+    int seq_id;
+    int seq_delay;
+    int size_x_tiles; /* ((-sizeByte & 0xFF) >> 4 & 0xF) * 8 */
+    int size_z_tiles; /* ((-sizeByte & 0xFF)      & 0xF) * 8 */
+    int priority_group; /* g1 (b - 128) & 0xFF ownerTypeIndex (deob class276) */
+    int config_id;      /* signed little-endian u16: archive-72 record */
+    /* Absolute transform: the same 4-axis delta bitfield applied to
+     * (0, 0, 0, 0), so x/z land in fine units (tiles<<7), y 0, angle 0. */
+    int x;
+    int y;
+    int z;
+    int angle; /* & 0x7FF */
+};
+
+struct PktWorldEntityInfo
+{
+    int count; /* entities that remain, in list order */
+    struct PktWevUpdate updates[PKT_WEV_INFO_MAX];
+    int spawn_count;
+    struct PktWevSpawn spawns[PKT_WEV_INFO_MAX];
+};
+
+/**
+ * REBUILD_WORLDENTITY_V4: rebuild the ACTIVE view's deck map. base_x/base_z
+ * are the view's SW corner in absolute root-world tiles (the off-map staging
+ * rectangle — deob field1405/field1395), zone-aligned. The zone-descriptor
+ * grid that follows the header is bit-packed over
+ * [4 levels][view_size_x/8][view_size_z/8] — dimensions the server took from
+ * the view's spawn-time size and did NOT put on the wire, so the stateless
+ * parse layer cannot walk it. The grid bytes are carried raw (`data`, heap,
+ * freed by gameproto_free — the PLAYER_INFO precedent) and decoded at exec
+ * with PktRebuildWev_DecodeZones, where the active view's size is known.
+ */
+struct PktRebuildWev
+{
+    int base_x;
+    int base_z;
+    int length; /* raw grid bytes (after the u16 source-square count) */
+    uint8_t* data;
 };
 
 struct PktFriendListLoaded
@@ -814,6 +981,21 @@ struct RevPacket
 {
     enum GameProtoPktName packet_type;
 
+    /*
+     * RUNCLIENTSCRIPT alone, owned separately rather than in the union
+     * below, because its 28 argument slots x a 512-byte string each come
+     * to 14460 bytes and the next largest payload here is 176. In the
+     * union that 14 KB was the size of EVERY packet: the framer zeroes a
+     * RevPacket on the stack per arrival and net.c queues each parsed one
+     * by value, so a login burst of zone updates and varp writes paid it
+     * a few hundred times over for string storage none of them used.
+     *
+     * NULL unless a parser decoded one. Ownership follows the same rule
+     * as the other heap payloads here (_npc_info.data, _map_rebuild.*):
+     * it transfers with the packet, and gameproto_free releases it.
+     */
+    struct PktRunClientScript* _runclientscript;
+
     union
     {
         struct PktMapRebuild _map_rebuild;
@@ -879,6 +1061,7 @@ struct RevPacket
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
+        struct PktMinimapToggle _minimap_toggle;
         struct PktUpdateIgnoreList _update_ignorelist;
         struct PktUpdateFriendList _update_friendlist;
         struct PktFriendListLoaded _friendlist_loaded;
@@ -896,10 +1079,37 @@ struct RevPacket
         struct PktAmbientSoundStop _ambientsound_stop;
         struct PktSetMapFlag _set_map_flag;
         struct PktSetPlayerOp _set_player_op;
-        struct PktRunClientScript _runclientscript;
         struct PktSetNpcUpdateOrigin _set_npc_update_origin;
+        struct PktSetActiveWorld _set_active_world;
+        struct PktWorldEntityInfo _worldentity_info;
+        struct PktRebuildWev _rebuild_wev;
     };
 };
+
+/**
+ * Mint (or re-zero) the separately-owned RUNCLIENTSCRIPT payload a parser is
+ * about to fill, and hand it back to fill.
+ *
+ * Idempotent because the three parsers are tried in order against the same
+ * RevPacket and one may claim the payload before another decides the packet
+ * is its own; re-zeroing is what the fill used to do to the inline member.
+ */
+static inline struct PktRunClientScript*
+pkt_runclientscript_reset(struct RevPacket* out)
+{
+    assert(out);
+
+    if( !out->_runclientscript )
+    {
+        out->_runclientscript = calloc(1, sizeof(*out->_runclientscript));
+        assert(out->_runclientscript);
+    }
+    else
+    {
+        memset(out->_runclientscript, 0, sizeof(*out->_runclientscript));
+    }
+    return out->_runclientscript;
+}
 
 /** FIFO node for parsed packets awaiting exec (v0 packets list). */
 struct RevPacketItem

@@ -1,4 +1,5 @@
 #include "trspk_batch16.h"
+#include "toridraw_element_id.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -32,7 +33,7 @@ static bool
 trspk_batch16_format_supported(enum TRSPK_VertexFormat format)
 {
     return format == TRSPK_VERTEX_FORMAT_WEBGL1 || format == TRSPK_VERTEX_FORMAT_OPENGL3 ||
-           format == TRSPK_VERTEX_FORMAT_D3D9;
+           format == TRSPK_VERTEX_FORMAT_D3D9 || format == TRSPK_VERTEX_FORMAT_GLES2;
 }
 
 static uint32_t
@@ -41,7 +42,7 @@ trspk_batch16_hash_key(
     int anim_index,
     int pose_id)
 {
-    uint32_t hash = (uint32_t)element_id * 0x9E3779B1u;
+    uint32_t hash = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) * 0x9E3779B1u;
     hash ^= (uint32_t)anim_index + 0x85EBCA77u + (hash << 6u) + (hash >> 2u);
     hash ^= (uint32_t)pose_id + 0xC2B2AE3Du + (hash << 6u) + (hash >> 2u);
     hash ^= hash >> 16u;

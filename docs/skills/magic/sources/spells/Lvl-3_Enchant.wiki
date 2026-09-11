@@ -1,0 +1,107 @@
+{{External|rs|rsc=Enchant lvl-3 amulet}}
+{{otheruses|the spell|the magic tablet|Enchant ruby or topaz}}
+{{Infobox Spell
+|name = Lvl-3 Enchant
+|image = [[File:Lvl-3 Enchant.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 49
+|spellbook = Normal
+|type = Utility
+|exp = 59
+|cost = {{RuneReq|Fire=5|Cosmic=1}}
+|speed = 3 ticks (7 on autocast)
+|description = For use on a ruby and topaz jewellery
+|anim = [[File:Lvl-3 Enchant.gif]]
+}}
+[[File:Lvl-3 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-3 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 49 [[Magic]] to cast. The spell enchants [[ruby]] and [[red topaz]] items, primarily [[jewellery]], granting 59 Magic experience when doing so.
+
+This spell can be transferred to a [[Enchant ruby or topaz|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting 44.3 Magic experience.
+
+==List of items==
+[[Free-to-play]] players can only use the spell to enchant the [[ruby amulet]], though the [[ring of forging]] can be also enchanted by bringing a [[ruby ring]] along with 250 [[coins]] to [[Murky Matt]].
+
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs; column assumes an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Ruby ring}} 
+|{{Coins|{{GEP|Ruby ring}}}}
+|{{plinkt|Ring of forging}}
+|{{Coins|{{GEP|Ring of forging}}}}
+|{{coins|{{GEP|Ring of forging}} - ({{GEP|Ruby ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Ruby necklace}}
+|{{Coins|{{GEP|Ruby necklace}}}}
+|{{plinkt|Digsite pendant}}{{Refn|Requires completion of [[The Dig Site]] quest and the finding of a [[clean necklace]] at the [[Varrock Museum]].|group=e}}
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Ruby bracelet}}
+|{{Coins|{{GEP|Ruby bracelet}}}}
+|{{plinkt|Inoculation bracelet}} 
+|{{Coins|{{GEP|Inoculation bracelet}}}}
+|{{coins|{{GEP|Inoculation bracelet}} - ({{GEP|Ruby bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Ruby amulet}}
+|{{Coins|{{GEP|Ruby amulet}}}}
+|{{plinkt|Amulet of strength}}
+|{{Coins|{{GEP|Amulet of strength}}}}
+|{{coins|{{GEP|Amulet of strength}} - ({{GEP|Ruby amulet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Ruby sickle (b)}}
+|{{NA}}
+|{{plinkt|Enchanted ruby sickle (b)}}
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Topaz ring}} 
+|{{Coins|{{GEP|Topaz ring}}}}
+|{{plinkt|Efaritay's aid}}
+|{{Coins|{{GEP|Efaritay's aid}}}}
+|{{coins|{{GEP|Efaritay's aid}} - ({{GEP|Topaz ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Topaz bracelet}} 
+|{{Coins|{{GEP|Topaz bracelet}}}}
+|{{plinkt|Bracelet of slaughter}}
+|{{Coins|{{GEP|Bracelet of slaughter}}}}
+|{{coins|{{GEP|Bracelet of slaughter}} - ({{GEP|Topaz bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Topaz necklace}} 
+|{{Coins|{{GEP|Topaz necklace}}}}
+|{{plinkt|Necklace of faith}}
+|{{Coins|{{GEP|Necklace of faith}}}}
+|{{coins|{{GEP|Necklace of faith}} - ({{GEP|Topaz necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Topaz amulet}} 
+|{{Coins|{{GEP|Topaz amulet}}}}
+|{{plinkt|Burning amulet}}
+|{{Coins|{{GEP|Burning amulet(5)}}}}
+|{{coins|{{GEP|Burning amulet(5)}} - ({{GEP|Topaz amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Spell costs==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 5
+|Rune2 = cosmic
+|Rune2num = 1
+}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Lvl-3 Enchant (amulet).ogg|desc=Enchanting amulet}}
+{{SFXLine|file=Lvl-3 Enchant (ring).wav|desc=Enchanting ring}}
+{{SFXTableBottom}}
+
+{{Utility spells}}
+{{Standard spellbook}}

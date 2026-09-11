@@ -1,0 +1,141 @@
+From cd9d6f9e616fb0ac35b48d0cd813e839d118d7f5 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:38 -0500
+Subject: [PATCH] wip(r4-faceorder): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r4-faceorder.
+
+files: 3rd/toridraw/toridraw.c 3rd/toridraw/toridraw_scene.h 3rd/toridraw/toridraw_types.h
+---
+ 3rd/toridraw/toridraw.c       |  8 +++++-
+ 3rd/toridraw/toridraw_scene.h | 48 +++++++++++++++++++++++++++++++++++
+ 3rd/toridraw/toridraw_types.h | 15 +++++++++++
+ 3 files changed, 70 insertions(+), 1 deletion(-)
+
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..e8a16a50b 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -99,7 +99,6 @@ _Static_assert(
+ 
+ #define TORIDRAW_DEPTH_LEVELS_REFERENCE 1500
+ #define TORIDRAW_DEPTH_LEVELS_16K       16384
+-#define TORIDRAW_FULL_DEPTH_STRIDE 512
+ 
+ 
+ struct ToriDraw_ScratchProfile
+@@ -216,6 +215,7 @@ full_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
+     size_t bytes = 0;
+     bytes += (size_t)caps->depth_levels * sizeof(faceint_t);
+     bytes += (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t);
++    bytes += (size_t)TORIDRAW_DEPTH_OCC_WORDS(caps->depth_levels) * sizeof(uint32_t);
+     bytes += 12 * sizeof(faceint_t);
+     bytes += 12 * sizeof(int);
+     bytes += 12 * (size_t)caps->priority_stride * sizeof(faceint_t);
+@@ -268,6 +268,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
+     free(scene->orthographic_vertices_z);
+     free(scene->tmp_depth_face_count);
+     free(scene->tmp_depth_faces);
++    free(scene->tmp_depth_occ);
+     free(scene->tmp_priority_face_count);
+     free(scene->tmp_priority_depth_sum);
+     free(scene->tmp_priority_faces);
+@@ -350,6 +351,11 @@ ToriDraw_SceneAllocBuffers(
+             calloc((size_t)caps->depth_levels, sizeof(faceint_t));
+         scene->tmp_depth_faces = malloc(
+             (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
++        /* calloc for the same reason as the count table: the all-zero state
++         * is established once here and every drain restores it. */
++        scene->tmp_depth_occ = calloc(
++            (size_t)TORIDRAW_DEPTH_OCC_WORDS(caps->depth_levels), sizeof(uint32_t));
++        assert(scene->tmp_depth_occ);
+         scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
+         scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
+         scene->tmp_priority_faces =
+diff --git a/3rd/toridraw/toridraw_scene.h b/3rd/toridraw/toridraw_scene.h
+index 9ba6b828c..69e4c01ca 100644
+--- a/3rd/toridraw/toridraw_scene.h
++++ b/3rd/toridraw/toridraw_scene.h
+@@ -8,6 +8,54 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
++/*
++ * HUNT_FO -- r4-faceorder ladder switch.  0 is the shipped control.
++ *   >=1  depth-bucket stride 512 -> 32 entries (1024 -> 64 bytes per level)
++ *   >=2  occupancy bitmap replaces the empty-bucket drain scan
++ *   >=3  the face-sort debug-stats test is unswitched out of the face loop
++ */
++#ifndef HUNT_FO
++#define HUNT_FO 0
++#endif
++
++/*
++ * Entries of face-index capacity reserved per depth level in the dense sorter.
++ *
++ * The reference-era 512 is a capacity nobody has ever needed and a layout that
++ * costs on every model.  Measured over 900 moving-camera Lumbridge frames
++ * (1,193,406 model sorts):
++ *
++ *   max bucket occupancy ever reached        25
++ *   occupancy 33..64                          0 events out of 12,864,225
++ *   occupancy 17..32                         56 events out of 12,864,225
++ *   occupancy 1                          75.82%
++ *
++ * At 512 a depth level's slice is 512 * sizeof(faceint_t) = 1024 bytes, so:
++ *
++ *   - the table is 16384 * 1024 = 16 MiB to hold 39 KB of live face indices;
++ *   - adding 1024 to an address advances the P4 Prescott L1D set index by
++ *     16 mod 32 (16 KB, 8-way, 64-byte lines => 32 sets), so EVERY depth
++ *     level lands in one of two sets and the whole table gets 16 usable
++ *     lines;
++ *   - the 433.5 distinct levels a frame touches hold 27.7 KB of data spread
++ *     over 444 KB of address space and 108 4 KB pages, against a 64-entry
++ *     DTLB and a 1 MB L2.
++ *
++ * At 32 a level is exactly one 64-byte line: consecutive levels advance the
++ * L1 set index by one, the frame's working set is 27.7 KB over 7 pages, and
++ * the whole table is 1 MiB instead of 16.  Capacity is still 1.28x the
++ * highest occupancy ever measured; beyond it the writer drops the face,
++ * exactly as it already did past 512.
++ */
++#if HUNT_FO >= 1
++#define TORIDRAW_FULL_DEPTH_STRIDE 32
++#else
++#define TORIDRAW_FULL_DEPTH_STRIDE 512
++#endif
++
++/* Words in the depth-level occupancy bitmap, one bit per level. */
++#define TORIDRAW_DEPTH_OCC_WORDS(levels) (((levels) + 31) / 32)
++
+ #define TORIDRAW_SCENE_FULL          0u
+ #define TORIDRAW_SCENE_SMALL         (1u << 0)
+ #define TORIDRAW_SCENE_LAZY_TEXTURES (1u << 1)
+diff --git a/3rd/toridraw/toridraw_types.h b/3rd/toridraw/toridraw_types.h
+index 375b5bbea..ecf22f88e 100644
+--- a/3rd/toridraw/toridraw_types.h
++++ b/3rd/toridraw/toridraw_types.h
+@@ -663,6 +663,21 @@ struct ToriDraw_Scene
+ 
+     faceint_t* tmp_depth_face_count;
+     faceint_t* tmp_depth_faces;
++    /*
++     * One bit per depth level: set while that level's bucket is non-empty.
++     *
++     * The drain used to find its buckets by walking every depth level between
++     * the sort's min and max.  Measured over 900 moving-camera frames that is
++     * 57.42 levels walked per model to reach 10.78 that hold a face -- 81.2%
++     * of the walk is a 2-byte load, a test and a taken branch over a zero,
++     * and `depth` is spilled so the loop carries a store-to-load dependency
++     * through memory.  With the bitmap the walk is span/32 word loads plus one
++     * bit-scan per occupied level.
++     *
++     * Invariant, same as tmp_depth_face_count's: all-zero between models.
++     * calloc establishes it; each drain clears exactly the words it read.
++     */
++    uint32_t* tmp_depth_occ;
+     faceint_t* tmp_priority_face_count;
+     /* Sum of face depths per priority, for the flexible-priority averages in
+      * sort_face_draw_order. **int, not faceint_t**: this accumulates, where

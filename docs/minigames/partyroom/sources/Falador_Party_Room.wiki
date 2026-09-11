@@ -1,0 +1,83 @@
+{{External|rs=Party Room|rsc=Party hall}}
+{{Infobox Shop
+|name = Party Room
+|image = [[File:Party Room.png|300px]]
+|release = [[24 July]] [[2007]]
+|update = King's Ransom
+|members = No
+|icon = [[File:Pub icon.png]]
+|location = [[Falador]]
+|owner = [[Lucy]], [[Megan]]
+|special = [[Beer]]
+|map = {{Map|mtype=polygon|3036,3385|3036,3382|3037,3381|3037,3376|3036,3375|3036,3372|3037,3371|3040,3371|3041,3372|3051,3372|3052,3371|3055,3371|3056,3372|3056,3375|3055,3376|3055,3381|3056,3382|3056,3385|3055,3386|3052,3386|3051,3385|3041,3385|3040,3386|3037,3386|bucket=yes}}
+|leagueRegion = Asgarnia
+}}
+The '''Party Room''' is a building in north-east [[Falador]], primarily used by players to host [[Drop party|drop parties]]. The Party Room functions on all [[world]]s, but world 305 is marked as the official world in the [[World switching|World Switcher]]. Worlds 301 and 302 also are popular choices for drop parties in the Party Room.
+
+==Transportation==
+* [[Skills necklace]] teleport to [[Mining Guild]] (12s)
+* [[Ring of wealth]] teleport to [[Falador Park]] (19s)
+* [[Falador Teleport]] (27s)
+
+==Features==
+===Party chest===
+Players can donate items to the [[Chest (Party Room)|party chest]], but cannot withdraw them again. 216 individual items can be put in before the chest is full. Pulling the [[lever (Falador Party Room)|lever]] next to the chest, which costs 1,000 [[coins]], will cause [[Party Balloon|balloons]] to float down around the room. Popping these balloons may yield an item from the chest. This makes the Party Room a popular place for drop parties.
+
+===Party Pete===
+The owner of the Party Room, [[Party Pete]], is a fun-loving character. He will dance, chat, and give you a book titled [[Game book|Party Pete's Bumper Book of Games]]. He will also remove 'cheap' items from the party chest.
+
+===Dancing knights===
+Pulling the lever near the party chest will give a player the option of summoning the [[Knight (Falador Party Room)|dancing knights]] for 500 [[coins]]. The knights will dance on the tabletop, singing a song in homage to a similar scene in ''{{Wp|Monty Python and the Holy Grail}}''. The reference to the movie is further expanded upon in a dialogue with [[Party Pete]], who says that the knights of Camelot got it into their heads that the Party Room knights were making fun of them.
+
+===Bar===
+The bar upstairs serves only one type of beer.
+{{StoreTableHead|sellmultiplier=1000|buymultiplier=0|hidebuy=yes|hidestock=y|hiderestock=y|hidecaption=y}}
+{{StoreLine|name=Beer|stock=∞|sell=2|buy=N/A}}
+{{StoreTableBottom}}
+
+===Postie Pete===
+[[Postie Pete]] frequently visits the Party Hall. Players can converse with him one at a time.
+
+===Party announcement===
+The [[Non-player character|NPCs]] in [[Falador]], such as the [[bank]] staff and the [[guard]]s, react with excitement when a party is about to take place, and will encourage people towards the party room with even greater urgency when it is in progress. In order for the NPCs to start shouting {{overhead|Something is happening in the party room!}}, players must add items worth at least 50,000 [[coins]] in [[Grand Exchange]] value to the party chest on [[free-to-play]] worlds, or items worth at least 76,000 coins on [[members]]' worlds. After the lever is pulled, they will shout variations of {{overhead|Quick! Get to the party room!}} instead.
+
+While one of the phrases said when a party is thrown refers to "big value items", this does not necessarily mean that the value of the party chest is concentrated in a few high-ticket items; any combination of items that together exceed the amounts stated above can trigger this announcement.
+
+The party announcements only appear as overhead dialogue above the NPCs, not in the chatbox.
+
+===Museum===
+{{main|Old School Museum}}
+A museum of past ''Old School RuneScape'' updates is located under the Party Room, accessible by climbing down the staircases. Each gallery contains displays of past updates, with the examine text stating their date of release.
+
+==Official world==
+Although the Party Room functions on all worlds, the following [[World#Themed servers/worlds|official world]] is assigned to the Falador Party Room:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|305|United States (east)|mems=yes|Falador Party Room}}
+|}
+
+==Treasure Trails==
+{{EmoteClueHeader}}
+{{EmoteClue|tier=easy|emote=Dance|location=
+{{StashLocation
+|x=3043
+|y=3371
+|text=By the entrance to the Falador Party Room
+}}
+|item1=Steel platebody|item2=steel full helm|item3=iron plateskirt}}
+{{EmoteClueBottom}}
+
+==Trivia==
+*The party room was built in response to the large popularity of "drop parties". Many players were complaining about how people would cheat by just [[Telekinetic Grab|telegrabbing]] the item and making it impossible for other players to get anything. When built, it was just an empty building in which Telekinetic Grab was disabled. When the game was updated to RS2, the building became quite a bit more structured, adding the chest, lever, and bar. The Telekinetic Grab spell will still not work inside the party room, however.
+*The party room was originally located in [[Seers' Village]]. It was moved to [[Falador]] as part of the [[King's Ransom]] [[Quests|quest]] update to make room for the [[Seers' Village Courthouse]].
+[[File:Tim and Crunchy backdrop.png|thumb|260px|The cover of the handbook recreated in game.]]
+*A [[Santa hat]] was originally obtainable by depositing coins into the Party Chest and popping balloons. From [[4 August]] [[2013]] through [[11 August]] [[2013]], the party room was occupied by many players in hopes of obtaining one.
+*The museum display with [[Tim]], [[Crunchy]], and [[Eski]] is a reference to the adventurers that were commonly seen on the ''RuneScape'' website as well as the cover of ''[[RuneScape- The Official Handbook|RuneScape: The Official Handbook]]''.
+*The player can see a cabbage when looking on the back of the cellphone in the [[Old School Museum|museum]] display commemorating the release of ''[[Old School RuneScape Mobile|Old School RuneScape Mobile]]''. This is a reference to {{wp|Apple Inc.| Apple brand}} mobile devices, which have an apple logo on them.
+*There is a usable [[altar]] located in the lower level of the [[Old School Museum]] beneath the Party Room. It is the only altar available in [[Falador]].
+{{Bars}}
+{{Falador}}

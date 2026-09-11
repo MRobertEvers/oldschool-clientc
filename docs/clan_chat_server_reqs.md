@@ -93,7 +93,7 @@ Add/Remove Friend/Ignore (`script_4399.cs2:113-156`) — confirmed same ops
 
 ## 2. Landed vs. gap — confirmed fully greenfield, and worse than friends/PM
 
-- `grep -rniE "\bclan\b|varclan" src/net/mock/ src/game/` — zero hits.
+- `grep -rniE "\bclan\b|varclan" src/torirsserver/ src/game/` — zero hits.
 - **`grep -in "clan" src/net/pktnames.h` — zero hits, confirmed.** Unlike
   friends/PM, which at least has `PKTOUT_NAME_FRIENDLIST_ADD` etc.
   declared-but-unframed, **there are no `PKT_NAME_CLAN*`/`PKTOUT_NAME_CLAN*`

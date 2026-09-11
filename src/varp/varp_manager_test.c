@@ -363,11 +363,11 @@ test_resolve_transform(void)
     TEST_ASSERT(
         VarPManager_ResolveTransform(&mgr, transforms, 3, 0, -1) == 300, "oob index uses last");
 
-    /* transforms[index] == -1 → last entry */
+    /* -1 is a positional hide entry, not a request for the fallback. */
     const int with_hide[] = { -1, 200, 300 };
     mgr.var[0] = 0;
     TEST_ASSERT(
-        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == 300, "hide entry uses last");
+        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == -1, "hide entry stays hidden");
 
     VarPManager_Free(&mgr);
 }
@@ -418,7 +418,7 @@ test_untyped_mode_accessors(void)
  *
  * The reference cannot reach this: its varp array is sized from the cache
  * varplayer table. This tree can, because content allocates its own varps past
- * the cache's highest id (mock230.h MOCK230_VARP_SERVER_HEADROOM) — so once the
+ * the cache's highest id (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM) — so once the
  * dat2 varplayer loader installs a real table, "id beyond the table" stops
  * being hypothetical. Dropping those writes is silent and total: the value
  * never lands, no hook fires, and nothing reports it.

@@ -1,0 +1,71 @@
+{{External|rs|rsc}}
+{{otheruses|def=no}}
+{{Infobox Item
+|name = Casket
+|image = [[File:Casket.png]]
+|release = [[27 February]] [[2002]]
+|update = Latest RuneScape News (27 February 2002)
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Open, Drop
+|examine = I hope there's treasure in it.
+|value = 50
+|weight = 5.000
+|exchange = Yes
+|id = 405
+}}
+[[File:Casket detail.png|left|130px]]
+A '''casket''' is an item occasionally dropped by monsters that are near oceans or bodies of water. It can also be obtained via [[big net]] [[fishing]], at a rate of about 1/128 at lower levels and 1/85.3 at higher levels. The [[Fishing spot (Civitas illa Fortis)|fishing spot]] in [[Civitas illa Fortis]] has around a 1 in 5 chance of rewarding a casket, making this one of the most reliable places to obtain them. It can be opened to receive a small amount of treasure. Wearing a [[skills necklace]] with at least one charge while [[Big fishing net|big net]] fishing will slightly increase the chance of finding a casket.{{CiteTwitter|url=https://twitter.com/JagexAsh/status/1574717183888072705|author=Mod Ash|date=27 September 2022|archiveurl=https://reldo.runescape.wiki/i/99014|archivedate=20 December 2022|quote=Your chance of a casket from big net fishing [while wearing a charged skills necklace] is about 0.4 percentage points higher.}}
+
+For ironmen, these can be a good early source of a [[Cosmic talisman]].
+
+==Methods of obtaining==
+*Found via [[big net]] [[fishing]], or by bait fishing in the [[Fishing spot (The Stranglewood)|Stranglewood]].
+*Dropped by monsters such as [[Dagannoth]], [[Rock Crab]]s, [[Sand Crab]]s, [[Swamp Crab|Swamp Crabs]], [[Ammonite Crab]]s, and [[Frost Crab|Frost Crabs]].
+*Possible reward from opening a [[mystery box]] from the [[Quiz Master]] [[random event]].
+*Received as a reward from allocating workers to fishing in [[Managing Miscellania]]
+*Salvaging [[Large shipwreck|large shipwrecks]] or [[Pirate shipwreck|pirate shipwrecks]]
+
+==Rewards==
+{{DropLogProject|kills=579934|type=casket opens}}
+{{Average drop value|mob=casket|killname=opening}}
+
+===Coins===
+{{DropsTableHead|leagueRegion=Misthalin,Karamja,Asgarnia,Fremennik,Kandarin,Desert,Morytania,Tirannwn,Wilderness,Kourend,Varlamore}}
+{{DropsLineReward|name=Coins|quantity=20|rarity=10/128|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=40|rarity=10/128|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=80|rarity=10/128|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=160|rarity=10/128|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=320|rarity=10/128|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=640|rarity=10/128|gemw=No}}
+{{DropsTableBottom}}
+
+===Gems===
+{{DropsTableHead|leagueRegion=Misthalin,Karamja,Asgarnia,Fremennik,Kandarin,Desert,Morytania,Tirannwn,Wilderness,Kourend,Varlamore}}
+{{DropsLineReward|name=Uncut sapphire|quantity=1|rarity=32/128}}
+{{DropsLineReward|name=Uncut emerald|quantity=1|rarity=16/128}}
+{{DropsLineReward|name=Uncut ruby|quantity=1|rarity=8/128}}
+{{DropsLineReward|name=Uncut diamond|quantity=1|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|leagueRegion=Misthalin,Karamja,Asgarnia,Fremennik,Kandarin,Desert,Morytania,Tirannwn,Wilderness,Kourend,Varlamore}}
+{{DropsLineReward|name=Cosmic talisman|quantity=1|rarity=8/128}}
+{{DropsLineReward|name=Loop half of key|quantity=1|rarity=1/128}}
+{{DropsLineReward|name=Tooth half of key|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+==Item sources==
+{{Drop sources|Casket}}
+
+==Trivia==
+* Unlike any other drop from the chest, no {{Wp|Article (grammar)|grammatical article}} is used when notified about finding emeralds; the text simply says "you find uncut emerald."
+
+==References==
+{{reflist}}
+
+{{Chests}}

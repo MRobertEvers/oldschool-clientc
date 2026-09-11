@@ -1,0 +1,11 @@
+{
+  "apk_sha256": "b94f21670202d82729fbbdf24957b9fd323a41592a7ebf2a97b337435cb14a72",
+  "library_sha256": "f48d0edc2e038e1c9aba050e560740d7efaef8c1b75f93444aaff1a827d17346",
+  "normal_build": true,
+  "installed_device": "T062809L3Z",
+  "verified_pose_calls": 1707,
+  "authentic_skeletal_calls": 24,
+  "live_shadow_matched_poses": 56000,
+  "rollback": "TORIRS_GLES2_POSE_REUSE=0",
+  "status": "pose optimization integrated; full renderer goal remains active"
+}

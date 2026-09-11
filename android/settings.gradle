@@ -13,5 +13,9 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Scene Tile Test Android"
-include ':app'
+/*
+ * A single-module build: this directory IS the app. The previous project
+ * declared `include ':app'` while having no app/ directory, which Gradle
+ * tolerates and which meant the module here was never actually configured.
+ */
+rootProject.name = "ToriRS"

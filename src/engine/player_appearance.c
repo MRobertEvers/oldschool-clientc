@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 int
 PlayerAppearance_ResolveDefaultMale(
@@ -126,9 +127,7 @@ Task_PlayerAppearanceLoad_Run(
     }
 
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "PlayerAppearanceLoad: scanned=%d found=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
+        TORIRS_LOG("PlayerAppearanceLoad: scanned=%d found=%d kits=[%d,%d,%d,%d,%d,%d,%d]\n",
             self->scan_i,
             self->found,
             self->kits[0],

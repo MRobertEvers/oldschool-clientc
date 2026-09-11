@@ -1,0 +1,56 @@
+{{External|rs}}
+{{Otheruses|the item used in [[Tears of Guthix (minigame)|Tears of Guthix]]|the item used in the [[Elemental Workshop I]] quest|A stone bowl}}
+{{Infobox Item
+|name = Stone bowl
+|image = [[File:Stone bowl.png]]
+|release = [[4 May]] [[2005]]
+|update = Earthquake Rocks Lumbridge
+|members = Yes
+|quest = [[Tears of Guthix]]
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = A magic stone bowl for catching the tears of Guthix.
+|value = 1
+|weight = 1.814
+|id = 4704
+}}
+[[File:Stone bowl detail.png|left|130px]]
+[[File:Stone bowl equipped.png|left|100px|A player wielding the Stone bowl.]]
+The '''stone bowl''' is used in the [[Tears of Guthix (minigame)|Tears of Guthix]] minigame to catch tears from the cave protected by [[Juna]].
+
+During the [[Tears of Guthix]] quest, to make the bowl, the player must use a [[pickaxe]] on the [[magical rocks]] in the [[Chasm of Tears]] to get a [[Magic stone (Tears of Guthix)|magic stone]], and then use a [[chisel]] to craft it into a bowl. To get to the mine, you must use a [[sapphire lantern]] on one of the [[Light creature|light creatures]] in the cave.  
+
+This bowl is given to Juna to complete the quest, and when a player wants to participate in the Tears of Guthix minigame, Juna will have the player wield the bowl.
+
+This bowl should not be confused with the other [[A stone bowl|stone bowl]] used during [[Elemental Workshop I]], which cannot be used in this item's place.
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 1
+|tools = Chisel
+|mat1 = Magic stone (Tears of Guthix)
+|mat1txt = Magic stone
+|mat1cost = No
+|output1 = Stone bowl
+|output1cost = No
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 April 2013
+|update = Patch Notes (11 April 2013)
+|change = Juna's stone bowl will no longer get permanently stuck in your hand.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The bowl can be duplicated by dropping the duplicate before completing the Tears of Guthix quest. However, teleporting or exiting the area with the bowl in the inventory will cause the item to get deleted.
+* Upon completing the Tears of Guthix quest, it is no longer possible to craft the item even though one may have duplicated the magic stone used during the quest.
+
+{{Tears of Guthix}}
+{{Bowls}}

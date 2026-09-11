@@ -3,6 +3,7 @@
 
 #include "graphics/dash_restrict.h"
 #include "graphics/shared_tables.h"
+#include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
 
@@ -19,52 +20,28 @@
  * non-linear in the vertex (arctangent, arcsine), so there is no plane to walk
  * even in principle.
  *
- * ## Why the projection happens in the kernel
+ * ## Why the projection happens in the kernel, and from WHICH positions
  *
- * It could be a pre-pass writing a uv array, and for a static model that would
- * be cheaper. It is here instead because the uv depends on the *animated*
- * vertex positions: a rigged model would have to rebuild that whole array every
- * frame, where doing it in triangle setup touches exactly the three vertices
- * being drawn. It also keeps each family self-contained — the projection and its
- * seam fixup are the thing that makes `texsphere` a different kernel from
- * `texcube` rather than a different name for it.
+ * It could be a pre-pass writing a uv array, and for a model drawn many times
+ * that would be cheaper. Doing it in triangle setup touches exactly the three
+ * vertices being drawn and keeps each family self-contained — the projection
+ * and its seam fixup are the thing that makes `texsphere` a different kernel
+ * from `texcube` rather than a different name for it.
+ *
+ * The positions it takes are the BIND POSE, not the animated vertices. The
+ * reference solves a face's uv once from the unanimated mesh and keeps it while
+ * animation moves the vertices — that is what makes a texture deform with its
+ * face. Solving from posed vertices against a fixed mapping centre (or a P/M/N
+ * frame that is not rigged with the faces that use it) recomputes a different uv
+ * every frame, and the texture slides across the face as the animation plays.
+ * The caller (ToriDraw_RenderHD) reads `original_vertices_*` for these
+ * arguments; a model that never captured originals is at its bind pose.
  *
  * ## Angles
  *
  * Through the arctangent table in shared_tables.h, never libm, so the result is
  * identical on every platform. See the note there.
  */
-
-/** The mapping a face group carries. Model space throughout. */
-struct ToriDraw_TexMapping
-{
-    /** Midpoint of the bounding box of every vertex in the face group. */
-    int centre_x;
-    int centre_y;
-    int centre_z;
-    /** Model space -> mapping space; rotation about the stored axis, then the
-     *  stored rotation, then the per-axis scales. Already scaled. */
-    float matrix[9];
-    /** 0-3 scroll direction, applied after projection. */
-    int direction;
-    /** Translation along the projection's second axis, in tiles. */
-    float speed;
-    /** Cube only, in tiles. */
-    float u_offset;
-    float v_offset;
-    /** Cylinder only: the u wrap width, which the seam fixup folds against. */
-    float scale_z;
-    /*
-     * Cube only. The face-selection test divides the triangle normal by the
-     * per-axis scales *again*, on top of the already-scaled matrix. That double
-     * application is the reference's, and which cube face a triangle lands on
-     * depends on it, so it is carried rather than folded away. Each entry is the
-     * raw stored scale over 64.
-     */
-    float axis_scale_x;
-    float axis_scale_y;
-    float axis_scale_z;
-};
 
 /** The scroll direction, shared by all three projections. */
 static inline void
@@ -273,6 +250,153 @@ toridraw_texmap_project_sphere(
     toridraw_texmap_direction(m->direction, &u, &v);
     *out_u = u;
     *out_v = v;
+}
+
+/*
+ * Type 0 — the P/M/N plane projector, and why it lives in THIS family.
+ *
+ * A type-0 face names three vertices: uv is (0,0) at P, (1,0) at M and (0,1)
+ * at N. The stock `texplane` kernel — the SD reference's — walks that plane in
+ * camera space and intersects each pixel's EYE RAY with it. That is exact when
+ * the face lies in the P/M/N plane, which OSRS content always arranges: P, M, N
+ * are the face's own vertices, or coplanar with them.
+ *
+ * HD (OB3) content does not arrange it. There P/M/N is a shared texture FRAME
+ * that many faces reference — that is how one small tile repeats across a
+ * whole body part — and it is routinely off the face's plane by several edge
+ * lengths. RS727 TzTok-Jad: 2320 of 2320 type-0 faces use a frame that is not
+ * their own vertices, 1589 of them more than one edge length off-plane, the
+ * worst 97 edge lengths. Intersecting eye rays with a plane that is not the
+ * face's turns the texture into a slide projector sitting at the camera: as the
+ * view turns, the projection slides across the face while the face itself stays
+ * put. It reads as parallax — a texture that "swims" — and it is loudest on
+ * densely tiled faces, because that is where the frame is smallest and furthest
+ * from the face. The tell in the plane walker is `w` changing SIGN inside one
+ * face: the frame's plane passing through the eye.
+ *
+ * The HD reference never walks the plane. It projects each face vertex onto the
+ * P/M/N plane along that plane's NORMAL — a fixed, view-independent uv per
+ * vertex — and interpolates it perspective-correctly, exactly as the mapped
+ * families do for their own projections. So type 0 belongs here, with the frame
+ * as its "mapping". Where the face IS coplanar with P/M/N the two agree, so
+ * nothing is lost for content that kept the SD invariant.
+ *
+ * The solve is the reference's, kept operation-for-operation, and it is the ONE
+ * copy: ToriDraw_ComputeTextureUv's generator calls this too, so the kernel and
+ * the direct generator cannot drift apart. u is the component of (A - P) along
+ * U within the plane, read off with V x n where n = U x V — dotting with a
+ * vector normal to both V and n discards the off-plane component and the V
+ * component in one step. Same for v with n x U.
+ */
+struct ToriDraw_TexPlaneFrame
+{
+    int px;
+    int py;
+    int pz;
+    int mx;
+    int my;
+    int mz;
+    int nx;
+    int ny;
+    int nz;
+};
+
+static inline void
+toridraw_texmap_project_plane(
+    const struct ToriDraw_TexPlaneFrame* f,
+    int vx0,
+    int vy0,
+    int vz0,
+    int vx1,
+    int vy1,
+    int vz1,
+    int vx2,
+    int vy2,
+    int vz2,
+    float* u,
+    float* v)
+{
+    float ox = (float)f->px;
+    float oy = (float)f->py;
+    float oz = (float)f->pz;
+
+    float mu_x = (float)f->mx - ox;
+    float mu_y = (float)f->my - oy;
+    float mu_z = (float)f->mz - oz;
+    float nv_x = (float)f->nx - ox;
+    float nv_y = (float)f->ny - oy;
+    float nv_z = (float)f->nz - oz;
+
+    float d0x = (float)vx0 - ox;
+    float d0y = (float)vy0 - oy;
+    float d0z = (float)vz0 - oz;
+    float d1x = (float)vx1 - ox;
+    float d1y = (float)vy1 - oy;
+    float d1z = (float)vz1 - oz;
+    float d2x = (float)vx2 - ox;
+    float d2y = (float)vy2 - oy;
+    float d2z = (float)vz2 - oz;
+
+    float nx = mu_y * nv_z - mu_z * nv_y;
+    float ny = mu_z * nv_x - mu_x * nv_z;
+    float nz = mu_x * nv_y - mu_y * nv_x;
+
+    float ax = nv_y * nz - nv_z * ny;
+    float ay = nv_z * nx - nv_x * nz;
+    float az = nv_x * ny - nv_y * nx;
+    float det_u = ax * mu_x + ay * mu_y + az * mu_z;
+    /*
+     * A degenerate frame — p, m and n collinear, or two of them the same vertex
+     * — makes this determinant zero. The reference divides anyway and gets
+     * Infinity, which JS carries harmlessly into a Float32Array; here it would
+     * reach a rasterizer, and a non-finite uv poisons an entire triangle rather
+     * than one texel. Measured at 467 of 6,395,265 type-0 faces across
+     * cache.rs727_preeoc, so it is rare and real. Leaving uv at zero collapses
+     * the face to one texel, which is what a frame with no extent means.
+     */
+    if( det_u == 0.0f )
+    {
+        u[0] = u[1] = u[2] = 0.0f;
+        v[0] = v[1] = v[2] = 0.0f;
+        return;
+    }
+    float inv = 1.0f / det_u;
+
+    u[0] = (ax * d0x + ay * d0y + az * d0z) * inv;
+    u[1] = (ax * d1x + ay * d1y + az * d1z) * inv;
+    u[2] = (ax * d2x + ay * d2y + az * d2z) * inv;
+
+    ax = mu_y * nz - mu_z * ny;
+    ay = mu_z * nx - mu_x * nz;
+    az = mu_x * ny - mu_y * nx;
+    float det_v = ax * nv_x + ay * nv_y + az * nv_z;
+    if( det_v == 0.0f )
+    {
+        u[0] = u[1] = u[2] = 0.0f;
+        v[0] = v[1] = v[2] = 0.0f;
+        return;
+    }
+    inv = 1.0f / det_v;
+
+    v[0] = (ax * d0x + ay * d0y + az * d0z) * inv;
+    v[1] = (ax * d1x + ay * d1y + az * d1z) * inv;
+    v[2] = (ax * d2x + ay * d2y + az * d2z) * inv;
+
+    /* The reference's snap-to-1 pass. A frame whose u span lands within a hair
+     * of exactly one tile is snapped so adjacent faces share an edge exactly;
+     * the asymmetric ordering is the reference's. */
+    if( u[1] - u[0] > 0.99f && u[1] - u[0] < 1.1f )
+        u[1] = 1.0f;
+    if( u[2] - u[1] > 0.99f && u[2] - u[1] < 1.1f )
+        u[2] = 1.0f;
+    if( u[0] - u[2] > 0.99f && u[0] - u[2] < 1.1f )
+        u[0] = 1.0f;
+    if( u[0] - u[1] > 0.99f && u[0] - u[1] < 1.1f )
+        u[0] = 1.0f;
+    if( u[1] - u[2] > 0.99f && u[1] - u[2] < 1.1f )
+        u[1] = 1.0f;
+    if( u[2] - u[0] > 0.99f && u[2] - u[0] < 1.1f )
+        u[2] = 1.0f;
 }
 
 /*

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_PackAssetsLoad
 {
@@ -36,6 +37,8 @@ struct Task_PackAssetsLoad
     int needs_player; /* pack has a local-player model widget (clientCode 327/328) */
 
     int i;
+    /** Loaders fanned out on the provider's asset queue and not yet ended. */
+    int pending;
 };
 
 static int
@@ -79,14 +82,14 @@ collect_from_pack(
         if( c->graphic_active > 0 )
             unique_id_add(
                 &self->sprite_ids, &self->sprite_count, &self->sprite_cap, c->graphic_active);
-        for( int s = 0; s < TORIRS_INV_SLOT_MAX; s++ )
+        for( int s = 0; c->inv_slots && s < TORIRS_INV_SLOT_MAX; s++ )
         {
-            if( c->inv_slot_graphic_id[s] > 0 )
+            if( c->inv_slots->graphic_id[s] > 0 )
                 unique_id_add(
                     &self->sprite_ids,
                     &self->sprite_count,
                     &self->sprite_cap,
-                    c->inv_slot_graphic_id[s]);
+                    c->inv_slots->graphic_id[s]);
         }
         if( c->font_id >= 0 )
             unique_id_add(&self->font_ids, &self->font_count, &self->font_cap, c->font_id);
@@ -94,6 +97,10 @@ collect_from_pack(
             unique_id_add(&self->model_ids, &self->model_count, &self->model_cap, c->model_id);
         else if( c->model_type == 2 && c->model_id >= 0 )
             unique_id_add(&self->npc_ids, &self->npc_count, &self->npc_cap, c->model_id);
+        if( c->active_model_type == 1 && c->active_model_id >= 0 )
+            unique_id_add(&self->model_ids, &self->model_count, &self->model_cap, c->active_model_id);
+        else if( c->active_model_type == 2 && c->active_model_id >= 0 )
+            unique_id_add(&self->npc_ids, &self->npc_count, &self->npc_cap, c->active_model_id);
         /* Local-player / player-design preview widgets have no cache model id;
          * they are composited from the default appearance. */
         if( c->client_code == 327 || c->client_code == 328 )
@@ -117,9 +124,7 @@ Task_PackAssetsLoad_Run(
         assert(pack && "PackAssetsLoad requires ComponentPack already loaded");
         collect_from_pack(self, pack);
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
+            TORIRS_LOG("PackAssetsLoad: iface=%d components=%d sprites=%d fonts=%d models=%d "
                 "npcs=%d needs_player=%d\n",
                 self->iface_id,
                 pack->component_count,
@@ -130,17 +135,48 @@ Task_PackAssetsLoad_Run(
                 self->needs_player);
     }
 
-    for( self->i = 0; self->i < self->sprite_count; self->i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->sprite_ids[self->i]));
+    /*
+     * Every sprite, font, model and npc config the pack names, ALL AT ONCE.
+     *
+     * They are independent records with one consumer (the mount), so they go
+     * out as siblings on the asset queue and are joined -- the first open of an
+     * interface used to await them one after another, a round trip each, and
+     * on a streamed cache that was the frame that dropped when a shop or a
+     * dialogue opened. Without an asset queue (the offline tools and unit
+     * harnesses run one serial queue) the same records are awaited in turn.
+     */
+    if( self->provider->asset_queue )
+    {
+        struct ToriRS_TaskQueue* queue = self->provider->asset_queue;
 
-    for( self->i = 0; self->i < self->font_count; self->i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->font_ids[self->i]));
+        for( int k = 0; k < self->sprite_count; k++ )
+            ToriRS_TaskQueue_AddJoined(
+                queue, CreateTask_SpriteLoad(self->provider, self->sprite_ids[k]), &self->pending);
+        for( int k = 0; k < self->font_count; k++ )
+            ToriRS_TaskQueue_AddJoined(
+                queue, CreateTask_FontLoad(self->provider, self->font_ids[k]), &self->pending);
+        for( int k = 0; k < self->model_count; k++ )
+            ToriRS_TaskQueue_AddJoined(
+                queue, CreateTask_ModelLoad(self->provider, self->model_ids[k]), &self->pending);
+        for( int k = 0; k < self->npc_count; k++ )
+            ToriRS_TaskQueue_AddJoined(
+                queue, CreateTask_NpcLoad(self->provider, self->npc_ids[k]), &self->pending);
+        PT_TASK_JOIN(pending);
+    }
+    else
+    {
+        for( self->i = 0; self->i < self->sprite_count; self->i++ )
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->sprite_ids[self->i]));
 
-    for( self->i = 0; self->i < self->model_count; self->i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_ids[self->i]));
+        for( self->i = 0; self->i < self->font_count; self->i++ )
+            PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->font_ids[self->i]));
 
-    for( self->i = 0; self->i < self->npc_count; self->i++ )
-        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->npc_ids[self->i]));
+        for( self->i = 0; self->i < self->model_count; self->i++ )
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_ids[self->i]));
+
+        for( self->i = 0; self->i < self->npc_count; self->i++ )
+            PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->npc_ids[self->i]));
+    }
 
     if( self->needs_player )
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));

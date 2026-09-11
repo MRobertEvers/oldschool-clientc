@@ -1,0 +1,106 @@
+{{Infobox Item
+|name = Amulet of avarice
+|image = [[File:Amulet of avarice.png]]
+|release = [[26 July]] [[2018]]
+|update = Revenant Cave Rewards and Troll Quest Announcement
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|wornoptions = Check
+|examine = A hauntingly beautiful amulet bearing the shape of a skull.
+|value = 45000
+|weight = 0.010
+|exchange = Yes
+|id = 22557
+|leagueRegion = wilderness
+}}
+[[File:Amulet of avarice detail.png|left|110px]]
+The '''amulet of avarice''' is an [[amulet]] that can be received as a drop from [[revenants]] found within the [[Revenant Caves]]. The amulet has the same combat bonuses as the [[amulet of glory]], but has an additional 20% increase in accuracy and damage when fighting revenants, similar to a [[Salve amulet]]. The effects of the amulet '''do not''' stack with the [[Slayer helmet (i)]].
+
+When worn, all drops received from [[Non-player character|NPCs]] within the [[Revenant Caves]], [[Wilderness Slayer Cave]] and [[Chaos Temple (Wilderness)|Chaos Temple]] will be in the form of [[bank note]]s, except for secondary supply rolls and uniques. However, equipping the amulet will cause the player to become [[Skull (status)|skulled]], similar to the [[cape of skulls]]. Attempting to equip the amulet gives a warning telling the player that this will happen. The skull cannot be removed until the amulet is unequipped, after which it behaves like a normal PK skull and disappears after twenty minutes. This behaviour is different from the [[cape of skulls]], which will only keep the skull active for 20 minutes from the moment of equipping.
+
+It is worth noting that while skulled (regardless of the source of the skull, except for the skull given by a [[PvP_world#High-risk_worlds|high-risk PvP world]]), unique drops from revenants have their drop rate nearly doubled.
+
+Wearing the amulet while looting a [[Zombie Pirate's Locker]] will note the drops other than the [[teleport anchoring scroll]].
+
+If the amulet is worn while killing the [[Revenant maledictus]] as a top-damaging player, they will obtain the [[Forinthry surge|Forinthry Surge]] skull for 30 minutes, a variant that provides an additional 15% accuracy and damage boost when fighting revenants. Taking off the amulet will automatically remove this buff.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +10
+|aslash = +10
+|acrush = +10
+|amagic = +10
+|arange = +10
+|dstab = +3
+|dslash = +3
+|dcrush = +3
+|dmagic = +3
+|drange = +3
+|str = +6
+|rstr = 0
+|mdmg = 0
+|prayer = +3
+|slot = neck
+|image = [[File:Amulet of avarice equipped male.png|130px]]
+|altimage = [[File:Amulet of avarice equipped female.png|130px]]
+}}
+==Item sources==
+The drop rate is increased when [[Skull (status)|skulled]]. This does not apply to the skull given by a [[PvP world#High-risk%20worlds|high-risk PvP world]].
+{{Drop sources|Amulet of avarice}}
+
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Amulet of avarice}}
+
+==Concept art==
+<gallery>
+Amulet of avarice work-in-progress.jpg|The initial designs of the amulet of avarice by Mod West.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 March 2022
+|update = Group Ironman Improvements
+|poll =
+|change = Entering and leaving [[The Gauntlet]] with an amulet of avarice equipped will no longer clear the player's [[Skull (status)|skull]].
+}}
+{{Subject changes
+|date = 16 December 2021
+|update = Christmas 2021
+|poll = 
+|change = The amulet of avarice buff will now apply to the [[Ornate_undead_combat_dummy#Wilderness|ornate Wilderness combat dummy]].
+}}
+{{Subject changes
+|date = 3 November 2021
+|update = Android Beta Signup & Small QoL Changes
+|poll = 
+|change = The amulet now increases accuracy and damage by 20% when fighting revenants.
+}}
+{{Subject changes
+|date = 11 November 2020
+|update = The Nightmare and Chambers of Xeric QoL
+|poll = 
+|change = The amulet's effects will now work within the [[Wilderness Slayer Cave]].
+}}
+{{Subject changes
+|date = 30 August 2018
+|update = Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes
+|change = The amulet no longer applies the [[skull (status)|skull status]] in [[free-to-play]] worlds.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The amulet was suggested by Reddit user ''The_Vault_Hunter'' as part of a competition to design new rewards for the Revenant Caves.{{CiteReddit|author=The_Vault_Hunter|url=https://www.reddit.com/r/oldschoolrs/comments/879fte/revenant_caves_new_unique_rewards_discussion/dwb630a|title=Revenant Caves - New Unique Rewards Discussion|quote=|date=26 March 2018|archiveurl=https://web.archive.org/web/20251112184708/https://old.reddit.com/r/oldschoolrs/comments/879fte/revenant_caves_new_unique_rewards_discussion/dwb630a/|archivedate=12 November 2025}}{{CiteNews|title=Revenant Cave Rewards and Troll Quest Announcement|url=https://secure.runescape.com/m=news/revenant-cave-rewards-and-troll-quest-announcement?oldschool=1|newsdate=26 July 2018|quote=When we first approached the community for suggestions on the new Revenant Cave rewards, Mod Ayiza put together a small competition for the suggestion that got the most votes from the team. We'd like to send a huge congratulations to Reddit user The_Vault_Hunter for sending us the detail behind the Amulet of Avarice! The team loved the simplicity behind the item and how you captured the risk versus reward aspect with the item.}}
+
+==References==
+{{Reflist}}
+
+{{Revenant Caves}}
+{{Amulets}}
+[[Category:Collection log items]]

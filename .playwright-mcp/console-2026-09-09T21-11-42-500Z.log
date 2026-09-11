@@ -1,0 +1,77 @@
+[     125ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     125ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     125ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     125ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     125ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     412ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     457ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     462ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     462ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     462ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     463ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     463ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     463ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[     463ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22wilds+of+eldraine%22+bundle+card+box+empty+red+crown:6
+[   25347ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   25671ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   26058ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   26058ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   26060ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   26072ms] [LOG] {h: 242, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   26277ms] [LOG] done @ https://www.ebay.com/itm/236362735455:4
+[   26875ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   26903ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   28229ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/392147752592:0
+[   28417ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   28543ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   28543ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   28544ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   28545ms] [WARNING] The PerformanceObserver does not support buffered flag with the entryTypes argument. @ https://ir.ebaystatic.com/rs/c/discoveryplatformweb/_bP75HFWL.js:0
+[   29178ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   29182ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   30637ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   30895ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   31457ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   31457ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   31460ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   31463ms] [LOG] {h: 114, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   31510ms] [LOG] done @ https://www.ebay.com/itm/168286947197:4
+[   31932ms] [LOG] {h: 114, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   32838ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   32841ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   33713ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   34084ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   34291ms] [LOG] {h: 215, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   34292ms] [LOG] {h: 215, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[   34439ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   34439ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   34440ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   34452ms] [LOG] done @ https://www.ebay.com/itm/158089135500:4
+[   34867ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   34977ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   36225ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/235850128478:0
+[   36238ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   36510ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   36554ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   36554ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   36555ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   37024ms] [LOG] done @ https://www.ebay.com/itm/235850128478:4
+[   37384ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   37396ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   38561ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/146068820974:0
+[   38570ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   39161ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   39191ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   39191ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   39192ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   39613ms] [LOG] done @ https://www.ebay.com/itm/146068820974:4
+[   39955ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   39964ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   41303ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   41487ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   41648ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   41648ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   41650ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   41835ms] [LOG] done @ https://www.ebay.com/itm/202793185371:4
+[   42161ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   42162ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

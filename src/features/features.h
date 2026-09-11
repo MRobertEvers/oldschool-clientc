@@ -18,7 +18,15 @@
  * loc. Resolution order (app.c App_Init):
  *
  *   [features:boot] era=<name>  >  TORIRS_FEATURES_ERA  >
+ *   revconfig `[features] era=<name>`  >
  *   ToriRS_Features_ForCache(epoch, revision)
+ *
+ * The revconfig layer is where an era normally states itself, because which
+ * model a client runs is a fact about the REVISION and a revision profile is
+ * shared by every world that boots it (revconfig/rs245_2lc's file serves 254,
+ * 289 and 377). The manifest sits above it for the things that are true of one
+ * WORLD rather than of its revision — era=server_routed is a property of the
+ * server, not the cache. See src/revconfig/revconfig_profile.h.
  *
  * Interaction/routing was the first genuine two-model split (see
  * docs/PATHING_INTERACTION_PARITY.md); painter, lighting, and audio differences
@@ -109,6 +117,113 @@ enum
     TORIRS_PAINTER_DRAW_DISTANCE_MAX = 90,
 };
 
+/**
+ * How a running tick spends energy and an idle one gets it back — the one
+ * place Agility level is arithmetic rather than a level gate.
+ *
+ * Both models charge ONCE PER TICK, not per step, and both stop at a 64 kg
+ * ceiling; they disagree about what the level does. Implemented in
+ * torirsserver/torirs_server_runenergy.c, which is the only place either appears.
+ */
+enum ToriRS_RunEnergyModel
+{
+    /**
+     * LostCity / 2004 (`Player.ts:705-713`, and xrsps agrees on neither half):
+     *
+     *     drain   = 67 + 67 * clamp(weight_kg, 0, 64) / 64
+     *     restore = agility / 6 + 8
+     *
+     * Agility appears in the restore only, so a level-99 player burns energy
+     * exactly as fast as a level-1 one and merely refills faster. Zero, per
+     * the table's zero-is-classic rule.
+     */
+    TORIRS_RUN_ENERGY_CLASSIC = 0,
+    /**
+     * OldSchool after the 8 January 2025 run-energy rework
+     * (https://oldschool.runescape.wiki/w/Run_energy):
+     *
+     *     drain   = floor((60 + 67 * clamp(weight_kg, 0, 64) / 64)
+     *                     * (1 - agility / 300))
+     *     restore = floor(agility / 10) + 15
+     *
+     * Agility is now in BOTH halves: at 99 the drain is a third lower and the
+     * restore roughly twice the level-1 rate. This is the model every current
+     * wiki number describes, and the one the graceful set (restore x1.3),
+     * stamina potions (drain x0.3) and a charged ring of endurance (drain
+     * x0.85) modify.
+     */
+    TORIRS_RUN_ENERGY_OSRS_2025 = 1,
+};
+
+/**
+ * How an actor's draw position is integrated between the tiles the server
+ * hands out — the difference between a walk that glides and one that ticks.
+ *
+ * Both models pick the step speed the same way (4 walking, 2 mid-turn when the
+ * actor is free to turn, 6/8 once the queue has run 3/4 deep, doubled for a run
+ * step, 8 to repay a DELAYMOVE hold). They disagree only about the clock the
+ * speed is spent against.
+ */
+enum ToriRS_MoverModel
+{
+    /**
+     * 2004 / LostCity (`Client.ts` routeMove): one integer `moveSpeed` applied
+     * per 20ms client cycle, inside the same pass that picks the facing and the
+     * walk sequence. A frame that is not a whole cycle contributes nothing, and
+     * one that is two contributes exactly two. The teleport-snap test is the
+     * era's own: per axis, `|dst - pos| > 256`.
+     *
+     * Zero, per the table's zero-is-classic rule — and a legacy server on a
+     * legacy client should keep it, because the era's own client looks like
+     * this and a smoother one is a difference, not a fix.
+     */
+    TORIRS_MOVER_CYCLE_INTEGER = 0,
+    /**
+     * rev-239 (`class105.method3611`, driven per rendered frame from
+     * `client.method2324` with `elapsed_ns / 2.0E7F`): the speed is spent
+     * against real elapsed time expressed in fractional 20ms cycles, into a
+     * float position, carrying the remainder of a frame's budget onto the next
+     * queued tile. `class105.method3520` keeps the per-cycle half — facing,
+     * sequence choice, tile retirement — and moves nothing.
+     *
+     * The snap test moves with it: `max(|dx|, |dz|) > 288` measured on the
+     * float position, because a two-tile run step taken from a fractional
+     * position is ordinary here and the 256 rule would teleport through it.
+     */
+    TORIRS_MOVER_FRAME_DELTA = 1,
+};
+
+/**
+ * Whether the Controls panel's two "Attack" dropdowns exist, and what the
+ * combat-level comparison does when they do not.
+ *
+ * The 2004 client has neither dropdown. Client-TS `addNpcOptions` /
+ * `addPlayerOptions` emit the Attack row unconditionally and bump it below the
+ * others only when the target out-levels the local player — and for an NPC the
+ * bump is computed INSIDE the attack pass, so nothing else on the row list
+ * moves. The settings-era client (rs_attack_option.h, deob class75) reads the
+ * choice out of two clientcode varps instead, boots both at Hidden, and applies
+ * its "Depends on combat levels" bump to every op on the NPC, attack or not.
+ *
+ * Which is why this cannot be left to the varp alone: a 2004 server transmits
+ * neither varp, so a settings-era client pointed at one sits at Hidden forever
+ * and every NPC and player loses its Attack row.
+ */
+enum ToriRS_AttackOptionModel
+{
+    /**
+     * Client-TS: no dropdowns. Both options behave as "Depends on combat
+     * levels", and the level bump reaches the attack pass only.
+     */
+    TORIRS_ATTACK_OPTION_MODEL_CLASSIC = 0,
+    /**
+     * OldSchool: varp clientcode 18 (player) and 22 (NPC) carry the setting,
+     * the client boots both at Hidden, and "Depends" deprioritizes every op on
+     * a higher-level NPC.
+     */
+    TORIRS_ATTACK_OPTION_MODEL_SETTINGS = 1,
+};
+
 struct ToriRS_FeatureTable
 {
     enum ToriRS_FeatureEra era;
@@ -118,6 +233,8 @@ struct ToriRS_FeatureTable
 
     /** enum ToriRS_PathingMode. 0 = client-side BFS. */
     int pathing_mode;
+    /** enum ToriRS_MoverModel. 0 = the 2004 per-cycle integer mover. */
+    int mover_model;
     /** enum ToriRS_ApproachModel. 0 = legacy shape tests. */
     int approach_model;
     /**
@@ -186,7 +303,7 @@ struct ToriRS_FeatureTable
      *
      * Both halves of this tree read the same field: the client for its
      * legacy-era local BFS (app.c), the mock server for every ground click it
-     * routes (mock230_scene_route). They must not disagree.
+     * routes (ToriRSServer_SceneRoute). They must not disagree.
      */
     int ground_click_nearest_model;
     /*
@@ -280,6 +397,14 @@ struct ToriRS_FeatureTable
      */
     int route_window_tiles;
 
+    /* --- minimenu: the "Attack" options ---------------------------------- */
+
+    /**
+     * enum ToriRS_AttackOptionModel. 0 = the 2004 client, which has no such
+     * setting at all.
+     */
+    int attack_option_model;
+
     /* --- widget targeting ------------------------------------------------ */
 
     /**
@@ -339,6 +464,24 @@ struct ToriRS_FeatureTable
      */
     int effects_monophonic;
 
+    /* --- movement / run energy ------------------------------------------- */
+
+    /**
+     * enum ToriRS_RunEnergyModel. 0 = the 2004 pair, which is what this tree
+     * shipped with.
+     *
+     * Server-only by construction: the client is told a percentage
+     * (UPDATE_RUNENERGY) and never computes one, so unlike the ground-click
+     * fields there is no client half to keep in step. It lives here rather
+     * than as a `cache_revision >=` test in the world tick because it is an
+     * era fact, and because the two models have to be runnable back to back
+     * against the same account — a measurement of "how far can I run" that
+     * cannot be compared to the other model proves nothing.
+     *
+     * Overridable per boot with TORIRSSERVER_RUN_ENERGY=classic|osrs2025.
+     */
+    int run_energy_model;
+
     /* --- interface settings ---------------------------------------------- */
 
     /**
@@ -396,6 +539,29 @@ ToriRS_Features_ByName(char const* name);
  */
 int
 ToriRS_Features_NearestModelByName(char const* name);
+
+/**
+ * Resolve an enum ToriRS_MoverModel by name, for the manifest key and its env
+ * twin. Returns -1 for an unknown name. Names: `cycle` | `frame`.
+ */
+int
+ToriRS_Features_MoverModelByName(char const* name);
+
+/** Name of an enum ToriRS_MoverModel, for diagnostics. */
+char const*
+ToriRS_Features_MoverModelName(int model);
+
+/**
+ * Resolve an enum ToriRS_RunEnergyModel by name, for the mock server's env
+ * override: "classic", "osrs2025". Returns -1 when the name is not one of
+ * those, so a typo is reported rather than silently read as the zero model.
+ */
+int
+ToriRS_Features_RunEnergyModelByName(char const* name);
+
+/** The name that maps back to a run-energy model, for logging. "?" if none. */
+char const*
+ToriRS_Features_RunEnergyModelName(int model);
 
 /** Resolve the feature table's 0 sentinel to Client-TS's 25-tile radius. */
 int

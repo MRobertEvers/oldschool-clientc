@@ -9,7 +9,7 @@ RSProt tables the real client's protocol is generated from.
 
 Two checks, and the second is the one that found a real bug.
 
-  trace   Reads `MOCK230_TRACE_OUT=1` lines off a server log and validates
+  trace   Reads `TORIRSSERVER_TRACE_OUT=1` lines off a server log and validates
           every packet the server actually sent against the revision's prot
           table: is the opcode real, and is the length the one the prot
           declares? A fixed-size prot sent at the wrong length desynchronises
@@ -34,7 +34,7 @@ Usage:
     tools/runelite_debug.py tables [--rev 239]
     tools/runelite_debug.py trace <server.log> [--rev 239]
 
-    MOCK230_TRACE_OUT=1 src/build/mock230 43596 --rev osrs239 2> server.log
+    TORIRSSERVER_TRACE_OUT=1 src/build/torirsserver 43596 --rev osrs239 2> server.log
 """
 
 import argparse
@@ -276,7 +276,7 @@ def size_to_int(size):
         return None
 
 
-TRACE = re.compile(r"mock230: -> op\s+(\d+)\s+(\S+)\s+(\d+) byte")
+TRACE = re.compile(r"torirsserver: -> op\s+(\d+)\s+(\S+)\s+(\d+) byte")
 
 
 def cmd_trace(args):
@@ -308,8 +308,8 @@ def cmd_trace(args):
             bad += 1
 
     if not seen:
-        print("no MOCK230_TRACE_OUT lines in %s — run the server with"
-              " MOCK230_TRACE_OUT=1 and capture stderr" % args.log)
+        print("no TORIRSSERVER_TRACE_OUT lines in %s — run the server with"
+              " TORIRSSERVER_TRACE_OUT=1 and capture stderr" % args.log)
         return 1
     print("%d packet(s) checked against RSProt revision %d, %d problem(s)"
           % (seen, args.rev, bad))

@@ -1,0 +1,500 @@
+This page shows various strategies which may help you in the [[Barrows]].
+[[File:Barrows minigame.png|thumb|380px|A player killing the last Barrows brother before opening the rewards chest.]]
+
+==Transportation==
+[[File:Barrows Map.png|thumb|right|295px|
+
+*(Red) Using the [[Barrows Teleport]] ([[Barrows teleport (tablet)|tab]]) is the quickest route.<br />
+* (Blue, Green and Orange) Using the [[Minigame Teleport|Mort'ton minigame teleport]], [[Mort'ton teleport|Mort'ton teleport scroll]] and [[Morytania legs 3]] & [[Morytania legs 4|4]] are good alternatives to players who don't have access to the Barrows teleport.<br />
+* (Pink and Light blue) Travelling using the [[Swamp Boaty|swamp boaty]] is a valid method for ironmen who don't have access to abovementioned options.<br />
+* (Yellow) Using the {{Fairycode|BIP}} fairy ring is the longest of the routes, but takes the player close to the [[Nature Grotto]], which players can visit to restore their Prayer points.]]
+
+There are several different methods for travelling to Barrows. The best options, ordered from fast to slow, are:
+
+*Casting [[Barrows Teleport]] in the [[Arceuus spellbook]], which requires 83 [[Magic]], or using a [[barrows teleport (tablet)|Barrows teleport tablet]] will teleport the player right next to the entrance.
+**Alternatively, a portal can be built in the [[portal chamber]] or [[portal nexus]] of a [[player-owned house]] that is connected to the Barrows teleport. This requires level 50 [[Construction]] or higher.
+'''Note:''' If not teleporting directly to Barrows using the above methods, most other transportation involves running across the bridge to the west of Barrows. At 72 [[Agility]], a shortcut in the west wall of Barrows becomes available near the bridge, reducing the time spent running to the main northern entrance for all of these methods.
+*Using a [[Mort'ton teleport]] scroll and then running east to Barrows.
+*Using [[Minigame Teleport]] to [[Shades of Mort'ton (minigame)|Shades of Mort'ton]]. This requires completion of the quest [[Shades of Mort'ton]]. This method is free and takes up no inventory or equipment spaces, though there is a 20-minute cooldown between uses.
+*Using the [[Morytania legs 3]] or [[Morytania legs 4|4]] to teleport to [[Burgh de Rott]] and running north through Mort'ton towards Barrows.
+*Using the [[Fairy rings|fairy ring]] code {{Fairycode|BKR}} and running south-east until reaching the [[Swamp Boaty|swamp boaty]], then using the travel option to travel to Mort'ton. Run east from here.
+*[[Kharyrll Teleport]] (requires completion of [[Desert Treasure I]]) to [[Canifis]], use the [[Myreque Hideout]] shortcut south of the pub and run south to cross the rope bridge. Continue running south until reaching the [[Swamp Boaty|swamp boaty]], then use the travel option to travel to [[Mort'ton]]. Run east from here.
+*At 50 [[Agility]], players can use the fairy ring code {{Fairycode|bip}}, go east, and south, following the path through Mort'ton.
+*Using [[Drakan's medallion]], teleport to [[Ver Sinhaza]]. Leave [[Meiyerditch]] via the damaged wall in the south-west corner of the city and running south to the boat first encountered in [[Darkness of Hallowvale#Welcome to Meiyerditch|Darkness of Hallowvale]]. Take the boat to the Burgh de Rott docks. From here, run north-east along the west wall of Meiyerditch through a gate just south of Barrows. Run west, and then north.
+*Run east from Canifis, then south through the swamp. Turn east at the northmost hunter spot, loop around to the other nearby hunter spot, then run south-west to the swamp exit.
+
+==Requirements==
+*Completion of [[Priest in Peril]] is required to enter [[Morytania]].
+
+== Recommendations ==
+
+====Quests====
+*Partial completion of {{SCP|Quest}} [[Fairytale II - Cure a Queen]] for access to [[fairy rings]].
+*Completion of {{SCP|Quest}} [[Shades of Mort'ton]] for access to the [[Shades of Mort'ton (minigame)|Shades of Mort'ton]] [[Minigame Teleport]].
+*Completion of {{SCP|Quest}} [[In Aid of the Myreque]] for access to the bank in [[Burgh de Rott]].
+*Completion of {{SCP|Quest}} [[Underground Pass]] for access to [[Iban's staff]] if you don't have access to a [[trident of the swamp]] or [[trident of the seas]].
+*Completion of {{SCP|Quest}} [[Making Friends with My Arm]] for access to the [[fire of dehumidification]] if you're travelling through [[Mort Myre swamp]].
+
+====Skills====
+*{{SCP|Attack|50+}} [[Attack]]
+*{{SCP|Strength|50+}} [[Strength]]
+*{{SCP|Defence|50+}} [[Defence]]
+*{{SCP|Ranged|50+}} [[Ranged]] (if ranging [[Ahrim the Blighted|Ahrim]])
+*{{SCP|Magic|50+}} [[Magic]] (For [[Iban Blast]] and higher level [[wind spells]])
+*{{SCP|Prayer|43+}} [[Prayer]] (For access to [[Protect from Melee|protect from melee]], [[Protect from Missiles|missiles]], and [[Protect from Magic|magic]])
+*{{SCP|Agility|50+}} [[Agility]] (To reduce run energy drain getting to the Barrows)
+*{{SCP|Construction|45+}} [[Construction]] (For POH [[Altar space|altars]] and [[Pool space|restoration pools]])
+
+==== Miscellaneous ====
+
+* Completion of the [[Morytania Hard Diary]] for unlimited teleports to [[Burgh de Rott]] and 50% more runes from every chest opened at Barrows.
+*Claimed the medium tier rewards from the [[Combat Achievements]] system for [[Ghommal's hilt 2]] or higher, which nullifies the Prayer-draining effect at Barrows.
+
+==Exploring the Barrows==
+[[File:Barrows Grave.png|thumb|275x275px|right|These are the six Barrows brothers' graveyards as well as each brother's combat discipline.]]
+===Introduction===
+Players can take on the Barrows brothers and loot their crypts in order to find valuable treasures. Read this section for a quick summary on how to take on this challenge. For more strategy tips, visit the sections below.
+
+===Entering the crypts===
+The above-ground portion of Barrows consists of six burial mounds inside a stone fence. Digging with a [[spade]] on top of these mounds will land the player inside a crypt belonging to one of the brothers.
+*Ahrim's mound is located in the centre.
+*Dharok's mound is located north-east.
+*Guthan's mound is located south-east.
+*Karil's mound is located south.
+*Torag's mound is located south-west.
+*Verac's mound is located north-west.
+
+These mounds are also labelled in the downloadable tile markers [[#Rotation|below]].
+
+===Killing the Barrows brothers===
+{| class="wikitable align-center-1" align="right"
+! colspan="2" |Barrows brother
+!Attack style
+!Vulnerabilities
+!Attack Speed
+|-
+|[[File:Ahrim the Blighted.png|35x35px]]
+|[[Ahrim the Blighted]]
+|[[File:Magic icon.png]]
+|[[File:Ranged icon.png]][[File:Attack icon.png]]
+|6 ticks
+|-
+|[[File:Dharok the Wretched.png|35x35px]]
+|[[Dharok the Wretched]]
+|[[File:Attack icon.png]]
+|[[File:Magic icon.png]]
+|7 ticks
+|-
+|[[File:Guthan the Infested.png|35x35px]]
+|[[Guthan the Infested]]
+|[[File:Attack icon.png]]
+|[[File:Magic icon.png]]
+|5 ticks
+|-
+|[[File:Karil the Tainted.png|35x35px]]
+|[[Karil the Tainted]]
+|[[File:Ranged icon.png]]
+|[[File:Magic icon.png]][[File:Attack icon.png]]
+|4 ticks
+|-
+|[[File:Torag the Corrupted.png|35x35px]]
+|[[Torag the Corrupted]]
+|[[File:Attack icon.png]]
+|[[File:Magic icon.png]]
+|5 ticks
+|-
+|[[File:Verac the Defiled.png|35x35px]]
+|[[Verac the Defiled]]
+|[[File:Attack icon.png]]
+|[[File:Magic icon.png]]
+|5 ticks
+|}
+Searching the [[Sarcophagus (Barrows)|sarcophagi]] within the crypts will spawn one of the Barrows brothers' wights (or will lead to a passage beneath the crypts, see section below). Kill these NPCs to become eligible to find [[Barrows equipment]] in the [[Chest (Barrows)|rewards chest]]. Use the staircases to exit the crypts and continue by digging somewhere else. If one of the brothers has spawned in a crypt, leaving before the brother is killed will despawn them, and the brother will have to be fought again at full health when the sarcophagus is searched upon returning.
+
+The table to the right shows the attack style each Barrows brother is vulnerable to. Additionally, all of the Barrows brothers have a 50% elemental weakness against air, making [[Wind spells]] an effective way of killing them.
+
+At low Magic levels, there is some choice in spell, depending on specific level. [[Iban Blast]] is much stronger than [[Wind Blast]] until level 59, at which point they do similar damage. Iban Blast is also roughly equal to [[Wind Wave]], until level 65 at which point Wind Wave does more damage.
+
+While underground anywhere in the Barrows area, the brothers' faces will occasionally appear on-screen, draining a considerable amount of [[Prayer]] points every 18 seconds. The amount of Prayer drained begins at eight Prayer points, and increases by one for each brother killed, for a maximum of fourteen once all six brothers are killed. Since the area Prayer drain is so significant you ought to take several steps to speed up your kills and minimise the time you spend underground in order to save on Prayer potions and thus maximise profits. This effect can be nullified by equipping [[Ghommal's hilt 2]] or higher. It only needs to be wielded just before the drain effect activates, so one can keep a timer to track when this will occur and switch to a stronger offhand.
+
+Praying [[Eagle Eye]] or [[Rigour]] against Ahrim when using ranged will always speed up kills, as well as praying [[Chivalry]], [[Piety]], or [[Incredible Reflexes]] and [[Ultimate Strength]] when using Melee against Karil. The idea is that using combat boosting Prayers will drain less Prayer points than the area effect. Using Protection Prayers also means you don't have to spend time consuming food and can instead damage your opponent, further reducing area Prayer drain. Try to drink your Prayer potions and eat your food while above ground.
+
+Players should use [[protection prayers|Protection Prayers]] to negate as much damage as possible from these NPCs. Verac has a 25% chance to hit through Protection Prayers, while the rest will have their damage fully negated.
+*[[Protect from Magic]] against Ahrim.
+*[[Protect from Melee]] against Dharok, Guthan, Torag, and Verac.
+*[[Protect from Missiles]] against Karil.
+
+===Navigating the tunnels===
+Searching the [[Sarcophagus (Barrows)|sarcophagus]] within one of the crypts leads to a passage into the Barrows tunnels beneath the crypts, which contains the [[Chest (Barrows)|Barrows rewards chest]]. The crypt giving access to these tunnels is chosen at random each time. If you happen to find this crypt before killing the other five brothers, it is generally recommended to leave and kill the others before entering the crypt. If you are hunting for a specific brother's equipment, it can be beneficial to kill only that brother. See [[Chest (Barrows)]] for more information.
+
+These tunnels can be navigated by passing through a series of doors. Upon opening any of the doors in these tunnels, a monster will spawn and attack the player. There is a 12/128 chance it will be any of the remaining Barrows brothers, 52/128 it will be a [[Skeleton (Barrows)|skeleton]], 32/128 for a [[bloodworm]], and 32/128 chance a [[crypt rat]] to appear. However, not all of the doors in these tunnels can be opened, thus players should try to find their way through the doors leading to the middle room with the rewards chest. When opening a door to a room that already contains eleven enemies or more, no new monster will be spawned.
+
+With the [[strange old lockpick]], players can ignore the random path and head straight into the middle room, making trips faster at the cost of a charge when passing through a locked door. Since the player has to kill monsters for the maximum reward potential, it is usually not recommended to use the lockpick unless looking for fast loots.
+
+===Gathering rewards potential===
+{| class="wikitable align-center-1" align="right"
+|+
+! colspan="2" |Monster name
+!Combat level
+|-
+|[[File:Crypt rat.png|35x35px]]
+|[[Crypt rat]]
+|43
+|-
+|[[File:Bloodworm.png|35x35px]]
+|[[Bloodworm]]
+|52
+|-
+|[[File:Crypt spider.png|35x35px]]
+|[[Crypt spider]]
+|56
+|-
+|[[File:Giant crypt rat.png|35x35px]]
+|[[Giant crypt rat]]
+|76
+|-
+|[[File:Skeleton (Barrows).png|35x35px]]
+|[[Skeleton (Barrows)|Skeleton]]
+|77
+|-
+|[[File:Giant crypt spider.png|35x35px]]
+|[[Giant crypt spider]]
+|79
+|}
+The chance of finding pieces of Barrows armour or weapons is determined by the number of brothers the player has killed before opening the chest. The nature and amount of other rewards, mainly consisting of [[runes]], is determined by the player's reward potential. Generally, a higher reward potential will reward the player with more costly runes, in higher quantities.
+
+Players can gather reward potential by killing the Barrows brothers and the monsters inside the crypts. The reward potential gathered is equal to the combat level of the monster that was slain, capped for a total of 1,000. For every Barrows brother that was slain, the player will receive an extra 2 points on their rewards potential, capping the maximum reward potential at 1,012.
+
+These monsters located in the tunnels are listed in the table on the right.
+{{Clear|right}}
+
+===Entering the rewards chest's room===
+[[File:Barrows Puzzles.png|right|Solutions to the four types of pattern puzzles.|thumb|275x275px]]
+The door that leads to the central room will be locked with a simple pattern puzzle, which can be one of four types and must be solved in order to pass through. The solutions to all types of door puzzles are shown here. Keep in mind that the answers shown here are always given but may not be in the same order each time.
+
+If you get the puzzle wrong, the doors and rooms within the tunnels will shift around, meaning that the exit [[ladder (Barrows)|ladder]] will be in a different room and the doors that can be opened will be in a different arrangement. This means the player has to continue exploring the tunnels until they once again find the door that leads to the central room.
+
+===Opening the rewards chest===
+Upon opening the chest, the brother whose crypt the player entered will appear and start attacking the player, if he did not already appear while travelling through the tunnels. It is not required to kill the Barrows brother in order to loot the chest. However, keep in mind that the chance of getting Barrows equipment from the chest increases as more brothers are killed, and players will not be able to receive equipment belonging to brothers they did not kill.
+
+Once the chest is open, click it again to loot it. An interface will appear showing the rewards, which will go into the player's inventory (or be dropped on the ground, if the inventory is full) once the window is closed.
+
+At this point, the challenge is complete, and the player can escape the tunnels or teleport out to start again.
+
+Once the chest is looted, the tunnels will shake and start to collapse, causing occasional damage to the player, and the arrangement of the doors and rooms will shift, meaning the room you entered in may not be the same as the room that now contains the ladder you must take to leave. Moreover, as you attempt to escape the tunnels after looting the chest, each door you open is guaranteed to summon one of the brothers whom you did not kill on that run. Killing them is not recommended as they will not count towards the next run.
+
+Once the player leaves the tunnels after looting the chest, the Barrows will be reset: brothers will once again be in their crypts, and the location of the tunnels within the crypts and its layout of doors is re-randomised. You can then go to bank or heal, or go right back into the crypts for another attempt. Note that your progress is saved if you log out or leave the area before looting the chest.
+
+==Equipment==
+<tabber>
+Magic (Low level)=
+Due to the [[elemental weakness]] of the Barrows brothers, and their low magic level, very little gear is needed to kill them. Some players prefer to wear tankier armour to defend against the crypt monsters, but even low level magic armour is generally more effective.
+{{Equipment
+|align = right
+|head = Helm of neitiznot
+|cape = Guthix cloak
+|neck = Amulet of power
+|ammo = Rune arrow
+|weapon = Iban's staff
+|torso = Mystic robe top
+|legs = Mystic robe bottom
+|shield = Rune kiteshield
+|gloves = Combat bracelet(4)
+|boots = Climbing boots
+|ring = Ring of dueling(8)
+}}
+{{Recommended equipment
+|style = Magic (Low level)
+|head1 = {{plink|Barrows helm|pic=Torag's helm}}
+|head2 = {{plink|Helm of neitiznot}}
+|head3 = {{plink|Berserker helm}}
+|head4 = {{plink|Rune full helm}}
+|neck1 = {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of fury}}
+|neck3 = {{plink|Amulet of glory|pic=Amulet of glory(4)}}
+|neck4 = {{plink|Amulet of power}}
+|neck5 = {{plink|Holy symbol}}
+|cape1 = {{plink|Imbued god cape|pic=Imbued Guthix cape}}
+|cape2 = {{plink|God cape|pic=Guthix cape}}
+|cape3 = {{plink|Fire cape}}
+|cape4 = {{plink|Ardougne cloak 3|pic=Ardougne cloak 3}}/{{plink|Ardougne cloak 4|pic=Ardougne cloak 4}}
+|cape5 = {{plink|Guthix cloak|pic=Guthix cloak}}
+|ammo1 = {{plink|Blessing|pic=Rada's blessing 4}}
+|body1 = {{plink|Mystic robe top}}
+|body2 = {{plink|Dragon chainbody}}
+|body3 = {{plink|Barrows chestplate|pic=Torag's platebody}} / {{plink|Rune platebody}} / {{plink|Black d'hide body}} (Or best [[Dragonhide body]])
+|legs1 = {{plink|Mystic robe bottom}}
+|legs2 = {{plink|Black d'hide chaps}} (or best [[Dragonhide chaps]])
+|legs3 = {{plink|Dragon platelegs}} / {{plink|Rune platelegs}} / {{plink|Barrows legs|pic=Verac's plateskirt}}
+|weapon1 = {{plink|Trident of the Swamp}}{{efn|Above 90+ Magic level or with magic boosts|name=swamp}} / {{plink|Twinflame staff}}{{efn|name=air}}{{efn|Better than [[wind surge]] before 95 magic|name=twinflame}}
+|weapon2 = {{plink|Smoke battlestaff}}{{efn|When casting [[Wind wave]] or better.|name=air}}
+|weapon3 = {{plink|Ahrim's staff}}{{efn|name=air}} / {{plink|Ancient sceptre}}{{efn|name=air}}
+|weapon4 = {{plink|Staff of air}}{{efn|name=air}}
+|weapon5 = {{plink|Iban's staff (u)}}{{efn|Casting [[Iban blast]]|name=iban}}
+|shield1 = {{plink|Ghommal's hilt 2}} (To remove prayer drain)
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Rune defender}}
+|shield4 = {{plink|Rune kiteshield}}
+|hands1 = {{plink|Barrows gloves}}
+|hands2 = {{plink|Rune gloves}}
+|hands3 = {{plink|Chaos gauntlets}}{{efn|If casting [[Wind Bolt]]|name=air3}}
+|hands4 = {{plink|Combat bracelet|pic=Combat bracelet(4)}}
+|feet1 = {{plink|Dragon boots}}
+|feet2 = {{plink|Rune boots}}
+|feet3 = {{plink|Climbing boots}}
+|ring1 = {{plink|Berserker ring (i)}}
+|ring2 = {{plink|Ring of dueling}}
+}}
+{{Notelist}}
+
+==Inventory==
+{{Inventory|align=right
+|1=Abyssal whip
+|2=Red d'hide body
+|3=Magic shortbow (i)
+|4=Prayer potion(4)
+|5=Dragon defender
+|6=Red d'hide chaps
+|7=
+|8=Prayer potion(4)
+|9=Dragon dagger
+|10=Super attack(4)
+|11=Super strength(4)
+|12=Prayer potion(4)
+|13=Shark
+|14=Restore potion(4)
+|15=Stamina potion(4)
+|16=Prayer potion(4)
+|17=Shark
+|18=Shark
+|19=Shark
+|20=Shark
+|21=Shark
+|22=Shark
+|23=
+|24=Ectoplasmator
+|25=Death rune
+|26=Fire rune
+|27=Spade
+|28=Barrows teleport (tablet)
+}}
+*If your [[Ranged]] level is high enough, bring [[Dragonhide armour]] and a ranged weapon for Ahrim.
+*Use a melee weapon to kill monsters in the tunnels for reward potential. 
+*A [[Dragon dagger]] for quickly killing Ahrim.
+*Food for healing from Verac or the crypt monsters. 
+*[[Prayer potions]]
+*[[Combat potion|Combat]] and [[Ranging potions]]
+*[[Restore potion]] for Ahrim's [[Strength]] drain
+*Runes for [[Air spells]] or [[Iban Blast]].
+*Use the dueling ring to teleport to [[Ferox Enclave]] after each run, to bank and use the [[Pool of Refreshment]] to restore your stats. Otherwise bring a ring to boost your melee attacks for getting reward potential.
+{{Clear}}
+|-|
+Magic (High level)=
+Magic can be used effectively against each Barrows brother. However, Ahrim is weakest to ranged and will be harder to hit without [[Air spells]] or a [[Tumeken's shadow]].
+{{Equipment
+|align = right
+|head = Ancestral hat
+|cape = Imbued Guthix cape
+|neck = Occult necklace
+|ammo = Rada's blessing 4
+|weapon = Eye of ayak
+|torso = Ancestral robe top
+|legs = Ancestral robe bottom
+|shield = Elidinis' ward (f) 
+|gloves = Confliction gauntlets
+|boots = Avernic treads (max)
+|ring = Magus ring
+}}
+
+{{Recommended equipment
+|style = Magic equipment
+|head1 = {{plink|Ancestral hat}}
+|head2 = {{plink|Virtus mask}}
+|head3 = {{plink|Ahrim's hood}} / {{plink|Infinity hat}} / {{plink|Dagon'hai hat}}
+|head4 = {{plink|Bloodbark helm}}
+|head5 = {{plink|Void mage helm}}{{efn|With full void - better than 1% magic damage bonus gear without Tormented Bracelet|name=void}}
+|neck1 = {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of fury}} / {{plink|Dragonbone necklace}}
+|neck3 = {{plink|Amulet of the damned}}{{efn|name=AOTD}} / {{plink|Amulet of glory|pic=Amulet of glory(4)}}
+|cape1 = {{plink|Imbued god cape|pic=Imbued Guthix cape}}
+|cape2 = {{plink|God cape|pic=Guthix cape}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|body3 = {{plink|Ahrim's robetop}} / {{plink|Infinity top}} / {{plink|Dagon'hai robe top}}
+|body4 = {{plink|Bloodbark body}}
+|body5 = {{plink|Elite void top}}{{efn|name=void}} / {{plink|Void knight top}}{{efn|name=void}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Ahrim's robeskirt}} / {{plink|Infinity bottoms}} / {{plink|Dagon'hai robe bottom}}
+|legs4 = {{plink|Bloodbark legs}}
+|legs5 = {{plink|Elite void robe}}{{efn|name=void}} / {{plink|Void knight robe}}{{efn|name=void}}
+|weapon1 = {{plink|Eye of ayak}}
+|weapon2 = {{plink|Tumeken's shadow}} > {{plink|Harmonised Nightmare staff}}{{efn|name=air1}}
+|weapon3 = {{plink|Sanguinesti staff}} / {{plink|Trident of the Swamp}}
+|weapon4 = {{plink|Staff of the Dead}}{{efn|name=air1}} / {{plink|Twinflame staff}}{{efn|When below 95 magic or when without access to [[wrath runes]]|name=air2}}
+|weapon5 = {{plink|Smoke battlestaff}}{{efn|When casting [[Wind surge]]|name=air1}} / {{plink|Ahrim's staff}}{{efn|With full Ahrim's, [[Amulet of the damned]], and casting [[Wind surge]]|name=AOTD}}
+|shield1 = {{plink|Elidinis' ward (f)}} / {{plink|Ghommal's hilt 2}} (To remove prayer drain)
+|shield2 = {{plink|Arcane spirit shield}} / {{plink|Elidinis' ward}} 
+|shield3 = {{plink|Mage's book}} / {{plink|Malediction ward}} / {{plink|Ancient wyvern shield}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 2 or 3}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Barrows gloves}}
+|hands4 = {{plink|Void knight gloves}}{{efn|name=void}}
+|hands5 = {{plink|Chaos gauntlets}}{{efn|If casting [[Wind Bolt]]|name=air3}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}
+|feet3 = {{plink|Infinity boots}} / {{plink|Aranea boots}}
+|feet4 = {{plink|Wizard boots}}
+|ring1 = {{plink|Magus ring}}
+|ring2 = {{plink|Seers ring (i)}}
+|ring3 = {{plink|Ring of shadows}}
+|special1 = {{plink|Dragon claws}}
+}}
+{{Notelist}}
+==Inventory==
+{{Inventory|align=right
+|1=Toxic blowpipe
+|2=Elite void top
+|3=Blessed Dizana's quiver
+|4=Necklace of rupture
+|5=Void ranger helm
+|6=Elite void robe
+|7=Void knight gloves
+|8=
+|9=Dragon claws
+|10=Infernal cape
+|11=Amulet of rancour
+|12=Ultor ring
+|13=Torva full helm
+|14=Ferocious gloves
+|15=Torva platebody
+|16=
+|17=Spade
+|18=Coins
+|19=Strange old lockpick
+|20=
+|21=Super combat potion(4)
+|22=Super combat potion(4)
+|23=Ranging potion(4)
+|24=Ranging potion(4)
+|25=Teleport to house (tablet)
+|26=Barrows teleport (tablet)
+|27=Saturated heart
+|28=Divine rune pouch
+}}
+*With a 1-handed staff, a [[Ghommal's hilt]] [[Ghommal's hilt 2|2]] or better can replace a magic offhand if you wish to avoid the prayer drain effect.
+*Range equipment for Ahrim. With [[Air spells]] or a [[Tumeken's shadow]] this can be skipped for fewer equipment switches.
+*Melee equipment for melee special attacks or getting reward potential.
+*A [[saturated heart]] or other magic potion will boost [[powered staves]] considerably. 
+*[[Super combat potion|Super combat]] and [[Ranging potion|Ranging potions]] will speed up killing Ahrim and Karil.
+*[[Restore potion]] for Karil's [[Agility]] drain and Ahrim's [[Strength]] drain.
+*Use the rune pouch to store any mind, chaos, death and blood runes in.
+*A [[Spade]] to enter the crypts.
+*[[Teleport to house (tablet)|Teleport to house]] tablets could be replaced by a [[Construction cape]] or [[max cape]].
+*[[Barrows teleport (tablet)|Barrows teleport]] tablets could be replaced with the barrows teleport in the [[Portal Nexus]].
+*Bringing a [[Strange old lockpick]] helps speed up runs by skipping through any doors in the crypts.
+{{Clear}}
+|-|
+Ranged (Ahrim)=
+Without a [[Tumeken's shadow|Shadow]] or [[Air spells]], Ahrim is easiest to defeat with ranged attacks. A Blowpipe, Magic shortbow, or Karil's crossbow are common weapons to use. Use your special attacks on Ahrim to speed up the fight, as he can drain your other combat stats the longer the fight continues.
+{{Recommended equipment
+|style = Ranged (Ahrim)
+|head1 = {{plink|Masori mask (f)}} /<br />{{plink|Masori mask}}
+|head2 = {{plink|Void ranger helm}}{{efn|With full Void|name=void}}
+|head3 = {{plink|Blessed coif|pic=Guthix coif}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|neck5 = {{plink|Amulet of power}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ava's accumulator}}
+|cape4 = {{plink|Ava's attractor}}
+|ammo1 = {{plink|Rada's blessing|pic=Rada's blessing 4}} (with blowpipe)
+|ammo2 = {{plink|Moonlight antler bolts}}{{efn|name=hunters}} / {{plink|Sunlight antler bolts}}{{efn|With [[Hunters' sunlight crossbow]]|name=hunters}}
+|ammo3 = {{plink|Amethyst arrow}}{{efn|name=bow}} / {{plink|Rune arrow}}{{efn|name=bow}}
+|ammo4 = {{plink|Bolt rack}} (with Karil's crossbow)
+|ammo5 = {{plink|Adamant arrow}}{{efn|name=bow}} / {{plink|Broad arrows}}{{efn|With a bow|name=bow}}
+|body1 = {{plink|Masori body (f)}} /<br />{{plink|Masori body}}
+|body2 = {{plink|Elite void top}}{{efn|name=void}}
+|body3 = {{plink|Void knight top}}{{efn|name=void}}
+|body4 = {{plink|Blessed d'hide body|pic=Armadyl d'hide body}}
+|body5 = {{plink|Black d'hide body}} (or best [[Dragonhide body]])
+|legs1 = {{plink|Masori chaps (f)}} /<br />{{plink|Masori chaps}}
+|legs2 = {{plink|Elite void robe}}{{efn|name=void}}
+|legs3 = {{plink|Void knight robe}}{{efn|name=void}}
+|legs4 = {{plink|Blessed chaps|pic=Armadyl chaps}}
+|legs5 = {{plink|Black d'hide chaps}} (or best [[Dragonhide chaps]])
+|weapon1 = {{plink|Toxic blowpipe}}
+|weapon2 = {{plink|Rosewood blowpipe}} / {{plink|Hunters' sunlight crossbow}}
+|weapon3 = {{plink|Magic shortbow (i)}}
+|weapon4 = {{plink|Karil's crossbow}}
+|weapon5 = {{plink|Yew shortbow}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Void knight gloves}}{{efn|name=void}}
+|hands3 = {{plink|Barrows gloves}}
+|hands4 = {{plink|Black d'hide vambraces}}
+|hands5 = {{plink|Combat bracelet|pic=Combat bracelet(4)}}
+|feet1 = See magic section
+|ring1 = See magic section
+|special1 = {{plink|Toxic blowpipe}}
+|special2 = {{plink|Magic shortbow (i)}}
+|special3 = {{plink|Dragon dagger}}
+}}
+{{Notelist}}
+</tabber>
+
+==Tips and tricks==
+===Optimising the average value of the rewards===
+*First of all, make sure to kill all six brothers since the number of loot rolls and the chance of Barrows equipment increases for every brother killed.
+*Completion of the [[Morytania Hard Diary]] will increase the amount of awarded runes by 50% from every chest opened at Barrows.
+*Capping the [[Barrows/Strategies#Gathering rewards potential|Reward Potential]] at 880 points (shows as 86.95% in game) will maximise the amount of awarded runes, while ruling out the possibility of receiving [[bolt rack]]s, [[half key]]s and [[dragon med helm]]s. This will improve the average value of the rewards. This can be done by killing:
+**6 brothers, 1 giant crypt spider, 1 skeleton, and 1 crypt spider (880 points).
+**6 brothers, 1 giant crypt spider, 1 skeleton, and 1 bloodworm (876 points).
+**6 brothers, 2 skeletons and 1 crypt spider (878 points).
+**6 brothers, 2 skeletons and 1 bloodworm (874 points). '''Players may find this to be a favourable approach as both skeletons and bloodworms can  spawn and target the player as you navigate through the tunnels.'''
+**6 brothers, 3 bloodworms and 1 crypt spider (880 points).
+**6 brothers and 4 bloodworms (876 points).
+
+===Safespotting===
+[[File:Barrows brother (tunnel) safespot.png|thumb|right|300px|Safespotting Torag by the entrance ladder of the tunnels]]
+*There are limited safespots available in the tunnels, however, when known how to exploit them, any melee brother can be effectively safespotted.
+**''The ladder and ladder squares can be shot through''. You will only see the ladder in the room you came down in, however, the square containing the other possible ladder locations can still be used as a safespot. This may lead to some very useful safespot opportunities where brothers appear to be frozen.
+**Like all NPCs, the Barrows brothers will attempt to move in a straight line towards the player, however ''they will move east/west first before moving north/south, opening up opportunities to trap them behind an obstacle.'' This opens up many opportunities to safespot melee brothers behind parts of debris that can be shot through.
+**''Debris on the floor that resemble bricks (that have fallen out of the walls) cannot be shot through'', nor can the standing torches in the chest room, nor the chest itself. The bricks cannot be shot through as they are the same objects (merely recoloured) as the piles of bricks in the brothers' individual crypts.
+**''Any other debris on the floor that cannot be walked through can be shot through'', including skeletons, boulders, rocks, and the ladder, even in other rooms than the room where you came down when it is invisible to you.
+**Of all the long corridors, it is only not possible to find a safespot for a melee brother if you are entering the northern corridor from the north-west room. The nearest safespot here is too far and will cause the brother to disappear. All of the other long corridors and the four 'corner' rooms can be utilised effectively.
+**The brothers will not get stuck on other NPCs or players.
+*Kiting is a method used to safespot the melee brothers in the room with their [[Sarcophagus (Barrows)|sarcophagus]]. This method can be used to kill the melee brothers without the use of food or Protection Prayers. This method is especially useful for low to med level Ironmen who would otherwise use a lot of resources. In order to kite properly, the player must have their run turned on. This is due to the player moving two tiles per tick. Verac and Torag are the only brothers where kiting is possible on the north, south, east, and west sides of the sarcophagus. This method can only be done with a magic spell, therefore, the trident of the sea will not work. [[Iban Blast]], [[Magic Dart]], or [[Wind Bolt]] with [[chaos gauntlets]] and are recommended for this method. Since the player will be running a lot, stamina potions and/or full [[graceful outfit]] are highly recommended.
+**The player must first spawn the melee brother. Run can be turned on at this point. For any melee brother besides Verac and Torag, the player must run on either the north side or south side of the sarcophagus to block the brother on the other side.
+**With run '''turned off''', the player must '''use''' the magic spell on the brother. As soon as the experience drop shows, the player must use the control key to run, and lure the brother onto the other side of the sarcophagus. Holding the control key before clicking to move will turn the player's run on for the duration of the movement. This is the only way this method can work.
+**The player will first have to run the distance of the sarcophagus on the north or south side before clicking over to the other side, or else the player will path directly through the melee brother. This is not the case for Verac or Torag since the east and west sides will work to block them.
+**For Verac and Torag, all four sides of the sarcophagus can be used to effectively kite, as stated, the other melee brothers are only safespottable on the north and south side, due to their pathing mechanics.
+**It is recommended not to kite Dharok, since one false move can result in being one hit. It's recommended for the player to kill Dharok before any other brother, so they can use the Prayer that they already have when arriving to Barrows.
+**With practice and done properly, this can be used to avoid all damage from the melee brothers, except for their initial hit when spawning the brother from his sarcophagus.
+*Certain magic spells ([[Entangle]], [[Ice Blitz]], or [[Ice Barrage]]) can bind an NPC to his map square for an extended period of time. These spells could be used to safespot melee brothers by binding them so that they cannot reach you.
+**[[Snare]] allows for 3 attacks before Verac starts moving again.
+**[[Entangle]]/[[Ice Blitz]] allows for 5 attacks before Verac starts moving again.
+**[[Ice Barrage]] allows for 6 attacks before Verac starts moving again.
+
+===Rotation===
+{{Tile markers box|Module:Tile markers/Barrows.json}}
+[[File:Barrows optimal path.png|right|Optimal digging locations for fastest average rotation Dharok → Ahrim → Verac → Torag → Karil → Guthan.|thumb|300x300px]]
+*[[Dharok]], [[Karil]], [[Verac]] and [[Ahrim]] have high accuracy bonuses and max hits, with [[Dharok]] being the most dangerous to fight without Protection Prayers. [[Verac]] can hit through Prayer with 25% probability, so praying only provides partial protection, but it's useful to be able to use offensive Prayers against him. [[Guthan]] and [[Torag]] on the other hand will often deal less damage to players with high defence levels, with Guthan being somewhat harder to kill without Protection Prayer. If you are not able to reliably kill every brother before your Prayer runs out, it could be worth saving Verac, Guthan and Torag until last and just tank their hits if your Defence level is high enough, to save on Prayer restore potions.
+*Therefore, a safe order to kill them may be: Dharok → Ahrim → Karil → Verac → Guthan → Torag.
+*A relatively safe order that requires less running is: Dharok → Guthan → Karil → Ahrim → Verac → Torag.
+*When using a [[toxic blowpipe]] on Ahrim, consider killing Verac before Ahrim, and then heal back some hitpoints using the blowpipe's special attack, since Verac can hit through the player's Protection Prayers.
+*The fastest rotation (averaged across possible spawn tiles and tunnel locations) is: Dharok → Ahrim → Verac → Torag → Karil → Guthan. This takes an average of 32 game ticks (19.2 seconds) of travel time when running, or 66 ticks (39.6 seconds) if walking, assuming digging at the closest tiles between mounds. This pattern can be downloaded as tile markers above. Dharok → Guthan → Karil → Torag → Verac → Ahrim (clockwise circle) is tied for fastest when running and considerably simpler to perform, but 1 tick slower on average when walking.
+*One adaptive rotation that makes use of [[Death Charge]], [[lightbearer]], and [[Dragon claw|dragon claws]] revolves around Dharok: Check if Dharok spawns and use both Dragon Claw special attacks, then proceed clockwise with Dharok → Guthan → Karil → Torag → Verac → Ahrim. However, if Dharok does not spawn, then instead do Dharok → Ahrim → Verac → Torag → Karil → Guthan, using both Dragon Claw special attacks on Ahrim. This adaptive rotation results in special attacks being available to quickly kill Ahrim and Dharok. Maximizing use of death charge with the constraint of always being able to cast it immediately after the final enemy is killed for a given attempt will allow death charge to be available again shortly after the first brother is killed. This adaptive rotation, when accompanied with high melee stats, melee gear, [[Osmumten's fang]], [[dragon battleaxe]], and [[imbued heart]] (for increased defence against Ahrim's [[Confuse]], [[Weaken]] and [[Curse]] attacks), allows for consistent 3:10 completions (including time spent restoring stats) while using nearly no supplies (3 soul, blood, and death runes per run). With use of up to four [[strange old lockpick]] charges and a divine super combat potion dose whenever either its boost expires or Ahrim successfully lower's the player's stats can be considered as low cost inclusions for supplies as they reduce time spent in tunnels and between runs respectively. This pattern can be downloaded as tile markers above.
+
+===Other===
+*When struggling with having enough food during the trips, [[Bones to Peaches]] tablets are a possibility to restore extra hitpoints. Just fill empty spaces with [[bones]] while gathering kill count, and convert as needed.
+*The [[black salamander]] can be used to kill the brothers as a cheap hybrid weapon, and provides a cheaper, although less powerful, alternative to the [[trident]] and [[blowpipe]]. It should be noted that you are not able to safe spot while using this method.
+
+* The [[strange old lockpick]] can be used to pick any door in the crypts, speeding up runs for an extra cost.
+
+[[Category:Strategies]]
+[[Category:Barrows]]

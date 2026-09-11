@@ -1,0 +1,40 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Blood Blitz
+|image = [[File:Blood Blitz.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 80
+|spellbook = Ancient
+|type = Combat
+|exp = 45
+|element = Blood
+|damage = 25
+|cost = {{RuneReq|Death=2|Blood=4}}
+|speed = 5 ticks
+|description = A single target strong blood attack
+|anim = [[File:Blood Blitz.gif|300px]]
+|sound = [[File:Blood Blitz.ogg]]
+}}
+[[File:Blood Blitz icon (mobile).png|left]]
+'''Blood Blitz''' is an [[Ancient Magicks]] [[spell]] requiring a [[Magic]] level of 80. It is capable of hitting up to 25 damage (without any [[magic damage]] boosts).
+
+Blood Blitz has a [[life leech]] effect that will heal the caster's [[Hitpoints]] by 25% of the damage dealt. This can be increased by wearing [[bloodbark armour]], where each piece increases the amount healed by 2%, up to a maximum of 35%. When worn alongside the [[Ancient sceptre]], this increases to 38.5% of the amount of damage inflicted. Even if a target has very little remaining health or is otherwise immune to damage from the spell, it will still heal for the amount of damage it would have done.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Blood Blitz|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 2
+|Rune2 = blood
+|Rune2num = 4
+|is_offensive = y
+}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

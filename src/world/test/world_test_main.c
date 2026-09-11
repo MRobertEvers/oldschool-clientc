@@ -18,9 +18,14 @@ main(void)
     test_spotanim_immediate_activation();
     test_spotanim_catchup_activation();
     test_scenery();
+    test_bridge_levels();
     test_cycle_movers();
     test_delaymove_gate();
+    test_walk_keeps_up();
+    test_mover_model_flag();
+    test_stop_settles_promptly();
     test_entity_face();
+    test_entity_face_across_frames();
     test_try_route();
     test_try_route_nearest_models();
     test_try_route_op();
@@ -37,6 +42,8 @@ main(void)
     test_minusedlevel_entity_draw();
     test_rebuild_shift();
     test_obj_raise();
+    test_action_anim_restarts_the_readyanim();
+    test_action_anim_hands_back_to_the_readyanim_loop_point();
     test_npc_retype_keeps_animation();
     test_line_of_sight();
     test_line_of_sight_asymmetry();

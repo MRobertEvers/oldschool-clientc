@@ -1,5 +1,9 @@
 #include "uitree_emit.h"
 
+#include "ui/torirs_chrome_inkwell.h"
+
+#include "uitree_frame.h"
+
 #include "perf/torirs_perf.h"
 #include "uitree_chatview.h"
 #include "uitree_hovertext.h"
@@ -7,6 +11,18 @@
 #include "uitree_layout.h"
 #include "uitree_minimenu.h"
 #include "uitree_scroll.h"
+
+/* A plugin's retained re-skin of a native picture-bearing widget: art and/or
+ * mask (UITree_WidgetSetArt/SetMask). Applied last, after the lane's own
+ * state, and only to a widget that is showing a graphic. */
+static void
+emit_apply_widget_skin(struct UITree const* tree, int32_t node_index, struct UITreeEmitDesc* out)
+{
+    int art = 0, mask = 0;
+    int const flags = UITree_WidgetSkinAt(tree, node_index, &art, &mask);
+    if( flags & 1 ) { out->scene_id = art; out->atlas_index = 0; }
+    if( flags & 2 ) { out->mask_scene_id = mask; out->mask_atlas_index = 0; out->mask_keep_opaque = 0; }
+}
 
 static int
 clip_intersect(
@@ -22,6 +38,15 @@ clip_intersect(
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
+
+/*
+ * Height of the obj-icon raster, and the reference an obj drawn as a MODEL is
+ * scaled against. The rasteriser's canvas is 36x32 (bridge_rasterize_obj_icon,
+ * ItemIconRenderer.OSRS_SPRITE_W/H); the height is the one that matters here
+ * because a cell is scaled by its smaller side.
+ */
+#define UITREE_OBJ_ICON_RASTER_H 32
 
 static int
 host_scrollbar_scene(struct UITreeHost const* host)
@@ -71,6 +96,10 @@ fill_scrollbar_v(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_V;
     out->node_index = node_index;
@@ -79,8 +108,8 @@ fill_scrollbar_v(
     out->y = y;
     out->w = UITREE_SCROLLBAR_THICKNESS;
     out->h = UITree_ScrollLayerNeedsHorizontal(component) ? h - UITREE_SCROLLBAR_THICKNESS : h;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_height;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -98,6 +127,10 @@ fill_scrollbar_h(
     int scrollbar_scene,
     struct UITreeEmitDesc* out)
 {
+    int scroll_x;
+    int scroll_y;
+
+    UITree_ScrollGetClamped(component, &scroll_x, &scroll_y);
     memset(out, 0, sizeof(*out));
     out->kind = UITREE_EMIT_SCROLLBAR_H;
     out->node_index = node_index;
@@ -106,8 +139,8 @@ fill_scrollbar_h(
     out->y = y + h - UITREE_SCROLLBAR_THICKNESS;
     out->w = UITree_ScrollLayerNeedsVertical(component) ? w - UITREE_SCROLLBAR_THICKNESS : w;
     out->h = UITREE_SCROLLBAR_THICKNESS;
-    out->scroll_off_x = component->scroll_x;
-    out->scroll_off_y = component->scroll_y;
+    out->scroll_off_x = scroll_x;
+    out->scroll_off_y = scroll_y;
     out->scroll_content = component->u.rs_layer.scroll_width;
     out->scene_id = scrollbar_scene;
     out->atlas_index = 0;
@@ -119,8 +152,9 @@ fill_scrollbar_h(
  *
  * The reference client substitutes the value of the component's Nth value
  * script, rendering anything at or above CS1's "infinity" as "*" (the
- * inv-contains sentinel). Values come from the host, which serves them from
- * the last evaluation pass — drawing never runs the VM.
+ * inv-contains sentinel). Task_CS1Eval publishes the values on the component
+ * before the frame fence, so drawing neither runs the VM nor round-trips the
+ * already tree-owned result through the host.
  */
 static void
 uitree_emit_format_placeholders(
@@ -142,13 +176,7 @@ uitree_emit_format_placeholders(
     {
         if( src[0] == '%' && src[1] >= '1' && src[1] <= '0' + UITREE_CS1_VALUE_MAX )
         {
-            struct UITreeHostRequest req;
-            memset(&req, 0, sizeof(req));
-            req.kind = UITREE_HOST_EVAL_TEXT_PLACEHOLDER;
-            req.u.eval_text_placeholder.component = component;
-            req.u.eval_text_placeholder.script_idx = src[1] - '1';
-
-            int value = UITree_Host(host, &req);
+            int const value = host ? component->cs1_values[src[1] - '1'] : 0;
 
             char buf[16];
             int len;
@@ -183,15 +211,17 @@ UITree_EmitFill(
     assert(component);
     assert(out);
 
-    memset(out, 0, sizeof(*out));
-
-    /* TS Client draw: components swap to their "active" (getIfActive) or "over"
-     * (hovered) colour / text / sprite variant. Active is host-evaluated; hover
-     * matches this component's own id. */
-    bool const hovered =
-        hovered_component_id >= 0 && component->component_id == hovered_component_id;
-    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
-
+    /* The two guards below reject ~118 of the visits that reach this function in
+     * a quiet frame — measured as the drop in host round trips, not off
+     * `uitree_emit_skip`, which seven different sites share — and neither of
+     * them reads `out`. Clearing a 520-byte descriptor above them therefore
+     * zeroed ~61 KB per frame that was discarded on the next line; together with
+     * the host call this is worth -1.4% of the emit stage. The clear sits after
+     * them instead, and
+     * `active` (a host round trip) is computed only once a node is going to
+     * draw. Everything from here to the switch writes `out`, so the clear still
+     * precedes the first field written and the untouched tail is still zero —
+     * which the frame-to-frame byte compare in app.c depends on. */
     if( host )
     {
         if( !UITree_ComponentShouldEmit(component, host) )
@@ -207,6 +237,19 @@ UITree_EmitFill(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return false;
     }
+
+    memset(out, 0, sizeof(*out));
+
+    /* TS Client draw: components swap to their "active" (getIfActive) or "over"
+     * (hovered) colour / text / sprite variant. Active is host-evaluated; hover
+     * matches this component's own id. */
+    bool const hovered =
+        hovered_component_id >= 0 && component->component_id == hovered_component_id;
+    /* Task_CS1Eval publishes this through UITree_SetCS1ActiveAt before the
+     * settled frame fence. Reading the tree-owned cache directly avoids one
+     * host callback per drawable node and makes that typed publication the
+     * single mutation seam that retention observes. */
+    bool const active = host && component->cs1_active != 0;
 
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
@@ -362,6 +405,7 @@ UITree_EmitFill(
         }
         if( out->scene_id <= 0 )
             return false;
+        emit_apply_widget_skin(tree, node_index, out);
         return true;
 
     case UIELEM_RS_TEXT:
@@ -382,8 +426,17 @@ UITree_EmitFill(
         {
             color = component->behavior.over_color;
         }
-        if( !text || text[0] == '\0' )
+        /* An editable field with the caret in it draws even while empty --
+         * the caret IS the content, and a box that shows nothing until the
+         * first keystroke looks exactly like a box that did not take the
+         * click. @see `rs_text.input` in uitree.h. */
+        bool const focused_input =
+            component->u.rs_text.input && tree &&
+            UITree_InputFocusId(tree) == component->component_id;
+        if( (!text || text[0] == '\0') && !focused_input )
             return false;
+        if( !text )
+            text = "";
         out->kind = UITREE_EMIT_TEXT;
         out->text = text;
         uitree_emit_format_placeholders(component, host, text, out);
@@ -391,8 +444,36 @@ UITree_EmitFill(
         out->color = color;
         out->text_center = component->u.rs_text.center;
         out->text_y_align = component->u.rs_text.y_align;
-        out->text_shadowed = component->u.rs_text.shadowed;
+        out->text_baseline = component->u.rs_text.baseline;
+        out->text_shadowed = component->widget_text_outline ? 2 : component->u.rs_text.shadowed;
         out->text_line_height = component->u.rs_text.line_height;
+        if( focused_input )
+        {
+            /*
+             * The caret, spelled as a glyph in the line rather than drawn as a
+             * rect of its own, and that is a consequence of the emit's shape:
+             * one node produces one command, so a second draw for the cursor
+             * would mean teaching the whole walk that a node can emit two. The
+             * login screen's own caret is a string for the same reason
+             * (`caret=` in revconfig, composed by app_title_field_line).
+             *
+             * Steady rather than blinking. A blink would have to reach a clock
+             * from inside the emit, and -- worse -- would dirty the node twice
+             * a second forever, defeating the retention gate on any frame a
+             * panel with a focused box is open.
+             */
+            int caret = component->u.rs_text.caret;
+            int const length = (int)strlen(text);
+            if( caret < 0 || caret > length )
+                caret = length;
+            snprintf(
+                out->text_formatted,
+                sizeof(out->text_formatted),
+                "%.*s|%s",
+                caret,
+                text,
+                text + caret);
+        }
         return true;
     }
 
@@ -414,6 +495,16 @@ UITree_EmitFill(
         out->filled = component->u.rs_rect.filled;
         return true;
     }
+
+    case UIELEM_RS_ARC:
+        out->kind = UITREE_EMIT_ARC;
+        out->color = component->u.rs_arc.color;
+        out->filled = component->u.rs_arc.filled;
+        out->line_width =
+            component->u.rs_arc.line_width > 0 ? component->u.rs_arc.line_width : 1;
+        out->arc_start = component->u.rs_arc.arc_start;
+        out->arc_end = component->u.rs_arc.arc_end;
+        return true;
 
     case UIELEM_RS_LINE:
         out->kind = UITREE_EMIT_LINE;
@@ -457,7 +548,38 @@ UITree_EmitFill(
         }
         out->kind = UITREE_EMIT_MODEL;
         out->model_id = model_id;
+        out->model_anim_seq = active ? component->u.rs_model.active_anim_seq_id : component->u.rs_model.anim_seq_id;
+        out->model_anim_frame = component->u.rs_model.anim_frame;
+        /* Like the ID index, this is derived cache allocation, not a native mutation. */
+        out->model_render_cache = UITree_ModelRenderCacheMut((struct UITreeComponent*)component);
         out->model_zoom = component->u.rs_model.zoom;
+        /*
+         * An OBJ bound to a MODEL widget fills the widget; an obj icon fills a
+         * 36x32 raster. Both go through the same projection, whose focal
+         * length is the fixed WIDGET_MODEL_ZOOM3D of 512 — so the drawn size
+         * depends only on the camera distance `zoom`, and a bigger box just
+         * adds margin around an icon-sized model rather than showing a bigger
+         * one. Scaling the distance by the box restores the proportion the
+         * objtype's own `zoom2d` was authored for.
+         *
+         * `skillmulti` is where this shows: its cells are 65px and up (they
+         * grow as the product count falls), so an arrow shaft drawn at icon
+         * distance was a thin line in the middle of a large empty button.
+         *
+         * Gated on `item_id` because only the CS2 CC_SETOBJECT path sets it.
+         * The server IF_SETOBJECT path (`App_SetInterfaceObjModel`, the
+         * combat tab's wielded weapon) binds the same kind of model but
+         * carries its own wire zoom and never sets `item_id`, so it keeps the
+         * distance it asked for.
+         */
+        if( component->item_id > 0 )
+        {
+            int const box = w < h ? w : h;
+
+            if( box > 0 )
+                out->model_zoom = component->u.rs_model.zoom * UITREE_OBJ_ICON_RASTER_H / box;
+            out->model_obj_composed = 1;
+        }
         out->model_xan = component->u.rs_model.xan;
         out->model_yan = component->u.rs_model.yan;
         out->model_zan = component->u.rs_model.zan;
@@ -469,20 +591,18 @@ UITree_EmitFill(
     }
 
     case UIELEM_CC_OBJ:
-        if( component->u.cc_obj.obj_id <= 0 )
+        if( component->item_id <= 0 )
             return false;
         out->kind = UITREE_EMIT_CC_OBJ;
-        out->obj_id = component->u.cc_obj.obj_id;
-        out->obj_count = component->u.cc_obj.obj_count;
-        out->scene_id = component->u.cc_obj.scene_id;
-        out->atlas_index = component->u.cc_obj.atlas_index;
+        out->obj_id = component->item_id;
+        out->obj_count = component->item_count;
+        out->scene_id = component->item_scene_id;
+        out->atlas_index = component->item_atlas_index;
         return true;
 
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
         out->world_level_mask = component->u.world.level_mask;
-        out->world_mmb_rotate = component->u.world.mmb_rotate;
-        out->world_wheel_zoom = component->u.world.wheel_zoom;
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:
@@ -494,6 +614,14 @@ UITree_EmitFill(
             .u.get_minimap_state.out_src_anchor_x = &out->src_anchor_x,
             .u.get_minimap_state.out_src_anchor_y = &out->src_anchor_y,
         };
+        /* MINIMAP_TOGGLE: the server can take the map away. Nothing is
+         * drawn in its place -- the hole in the mapback frame art is what
+         * shows through, which is the reference's "hidden" too. */
+        {
+            struct UITreeHostRequest hidden_req = { .kind = UITREE_HOST_GET_MINIMAP_HIDDEN };
+            if( UITree_Host(host, &hidden_req) )
+                return false;
+        }
         out->kind = UITREE_EMIT_MINIMAP;
         out->scene_id = UITree_Host(host, &req);
         if( out->scene_id <= 0 )
@@ -503,7 +631,11 @@ UITree_EmitFill(
          * property — see UITree.mask_keep_opaque. */
         out->mask_scene_id = component->u.minimap.mask_scene_id;
         out->mask_atlas_index = component->u.minimap.mask_atlas_index;
+        /* Native cache masks are era-dependent; a plugin mask (the widget skin
+         * below) has one stable API convention: transparent pixels are the
+         * window. */
         out->mask_keep_opaque = tree->mask_keep_opaque;
+        emit_apply_widget_skin(tree, node_index, out);
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         /* Entity/flag overlay dots, computed by the host in center-relative
          * pixels (reference minimapDraw). */
@@ -573,10 +705,15 @@ UITree_EmitFill(
         };
         out->kind = UITREE_EMIT_ENTITY_OVERLAY;
         out->entity_overlay_count = UITree_Host(host, &req);
-        return out->entity_overlay_count > 0;
+        out->entity_overlay_source = UITREE_EMIT_OVERLAY_ENTITY;
+        /* The walk temporarily carries a zero-count descriptor through common
+         * clipping so it can retain that exact shape out of band, then removes
+         * it before publishing the renderer command list. */
+        return true;
     }
 
     case UIELEM_BUILTIN_COMPASS:
+    {
         out->kind = UITREE_EMIT_COMPASS;
         out->scene_id = component->u.sprite.scene_id;
         out->atlas_index = component->u.sprite.atlas_index;
@@ -590,21 +727,19 @@ UITree_EmitFill(
         out->mask_scene_id = component->u.sprite.mask_scene_id;
         out->mask_atlas_index = component->u.sprite.mask_atlas_index;
         out->mask_keep_opaque = tree->mask_keep_opaque;
+        emit_apply_widget_skin(tree, node_index, out);
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
+    }
 
     case UIELEM_RS_LAYER:
     {
         int sb_scene;
-        struct UITreeComponent* layer_mut;
         if( component->if3 )
             return false;
         if( !UITree_ScrollLayerNeedsVertical(component) &&
             !UITree_ScrollLayerNeedsHorizontal(component) )
             return false;
-        /* Clamp scroll position for thumb math (IF1). */
-        layer_mut = (struct UITreeComponent*)component;
-        UITree_ScrollClampComponent(layer_mut);
         sb_scene = host_scrollbar_scene(host);
         /* Prefer vertical when both axes need chrome (EmitWalk emits H after children). */
         if( UITree_ScrollLayerNeedsVertical(component) )
@@ -630,7 +765,12 @@ UITree_EmitFill(
         if( !UITree_Host(host, &pos_req) )
             return false;
         out->kind = UITREE_EMIT_SPRITE;
-        out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_CROSS);
+        /* RevConfig's sprite= binding owns the revision-specific pack. Keep
+         * the static-sprite lookup as compatibility for a configured cross
+         * node whose old profile omitted sprite=. */
+        out->scene_id = component->u.sprite.scene_id;
+        if( out->scene_id <= 0 )
+            out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_CROSS);
         if( out->scene_id <= 0 )
             return false;
         {
@@ -645,6 +785,277 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_INKWELL:
+    {
+        /*
+         * The touch marker. Unlike the cross above, whose sprite pack comes
+         * from the cache through `sprite=`, this artwork is generated
+         * (ui/torirs_chrome_inkwell.c) and lives in one scene entry holding
+         * every style and colour -- so the component's configured style is an
+         * atlas index and never an upload.
+         */
+        int cx = 0;
+        int cy = 0;
+        int atlas = 0;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_INKWELL,
+            .u.get_inkwell = {
+                .style = component->u.inkwell.style,
+                .walk_color = component->u.inkwell.walk_color,
+                .interact_color = component->u.inkwell.interact_color,
+                .out_x = &cx,
+                .out_y = &cy,
+                .out_atlas_index = &atlas,
+            },
+        };
+        struct UITreeHostRequest scene_req = { .kind = UITREE_HOST_GET_INKWELL_SCENE };
+        int scene_id;
+
+        if( !UITree_Host(host, &req) )
+            return false; /* no marker running this frame */
+        scene_id = UITree_Host(host, &scene_req);
+        if( scene_id <= 0 )
+            return false;
+
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = atlas;
+        /* Centred on the touch, like the cross -- the frames are drawn about
+         * their own centre so the marker does not drift as it grows. */
+        int const size = ToriRSInkwell_Size();
+        out->x = cx - (size / 2);
+        out->y = cy - (size / 2);
+        out->w = size;
+        out->h = size;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_MULTIWAY:
+    {
+        /* Reference drawScene tail: `if (inMultizone === 1) headicons[1]
+         * .plotSprite(472, 296)`. Both of those numbers are revconfig's here
+         * -- the frame through `sprite=headicons[1]`, the place through the
+         * layout row -- so this is only the gate and the blit. */
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MULTIWAY };
+        if( !UITree_Host(host, &req) )
+            return false;
+        if( component->u.sprite.scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.sprite.scene_id;
+        out->atlas_index = component->u.sprite.atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+    {
+        /* Reference drawScene tail: 'System update in: M:SS' at (4, 329) in
+         * yellow. The host owns the string because it owns the clock; the
+         * font, the colour and the place are the widget's. */
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_REBOOT_TIMER,
+            .u.get_reboot_timer.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.reboot_timer.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.reboot_timer.font_id;
+        out->color = component->u.reboot_timer.color;
+        out->text = text;
+        /* The reference expresses this as font.drawString(s, x, y), so the
+         * layout's y is the baseline and the box does not align it. That is
+         * what lets the revconfig row carry the reference's own coordinates
+         * rather than a guess at where the top of the line would be. */
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_INPUT:
+    {
+        /* One credential line. The host composes the string because the caret's
+         * phase is the client's clock and the mask hides a value the widget
+         * must never be handed; the widget supplies the spelling of both, plus
+         * the font, the colour and the place. */
+        struct UITreeLoginInputConfig const* cfg = UITree_LoginInput(component);
+        char const* text = NULL;
+        int focused = 0;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_FIELD,
+            .u.get_title_field.config = cfg,
+            .u.get_title_field.out_focused = &focused,
+            .u.get_title_field.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text )
+            return false;
+        if( cfg->font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = cfg->font_id;
+        out->color = cfg->color;
+        out->text = text;
+        out->text_center = cfg->center;
+        out->text_shadowed = cfg->shadowed;
+        /* The references draw these with font.drawString(s, x, y), so the
+         * layout row's y IS the baseline -- same reasoning as the reboot
+         * timer, and it is what lets a row carry the reference's own number. */
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_BUTTON:
+    {
+        /* Just the sprite. The label is a child rs_text and the click is
+         * uitree_interact's: a button that drew its own label would need the
+         * label's font and offset here, which is one more thing the INI could
+         * then not move. */
+        if( component->u.login_button.scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.login_button.scene_id;
+        out->atlas_index = component->u.login_button.atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_TOGGLE:
+    {
+        /* Which plate this frame wears is the host's answer, asked every
+         * frame rather than cached on the node: the state outlives the tree,
+         * and a tree rebuilt on a window resize would otherwise come back
+         * showing the wrong one. The label is a child rs_text, as with a
+         * login_button. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_TOGGLE,
+            .u.get_title_toggle.toggle = component->u.login_toggle.toggle,
+        };
+        int on = host ? UITree_Host(host, &req) : 0;
+        int scene_id = component->u.login_toggle.scene_id;
+        int atlas_index = component->u.login_toggle.atlas_index;
+
+        /* An `on` art the profile did not declare is not an error: a revision
+         * whose checkbox is one plate plus a drawn mark declares one sprite
+         * and both states wear it. */
+        if( on && component->u.login_toggle.scene_id_on > 0 )
+        {
+            scene_id = component->u.login_toggle.scene_id_on;
+            atlas_index = component->u.login_toggle.atlas_index_on;
+        }
+        if( scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_LOGIN_MESSAGE:
+    {
+        /* One of the three reply lines. An empty line emits nothing rather
+         * than an empty string, so a two-line reply on a three-line layout
+         * leaves the third row's space alone. */
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_MESSAGE,
+            .u.get_title_message.index = component->u.login_message.index,
+            .u.get_title_message.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.login_message.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.login_message.font_id;
+        out->color = component->u.login_message.color;
+        out->text = text;
+        out->text_center = component->u.login_message.center;
+        out->text_shadowed = component->u.login_message.shadowed;
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS:
+    {
+        /* The filled part only: the track and its border are rs_rect rows in
+         * the layout, because they never change and the INI can then say what
+         * colour and how thick without asking C.
+         *
+         * px_per_percent is stated rather than derived, so a revision whose bar
+         * is not 300 wide needs no new code -- both references write the fill
+         * as `percent * 3`. Unset fills the declared box at 100. */
+        int percent = 0;
+        char const* text = NULL;
+        int scale;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_PROGRESS,
+            .u.get_title_progress.out_percent = &percent,
+            .u.get_title_progress.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) )
+            return false;
+        if( percent < 0 )
+            percent = 0;
+        if( percent > 100 )
+            percent = 100;
+        scale = component->u.title_progress.px_per_percent;
+        out->kind = UITREE_EMIT_RECT;
+        out->color = component->u.title_progress.color;
+        out->filled = 1;
+        out->w = scale > 0 ? percent * scale : (w * percent) / 100;
+        if( out->w > w )
+            out->w = w;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_PROGRESS_TEXT:
+    {
+        int percent = 0;
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_PROGRESS,
+            .u.get_title_progress.out_percent = &percent,
+            .u.get_title_progress.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.title_progress_text.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.title_progress_text.font_id;
+        out->color = component->u.title_progress_text.color;
+        out->text = text;
+        out->text_center = component->u.title_progress_text.center;
+        out->text_shadowed = component->u.title_progress_text.shadowed;
+        out->text_baseline = 1;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_TITLE_FLAMES:
+    {
+        /* The fire is the host's simulation and arrives as a scene sprite it
+         * reuploads each frame. Nothing about this desc changes as it burns,
+         * which is exactly why the node is always_dirty: the pixels move under
+         * a byte-identical command. */
+        int scene_id = -1;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TITLE_FLAMES,
+            .u.get_title_flames.side = component->u.title_flames.side,
+            .u.get_title_flames.bias = component->u.title_flames.bias,
+            .u.get_title_flames.sway = component->u.title_flames.sway,
+            .u.get_title_flames.run = component->u.title_flames.run,
+            .u.get_title_flames.row = component->u.title_flames.row,
+            .u.get_title_flames.blur = component->u.title_flames.blur,
+            .u.get_title_flames.out_scene_id = &scene_id,
+        };
+        if( !UITree_Host(host, &req) || scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = scene_id;
+        out->atlas_index = 0;
+        return true;
+    }
+
     case UIELEM_BUILTIN_TAB_ICONS:
     {
         /* Icons draw only for tabs with an interface assigned (reference
@@ -655,6 +1066,14 @@ UITree_EmitFill(
         };
         if( host && !UITree_Host(host, &req) )
             return false;
+        /* TUT_FLASH: the tutorial points at a tab by blinking its icon, which
+         * is drawn as NOT DRAWING it for half of each cycle -- there is no
+         * highlight sprite, the gap is the signal (reference drawSidebarIcons).
+         * It belongs here rather than in whatever handled the packet: the icon
+         * is this component, and a blink is a property of drawing it. */
+        req.kind = UITREE_HOST_GET_TAB_FLASH_HIDDEN;
+        if( host && UITree_Host(host, &req) )
+            return false;
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = component->u.tab_icon.scene_id;
         out->atlas_index = component->u.tab_icon.atlas_index;
@@ -664,8 +1083,19 @@ UITree_EmitFill(
     }
 
     case UIELEM_BUILTIN_REDSTONE_TAB:
+    {
         /* ShouldEmit already gated on this being the selected tab; the node
          * carries both variants and the highlight is the active one. */
+        /* Like the icons above, the highlight draws only when the selected tab
+         * has an interface assigned (reference gates the redstone plot on
+         * sideOverlayId[sideTab] !== -1) — the tutorial hides tabs by leaving
+         * them unassigned, and the redstone must not glow over an empty slot. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_TAB_ENABLED,
+            .u.tab_enabled.tabno = component->u.redstone_tab.tabno,
+        };
+        if( host && !UITree_Host(host, &req) )
+            return false;
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = component->u.redstone_tab.scene_id_active > 0
                             ? component->u.redstone_tab.scene_id_active
@@ -676,6 +1106,7 @@ UITree_EmitFill(
         if( out->scene_id <= 0 )
             return false;
         return true;
+    }
 
     case UIELEM_BUILTIN_SIDEBAR:
     case UIELEM_BUILTIN_CHAT:
@@ -705,8 +1136,117 @@ UITree_EmitBufferFree(struct UITreeEmitBuffer* buf)
 {
     if( !buf )
         return;
+    free(buf->overlay_scratch);
     free(buf->cmds);
     memset(buf, 0, sizeof(*buf));
+}
+
+static void
+emit_buffer_advance_publication(struct UITreeEmitBuffer* buf)
+{
+    buf->publication_seq++;
+    if( buf->publication_seq == 0 )
+        buf->publication_seq++;
+}
+
+bool
+UITree_EmitBufferHostInputsCurrent(
+    struct UITreeEmitBuffer const* buf,
+    struct UITreeHost const* host)
+{
+    assert(buf);
+    return UITree_HostInputStampIsCurrent(&buf->host_input_stamp, host);
+}
+
+static bool
+emit_retain_gate_sources_quiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    /* A pending invalidation precedes the completed resolver-sequence bump.
+     * Both pending flags therefore belong to the identity; otherwise the
+     * frame between invalidation and resolution could retain stale boxes. */
+    return gate->primed && gate->source_tree == tree && !UITree_HasActiveDrag(tree) &&
+           !tree->layout_stale &&
+           !tree->layout_force_full &&
+           tree->dirty_gen == gate->dirty_gen &&
+           tree->layout_resolve_seq == gate->layout_resolve_seq &&
+           tree->generation == gate->tree_generation &&
+           hovered_component_id == gate->hovered_component_id &&
+           UITree_EmitBufferHostInputsCurrent(buf, host);
+}
+
+bool
+UITree_EmitRetainGateQuiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    return gate->source_buffer == buf &&
+           gate->buffer_publication_seq == buf->publication_seq &&
+           emit_retain_gate_sources_quiet(
+               tree, host, buf, hovered_component_id, gate);
+}
+
+void
+UITree_EmitRetainGateCapture(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(gate);
+
+    gate->source_tree = tree;
+    gate->source_buffer = buf;
+    gate->buffer_publication_seq = buf->publication_seq;
+    gate->dirty_gen = tree->dirty_gen;
+    gate->layout_resolve_seq = tree->layout_resolve_seq;
+    gate->tree_generation = tree->generation;
+    gate->hovered_component_id = hovered_component_id;
+    gate->primed = 1;
+}
+
+bool
+UITree_EmitRetainGateRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf,
+    int const* hovered_component_id,
+    struct UITreeEmitRetainGate const* gate)
+{
+    assert(tree);
+    assert(buf);
+    assert(hovered_component_id);
+    assert(gate);
+
+    if( !UITree_EmitRetainGateQuiet(
+            tree, host, buf, *hovered_component_id, gate) ||
+        buf->volatile_unrefreshable )
+        return false;
+    if( !buf->volatile_refs )
+        return true;
+    if( !UITree_EmitRefreshVolatile(tree, host, buf) )
+        return false;
+
+    /* Host callbacks are arbitrary App/plugin code. They can advance an input
+     * epoch, change topology, invalidate layout, or move hover while refreshing
+     * a same-frame pointer. Recheck the complete semantic identity captured by
+     * the original full walk before publishing any partially refreshed list.
+     * Ignore only publication_seq: this refresh itself deliberately advanced it. */
+    return emit_retain_gate_sources_quiet(
+        tree, host, buf, *hovered_component_id, gate);
 }
 
 static void
@@ -773,12 +1313,29 @@ emit_minimenu_text(
     emit_buffer_append(out, &desc);
 }
 
+static void
+emit_minimenu_popup(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu);
+
+static void
+emit_minimenu_afterimage(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu);
+
 /*
  * Expand the minimenu node into the reference "Choose Option" popup: body
  * fill, black title bar + border strips, title, then one row per option
  * (hover yellow / white, shadowed) drawn bottom-to-top. Model comes from the
  * host so the ui layer stays leaf (reference Client.drawMinimenu; geometry
- * mirrors v1 runescape.c minimenu steps).
+ * mirrors v1 runescape.c minimenu steps). After a row is chosen its
+ * afterimage draws from the same node, popup or no popup.
  */
 static void
 emit_minimenu(
@@ -806,9 +1363,20 @@ emit_minimenu(
         if( !UITree_Host(host, &req) || !menu )
             return;
     }
-    if( !menu->visible || menu->option_count <= 0 )
-        return;
+    if( menu->visible && menu->option_count > 0 )
+        emit_minimenu_popup(out, c, idx, parent_clip, menu);
+    if( UIMinimenu_AfterimageActive(menu) )
+        emit_minimenu_afterimage(out, c, idx, parent_clip, menu);
+}
 
+static void
+emit_minimenu_popup(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu)
+{
     int const mx = menu->x;
     int const my = menu->y;
     int const mw = menu->width;
@@ -846,15 +1414,15 @@ emit_minimenu(
 
     /* Title baseline sits at y+14 in the reference (drawString x+3,y+14);
      * DrawStringBox places the baseline at box_y + ascent, so the box starts
-     * just under the border. */
+     * just under the border (header_text_top = 2 on the desktop layout). */
     emit_minimenu_text(
         out,
         c,
         idx,
         parent_clip,
-        mx + 3,
-        my + 2,
-        mw - 6,
+        mx + layout->text_inset_x,
+        my + layout->header_text_top,
+        mw - 2 * layout->text_inset_x,
         layout->header_bar_h,
         font_id,
         UITREE_MINIMENU_COLOR_BODY,
@@ -863,22 +1431,107 @@ emit_minimenu(
 
     for( int i = 0; i < menu->option_count; i++ )
     {
-        int const row_baseline = UIMinimenu_OptionY(menu, i);
         int const hovered = menu->hovered_option == i;
+        int text_x;
+        int text_y;
+        int text_w;
+        int text_h;
+        UIMinimenu_RowTextBox(menu, i, &text_x, &text_y, &text_w, &text_h);
         emit_minimenu_text(
             out,
             c,
             idx,
             parent_clip,
-            mx + 3,
-            row_baseline - layout->line_height + 2,
-            mw - 6,
-            layout->row_stride + 2,
+            text_x,
+            text_y,
+            text_w,
+            text_h,
             font_id,
             hovered ? 0xFFFF00 : 0xFFFFFF,
             1,
             menu->options[i].text);
     }
+}
+
+/** `from` moved toward `to` by t/255, per channel. */
+static int
+emit_lerp_rgb(int from, int to, int t)
+{
+    int out = 0;
+    for( int shift = 0; shift <= 16; shift += 8 )
+    {
+        int const a = (from >> shift) & 0xFF;
+        int const b = (to >> shift) & 0xFF;
+        out |= (a + ((b - a) * t) / 255) << shift;
+    }
+    return out;
+}
+
+/*
+ * The row a tap chose, after the popup has gone: the popup's body colour
+ * under the row's band, the popup's one-pixel black border around it, and the
+ * row's text exactly where the popup drew it. The box fades through the rect
+ * transparency; text has no transparency of its own on this pipeline, so its
+ * colour walks to the body colour underneath it at the same rate and its
+ * shadow is dropped once the box is more gone than there.
+ */
+static void
+emit_minimenu_afterimage(
+    struct UITreeEmitBuffer* out,
+    struct UITreeComponent const* c,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UIMinimenu const* menu)
+{
+    struct UIMinimenuAfterimage const* image = &menu->afterimage;
+    int const trans = UIMinimenu_AfterimageTrans(menu);
+    int const font_id = c->u.minimenu.font_id > 0 ? c->u.minimenu.font_id : image->font_id;
+    struct UITreeEmitDesc desc;
+    struct
+    {
+        int x;
+        int y;
+        int w;
+        int h;
+        int color;
+    } const rects[] = {
+        { image->x, image->y, image->w, image->h, UITREE_MINIMENU_COLOR_BODY },
+        { image->x, image->y, image->w, 1, 0x000000 },
+        { image->x, image->y + image->h - 1, image->w, 1, 0x000000 },
+        { image->x, image->y, 1, image->h, 0x000000 },
+        { image->x + image->w - 1, image->y, 1, image->h, 0x000000 },
+    };
+
+    for( size_t i = 0; i < sizeof(rects) / sizeof(rects[0]); i++ )
+    {
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_RECT;
+        desc.node_index = idx;
+        desc.component_id = c->component_id;
+        desc.x = rects[i].x;
+        desc.y = rects[i].y;
+        desc.w = rects[i].w;
+        desc.h = rects[i].h;
+        desc.color = rects[i].color;
+        desc.filled = 1;
+        desc.trans = trans;
+        desc.clip = *parent_clip;
+        emit_buffer_append(out, &desc);
+    }
+
+    emit_minimenu_text(
+        out,
+        c,
+        idx,
+        parent_clip,
+        image->text_x,
+        image->text_y,
+        image->text_w,
+        image->text_h,
+        font_id,
+        emit_lerp_rgb(image->color, UITREE_MINIMENU_COLOR_BODY, trans),
+        trans < 128,
+        image->text);
 }
 
 /*
@@ -1134,7 +1787,7 @@ emit_chat_button(
 
     if( !host )
         return;
-    cfg = &c->u.chat_button;
+    cfg = UITree_ChatButton(c);
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
 
     {
@@ -1444,6 +2097,7 @@ emit_obj_stack_count(
     int obj_count;
     int font_id;
     int stackable = 0;
+    int is_placeholder = 0;
     char namebuf[4] = { 0 };
     struct UITreeEmitDesc count_desc;
 
@@ -1481,9 +2135,23 @@ emit_obj_stack_count(
             .u.get_obj_name.out = namebuf,
             .u.get_obj_name.cap = (int)sizeof(namebuf),
             .u.get_obj_name.out_stackable = &stackable,
+            .u.get_obj_name.out_placeholder = &is_placeholder,
         };
         UITree_Host(host, &req);
     }
+    /*
+     * A bank placeholder never carries a number, and the obj record is the only
+     * thing that can say so. `bankmain_drawitem` (clientscript 278) draws one
+     * with the *plain* opcode at a count of zero — `cc_setobject($obj, 0)` —
+     * which is byte for byte what a shop's out-of-stock line does
+     * (clientscript 1076, `cc_setobject($obj, inv_getnum(...))`). Same opcode,
+     * same count, and the shop must print its "0"; so the difference cannot
+     * come from the call, only from the obj, and a placeholder is the record
+     * that carries a template. Without this every placeholder in the bank wore
+     * a yellow "0".
+     */
+    if( is_placeholder )
+        return;
     /* _ALWAYS_NUM (mode 1) numbers even a lone unstackable; the plain opcode
      * numbers stacks only. */
     if( c->item_num_mode != 1 && !stackable && obj_count == 1 )
@@ -1551,8 +2219,8 @@ emit_rs_inv_slots(
     layout.rows = c->u.rs_inv.rows;
     layout.margin_x = c->u.rs_inv.margin_x;
     layout.margin_y = c->u.rs_inv.margin_y;
-    layout.offset_x = c->u.rs_inv.inv_slot_offset_x;
-    layout.offset_y = c->u.rs_inv.inv_slot_offset_y;
+    layout.offset_x = UITree_InvSlots(c)->offset_x;
+    layout.offset_y = UITree_InvSlots(c)->offset_y;
     slot_limit = UITree_InvViewGridSlotLimit(&layout);
 
     /* Armed slot press/drag (reference TYPE_INV draw: only the objDragSlot
@@ -1603,7 +2271,12 @@ emit_rs_inv_slots(
             }
         }
 
-        if( obj_id > 0 && scene_id >= 0 )
+        /* > 0, not >= 0: the bridge allocates icon scene ids from 1 up and
+         * answers -1 when it cannot build one, so 0 is not an icon — it is a
+         * slot whose icon reference was never set. Drawing it emitted an empty
+         * sprite and then the stack count on top, which reads as a floating
+         * number with no item under it. */
+        if( obj_id > 0 && scene_id > 0 )
         {
             /* Selected for "Use" (reference outline = 0xFFFFFF): swap the plain
              * icon for the white-outlined variant. The host answers >0 only for
@@ -1627,8 +2300,8 @@ emit_rs_inv_slots(
         }
         else if( slot < UI_INV_SLOT_OFFSET_MAX )
         {
-            int bg_scene = c->u.rs_inv.inv_slot_bg_scene_id[slot];
-            int bg_atlas = c->u.rs_inv.inv_slot_bg_atlas_index[slot];
+            int bg_scene = UITree_InvSlots(c)->bg_scene_id[slot];
+            int bg_atlas = UITree_InvSlots(c)->bg_atlas_index[slot];
             if( bg_scene < 0 )
                 continue;
             scene_id = bg_scene;
@@ -1749,7 +2422,10 @@ emit_buffer_append(
         buf->cmds = grown;
         buf->cap = n;
     }
-    buf->cmds[buf->count++] = *desc;
+    buf->cmds[buf->count] = *desc;
+    if( !buf->cmds[buf->count].frame_owner_plus_one && desc->node_index >= 0 )
+        buf->cmds[buf->count].frame_owner_plus_one = desc->node_index + 1;
+    buf->count++;
 }
 
 static int
@@ -1810,7 +2486,6 @@ emit_append_layer_scrollbars(
     assert(layer && out && parent_clip);
     assert(layer->type == UIELEM_RS_LAYER && !layer->if3);
 
-    UITree_ScrollClampComponent(layer);
     sb_scene = host_scrollbar_scene(host);
     vscroll = UITree_ScrollLayerNeedsVertical(layer);
     hscroll = UITree_ScrollLayerNeedsHorizontal(layer);
@@ -1853,6 +2528,18 @@ child_is_interface_parent_mount(
     return UITree_ChildMountType(tree, container_uid, child) >= 0;
 }
 
+/* TORIRS_MODEL_CLIP_DEBUG, read once -- it sits on a per-model-desc path in
+ * the emit walk, where a getenv() per frame per model is a linear scan of the
+ * environment block to decide not to print. */
+static int
+model_clip_debug_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_MODEL_CLIP_DEBUG") ? 1 : 0;
+    return armed;
+}
+
 static void
 emit_walk_node(
     struct UITree const* tree,
@@ -1893,12 +2580,36 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
-    /* Hide-gated layers stay invisible unless their component_id is hovered. */
-    if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
+    if( !UITree_NodeNativeVisible(tree, host, idx, hovered_component_id) ) return;
+
+    /*
+     * Native/script hiding outranks anchored art: an anchor is local to a
+     * target that is actually present in this frame, not a way to resurrect a
+     * collapsed tab or a surface the screen has no room for. A gameframe
+     * layout's suppression (`frame_hidden`: "an arranger is drawing this
+     * decoration itself") prunes the subtree the same way, and so do screen
+     * and projection hiding, which say the surface itself is gone.
+     */
+    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) || c->frame_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
     }
+    /* Hide-gated layers stay invisible unless their component_id is hovered. */
+    if( !UITree_ComponentVisibleById(c, hovered_component_id) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
+
+    /* After the own-hide reject, not before: a self-hidden node contributes
+     * nothing to the list, so marks on it are worth filtering, and that is
+     * where two thirds of this client's per-frame UI damage lands (closed
+     * interfaces still ticking their 3D models). Safe only because every write
+     * to a `hide` bit bumps dirty_gen unconditionally rather than through the
+     * filtered MarkNodeDirty path — see UITree_SetHide. */
+    if( (uint32_t)idx < tree->emit_visited_cap )
+        tree->emit_visited[idx] = tree->emit_epoch;
 
     /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
      * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
@@ -1914,6 +2625,14 @@ emit_walk_node(
     }
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+
+    /* Structural collapse is decided before drag: a zero-sized clipping
+     * layer never enters the deferred-drag machinery. */
+    if( UITree_LayerCullsChildren(c, w, h) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
 
     /* A drag source begins a screen-space translation that carries to its whole
      * subtree, so a composite widget (e.g. a scrollbar thumb built from cap +
@@ -1976,17 +2695,18 @@ emit_walk_node(
 
     scroll_layer = layer_needs_scroll_offset(c);
     if1_bar = layer_is_if1_scrollbar(c);
-    if( scroll_layer )
-        UITree_ScrollClampComponent(c);
 
     child_scroll_x = scroll_off_x;
     child_scroll_y = scroll_off_y;
     if( scroll_layer )
     {
+        int clamped_x;
+        int clamped_y;
+        UITree_ScrollGetClamped(c, &clamped_x, &clamped_y);
         if( UITree_ScrollLayerNeedsHorizontal(c) )
-            child_scroll_x += c->scroll_x;
+            child_scroll_x += clamped_x;
         if( UITree_ScrollLayerNeedsVertical(c) )
-            child_scroll_y += c->scroll_y;
+            child_scroll_y += clamped_y;
     }
 
     child_clip = parent_clip;
@@ -2006,17 +2726,37 @@ emit_walk_node(
          * Returning here also skips this node's own draw, which costs nothing —
          * the types that clip (RS_LAYER, sidebar, chat, inv grid) paint no
          * content of their own. */
-        if( UITree_LayerCullsChildren(c, w, h) )
-        {
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
-            return;
-        }
         if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
         {
             layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
             layer_surface = (struct UITreeEmitClip){ cs.clip_x, cs.clip_y, cs.clip_w, cs.clip_h };
             child_clip = &layer_clip;
             child_surface = &layer_surface;
+        }
+        /*
+         * The entity overlay clips its CHILDREN to the world rect, and only
+         * them.
+         *
+         * Its children are the scripted entity overlays
+         * (game/rs_entity_overlay.h) -- world content, which the reference
+         * draws inside the scene pass under the same clip the health bars get.
+         * A 60x60 marker on a loc at the edge of the viewport paints over the
+         * inventory without this.
+         *
+         * It is NOT in UITree_ComponentClipsChildren, because that predicate
+         * carries a second meaning this node cannot accept: a clipping layer
+         * with a degenerate box prunes its whole subtree AND skips its own
+         * draw (UITree_LayerCullsChildren). This node's own content is the
+         * host's health bars and hitsplats, which carry their own clip and
+         * must still draw on a tree whose App never wrote a world rect here.
+         */
+        if( c->type == UIELEM_BUILTIN_ENTITY_OVERLAY && w > 0 && h > 0 )
+        {
+            struct UITreeScrollClip cc2 = surf;
+            UITree_ScrollIntersectClip(&cc2, clip_x, clip_y, w, h);
+            layer_clip = (struct UITreeEmitClip){ cc2.clip_x, cc2.clip_y, cc2.clip_w, cc2.clip_h };
+            child_clip = &layer_clip;
+            child_surface = &layer_clip;
         }
     }
 
@@ -2037,31 +2777,37 @@ emit_walk_node(
             in_deferred,
             parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_MINIMENU )
+    else if( !if1_bar &&
+             c->type == UIELEM_BUILTIN_MINIMENU )
     {
         /* Screen-anchored popup chrome: multi-desc expansion, never scrolled
          * or dragged (same shape as the RS_INV slot expansion above). */
         emit_minimenu(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_HOVERTEXT )
+    else if( !if1_bar &&
+             c->type == UIELEM_BUILTIN_HOVERTEXT )
     {
         emit_hovertext(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT_BUTTON )
+    else if( !if1_bar &&
+             c->type == UIELEM_BUILTIN_CHAT_BUTTON )
     {
         /* Fixed chrome: multi-desc expansion, never scrolled or dragged. */
         emit_chat_button(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_BUILTIN_CHAT )
+    else if( !if1_bar &&
+             c->type == UIELEM_BUILTIN_CHAT )
     {
         emit_chat(host, out, c, idx, parent_clip);
     }
-    else if( !if1_bar && c->type == UIELEM_RS_INV_TEXT )
+    else if( !if1_bar &&
+             c->type == UIELEM_RS_INV_TEXT )
     {
         emit_rs_inv_text_slots(
             host, out, c, idx, x, y, scroll_off_x, scroll_off_y, parent_clip);
     }
-    else if( !if1_bar && UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
+    else if( !if1_bar &&
+             UITree_EmitFill(tree, host, c, idx, hovered_component_id, &desc) )
     {
         /* World/minimap/compass are screen-anchored chrome: they still emit,
          * but never take the scroll/drag translation. */
@@ -2164,6 +2910,8 @@ emit_walk_node(
              * drawEntities runs inside the scene pass, clipped to the game
              * viewport). */
             struct UITreeEmitClip world_box = desc.clip;
+            if( desc.entity_overlay_source != UITREE_EMIT_OVERLAY_NONE )
+                out->volatile_overlay_enclosing_clip[desc.entity_overlay_source] = *parent_clip;
             clip_intersect(
                 &desc.clip, parent_clip, world_box.x, world_box.y, world_box.w, world_box.h);
         }
@@ -2175,10 +2923,8 @@ emit_walk_node(
          * scissored to — the model overflows its box and is only bounded by
          * this clip (the enclosing interface layer ∩ surface). A clip narrower
          * than the widget's own right edge is what crops a chathead. */
-        if( desc.kind == UITREE_EMIT_MODEL && getenv("TORIRS_MODEL_CLIP_DEBUG") )
-            fprintf(
-                stderr,
-                "model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
+        if( desc.kind == UITREE_EMIT_MODEL && model_clip_debug_armed() )
+            TORIRS_LOG("model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
                 desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
                 desc.clip.x + desc.clip.w);
@@ -2289,57 +3035,58 @@ emit_walk_pass(
  * overlay unconditionally topmost, drag ghosts included, which is the whole
  * point of a debug overlay.
  *
- * It does descend the tree rather than scanning root siblings: the boot
+ * The nodes come from `tree->debug_overlays`, not from a descent. The boot
  * manifest's RevConfig can park the overlay under any container it likes
- * (`p=<some_panel>` in the layout record), and a nested overlay that silently
- * stopped drawing would be a miserable thing to debug with.
+ * (`p=<some_panel>` in the layout record), so finding it used to mean walking
+ * the whole tree — and every lane's manifest declares an overlay that is
+ * switched off until the P key, so the walk ran on every frame of every
+ * session to arrive at a node that draws nothing. Measured in the browser at
+ * 512.4 ms across a 23.5 s trace, 5.5% of all non-idle main-thread time: not
+ * the visiting, but ~3600 cache misses a frame reading four fields out of a
+ * 1.7 KB component each. The live set answers the same question in O(overlays).
  *
  * One desc for the entire display list. The render layer walks the prims
  * itself (torirs_frame's sb_steps expansion), so nothing here copies per-prim
  * state into the emit buffer.
  */
 static void
-emit_debug_overlay_in(
+emit_debug_overlay_node(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
-    int32_t first)
+    int32_t idx)
 {
-    for( int32_t i = first; i >= 0; i = tree->components[i].next_sibling )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        struct UITreeEmitDesc desc;
-        struct UITreeHostRequest req;
+    struct UITreeComponent const* c = &tree->components[idx];
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
 
-        if( c->freed )
-            continue;
+    assert(!c->freed);
+    assert(c->type == UIELEM_BUILTIN_DEBUG_OVERLAY);
 
-        if( c->type != UIELEM_BUILTIN_DEBUG_OVERLAY )
-        {
-            emit_debug_overlay_in(tree, host, out, c->first_child);
-            continue;
-        }
+    memset(&desc, 0, sizeof(desc));
+    req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+    req.u.get_debug_overlay.out_prims = &desc.debug_prims;
+    desc.debug_prim_count = UITree_Host(host, &req);
+    if( desc.debug_prim_count <= 0 || !desc.debug_prims )
+        return;
 
-        memset(&desc, 0, sizeof(desc));
-        req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
-        req.u.get_debug_overlay.out_prims = &desc.debug_prims;
-        desc.debug_prim_count = UITree_Host(host, &req);
-        if( desc.debug_prim_count <= 0 || !desc.debug_prims )
-            continue;
-
-        desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
-        desc.node_index = i;
-        desc.component_id = c->component_id;
-        desc.debug_font_id[TORIDBG_FONT_SMALL] = c->u.debug_overlay.font_id_small;
-        desc.debug_font_id[TORIDBG_FONT_MENU] = c->u.debug_overlay.font_id_menu;
-        /* Screen-space, not laid out: every prim already carries absolute
-         * pixels and its own scissor box. The desc clip is the canvas. */
-        desc.clip.x = 0;
-        desc.clip.y = 0;
-        desc.clip.w = UITREE_LAYOUT_ROOT_W;
-        desc.clip.h = UITREE_LAYOUT_ROOT_H;
-        emit_buffer_append(out, &desc);
-    }
+    desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
+    desc.node_index = idx;
+    desc.component_id = c->component_id;
+    struct UITreeDebugOverlayConfig const* overlay = UITree_DebugOverlay(c);
+    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = overlay->font_id_small;
+    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = overlay->font_id_menu;
+    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = overlay->font_id_body;
+    desc.debug_skin_scene_id = overlay->skin_scene_id;
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
+        desc.debug_skin_atlas[i] = overlay->skin_atlas[i];
+    /* Screen-space, not laid out: every prim already carries absolute
+     * pixels and its own scissor box. The desc clip is the canvas. */
+    desc.clip.x = 0;
+    desc.clip.y = 0;
+    desc.clip.w = UITREE_LAYOUT_ROOT_W;
+    desc.clip.h = UITREE_LAYOUT_ROOT_H;
+    emit_buffer_append(out, &desc);
 }
 
 static void
@@ -2348,8 +3095,213 @@ emit_debug_overlay_pass(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out)
 {
-    emit_debug_overlay_in(tree, host, out, tree->root_index);
+    struct UITreeNodeSet const* set = &tree->debug_overlays;
+
+    for( int32_t s = 0; s < set->count; s++ )
+        emit_debug_overlay_node(tree, host, out, set->slots[s]);
 }
+
+/*
+ * The plugin CANVAS overlay: one desc, in canvas space, above everything the
+ * tree drew.
+ *
+ * No node behind it, unlike the entity overlay and the debug overlay, and that
+ * is deliberate. Both of those are components a profile has to author, and a
+ * profile that forgot one is a lane where the feature silently does not exist
+ * -- which is exactly what a plugin must not depend on. A plugin runs on every
+ * lane this client boots, including the ones whose gameframe comes out of a
+ * 2004 cache and knows nothing about any of this, so its surface is the
+ * canvas itself and the pass that emits it is unconditional.
+ *
+ * It costs one host call per frame when no plugin drew, and that call answers
+ * zero -- the same shape as the entity overlay's, which also asks every frame.
+ *
+ * Placed BEFORE the debug overlay pass: developer chrome stays on top of
+ * everything, plugin chrome sits over the game.
+ */
+static void
+emit_plugin_canvas_pass(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    assert(tree);
+
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
+
+    memset(&desc, 0, sizeof(desc));
+    memset(&req, 0, sizeof(req));
+    req.kind = UITREE_HOST_GET_CANVAS_OVERLAYS;
+    req.u.get_entity_overlays.out_items = &desc.entity_overlays;
+    req.u.get_entity_overlays.out_clip_x = &desc.clip.x;
+    req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
+    req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
+    req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_CANVAS);
+    desc.entity_overlay_count = UITree_Host(host, &req);
+    desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.entity_overlay_source = UITREE_EMIT_OVERLAY_CANVAS;
+    desc.node_index = -1;
+    desc.component_id = -1;
+    out->volatile_overlay_template[UITREE_EMIT_OVERLAY_CANVAS] = desc;
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+    /* The same emit kind, because the item vocabulary and the renderer's
+     * expansion of it are the same; only the clip the host reported differs. */
+    out->volatile_overlay_nonempty |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_CANVAS);
+    emit_buffer_append(out, &desc);
+
+    /*
+     * ...and then slide it back under the POINTER FEEDBACK.
+     *
+     * Plugin chrome belongs over the game and under the things that answer the
+     * pointer: the right-click menu, the mouseover line and the click cross.
+     * Appending puts it over all three, and an orb drawn across an open
+     * minimenu is not a layering nicety -- the menu is what the player is
+     * reading, and half of it is behind an orb.
+     *
+     * Found by NODE TYPE rather than by emit kind, because those three carry
+     * no kind of their own: the minimenu is a run of RECT and TEXT descs, the
+     * hover line is TEXT, the cross is a SPRITE. What they have in common is
+     * the builtin they were emitted from, which every desc names.
+     */
+    {
+        int insert_at = -1;
+
+        for( int i = 0; i < out->count - 1; i++ )
+        {
+            int32_t const node = out->cmds[i].node_index;
+            enum UITreeComponentType type;
+
+            if( node < 0 || (uint32_t)node >= tree->component_count )
+                continue;
+            type = tree->components[node].type;
+            if( type != UIELEM_BUILTIN_MINIMENU && type != UIELEM_BUILTIN_HOVERTEXT &&
+                type != UIELEM_BUILTIN_CROSS )
+                continue;
+            insert_at = i;
+            break;
+        }
+
+        if( insert_at >= 0 )
+        {
+            struct UITreeEmitDesc const moved = out->cmds[out->count - 1];
+            memmove(
+                &out->cmds[insert_at + 1],
+                &out->cmds[insert_at],
+                (size_t)(out->count - 1 - insert_at) * sizeof(*out->cmds));
+            out->cmds[insert_at] = moved;
+        }
+    }
+}
+
+/*
+ * Entity overlays belong to the SCENE pass, not to their place in the tree.
+ *
+ * The reference draws health bars and hitsplats inside drawEntities, which is
+ * part of the 3D pass -- so every interface painted afterwards covers them.
+ * Ours is a root-level builtin listed after the gameframe, which is the right
+ * place to READ it from (it is projected against the world rect the
+ * gameframe's viewport reports) and the wrong place to DRAW it: at a
+ * resizable layout the viewport is the whole canvas and the chatbox floats
+ * over it, so a bar or a hitsplat above an entity standing behind the chat
+ * drew on top of the chat text.
+ *
+ * Clipping cannot express that -- the chat is INSIDE the world rect, so the
+ * scene clip the overlay already carries is no help. Z-order is the fix: the
+ * descs move to directly after the world they were projected against, which
+ * leaves the interfaces, drag ghosts and screen chrome (cross, hovertext,
+ * minimenu) above them, exactly as the reference orders them.
+ */
+static int
+emit_is_in_entity_overlay(struct UITree const* tree, int32_t idx)
+{
+    int32_t const owner = tree->entity_overlay_index;
+
+    if( owner < 0 || idx < 0 )
+        return 0;
+    for( int guard = 0; idx >= 0 && guard < 64; guard++ )
+    {
+        if( idx == owner )
+            return 1;
+        if( (uint32_t)idx >= tree->component_count )
+            return 0;
+        idx = tree->components[idx].parent;
+    }
+    return 0;
+}
+
+static void
+emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* out)
+{
+    int world = -1;
+    int write;
+
+    assert(tree);
+    assert(out);
+    /* The last one: a tree can only draw one world, and the app latches the
+     * last WORLD desc as the viewport for the same reason. */
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return;
+
+    write = world + 1;
+    for( int i = write; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc moved;
+        /*
+         * The host-drawn items are one desc; the SCRIPTED overlays
+         * (game/rs_entity_overlay.h) are ordinary components under the same
+         * builtin, emitting ordinary sprites and text. Both have to move, or a
+         * fishing-spot marker draws over the inventory instead of in the world.
+         */
+        if( !(out->cmds[i].kind == UITREE_EMIT_ENTITY_OVERLAY &&
+              out->cmds[i].entity_overlay_source == UITREE_EMIT_OVERLAY_ENTITY) &&
+            !emit_is_in_entity_overlay(tree, out->cmds[i].node_index) )
+            continue;
+        if( i != write )
+        {
+            /* Stable rotate: the overlay lands at `write` and everything it
+             * jumped over keeps its own relative order. */
+            moved = out->cmds[i];
+            memmove(
+                &out->cmds[write + 1],
+                &out->cmds[write],
+                (size_t)(i - write) * sizeof(*out->cmds));
+            out->cmds[write] = moved;
+        }
+        write++;
+    }
+}
+
+/* The same anchored order also processes hover and input barriers. */
+static void
+emit_apply_frame_depth(struct UITree const* tree, struct UITreeHost const* host, struct UITreeEmitBuffer* out)
+{
+    out->count = UITree_FrameReorder(tree, host, out->cmds, out->count,
+                                   sizeof(*out->cmds),
+                                   offsetof(struct UITreeEmitDesc, frame_owner_plus_one));
+}
+
+static int overlay_retain_policy = -1;
+void UITree_EmitSetOverlayRetain(int enabled) { overlay_retain_policy = enabled != 0; }
+static int emit_overlay_retain_enabled(void)
+{
+    if( overlay_retain_policy < 0 )
+    {
+        const char* value = getenv("TORIRS_UI_OVERLAY_RETAIN");
+#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        overlay_retain_policy = !value || value[0] != '0';
+#else
+        overlay_retain_policy = value && value[0] == '1';
+#endif
+    }
+    return overlay_retain_policy;
+}
+static void emit_overlay_range_capture(struct UITree const* tree, struct UITreeEmitBuffer* out);
 
 void
 UITree_EmitWalk(
@@ -2358,8 +3310,90 @@ UITree_EmitWalk(
     struct UITreeEmitBuffer* out,
     int hovered_component_id)
 {
+    struct UITreeHost const* stamp_host = host;
+    struct UITreeHost observed_host;
+
     assert(tree);
     assert(out);
+    if( !UITree_GeometryAuditCheck(tree, "publication") ) abort();
+
+
+    /* Observe host reads through a shallow copy: the application's host stays
+     * immutable, while every UITree_Host call made by this walk contributes
+     * its classified input domains to the buffer. This records requests which
+     * return "nothing" too — important because a later zero-to-nonzero answer
+     * can add a descriptor that did not exist to be refreshed in place. */
+    out->host_input_dependencies = 0;
+    if( host )
+    {
+        observed_host = *host;
+        observed_host.observed_input_mask = &out->host_input_dependencies;
+        host = &observed_host;
+    }
+
+    out->volatile_overlay_seen = 0;
+    out->volatile_overlay_nonempty = 0;
+    memset(out->volatile_overlay_template, 0, sizeof(out->volatile_overlay_template));
+    memset(
+        out->volatile_overlay_enclosing_clip,
+        0,
+        sizeof(out->volatile_overlay_enclosing_clip));
+    for( int source = UITREE_EMIT_OVERLAY_NONE;
+         source <= UITREE_EMIT_OVERLAY_CANVAS;
+         source++ )
+        out->volatile_overlay_insert_at[source] = -1;
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_BEGIN_OVERLAYS };
+        (void)UITree_Host(host, &req);
+    }
+    /*
+     * Draw never reads a stale box (reference ensureLayout, run before the
+     * widget draw for exactly this reason). A layout input can be written from
+     * anywhere between two frames -- the CS1 clientCode tick resizes the
+     * friends/ignore list scroll extents, which invalidates every resolved box
+     * -- and UITree_LayoutGetBounds answers an unresolved node with its
+     * AUTHORED x/y/w/h. For a mounted IF1 subtree those are relative to the
+     * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
+     * zero width: no item icons at all. No-op when nothing invalidated.
+     */
+    /* Publication fence for a plugin gameframe. Geometry and art are the
+     * provider's retained widget edits, so this does not race CS1/CS2 by
+     * rewriting their native fields. It only re-resolves semantic membership
+     * when topology changed since the frame was taken, before EnsureLayout
+     * consumes those bindings. */
+    UITree_FrameReassert((struct UITree*)tree);
+    UITree_EnsureLayout(tree);
+    /* Reachability scratch for the retention signal — see UITree::emit_visited.
+     * Grown to the current node count and cleared here so that what it holds
+     * during the frame after this walk is exactly "entered by this walk". */
+    {
+        struct UITree* mut = (struct UITree*)tree;
+        if( mut->emit_visited_cap < tree->component_count )
+        {
+            uint32_t cap = tree->component_capacity > tree->component_count
+                               ? tree->component_capacity
+                               : tree->component_count;
+            uint8_t* grown = realloc(mut->emit_visited, cap);
+            assert(grown);
+            /* The new tail must not read as this walk's stamp by chance. */
+            memset(grown + mut->emit_visited_cap, 0, cap - mut->emit_visited_cap);
+            mut->emit_visited = grown;
+            mut->emit_visited_cap = cap;
+        }
+        /* A new stamp is the clear; the array itself is cleared only when the
+         * stamp wraps, once in 255 walks. See UITree::emit_epoch. */
+        mut->emit_epoch = (uint8_t)(mut->emit_epoch + 1u);
+        if( mut->emit_epoch == 0u )
+        {
+            mut->emit_epoch = 1u;
+            if( mut->emit_visited_cap > 0 )
+                memset(mut->emit_visited, 0, mut->emit_visited_cap);
+        }
+    }
+    /* Perf readout only. The free-list walk is a pointer chase over every
+     * reclaimed slot, and it was 83% of this function on a phone while the
+     * counters it fed were off. */
+    if( g_torirs_perf_enabled )
     {
         int free_len = 0;
         for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
@@ -2377,7 +3411,13 @@ UITree_EmitWalk(
      * text in the tree above every non-text, so a widget group that should cover
      * an earlier one — an open dropdown over a label — drew under its text. */
     emit_walk_pass(
-        tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
+        tree,
+        host,
+        out,
+        UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H,
+        hovered_component_id,
+        0);
     /* The second pass has nothing to draw unless a drag is running: every node it
      * reaches takes the descend-only branch. It was the single largest traversal
      * in the client (more visits than the draw pass, since descend-only bypasses
@@ -2385,8 +3425,377 @@ UITree_EmitWalk(
     if( UITree_HasActiveDrag(tree) )
     {
         emit_walk_pass(
-            tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+            tree,
+            host,
+            out,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            hovered_component_id,
+            1);
     }
+    /* Keep an empty builtin overlay in the private working list through every
+     * z-order rotation. The final scan removes it before publication, after it
+     * has captured the exact slot where a later retained refresh must put it
+     * back. Recording its earlier tree-order slot is insufficient on a lane
+     * without a world, where the canvas overlay can still rotate ahead of it. */
+    for( int i = 0; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[i];
+        if( d->entity_overlay_source != UITREE_EMIT_OVERLAY_ENTITY )
+            continue;
+        out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
+        out->volatile_overlay_template[UITREE_EMIT_OVERLAY_ENTITY] = *d;
+    }
+    emit_apply_frame_depth(tree, host, out);
+    /* A layout plugin's gameframe: over the scene, under the interfaces.
+     * Before the hoist, which is what puts the bars and hitsplats it moves
+     * BEHIND the chrome rather than over it. */
+    emit_hoist_entity_overlays(tree, out);
+    /* Plugin chrome: over the interfaces, under the pointer feedback and the
+     * developer overlay. */
+    emit_plugin_canvas_pass(tree, host, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
+
+    /* One pass over the finished list to answer "may this list be retained?".
+     * See UITreeEmitBuffer.volatile_refs — the test is on the pointers, so it
+     * stays correct as kinds are added. A few hundred predictable loads against
+     * a walk that visits millions of nodes; it does not register in the stage. */
+    out->volatile_refs = 0;
+    out->volatile_desc_refs = 0;
+    out->volatile_unrefreshable = 0;
+    for( int i = 0; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[i];
+        if( d->entity_overlay_source != UITREE_EMIT_OVERLAY_NONE )
+        {
+            uint8_t const bit = (uint8_t)(1u << d->entity_overlay_source);
+            out->volatile_overlay_seen |= bit;
+            out->volatile_overlay_template[d->entity_overlay_source] = *d;
+            out->volatile_overlay_insert_at[d->entity_overlay_source] = i;
+            if( d->entity_overlay_count <= 0 || !d->entity_overlays )
+            {
+                /* Empty descriptors are useful only as placement metadata;
+                 * never expose them to renderer or golden-list consumers. */
+                if( i + 1 < out->count )
+                    memmove(
+                        &out->cmds[i],
+                        &out->cmds[i + 1],
+                        (size_t)(out->count - i - 1) * sizeof(*out->cmds));
+                out->count--;
+                i--;
+                continue;
+            }
+            out->volatile_overlay_nonempty |= bit;
+            continue;
+        }
+        if( !d->minimap_dots && !d->entity_overlays && !d->worldmap_tiles && !d->debug_prims )
+            continue;
+        out->volatile_refs++;
+        out->volatile_desc_refs++;
+        /* A WORLDMAP desc does not record which of the two host requests filled
+         * it (tiles vs overview), so it cannot be re-issued from the desc alone.
+         * Likewise an overlay without provenance is unsafe to guess. Refusing
+         * to refresh falls back to the full walk, which was always correct. */
+        if( d->worldmap_tiles ||
+            (d->entity_overlays &&
+             d->entity_overlay_source == UITREE_EMIT_OVERLAY_NONE) )
+            out->volatile_unrefreshable = 1;
+    }
+    for( int source = UITREE_EMIT_OVERLAY_ENTITY;
+         source <= UITREE_EMIT_OVERLAY_CANVAS;
+         source++ )
+        if( out->volatile_overlay_seen & (uint8_t)(1u << source) )
+            out->volatile_refs++;
+
+    emit_overlay_range_capture(tree, out);
+    UITree_HostInputStampCapture(
+        stamp_host, out->host_input_dependencies, &out->host_input_stamp);
+    emit_buffer_advance_publication(out);
 }
+
+static void
+emit_buffer_insert_at(
+    struct UITreeEmitBuffer* out,
+    int at,
+    struct UITreeEmitDesc const* desc)
+{
+    int const old_count = out->count;
+    int const source = desc->entity_overlay_source;
+
+    assert(out);
+    assert(desc);
+    assert(at >= 0);
+    assert(at <= old_count);
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY);
+    assert(source <= UITREE_EMIT_OVERLAY_CANVAS);
+    emit_buffer_append(out, desc);
+    if( at < old_count )
+    {
+        memmove(
+            &out->cmds[at + 1],
+            &out->cmds[at],
+            (size_t)(old_count - at) * sizeof(*out->cmds));
+        out->cmds[at] = *desc;
+    }
+    /* Preserve conceptual insertion slots for sources that are currently
+     * empty. A strictly later slot moves with this insertion; an equal slot
+     * remains before it, which preserves the order captured by the full walk
+     * when two absent overlays share the same boundary. */
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_CANVAS;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]++;
+    if( out->overlay_range_valid && (at < out->overlay_range_start ||
+        (at == out->overlay_range_start && source == UITREE_EMIT_OVERLAY_ENTITY)) )
+        out->overlay_range_start++;
+    out->volatile_overlay_insert_at[source] = at;
+}
+
+static void
+emit_buffer_remove_at(struct UITreeEmitBuffer* out, int at)
+{
+    int source;
+
+    assert(out);
+    assert(at >= 0);
+    assert(at < out->count);
+    source = out->cmds[at].entity_overlay_source;
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY);
+    assert(source <= UITREE_EMIT_OVERLAY_CANVAS);
+    if( at + 1 < out->count )
+        memmove(
+            &out->cmds[at],
+            &out->cmds[at + 1],
+            (size_t)(out->count - at - 1) * sizeof(*out->cmds));
+    out->count--;
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_CANVAS;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]--;
+    /* The removed source still belongs immediately before the command that
+     * slid into its old slot (or at end if it was last). */
+    if( out->overlay_range_valid && at < out->overlay_range_start )
+        out->overlay_range_start--;
+    out->volatile_overlay_insert_at[source] = at;
+}
+
+static int
+emit_overlay_insert_index(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* out,
+    enum UITreeEmitOverlaySource source)
+{
+    int world = -1;
+
+    assert(tree);
+    assert(out);
+    if( source == UITREE_EMIT_OVERLAY_CANVAS )
+    {
+        int debug = -1;
+        for( int i = 0; i < out->count; i++ )
+        {
+            int32_t const node = out->cmds[i].node_index;
+            if( out->cmds[i].kind == UITREE_EMIT_DEBUG_OVERLAY && debug < 0 )
+                debug = i;
+            if( node >= 0 && (uint32_t)node < tree->component_count )
+            {
+                enum UITreeComponentType const type = tree->components[node].type;
+                if( type == UIELEM_BUILTIN_MINIMENU ||
+                    type == UIELEM_BUILTIN_HOVERTEXT ||
+                    type == UIELEM_BUILTIN_CROSS )
+                    return i;
+            }
+        }
+        return debug >= 0 ? debug : out->count;
+    }
+
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return -1;
+    if( source == UITREE_EMIT_OVERLAY_ENTITY )
+        return world + 1;
+
+    /* Frame chrome belongs after host + scripted entity overlays and before
+     * every interface. The full walk's hoist establishes the same block. */
+    for( int at = world + 1; at < out->count; at++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[at];
+        if( (d->kind == UITREE_EMIT_ENTITY_OVERLAY &&
+             d->entity_overlay_source == UITREE_EMIT_OVERLAY_ENTITY) ||
+            emit_is_in_entity_overlay(tree, d->node_index) )
+            continue;
+        return at;
+    }
+    return out->count;
+}
+
+int
+UITree_EmitRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    static enum UITreeEmitOverlaySource const overlay_order[] = {
+        UITREE_EMIT_OVERLAY_ENTITY,
+        UITREE_EMIT_OVERLAY_CANVAS,
+    };
+    uint32_t dirty_before;
+
+    assert(tree);
+    assert(out);
+    assert(!out->volatile_unrefreshable);
+    /* Invalidate any gate bound to the pre-refresh buffer even if a callback
+     * aborts after changing only part of the volatile descriptor set. */
+    emit_buffer_advance_publication(out);
+    dirty_before = tree->dirty_gen;
+
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_BEGIN_OVERLAYS };
+        (void)UITree_Host(host, &req);
+    }
+    if( tree->dirty_gen != dirty_before )
+        return 0;
+
+    /* Reissue even sources that were empty on the full walk. Keep its host-call
+     * order: ENTITY, then CANVAS. Insert/remove commands from the returned data directly so
+     * a zero crossing never dispatches plugin draw callbacks twice. */
+    for( size_t oi = 0; oi < sizeof(overlay_order) / sizeof(overlay_order[0]); oi++ )
+    {
+        enum UITreeEmitOverlaySource const source = overlay_order[oi];
+        uint8_t const bit = (uint8_t)(1u << source);
+        struct UITreeEntityOverlay const* items = NULL;
+        struct UITreeEmitClip clip = { 0 };
+        enum UITreeHostRequestKind request_kind;
+        int desc_index = -1;
+        int count;
+        int now_nonempty;
+
+        if( !(out->volatile_overlay_seen & bit) )
+            continue;
+        /* A zero-count standing source has no descriptor in the published
+         * list. Trust the metadata built by the full walk instead of scanning
+         * thousands of unrelated commands three times on every retained frame. */
+        if( out->volatile_overlay_nonempty & bit )
+        {
+            int const hint = out->volatile_overlay_insert_at[source];
+            if( hint >= 0 && hint < out->count &&
+                out->cmds[hint].entity_overlay_source == source )
+                desc_index = hint;
+            else
+                for( int i = 0; i < out->count; i++ )
+                    if( out->cmds[i].entity_overlay_source == source )
+                    {
+                        desc_index = i;
+                        break;
+                    }
+            if( desc_index >= 0 )
+            {
+                out->volatile_overlay_template[source] = out->cmds[desc_index];
+                out->volatile_overlay_insert_at[source] = desc_index;
+            }
+        }
+
+        switch( source )
+        {
+        case UITREE_EMIT_OVERLAY_ENTITY:
+            request_kind = UITREE_HOST_GET_ENTITY_OVERLAYS;
+            break;
+        case UITREE_EMIT_OVERLAY_CANVAS:
+            request_kind = UITREE_HOST_GET_CANVAS_OVERLAYS;
+            break;
+        default:
+            assert(!"invalid volatile overlay source");
+            continue;
+        }
+        {
+            struct UITreeHostRequest req = {
+                .kind = request_kind,
+                .u.get_entity_overlays.out_items = &items,
+                .u.get_entity_overlays.out_clip_x = &clip.x,
+                .u.get_entity_overlays.out_clip_y = &clip.y,
+                .u.get_entity_overlays.out_clip_w = &clip.w,
+                .u.get_entity_overlays.out_clip_h = &clip.h,
+            };
+            count = UITree_Host(host, &req);
+        }
+        if( tree->dirty_gen != dirty_before )
+            return 0;
+        if( source == UITREE_EMIT_OVERLAY_ENTITY )
+        {
+            struct UITreeEmitClip const host_clip = clip;
+            (void)clip_intersect(
+                &clip,
+                &out->volatile_overlay_enclosing_clip[source],
+                host_clip.x,
+                host_clip.y,
+                host_clip.w,
+                host_clip.h);
+        }
+        now_nonempty = count > 0 && items;
+        if( !now_nonempty )
+        {
+            if( desc_index >= 0 )
+                emit_buffer_remove_at(out, desc_index);
+            out->volatile_overlay_nonempty &= (uint8_t)~bit;
+            continue;
+        }
+
+        if( desc_index < 0 )
+        {
+            struct UITreeEmitDesc desc = out->volatile_overlay_template[source];
+            int insert_at = emit_overlay_insert_index(tree, out, source);
+            if( insert_at < 0 )
+                insert_at = out->volatile_overlay_insert_at[source];
+            if( insert_at < 0 )
+                insert_at = out->count;
+            if( insert_at > out->count )
+                insert_at = out->count;
+            desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+            desc.entity_overlay_source = (uint8_t)source;
+            desc.entity_overlays = items;
+            desc.entity_overlay_count = count;
+            desc.clip = clip;
+            emit_buffer_insert_at(out, insert_at, &desc);
+        }
+        else
+        {
+            struct UITreeEmitDesc* d = &out->cmds[desc_index];
+            d->entity_overlays = items;
+            d->entity_overlay_count = count;
+            d->clip = clip;
+        }
+        out->volatile_overlay_nonempty |= bit;
+    }
+
+    if( out->volatile_desc_refs )
+        for( int i = 0; i < out->count; i++ )
+        {
+            struct UITreeEmitDesc* d = &out->cmds[i];
+
+            if( d->minimap_dots )
+            {
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_MINIMAP_DOTS,
+                    .u.get_minimap_dots.out_dots = &d->minimap_dots,
+                };
+                d->minimap_dot_count = UITree_Host(host, &req);
+            }
+            if( d->debug_prims )
+            {
+                struct UITreeHostRequest req;
+                req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+                req.u.get_debug_overlay.out_prims = &d->debug_prims;
+                d->debug_prim_count = UITree_Host(host, &req);
+            }
+            if( tree->dirty_gen != dirty_before )
+                return 0;
+        }
+    return 1;
+}
+
+#include "uitree_emit_overlay.u.h"

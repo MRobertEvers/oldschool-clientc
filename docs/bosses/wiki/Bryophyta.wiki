@@ -1,0 +1,304 @@
+{{Instance}}
+{{HasTask|Moss giants}}
+{{Infobox Monster
+|name = Bryophyta
+|image = [[File:Bryophyta.png|220px]]
+|release = [[3 May]] [[2018]]
+|update = Bryophyta: The Moss Giant Boss
+|members = No
+|combat = 128
+|size = 3
+|examine = This is what organic growth looks like!
+|xpbonus = 2.5
+|max hit = 16 ([[Melee]]), 10 ([[Magic]])
+|aggressive = Yes
+|poisonous = Yes (8) (Members worlds only)
+|attack style = [[Crush]], [[Magic]]
+|attack speed = 6
+|slayxp = 115
+|cat = Moss Giants
+|assignedby = vannaka
+|hitpoints = 115
+|att = 130
+|str = 100
+|def = 100
+|mage = 90
+|range = 1
+|attbns = 33
+|strbns = 31
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 0
+|venomresistance = 0
+|dropversion = Members,Free-to-play
+|id = 8195
+}}
+'''Bryophyta''' ({{IPAc-en|,|b|r|aɪ|oʊ|'|f|aɪ|t|ə}}, {{respell|BRY|oh|FY|tə}}), the Moss Giantess, is a [[moss giant]] [[boss]] who can be found in her lair in the [[Varrock Sewers]]. The entrance to the lair is located just east of the moss giants in the sewers, and can be accessed by navigating the sewers, using the level 51 [[Obstacle pipe (Edgeville Dungeon)|Agility shortcut]] from [[Edgeville Dungeon]], or by teleporting with a [[giantsoul amulet]].
+
+A [[mossy key]] is needed to unlock the [[Gate (Bryophyta)|gate]] leading to Bryophyta's lair for the first time, but subsequent access to the lair does not require a key. The key will not be consumed when unlocking Bryophyta's lair.
+
+The keys also open the [[Chest (Bryophyta's Lair)|chest]] found in her lair. Each opening uses one mossy key and requires one Bryophyta kill, similar to [[Obor]] and [[giant key]]s. Bryophyta respawns 15 ticks (9 seconds) after attempting to open her chest, or on leaving and re-entering the instance, regardless of whether the player has a mossy key in their inventory.
+
+The chest is the sole source of [[Bryophyta's essence]], which is used to make [[Bryophyta's staff]]. This item can store [[nature rune]]s, and has a chance to not consume them when casting a spell that uses them.  
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Bryophyta
+|location = Bryophyta's Lair ([[Varrock Sewers]])
+|levels = 128
+|members = No
+|mapID = -1
+|plane = 0
+|x:3220,y:9933
+|mtype = pin
+|dropversion = Members,Free-to-play
+|leagueRegion = Misthalin
+}}
+{{LocTableBottom}}
+
+==Strategy==
+To access Bryophyta's lair, players will need a [[knife]] or a [[Slash weapons|slash weapon]] to cut through the web if approaching via the [[Varrock Sewers]]. Members with level 51 [[Agility]] can bypass this by using the agility [[shortcut]] near [[Vannaka]] in the [[Edgeville Dungeon]]. Alternatively, a charged [[Giantsoul amulet]] can teleport players directly outside the entrance to her lair.
+
+Unlike Obor’s chambers, where he is confined in a small pit, players are taken directly to Bryophyta’s chambers, where she attacks on sight. It is recommended to activate [[Protect from Magic]] before entering, or immediately upon entry, before opening the [[Gate (Bryophyta)|gate]].
+
+[[File:Fighting Bryophyta.png|thumb|left|250px|A player fighting Bryophyta.]]
+
+In members' worlds, Bryophyta can [[poison]] players, starting at 8 damage; it is advisable to bring poison protection even when using [[protection prayers]].
+
+Throughout the fight, there is a 1/5 chance that Bryophyta may summon three [[growthling]]s that '''must be killed with either an [[axe]] or [[magic secateurs]]'''. Bryophyta is immune to all damage (except poison and venom) while they are alive. Although the [[blessed axe]] is a woodcutting axe, it will not work. If no item with the "[[Axe]]" attack type is brought, players can take a [[bronze axe]] from the [[logs (Bryophyta)|pile of logs]] in the lair; other types of axes, such as [[battleaxe]]s or the [[zombie axe]], '''cannot''' be used to kill the growthlings. Bryophyta can only summon one batch of growthlings at a time, and there a cooldown of around 20 ticks between summons.
+
+[[Free-to-play]] players should wear [[green d'hide armour]] for magic defence, along with a [[rune kiteshield]] and [[rune full helm]] for optimal protection against her attacks. God armours like [[Guthix armour]] offer a slight advantage with a +1 Prayer bonus per piece and are only marginally more expensive than rune armour. Offensively, a [[rune scimitar]] is recommended for its strength bonus. Players should have at least 50 strength, attack, and defence before attempting to fight Bryophyta.
+
+Ranging Bryophyta is the best strategy for mid-level F2P players, with recommended stats of 60 Ranged, 40 Defence, and 37 Prayer. The ideal setup includes [[green d'hide armour]], a [[coif]], an [[amulet of power]], and a [[maple shortbow]] with [[adamant arrows]]. Maintaining a safe distance is crucial, as she won’t move towards players and won’t use melee attacks if they are out of her reach. Using [[Protect from Magic]] will further minimise damage. 
+
+Bryophyta's 50% fire weakness makes magic highly viable in F2P. With at least 37 Prayer and 59 Magic, using Protect from Magic and Fire Blast offers the highest DPS for F2P players by a wide margin. As with the ranged strategy, keeping your distance is crucial. Best-in-slot magic gear with the Fire Staff is the recommended equipment. 
+
+[[Members]] players can kill her very quickly by utilizing powerful [[Special attacks|special attack]] weapons, such as [[Dragon claws|Dragon Claws]] or a [[Voidwaker]]. With access to the [[Desert amulet 4]] or a [[Restoration pool]] built in their [[player-owned house]] to restore special attack energy between kills, as well as a Giantsoul amulet to return back to her lair quickly, players can expect anywhere from 6-8 mossy keys per hour depending on efficiency.  
+
+==Money making==
+{{Mmgsection|Killing Bryophyta (free-to-play)}}
+
+==Members' worlds drops==
+{{DropLogProject|kills=52418}}
+
+{{Average drop value|mob=Bryophyta#Members}}
+
+Bryophyta drops [[giant bones]] when she dies, which cannot be picked up but are instead buried directly from the ground.
+
+[[Chest (Bryophyta's lair)|Bryophyta's chest]] in her lair contains more valuable loot that can be opened once per kill using a [[mossy key]].
+
+===100%===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Giant bones|quantity=1|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Black sq shield|quantity=1|rarity=5/128}}
+{{DropsLine|name=Magic staff|quantity=1|rarity=2/128}}
+{{DropsLine|name=Steel med helm|quantity=1|rarity=2/128}}
+{{DropsLine|name=Mithril sword|quantity=1|rarity=2/128}}
+{{DropsLine|name=Mithril spear|quantity=1|rarity=2/128}}  <!-- becomes 2x coins in f2p -->
+{{DropsLine|name=Steel kiteshield|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Law rune|quantity=3|rarity=4/128}}
+{{DropsLine|name=Air rune|quantity=18|rarity=3/128}}
+{{DropsLine|name=Earth rune|quantity=27|rarity=3/128}}
+{{DropsLine|name=Chaos rune|quantity=7|rarity=3/128}}
+{{DropsLine|name=Nature rune|quantity=6|rarity=3/128}}
+{{DropsLine|name=Cosmic rune|quantity=3|rarity=2/128}}
+{{DropsLine|name=Iron arrow|quantity=15|rarity=2/128}}
+{{DropsLine|name=Steel arrow|quantity=30|rarity=1/128}}
+{{DropsLine|name=Death rune|quantity=3|rarity=1/128}}
+{{DropsLine|name=Blood rune|quantity=1|rarity=1/128}}  <!-- becomes 2x coins in f2p -->
+{{DropsTableBottom}}
+
+===Herbs===
+{{HerbDropTableInfo|5/128}}
+{{DropsTableHead|dropversion=Members}}
+{{HerbDropLines|5/128}}  <!-- becomes 10x coins in f2p -->
+{{DropsTableBottom}}
+
+===Seeds===
+{{UncommonSeedDropTableInfo|35/128}}
+{{DropsTableHead|dropversion=Members}}
+{{UncommonSeedDropLines|35/128}}  <!-- becomes 5x coins in f2p -->
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Coins|quantity=37|rarity=19/128}}
+{{DropsLine|name=Coins|quantity=2|rarity=8/128}}
+{{DropsLine|name=Coins|quantity=119|rarity=10/128}}
+{{DropsLine|name=Coins|quantity=300|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Steel bar|quantity=1|rarity=6/128}}
+{{DropsLine|name=Coal|quantity=1|rarity=1/128}}
+{{DropsLine|name=Spinach roll|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|4/128|naturetalisman=yes|dropversion=Members}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Moss giant bone|quantity=1|rarity=1/4|raritynotes=<ref group=d>Moss giant bones are only dropped during [[Rag and Bone Man II]].</ref>|gemw=No}}
+{{DropsLine|name=Ensouled giant head|quantity=1|rarity=1/24}}
+{{DropsLineClue|type=beginner|rarity=1/45}}
+{{DropsLine|name=Mossy key|quantity=1|rarity=1/16|altrarity=1/8|gemw=No|raritynotes={{Refn|group=d|While having a moss giant [[Slayer task]], the drop rate is increased to 1/8, even if Bryophyta is killed on a free-to-play world; [[Krystilia]] tasks do not increase the drop rate.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1409559741096526005|date=25 August 2025|quote=It's checking whether the giant is in the Wilderness if the master is Krystilia, so yes, it looks like that exploit was removed if so.|name=krystilia|archiveurl=https://reldo.runescape.wiki/i/27962741#chat-messages-431834766325841920-1409559741096526005|archivedate=2026-03-07}}}}{{CiteNews|url=https://secure.runescape.com/m=news/stackable-clues-are-here?oldschool=1|title=Stackable Clues are here!|newsdate=02 July 2025|quote=The keys from Obor and Bryophyta are now more common, dropping at a rate of 1/16 instead of 1/32.|name=keyrate}}}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400}}
+{{DropsLine|name=Giant champion scroll|quantity=1|rarity=1/5000|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5}}
+{{DropsTableBottom}}
+
+==Free-to-play worlds drops==
+{{Average drop value|mob=Bryophyta#Free-to-play}}
+
+[[Chest (Bryophyta's lair)|Bryophyta's chest]] in her lair contains more valuable loot that can be opened once per kill using a [[mossy key]].
+
+===100%===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Black sq shield|quantity=1|rarity=5/128}}
+{{DropsLine|name=Magic staff|quantity=1|rarity=2/128}}
+{{DropsLine|name=Steel med helm|quantity=1|rarity=2/128}}
+{{DropsLine|name=Mithril sword|quantity=1|rarity=2/128}}
+{{DropsLine|name=Steel kiteshield|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Law rune|quantity=3|rarity=4/128}}
+{{DropsLine|name=Air rune|quantity=18|rarity=3/128}}
+{{DropsLine|name=Earth rune|quantity=27|rarity=3/128}}
+{{DropsLine|name=Chaos rune|quantity=7|rarity=3/128}}
+{{DropsLine|name=Nature rune|quantity=6|rarity=3/128}}
+{{DropsLine|name=Cosmic rune|quantity=3|rarity=2/128}}
+{{DropsLine|name=Iron arrow|quantity=15|rarity=2/128}}
+{{DropsLine|name=Steel arrow|quantity=30|rarity=1/128}}
+{{DropsLine|name=Death rune|quantity=3|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Coins|quantity=10|rarity=5/128}}
+{{DropsLine|name=Coins|quantity=5|rarity=35/128}}
+{{DropsLine|name=Coins|quantity=37|rarity=19/128}}
+{{DropsLine|name=Coins|quantity=2|rarity=11/128}}
+{{DropsLine|name=Coins|quantity=119|rarity=10/128}}
+{{DropsLine|name=Coins|quantity=300|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Steel bar|quantity=1|rarity=6/128}}
+{{DropsLine|name=Coal|quantity=1|rarity=1/128}}
+{{DropsLine|name=Spinach roll|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|4/128|f2pOnly=yes|dropversion=Free-to-play}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Clue scroll (beginner)|quantity=1|rarity=1/45|gemw=No}}
+{{DropsLine|name=Mossy key|quantity=1|rarity=1/16|altrarity=1/8|gemw=No|raritynotes={{Refn|group=d|While having a moss giant [[Slayer task]], the drop rate is increased to 1/8, even if Bryophyta is killed on a free-to-play world; [[Krystilia]] tasks do not increase the drop rate.{{Refn|name=krystilia}}}}{{Refn|name=keyrate}}}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Bryophyta}}
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Bryophyta can now drop [[moss giant bone]]s during [[Rag and Bone Man II]].
+}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = There is now a quick leave option while fighting Bryophyta.
+}}
+{{Subject changes
+|date = 23 July 2025
+|update = Varlamore: The Final Dawn Out Now
+|change = 
+* Krystilia's Slayer assignments now boost the Mossy Key drop rate only within the Wilderness.
+}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = 
+* The [[mossy key]] drop rate has increased from 1/32 to 1/16.
+* The cooldown that restricts the spawn of [[growthling]]s should now be more consistent.
+* You can now one-shot growthlings if you have an [[axe]] or [[magic secateurs]] equipped.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* Bryophyta no longer requires a [[mossy key]] to be fought. However, the first encounter with her will still require the key as a means to permanently unlock access to the boss.
+* Bryophyta's drop table has been replaced with a simpler loot table similar to [[moss giant]]s, with an increased chance at a [[mossy key]], as well as a chance of [[giant bones]] for members.
+* Bryophyta's original loot table has been moved to [[Chest (Bryophyta's Lair)|a chest]] within her lair, which is opened using a [[mossy key]] and can only be opened when she is defeated.
+* [[Growthling]]s can now be finished off with one-click when equipping an axe, instead of needing to use the axe on it to do so.
+* The cooldown that restricts the spawn of [[growthlings]] has been tweaked.
+}}
+{{Subject changes
+|date = 28 February 2024
+|update = Defender of Varrock Artwork & QoL Updates
+|poll = 
+|change = Bryophyta now drops a guaranteed ensouled giant head.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|poll = Old School Content Poll 76: Game Improvements
+|change = [[Bryophyta's essence]] can now be obtained as a drop in [[free-to-play]] worlds.
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = The minimum [[HiScores]] killcount required for Bryophyta has been lowered from 10 to 5.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*{{Wp|Bryophyta}} is the scientific name for mosses.
+*The update which introduced Bryophyta also made [[Antipoison]] potions available to free-to-play players and able to be purchased from [[Apothecary's Potions]] in Varrock.
+**The idea of Bryophyta poisoning in free-to-play was scrapped prior to release; however, [[Antipoison]] potions still remain free-to-play.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1231689392995078146|date=23 February 2020|archiveurl=https://reldo.runescape.wiki/i/96770|archivedate=28 February 2020|quote=Not sure. The development of that particular boss was difficult, due to the dev being very inexperienced at the time, with Maz having to step in very late on to take over. The original dev may have enabled them on F2P for a reason that was later scrapped.}}
+*It is possible to have growthlings summoned at the same time Bryophyta gets last damage (even without poison or venom) and fight them after her death.
+*As the axe is being used as a weapon and not as a tool, the player can still kill growthlings with an axe with a higher [[Woodcutting]] requirement than the player has.
+
+==References==
+{{Reflist}}
+
+{{Varrock Sewers}}
+{{Giants}}
+{{Bosses}}

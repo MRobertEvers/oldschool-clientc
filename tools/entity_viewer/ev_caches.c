@@ -681,36 +681,89 @@ sink_id(int id, const char* data, int size, void* user)
     s->ids[s->count++] = id;
 }
 
-/** npc ids AND their names, which needs each record decoded. */
-struct npc_sink
+/*
+ * Ids AND names, which needs each record decoded.
+ *
+ * One sink for npc, obj and loc: the three decoders differ, the name lives in a
+ * different field of a different struct, and everything around that is
+ * identical. `read_name` is where the three differ and nothing else is
+ * duplicated — a second copy of the grow-and-append would be three chances to
+ * get the same thing wrong.
+ */
+typedef bool (*sink_name_fn)(const struct RSCache* profile, char* data, int size, char** out_name);
+
+struct named_sink
 {
-    struct EV_IndexNpc* rows;
+    struct EV_IndexRow* rows;
     int count;
     int cap;
     const struct RSCache* profile;
+    sink_name_fn read_name;
 };
 
-static void
-sink_npc(int id, const char* data, int size, void* user)
+/*
+ * Each returns whether the record decoded, and separately writes an owned copy
+ * of its name (NULL when it has none).
+ *
+ * The two answers are not one: a record that does not decode is left out of the
+ * index entirely, while a record that decodes and is unnamed is listed with no
+ * name. Folding them together would put every undecodable id in the picker as
+ * "(unnamed)", which reads as a record rather than as a failure.
+ */
+
+static bool
+name_of_npc(const struct RSCache* profile, char* data, int size, char** out_name)
 {
-    struct npc_sink* s = (struct npc_sink*)user;
-    struct RSCache_Dat2ConfigNpc* npc =
-        RSCache_Dat2ConfigNpcNewDecodeProfile(s->profile, (char*)data, size);
-    if( !npc )
+    struct RSCache_Dat2ConfigNpc* r = RSCache_Dat2ConfigNpcNewDecodeProfile(profile, data, size);
+    *out_name = (r && r->name) ? strdup(r->name) : NULL;
+    bool ok = r != NULL;
+    RSCache_Dat2ConfigNpcFree(r);
+    return ok;
+}
+
+static bool
+name_of_obj(const struct RSCache* profile, char* data, int size, char** out_name)
+{
+    struct RSCache_Dat2ConfigObj* r = RSCache_Dat2ConfigObjNewDecodeProfile(profile, data, size);
+    *out_name = (r && r->name) ? strdup(r->name) : NULL;
+    bool ok = r != NULL;
+    RSCache_Dat2ConfigObjFree(r);
+    return ok;
+}
+
+static bool
+name_of_loc(const struct RSCache* profile, char* data, int size, char** out_name)
+{
+    struct RSCache_Dat2ConfigLoc* r = RSCache_Dat2ConfigLocNewDecodeProfile(profile, data, size);
+    *out_name = (r && r->name) ? strdup(r->name) : NULL;
+    bool ok = r != NULL;
+    RSCache_Dat2ConfigLocFree(r);
+    return ok;
+}
+
+static void
+sink_named(int id, const char* data, int size, void* user)
+{
+    struct named_sink* s = (struct named_sink*)user;
+    char* name = NULL;
+
+    if( !s->read_name(s->profile, (char*)data, size, &name) )
+    {
+        free(name);
         return;
+    }
 
     if( s->count == s->cap )
     {
         int grown = s->cap ? s->cap * 2 : 1024;
-        struct EV_IndexNpc* p =
-            (struct EV_IndexNpc*)realloc(s->rows, (size_t)grown * sizeof(*p));
-        if( !p )
-            return;
+        struct EV_IndexRow* p =
+            (struct EV_IndexRow*)realloc(s->rows, (size_t)grown * sizeof(*p));
+        assert(p);
         s->rows = p;
         s->cap = grown;
     }
     s->rows[s->count].id = id;
-    s->rows[s->count].name = npc->name ? strdup(npc->name) : NULL;
+    s->rows[s->count].name = name;
     s->count++;
 }
 
@@ -724,7 +777,8 @@ sink_npc(int id, const char* data, int size, void* user)
  * the symptom is npcs with impossible ids rather than an error.
  */
 #define EV_INDEX_MAGIC 0x58495645u /* "EVIX" */
-#define EV_INDEX_VERSION 2u
+/* 3: obj and loc rows joined the npc rows. */
+#define EV_INDEX_VERSION 3u
 
 /*
  * The length written for a name that is NULL, as distinct from one that is the
@@ -814,6 +868,48 @@ read_u32(FILE* f, uint32_t* out)
     return read_exact(f, out, sizeof(*out));
 }
 
+/**
+ * Read one named list back.
+ *
+ * `*out_rows` is grown as it goes and `*out_count` counts what is actually
+ * constructed, so a failure part-way leaves exactly what was built for
+ * ev_index_free to release rather than a run of uninitialised slots.
+ */
+static bool
+read_named_rows(FILE* f, uint32_t count, struct EV_IndexRow** out_rows, int* out_count)
+{
+    if( !count )
+        return true;
+
+    *out_rows = calloc((size_t)count, sizeof(**out_rows));
+    assert(*out_rows);
+
+    for( uint32_t i = 0; i < count; i++ )
+    {
+        int32_t id = 0;
+        uint32_t len = 0;
+        if( !read_exact(f, &id, sizeof(id)) || !read_u32(f, &len) ||
+            (len != EV_INDEX_NAME_ABSENT && len > 4096u) )
+            return false;
+        (*out_rows)[i].id = id;
+        if( len != EV_INDEX_NAME_ABSENT )
+        {
+            (*out_rows)[i].name = malloc((size_t)len + 1);
+            assert((*out_rows)[i].name);
+            if( len && !read_exact(f, (*out_rows)[i].name, len) )
+            {
+                /* Counted before the failure so the half-built name is freed
+                 * with the rest rather than leaked. */
+                *out_count = (int)i + 1;
+                return false;
+            }
+            (*out_rows)[i].name[len] = '\0';
+        }
+        *out_count = (int)i + 1;
+    }
+    return true;
+}
+
 /** Returns false — and leaves `out` empty — for a missing, stale or malformed
  *  file. All three mean the same thing to the caller: build it. */
 static bool
@@ -822,7 +918,7 @@ index_load(const char* cache_dir, const char* rev, uint64_t fingerprint, struct 
     char path[EV_CACHE_PATH_MAX];
     uint32_t magic = 0, version = 0;
     uint64_t stored = 0;
-    uint32_t npc_count = 0, seq_count = 0, model_count = 0;
+    uint32_t npc_count = 0, obj_count = 0, loc_count = 0, seq_count = 0, model_count = 0;
 
     memset(out, 0, sizeof(*out));
     if( !fingerprint )
@@ -836,7 +932,8 @@ index_load(const char* cache_dir, const char* rev, uint64_t fingerprint, struct 
     if( !read_u32(f, &magic) || magic != EV_INDEX_MAGIC ||
         !read_u32(f, &version) || version != EV_INDEX_VERSION ||
         !read_exact(f, &stored, sizeof(stored)) || stored != fingerprint ||
-        !read_u32(f, &npc_count) || !read_u32(f, &seq_count) || !read_u32(f, &model_count) )
+        !read_u32(f, &npc_count) || !read_u32(f, &obj_count) || !read_u32(f, &loc_count) ||
+        !read_u32(f, &seq_count) || !read_u32(f, &model_count) )
     {
         fclose(f);
         return false;
@@ -869,36 +966,12 @@ index_load(const char* cache_dir, const char* rev, uint64_t fingerprint, struct 
             out->model_count = (int)model_count;
     }
 
-    if( ok && npc_count )
-    {
-        out->npcs = calloc((size_t)npc_count, sizeof(*out->npcs));
-        ok = out->npcs != NULL;
-        for( uint32_t i = 0; ok && i < npc_count; i++ )
-        {
-            int32_t id = 0;
-            uint32_t len = 0;
-            if( !read_exact(f, &id, sizeof(id)) || !read_u32(f, &len) ||
-                (len != EV_INDEX_NAME_ABSENT && len > 4096u) )
-            {
-                ok = false;
-                break;
-            }
-            out->npcs[i].id = id;
-            if( len != EV_INDEX_NAME_ABSENT )
-            {
-                out->npcs[i].name = malloc((size_t)len + 1);
-                if( !out->npcs[i].name || (len && !read_exact(f, out->npcs[i].name, len)) )
-                {
-                    ok = false;
-                    break;
-                }
-                out->npcs[i].name[len] = '\0';
-            }
-            /* Counted as we go, so a mid-list failure frees exactly what was
-             * built rather than walking uninitialised slots. */
-            out->npc_count = (int)i + 1;
-        }
-    }
+    if( ok )
+        ok = read_named_rows(f, npc_count, &out->npcs, &out->npc_count);
+    if( ok )
+        ok = read_named_rows(f, obj_count, &out->objs, &out->obj_count);
+    if( ok )
+        ok = read_named_rows(f, loc_count, &out->locs, &out->loc_count);
 
     fclose(f);
     if( !ok )
@@ -913,6 +986,22 @@ static bool
 write_exact(FILE* f, const void* src, size_t n)
 {
     return fwrite(src, 1, n, f) == n;
+}
+
+static bool
+write_named_rows(FILE* f, const struct EV_IndexRow* rows, int count)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        int32_t id = rows[i].id;
+        const char* name = rows[i].name;
+        uint32_t len = name ? (uint32_t)strlen(name) : EV_INDEX_NAME_ABSENT;
+        if( !write_exact(f, &id, sizeof(id)) || !write_exact(f, &len, sizeof(len)) )
+            return false;
+        if( len && len != EV_INDEX_NAME_ABSENT && !write_exact(f, name, len) )
+            return false;
+    }
+    return true;
 }
 
 /**
@@ -972,6 +1061,8 @@ index_save(const char* cache_dir, const char* rev, uint64_t fingerprint, const s
     uint32_t magic = EV_INDEX_MAGIC;
     uint32_t version = EV_INDEX_VERSION;
     uint32_t npc_count = (uint32_t)ix->npc_count;
+    uint32_t obj_count = (uint32_t)ix->obj_count;
+    uint32_t loc_count = (uint32_t)ix->loc_count;
     uint32_t seq_count = (uint32_t)ix->seq_count;
     uint32_t model_count = (uint32_t)ix->model_count;
 
@@ -979,6 +1070,8 @@ index_save(const char* cache_dir, const char* rev, uint64_t fingerprint, const s
               write_exact(f, &version, sizeof(version)) &&
               write_exact(f, &fingerprint, sizeof(fingerprint)) &&
               write_exact(f, &npc_count, sizeof(npc_count)) &&
+              write_exact(f, &obj_count, sizeof(obj_count)) &&
+              write_exact(f, &loc_count, sizeof(loc_count)) &&
               write_exact(f, &seq_count, sizeof(seq_count)) &&
               write_exact(f, &model_count, sizeof(model_count));
 
@@ -987,14 +1080,14 @@ index_save(const char* cache_dir, const char* rev, uint64_t fingerprint, const s
     if( ok && model_count )
         ok = write_exact(f, ix->model_ids, (size_t)model_count * sizeof(*ix->model_ids));
 
-    for( uint32_t i = 0; ok && i < npc_count; i++ )
-    {
-        int32_t id = ix->npcs[i].id;
-        const char* name = ix->npcs[i].name;
-        uint32_t len = name ? (uint32_t)strlen(name) : EV_INDEX_NAME_ABSENT;
-        ok = write_exact(f, &id, sizeof(id)) && write_exact(f, &len, sizeof(len)) &&
-             (len == 0 || len == EV_INDEX_NAME_ABSENT || write_exact(f, name, len));
-    }
+    /* Same order the loader reads them in — npc, obj, loc — and each list is
+     * self-delimiting only because its count is in the header above. */
+    if( ok )
+        ok = write_named_rows(f, ix->npcs, ix->npc_count);
+    if( ok )
+        ok = write_named_rows(f, ix->objs, ix->obj_count);
+    if( ok )
+        ok = write_named_rows(f, ix->locs, ix->loc_count);
 
     if( fclose(f) != 0 )
         ok = false;
@@ -1024,10 +1117,20 @@ index_build_fresh(
     struct RSCache local = *profile;
     RSCache_Dat2DiskSetProfile(disk, &local);
 
-    struct npc_sink npcs = { NULL, 0, 0, &local };
-    walk_records(disk, &local, RSCACHE_TYPE_NPC, sink_npc, &npcs);
+    struct named_sink npcs = { NULL, 0, 0, &local, name_of_npc };
+    walk_records(disk, &local, RSCACHE_TYPE_NPC, sink_named, &npcs);
     out->npcs = npcs.rows;
     out->npc_count = npcs.count;
+
+    struct named_sink objs = { NULL, 0, 0, &local, name_of_obj };
+    walk_records(disk, &local, RSCACHE_TYPE_OBJ, sink_named, &objs);
+    out->objs = objs.rows;
+    out->obj_count = objs.count;
+
+    struct named_sink locs = { NULL, 0, 0, &local, name_of_loc };
+    walk_records(disk, &local, RSCACHE_TYPE_LOC, sink_named, &locs);
+    out->locs = locs.rows;
+    out->loc_count = locs.count;
 
     struct id_sink seqs = { NULL, 0, 0 };
     walk_records(disk, &local, RSCACHE_TYPE_SEQUENCE, sink_id, &seqs);
@@ -1079,6 +1182,12 @@ ev_index_free(struct EV_Index* index)
     for( int i = 0; i < index->npc_count; i++ )
         free(index->npcs[i].name);
     free(index->npcs);
+    for( int i = 0; i < index->obj_count; i++ )
+        free(index->objs[i].name);
+    free(index->objs);
+    for( int i = 0; i < index->loc_count; i++ )
+        free(index->locs[i].name);
+    free(index->locs);
     free(index->seq_ids);
     free(index->model_ids);
     memset(index, 0, sizeof(*index));

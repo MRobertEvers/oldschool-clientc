@@ -1,0 +1,246 @@
+{{external|rs|rsc}}
+{{Has calculator|Calculator:Wilderness agility loot}}
+{{Infobox Location
+|name = Wilderness Agility Course
+|image = [[File:Wilderness Agility Course.png]]
+|release = [[28 January]] [[2003]]
+|update = Dangerous Agility
+|members = Yes
+|location = [[Wilderness]]
+|wilderness = 50-56
+|map = {{Map|3004:3937|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Wilderness
+}}
+The '''Wilderness Agility Course''' is a training area located deep in the [[Wilderness]], requiring level 52 [[Agility]]{{Boostable|yes}} to enter, and 49 Agility{{Boostable|yes}} to complete the first obstacle inside. '''{{Colour|Red|The entire course is dangerous}}''', taking place in a [[singles-plus combat]] area that allows [[player killers]] to attack at any time, '''even if you are already in combat with a monster'''.
+
+The course can be completed either risk-free, or with paid access to the [[agility dispenser]]. Tagging the dispenser after completing a lap rewards one [[Wilderness agility ticket]], redeemable for Agility experience, and if the reward fee is paid it also dispenses loot after each lap. The fee is 150,000 coins, which is lost '''every time''' a player dies or leaves the course, but is not removed if they log out and remain within the course. '''This money must be deposited from a player's inventory''', unlike other Wilderness fees which can be withdrawn from a bank. On [[Bounty Hunter]] worlds, this fee must be paid in order to ''enter'' the course. It can be paid at the entrance gate, or at the dispenser on another world before [[World switching|hopping worlds]].
+
+A counter tracks how many consecutive laps have been completed; a higher number of laps increases the average value of dispenser rewards, in discrete intervals. Even though the coins are not lost when logging out inside the course, doing so will remove 10 laps from the reward lap counter. Lastly, the player '''must''' have an open [[looting bag]] in their inventory to obtain loot. Looting bags '''cannot''' be destroyed within the course.
+
+The agility dispenser restores [[run energy]] whenever it's tagged, regardless of whether or not players have completed a lap or paid the fee. As such, players who intend to pay the opt-in fee should bring combat equipment to protect from the [[skeletons]] and potential player-killers, rather than [[energy-restoring items]] or [[weight-reducing clothing]]. 
+
+This course does not reward [[Marks of Grace]].
+
+==Transportation==
+There are several different methods for traveling to the Wilderness Agility Course. The best options, in order of fastest to slowest, are:
+{| class="wikitable"
+!Option
+!Requirements
+!Directions after teleporting
+|-
+|[[Ice Plateau Teleport]] spell or [[Ice plateau teleport (tablet)|tablet]]<ref group="a">The tablet has no requirements to use.</ref>
+|{{SCP|Quest}} [[Lunar Diplomacy]], 89 [[Magic]]
+|Run east.
+|-
+|[[Ghorrock Teleport]] spell or [[Ghorrock teleport (tablet)|tablet]]<ref group="a">The tablet does not have a Magic requirement to use, but does require the quest.</ref>
+|{{SCP|Quest}} [[Desert Treasure I]], 96 [[Magic]]
+|Run north-west, go through the gates, and then run east.
+|-
+|[[Wilderness obelisk]] teleport to 44 [[Wilderness]]
+|None
+|Run north-west, go through the gates, and then run east.
+|-
+|[[Lava Maze]] teleport on a [[burning amulet]]
+|None
+|Run north-west, go through the gates, and then run east.
+|-
+|[[Lever (Edgeville)|Edgeville teleport lever]] to the [[Deserted Keep]]
+|None
+|Run north and cut the web, then run west. Requires a [[knife]] or any [[Slash weapons|slash weapon]].
+|}
+{{Reflist|group=a}}
+Note that the level 52 [[Agility]] requirement is only needed to enter the gates; the level requirement of the obstacles is level 49. Therefore it is possible to use a [[temporary skill boost]] to access the course starting at level 47, giving far superior rates to other courses available to the same level.
+
+==Mechanics==
+If all obstacles are passed, in the correct order, a substantial chunk of "bonus" experience is rewarded at the end of the lap. Players who skip obstacles or do not successfully complete obstacles they fail will '''not''' receive any bonus experience, dramatically reducing experience rates.  Failing will result in damage, detailed below. Players with higher Agility have a higher success rate at passing the obstacles; however, even at level 99, it is still possible to fail an obstacle. 
+
+In addition to the risk of [[player-killers]], there are multiple level 18 and 25 [[skeleton]]s roaming the course and underground respectively that will attack any player near them. For this reason, a source of cheap food (such as [[wines]]) can be useful to help restore lost [[health]].
+
+===Dispenser rewards===
+{{Main|Agility dispenser}}
+Players who pay the 150,000 coin fee will gain access to the [[Agility dispenser|dispenser]], which will reward them with items directly into an open looting bag. After each lap, the dispenser provides both noted [[Alchemy spells|alchables]] and noted [[Blighted|blighted items]], in addition to one unnoted blighted item if players have empty inventory slots. Additionally, there is a 1 in 40 chance per lap to receive a [[medium clue scroll]]; the [[ring of wealth (i)]] will increase this to 1 in 20. If the player's inventory is full, the clue scroll will be dropped to the ground.
+
+The loot given each lap increases in value the more laps are accumulated. The laps only start counting from the moment the 150,000 GP are paid. Keep note, that if the player logs out, 10 laps will be deducted from their total lap count. Logging out has no effect on the 150,000 GP.
+
+<div style="display:none">
+{{#vardefine:loot_all|{{Average drop value|mob=Agility dispenser#All Laps|raw=y}}}}
+{{#vardefine:loot_1_15|{{Average drop value|mob=Agility dispenser#Laps 1-15|raw=y}}}}
+{{#vardefine:loot_16_30|{{Average drop value|mob=Agility dispenser#Laps 16-30|raw=y}}}}
+{{#vardefine:loot_31_60|{{Average drop value|mob=Agility dispenser#Laps 31-60|raw=y}}}}
+{{#vardefine:loot_61|{{Average drop value|mob=Agility dispenser#Laps 61+|raw=y}}}}
+</div>
+
+The following table shows values that assume noted items are sold on the [[Grand Exchange]] but does not account for [[tax]]. For more precise values see the [[Calculator:Wilderness agility loot|calculator]]. Unnoted items are not included, but are worth on average {{NoCoins|{{#var:loot_all}}}} per lap.
+
+{| class="wikitable"
+!Consecutive<br>laps
+!Average loot<br>per lap
+!Cumulative loot<ref>Loot from each bracket including previous ones.</ref>
+!Profit<ref>Cumulative loot minus 150,000 coin fee.</ref>
+|-
+|1-15
+|{{Coins|{{#var:loot_1_15}}}}
+|{{Coins|15*{{#var:loot_1_15}}}}
+|{{Coins|15*{{#var:loot_1_15}}-150000}}
+|-
+|16-30
+|{{Coins|{{#var:loot_16_30}}}}
+|{{Coins|15*{{#var:loot_16_30}}+15*{{#var:loot_1_15}}}}
+|{{Coins|15*{{#var:loot_16_30}}+15*{{#var:loot_1_15}}-150000}}
+|-
+|31-60
+|{{Coins|{{#var:loot_31_60}}}}
+|{{Coins|30*{{#var:loot_31_60}}+15*{{#var:loot_16_30}}+15*{{#var:loot_1_15}}}}
+|{{Coins|30*{{#var:loot_31_60}}+15*{{#var:loot_16_30}}+15*{{#var:loot_1_15}}-150000}}
+|-
+|61+
+|{{Coins|{{#var:loot_61}}}}
+|{{NA|Unlimited}}
+|{{NA|Unlimited}}
+|}
+{{reflist}}On average, players can expect to break even after about 20 laps.
+
+== Money making ==
+{{Mmgsection|Wilderness Agility Course}}
+
+==Experience rates==
+The course rewards 571.4 Agility [[experience]] per completed lap, with five obstacles needing to be passed for completion. Assuming an average of 45 seconds per lap, players can expect a base experience of 40,000-45,000 experience per hour depending on concentration and Agility level, and up to 18,400 bonus experience assuming players play for at least 2 hours and turn in all their [[Wilderness agility ticket|Agility tickets]] at once. This requires players to complete <u>all</u> obstacles, as skipping an obstacle will not award the lap bonus at the end, which makes up the bulk of the experience per lap. Due to the success rate of the obstacles, the experience rates scale with the player's Agility level. Theoretically, a maximum of 89 laps could be completed per hour (67 [[RuneScape clock|tick]]s per lap), resulting in 50,800 Agility experience per hour. However, due to obstacles being failable even at level 99 Agility, expect to achieve a maximum of around 47,500 Agility experience per hour at higher Agility levels.
+
+Players can generally assume a lap time of 45 seconds. Bank time is assumed to be 2 minutes, 10 seconds, and done by leaving the course, running through the gate to the Wilderness obelisk, traveling to the 13-Wilderness option (Ferox Enclave), using the bank, and then returning with an [[Ice plateau teleport (tablet)|Ice Plateau tablet]].
+
+===Ticket bonuses===
+Players can redeem [[Wilderness agility ticket|Wilderness agility tickets]] for experience, which are earned after each lap. The more tickets turned in at once, the greater the bonus per ticket. Players can exit the agility course with their tickets and store them in the bank.
+
+Tickets are unaffected by logging out or leaving the agility course. They are also always kept on death as they are untradeable, meaning that there is little reason to not redeem tickets in batches of 101+ as so to gain the most experience from them.
+
+{| class="wikitable"
+!Tickets redeemed at once
+!XP per ticket
+!Bonus experience
+!Approx. time to gather minimum amount
+!Max. hourly XP from tickets
+|-
+|1-10
+|200
+|0%
+|1 minute
+|16,000
+|-
+|11-50
+|210
+|5%
+|9 minutes
+|16,800
+|-
+|51-100
+|220
+|10%
+|39 minutes
+|17,600
+|-
+|101+
+|230
+|15%
+|1 hour, 18 minutes
+|18,400
+|}
+
+==Obstacles==
+{| class="wikitable align-left-2 align-left-4"
+!Image
+! Obstacle
+! Experience
+!Notes
+|-
+|[[File:Wilderness Agility Course (1).png|250px]]
+|[[Obstacle pipe (Wilderness Agility Course)|Obstacle pipe]]
+|{{+=|xp|12.5|echo=2}}
+|Requires 49 [[Agility]]. Cannot be failed.
+|-
+|[[File:Wilderness Agility Course (2).png|250px]]
+|[[Ropeswing (Wilderness Agility Course)|Ropeswing]]
+|{{+=|xp|20|echo=2}}
+|Can be failed, which will send the player down to the [[Wilderness Agility Course Dungeon|dungeon]] below and deal <math>\left\lfloor\text{Current hitpoints}\times0.15\right\rfloor+1</math> damage.
+If the ropeswing obstacle is failed, it '''must''' be re-attempted and completed to receive the course completion experience.
+|-
+|[[File:Wilderness Agility Course (3).png|250px]]
+|[[Stepping stone (Wilderness Agility Course)|Stepping stone]]
+|{{+=|xp|20|echo=2}}
+| Can be failed, but players will '''not''' be sent down to the dungeon. You can only fail on the third stone, which deals <math>\left\lfloor\text{Current hitpoints}\times0.2\right\rfloor+1</math> damage.
+If the stepping stone obstacle is failed, it '''must''' be re-attempted and completed to receive the course completion experience.
+|-
+|[[File:Wilderness Agility Course (4).png|250px]]
+|[[Log balance (Wilderness Agility Course)|Log balance]]
+|{{+=|xp|20|echo=2}}
+|Can be failed, which will send the player down to the dungeon below and deal <math>\left\lfloor\text{Current hitpoints}\times0.15\right\rfloor+1</math> damage.
+You will fail only at the beginning of the log. If you go past the starting point, you will not fail.
+|-
+|[[File:Wilderness Agility Course (5).png|250px]]
+|[[Rocks (Wilderness Agility Course)|Rocks]]
+|{{+=|xp|498.9|echo=2}}<ref group="d">498.9 experience is only rewarded if the player completed all other obstacles on the course. When this obstacle is passed without completing all other obstacles, 0 Agility experience is rewarded.</ref>
+|Used to finish the course and get the bonus. Cannot be failed.
+|-
+! colspan="2" |Total
+!{{#var:xp}} XP
+!
+|}
+<references group="d" responsive="1"></references>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 July 2026
+|update = The Blood Moon Rises & Bank Tags Tweaks
+|change = On Bounty Hunter worlds, the 150,000 coin fee must be paid before entering the course. It can be paid at the gate, or at the dispenser on another world before hopping.
+}}
+{{Subject changes
+|date = 17 June 2026
+|update = Bank Tags, Trouver System Rework & More!
+|change = Untradeables with no combat benefit are no longer lost on death, which means that Wilderness agility tickets are now kept on death.
+}}
+{{Subject changes
+|date = 3 September 2025
+|update = Doom Combat Achievements
+|change =
+* Obtaining loot from the Wilderness Agility Course now requires the player to have an open [[looting bag]].
+* Players can no longer destroy their looting bag while inside the course.
+}}
+{{Subject changes
+|date = 31 July 2024
+|update = QoL Improvements & Further Deadman: Armageddon Tweaks
+|change = The amount of laps removed from a player's streak upon logging out at the Wilderness Agility Course has been reduced from 25 to 10.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = * Players will now lose 25 laps from their streak upon logging out inside the course.
+* The skeletons on the surface of the course now deal less damage.
+* Damage now correctly applies through the ladder animation.
+* The course lap streak and loot now display while [[Chat_Interface#Game|game chat]] is set to 'Filtered'.
+* When paying the 150,000 coin fee to use the course, players will now receive a [[looting bag]] if they do not currently own one.
+* The [[ring of wealth (i)]] now interacts properly with [[Clue scroll (medium)|medium clue scrolls]] in the course.
+* The spikes underneath the course no longer stop projectiles from travelling over them.
+* The hard and master coordinate clues taking place inside the course have been moved.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|poll = Undead Pirates Rewards & More
+|change = * Players can now opt-in to loot from the Wilderness Agility Course by depositing 150,000 coins into the [[Agility dispenser]] at the start of the course.
+* The area is now [[Singles-plus combat]].
+* The ropeswing can now be used by more than one player at once.
+* Added more Skeletons around the course.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 Skilling Suggestions
+|change = The click-zone has been made larger on the ropeswing.
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Wilderness}}
+[[Category:Agility]]

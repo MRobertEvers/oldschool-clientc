@@ -1,0 +1,959 @@
+From 1215084eba956d71617d616b29e7588cc842c6bf Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:08 -0500
+Subject: [PATCH] wip(hunt-w18): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w18.
+
+files: src/painters/scene_occluders.c src/painters/scene_occluders.h
+---
+ src/painters/scene_occluders.c | 341 +++++++++++++++++++++++++++++++--
+ src/painters/scene_occluders.h | 313 ++++++++++++++++++++++++++----
+ 2 files changed, 604 insertions(+), 50 deletions(-)
+
+diff --git a/src/painters/scene_occluders.c b/src/painters/scene_occluders.c
+index 78e2cbaa5..8806d42d3 100644
+--- a/src/painters/scene_occluders.c
++++ b/src/painters/scene_occluders.c
+@@ -4,6 +4,58 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++/**
++ * Counting scaffolding. Every one of these compiles to nothing without
++ * -DTORIDRAW_OCC_CENSUS=1, so the shipped predicate is the same program.
++ */
++#define OCC_CENSUS_INC(field) (g_scene_occluder_census.field++)
++static int g_occ_census_src_save;
++static int g_occ_census_prev_hit;
++
++#define OCC_CENSUS_TILE_BEGIN()                                                \
++    do {                                                                       \
++        g_occ_census_src_save = g_scene_occluder_point_src;                    \
++        g_scene_occluder_point_src = 0;                                        \
++        g_occ_census_prev_hit = -1;                                            \
++    } while( 0 )
++#define OCC_CENSUS_TILE_END()                                                  \
++    (g_scene_occluder_point_src = g_occ_census_src_save)
++#define OCC_CENSUS_SRC(v) (g_scene_occluder_point_src = (v))
++
++/** Corner probe: also asks whether the entry that answered the previous
++ *  corner is the one that answered this one. */
++static bool
++occ_census_corner(
++    struct SceneOccluders* occ,
++    int x,
++    int y,
++    int z)
++{
++    bool hit;
++    g_scene_occluder_census.tile_corner_tests++;
++    hit = scene_occluders_point_hidden(occ, x, y, z);
++    if( hit )
++    {
++        if( g_occ_census_prev_hit >= 0 )
++        {
++            g_scene_occluder_census.tile_repeat_probe++;
++            if( g_scene_occluder_hit_idx == g_occ_census_prev_hit )
++                g_scene_occluder_census.tile_repeat_same++;
++        }
++        g_occ_census_prev_hit = g_scene_occluder_hit_idx;
++    }
++    return hit;
++}
++#define OCC_TILE_CORNER(o, x, y, z) occ_census_corner((o), (x), (y), (z))
++#else
++#define OCC_CENSUS_INC(field) ((void)0)
++#define OCC_CENSUS_TILE_BEGIN() ((void)0)
++#define OCC_CENSUS_TILE_END() ((void)0)
++#define OCC_CENSUS_SRC(v) ((void)0)
++#define OCC_TILE_CORNER(o, x, y, z) scene_occluders_point_hidden((o), (x), (y), (z))
++#endif
++
+ struct SceneOccluders*
+ scene_occluders_new(
+     int width,
+@@ -23,6 +75,9 @@ scene_occluders_new(
+     occ->width = width;
+     occ->height = height;
+     occ->levels = levels;
++#if TORIDRAW_OCC_HINT
++    occ->hint_idx = -1;
++#endif
+ 
+     for( i = 0; i < levels; i++ )
+     {
+@@ -73,6 +128,9 @@ scene_occluders_clear(struct SceneOccluders* occ)
+         occ->run_start[i] = 0;
+         occ->run_end[i] = 0;
+     }
++#if TORIDRAW_OCC_HINT
++    occ->hint_idx = -1;
++#endif
+ }
+ 
+ int
+@@ -318,6 +376,167 @@ occluder_pack_active(struct SceneOccluders* occ)
+ }
+ #endif
+ 
++#if TORIDRAW_OCC_SHADOWMAP
++/** OR the inclusive cell range [c0, c1] into one row of the shadow map. */
++static void
++occluder_shadow_mark_row(struct SceneOccluders* occ, int row, int c0, int c1)
++{
++    uint32_t* r = occ->shadow[row];
++    int w;
++
++    assert(row >= 0);
++    assert(row < OCC_SHADOW_DIM);
++    assert(c0 >= 0);
++    assert(c1 < OCC_SHADOW_DIM);
++
++    for( w = c0 >> 5; w <= (c1 >> 5); w++ )
++    {
++        int lo = w << 5;
++        int hi = lo + 31;
++        uint32_t mask;
++
++        if( lo < c0 )
++            lo = c0;
++        if( hi > c1 )
++            hi = c1;
++        mask = (hi - lo == 31) ? 0xffffffffu
++                               : ((1u << (hi - lo + 1)) - 1u) << (lo & 31);
++        r[w] |= mask;
++    }
++}
++
++/**
++ * Mark every cell one packed wall entry's shadow can reach.
++ *
++ * The entry hides (ca, cb) at depth d = key + step*u, where u runs along the
++ * axis the plane's depth grows on and ca along the other horizontal axis.
++ * Both a-bounds are `base + ((spread * d) >> 8)`, monotone in d, so the widest
++ * a-range over a whole cell of u is the wider of the cell's two endpoints.
++ * Taking that range and rounding it out to whole cells makes the marked
++ * footprint a superset of every point the run can hide, which is what lets a
++ * clear cell stand as a proof that the run will miss.
++ */
++static void
++occluder_shadow_mark_entry(
++    struct SceneOccluders* occ,
++    const struct SceneOccluderPacked* e,
++    int step,
++    int free_is_z)
++{
++    int u_lo = 0;
++    int u_hi = (OCC_SHADOW_DIM << OCC_SHADOW_CELL_SHIFT) - 1;
++    int c;
++    int c_lo;
++    int c_hi;
++
++    assert(occ);
++    assert(e);
++
++    /* d > 0 is the run's own gate; outside it the entry hides nothing. */
++    if( step < 0 )
++    {
++        if( e->key - 1 < u_hi )
++            u_hi = e->key - 1;
++    }
++    else
++    {
++        if( 1 - e->key > u_lo )
++            u_lo = 1 - e->key;
++    }
++    if( u_hi < u_lo )
++        return;
++
++    c_lo = u_lo >> OCC_SHADOW_CELL_SHIFT;
++    c_hi = u_hi >> OCC_SHADOW_CELL_SHIFT;
++
++    for( c = c_lo; c <= c_hi; c++ )
++    {
++        int p0 = c << OCC_SHADOW_CELL_SHIFT;
++        int p1 = p0 + (1 << OCC_SHADOW_CELL_SHIFT) - 1;
++        int d0;
++        int d1;
++        int t;
++        int a0;
++        int a1;
++        int ac0;
++        int ac1;
++
++        if( p0 < u_lo )
++            p0 = u_lo;
++        if( p1 > u_hi )
++            p1 = u_hi;
++        d0 = e->key + step * p0;
++        d1 = e->key + step * p1;
++        if( d0 > d1 )
++        {
++            t = d0;
++            d0 = d1;
++            d1 = t;
++        }
++
++        a0 = e->lo_a + ((e->spread_lo_a * d0) >> 8);
++        t = e->lo_a + ((e->spread_lo_a * d1) >> 8);
++        if( t < a0 )
++            a0 = t;
++        a1 = e->hi_a + ((e->spread_hi_a * d0) >> 8);
++        t = e->hi_a + ((e->spread_hi_a * d1) >> 8);
++        if( t > a1 )
++            a1 = t;
++
++        if( a1 < 0 )
++            continue;
++        if( a0 < 0 )
++            a0 = 0;
++        ac0 = a0 >> OCC_SHADOW_CELL_SHIFT;
++        ac1 = a1 >> OCC_SHADOW_CELL_SHIFT;
++        if( ac0 >= OCC_SHADOW_DIM )
++            continue;
++        if( ac1 >= OCC_SHADOW_DIM )
++            ac1 = OCC_SHADOW_DIM - 1;
++
++        if( free_is_z )
++        {
++            occluder_shadow_mark_row(occ, c, ac0, ac1);
++        }
++        else
++        {
++            for( t = ac0; t <= ac1; t++ )
++                occluder_shadow_mark_row(occ, t, c, c);
++        }
++    }
++}
++
++/**
++ * Rebuild the wall runs' (x, z) footprint for this frame.
++ *
++ * Only the four wall runs go in. The BELOW run is left out on purpose: its
++ * planes sit at floor level, so the d > 0 gate already stops a ground query
++ * after a step or two, and folding their footprints in would set most of the
++ * map and cost the other four runs their reject.
++ */
++static void
++occluder_build_shadow_map(struct SceneOccluders* occ)
++{
++    /* Indexed by enum OccluderHides. */
++    static const int shadow_step[6] = { 0, -1, 1, -1, 1, 0 };
++    static const int shadow_free_is_z[6] = { 0, 0, 0, 1, 1, 0 };
++    int h;
++
++    assert(occ);
++    memset(occ->shadow, 0, sizeof(occ->shadow));
++
++    for( h = OCCLUDER_HIDES_WEST_OF_PLANE; h <= OCCLUDER_HIDES_NORTH_OF_PLANE;
++         h++ )
++    {
++        int i;
++
++        for( i = occ->run_start[h]; i < occ->run_end[h]; i++ )
++            occluder_shadow_mark_entry(
++                occ, &occ->packed[i], shadow_step[h], shadow_free_is_z[h]);
++    }
++}
++#endif
++
+ void
+ scene_occluders_select_for_camera(
+     struct SceneOccluders* occ,
+@@ -407,8 +626,12 @@ scene_occluders_select_for_camera(
+             int z1;
+             int ok = 0;
+ 
++            OCC_CENSUS_INC(sel_candidates);
+             if( dx_vis < 0 || dx_vis > span_extent )
++            {
++                OCC_CENSUS_INC(sel_dist_reject);
+                 continue;
++            }
+             z0 = o->tile_min_z - camera_sz + draw_distance;
+             if( z0 < 0 )
+                 z0 = 0;
+@@ -426,7 +649,10 @@ scene_occluders_select_for_camera(
+                 z0++;
+             }
+             if( !ok )
++            {
++                OCC_CENSUS_INC(sel_frustum_reject);
+                 continue;
++            }
+ 
+             depth = eye_x - o->min_x;
+             if( depth > OCCLUDER_CAMERA_DEAD_ZONE )
+@@ -436,7 +662,10 @@ scene_occluders_select_for_camera(
+             else
+             {
+                 if( depth >= -OCCLUDER_CAMERA_DEAD_ZONE )
++                {
++                    OCC_CENSUS_INC(sel_deadzone_reject);
+                     continue;
++                }
+                 o->hides = OCCLUDER_HIDES_EAST_OF_PLANE;
+                 depth = -depth;
+             }
+@@ -453,8 +682,12 @@ scene_occluders_select_for_camera(
+             int x1;
+             int ok = 0;
+ 
++            OCC_CENSUS_INC(sel_candidates);
+             if( dz_vis < 0 || dz_vis > span_extent )
++            {
++                OCC_CENSUS_INC(sel_dist_reject);
+                 continue;
++            }
+             x0 = o->tile_min_x - camera_sx + draw_distance;
+             if( x0 < 0 )
+                 x0 = 0;
+@@ -472,7 +705,10 @@ scene_occluders_select_for_camera(
+                 x0++;
+             }
+             if( !ok )
++            {
++                OCC_CENSUS_INC(sel_frustum_reject);
+                 continue;
++            }
+ 
+             depth = eye_z - o->min_z;
+             if( depth > OCCLUDER_CAMERA_DEAD_ZONE )
+@@ -482,7 +718,10 @@ scene_occluders_select_for_camera(
+             else
+             {
+                 if( depth >= -OCCLUDER_CAMERA_DEAD_ZONE )
++                {
++                    OCC_CENSUS_INC(sel_deadzone_reject);
+                     continue;
++                }
+                 o->hides = OCCLUDER_HIDES_NORTH_OF_PLANE;
+                 depth = -depth;
+             }
+@@ -502,9 +741,13 @@ scene_occluders_select_for_camera(
+             int x;
+             int z;
+ 
++            OCC_CENSUS_INC(sel_candidates);
+             depth = o->min_y - eye_y;
+             if( depth <= OCCLUDER_ROOF_MIN_CLEARANCE )
++            {
++                OCC_CENSUS_INC(sel_clearance_reject);
+                 continue;
++            }
+ 
+             z0 = o->tile_min_z - camera_sz + draw_distance;
+             if( z0 < 0 )
+@@ -513,7 +756,10 @@ scene_occluders_select_for_camera(
+             if( z1 > span_extent )
+                 z1 = span_extent;
+             if( z0 > z1 )
++            {
++                OCC_CENSUS_INC(sel_dist_reject);
+                 continue;
++            }
+             x0 = o->tile_min_x - camera_sx + draw_distance;
+             if( x0 < 0 )
+                 x0 = 0;
+@@ -530,7 +776,10 @@ scene_occluders_select_for_camera(
+                         break;
+                     }
+             if( !ok )
++            {
++                OCC_CENSUS_INC(sel_frustum_reject);
+                 continue;
++            }
+ 
+             o->hides = OCCLUDER_HIDES_BELOW_PLANE;
+             o->spread_min_x = ((o->min_x - eye_x) << 8) / depth;
+@@ -546,8 +795,22 @@ scene_occluders_select_for_camera(
+     /* The A/B baseline must not pay for a table its predicate never reads. */
+     occluder_pack_active(occ);
+ #endif
++#if TORIDRAW_OCC_HINT
++    /* A packed index only means anything inside the frame that packed it. */
++    occ->hint_idx = -1;
++#endif
++#if TORIDRAW_OCC_SHADOWMAP
++    occluder_build_shadow_map(occ);
++#endif
+ 
+ #if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++    {
++        int h;
++        for( h = 1; h <= 5; h++ )
++            g_scene_occluder_census.run_len_sum[h] +=
++                (unsigned)(occ->run_end[h] - occ->run_start[h]);
++    }
++    g_scene_occluder_census.level_pool_sum += (unsigned)count;
+     scene_occluders_census_arm();
+     g_scene_occluder_census.frames++;
+     g_scene_occluder_census.active_sum += (unsigned)occ->active_count;
+@@ -561,6 +824,8 @@ scene_occluders_select_for_camera(
+ #include <stdlib.h>
+ 
+ struct SceneOccluderCensus g_scene_occluder_census;
++int g_scene_occluder_hit_idx = -1;
++int g_scene_occluder_point_src;
+ static int g_scene_occluder_census_armed;
+ 
+ static void
+@@ -594,11 +859,54 @@ scene_occluders_census_dump(void)
+     fprintf(f, "  of those, first range axis alone rejected: %llu (%.1f%%)\n",
+             s->point_axis_a_reject, 100.0 * (double)s->point_axis_a_reject
+                 / (double)(s->point_dpos ? s->point_dpos : 1));
++    fprintf(f, "  visits charged to a HIT: %llu (%.2f/hit)\n",
++            s->point_visits_to_hit, (double)s->point_visits_to_hit
++                / (double)(s->point_hits ? s->point_hits : 1));
++    fprintf(f, "  point calls by caller: tile %llu (%.1f%%), wall %llu, "
++               "column %llu, footprint %llu\n",
++            s->point_from[0], 100.0 * (double)s->point_from[0] / calls,
++            s->point_from[1], s->point_from[2], s->point_from[3]);
+     fprintf(f, "  ground_tile_hidden: %llu calls (%.0f/frame), %llu cached (%.1f%%)\n",
+             s->tile_calls, (double)s->tile_calls / frames, s->tile_cached,
+             100.0 * (double)s->tile_cached / tiles);
+-    fprintf(f, "  wall_hidden: %llu calls (%.0f/frame)\n",
+-            s->wall_calls, (double)s->wall_calls / frames);
++    fprintf(f, "    computed %llu (%.0f/frame), of which hidden %llu (%.1f%%)\n",
++            s->tile_computed, (double)s->tile_computed / frames, s->tile_hidden,
++            100.0 * (double)s->tile_hidden
++                / (double)(s->tile_computed ? s->tile_computed : 1));
++    fprintf(f, "    corners tested %llu (%.2f per computed tile, 4 = always hidden)\n",
++            s->tile_corner_tests, (double)s->tile_corner_tests
++                / (double)(s->tile_computed ? s->tile_computed : 1));
++    fprintf(f, "    corner N hidden by the SAME entry as corner N-1: %llu of %llu (%.1f%%)\n",
++            s->tile_repeat_same, s->tile_repeat_probe,
++            100.0 * (double)s->tile_repeat_same
++                / (double)(s->tile_repeat_probe ? s->tile_repeat_probe : 1));
++    fprintf(f, "  wall_hidden: %llu entered (%.0f/frame), %llu past the tile gate (%.1f%%)\n",
++            s->wall_entry, (double)s->wall_entry / frames, s->wall_hits,
++            100.0 * (double)s->wall_hits / (double)(s->wall_entry ? s->wall_entry : 1));
++    fprintf(f, "  column_hidden: %llu calls (%.0f/frame), %llu past the tile gate (%.1f%%)\n",
++            s->column_calls, (double)s->column_calls / frames, s->column_hits,
++            100.0 * (double)s->column_hits
++                / (double)(s->column_calls ? s->column_calls : 1));
++    fprintf(f, "  footprint_hidden: %llu calls (%.0f/frame)\n",
++            s->footprint_calls, (double)s->footprint_calls / frames);
++    fprintf(f, "  selection: pool %.1f/frame, %llu candidates, dropped "
++               "dist %llu frustum %llu deadzone %llu clearance %llu\n",
++            (double)s->level_pool_sum / frames, s->sel_candidates,
++            s->sel_dist_reject, s->sel_frustum_reject, s->sel_deadzone_reject,
++            s->sel_clearance_reject);
++    fprintf(f, "  hint answered outright: %llu (%.1f%% of calls)\n",
++            s->hint_hits, 100.0 * (double)s->hint_hits / calls);
++    fprintf(f, "  past the first range axis: %llu (%.1f%% of dpos)\n",
++            s->point_axis_a_pass, 100.0 * (double)s->point_axis_a_pass
++                / (double)(s->point_dpos ? s->point_dpos : 1));
++    fprintf(f, "  shadow map rejected the wall runs: %llu (%.1f%% of calls), "
++               "WRONGLY %llu (must be 0)\n",
++            s->shadow_rejects, 100.0 * (double)s->shadow_rejects / calls,
++            s->shadow_false_rejects);
++    fprintf(f, "  run lengths per frame: W %.1f  E %.1f  S %.1f  N %.1f  BELOW %.1f\n",
++            (double)s->run_len_sum[1] / frames, (double)s->run_len_sum[2] / frames,
++            (double)s->run_len_sum[3] / frames, (double)s->run_len_sum[4] / frames,
++            (double)s->run_len_sum[5] / frames);
+     if( path )
+         fclose(f);
+ }
+@@ -657,27 +965,32 @@ scene_occluders_ground_tile_hidden(
+ 
+     sx = x << 7;
+     sz = z << 7;
+-    if( scene_occluders_point_hidden(
++    OCC_CENSUS_INC(tile_computed);
++    OCC_CENSUS_TILE_BEGIN();
++    if( OCC_TILE_CORNER(
+             occ, sx + 1, scene_occluders_ground_height(occ, x, z, level), sz + 1) &&
+-        scene_occluders_point_hidden(
++        OCC_TILE_CORNER(
+             occ,
+             sx + 128 - 1,
+             scene_occluders_ground_height(occ, x + 1, z, level),
+             sz + 1) &&
+-        scene_occluders_point_hidden(
++        OCC_TILE_CORNER(
+             occ,
+             sx + 128 - 1,
+             scene_occluders_ground_height(occ, x + 1, z + 1, level),
+             sz + 128 - 1) &&
+-        scene_occluders_point_hidden(
++        OCC_TILE_CORNER(
+             occ,
+             sx + 1,
+             scene_occluders_ground_height(occ, x, z + 1, level),
+             sz + 128 - 1) )
+     {
++        OCC_CENSUS_TILE_END();
++        OCC_CENSUS_INC(tile_hidden);
+         occ->tile_cycle[idx] = occ->frame_no;
+         return true;
+     }
++    OCC_CENSUS_TILE_END();
+     occ->tile_cycle[idx] = -occ->frame_no;
+     return false;
+ }
+@@ -700,11 +1013,12 @@ scene_occluders_wall_hidden(
+     assert(occ);
+     if( occ->active_count == 0 )
+         return false;
+-#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-    g_scene_occluder_census.wall_calls++;
+-#endif
++    OCC_CENSUS_INC(wall_calls);
++    OCC_CENSUS_INC(wall_entry);
+     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
+         return false;
++    OCC_CENSUS_INC(wall_hits);
++    OCC_CENSUS_SRC(1);
+ 
+     scene_x = x << 7;
+     scene_z = z << 7;
+@@ -827,11 +1141,12 @@ scene_occluders_column_hidden(
+     assert(occ);
+     if( occ->active_count == 0 )
+         return false;
+-#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-    g_scene_occluder_census.wall_calls++;
+-#endif
++    OCC_CENSUS_INC(wall_calls);
++    OCC_CENSUS_INC(column_calls);
+     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
+         return false;
++    OCC_CENSUS_INC(column_hits);
++    OCC_CENSUS_SRC(2);
+     sx = x << 7;
+     sz = z << 7;
+     return scene_occluders_point_hidden(
+@@ -882,6 +1197,8 @@ scene_occluders_footprint_hidden(
+     if( occ->active_count == 0 )
+         return false;
+ 
++    OCC_CENSUS_INC(footprint_calls);
++    OCC_CENSUS_SRC(3);
+     assert(size_x >= 1);
+     assert(size_z >= 1);
+     min_x = sx;
+diff --git a/src/painters/scene_occluders.h b/src/painters/scene_occluders.h
+index eefcf315d..b80bb60ff 100644
+--- a/src/painters/scene_occluders.h
++++ b/src/painters/scene_occluders.h
+@@ -59,6 +59,33 @@ enum OccluderHides
+ /** Far clip scene units per draw-distance tile (deob class243.method4457). */
+ #define OCCLUDER_FAR_CLIP_PER_TILE 210
+ 
++/**
++ * Carry the entry that answered the previous query and try it first.
++ * The four corners of a tile are 126 units apart and the census says 93.3%
++ * of the time the same plane hides the next one, so the hint turns a walk
++ * into a single range test. Lives for one frame only (see
++ * scene_occluders_select_for_camera) and is always confirmed by the exact
++ * test, so it cannot answer for a plane that is no longer there.
++ */
++#ifndef TORIDRAW_OCC_HINT
++#define TORIDRAW_OCC_HINT 0
++#endif
++
++/**
++ * Per-frame (x,z) footprint map of the four wall runs' shadows, so a query
++ * standing nowhere near a wall skips those runs instead of walking them.
++ * Built once per frame from the same active set the runs hold.
++ */
++#ifndef TORIDRAW_OCC_SHADOWMAP
++#define TORIDRAW_OCC_SHADOWMAP 0
++#endif
++
++/** Scene units per shadow-map cell — 512 is four tiles. */
++#define OCC_SHADOW_CELL_SHIFT 9
++/** Cells per axis; covers a scene of 256 tiles a side. */
++#define OCC_SHADOW_DIM 64
++#define OCC_SHADOW_WORDS (OCC_SHADOW_DIM / 32)
++
+ struct SceneOccluder
+ {
+     /* Build time: the world-space box the surface covers. One axis is collapsed
+@@ -157,6 +184,19 @@ struct SceneOccluders
+     int eye_x;
+     int eye_y;
+     int eye_z;
++
++#if TORIDRAW_OCC_HINT
++    /** Packed index of the entry that answered the last query, and the run
++     * it sits in. idx < 0 means no hint. Reset every frame. */
++    int hint_idx;
++    int hint_run;
++#endif
++
++#if TORIDRAW_OCC_SHADOWMAP
++    /** One bit per OCC_SHADOW_CELL_SHIFT-sized cell: could any wall-run
++     * shadow touch this (x,z)? Rebuilt every frame. */
++    uint32_t shadow[OCC_SHADOW_DIM][OCC_SHADOW_WORDS];
++#endif
+ };
+ 
+ struct SceneOccluders*
+@@ -253,14 +293,57 @@ struct SceneOccluderCensus
+     unsigned long long point_dpos;
+     /** Of those, how many the FIRST range axis alone rejected. */
+     unsigned long long point_axis_a_reject;
++    /** ...and how many got past it, which is what the shadow map cannot
++     *  reject and is therefore the ceiling on what the map can save. */
++    unsigned long long point_axis_a_pass;
++    /** Queries the carried hint answered outright. */
++    unsigned long long hint_hits;
++    /** Queries the wall-run footprint map rejected, and (must be zero) the
++     *  ones it rejected that the runs would have hidden. */
++    unsigned long long shadow_rejects;
++    unsigned long long shadow_false_rejects;
++    /** Visits charged to calls that ended in a hit -- the depth an ANSWER
++     *  costs, as opposed to the depth of a full miss. */
++    unsigned long long point_visits_to_hit;
++    /** Point calls split by the predicate that asked for them. */
++    unsigned long long point_from[4];
+     unsigned long long tile_calls;
+     unsigned long long tile_cached;
++    unsigned long long tile_computed;
++    unsigned long long tile_hidden;
++    /** Corners of a computed tile that were actually tested (1..4). */
++    unsigned long long tile_corner_tests;
++    /** Of the 2nd/3rd/4th corner of a tile, how often the packed entry that
++     *  hid the corner before it also hid this one. Sizes a within-call
++     *  "try the last winner first" reorder. */
++    unsigned long long tile_repeat_probe;
++    unsigned long long tile_repeat_same;
+     unsigned long long wall_calls;
++    unsigned long long wall_entry;
++    unsigned long long wall_hits;
++    unsigned long long column_calls;
++    unsigned long long column_hits;
++    unsigned long long footprint_calls;
++    unsigned long long footprint_hits;
++    /** Occluder selection: which gate dropped each candidate. */
++    unsigned long long sel_candidates;
++    unsigned long long sel_dist_reject;
++    unsigned long long sel_frustum_reject;
++    unsigned long long sel_deadzone_reject;
++    unsigned long long sel_clearance_reject;
++    /** Per-frame run lengths, summed over frames. */
++    unsigned long long run_len_sum[6];
++    /** level_occluder_count[] of the level selected, summed over frames. */
++    unsigned long long level_pool_sum;
+     unsigned long long frames;
+     unsigned long long active_sum;
+     unsigned int active_max;
+ };
+ extern struct SceneOccluderCensus g_scene_occluder_census;
++/** Packed index of the entry that answered the last point query, or -1. */
++extern int g_scene_occluder_hit_idx;
++/** Which predicate the point query came from; indexes point_from[]. */
++extern int g_scene_occluder_point_src;
+ void scene_occluders_census_arm(void);
+ #endif
+ 
+@@ -273,7 +356,57 @@ void scene_occluders_census_arm(void);
+  * are produced one at a time because the first one usually settles it.
+  */
+ static inline bool
+-occluder_run_hidden(
++occluder_ranges_hold(
++    const struct SceneOccluderPacked* e,
++    int d,
++    int ca,
++    int cb)
++{
++    int bound;
++
++    bound = e->lo_a + ((e->spread_lo_a * d) >> 8);
++    if( ca < bound )
++    {
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++        g_scene_occluder_census.point_axis_a_reject++;
++#endif
++        return false;
++    }
++    bound = e->hi_a + ((e->spread_hi_a * d) >> 8);
++    if( ca > bound )
++    {
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++        g_scene_occluder_census.point_axis_a_reject++;
++#endif
++        return false;
++    }
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++    g_scene_occluder_census.point_axis_a_pass++;
++#endif
++    bound = e->lo_b + ((e->spread_lo_b * d) >> 8);
++    if( cb < bound )
++        return false;
++    bound = e->hi_b + ((e->spread_hi_b * d) >> 8);
++    return cb <= bound;
++}
++
++/** One entry, gate included — the shape the hint needs. */
++static inline bool
++occluder_entry_hides(
++    const struct SceneOccluderPacked* e,
++    int q,
++    int ca,
++    int cb)
++{
++    int d = e->key - q;
++    if( d <= 0 )
++        return false;
++    return occluder_ranges_hold(e, d, ca, cb);
++}
++
++/** Index of the entry in [i, n) that hides (ca, cb), or -1. */
++static inline int
++occluder_run_find(
+     const struct SceneOccluderPacked* p,
+     int i,
+     int n,
+@@ -284,42 +417,100 @@ occluder_run_hidden(
+     for( ; i < n; i++ )
+     {
+         int d = p[i].key - q;
+-        int bound;
+ 
+ #if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+         g_scene_occluder_census.point_visits++;
+ #endif
+         if( d <= 0 )
+-            return false;
++            return -1;
+ 
+ #if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+         g_scene_occluder_census.point_dpos++;
+ #endif
+-        bound = p[i].lo_a + ((p[i].spread_lo_a * d) >> 8);
+-        if( ca < bound )
++        if( occluder_ranges_hold(&p[i], d, ca, cb) )
+         {
+ #if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-            g_scene_occluder_census.point_axis_a_reject++;
++            g_scene_occluder_hit_idx = i;
+ #endif
+-            continue;
++            return i;
+         }
+-        bound = p[i].hi_a + ((p[i].spread_hi_a * d) >> 8);
+-        if( ca > bound )
+-        {
+-#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-            g_scene_occluder_census.point_axis_a_reject++;
++    }
++    return -1;
++}
++
++static inline bool
++occluder_run_hidden(
++    const struct SceneOccluderPacked* p,
++    int i,
++    int n,
++    int q,
++    int ca,
++    int cb)
++{
++    return occluder_run_find(p, i, n, q, ca, cb) >= 0;
++}
++
++#if TORIDRAW_OCC_SHADOWMAP
++/**
++ * Could any wall-run shadow reach (x, z)? A clear cell is a proof that the
++ * four wall runs will all miss, because the map is the union of their
++ * footprints widened to whole cells and to the widest depth in each cell.
++ * Coordinates outside the map answer "maybe" and pay the full walk.
++ */
++static inline int
++occluder_shadow_possible(
++    const struct SceneOccluders* occ,
++    int x,
++    int z)
++{
++    unsigned cx = (unsigned)x >> OCC_SHADOW_CELL_SHIFT;
++    unsigned cz = (unsigned)z >> OCC_SHADOW_CELL_SHIFT;
++
++    if( (cx | cz) >= (unsigned)OCC_SHADOW_DIM )
++        return 1;
++    return (int)((occ->shadow[cz][cx >> 5] >> (cx & 31)) & 1u);
++}
+ #endif
+-            continue;
+-        }
+-        bound = p[i].lo_b + ((p[i].spread_lo_b * d) >> 8);
+-        if( cb < bound )
+-            continue;
+-        bound = p[i].hi_b + ((p[i].spread_hi_b * d) >> 8);
+-        if( cb <= bound )
+-            return true;
++
++#if TORIDRAW_OCC_HINT
++/** Re-test the entry that answered the previous query, in its own run's
++ *  axis permutation. */
++static inline bool
++occluder_hint_hides(
++    const struct SceneOccluders* occ,
++    int x,
++    int y,
++    int z)
++{
++    const struct SceneOccluderPacked* e = &occ->packed[occ->hint_idx];
++
++    switch( occ->hint_run )
++    {
++    case OCCLUDER_HIDES_WEST_OF_PLANE:
++        return occluder_entry_hides(e, x, z, y);
++    case OCCLUDER_HIDES_EAST_OF_PLANE:
++        return occluder_entry_hides(e, -x, z, y);
++    case OCCLUDER_HIDES_SOUTH_OF_PLANE:
++        return occluder_entry_hides(e, z, x, y);
++    case OCCLUDER_HIDES_NORTH_OF_PLANE:
++        return occluder_entry_hides(e, -z, x, y);
++    default:
++        assert(occ->hint_run == OCCLUDER_HIDES_BELOW_PLANE);
++        return occluder_entry_hides(e, -y, x, z);
+     }
+-    return false;
+ }
++#endif
++
++#if TORIDRAW_OCC_HINT
++#define OCC_RETURN_HIT(run, idx)                                               \
++    do {                                                                       \
++        occ->hint_run = (run);                                                 \
++        occ->hint_idx = (idx);                                                 \
++        return true;                                                           \
++    } while( 0 )
++#else
++#define OCC_RETURN_HIT(run, idx) return ((void)(run), (void)(idx), true)
++#endif
+ 
+ /**
+  * Is the world-space point (x,y,z) behind any active occluder?
+@@ -329,7 +520,7 @@ occluder_run_hidden(
+  */
+ static inline bool
+ scene_occluders_point_hidden_impl(
+-    const struct SceneOccluders* occ,
++    struct SceneOccluders* occ,
+     int x,
+     int y,
+     int z)
+@@ -337,26 +528,65 @@ scene_occluders_point_hidden_impl(
+     const struct SceneOccluderPacked* p = occ->packed;
+     const int* rs = occ->run_start;
+     const int* re = occ->run_end;
++    int found;
+ 
+     assert(occ);
+     if( occ->active_count == 0 )
+         return false;
+ 
+-    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_WEST_OF_PLANE],
+-                            re[OCCLUDER_HIDES_WEST_OF_PLANE], x, z, y) )
+-        return true;
+-    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_EAST_OF_PLANE],
+-                            re[OCCLUDER_HIDES_EAST_OF_PLANE], -x, z, y) )
+-        return true;
+-    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_SOUTH_OF_PLANE],
+-                            re[OCCLUDER_HIDES_SOUTH_OF_PLANE], z, x, y) )
+-        return true;
+-    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_NORTH_OF_PLANE],
+-                            re[OCCLUDER_HIDES_NORTH_OF_PLANE], -z, x, y) )
+-        return true;
+-    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_BELOW_PLANE],
+-                            re[OCCLUDER_HIDES_BELOW_PLANE], -y, x, z) )
++#if TORIDRAW_OCC_HINT
++    if( occ->hint_idx >= 0 && occluder_hint_hides(occ, x, y, z) )
++    {
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++        g_scene_occluder_census.hint_hits++;
++#endif
+         return true;
++    }
++#endif
++
++#if TORIDRAW_OCC_SHADOWMAP
++    if( occluder_shadow_possible(occ, x, z) )
++#endif
++    {
++        found = occluder_run_find(p, rs[OCCLUDER_HIDES_WEST_OF_PLANE],
++                                  re[OCCLUDER_HIDES_WEST_OF_PLANE], x, z, y);
++        if( found >= 0 )
++            OCC_RETURN_HIT(OCCLUDER_HIDES_WEST_OF_PLANE, found);
++        found = occluder_run_find(p, rs[OCCLUDER_HIDES_EAST_OF_PLANE],
++                                  re[OCCLUDER_HIDES_EAST_OF_PLANE], -x, z, y);
++        if( found >= 0 )
++            OCC_RETURN_HIT(OCCLUDER_HIDES_EAST_OF_PLANE, found);
++        found = occluder_run_find(p, rs[OCCLUDER_HIDES_SOUTH_OF_PLANE],
++                                  re[OCCLUDER_HIDES_SOUTH_OF_PLANE], z, x, y);
++        if( found >= 0 )
++            OCC_RETURN_HIT(OCCLUDER_HIDES_SOUTH_OF_PLANE, found);
++        found = occluder_run_find(p, rs[OCCLUDER_HIDES_NORTH_OF_PLANE],
++                                  re[OCCLUDER_HIDES_NORTH_OF_PLANE], -z, x, y);
++        if( found >= 0 )
++            OCC_RETURN_HIT(OCCLUDER_HIDES_NORTH_OF_PLANE, found);
++    }
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS && TORIDRAW_OCC_SHADOWMAP
++    /* Everything the map rejected has to be re-checked once, or the map is
++     * being trusted on the strength of an argument nobody ran. */
++    else
++    {
++        g_scene_occluder_census.shadow_rejects++;
++        if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_WEST_OF_PLANE],
++                                re[OCCLUDER_HIDES_WEST_OF_PLANE], x, z, y) ||
++            occluder_run_hidden(p, rs[OCCLUDER_HIDES_EAST_OF_PLANE],
++                                re[OCCLUDER_HIDES_EAST_OF_PLANE], -x, z, y) ||
++            occluder_run_hidden(p, rs[OCCLUDER_HIDES_SOUTH_OF_PLANE],
++                                re[OCCLUDER_HIDES_SOUTH_OF_PLANE], z, x, y) ||
++            occluder_run_hidden(p, rs[OCCLUDER_HIDES_NORTH_OF_PLANE],
++                                re[OCCLUDER_HIDES_NORTH_OF_PLANE], -z, x, y) )
++            g_scene_occluder_census.shadow_false_rejects++;
++    }
++#endif
++
++    found = occluder_run_find(p, rs[OCCLUDER_HIDES_BELOW_PLANE],
++                              re[OCCLUDER_HIDES_BELOW_PLANE], -y, x, z);
++    if( found >= 0 )
++        OCC_RETURN_HIT(OCCLUDER_HIDES_BELOW_PLANE, found);
+     return false;
+ }
+ 
+@@ -481,17 +711,24 @@ scene_occluders_point_hidden_ref(
+ /** Counting wrapper; see struct SceneOccluderCensus. */
+ static inline bool
+ scene_occluders_point_hidden_counted(
+-    const struct SceneOccluders* occ,
++    struct SceneOccluders* occ,
+     int x,
+     int y,
+     int z)
+ {
+     bool hit;
++    unsigned long long visits0 = g_scene_occluder_census.point_visits;
+     g_scene_occluder_census.point_calls++;
++    g_scene_occluder_census.point_from[g_scene_occluder_point_src & 3]++;
+     g_scene_occluder_census.point_active_sum += (unsigned)occ->active_count;
++    g_scene_occluder_hit_idx = -1;
+     hit = scene_occluders_point_hidden_impl(occ, x, y, z);
+     if( hit )
++    {
+         g_scene_occluder_census.point_hits++;
++        g_scene_occluder_census.point_visits_to_hit +=
++            g_scene_occluder_census.point_visits - visits0;
++    }
+     return hit;
+ }
+ #else
+@@ -510,7 +747,7 @@ scene_occluders_point_hidden_counted(
+  */
+ static inline bool
+ scene_occluders_point_hidden(
+-    const struct SceneOccluders* occ,
++    struct SceneOccluders* occ,
+     int x,
+     int y,
+     int z)

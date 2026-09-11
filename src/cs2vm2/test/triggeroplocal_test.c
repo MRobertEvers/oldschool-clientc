@@ -41,7 +41,7 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_IF_TriggerOpLocal trig;
+    struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL trig;
 };
 
 static int
@@ -52,7 +52,7 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->trig = request->u.if_triggeroplocal;
+    host->trig = request->u.IF_TRIGGEROPLOCAL;
     return CS2VM_EXECNO_OK;
 }
 
@@ -63,7 +63,7 @@ run_op(
     int crc,
     int component_id,
     int child_index,
-    int typed_int)
+    int typed_int, int second, const char* signature)
 {
     struct CS2VM2 vm;
     CS2VM2_Init(&vm);
@@ -71,7 +71,8 @@ run_op(
 
     struct CS2VM2_Script script;
     CS2VM2_ScriptInit(&script);
-    int const op_count = 6;
+    int argc = (int)strlen(signature);
+    int const op_count = 5 + argc;
     script.script_id = 9189;
     script.op_count = op_count;
     script.opcodes = calloc((size_t)op_count, sizeof(uint16_t));
@@ -86,16 +87,21 @@ run_op(
     script.int_operands[2] = child_index;
     script.opcodes[3] = (uint16_t)CS2_OP_PUSH_CONSTANT_INT;
     script.int_operands[3] = typed_int;
-    script.opcodes[4] = (uint16_t)CS2_OP_PUSH_CONSTANT_STRING;
-    script.string_operands[4] = strdup("i");
-    script.opcodes[5] = (uint16_t)CS2_OP_IF_TRIGGEROPLOCAL;
+    if( argc == 2 )
+    {
+        script.opcodes[4] = CS2_OP_PUSH_CONSTANT_INT;
+        script.int_operands[4] = second;
+    }
+    script.opcodes[3+argc] = CS2_OP_PUSH_CONSTANT_STRING;
+    script.string_operands[3+argc] = strdup(signature);
+    script.opcodes[4+argc] = CS2_OP_IF_TRIGGEROPLOCAL;
 
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_PushCallScript(thread, &script);
     CS2VM2_RunScript(thread);
 
     CS2VM2_Free(&vm);
-    free(script.string_operands[4]);
+    free(script.string_operands[3+argc]);
     free(script.opcodes);
     free(script.int_operands);
     free(script.string_operands);
@@ -114,21 +120,34 @@ main(void)
     {
         struct RecordingHost host;
         memset(&host, 0, sizeof(host));
-        run_op(&host, crc, trigger, -1, quest_id);
+        run_op(&host, crc, trigger, -1, quest_id, 0, "i");
         CHECK_INT(host.calls, 1, "reaches the host exactly once (no StackMetaStub abort)");
         CHECK_INT(
             (int)host.kind, (int)CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL, "request kind");
         CHECK_INT(host.trig.component_id, trigger, "component is the trigger");
-        CHECK_INT(host.trig.sub, quest_id, "sub is the typed quest id when childIndex is -1");
+        CHECK_INT(
+            host.trig.sub,
+            quest_id,
+            "sub is the typed quest id when childIndex is -1");
     }
 
     /* childIndex set → sub is childIndex, typed int ignored for the packet. */
     {
         struct RecordingHost host;
         memset(&host, 0, sizeof(host));
-        run_op(&host, crc, trigger, 7, quest_id);
+        run_op(&host, crc, trigger, 7, quest_id, 0, "i");
         CHECK_INT(host.trig.component_id, trigger, "component still the trigger");
         CHECK_INT(host.trig.sub, 7, "sub is childIndex when it is not -1");
+    }
+
+    {
+        struct RecordingHost host = {0};
+        run_op(&host, -852562543, (939<<16)|17, 7, 12345, 0, "ii");
+        CHECK_INT(host.trig.crc, -852562543, "native sailing CRC preserved");
+        CHECK_INT(host.trig.child, 7, "UI child preserved separately");
+        CHECK_INT(host.trig.count, 2, "both typed arguments preserved");
+        CHECK_INT(host.trig.values[0], 12345, "selected facility DBROW preserved");
+        CHECK_INT(host.trig.values[1], 0, "confirmation mode preserved");
     }
 
     if( g_fail )

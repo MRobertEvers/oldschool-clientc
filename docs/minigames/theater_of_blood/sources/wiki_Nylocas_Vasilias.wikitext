@@ -1,0 +1,140 @@
+{{Infobox Monster
+|defver = 2
+|version1 = Entry
+|version2 = Normal
+|version3 = Hard
+|name = Nylocas Vasilias
+|image = [[File:Nylocas Vasilias (melee).png|250px]]
+|release1 = [[3 June]] [[2021]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[3 June]] [[2021]]
+|update1 = Theatre of Blood: New Modes
+|update2 = The Theatre of Blood
+|update3 = Theatre of Blood: New Modes
+|members = Yes
+|combat1 = 301
+|combat2 = 800
+|combat3 = 800
+|size = 4
+|examine = One of Verzik's rather large pets.
+|xpbonus1 = 7.5
+|xpbonus2 = 20
+|xpbonus3 = 20
+|max hit1 = 24
+|max hit2 = 70
+|max hit3 = 105
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Stab]], [[Magic]], [[Ranged]]
+|attack speed = 4
+|slayxp = Not assigned
+|hitpoints1 = 1440
+|hitpoints2 = 2500
+|hitpoints3 = 2500
+|scaledhp = Yes
+|att1 = 160
+|att2 = 400
+|att3 = 400
+|str1 = 140
+|str2 = 350
+|str3 = 350
+|def = 50
+|mage1 = 20
+|mage2 = 50
+|mage3 = 50
+|range1 = 140
+|range2 = 350
+|range3 = 350
+|attbns = 0
+|strbns1 = 40
+|strbns2 = 60
+|strbns3 = 60
+|amagic1 = 380
+|amagic2 = 600
+|amagic3 = 600
+|mbns1 = 460
+|mbns2 = 600
+|mbns3 = 600
+|arange = 0
+|rngbns1 = 40
+|rngbns2 = 60
+|rngbns3 = 60
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10786,10787,10788,10789
+|id2 = 8354,8355,8356,8357
+|id3 = 10807,10808,10809,10810
+|leagueRegion = Morytania
+}}
+'''Nylocas Vasilias''' is the third encounter in the [[Theatre of Blood]], and spawns after killing off the hordes of [[Nylocas Hagios]], [[Nylocas Ischyros|Ischyros]], and [[Nylocas Toxobolos|Toxobolos]].
+[[File:Fighting Nylocas Vasilias.png|thumb|270px|left|A trio of players fight the Nylocas Vasilias.]]
+
+==Mechanics==
+Vasilias changes its combat style throughout the fight by changing its carapace, which also indicates its weakness: blue for magic, green for ranged and white for melee. Attacking it with the wrong combat style will cause it to reflect the hit back towards the player as well as healing from the hit. It will change every 10 [[tick]]s (6 seconds), and it will always change to one of the other two styles (meaning it will not stay on one style twice in a row).
+
+===Hard Mode===
+In hard mode, Vasilias will fire its ranged attack at everyone standing within 2 squares of its target. It is advised to spread out with a 3-tile gap from other players in your party when it turns green.
+
+Its magic attack also has a special mechanic where it will bounce off of the player it hits and will spread to every other player. This attack deals the same damage to every player it hits for the damage it deals regardless if they have Protect from Magic up or not. This damage is reduced by 50% if standing within two tiles of the target. If the players are all on the same tile then the attack will only damage the target.
+
+===Entry Mode===
+In [[Theatre of Blood/Entry Mode|Entry Mode]], all of the [[nylocas]] in the encounter can scale down to 20% of their original [[Hitpoints]] when done in a solo party. Despite everything dealing lower damage however, this room can prove to be overwhelming to solo players who are not prepared since the number of nylocas the players must kill during the hordes are the same. The room is still failed if all 4 pillars fall.
+
+The boss takes longer to switch colours compared to regular and hard mode. This gives the players more time to switch their prayer and gear while fighting the boss.
+
+If a team wipes in Entry Mode, they will be taken back outside of the boss room and have unlimited attempts to fight the boss again. [[Hardcore ironmen]] will still lose their status upon death.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Arachnids of vampyrium|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Gallery==
+<gallery>
+Nylocas Vasilias (melee).png
+Nylocas Vasilias (ranged).png
+Nylocas Vasilias (magic).png
+</gallery>
+The various colours of Nylocas Vasilias' carapace during the fight.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The Nylocas Vasilias now has a 15% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Nylocas can now be affected by burn damage.
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Hard mode and entry mode versions of the Theatre of Blood encounters added.
+}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|change = The Nylocas Vasilias' Hitpoints were increased from 2,000 to 2,500 (in teams of five players) and its damage output was increased, raising its maximum hit from 58 to 70. It also now reflects and heals 100% of the damage done with the incorrect style instead of 50%.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word "Nylocas" is very similar to the Hungarian word "Nyolcas", meaning "eight", referencing the eight legs of this arachnid-like creature.
+*The latter part of the name of the Nylocas Vasilias likely derives from the Greek term "βασιλιάς" ("vasiliás"), meaning "king", referencing its background within the lore and its role as a boss encounter.
+
+{{Theatre of Blood}}
+{{Bosses}}

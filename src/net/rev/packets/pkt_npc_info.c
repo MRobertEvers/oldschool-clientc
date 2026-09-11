@@ -13,7 +13,24 @@ next_op(
     struct PktNpcInfoOp* ops,
     int ops_capacity)
 {
-    assert(reader->current_op < ops_capacity);
+    /*
+     * A guard, not an assert. How many ops a packet produces is chosen by the
+     * SERVER, so running out of room is a hostile/malformed input -- a runtime
+     * state -- and not a caller bug. The extended-info loop below tests capacity
+     * ONCE per entry and then emits up to one op per bit of a server-supplied
+     * mask, so a full mask walks past that test by the width of the mask.
+     *
+     * An assert is not a bounds check here: the shipping lane compiles
+     * -DNDEBUG, and without this the overrun writes PktNpcInfoOps past the end
+     * of the caller's heap array.
+     */
+    assert(ops_capacity > 0);
+    if( reader->current_op >= ops_capacity )
+    {
+        reader->overflowed = 1;
+        memset(&reader->op_sink, 0, sizeof(reader->op_sink));
+        return &reader->op_sink;
+    }
     struct PktNpcInfoOp* op = &ops[reader->current_op++];
     memset(op, 0, sizeof(*op));
     return op;
@@ -64,6 +81,7 @@ pkt_npc_info_reader_read(
     terminator = (1 << slot_bits) - 1;
 
     reader->current_op = 0;
+    reader->overflowed = 0;
     reader->extended_count = 0;
     Net_BitBufferInit(&buf, data, length);
 

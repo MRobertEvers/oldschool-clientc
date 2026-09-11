@@ -13,7 +13,7 @@
 
 #include "painters/painters_cull_project.h"
 #include "graphics/shared_tables.h"
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "painters/painters.h"
 
 static void

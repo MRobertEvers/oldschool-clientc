@@ -1,0 +1,50 @@
+[     301ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     301ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     301ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     301ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     301ms] [VERBOSE] Rendering was performed in a subtree hidden by content-visibility. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     491ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     515ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     523ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     523ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     523ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     523ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     524ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     524ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[     524ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://www.bing.com/images/search?q=%22march+of+the+machine%22+empty+bundle+box+card+storage:6
+[    8064ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/256831120633:0
+[    8100ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[    8573ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    8730ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    8730ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    8731ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    8946ms] [LOG] done @ https://www.ebay.com/itm/256831120633:4
+[    9641ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    9698ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   10637ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/257086547026:0
+[   10647ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   11057ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11084ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11084ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11085ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   11515ms] [LOG] done @ https://www.ebay.com/itm/257086547026:4
+[   11937ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   11942ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   13148ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/291535930474:0
+[   13160ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   13676ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   13707ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   13707ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   13708ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   14066ms] [LOG] done @ https://www.ebay.com/itm/291535930474:4
+[   14343ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   14345ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   15750ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/156945498707:0
+[   15763ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[   16253ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   16412ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   16412ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   16414ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[   16585ms] [LOG] done @ https://www.ebay.com/itm/156945498707:4
+[   16768ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[   16772ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

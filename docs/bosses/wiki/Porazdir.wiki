@@ -1,0 +1,85 @@
+{{Infobox Monster
+|name = Porazdir
+|image = [[File:Porazdir.png|250px]]
+|release = [[8 February]] [[2018]]
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|members = Yes
+|combat = 235
+|size = 3
+|examine = A rage-filled Zamorakian Demon.
+|attributes = demon
+|xpbonus = 20
+|max hit = 43 (Magic), 16 (Melee)
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]], [[Slash]]
+|attack speed = 6
+|slayxp = 376
+|cat = Black Demons
+|assignedby = krystilia,chaeldar,nieve,duradel
+|hitpoints = 320
+|att = 250
+|str = 150
+|def = 100
+|mage = 180
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 80
+|mbns = 80
+|arange = 0
+|rngbns = 0
+|dstab = 200
+|dslash = 200
+|dcrush = 200
+|dmagic = -60
+|dlight = 200
+|dstandard = 200
+|dheavy = 200
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7515,7860
+|leagueRegion = Wilderness
+}}
+'''Porazdir''' is a Tsutsaroth{{CiteTwitter|author=Mod Ghost|url=https://twitter.com/Jagex_Ghost/status/958026744002498561|date=29 January 2018|archiveurl=https://reldo.runescape.wiki/i/105605|archivedate=28 May 2020|quote=It's a Tsutsaroth.}} [[demon]] who was once one of [[Zamorak]]'s most trusted generals during the [[God Wars]]. Said to kill any in his path without mercy, even if they are demons, Porazdir is described as "completely mad", and regularly clashes with [[Justiciar Zachariah]].{{CiteNPC|npc=Kolodion|quote=From what I can tell, he is completely mad. He roams the Wilderness, killing all who he comes across without mercy. Even his own kind do not escape his fury. He's known to battle the justiciar quite regularly, perhaps they are old enemies.}}
+
+During the [[Mage Arena II]] [[miniquest]], he has to be defeated in order to obtain a [[demon's heart]] for [[Kolodion]]'s spell. In order to summon him, players must use an [[enchanted symbol]] to locate him, similar to using an [[enchanted key]] or [[strange device]].
+
+When fighting Porazdir, he will cast the [[Flames of Zamorak]] spell - unlike the version cast by the Zamorak [[Battle mage|battle mages]] in the [[Mage Arena]], this ''will'' reduce your [[Magic]] level by 1 + 5%. He can also use a special attack that will fire a ball of energy at the player that can hit through [[protection prayers]] for upwards of 30 [[damage]]. When he uses this attack a message in the [[chatbox]] will state {{mes|Porazdir fires a ball of energy directly linked to his power!|colour=#ef1020}} This damage cannot be negated through prayer, however if the player is at least 12 tiles away when the ball lands, no damage will be dealt.[[File:Fighting Porazdir.png|thumb|270px|left|A player fighting Porazdir.]]
+
+Porazdir can only be harmed by the [[Flames of Zamorak]] spell. As such, a [[Zamorak staff]], [[Staff of the Dead|staff of the dead]], its [[Toxic staff of the dead|toxic counterpart]], or an [[accursed sceptre]] is required to defeat him. Porazdir is considered a [[black demon]] for the purpose of a Slayer assignment.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Demon's heart|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/3|gemw=No}}
+{{DropsTableBottom}}
+
+===Wilderness Slayer tertiary===
+{{WildernessSlayerDropTable|combat=235|hitpoints=320}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting Stars
+|change = Several monsters, including Porazdir, were tagged as demonic.
+}}
+{{Subject changes
+|date = 8 February 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|change = The monster was added to the game with the [[Mage Arena II]] overhaul, replacing the [[Demon of Darkness]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Mage Arena II}}
+{{Demons}}
+[[Category:Zamorakians]]

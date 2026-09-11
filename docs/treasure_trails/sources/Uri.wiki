@@ -1,0 +1,87 @@
+{{External|rs}}
+{{Infobox NPC
+|name = Uri
+|image = [[File:Uri.png|130px]]
+|release = [[5 December]] [[2006]]
+|update = Treasure Trails, spiders and sheep
+|members = No
+|race = [[Human]]
+|location = Wherever an [[emote clue]] is completed
+|gender = Male
+|options = Talk-to
+|examine = Uri Molotov - shaken, not stirred.
+|map = No
+|id = 8638,1774,1775,1776,6584,7311
+|leagueRegion = General
+}}
+[[File:Uri chathead.png|left]]
+'''Uri Molotov''' is the man who delivers the next part of a [[Treasure Trail]] when the player has completed an [[emote clue]]. To summon him the player needs to perform a specified emote in the proper location while wearing (or sometimes not wearing) a specified attire. The player must talk to him while still wearing the required attire upon which he will reward them with another clue scroll or [[casket]] and utter a seemingly nonsensical phrase, to which the player will always respond with "What?" This phrase has no bearing on the treasure trail.
+
+On hard and master trails, a [[double agent]] who looks identical to Uri will appear first and must be killed before Uri will appear. The emote equipment is not required when fighting the agent but will be required to speak to Uri once he appears. It will be required to summon him again, however.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Trivia==
+===General===
+* His demeanor parodies the archetypal {{wp|KGB}} agents, as Molotov is a Russian name and most Soviets referred to each other as "comrade".
+* Some of the phrases he uses resemble real-world spy codes, historically used to conceal secret information in plain language.
+** Humorously, the player never understands these statements, suggesting that by completing a step of a clue, they may be an unwitting accomplice in a covert operation.
+* Uri appears to be wearing a [[Ham shirt]], a [[Ham robe|robe]], [[Ham logo|logo]] and [[Ham cloak|cloak]], as well as holding a [[briefcase]]. However, whether Uri is involved in the [[Humans Against Monsters]] organisation or not is unknown.
+* His examine text is a reference to ''{{wp|James Bond}}'' and {{wp|Molotov cocktail}}.
+* If a player receives their final clue step from Uri and teleports away before clicking through any of his dialogue, he will stay in the same location for a short period of time afterwards before despawning. If a player then immediately starts a second clue scroll which happens to have the same emote clue and Uri is still there, he can be spoken to for the step without the need to summon him again (though the emote must be performed another time).
+
+===Phrases===
+* "''I am the egg man, are you one of the egg men?''" is a reference to {{wp|The Beatles}} song "I am the Walrus".
+* "''It is possible to commit no mistakes and still lose''" is a quote by Captain Picard in ''{{wp|Star Trek: The Next Generation}}''.
+* "''My magic carpet is full of eels''" is a reference to a ''{{wp|Monty Python}}'' sketch about a poorly translated English-Hungarian phrasebook.
+* "''Once, I was a poor man, but then I found a party hat''" is a reference to the extremely high price of party hats in ''{{RSL|RuneScape}}''.
+* "''Up in the north, I hear they keep milk in bags rather than buckets''" is a reference to Canadian grocers supplying milk in bags.
+* "''Want to see me bend a spoon?''" is a reference to Israeli illusionist {{wp|Uri Geller}}.
+* ''"In Canifis the men are known for eating much spam''" is a reference to the ''{{wp|Monty Python}}'' sketch "[[wikipedia:Spam_(Monty_Python_sketch)|Spam]]".
+* ''"Loser says what"'' is a reference to a known prank, as the player always replies ''"What?".''
+
+====Historical====
+* "''The Ankou's are a lie''" is a reference to the game ''{{wp|Portal (video game)|Portal}}'', originally "the cake is a lie".
+* "''(Breathing intensifies)''" is a reference to a [https://knowyourmeme.com/memes/intensifies meme].
+* "''Brother, do you even lift?''" is a reference to a [https://knowyourmeme.com/memes/do-you-even-lift meme].
+* "''Don't forget to find the jade monkey''" is a reference to [https://www.youtube.com/watch?v=e2FfNgZ_ZV4 a scene] from ''The Simpsons.''
+* "''Connection lost. Please wait - attempting to reestablish''" is a reference to ''RuneScape'' itself, when a player loses connection temporarily as Uri's chathead freezes completely upon saying this line.
+* "''Do you want ants? Because that's how you get ants''" is a reference to a notable quote from the television series ''{{wp|Archer (TV series)|Archer}}''.
+* "''Fancy a holiday? I heard there was a whole other world to the west''" refers to the western continent known as [[Zeah]] before it was released in 2016.
+* "''I don't like pineapple, it has that bone in it''" is a reference to the 1936 song "I Like Bananas Because They Have No Bones" by {{wp|George Elrick}}.
+* "''I once named a duck after a girl. Big mistake, they all hated it''" is an allusion to the controversy surrounding the addition of [[Erin (duck)|Erin]], a duck named after an ''Old School RuneScape'' streamer on {{wp|Twitch_(service)|Twitch}}. Former [[Mod Reach]] subsequently received negative responses for implementing the update, which was widely seen as a case of favouritism.
+* "''I'm going to get married, to the night''" is a reference to the song "Marry The Night" by {{wp|Lady Gaga}}.
+* "''I'm looking for a girl named Molly. I can't seem to find her. Any assistance?''" is either a reference to the song "Molly" by {{wp|Tyga}}, or to the NPC [[Molly]].
+* The "''Init doe. Lyk, I hope yer reward iz goodd aye?''" line employs (northern) English slang and eye dialect. Jagex itself is based in England.
+* "''Is that Deziree?''" is a reference to a ''{{wp|Family Guy}}'' episode.
+* "''It is quite easy being green''" is a reference to the similar {{wp|Kermit the Frog}} quote "''It's not easy being green''".
+* "''Some say...''" is a reference to Jeremy Clarkson's introduction of The Stig from BBC's ''{{wp|Top Gear}}''.
+* "''This is the last night you'll spend alone''" is a line from "The Last Night" by the band {{wp|Skillet (band)|Skillet}}.
+* "''Tonight we dine................quite nicely actually''" is a reference to the popular ''{{wp|300 (film)|300}}'' quote "''Tonight we dine in hell''".
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 March 2016
+|update = Custom Nightmare Zone Rumbles
+|change = The easy emote clue in Falador's jewellery shop will now spawn Uri correctly. Previously Uri would spawn underneath the player each time.
+}}
+{{Subject changes
+|date = 15 October 2015
+|update = The Max Cape
+|change = It is no longer possible to spawn multiple Uris.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Typo fixed in one piece of Uri's dialogue.
+}}
+{{Subject changes
+|date = 5 June 2014
+|update = Bugfix update
+|change = Fixed an issue causing multiple Uris to spawn.
+}}
+{{Subject changes footer}}
+
+{{Treasure Trails}}

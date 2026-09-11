@@ -1,0 +1,22 @@
+# Loot Beam price overrides: obj_id = price, one per line.
+#
+# The client has no Grand Exchange feed and never will -- what it knows is
+# ObjType.cost, the cache's own base value, which for most items is the shop
+# price rather than anything a player would pay. This file is where a plugin's
+# author or a user corrects the ones that matter. Anything absent here is
+# priced from the cache.
+#
+# Ids are for cache.osrs239. Blank lines and # comments are skipped, and so is
+# any line that does not parse -- one bad row must not cost you the rest.
+
+# Barrows / rare drops whose cache cost is nowhere near their value.
+4151  = 1500000    # Abyssal whip
+11802 = 15000000   # Armadyl godsword
+11832 = 3000000    # Bandos chestplate
+11834 = 2500000    # Bandos tassets
+11826 = 5000000    # Armadyl helmet
+11828 = 25000000   # Armadyl chestplate
+11830 = 25000000   # Armadyl chainskirt
+2577  = 40000000   # Ranger boots
+6585  = 1800000    # Amulet of fury
+12006 = 90000000   # Abyssal tentacle

@@ -1,0 +1,56 @@
+{{otheruses|the teleport spell|the teleport tablet|Mind altar teleport (tablet)}}
+{{Infobox Spell
+|name = Mind Altar Teleport
+|image = [[File:Mind Altar Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 28
+|spellbook = Arceuus
+|type = Teleport
+|exp = 22
+|cost = {{RuneReq|Law=1|Mind=2}}
+|speed = 4 ticks
+|description = Teleports you to the Mind Altar
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Mind Altar Teleport icon (mobile).png|left|class=pageimage]]
+'''Mind Altar Teleport''' teleports the caster to the entrance of the [[Mind Altar]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+Potential uses of the teleport include retrieving a lost [[Dwarf Cannon]] from the nearby [[Dwarven Mine]], accessing the [[Ruins of Camdozaal]] and [[The Whisperer]] after completing [[Desert Treasure II - The Fallen Empire]], speaking to the [[Oracle]] for a [[clue scroll]], or quick crafting of [[Mind rune]]s.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Mind
+|Rune2num = 2
+}}
+
+==Destination==
+{{Map|2979,3510|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Mind Altar Teleport v1.png|center]]
+|[[File:Mind Altar Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

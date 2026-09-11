@@ -36,7 +36,7 @@ outputs.
 5. [Running the client](#5-running-the-client)
 6. [Servers](#6-servers)
    - [Embedded server](#61-embedded-server-the-default-for-a-live-run)
-   - [mock230 standalone](#62-mock230-standalone-socket-server)
+   - [ToriRSServer standalone](#62-torirsserver-standalone-socket-server)
    - [JS5 server](#63-js5-server)
    - [io_server](#64-io_server-the-web-builds-cache-backend)
 7. [Content pipeline](#7-content-pipeline)
@@ -58,7 +58,7 @@ git clone --recurse-submodules <repo-url> 3draster
 cd 3draster
 
 make -C src all                                    # -> src/torirs
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ### Windows 10/11
@@ -69,7 +69,7 @@ cd 3draster
 git lfs pull --include="lib/mingw64-win64-toolchain.zip"
 
 .\build_windows.ps1 -Opt                           # -> dist\win64\torirs.exe
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini --offline
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini --offline
 ```
 
 ### Web
@@ -77,13 +77,13 @@ git lfs pull --include="lib/mingw64-win64-toolchain.zip"
 ```sh
 make -C src web            # -> build-web/torirs.js
 make -C src io-server      # see §12 — currently fails to link
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
 ### Playing against a server (macOS / Linux)
 
 ```sh
-./run-live.sh manifest_osrs239.ini testc test
+./run-live.sh manifests/manifest_osrs239.ini testc test
 ```
 
 This one script builds the client **with the server linked in**, compiles the
@@ -100,7 +100,7 @@ server script pack, and starts the whole thing. It is the normal way to run.
 | **GNU make** | the build system | `mingw32-make` on Windows (shipped in the pinned toolchains) |
 | **A C11 compiler** | everything is C11 | clang or gcc; the Windows lanes use pinned MinGW-w64 |
 | **A POSIX `sh`** | every make recipe is POSIX shell | Git for Windows ships one at `C:\Program Files\Git\usr\bin` |
-| **Python 3.10+** | content allocation, codegen, contract gates, RuneLite helpers | `python3` must be on `PATH` — `mock230-scripts` calls it |
+| **Python 3.10+** | content allocation, codegen, contract gates, RuneLite helpers | `python3` must be on `PATH` — `torirsserver-scripts` calls it |
 | **Git LFS** | the Windows toolchain and stylizer model archives under `lib/` | toolchain zips: Windows lanes; `osrs-stylizer-models.zip`: only the ML stylizer tools |
 | **A cache** | the client boots from a RuneScape cache | not in the repo — see [§3](#3-getting-the-source-and-the-data) |
 
@@ -142,8 +142,8 @@ a declared contract, see `DESKTOP-LINK-001` in
 
 You do **not** need to install a compiler. Both toolchains are repository
 inputs: pinned WinLibs/MinGW-w64 archives committed through Git LFS under
-`lib/`, which the PowerShell wrappers extract on demand into the ignored
-`toolchain/` directory and validate by target triple.
+`lib/`, which the PowerShell wrappers extract on demand into the shared
+`toolchains/` directory and validate by target triple.
 
 | Lane | Archive | Triple |
 |---|---|---|
@@ -208,20 +208,20 @@ somewhere the name does not suggest:
 
 | Manifest | `[cache:boot] dir=` |
 |---|---|
-| `manifest_osrs239.ini` | `cache.osrs239` |
-| `manifest_osrs230.ini` | `cache.osrs239.baked` ← the **baked** cache, not `cache.osrs230` |
-| `manifest_osrs239_packed.ini` | `cache.osrs239_packed` (built by the content pipeline) |
-| `manifest_rs254.ini` | `cache.rs254_zuk` |
-| `manifest_rs377.ini` | `cache.rs377` |
-| `manifest_void634.ini` | `cache.void634` |
+| `manifests/manifest_osrs239.ini` | `cache.osrs239` |
+| `manifests/manifest_osrs230.ini` | `cache.osrs239.baked` ← the **baked** cache, not `cache.osrs230` |
+| `manifests/manifest_osrs239_packed.ini` | `cache.osrs239_packed` (built by the content pipeline) |
+| `manifests/manifest_rs254lc.ini` | `cache.rs254_zuk` |
+| `manifests/manifest_rs377lc.ini` | `cache.rs377` |
+| `manifests/manifest_rs634void.ini` | `cache.void634` |
 
 ```sh
-grep -m1 '^dir=' manifest_osrs239.ini      # what this manifest actually opens
+grep -m1 '^dir=' manifests/manifest_osrs239.ini      # what this manifest actually opens
 ```
 
 Obtain an OldSchool cache from an archive such as OpenRS2 and place it at the
 directory the manifest names, or point the manifest elsewhere by editing that
-line. `manifest_osrs239_packed.ini` is `manifest_osrs239.ini` with
+line. `manifests/manifest_osrs239_packed.ini` is `manifests/manifest_osrs239.ini` with
 `dir=cache.osrs239_packed`, so one build boots either a pristine dump or one
 built from content.
 
@@ -282,8 +282,8 @@ produced it. Their objects never mix — debug goes to `src/build/`, optimized t
 Run it:
 
 ```sh
-src/torirs --manifest manifest_osrs239.ini --offline
-src/torirs --manifest manifest_osrs239.ini --offline --opengl3     # GPU renderer
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline --opengl3     # GPU renderer
 ```
 
 ### 4.3 Linux
@@ -293,7 +293,7 @@ Identical to macOS:
 ```sh
 make -C src all
 make -C src release
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ### 4.4 Windows 10/11 (x86_64)
@@ -312,8 +312,8 @@ Output: `dist\win64\torirs.exe` — a single static file. No compiler or runtime
 DLL needs to be installed on the target.
 
 ```powershell
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini --soft3d   # GDI fallback
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini --soft3d   # GDI fallback
 ```
 
 For any other make target, use `.\make.ps1` — it resolves the pinned toolchain
@@ -323,13 +323,13 @@ and a POSIX `sh` exactly as `build_windows.ps1` does, then adds `-C src` and
 ```powershell
 .\make.ps1 -j win64                  # make -C src CC=gcc -j<cores> win64
 .\make.ps1 -Embed -j win64           # ... EMBED_SERVER=1
-.\make.ps1 mock230-scripts           # targets, VAR=value, and make's own flags
-.\make.ps1 -n mock230-servpack       #   all go through as written
+.\make.ps1 torirsserver-scripts           # targets, VAR=value, and make's own flags
+.\make.ps1 -n torirsserver-servpack       #   all go through as written
 .\make.ps1 -Directory 3rd\rscache\tools cachepack
 ```
 
 `-j` is opt-in on purpose. The compile lanes are parallel-safe; the content
-bakes are not, because `mock230-cache-rs2012` and `mock230-cache-summoning`
+bakes are not, because `torirsserver-cache-rs2012` and `torirsserver-cache-summoning`
 have prerequisites that each rebuild the shared `cachepack` binary, and racing
 those corrupts the tool mid-link.
 
@@ -348,8 +348,8 @@ subsystem stamp that looked correct to both `objdump` and `dumpbin`.
 Built **here** (an XP box has no compiler) and copied to the target.
 
 ```powershell
-.\build_winxp.ps1               # debug   (winxp-debug)
-.\build_winxp.ps1 -Opt          # release (winxp)
+.\build_winxp.ps1               # release (winxp)  <- the measured lane
+.\build_winxp.ps1 -DebugBuild   # debug   (winxp-debug)
 ```
 
 Output: `dist\win32\torirs.exe` — statically linked, so the one file is the
@@ -372,7 +372,7 @@ rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe
 
 ```sh
 make -C src web              # -O3   -> build-web/torirs.js + torirs.wasm
-make -C src web-debug        # -O0 + assertions
+make -C src web-debug        # -Og + assertions
 ```
 
 The module is **not** self-sufficient: cache reads are answered by
@@ -380,20 +380,20 @@ The module is **not** self-sufficient: cache reads are answered by
 command line arrives through the page's query string.
 
 ```sh
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
 Same script, same arguments as a native run — `web` is the only difference. It
 builds what is missing, starts the IO server as its own child, and opens the
 page. For a local live `osrs230`/`osrs239` manifest it also starts a native
-`mock230` child; Ctrl-C stops both services.
+`ToriRSServer` child; Ctrl-C stops both services.
 
 By hand:
 
 ```sh
 make -C src web
 make -C src io-server
-./src/build/io_server --manifest manifest_osrs239.ini    # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini    # http://localhost:8088/
 ```
 
 Web-only knobs: `TORIRS_WEB_PORT` (default 8088), `TORIRS_WEB_DEBUG=1` for the
@@ -405,8 +405,8 @@ a browser.
 
 | Query | Meaning |
 |---|---|
-| `?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline` | one argument per param (what `run-live.sh` generates) |
-| `?args=--manifest,manifest_osrs239.ini,--offline` | the same, comma-joined |
+| `?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline` | one argument per param (what `run-live.sh` generates) |
+| `?args=--manifest,manifests/manifest_osrs239.ini,--offline` | the same, comma-joined |
 | `?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1` | environment `getenv` will see |
 | `?io=http://host:8088/io` | IO endpoint when the page is served elsewhere |
 
@@ -489,12 +489,12 @@ keys, the UI root, and optionally an extra argv layer. Everything else is a
 flag on top of it.
 
 ```sh
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 Manifests in the repo root: `manifest_osrs230*.ini`, `manifest_osrs239*.ini`,
-`manifest_rs254.ini`, `manifest_rs377.ini`, `manifest_void634.ini`,
-`manifest_xrsps.ini`.
+`manifests/manifest_rs254lc.ini`, `manifests/manifest_rs377lc.ini`, `manifests/manifest_rs634void.ini`,
+`manifests/manifest_osrs233xrsps.ini`.
 
 ### Command line
 
@@ -542,35 +542,45 @@ arg=Jane Doe
 ### run-live.sh — the normal way to run
 
 ```sh
-./run-live.sh <manifest.ini> [user] [pass] [client args...]
-./run-live.sh web <manifest.ini> [user] [pass] [client args...]
+./run-live.sh [--skip-checks] <manifest.ini> [user] [pass] [client args...]
+./run-live.sh [--skip-checks] web <manifest.ini> [user] [pass] [client args...]
 ```
 
 ```sh
-./run-live.sh manifest_osrs239.ini testc test          # live, embedded server
-./run-live.sh manifest_rs254.ini asdf a --offline      # offline
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh manifests/manifest_osrs239.ini testc test          # live, embedded server
+./run-live.sh manifests/manifest_rs254lc.ini asdf a --offline      # offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
+```
+
+For fast client-code iteration, `--skip-checks` skips the cache-overlay and
+server-script freshness checks and uses both artifacts exactly as they stand.
+The incremental client build still runs, so C changes are included. The tradeoff
+is explicit: content or server-script edits will not appear until a normal run.
+`TORIRS_SKIP_CHECKS=1` provides the same behavior for scripts and aliases.
+
+```sh
+./run-live.sh --skip-checks manifests/manifest_osrs239.ini testc test
 ```
 
 What it does for you, and why each part exists:
 
 - For native `osrs230`/`osrs239` runs **without** `--offline`, it runs the
   in-process server: builds with `EMBED_SERVER=1`, sets
-  `TORIRS_TRANSPORT=embed`, and exports `MOCK230_REV` from the manifest so the
+  `TORIRS_TRANSPORT=embed`, and exports `TORIRSSERVER_REV` from the manifest so the
   server writes the same wire the client speaks. Web runs deliberately build a
-  plain module, force TCP/WebSocket transport, and start a native `mock230`
+  plain module, force TCP/WebSocket transport, and start a native `ToriRSServer`
   child with the manifest's cache, content, and script-pack settings.
-- **It rebuilds the server script pack for every local live server run.** The
-  pack is a separate build from the binary, and the server loads whatever
-  `script.dat` was last compiled — not what the tree says today. Building the
-  binary and not the pack is how a session ends up running weeks-old content
-  with nothing reporting the mismatch.
+- **It checks the server script pack for every local live server run and
+  rebuilds it when stale.** The pack is a separate build from the binary, and
+  the server loads whatever `script.dat` was last compiled — not what the tree
+  says today. Building the binary and not the pack is how a session ends up
+  running weeks-old content with nothing reporting the mismatch.
 - For `lc254` against a live LostCity server it fetches the nine cache CRCs from
   `http://<host>/crc` unless `TORIRS_JAG_CRC` is already set.
 
-Web local live runs start `mock230` for you. For a separate socket server — a
-debugger, multiplayer, or `MOCK230_VERBOSE` against a live listener — hand-start
-`src/build_opt/mock230` plus a TCP manifest yourself.
+Web local live runs start `ToriRSServer` for you. For a separate socket server — a
+debugger, multiplayer, or `TORIRSSERVER_VERBOSE` against a live listener — hand-start
+`src/build_opt/torirsserver` plus a TCP manifest yourself.
 
 ### Headless runs and harness environment variables
 
@@ -579,12 +589,12 @@ is done:
 
 ```sh
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=60 TORIRS_EXIT_BMP=frame.bmp \
-    src/torirs --manifest manifest_osrs239.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ```sh
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Selected variables (`src/main.c` reads ~70; these are the ones you reach for):
@@ -612,7 +622,7 @@ page's query string, so a web run is configured exactly like a native one.
 
 ```sh
 ./run-worldmap.sh [manifest.ini] [--show]
-./run-worldmap.sh manifest_osrs239_worldmap.ini --headless
+./run-worldmap.sh manifests/manifest_osrs239_worldmap.ini --headless
 ```
 
 Runs an interface's `onLoad` CS2 scripts and writes
@@ -629,7 +639,7 @@ doing.
 | | Process | Speaks | Platforms | Use it when |
 |---|---|---|---|---|
 | **Embedded** | none (in the client) | osrs230 / osrs239 | native clients, including Windows | normal native live runs |
-| **mock230** | `src/build_opt/mock230` | osrs230 / osrs239 over TCP + WebSocket | **POSIX only** (macOS/Linux) | local live web runs, debugger, two clients, `MOCK230_VERBOSE` |
+| **ToriRSServer** | `src/build_opt/torirsserver` | osrs230 / osrs239 over TCP + WebSocket | **POSIX only** (macOS/Linux) | local live web runs, debugger, two clients, `TORIRSSERVER_VERBOSE` |
 | **js5_server** | `src/build/js5_server` | JS5 cache download, rev 239 | all (Windows links `ws2_32`) | a vanilla client that must download a cache |
 | **io_server** | `src/build/io_server` | HTTP cache reads + static files | native only | the web build |
 
@@ -638,17 +648,17 @@ doing.
 `EMBED_SERVER=1` links the server into a native client. There is no socket, no
 port, no second process — the two ends share an in-process queue pair. This is
 what both Windows wrappers build, and what native `run-live.sh` uses. Web
-`run-live.sh` instead starts standalone `mock230`, because the browser module
+`run-live.sh` instead starts standalone `ToriRSServer`, because the browser module
 does not have the host cache/content filesystem.
 
 ```sh
 make -C src EMBED_SERVER=1 torirs
-make -C src mock230-scripts                    # the script pack is a separate build
-TORIRS_TRANSPORT=embed src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+make -C src torirsserver-scripts                    # the script pack is a separate build
+TORIRS_TRANSPORT=embed src/torirs --manifest manifests/manifest_osrs239.ini --user testc --pass test
 ```
 
-Or just `./run-live.sh manifest_osrs239.ini`, which does all three. On Windows
-that is `.\run-live.ps1 manifest_osrs239.ini` (`run-live.bat` is a shim onto the
+Or just `./run-live.sh manifests/manifest_osrs239.ini`, which does all three. On Windows
+that is `.\run-live.ps1 manifests/manifest_osrs239.ini` (`run-live.bat` is a shim onto the
 same script, for a cmd prompt). Credentials are optional in both: a manifest
 carrying its own `user=`/`pass=` supplies them, falling back to `asdf`/`a`, and
 an explicit argument still wins.
@@ -662,8 +672,8 @@ cache cannot drift apart:
 
 | Manifest | Cache | Built by |
 |---|---|---|
-| `manifest_osrs239_rs2012.ini` (QBD), `manifest_osrs239_rs2012_td.ini` (Tormented Demons) | `cache.osrs239.rs2012` | `mock230-cache-rs2012` + `mock230-servpack` |
-| `manifest_osrs239_summoning.ini` | `cache.osrs239.summoning` | `mock230-cache-summoning` |
+| `manifests/manifest_osrs239_rs2012.ini` (QBD), `manifests/manifest_osrs239_rs2012_td.ini` (Tormented Demons) | `cache.osrs239.rs2012` | `torirsserver-cache-rs2012` + `torirsserver-servpack` |
+| `manifests/manifest_osrs239_summoning.ini` | `cache.osrs239.summoning` | `torirsserver-cache-summoning` |
 
 The bake deletes and repacks the cache, which takes minutes and tears it out
 from under anything else reading it (a second client, an osrsify search wave).
@@ -671,51 +681,60 @@ from under anything else reading it (a second client, an osrsify search wave).
 while iterating on C or on scripts, and the wrong one the moment the content
 tree changed.
 
-Those bakes read the OSRS-Content tree, and they need its `ported/` lanes —
-`mock230-scripts` feeds both `ported/scape2009_summoning` and
-`ported/rs2012_qbd_td` to `sscompile` on every embedded run, so a checkout
-without them fails on a missing `all.varbit.compack`, which names nothing about
-the real problem.
+Those bakes read the OSRS-Content tree, and they need its `ported/` lanes. Both
+launchers still check for `ported/scape2009_summoning` and
+`ported/rs2012_qbd_td` before picking a tree, because a checkout without them
+fails on a missing `all.varbit.compack`, which names nothing about the real
+problem.
+
+What `torirsserver-scripts` does *not* do any more is compile them.
+`ported/rs2012_qbd_td` is `default=off` alongside the two that always were, so
+the bare pack is pristine rev 239 — no royal dragonhide in the tanner, no
+dragonbone sets in the equipment tables, no 2012 Dragon claws. A profile that
+wants the lane asks for it by name (`[content:lanes]` in
+`manifests/manifest_osrs239_rs2012.ini`, or `make torirsserver-scripts-rs2012`),
+which is also what keeps its composed cache and its script pack on the same
+namespace.
 
 Neither launcher makes you know which checkout that is. Both look at
 `OSRS-Content/osrs239-content` first, then each `build/*/osrs239-content`, and
 take the first one carrying both lanes:
 
 ```powershell
-.\run-live.ps1 manifest_osrs239_rs2012.ini      # finds the tree itself
+.\run-live.ps1 manifests/manifest_osrs239_rs2012.ini      # finds the tree itself
 ```
 
 `TORIRS_PRINT_ONLY=1` reports which tree was chosen and how (`auto` or
-`MOCK230_CONTENT_DIR`) without building anything. To override the choice, name
+`TORIRSSERVER_CONTENT_DIR`) without building anything. To override the choice, name
 it — an explicit tree is obeyed even when it lacks the lanes, with a warning
 rather than a substitution, because mid-port the caller knows better. Both
-launchers take the same override, `MOCK230_CONTENT_DIR` — there is no separate
+launchers take the same override, `TORIRSSERVER_CONTENT_DIR` — there is no separate
 `-ContentDir` flag on the PowerShell side:
 
 ```powershell
-$env:MOCK230_CONTENT_DIR = "$PWD\some\other\osrs239-content"
-.\run-live.ps1 manifest_osrs239_rs2012.ini
+$env:TORIRSSERVER_CONTENT_DIR = "$PWD\some\other\osrs239-content"
+.\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
 ```
 
 ```sh
-MOCK230_CONTENT_DIR=$PWD/some/other/osrs239-content \
-  ./run-live.sh manifest_osrs239_rs2012.ini
+TORIRSSERVER_CONTENT_DIR=$PWD/some/other/osrs239-content \
+  ./run-live.sh manifests/manifest_osrs239_rs2012.ini
 ```
 
 If no candidate carries the lanes, the run stops before building and lists
 every path it looked at.
 
-### 6.2 mock230 standalone socket server
+### 6.2 ToriRSServer standalone socket server
 
 ```sh
-make -C src mock230                 # -> src/build_opt/mock230   (default port 43595)
-src/build_opt/mock230 [port]
+make -C src ToriRSServer                 # -> src/build_opt/torirsserver   (default port 43595)
+src/build_opt/torirsserver [port]
 ```
 
 Then point a TCP manifest at it:
 
 ```sh
-src/torirs --manifest manifest_osrs230.ini --user test --pass test
+src/torirs --manifest manifests/manifest_osrs230.ini --user test --pass test
 ```
 
 Parallel-session variants exist so two people (or two agents) can each hold a
@@ -723,33 +742,33 @@ live session without fighting over the port or the output file:
 
 | Target | Binary | Port | Manifest |
 |---|---|---|---|
-| `mock230` | `src/build_opt/mock230` | 43595 | `manifest_osrs230.ini` |
-| `mock230-dev` | `src/build/dev_mock230` | 43597 | `manifest_osrs230_dev.ini` |
-| `mock230-alt` | `src/build/alt_mock230` | 43599 | `manifest_osrs230_alt.ini` |
-| `mock230-bank` | `src/build/bank_mock230` | 43601 | `manifest_osrs230_bank.ini` |
+| `ToriRSServer` | `src/build_opt/torirsserver` | 43595 | `manifests/manifest_osrs230.ini` |
+| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifests/manifest_osrs230_dev.ini` |
+| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifests/manifest_osrs230_alt.ini` |
+| `torirsserver-bank` | `src/build/bank_torirsserver` | 43601 | `manifests/manifest_osrs230_bank.ini` |
 
-> The dev binary is named `dev_mock230`, not `mock230_dev`, on purpose: the usual
-> way to stop a stray server is `pkill -f build/mock230`, which is a prefix match
-> — anything named `mock230*` in that directory would die with it.
+> The dev binary is named `dev_torirsserver`, not `ToriRSServer_Dev`, on purpose: the usual
+> way to stop a stray server is `pkill -f build/torirsserver`, which is a prefix match
+> — anything named `ToriRSServer*` in that directory would die with it.
 
 Environment:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `MOCK230_VERBOSE=1` | off | log every packet in and out |
-| `MOCK230_CACHE=<dir>` | `cache.osrs239.baked` | cache to read obj/npc/loc metadata from |
-| `MOCK230_CONTENT=<dir>` | `OSRS-Content/osrs239-content` | content tree |
-| `MOCK230_SCRIPTS=<dir>` | `<content>/scripts/build` | compiled script pack |
-| `MOCK230_HOME=x,z` | `3222,3218` | login tile (Lumbridge courtyard, beside Hans) |
-| `MOCK230_REV=osrs230\|osrs239` | `osrs230` | which revision's bytes to write (`--rev` beats it) |
-| `MOCK230_STAFF_LEVEL=0..3` | `0` | advertise rev-239 staff privilege |
+| `TORIRSSERVER_VERBOSE=1` | off | log every packet in and out |
+| `TORIRSSERVER_CACHE=<dir>` | `cache.osrs239.baked` | cache to read obj/npc/loc metadata from |
+| `TORIRSSERVER_CONTENT=<dir>` | `OSRS-Content/osrs239-content` | content tree |
+| `TORIRSSERVER_SCRIPTS=<dir>` | `<content>/scripts/build` | compiled script pack |
+| `TORIRSSERVER_HOME=x,z` | `3222,3218` | login tile (Lumbridge courtyard, beside Hans) |
+| `TORIRSSERVER_REV=osrs230\|osrs239` | `osrs230` | which revision's bytes to write (`--rev` beats it) |
+| `TORIRSSERVER_STAFF_LEVEL=0..3` | `0` | advertise rev-239 staff privilege |
 
 Socket-free self-test — movement, scene rebuild, equipment, inventory drag, npc
 roaming, combat, pathing — with no client at all:
 
 ```sh
-make -C src test-mock230            # builds server + scripts + bands, then --selftest
-src/build_opt/mock230 --selftest
+make -C src test-ToriRSServer            # builds server + scripts + bands, then --selftest
+src/build_opt/torirsserver --selftest
 ```
 
 Full protocol/architecture record: [`docs/osrs230_mockserver.md`](docs/osrs230_mockserver.md).
@@ -789,7 +808,7 @@ usage: js5_server --cache DIR [--revision 239] [--bind 127.0.0.1] [--port 43594]
 The loopback default bind is intentional. Use `--bind 0.0.0.0` only where
 network exposure is expected and firewalled.
 
-Note that `mock230` also answers JS5 **on its own game socket** — the client
+Note that `ToriRSServer` also answers JS5 **on its own game socket** — the client
 picks with its first byte (`14` game, `15` JS5) — which is why
 [`run-osrs239.sh`](run-osrs239.sh) starts only one server.
 
@@ -804,7 +823,7 @@ only process the web build needs.
 
 ```sh
 make -C src io-server               # -> src/build/io_server  (always native)
-./src/build/io_server --manifest manifest_osrs239.ini     # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini     # http://localhost:8088/
 ```
 
 Options: `--manifest <boot.ini>` (recommended — it is the same file the native
@@ -829,22 +848,22 @@ pristine dump. Four steps, in order:
 
 | Step | Command | Output |
 |---|---|---|
-| ServerScript pack | `make -C src mock230-scripts` | `OSRS-Content/osrs239-content/server/scripts/build/script.dat` |
-| Server bands | `make -C src mock230-servpack` | `OSRS-Content/osrs239-content/server/pack/` (no cache opened) |
-| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
-| Table check | `make -C src mock230-cache-check` | asserts all 23 dat2 tables landed |
+| ServerScript pack | `make -C src torirsserver-scripts` | `OSRS-Content/osrs239-content/server/scripts/build/script.dat` |
+| Server bands | `make -C src torirsserver-servpack` | `OSRS-Content/osrs239-content/server/pack/` (no cache opened) |
+| Cache bake | `make -C src torirsserver-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src torirsserver-cache-check` | asserts all 23 dat2 tables landed |
 
 ```sh
-make -C src mock230-scripts
-make -C src mock230-servpack
-make -C src mock230-cache
+make -C src torirsserver-scripts
+make -C src torirsserver-servpack
+make -C src torirsserver-cache
 ```
 
 Aim the bake elsewhere:
 
 ```sh
-make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
-make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src torirsserver-cache TORIRSSERVER_CACHE_BASE=/path/to/cache.osrs239
 ```
 
 `--base` is **optional**. With one, the pristine cache is copied and every record
@@ -860,33 +879,42 @@ both of which the packer now provides:
   `archives[i].identifier`. Without those, the cache can boot with every archive
   present and still have no compass, map scene, or hitmarks.
 
-`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A table
+`torirsserver-cache-check` lists any missing `main_file_cache.idxN` by number. A table
 with no idx file is a table the client cannot read.
 
 Boot the result:
 
 ```sh
-src/torirs --manifest manifest_osrs239_packed.ini --offline
+src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Headless verification proves the cache is **bootable**, not merely complete:
 
 ```sh
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Other pipeline targets:
 
 ```sh
-make -C src mock230-pack            # content validator + cache exporter binary
+make -C src torirsserver-pack            # content validator + cache exporter binary
+make -C src check-content-audits         # the settled audits: crystal-set contract,
+                                         # Agility lap XP, Wintertodt rewards
 make -C src check-crystal-set-contract   # client/server ::~command contract gate
-make -C src test-content            # the whole content gate: register, codec, symbols,
-                                    # scripts, bands, membership, pack, clean, port
+make -C src test-content            # the whole content gate: audits, register, codec,
+                                    # symbols, scripts, bands, membership, pack,
+                                    # clean, port
 ```
 
-`check-crystal-set-contract` runs automatically before both `mock230-scripts`
-and `mock230-cache`. It exists because `::crystal_set` once failed on both sides
+`check-content-audits` is the three checks that used to run on every
+`torirsserver-scripts` build — `check-crystal-set-contract`, `check-agility-xp`
+and `check-wintertodt-rewards`. Each re-derives a settled verdict from content
+that no longer moves, so they now run in `test-content` and on demand rather
+than gating every launch that recompiles a script.
+
+`check-crystal-set-contract` still runs automatically before `torirsserver-cache`,
+which packs the clientscript half. It exists because `::crystal_set` once failed on both sides
 at once — CS2 prefix-matched it as the local `cry` emote, and content had two
 global debugprocs with the same name. Incident:
 [`docs/CRYSTAL_SET_COMMAND.md`](docs/CRYSTAL_SET_COMMAND.md).
@@ -906,7 +934,7 @@ and only one of them is a setting.
 
 - [`GPTSOL56_RUNELITE_INTEGRATION.md`](GPTSOL56_RUNELITE_INTEGRATION.md) — the
   durable verification record for the RuneLite 1.12.33 / OSRS-239 deob against
-  `mock230`: the verification contract, the interface component map, and every
+  `ToriRSServer`: the verification contract, the interface component map, and every
   finding.
 - [`docs/RSPROT_OSRS239_PORT.md`](docs/RSPROT_OSRS239_PORT.md) — what it takes
   for an unmodified client to talk to this server. **§5** is the obstacle list,
@@ -942,7 +970,7 @@ before launching the client, and reclaims stale ports:
 ./run-osrs239.sh --keep         # leave existing processes alone
 ```
 
-Overridable: `GAME_PORT` (43594), `JAV_PORT` (8080), `MOCK230_JS5_CACHE`
+Overridable: `GAME_PORT` (43594), `JAV_PORT` (8080), `TORIRSSERVER_JS5_CACHE`
 (`cache.osrs239`), `CACHEDIR` (`torirs239`), `DEOB_REPO`, `RUNDIR`.
 
 **One account per session.** There is no duplicate-login guard: two clients on
@@ -963,7 +991,7 @@ make -C src mock-js5
 src/build/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
 python3 tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239 &
 
-python3 tools/runelite_patch.py --modulus <MOCK230_RSA_PUBLIC_MODULUS>
+python3 tools/runelite_patch.py --modulus <TORIRSSERVER_RSA_PUBLIC_MODULUS>
 python3 tools/runelite_patch.py --print-launch     # then run what it prints
 ```
 
@@ -1140,8 +1168,13 @@ a single record by id is instant.
 ```sh
 # fontbake — bake cache fonts into C
 fontbake --rev NAME <cache_dir> --list [--probe name,name,...]
-fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol --out out.c \
+fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] --out out.c \
          [--header out.h] [--metrics metrics.h] [--prefix Prefix]
+# @N bakes an N-times nearest-neighbour upscale of the face, every metric
+# multiplied to match — how one cache font serves a HighDPI or scaled display.
+# Integer only: the glyph blitter tests a mask byte rather than blending it,
+# so there is no half-covered pixel for a fractional scale to land on.
+# See src/ui/README_DEBUG_OVERLAY.md §9 for the chrome's three baked sizes.
 
 # poser-gl — the SDL2 + OpenGL 3.3 animation editor (a C port of fglass/poser-gl)
 make -C 3rd/rscache/tools poser-gl
@@ -1173,19 +1206,19 @@ src/build/sscompile \
     --pack OSRS-Content/osrs239-content/configs
 ```
 
-In practice you never call it directly — `make -C src mock230-scripts` runs
+In practice you never call it directly — `make -C src torirsserver-scripts` runs
 `tools/ss_allocate.py` first (a `.enum`/`.dbtable` block declares a record by
 name and the compiler needs a number), then the compiler, then the contract gate.
 
 The subsystem depends on libc plus `3rd/rsareabuf` and nothing else — no SDL, no
-task queue, no UI tree — so it links into the standalone `mock230` binary and
+task queue, no UI tree — so it links into the standalone `ToriRSServer` binary and
 every test runs without a cache.
 
 Regenerate the opcode tables after a reference-server update:
 
 ```sh
 python3 src/serverscript/gen_opcode_meta.py
-python3 net/mock/gen_opcode_coverage.py --check     # from src/
+python3 torirsserver/gen_opcode_coverage.py --check     # from src/
 ```
 
 Detail: [`docs/serverscript.md`](docs/serverscript.md).
@@ -1244,7 +1277,7 @@ changes.
 |---|---|---|
 | `tools/cs2_gen_opcodes/gen_opcodes.py` | vendored RuneStar `Opcodes.kt` | `src/cs2vm2/`, `src/osrs/rscache/dat2a/` CS2 opcode tables |
 | `src/serverscript/gen_opcode_meta.py` | LostCity's engine | `ss_opcode.h`, `ss_trigger.h`, `ss_meta.gen.h` |
-| `src/net/mock/gen_opcode_coverage.py` | the `case SS_OP_*:` labels themselves | `mock230_opcode_coverage.gen.h` (`--check` gates it) |
+| `src/torirsserver/gen_opcode_coverage.py` | the `case SS_OP_*:` labels themselves | `torirs_server_opcode_coverage.gen.h` (`--check` gates it) |
 | `tools/rsprot_gen_tables.py` | RSProt's Kotlin | `{name, opcode, size}` prot tables for all 19 vendored revisions |
 | `tools/rsprot_gen_codec.py`, `rsprot_gen_rev.py`, `rsprot_dump_prot.py`, `rsprot_version_ledger.py` | RSProt | codec bodies, per-revision tables, ledgers |
 | `tools/gen_levelrequire_dbrow.py` | content | DBRows |
@@ -1290,8 +1323,9 @@ already produce a single self-contained `.exe` — that is the package.
 
 The old `tools/ci/` tree (`package_build.py` plus the LAN WinXP CI split under
 `build_host/`, `runner/`, `client/`) drove **CMake**, the retired build path, and
-packed `src/osrs/scripts` + `src/osrs/revconfig/configs`, both of which moved to
-`v0/`. It is archived at
+packed `src/osrs/scripts` + `src/osrs/revconfig/configs`. The scripts moved to
+`v0/`; the revconfig INIs are now [`revconfig/`](revconfig/README.md) at the
+repository root. It is archived at
 [`tools/deprecated/ci/`](tools/deprecated/ci/README.md).
 
 ---
@@ -1311,14 +1345,14 @@ make -C 3rd/rscache test
 content or the server):
 
 ```sh
-make -C src test-mock230           # builds server + scripts + bands, then --selftest
+make -C src test-ToriRSServer           # builds server + scripts + bands, then --selftest
 make -C src test-content           # register, codec, symbols, scripts, bands,
                                    # membership, pack, clean, port
-make -C src test-mock230-coverage  # the opcode-coverage table is not stale
+make -C src test-torirsserver-coverage  # the opcode-coverage table is not stale
 make -C src test-port              # port fidelity against the reference
 ```
 
-`test-mock230-dev` deliberately runs under `MallocScribble=1 MallocPreScribble=1`.
+`test-torirsserver-dev` deliberately runs under `MallocScribble=1 MallocPreScribble=1`.
 That is not a flourish: without it the suite produces two different failure sets
 across identical runs, and a suite whose failure count wanders cannot answer
 "did I break something".
@@ -1332,9 +1366,9 @@ across identical runs, and a suite whose failure count wanders cannot answer
 | CS1 VM | `test-cs1vm`, `test-cs1` |
 | Net / protocol | `test-net-login`, `test-net-loopback`, `test-net-exec`, `test-net-out-resume`, `test-rsprot`, `test-rsprot-bridge`, `test-pktexec`, `test-pktpackets`, `test-entity-decode`, `test-walkmerge`, `test-ws-frame` |
 | rev-239 mock | `test-mock239-inbound`, `test-mock239-playerinfo`, `test-mock239-runclientscript`, `test-mock239-interface-setters`, `test-mock239-varp` |
-| mock230 | `test-mock230`, `test-mock230-dev`, `test-mock230-alt`, `test-mock230-bank`, `test-mock230-embed`, `test-mock230-param`, `test-mock230-loc`, `test-mock230-npc`, `test-mock230-interface-state` |
+| ToriRSServer | `test-ToriRSServer`, `test-torirsserver-dev`, `test-torirsserver-alt`, `test-torirsserver-bank`, `test-torirsserver-embed`, `test-torirsserver-param`, `test-torirsserver-loc`, `test-torirsserver-npc`, `test-torirsserver-interface-state` |
 | UI | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-ui-slots`, `test-chat-widgets`, `test-minimenu-world`, `test-minimap`, `test-social`, `test-debug-overlay-visual`, `bench-uitree` |
-| World / render | `test-world`, `test-world-builder`, `test-light-model`, `test-animation-object-step`, `test-scene-profiles`, `test-painters-occluders`, `test-painters-terrain-levels`, `test-scanline`, `test-rotate-blit`, `test-retained-renderer-leak`, `test-proctex-coverage` |
+| World / render | `test-world`, `test-world-builder`, `test-light-model`, `test-animation-object-step`, `test-scene-profiles`, `test-painters-occluders`, `test-painters-terrain-levels`, `test-scanline`, `test-raster-kernel`, `test-raster-kernel-pixel16`, `test-rotate-blit`, `test-retained-renderer-leak`, `test-proctex-coverage` |
 | Cache / IO | `test-io-wire`, `test-js5`, `test-js5-server`, `test-cache-trim`, `test-revconfig`, `test-bootmanifest`, `test-rsareabuf` |
 | State | `test-varp`, `test-varc`, `test-inv`, `test-loot-store`, `test-db`, `test-cmdbus`, `test-task-order`, `check-no-drain` |
 | Audio | `test-sound` |
@@ -1386,7 +1420,7 @@ scripts/flamegraph_torirs.sh           # builds EMBED_SERVER=1 TORIDRAW_OPT=1 fo
 
 ```sh
 make -C src MEMTRACE=1                 # -> src/torirs_mt (its own objdir, build_mt/)
-TORIRS_MEMTRACE_OUT=/tmp/boot.bin ./src/torirs_mt --manifest manifest_osrs239.ini --offline
+TORIRS_MEMTRACE_OUT=/tmp/boot.bin ./src/torirs_mt --manifest manifests/manifest_osrs239.ini --offline
 python3 tools/memtrace/summarize.py /tmp/boot.bin        # start here for a large trace
 python3 tools/memtrace/decode_memtrace.py /tmp/boot.bin  # per-event JSONL
 # then load the JSONL in tools/memtrace/viewer.html
@@ -1420,7 +1454,10 @@ That flavor statically links SDL, compiles `platform/asan_compat.c`, and links
 ASan allocator is initialising (LLVM #182943). `MallocScribble=1` remains a
 useful independent diagnostic, but it is not a substitute for this ASan build.
 
-For model face-order diagnostics, set `TORIDRAW_SORT_DEBUG=1`. It reports only
+For model face-order diagnostics, build with the debug facility compiled in
+(`rm -f src/build_opt/toridraw_unity.o && make -C src TORIDRAW_DEBUG_STATS=1
+...` — the `.u.c` files are not dependency-tracked, so the stale object has to
+go by hand) and then set `TORIDRAW_SORT_DEBUG=1`. It reports only
 vertex/face capacity failures, insufficient depth capacity, out-of-range face
 depths, and per-depth bucket overflow, which keeps a live-client capture
 manageable. Set `TORIDRAW_SORT_DEBUG=all` (or `2`) to emit the same counters for
@@ -1446,10 +1483,10 @@ fixed. The `tools/README.md` memtrace quick start was corrected to
 `make -C src MEMTRACE=1`.
 
 Everything else in this document was built and run successfully on macOS arm64:
-the native client, `lane-check-all`, the web lane, `mock230`, `js5_server`,
+the native client, `lane-check-all`, the web lane, `ToriRSServer`, `js5_server`,
 `sscompile`, all ten `3rd/rscache` tools, `dump_interface`, `dump_npc`,
 `make -C 3rd/rsprot test`, `make -C src test-cmdbus`, and a headless
-`manifest_osrs239.ini --offline` run that produced a frame.
+`manifests/manifest_osrs239.ini --offline` run that produced a frame.
 
 ### Common problems
 
@@ -1479,7 +1516,7 @@ Object directories are per-flavor, but debug and release **link the same
 
 **The client runs content nobody has written for weeks.**
 The script pack is a separate build from the binary, and an embedded server
-loads whatever `script.dat` was last compiled. Run `make -C src mock230-scripts`
+loads whatever `script.dat` was last compiled. Run `make -C src torirsserver-scripts`
 (or just use `run-live.sh`, which does it every time).
 
 **The client sits on "Connecting to server…" forever.**
@@ -1494,7 +1531,7 @@ reads groups locally. See [§8](#8-runelite--a-vanilla-oldschool-client).
 **A cache built from content boots with everything present and no compass,
 map scene or hitmarks.** Missing archive name identifiers — the client hashes a
 sprite name (djb2) and scans `archives[i].identifier`. A `--gamevals` bake
-provides them. `make -C src mock230-cache-check` also verifies every idx table
+provides them. `make -C src torirsserver-cache-check` also verifies every idx table
 landed.
 
 **`--opengl3` / `--webgl1` / `--d3d9` is rejected.**
@@ -1508,11 +1545,11 @@ regardless of what the GPU path put on screen. Use
 `TORIRS_GL3_READBACK=<path>` (with `TORIRS_GL3_READBACK_FRAME=<n>`) to capture
 the real framebuffer.
 
-**A stale server holds the port.** `pkill -f build/mock230`. That pattern is a
-*prefix* match, so it takes out anything named `mock230*` in that directory —
-which is exactly why the parallel-session binaries are named `dev_mock230`,
-`alt_mock230` and `bank_mock230` rather than `mock230_dev` and friends. A
-running dev server survives the usual cleanup; `mock230_dev` would not have.
+**A stale server holds the port.** `pkill -f build/torirsserver`. That pattern is a
+*prefix* match, so it takes out anything named `ToriRSServer*` in that directory —
+which is exactly why the parallel-session binaries are named `dev_torirsserver`,
+`alt_torirsserver` and `bank_torirsserver` rather than `ToriRSServer_Dev` and friends. A
+running dev server survives the usual cleanup; `ToriRSServer_Dev` would not have.
 `./run-osrs239.sh --stop` is the safer form for the RuneLite stack: it kills by
 PID, and only PIDs it wrote.
 
@@ -1553,7 +1590,7 @@ PID, and only PIDs it wrote.
 - [`docs/CONTENT_ARCHITECTURE.md`](docs/CONTENT_ARCHITECTURE.md) ·
   [`docs/CONTENT_PACK_PLAN.md`](docs/CONTENT_PACK_PLAN.md)
 - [`docs/serverscript.md`](docs/serverscript.md) — the RuneScript compiler and VM
-- [`docs/mock230_content.md`](docs/mock230_content.md)
+- [`docs/torirs_server_content.md`](docs/torirs_server_content.md)
 - [`3rd/rscache/tools/cachepack/README.md`](3rd/rscache/tools/cachepack/README.md)
 
 ### Client internals

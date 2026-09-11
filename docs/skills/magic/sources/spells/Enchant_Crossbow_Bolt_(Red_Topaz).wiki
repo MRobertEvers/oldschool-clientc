@@ -1,0 +1,39 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolt (Topaz)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 29
+|spellbook = Normal
+|type = Utility
+|exp = 33.5
+|cost = {{RuneReq|Cosmic=1|Fire=2}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on red topaz-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Topaz bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Topaz)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 29 to cast. It enchants 10 [[topaz bolts]] into [[topaz bolts (e)]] or 10 [[topaz dragon bolts]] into 10 [[topaz dragon bolts (e)]]. The enchantment gives the ''Down to Earth'' effect. This gives the bolt a chance of lowering the opponent's [[Magic]] level, but only works on other players.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Fire
+|Rune1num = 2
+|Rune2 = Cosmic
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 July 2022
+|update = Emir's Arena: Full Launch
+|change = The Magic skill guide now reflects the correct cost for the enchantment.
+}}
+{{Subject changes footer}}
+
+
+{{Standard spellbook}}

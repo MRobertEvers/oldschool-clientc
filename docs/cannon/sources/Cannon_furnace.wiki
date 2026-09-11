@@ -1,0 +1,42 @@
+{{External|rs|rsc=Dwarf cannon furnace}}
+{{Infobox Item
+|name = Cannon furnace
+|image = [[File:Cannon furnace.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = This powers the multicannon.
+|value = 187500
+|weight = 5.000
+|exchange = Yes
+|id = 12
+|leagueRegion = Asgarnia&Kandarin
+}}
+[[File:Cannon furnace detail.png|left|130x200px]]
+The '''cannon furnace''' powers the [[dwarf multicannon]]. It is the last part to be setup after the [[cannon barrels]]. Once setup, 30 [[steel cannonball]]s or [[granite cannonball]]s can be loaded for the dwarf multicannon to fire. It is purchased from [[Multicannon parts for sale]] for {{NoCoins|200625}} coins.
+
+==Products==
+{{Uses material list|Cannon furnace}}
+
+==Shop locations==
+{{Store locations list|Cannon furnace}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 14 September –<br/>5 October 2004
+|change = The item's examine was changed from "''Used to make the cannon's ammo.''" to "''This powers the multicannon.''"
+}}
+{{Subject changes footer}}
+
+{{Cannon}}
+{{Dwarf Cannon}}

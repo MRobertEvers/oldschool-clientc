@@ -1,0 +1,57 @@
+{{Otheruses|the teleport spell|the teleport tablet|Kourend castle teleport (tablet)}}
+{{Infobox Spell
+|name = Kourend Castle Teleport
+|image = [[File:Kourend Castle Teleport.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|members = Yes
+|level = 48
+|spellbook = Normal
+|type = Teleport
+|exp = 58
+|cost = {{RuneReq|Law=2|Water=1|Fire=1}}
+|speed = 4 ticks
+|quest = [[Client of Kourend]]
+|lectern = [[Teak eagle lectern|Teak eagle]]
+|description = Teleports you to Kourend Castle
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Kourend Castle Teleport icon (mobile).png|left|class=pageimage]]
+'''Kourend Castle Teleport''' teleports the player to the [[Kourend Castle]] courtyard, by the [[Statue (King Rada I)|statue of King Rada I]]. Completion of [[Client of Kourend]] is required to cast the spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 1
+|Rune3 = fire
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|1639,3676|1644,3676|1644,3671|1639,3671|mtype=polygon|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|poll = Varlamore Activities & Kourend Changes
+|change = 
+* The spell is now unlocked by completing [[Client of Kourend]], rather than through reading [[transportation Incantations]].
+* The Magic level required has been reduced from 69 to 48.
+* The experience gained has been reduced from 81.5 to 58.
+* The runes required have been changed; previously, it required 5 fire, 4 water, 2 soul, and 2 law runes.
+* The ability to craft [[magic tablet]]s for this spell has been added.
+* Players will no longer chant the incantation {{overhead|Thadior Agrula Elevo|color=yellow}} when using the teleport.
+}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = Spell name changed from "Teleport to Kourend" to "Kourend Castle Teleport".
+}}
+{{Subject changes footer}}
+{{Standard spellbook}}
+{{Teleport spells}}

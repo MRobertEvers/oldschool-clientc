@@ -340,7 +340,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/src/torirs",
       "args": ["--manifest",
-       "manifest_osrs230.ini",
+       "manifests/manifest_osrs230.ini",
        "--user",
        "debugcc",
        "--pass",

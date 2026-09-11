@@ -238,6 +238,14 @@ begin_source_query(
 /* Init / Free / Reset                                                       */
 /* ========================================================================= */
 
+static void
+loot_revision_bump(struct LootStore* store)
+{
+    store->revision++;
+    if( store->revision == 0 )
+        store->revision++;
+}
+
 void
 LootStore_Init(struct LootStore* store)
 {
@@ -245,6 +253,7 @@ LootStore_Init(struct LootStore* store)
     memset(store, 0, sizeof(*store));
     store->next_source_id = 1;
     store->next_event_id = 1;
+    store->revision = 1;
 }
 
 void
@@ -277,9 +286,18 @@ LootStore_Free(struct LootStore* store)
 void
 LootStore_ResetAll(struct LootStore* store)
 {
+    uint64_t revision;
+    uint64_t aux_revision[LOOT_AUX_KIND_MAX];
     assert(store);
+    revision = store->revision + 1;
+    if( revision == 0 )
+        revision++;
+    for( int i=0;i<LOOT_AUX_KIND_MAX;++i )
+    { aux_revision[i]=store->aux_revision[i]+1;if( !aux_revision[i] ) ++aux_revision[i]; }
     LootStore_Free(store);
     LootStore_Init(store);
+    store->revision = revision;
+    memcpy(store->aux_revision,aux_revision,sizeof(aux_revision));
 }
 
 /* ========================================================================= */
@@ -325,6 +343,7 @@ LootStore_AddKillLoot(
         {
             src->rows[i].qty += qty;
             src->rows[i].value += value * qty;
+            loot_revision_bump(store);
             return;
         }
     }
@@ -335,6 +354,7 @@ LootStore_AddKillLoot(
     row->obj_id = obj_id;
     row->qty = qty;
     row->value = value * qty;
+    loot_revision_bump(store);
 }
 
 /* ========================================================================= */
@@ -504,7 +524,10 @@ LootStore_AuxUpsert(
 
     if( !ensure_aux_capacity(aux) )
         return;
-    aux->entries[aux->count++] = strdup(str);
+    char* copy=strdup(str);
+    if( !copy ) return;
+    aux->entries[aux->count++] = copy;
+    if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
 }
 
 void
@@ -530,6 +553,7 @@ LootStore_AuxRemove(
             aux->entries[i] = aux->entries[aux->count - 1];
             aux->entries[aux->count - 1] = NULL;
             aux->count--;
+            if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
             return;
         }
     }
@@ -592,8 +616,12 @@ LootStore_AuxClear(
     assert(store);
     if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
         return;
+    if( store->aux[kind].count && !++store->aux_revision[kind] ) ++store->aux_revision[kind];
     free_aux(&store->aux[kind]);
 }
+
+uint64_t LootStore_AuxRevision(const struct LootStore* store,int kind)
+{ return store && kind>=0 && kind<LOOT_AUX_KIND_MAX ? store->aux_revision[kind] : 0; }
 
 int
 LootStore_AuxCountTotal(const struct LootStore* store)
@@ -732,10 +760,13 @@ void
 LootStore_ClearAll(struct LootStore* store)
 {
     assert(store);
+    if( store->source_count == 0 )
+        return;
     for( int i = 0; i < store->source_count; i++ )
         free_source(&store->sources[i]);
     store->source_count = 0;
     store->query_count = 0;
+    loot_revision_bump(store);
 }
 
 void
@@ -757,6 +788,7 @@ LootStore_ClearSourceByName(
                 0,
                 sizeof(struct LootSource));
             store->source_count--;
+            loot_revision_bump(store);
             return;
         }
     }
@@ -779,7 +811,15 @@ LootStore_RemoveById(
                 0,
                 sizeof(struct LootSource));
             store->source_count--;
+            loot_revision_bump(store);
             return;
         }
     }
+}
+
+uint64_t
+LootStore_Revision(const struct LootStore* store)
+{
+    assert(store);
+    return store->revision;
 }

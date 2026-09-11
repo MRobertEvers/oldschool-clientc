@@ -1,6 +1,16 @@
 #include "toridraw_sprite.h"
 
+/*
+ * The BMP export is the ONE thing in this library that reaches outside its own
+ * folder, and nothing in this tree calls it. Opt-in, so toridraw_unity.c
+ * compiles with -I<toridraw> alone -- which is what its own header promises and
+ * what an embedded client, which has no filesystem to write a BMP to, needs.
+ *
+ * Build with -DTORIDRAW_SPRITE_BMP_EXPORT and -I3rd/bmp to have it.
+ */
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 #include "bmp.h"
+#endif
 #include "graphics/dash_restrict.h"
 #include "toridraw_math.h"
 
@@ -128,6 +138,35 @@ ToriDraw_SpriteNewFromArgbOwned(
     return sprite;
 }
 
+unsigned char
+ToriDraw_SpriteAlphaClass(struct ToriDraw_Sprite* sprite)
+{
+    size_t n;
+    size_t i;
+
+    assert(sprite);
+    if( !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return TORIDRAW_SPRITE_ALPHA_MIXED;
+
+    if( sprite->alpha_class != TORIDRAW_SPRITE_ALPHA_UNKNOWN &&
+        sprite->alpha_class_src == sprite->pixels_argb )
+        return sprite->alpha_class;
+
+    n = (size_t)sprite->width * (size_t)sprite->height;
+    for( i = 0; i < n; i++ )
+    {
+        if( (sprite->pixels_argb[i] >> 24) != 255u )
+        {
+            sprite->alpha_class = TORIDRAW_SPRITE_ALPHA_MIXED;
+            sprite->alpha_class_src = sprite->pixels_argb;
+            return sprite->alpha_class;
+        }
+    }
+    sprite->alpha_class = TORIDRAW_SPRITE_ALPHA_ALL_OPAQUE;
+    sprite->alpha_class_src = sprite->pixels_argb;
+    return sprite->alpha_class;
+}
+
 void
 ToriDraw_Pix8Free(struct ToriDraw_Pix8* pix8)
 {
@@ -152,7 +191,7 @@ ToriDraw2D_BlitSprite(
     struct ToriDraw_ViewPort* view_port,
     int x_offset,
     int y_offset,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(view_port);
@@ -171,13 +210,13 @@ ToriDraw2D_BlitSprite(
 
 static void
 sprite_blend_pixel(
-    int* dst,
+    toripixel_t* dst,
     uint32_t src,
     int alpha)
 {
     if( alpha >= 255 )
     {
-        *dst = (int)src;
+        *dst = toripixel_pack_argb8888(src);
         return;
     }
     if( alpha <= 0 )
@@ -205,7 +244,8 @@ sprite_blend_pixel(
     int const r = (rn + (rn >> 8) + 1) >> 8;
     int const g = (gn + (gn >> 8) + 1) >> 8;
     int const b = (bn + (bn >> 8) + 1) >> 8;
-    *dst = (int)(0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
+    *dst = toripixel_pack_argb8888(
+        0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
 }
 
 void
@@ -215,7 +255,7 @@ ToriDraw2D_BlitSpriteAlpha(
     int x_offset,
     int y_offset,
     int alpha,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -261,7 +301,7 @@ ToriDraw2D_BlitSpriteAlpha(
     for( int y = y_begin; y < y_stop; y++ )
     {
         uint32_t const* RESTRICT srow = sprite->pixels_argb + (size_t)y * src_w;
-        int* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
+        toripixel_t* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
 
         for( int x = x_begin; x < x_stop; x++ )
         {
@@ -284,7 +324,7 @@ ToriDraw2D_BlitSprite_subrect(
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -327,7 +367,7 @@ ToriDraw2D_BlitSprite_subrect(
     for( int y = y_begin; y < y_stop; y++ )
     {
         uint32_t const* RESTRICT srow = sprite->pixels_argb + (size_t)(src_y + y) * sw + src_x;
-        int* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
+        toripixel_t* RESTRICT drow = pixel_buffer + (size_t)(y + y_offset) * stride + x_offset;
 
         for( int x = x_begin; x < x_stop; x++ )
         {
@@ -335,7 +375,7 @@ ToriDraw2D_BlitSprite_subrect(
             if( pixel == 0 )
                 continue;
 
-            drow[x] = (int)pixel;
+            drow[x] = toripixel_pack_argb8888((uint32_t)pixel);
         }
     }
 }
@@ -353,7 +393,7 @@ ToriDraw2D_BlitSpriteRotatedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -411,7 +451,7 @@ ToriDraw2D_BlitSpriteRotatedEx(
                 int by = src_crop_y + sy;
                 uint32_t src_pixel = sprite->pixels_argb[by * src_stride + bx];
                 if( src_pixel != 0 )
-                    pixel_buffer[dst_y_abs * dst_stride + dst_x_abs] = (int)src_pixel;
+                    pixel_buffer[dst_y_abs * dst_stride + dst_x_abs] = toripixel_pack_argb8888((uint32_t)src_pixel);
             }
         }
     }
@@ -432,7 +472,7 @@ ToriDraw2D_BlitSpriteRotatedMaskedEx(
     int src_anchor_x,
     int src_anchor_y,
     int rotation_r2pi2048,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -509,7 +549,7 @@ ToriDraw2D_BlitSpriteRotatedMaskedEx(
                 int by = src_crop_y + sy;
                 uint32_t src_pixel = sprite->pixels_argb[by * src_stride + bx];
                 if( src_pixel != 0 )
-                    pixel_buffer[dst_y_abs * dst_stride + dst_x_abs] = (int)src_pixel;
+                    pixel_buffer[dst_y_abs * dst_stride + dst_x_abs] = toripixel_pack_argb8888((uint32_t)src_pixel);
             }
         }
     }
@@ -525,7 +565,7 @@ ToriDraw2D_BlitSpriteTiled(
     int rect_h,
     int origin_x,
     int origin_y,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -568,7 +608,7 @@ ToriDraw2D_BlitSpriteTiled(
             uint32_t const pixel = sprite->pixels_argb[sx + sy * sw];
             if( pixel == 0 )
                 continue;
-            pixel_buffer[dst_row + x] = (int)pixel;
+            pixel_buffer[dst_row + x] = toripixel_pack_argb8888((uint32_t)pixel);
         }
     }
 }
@@ -584,7 +624,7 @@ ToriDraw2D_BlitSpriteRotated(
     int width,
     int height,
     int rotation_r2pi2048,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -633,7 +673,7 @@ ToriDraw2D_BlitSpriteRotated(
                 {
                     uint32_t pixel = sprite->pixels_argb[sx + sy * sw];
                     if( pixel != 0 )
-                        pixel_buffer[dst_x] = (int)pixel;
+                        pixel_buffer[dst_x] = toripixel_pack_argb8888((uint32_t)pixel);
                 }
             }
             src_x += cos_zoom;
@@ -654,7 +694,7 @@ ToriDraw2D_BlitSpriteMasked(
     struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(sprite);
     assert(sprite->pixels_argb);
@@ -695,7 +735,7 @@ ToriDraw2D_BlitSpriteMasked(
             uint32_t pixel = sprite->pixels_argb[col + row * sw];
             if( pixel == 0 )
                 continue;
-            pixel_buffer[dst_y * stride + dst_x] = (int)pixel;
+            pixel_buffer[dst_y * stride + dst_x] = toripixel_pack_argb8888((uint32_t)pixel);
         }
     }
 }
@@ -972,6 +1012,7 @@ ToriDraw_SpriteFree(struct ToriDraw_Sprite* sprite)
     free(sprite);
 }
 
+#ifdef TORIDRAW_SPRITE_BMP_EXPORT
 int
 ToriDraw_SpriteWriteBmpFile(
     struct ToriDraw_Sprite const* sprite,
@@ -1030,3 +1071,4 @@ ToriDraw_SpriteWriteBmpFile(
     free(pixels);
     return 0;
 }
+#endif /* TORIDRAW_SPRITE_BMP_EXPORT */

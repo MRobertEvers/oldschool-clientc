@@ -15,16 +15,18 @@
 # own OBJ_DIR, so flavors never share .o's.
 #
 # TORIDRAW_OPT=1 compiles the Soft3D/ToriDraw unity at -O2 while the rest of
-# the client stays at OPT's level (default -O0). Same idea as COMPRESS_CFLAGS
-# (always -O3) and tommath.o (always -O2): hot kernels get their own flag
-# without forcing a full-client release build. The harness uses this so a
-# -O0 client can still hit 50 fps. Needs its own OBJ_DIR suffix — mixing
-# toridraw_unity.o built at -O0 with one at -O2 is silently wrong.
+# the client stays at OPT's level (-O3 at OPT=1; at OPT=0 whatever the lane
+# asks for in PLATFORM_DEBUG_O_LEVEL, which is -O0 everywhere but web).
+# Same idea as COMPRESS_CFLAGS (always -O3) and tommath.o (always -O2): hot
+# kernels get their own flag without forcing a full-client release build. The
+# harness uses this so a debug client can still hit 50 fps. Needs its own
+# OBJ_DIR suffix — mixing toridraw_unity.o built at one level with one
+# built at another is silently wrong.
 
 # Optimised by default. The debug flavor is a deliberate ask (OPT=0, or the
 # per-lane `*-debug` targets), not the thing you get by forgetting a flag: an
 # -O0 client is slow enough to change what you are looking at, and every
-# iteration loop here — boot, load an arena, capture a frame — pays for it.
+# iteration loop here â boot, load an arena, capture a frame â pays for it.
 # The two flavors still keep separate OBJ_DIRs, so switching costs a rebuild
 # rather than a silently mixed one.
 OPT ?= 1
@@ -58,7 +60,7 @@ TORIDRAW_NO_SIMD ?= 0
 #   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
 TORIDRAW_OPT ?= 0
 # EMBED_SERVER=1 links the rev-230 server into the client. Its own OBJ_DIR
-# suffix (_es) so switching embed ↔ plain never reuses a net_transport_embed.o
+# suffix (_es) so switching embed â plain never reuses a net_transport_embed.o
 # compiled without -DTORIRS_EMBED_SERVER=1 (that symptom is a silent stub).
 EMBED_SERVER ?= 0
 
@@ -70,6 +72,13 @@ EMBED_SERVER ?= 0
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 
+# Every text file in this tree is UTF-8, and the python3 check/generate scripts
+# read them with the interpreter's default encoding. On Windows that default is
+# the ANSI codepage (cp1252), which dies on the first curly quote in a docs
+# file. Force UTF-8 mode for every python this make spawns; on POSIX hosts the
+# default is UTF-8 already and this is a no-op.
+export PYTHONUTF8 := 1
+
 # Every recipe here is POSIX sh (rm -rf, mkdir -p, cp, `for` loops). On Windows
 # GNU make looks for sh.exe on PATH and falls back to cmd.exe when it cannot
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
@@ -77,7 +86,7 @@ SRC_DIR      := $(REPO_ROOT)/src
 # the actual cause. Catch it here instead. Git for Windows ships a usable sh at
 # <Git>\usr\bin; the Windows PowerShell wrappers put it on PATH for you.
 ifeq ($(SHELL),sh.exe)
-$(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
+$(error no POSIX sh on PATH â this makefile needs one (Git for Windows ships \
 one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use \
 build_winxp.ps1/build_windows.ps1, which do it for you)
 endif
@@ -92,6 +101,11 @@ ifeq ($(MEMTRACE),1)
 MEMTRACE_SUFFIX = _mt
 else
 MEMTRACE_SUFFIX =
+endif
+ifeq ($(MEMPROF),1)
+MEMPROF_SUFFIX = _mp
+else
+MEMPROF_SUFFIX =
 endif
 ifeq ($(ENABLE_ASAN),1)
 ASAN_SUFFIX = _asan
@@ -117,17 +131,114 @@ ifeq ($(EMBED_SERVER),1)
 EMBED_SERVER_SUFFIX = _es
 else
 EMBED_SERVER_SUFFIX =
+# PROFILE=1 changes CFLAGS, so it must own its object directory: reusing the
+# release objects would silently link a profile build with no frame pointers
+# and no DWARF in anything that did not happen to be rebuilt.
+PROFILE_SUFFIX =
+ifeq ($(PROFILE),1)
+PROFILE_SUFFIX = _prof
+endif
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(PROFILE_SUFFIX)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
-O_LEVEL = -O0
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
+endif
+
+# What OPT=1 adds beyond -O3. These were not in this makefile: the XP profiling
+# build that produced docs/winxp_profiles/analysis.md carried them on the
+# command line, so the numbers on record describe flags no `make OPT=1` could
+# reproduce. Both belong in the release configuration itself.
+#
+#   -flto=auto The client is built as a handful of large unity TUs plus a few
+#              hundred ordinary ones. Cross-TU inlining is exactly what the
+#              unity files exist to fake, and LTO does it without the
+#              #include-a-.c arrangement. Wants matching flags at link, which
+#              PLATFORM_LDFLAGS already supplies for this lane (-O3 -g0).
+#              `=auto` rather than bare `-flto`: with no job count lto-wrapper
+#              runs all ~66 LTRANS partitions one after another and says so
+#              ("using serial compilation of N LTRANS jobs"), which is both the
+#              slowest way to link this and a warning in every OPT=1 build.
+#
+#   -DNDEBUG   Compiles out assert(). This is the shipping lane, so asserts are
+#              a debug-build check and CLAUDE.md says so. It is safe in the
+#              narrow mechanical sense: all 45 assert() sites in src/ and
+#              3rd/toridraw that wrap a call wrap a pure predicate
+#              (World_EntityPoolIsActive, td_scene_element_valid,
+#              ToriDraw_SceneHasZBuffer, ...), so nothing with a side effect
+#              vanishes with the macro. What it does cost is the loud abort:
+#              an assert()ed malloc becomes an unchecked one. It also costs the
+#              optimizer what the assert proved -- an accessor that returns NULL
+#              for a bad index reads to LTO as a genuinely reachable NULL once
+#              the assert ruling it out is gone, which is why the entity pool
+#              and the intrusive list have asserting *At() accessors alongside
+#              the NULL-returning *Get().
+#
+# LTO IS OFF ON THE WEB LANE, and not as a preference.
+#
+# emcc resolves --js-library dependencies after LTO codegen has run. Two of
+# ours (platform/platform_web_io.js) pull ntohs and htonl, so wasm-ld reaches
+# for libc *late* -- and with -flto it reaches into the LTO sysroot, whose
+# members are bitcode. That is the one thing it cannot accept at that point:
+#
+#   wasm-ld: error: .../lib/wasm32-emscripten/lto/libc.a(ntohs.o):
+#            attempt to add bitcode file after LTO (ntohs)
+#
+# It names neither our code nor the flag that caused it, and it is not
+# recoverable from inside the build: dropping the flag at link alone is not
+# enough, because -flto in CFLAGS is what selects the bitcode sysroot in the
+# first place. So both go, together, for PLATFORM=web only.
+#
+# What that costs is cross-TU inlining on the wasm module. What it buys is a
+# web lane that links -- it did not, before this.
+ifeq ($(OPT),1)
+ifeq ($(PLATFORM),web)
+OPT_RELEASE_CFLAGS  = -DNDEBUG
+OPT_RELEASE_LDFLAGS =
+else
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
+OPT_RELEASE_LDFLAGS = -flto=auto
+endif
+else
+OPT_RELEASE_CFLAGS  =
+OPT_RELEASE_LDFLAGS =
+endif
+
+# The optimized XP deliverable is a deployment binary, not a profiling build.
+# Let the i686 register allocator reclaim EBP and do not carry DWARF through
+# every object. Other lanes retain their existing diagnostic-friendly flags.
+#
+# PROFILE=1 opts the optimized lane back into frame pointers and DWARF, for a
+# sampling profile of the build that actually ships. It is deliberately a knob
+# on OPT=1 rather than a reason to profile OPT=0: an -O0 profile measures code
+# nobody runs, and the two disagree about which function is even hot.
+#
+# The cost is one register and slightly larger objects, not a different program
+# -- -g changes no codegen at all. Note the hand-written asm kernels use EBP as
+# a scratch register, so a frame-pointer walk terminates on entry to them: their
+# samples are correct as LEAVES (the flat EIP histogram is unaffected) but carry
+# no callers. The histogram is the ground truth for "where"; the stacks are the
+# call tree for the C around it.
+#
+# Every platform, not only win32: the shipping OPT=1 build carries neither the
+# frame pointer nor DWARF. A sampling profile of it wants both (simpleperf's
+# fp call graphs on Android, the XP EIP profiles), and that is what PROFILE=1
+# is for -- it owns its own object directory (PROFILE_SUFFIX), so the two
+# flavours never share an object.
+ifeq ($(OPT),1)
+ifeq ($(PROFILE),1)
+BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
+else
+BUILD_DIAGNOSTIC_CFLAGS = -fomit-frame-pointer
+endif
+else
+BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
 # join them: MEMTRACE is a long-running capture, and `make -C src all` in
-# another terminal would silently replace it mid-session — the symptom being a
+# another terminal would silently replace it mid-session â the symptom being a
 # run that writes no trace at all. Which lanes can afford the rename is
 # PLATFORM_TARGET_MEMTRACE_SUFFIX in platform.mk (the web target keeps its
 # name, which the page's <script src> is written against).
@@ -136,20 +247,20 @@ TARGET = $(PLATFORM_TARGET)$(PLATFORM_TARGET_MEMTRACE_SUFFIX)
 else
 TARGET = $(PLATFORM_TARGET)
 endif
-# The compiler for tools that run on THIS machine — cachepack, the port
+# The compiler for tools that run on THIS machine â cachepack, the port
 # helpers, anything under 3rd/*/tools. It is deliberately not $(CC).
 #
 # $(CC) is the *target* compiler: on the win32 lane that is the i686 XP
-# toolchain, and building cachepack with it produced a 32-bit tool — which is
+# toolchain, and building cachepack with it produced a 32-bit tool â which is
 # the one program here that has to chew through a whole cache, and the reason a
 # bake ran for tens of minutes. A host tool has no reason to be built for the
 # target; XP never runs it.
 #
-# Preference order: the toolchain vendored at toolchain/mingw64 (see
+# Preference order: the toolchain vendored at toolchains/mingw64 (see
 # tools/toolchain/README.md), then a 64-bit cross-compiler on PATH, then
-# whatever the lane uses — so this degrades to the old behaviour rather than
+# whatever the lane uses â so this degrades to the old behaviour rather than
 # failing on a machine with neither.
-TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchain/mingw64/bin/gcc.exe
+TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchains/mingw64/bin/gcc.exe
 HOST_CC ?= $(strip \
     $(if $(wildcard $(TOOLCHAIN_MINGW64_CC)),$(TOOLCHAIN_MINGW64_CC), \
     $(if $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null),x86_64-w64-mingw32-gcc, \
@@ -157,7 +268,7 @@ HOST_CC ?= $(strip \
 
 # Sub-make into a vendored tool tree. Those makefiles default to `CC ?= cc`,
 # which exists on macOS and Linux but not in a MinGW toolchain (gcc only), so
-# `make -C src mock230-servpack` on Windows died in the child with a bare
+# `make -C src torirsserver-servpack` on Windows died in the child with a bare
 # "The system cannot find the file specified". `?=` there means this wins
 # without the vendored files needing to change.
 SUBMAKE = $(MAKE) CC=$(HOST_CC)
@@ -176,23 +287,27 @@ TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
+LUA_DIR      := $(REPO_ROOT)/3rd/lua
+STB_DIR      := $(REPO_ROOT)/3rd/stb
 
 # -Werror=incompatible-pointer-types: passing a `T**` where a `T*` is wanted is
 # not a style question, it is a wrong pointer that compiles. It bit twice while
 # the widget structs were being changed from inline members to lazily-allocated
-# ones — every `&c->field` site silently became one type deeper. One of them,
+# ones â every `&c->field` site silently became one type deeper. One of them,
 # `menu_has_ops(&node->menu_options)`, dropped 107 components out of the UI tree
 # and said nothing; it was found by diffing `torirs_stats` against the previous
 # binary, which is not a thing anyone should have to do to catch a type error.
 # Scoped rather than a blanket -Werror: the tree still carries unused-variable
 # and sign-compare warnings that are not worth failing a build over.
-CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra \
-	-Werror=incompatible-pointer-types -g -MMD -MP \
+CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
+	-Werror=incompatible-pointer-types -MMD -MP \
+	$(TORIDRAW_PROBE_CFLAGS) $(PAINTERS_PROBE_CFLAGS) \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas \
+	-I$(STB_DIR) \
 	$(RSPROT_HDR_INCLUDES)
 
 # Just the two directories holding rsprot's headers, for the main build.
@@ -202,10 +317,10 @@ CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra \
 # resolve somewhere new. The net stack needs the buffer, not the search path.
 #
 # Defined with `=` and used above before it is defined, which make allows for
-# recursive variables — CFLAGS is expanded at use, not here.
+# recursive variables â CFLAGS is expanded at use, not here.
 RSPROT_HDR_INCLUDES = -I$(RSPROT_DIR)/src -I$(RSPROT_DIR)/include -I$(RSPROT_DIR)
 
-RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
@@ -238,10 +353,10 @@ RSPROT_INCLUDES = \
 	-I$(REPO_ROOT) \
 	-I$(REPO_ROOT)/3rd/xteas
 
-RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+RSPROT_CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	$(RSPROT_INCLUDES)
 
-COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
+COMPRESS_CFLAGS = -std=c11 -O3 $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	-I$(REPO_ROOT)/3rd/bzip \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
@@ -253,19 +368,135 @@ TORIDRAW_O_LEVEL = -O2
 else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
-TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+# Raster probes, off unless asked for. The rasterizer's measurement gates are
+# compile-time (census/span_census.h, census/raster_ablate.h)
+# because a runtime branch in the innermost span loop taxes the very thing it
+# is there to measure. `?=` so this can be set from the environment and reach a
+# build driven by ./launch, which does not forward make arguments:
+#
+#   rm -f src/build_win64_opt/toridraw_unity.o     # not dep-tracked for -D
+#   TORIDRAW_PROBE_CFLAGS=-DTORIDRAW_SPAN_TRACE=1 ./launch bench osrs239-bench ...
+#
+# Removing the unity object by hand is not optional: the .u.c files it pulls in
+# are not dependency-tracked, and an added -D forces no rebuild on its own.
+TORIDRAW_PROBE_CFLAGS ?=
+
+# The render/raster debug facility (3rd/toridraw/toridraw_debug.u.c, gated by
+# 3rd/toridraw/toridraw_debug.h) is compile-time for the same reason: its sites
+# are per-model and per-face on the render path. These are shorthand for adding
+# the -D to the probe flags above; the env vars of the same names then select
+# within the facility at run time, so an instrumented binary is still silent
+# until asked.
+#
+#   rm -f src/build_opt/toridraw_unity.o
+#   make -C src TORIDRAW_DEBUG_STATS=1 ...    counters, printers, harnesses
+#   make -C src TORIDRAW_DEBUG_NDJSON=1 ...   the above plus the NDJSON log
+#
+# The second implies the first; toridraw_debug.h is where that is decided.
+ifeq ($(TORIDRAW_DEBUG_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_STATS=1
+endif
+ifeq ($(TORIDRAW_DEBUG_NDJSON),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_DEBUG_NDJSON=1
+endif
+
+# The batched walk's census (3rd/toridraw/graphics/batch_stats.h): how much of a
+# frame reaches a presorted kernel. Three of its four counters sit inside the
+# per-face loop of the walk they measure, so it is compile-time and there is no
+# env var within it -- a build that has it reports at exit.
+#
+#   make -C src TORIDRAW_BATCH_STATS=1 ...
+ifeq ($(TORIDRAW_BATCH_STATS),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_BATCH_STATS=1
+endif
+
+# The winding-handedness bisect (3rd/toridraw/graphics/winding.h): cull the
+# opposite screen-space winding, for checking whether an imported model's faces
+# are wound against the engine convention. Compile-time because it answers the
+# same for every face in the process; see the header for why it is not an env
+# var like the sort's kernel knobs.
+#
+#   make -C src TORIDRAW_FLIP_WINDING=1 ...
+ifeq ($(TORIDRAW_FLIP_WINDING),1)
+TORIDRAW_PROBE_CFLAGS += -DTORIDRAW_FLIP_WINDING=1
+endif
+
+# The painter debug facility (painters/debug/painters_debug.u.c, gated by
+# painters/debug/painters_debug.h) is compile-time for the same reason: the
+# wedge log alone has ~25 sites inside the bucket drain loop, and a runtime
+# branch there taxes the traversal it is measuring. The env vars named in that
+# header then select within the facility at run time, so an instrumented binary
+# is still silent until asked.
+#
+#   make -C src PAINTERS_DEBUG=1 ...   wedge log, draw-order dump, world-entity
+#                                      trace, and the two debugger traps
+#
+# Global rather than a painter-only flag: app.c hands the wedge log the eye it
+# is about to paint with, so the gate has to reach that translation unit too.
+PAINTERS_PROBE_CFLAGS ?=
+ifeq ($(PAINTERS_DEBUG),1)
+PAINTERS_PROBE_CFLAGS += -DPAINTERS_DEBUG=1
+endif
+
+TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
+	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
+
+# The M4-tuned projection file uses Mach-O assembly and a private eight-register
+# ABI, so enable it only for native Apple arm64 SIMD builds. Every other lane
+# keeps the existing portable SIMD/scalar dispatch.
+TORIDRAW_PROJECTION_ASM_OBJ =
+ifeq ($(PLATFORM),macos)
+ifeq ($(shell uname -m),arm64)
+ifneq ($(TORIDRAW_NO_SIMD),1)
+TORIDRAW_CFLAGS += -DTORIDRAW_APPLE_NEON_PROJECTION_ASM=1
+TORIDRAW_PROJECTION_ASM_OBJ = $(OBJ_DIR)/projection16.aarch64.o
+endif
+endif
+endif
 
 # Toolchain, SDL and link flags come from the selected platform block. The
 # base subset also reaches the vendored units: a platform whose libc hides
 # strdup behind a feature macro hides it from 3rd/ too.
-CFLAGS += $(PLATFORM_CFLAGS)
+CFLAGS += $(PLATFORM_CFLAGS) $(PLATFORM_CHROME_EXEC_CFLAGS)
 RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
 RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
+
+# Empty unless OPT=1; see the definition above. Every compile that feeds the
+# final link gets these, because a partly-LTO link is a silently partly-
+# optimized one -- GCC accepts the mixture and just leaves the plain objects
+# out of the whole-program pass.
+CFLAGS          += $(OPT_RELEASE_CFLAGS)
+RSCACHE_CFLAGS  += $(OPT_RELEASE_CFLAGS)
+RSPROT_CFLAGS   += $(OPT_RELEASE_CFLAGS)
+COMPRESS_CFLAGS += $(OPT_RELEASE_CFLAGS)
+TORIDRAW_CFLAGS += $(OPT_RELEASE_CFLAGS)
+LDFLAGS         += $(OPT_RELEASE_LDFLAGS)
+
+# Neither sanitizer exists on the Windows lanes, and that is not a matter of
+# picking a better toolchain: GCC's libsanitizer has no *-w64-mingw32 entry in
+# its configure.tgt, so no MinGW build -- the repository's included -- ships
+# libasan, libubsan, or the libsanitizer.spec the driver reads. The flags
+# COMPILE there; it is the LINK that dies, after every object in the tree, with
+# "cannot read spec file 'libsanitizer.spec'" -- a message naming neither the
+# flag that asked for it nor the lane that cannot have it. Say it here, at
+# parse time, before anything is built.
+ifneq ($(filter $(PLATFORM),win32 win64),)
+ifeq ($(ENABLE_ASAN),1)
+$(error ENABLE_ASAN=1 is impossible on PLATFORM=$(PLATFORM): GCC has no \
+sanitizer runtime for MinGW. Use MEMPROF=1 or MEMTRACE=1 for heap work on \
+this lane, or run the ASan flavor on the macOS/Linux lane)
+endif
+ifeq ($(ENABLE_UBSAN),1)
+$(error ENABLE_UBSAN=1 is impossible on PLATFORM=$(PLATFORM): GCC has no \
+sanitizer runtime for MinGW, so -fsanitize=undefined has no libubsan to link. \
+Run the UBSan flavor on the macOS/Linux lane)
+endif
+endif
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
@@ -281,7 +512,7 @@ endif
 endif
 
 ifeq ($(TORIDRAW_NO_SIMD),1)
-# The selection ladder in graphics/projection16_simd.u.c (and its zdiv twin)
+# The selection ladder in impl/projection/projection.perspective.plain.dispatch.u.c
 # picks a kernel from the host's ISA macros unless the matching *_DISABLED is
 # defined. Define all of them and every host lands on the scalar file.
 TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
@@ -312,7 +543,7 @@ ASAN_DYLD_SHIM ?=
 # ASan hooks the same functions, so the two cannot be combined.
 ifeq ($(MEMTRACE),1)
 ifeq ($(ENABLE_ASAN),1)
-$(error MEMTRACE=1 and ENABLE_ASAN=1 both hook malloc — pick one)
+$(error MEMTRACE=1 and ENABLE_ASAN=1 both hook malloc â pick one)
 endif
 MEMTRACE_CFLAGS := -DTORIRS_MEMTRACE=1 \
 	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
@@ -324,26 +555,61 @@ TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
 LDFLAGS += $(PLATFORM_MEMTRACE_WRAP_LDFLAGS)
 endif
 
+# --- Retained-heap profiling (MEMPROF=1) ---------------------------------
+# Windows-only sibling of MEMTRACE, and mutually exclusive with it: both define
+# the same __wrap_ entry points. This one keeps live totals per call site rather
+# than a timeline, so it answers "what is still allocated at exit, and by whom".
+# Its own wrap list rather than PLATFORM_MEMTRACE_WRAP_LDFLAGS -- ld errors on
+# a wrapped symbol whose __wrap_ half nobody defines, and this file defines
+# five of the seven that list names.
+# -g only: the profiler reads __builtin_return_address(0), not the stack, so the
+# frame pointer stays omitted and the lane keeps the codegen it is measuring.
+ifeq ($(MEMPROF),1)
+ifeq ($(MEMTRACE),1)
+$(error MEMPROF=1 and MEMTRACE=1 both define __wrap_malloc - pick one)
+endif
+ifeq ($(ENABLE_ASAN),1)
+$(error MEMPROF=1 and ENABLE_ASAN=1 both hook malloc - pick one)
+endif
+MEMPROF_CFLAGS := -DTORIRS_MEMPROF=1 -g \
+	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+CFLAGS          += $(MEMPROF_CFLAGS)
+RSCACHE_CFLAGS  += $(MEMPROF_CFLAGS)
+RSPROT_CFLAGS   += $(MEMPROF_CFLAGS)
+COMPRESS_CFLAGS += $(MEMPROF_CFLAGS)
+TORIDRAW_CFLAGS += $(MEMPROF_CFLAGS)
+LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc \
+	-Wl,--wrap=free -Wl,--wrap=strdup
+endif
+
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
+SRCS = main.c executor_config.c app.c pacer.c \
+	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+	platform/platform_app_icon.c \
+	platform/platform_memory.c \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
+	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
+	input/torirs_touch.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	game/rs_hitsplat.c engine/dat2/task_dat2_hitsplat_load.c \
+	game/rs_healthbar.c engine/dat2/task_dat2_healthbar_load.c \
 	game/rs_soundscape.c engine/dat2/task_dat2_soundscape_load.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
-	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \
+	game/rs_chat.c game/rs_gameproto_exec.c \
+	game/rs_title.c game/rs_login_replies.c game/rs_preload.c \
+	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
@@ -362,7 +628,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/torirs_enum_from_rscache.c engine/torirs_struct_from_rscache.c \
 	engine/torirs_paramtype_from_rscache.c engine/torirs_db.c \
 	engine/torirs_worldmap_from_rscache.c \
-	engine/png_decode.c \
+	engine/png_decode.c engine/jpeg_decode.c engine/title_panel.c engine/title_flames.c \
+	engine/boot_bar.c \
+	engine/dat2/task_dat2_title_panel_load.c \
 	engine/uitree_from_component.c engine/texture_palette_bake.c \
 	engine/dat1/dat1_buildcache.c engine/dat1/task_dat1_model_load.c \
 	engine/dat1/task_dat1_component_pack_load.c engine/dat1/task_dat1_clientscript_load.c \
@@ -377,15 +645,19 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/dat2/dat2_buildcache.c engine/dat2/dat2_group_cache.c \
 	engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
+	engine/dat2/task_dat2_clientscript_table_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
 	engine/dat2/task_dat2_idk_load.c \
 	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
+	engine/dat2/task_dat2_preload.c \
+	engine/dat1/task_dat1_preload.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
+	engine/dat2/task_dat2_defaults_sprite_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
-	engine/dat2/task_dat2_param_load.c \
+	engine/dat2/task_dat2_param_load.c engine/dat2/task_dat2_invtype_load.c \
 	engine/dat2/task_dat2_varbit_load.c engine/dat2/task_dat2_varp_load.c \
 	engine/dat1/task_dat1_varbit_load.c \
 	engine/dat2/task_dat2_dbrow_load.c engine/dat2/task_dat2_dbindex_load.c \
@@ -414,19 +686,24 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
-	game/rs_prefs.c game/task_prefs_io.c \
+	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
-	engine/uitree_anim.c engine/entity_model_build.c \
-	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
+	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
-	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
-	engine/torirs_debug_font_baked.c \
+	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
+	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
+	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
+	ui/torirs_chrome_panel_draw.c \
+	ui/torirs_chrome_rail.c \
+	ui/torirs_chrome_inkwell.c \
+	ui/torirs_chrome_mirror.c \
+	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -439,8 +716,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	net/rev/packets/pkt_rebuild_region.c \
 	net/rev/gameproto_rev_params.c net/rev/rsprot_bridge.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c net/rev/lc289/lc289_entity_info.c \
 	bootmanifest/bootmanifest.c features/features.c \
-	platform/sockstream.c platform/platform_socket.c \
+	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c \
@@ -450,10 +728,37 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
 	net/rev/osrs239/osrs239_entity_info.c \
-	revconfig/revconfig.c revconfig/revconfig_load.c \
+	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+	world/worldview.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c \
 	engine/world_builder/task_world_load.c \
+	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
+	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
+	editor/editor_host_remote.c editor/editor_panel.c \
+	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
+	render/torirs_polygon.c render/torirs_arc.c \
+	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
+	game/rs_client_trigger.c \
+	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+	plugin/torirs_plugin_registry.c \
+	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
+	plugin/plugins/client_settings.c \
+	plugin/plugins/feature_flags.c \
+	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
+	plugin/plugins/minimap_orbs.c \
+	plugin/plugins/xp_orbs.c \
+	plugin/plugins/gameframe.c \
+	plugin/plugins/mobile_gameframe.c \
+	plugin/plugins/item_stats.c \
+	plugin/plugins/plugin_draw.c \
+	plugin/plugins/xp_tracker.c \
+	plugin/plugins/loot_tracker.c \
+	plugin/plugins/nxt_highlight.c \
+	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -461,49 +766,62 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
 endif
+ifeq ($(MEMPROF),1)
+SRCS += platform/torirs_memprof_win32.c
+endif
 
 # Defined up here, above both the EMBED_SERVER block and the $(TARGET) rule.
 # $(TARGET): $(OBJS) expands its prerequisites when the makefile is *read*,
-# while its recipe expands them when it *runs* — so a definition placed after
+# while its recipe expands them when it *runs* â so a definition placed after
 # that rule links objects it never listed as prerequisites, and the build fails
 # with "no such file or directory: build/ssvm.o" for things it never compiled.
 SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
-MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
-	net/mock/mock230_interface_state.c \
-	net/mock/mock239_playerinfo.c \
-	net/mock/mock239_interface_setters.c \
-	net/mock/mock239_varp.c \
-	net/mock/mock239_interface_inbound.c \
-	net/mock/mock239_runclientscript.c \
-	net/mock/mock239_inbound.c \
-	net/mock/mock230_objinfo.c \
-	net/mock/mock230_split.c \
-	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
-	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_db.c \
-	net/mock/mock230_paramtable.c \
-	net/mock/mock230_locinfo.c net/mock/mock230_structinfo.c \
-	net/mock/mock230_dbinfo.c \
-	net/mock/mock230_ops_db.c \
-	net/mock/mock230_ops_param.c \
-	net/mock/mock230_ops_loc.c \
-	net/mock/mock230_ops_npc.c \
-	net/mock/mock230_ops_obj.c \
-	net/mock/mock230_ops_inv.c \
-	net/mock/mock230_ops_player.c \
-	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
-	net/mock/mock230_shop.c \
-	net/mock/mock230_friends.c \
-	net/mock/mock230_ids.c \
-	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
-	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
-	net/mock/mock230_zone.c net/mock/mock230_zone_index.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
+	torirsserver/torirs_server_world_selftest.c \
+	torirsserver/torirs_server_cox_sim.c \
+	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
+	torirsserver/torirs_server_interface_state.c \
+	torirsserver/torirs_server_poh.c \
+	torirsserver/mock239_playerinfo.c \
+	net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
+	torirsserver/mock239_interface_setters.c \
+	torirsserver/mock239_varp.c \
+	torirsserver/mock239_interface_inbound.c \
+	torirsserver/mock239_runclientscript.c \
+	torirsserver/mock239_inbound.c \
+	torirsserver/torirs_server_objinfo.c \
+	torirsserver/torirs_server_split.c \
+	torirsserver/torirs_server_runenergy.c \
+	torirsserver/torirs_server_healthbarinfo.c \
+	torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_combat.c torirsserver/torirs_server_seqinfo.c \
+	torirsserver/torirs_server_hpbar.c \
+	torirsserver/torirs_server_helper.c \
+	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_db.c \
+	torirsserver/torirs_server_paramtable.c \
+	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_structinfo.c \
+	torirsserver/torirs_server_dbinfo.c \
+	torirsserver/torirs_server_ops_db.c \
+	torirsserver/torirs_server_ops_param.c \
+	torirsserver/torirs_server_ops_loc.c \
+	torirsserver/torirs_server_ops_npc.c \
+	torirsserver/torirs_server_ops_obj.c \
+	torirsserver/torirs_server_ops_inv.c \
+	torirsserver/torirs_server_ops_player.c \
+	torirsserver/torirs_server_ops_poh.c \
+	torirsserver/torirs_server_bank.c torirsserver/torirs_server_bank_tables.c torirsserver/torirs_server_container.c torirsserver/torirs_server_equipment.c \
+	torirsserver/torirs_server_shop.c \
+	torirsserver/torirs_server_friends.c \
+	torirsserver/torirs_server_ids.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
+	world/wev.c \
+	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
 
@@ -516,19 +834,21 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 # wrong default for a client and the right one for anyone who wants one process.
 #
 # Without it, selecting the embed transport fails loudly rather than silently
-# falling back to TCP — see platform/net_transport_embed.c.
+# falling back to TCP â see platform/net_transport_embed.c.
 ifeq ($(EMBED_SERVER),1)
 CFLAGS += -DTORIRS_EMBED_SERVER=1
 # These units are already in the client SRCS or have dedicated object rules
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c \
+	net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
+	world/wev.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
-SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(MOCK230_CORE_SRCS))
+SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
 EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
@@ -537,25 +857,252 @@ RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
 RSPROT_PACKETS_UNITY_SRC = $(RSPROT_DIR)/rsprot_packets_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
+
+# --- Hand-written texture span kernel ------------------------------------
+# The perspective texture span's per-block setup -- one reciprocal and two
+# quotients per eight pixels -- measured LARGER than the SSE2 gather it feeds,
+# and it is a serial float chain the compiler schedules in the same iteration as
+# the fill. tex_span_asm.h carries the full argument; the short version is that
+# the divide is software-pipelined three blocks ahead, which GCC will not do
+# across a loop with four data-dependent branches in it.
+#
+# Only the two x86 Windows lanes have one, because those are the two whose ABI
+# and ISA floor this tree pins exactly (win32 is i686/pentium4, win64 is the MS
+# x64 ABI). Every other lane keeps the C, which stays the reference in all of
+# them -- toridraw_texspan_asm_test.c is what says the two agree.
+#
+# A probe build opts out. The census and ablation counters live in the C and the
+# asm does not carry them, so a measurement build that quietly ran the asm would
+# report a texture span that draws no spans.
+TEXSPAN_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win64)
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.x64.S
+endif
+ifeq ($(PLATFORM),win32)
+TEXSPAN_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/span.tex.i686.S
+endif
+endif
+
+ifneq ($(TEXSPAN_ASM_SRC),)
+TEXSPAN_ASM_OBJ  := $(OBJ_DIR)/tex_span_asm.o
+TORIDRAW_CFLAGS  += -DTORIDRAW_TEXSPAN_ASM=1
+endif
+
+# --- Hand-written gouraud triangle kernel ---------------------------------
+# The WHOLE opaque gouraud triangle -- vertex sort, prologue, both trapezoid
+# walks and the span fill -- not a leaf. gouraud_tri_i686.S carries the full
+# argument; the short version is that i686 has four callee-saved registers and
+# the row body needs more live values than that, so the C spills its
+# accumulators on every row and no tuning inside a helper can undo an allocation
+# decision made outside it.
+#
+# i686 only. There is no win64 twin: the x64 ABI has more callee-saved registers
+# than the row body has live values, which is the whole reason this kernel
+# exists, so it would be work with nothing to win.
+#
+# Opts out of a probe build for the same reason the texture span does: the
+# census and ablation counters live in the C, and a measurement build quietly
+# running the asm would report a gouraud triangle that draws nothing. Note the
+# gate reads the SAME three probe macros; TORIDRAW_FACE_CENSUS is deliberately
+# absent from both, because it counts at the dispatch site, above either kernel.
+GOURAUD_TRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+GOURAUD_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.i686.S
+endif
+endif
+
+ifneq ($(GOURAUD_TRI_ASM_SRC),)
+GOURAUD_TRI_ASM_OBJ := $(OBJ_DIR)/gouraud_tri_asm.o
+TORIDRAW_CFLAGS     += -DTORIDRAW_GOURAUD_TRI_ASM=1
+endif
+
+# --- Hand-written flat triangle kernels -----------------------------------
+# The whole flat triangle, opaque and alpha, batched and single. A flat face is
+# a gouraud face with three equal vertex colours and the gouraud kernel draws
+# it identically -- measured over 200,000 triangles and 246 million pixels --
+# but it does so carrying a colour gradient that is zero, an accumulator that
+# never moves, and a palette lookup every four pixels instead of one for the
+# triangle. Once the colour is constant the span becomes a store loop, which is
+# the one shape on this target where a wide aligned SSE2 store is the right
+# answer rather than the wrong one.
+#
+# i686 only, and withdrawn from a probe build, for the same two reasons as the
+# gouraud kernel: no win64 twin is worth writing, and the census and ablation
+# counters live in the C.
+FLAT_TRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+FLAT_TRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.i686.S
+endif
+endif
+
+ifneq ($(FLAT_TRI_ASM_SRC),)
+FLAT_TRI_ASM_OBJ := $(OBJ_DIR)/flat_tri_asm.o
+TORIDRAW_CFLAGS  += -DTORIDRAW_FLAT_TRI_ASM=1
+endif
+
+# --- Hand-written perspective-textured triangle kernel ---------------------
+# The WHOLE opaque textured triangle, in the same sense as the gouraud one
+# above: sort, plane build, edge divides, both trapezoid walks, and the span
+# fill expanded inline. It absorbs the standalone texture span -- which was its
+# only production caller -- so the nine of fifteen span arguments that are
+# triangle-invariant stop being pushed, and the twelve stride stores and the
+# texture-width branch stop being redone, once per scanline. tex_tri_asm.h
+# carries the census numbers that say this variant is the one worth absorbing.
+#
+# tex_span_i686.S stays in the link when this is on. It becomes a couple of KB
+# of dead code, which is cheaper than a conditional that has to stay right.
+#
+# i686 only, and withdrawn from a probe build, for the same two reasons as the
+# gouraud kernel: no win64 twin is worth writing, and the census and ablation
+# counters live in the C.
+TEXTRI_ASM_SRC :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifeq ($(PLATFORM),win32)
+TEXTRI_ASM_SRC := $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.i686.S
+endif
+endif
+
+ifneq ($(TEXTRI_ASM_SRC),)
+TEXTRI_ASM_OBJ := $(OBJ_DIR)/tex_tri_asm.o
+TORIDRAW_CFLAGS += -DTORIDRAW_TEXTRI_ASM=1
+endif
+
+# --- NEON presorted-run kernels (Advanced SIMD) -----------------------------
+# The eight standard-definition presorted-run doors -- flat opaque/alpha,
+# gouraud opaque/alpha, textured opaque/trans x flat/shaded -- as NEON twins
+# of the i686 SSE2 kernels above. Same shape as the i686 lanes: the C per-face
+# kernels stay compiled and stay the reference (toridraw_presorted_neon_test.c
+# holds the doors to them), the batched walk takes the asm. Withdrawn from a
+# probe build for the same reason as the i686 kernels: the census and
+# ablation counters live in the C. TORIDRAW_NO_SIMD withdraws it with the rest
+# of the SIMD lanes.
+#
+# THESE DOORS ARE WHAT TURNS THE WHOLE-MODEL PIPELINE ON. toridraw_raster_batch.h
+# defines TORIDRAW_RASTER_BATCH if and only if the flat AND gouraud presorted-run
+# doors both exist, and toridraw_raster_batch_armed() then defaults to armed. So
+# this block is not "an optional asm speedup": without it the renderer walks a
+# model face by face through the C kernels, and with it a model's faces are depth
+# sorted and handed to one call per material class. Selecting no kernel here
+# silently selects the per-face pipeline.
+#
+# TWO ENCODINGS, ONE FAMILY, CHOSEN BY THE TARGET. A32 and A64 Advanced SIMD are
+# different instruction sets rather than two spellings of one, so each door has
+# two source files -- tri.*.aarch64.S and tri.*.aarch32.S -- and the lane picks by
+# the architecture being BUILT FOR. The old gate asked `uname -m`, which is the
+# build host: correct by accident on a native macOS arm64 build and wrong for
+# every cross-compile, which is why the Android arm64 APK was shipping the
+# per-face C pipeline on a part that has had these kernels all along.
+NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_ISA :=
+ifeq ($(findstring TORIDRAW_SPAN_CENSUS,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_ABLATE,$(TORIDRAW_PROBE_CFLAGS))$(findstring TORIDRAW_SPAN_TRACE,$(TORIDRAW_PROBE_CFLAGS)),)
+ifneq ($(TORIDRAW_NO_SIMD),1)
+  ifeq ($(PLATFORM),macos)
+    ifeq ($(shell uname -m),arm64)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+  endif
+  ifeq ($(PLATFORM),android)
+    ifeq ($(ANDROID_ABI),arm64-v8a)
+      NEON_TRI_ASM_ISA := aarch64
+    endif
+    ifeq ($(ANDROID_ABI),armeabi-v7a)
+      NEON_TRI_ASM_ISA := aarch32
+    endif
+  endif
+endif
+endif
+
+#
+# PER-KERNEL, not all-or-nothing: a kernel is taken when a source for THIS
+# encoding exists, and the C reference stands in for the ones that do not.
+#
+# The encodings are not ported in lockstep. While aarch32 had only the flat and
+# gouraud triangles (it has all three now), naming all three unconditionally
+# made that half-finished state a hard build failure ("No rule to make target
+# tri.tex.aarch32.S") on the one lane the port is for. Asking the filesystem
+# means a kernel arriving is picked up with no edit here, and a kernel that has
+# not arrived costs nothing but the C path it already had.
+ifneq ($(NEON_TRI_ASM_ISA),)
+NEON_TRI_ASM_DIR := $(TORIDRAW_DIR)/impl/raster/asm
+NEON_TRI_ASM_OBJS :=
+NEON_TRI_ASM_CFLAGS :=
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.flat.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/flat_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_FLAT_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/gouraud_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_GOURAUD_TRI_NEON_ASM=1
+endif
+ifneq ($(wildcard $(NEON_TRI_ASM_DIR)/tri.tex.$(NEON_TRI_ASM_ISA).S),)
+NEON_TRI_ASM_OBJS  += $(OBJ_DIR)/tex_tri_neon.o
+NEON_TRI_ASM_CFLAGS += -DTORIDRAW_TEXTRI_NEON_ASM=1
+endif
+TORIDRAW_CFLAGS += $(NEON_TRI_ASM_CFLAGS)
+endif
+
+# The shared edge-slope ladder, one per encoding. Named here so the three rules
+# below depend on the one their own ISA actually includes.
+NEON_TRI_EDGE_INC := $(TORIDRAW_DIR)/graphics/raster/edge_slopes_$(NEON_TRI_ASM_ISA).inc
+
+# The framebuffer clear. Unlike the three kernels above this one is not
+# withdrawn under the probe builds -- it has no census counters to invalidate,
+# and withdrawing it would make the probe build clear its screen differently
+# from the build being shipped.
+FB_CLEAR_ASM_SRC :=
+ifeq ($(PLATFORM),win32)
+FB_CLEAR_ASM_SRC := $(TORIDRAW_DIR)/graphics/fb_clear_i686.S
+endif
+
+ifneq ($(FB_CLEAR_ASM_SRC),)
+FB_CLEAR_ASM_OBJ := $(OBJ_DIR)/fb_clear_asm.o
+TORIDRAW_CFLAGS += -DTORIDRAW_FB_CLEAR_ASM=1
+CFLAGS += -DTORIDRAW_FB_CLEAR_ASM=1
+endif
+
+# The in-frame A/B harness. Its own object, not a unity include: it needs
+# windows.h for QueryPerformanceCounter.
+FRAME_AB_OBJ := $(OBJ_DIR)/toridraw_frame_ab.o
+
+# The EIP sampler. Same reasoning as the A/B object: it needs windows.h for
+# SuspendThread/GetThreadContext, which does not belong in the middle of the
+# unity translation unit.
+EIP_SAMPLE_OBJ := $(OBJ_DIR)/toridraw_eip_sample.o
+
+# Everything that links the toridraw unity object links its asm halves with it:
+# the Apple arm64 projection kernel and the x86 Windows texture span, each empty
+# on the lanes that do not have one. Naming the set once is what keeps a target
+# from silently reaching the C through a unity object compiled to call the asm.
+# The halves that are not the unity object: the hand-written asm doors this
+# lane built, plus the two C files kept out of the unity. Named on their own so
+# a target that builds its own unity object (test-toridraw-mini does, to keep
+# --wrap working) links the same sidecars without repeating the list.
+TORIDRAW_UNITY_SIDECAR_OBJS = $(TORIDRAW_PROJECTION_ASM_OBJ) $(TEXSPAN_ASM_OBJ) $(GOURAUD_TRI_ASM_OBJ) $(TEXTRI_ASM_OBJ) $(FLAT_TRI_ASM_OBJ) $(FB_CLEAR_ASM_OBJ) $(NEON_TRI_ASM_OBJS) $(FRAME_AB_OBJ) $(EIP_SAMPLE_OBJ)
+TORIDRAW_UNITY_LINK_OBJS = $(OBJ_DIR)/toridraw_unity.o $(TORIDRAW_UNITY_SIDECAR_OBJS)
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
 # out-of-tree/unity extras that have their own rules below. The world_builder
-# pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
+# pipeline ($(WB_OBJS), incl. wb_minimap.o â the Minimap world.h is written
 # against) links into the app; $(sort) dedupes objects shared with WB_OBJS.
 # Which GPU-binding objects to link is the platform's call, not this file's --
 # platform.mk names them (PLATFORM_GPU_OBJ_NAMES) and OBJ_DIR is prefixed here
 # because it does not exist yet when that file is read. The previous "native or
 # else" test silently gave win32, which has no GPU path at all, the WebGL one.
 GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
-OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
+OBJC_OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(PLATFORM_OBJC_SRCS:.m=.o)))
+OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(OBJC_OBJS) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
-	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
 	$(OBJ_DIR)/pkt_exec.o \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
-	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
+	$(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-	$(OBJ_DIR)/tommath.o \
+	$(OBJ_DIR)/tommath.o $(OBJ_DIR)/lua_unity.o \
+	$(OBJ_DIR)/stb_image_impl.o \
 	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
@@ -585,9 +1132,16 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
+.PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
+.PHONY: check-dks-contract check-boss-contract check-stronghold-contract
+.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
+.PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
+.PHONY: check-design-colours
+.PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
+.PHONY: test-wev test-wev-rebuild test-painters-world-entity test-painters-dynamic-pool
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -655,15 +1209,35 @@ $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 #
 # With MEMTRACE=1 the standalone trace viewer is copied in beside them, so the
 # .bin the page downloads can be opened without leaving build-web/.
-WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js
+WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
+	$(SRC_DIR)/web/torirs_hostio.js $(SRC_DIR)/web/torirs_idb.js \
+	$(SRC_DIR)/web/torirs_js5.js $(SRC_DIR)/web/torirs_ondemand.js \
+	$(SRC_DIR)/web/torirs_chrome.js \
+	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html
+# The page's icons, generated from res/torirs_icon.jpg by
+# tools/make_app_icons.py. index.html links the first four by name and
+# site.webmanifest names the last three, so every one of them has to land
+# in build-web/ or the page 404s its own favicon.
+WEB_ASSETS += $(SRC_DIR)/web/favicon.ico $(SRC_DIR)/web/icon-16.png \
+	$(SRC_DIR)/web/icon-32.png $(SRC_DIR)/web/apple-touch-icon.png \
+	$(SRC_DIR)/web/site.webmanifest $(SRC_DIR)/web/icon-192.png \
+	$(SRC_DIR)/web/icon-512.png $(SRC_DIR)/web/icon-maskable-512.png
+# One app-owned iframe loads this canonical bundle. Keep its directory shape:
+# modern.html resolves its own stylesheet/runtime and every theme URL below it.
+WEB_PLUGIN_CHROME = $(SRC_DIR)/plugin_chrome/modern.html \
+	$(SRC_DIR)/plugin_chrome/modern.css \
+	$(SRC_DIR)/plugin_chrome/codec-es3.js \
+	$(SRC_DIR)/plugin_chrome/runtime.js
+WEB_PLUGIN_CHROME_SKIN = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin/*.png)
+WEB_PLUGIN_CHROME_FONT = $(wildcard $(REPO_ROOT)/res/plugin_chrome/font/*)
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
 # --- Servers -------------------------------------------------------------
 # The two processes a browser run needs, built together because needing both
 # and being told about one is how a web build ends up half-runnable. They stay
-# separate executables — they have different jobs, different lifetimes and
-# different exposure — but there is one command that produces them.
+# separate executables â they have different jobs, different lifetimes and
+# different exposure â but there is one command that produces them.
 #
 #   io_server    HTTP: the page, the module, GET /boot/<path>, POST /io
 #   js5_server   the cache, over raw TCP or WebSocket on one port
@@ -676,34 +1250,28 @@ servers:
 	@echo "servers: src/build/io_server and src/$(OBJ_DIR)/js5_server"
 
 web: servers
-	$(MAKE) PLATFORM=web OPT=1 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
+	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
-	@echo "built $(REPO_ROOT)/build-web/torirs.js — run it with:"
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
+	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
+	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
+		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
+		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
+	fi
+	@echo "built $(REPO_ROOT)/build-web/torirs.js â run it with:"
 	@echo "  ./src/build/io_server --manifest <boot.ini> --root build-web"
 
 web-debug: servers
-	$(MAKE) PLATFORM=web OPT=0 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
+	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
-
-# --- Web target, IndexedDB cache -----------------------------------------
-# The same module with its cache underneath it instead of across a socket:
-# archive records in IndexedDB behind a dat2 facade, filled over JS5. The page
-# is then self-contained — it needs a JS5 server and a static file server, and
-# no io_server at all.
-#
-# Separate targets rather than a flag on `web` because the two link different
-# IO backends and therefore must not share an object directory; platform.mk
-# gives this lane its own (build_web_idb).
-web-idb: servers
-	$(MAKE) PLATFORM=web OPT=1 CACHE=idb MEMTRACE=$(MEMTRACE) all
-	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
-	@echo "built $(REPO_ROOT)/build-web/torirs.js (IndexedDB cache) — run it with:"
-	@echo "  ./src/$(OBJ_DIR)/js5_server --cache <cache_dir> --revision <rev> &"
-	@echo "  ./src/build/io_server --root build-web --boot-root ."
-
-web-idb-debug: servers
-	$(MAKE) PLATFORM=web OPT=0 CACHE=idb MEMTRACE=$(MEMTRACE) all
-	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
+	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
+	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
+		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
+		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
+	fi
 
 # --- Windows XP target ---------------------------------------------------
 # `make -C src winxp` is the XP lane's entry point, shaped like `web` above so
@@ -737,12 +1305,12 @@ win64-debug:
 # SAME PlatformX_IO_LoadItem the native build uses. Always built native, even
 # when PLATFORM=web, so `make -C src web io-server` produces both halves.
 IO_SERVER_OBJ_DIR = build
-# The path is fixed — `src/build/io_server` is what docs/WEB_SERVERS.md and the
-# echoes above name — so the sub-make has to land in the *unsuffixed* native
+# The path is fixed â `src/build/io_server` is what docs/WEB_SERVERS.md and the
+# echoes above name â so the sub-make has to land in the *unsuffixed* native
 # objdir, and every variable that appends a flavour suffix to OBJ_DIR is pinned
 # off here. It is a sub-make of a build that may be any flavour: `make -C src
 # OPT=1 web` runs `servers` first, the OPT=1 propagated through MAKEFLAGS, and
-# OBJ_DIR became build_opt while this path stayed `build` — so nothing created
+# OBJ_DIR became build_opt while this path stayed `build` â so nothing created
 # `build` and nothing had a rule for `build/rscache_unity.o` either. On a tree
 # that had one from an earlier debug build it linked stale objects; on a clean
 # one it died with "No rule to make target `build'".
@@ -750,18 +1318,29 @@ IO_SERVER_OBJ_DIR = build
 # OBJ_DIR=$(IO_SERVER_OBJ_DIR) below is the same fix applied to the OTHER thing
 # that can move OBJ_DIR off `build`: PLATFORM_OBJ_BASE itself. PLATFORM=native
 # resolves to whatever this host is, and that stem is only literally `build` on
-# macOS (platform.mk) — win32 is build_win32, win64 is build_win64. Without
+# macOS (platform.mk) â win32 is build_win32, win64 is build_win64. Without
 # this, a Windows build hit the identical symptom the OPT=1 case above already
 # describes, just from PLATFORM_OBJ_BASE instead of a suffix: the rscache_unity.o
 # rule lands under build_win64/ while this path still asks for build/.
 IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
 	TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 OBJ_DIR=$(IO_SERVER_OBJ_DIR)
 # features/features.c: BootManifest_LoadFile resolves `[features:boot]` names
-# through it, so a server that reads a manifest needs it too — without it the
+# through it, so a server that reads a manifest needs it too â without it the
 # link fails on ToriRS_Features_ByName.
+# ui/torirs_chrome_exec_kind.c: `[chrome] executor` is resolved by name the same
+# way, and the kind table is split out of ui/torirs_chrome_exec.c precisely so
+# that naming an executor does not drag the whole ui/ layer in here.
+# platform_x_io_ondemand.c is here because io_server PROXIES a LostCity
+# cache to the browser: a page has no socket to the game port and no
+# CORS-permitted origin for the jag routes, so the dat1 source runs in this
+# process. It brings in neither SDL2 nor js5 -- see the two separate NO_
+# flags on the link below.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
-	bootmanifest/bootmanifest.c features/features.c $(INI_SRC)
+	platform/platform_x_io_ondemand.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
+	bootmanifest/bootmanifest.c features/features.c \
+	ui/torirs_chrome_exec_kind.c $(INI_SRC)
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
 # ws2_32, not the CRT, so a native Windows link needs it named explicitly.
@@ -790,11 +1369,25 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -o $(OBJ_DIR)/io_wire_test \
-		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 -o $(OBJ_DIR)/io_wire_test \
+		platform/io_wire.c platform/platform_x_io.c platform/platform_x_http.c \
+		platform/sockstream.c platform/platform_mdns.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
+
+# The on-demand file wire against a fake LostCity in-process: N requests go
+# out before any is waited for, interleaved chunks land in the right files, an
+# idle hang-up is redialled. POSIX sockets + pthreads.
+test-ondemand-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ondemand_wire_test \
+		platform/platform_x_io_ondemand.c platform/platform_x_http.c \
+		platform/sockstream.c platform/platform_mdns.c \
+		platform/test/ondemand_wire_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm -lpthread
+	./$(OBJ_DIR)/ondemand_wire_test
 
 # Protocol + persistence integration against a caller-supplied, read-only
 # canonical cache. The binary creates and owns its disposable target directory;
@@ -811,7 +1404,7 @@ JS5_TEST_PYTHON ?= python
 test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/js5_server_cache.c js5/test/js5_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -825,7 +1418,7 @@ test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
-		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c platform/platform_mdns.c \
 		js5/server/test/js5_server_client_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
@@ -840,14 +1433,21 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(1) -o $$@
 endef
 
+define make-objc-goal
+$(OBJ_DIR)/$(notdir $(1:.m=.o)): $(1) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(PLATFORM_OBJC_CFLAGS) -c $(1) -o $$@
+endef
+
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c
 
 # rsprot_bridge.c is excluded for the same reason the rev tables are: it has an
 # explicit rule below carrying extra include paths, and letting the generic
 # rule also claim it makes make warn about overriding commands.
-$(foreach src,$(filter-out painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
@@ -857,6 +1457,8 @@ $(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_lc289.o: net/rev/lc289/gameproto_rev_lc289.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc289 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c | $(OBJ_DIR)
@@ -865,8 +1467,14 @@ $(OBJ_DIR)/gameproto_rev_osrs239.o: net/rev/osrs239/gameproto_rev_osrs239.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs239 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
+# PLATFORM_BASE_CFLAGS is on this line for the reason that variable exists:
+# it is the subset every TU needs, vendored units included. This rule spells its
+# own flags rather than using $(CFLAGS), and so had to name it explicitly --
+# without it the Android lane's -fPIC never reached the amalgam, and the whole
+# shared library failed to link with "relocation R_ARM_REL32 cannot be used
+# against symbol 's_mp_prime_tab'".
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c | $(OBJ_DIR)
-	$(CC) -std=c11 -O2 -w -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
+	$(CC) -std=c11 -O2 -w $(PLATFORM_BASE_CFLAGS) -I$(REPO_ROOT)/3rd/tommath -c $< -o $@
 
 # --- World builder pipeline object rules ---------------------------------
 $(OBJ_DIR)/world_builder.o: $(WB_DIR)/world_builder.c | $(OBJ_DIR)
@@ -915,6 +1523,23 @@ test-world-builder: $(OBJ_DIR) $(WB_TEST_OBJS)
 	./$(OBJ_DIR)/world_builder_test
 
 # CS2 math/bit opcode unit test (pure VM): reuse the main link set minus main.o.
+.PHONY: test-cs2-invother
+.PHONY: test-cs2-array-sequence
+test-cs2-array-sequence: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_sequence_test \
+		cs2vm2/test/array_sequence_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_sequence_test
+
+test-cs2-invother: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_invother_test \
+		cs2vm2/test/invother_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_invother_test
+
+test-cs2-array-find: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_find_test \
+		cs2vm2/test/array_find_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_find_test
+
 test-cs2-math: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_math_ops_test \
 		cs2vm2/test/math_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -945,6 +1570,11 @@ test-cs2-options: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/client_option_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_client_option_ops_test
 
+test-cs2-highlight: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_highlight_ops_test \
+		cs2vm2/test/highlight_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_highlight_ops_test
+
 test-cs2-triggerop: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_trigger_op_test \
 		cs2vm2/test/trigger_op_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -958,7 +1588,7 @@ test-cs2-dialect: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/opcode_dialect_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_dialect_test
 
-# RESUME_COUNTDIALOG (3104) — the opcode the bank PIN keypad answers with.
+# RESUME_COUNTDIALOG (3104) â the opcode the bank PIN keypad answers with.
 # Declared on its own line rather than appended to the shared .PHONY list, which
 # several branches are editing at once.
 .PHONY: test-cs2-resume-countdialog
@@ -967,7 +1597,77 @@ test-cs2-resume-countdialog: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/resume_countdialog_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_resume_countdialog_test
 
-# Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
+# POP_INT_DISCARD / POP_STRING_DISCARD (38/39) â the operand is not a count.
+# Own .PHONY line for the same reason as the target above it.
+.PHONY: test-cs2-discard
+test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_discard_ops_test \
+		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_discard_ops_test
+
+.PHONY: test-cs2-opcode-groups
+test-cs2-opcode-groups: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
+		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_opcode_group_test
+
+.PHONY: test-pacer
+test-pacer: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX) \
+		test/pacer_test.c pacer.c $(LDFLAGS)
+	./$(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: test-cs2-host-request-kinds
+test-cs2-host-request-kinds: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_kinds_test \
+		cs2vm2/test/host_request_kinds_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_host_request_kinds_test
+
+.PHONY: test-cs2-host-request-producers
+test-cs2-host-request-producers: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_producers_test \
+		cs2vm2/test/host_request_producers_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_host_request_producers_test
+
+.PHONY: test-cs2-array-fill
+test-cs2-array-fill: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_fill_test \
+		cs2vm2/test/array_fill_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_fill_test
+
+.PHONY: test-cs2-worldentity-limit
+test-cs2-worldentity-limit: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_worldentity_limit_test \
+		cs2vm2/test/worldentity_limit_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_worldentity_limit_test
+
+.PHONY: test-cs2-sailing-settings
+test-cs2-sailing-settings: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_sailing_settings_test \
+		cs2vm2/test/sailing_settings_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_sailing_settings_test
+
+.PHONY: test-cs2-array-bounds
+test-cs2-array-bounds: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_bounds_test \
+		cs2vm2/test/array_bounds_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_bounds_test
+
+.PHONY: test-cs2-vm-pool
+test-cs2-vm-pool: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_pool_test \
+		cs2vm2/test/vm_pool_test.c \
+		cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c cs2vm2/cs2_opcode_meta.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_vm_pool_test
+
+# Procedural-texture coverage report over a 643-era cache. Not a pass/fail test â it
 # names the unported operation blocking the most textures, which is the number to work
 # against while porting. Run from the repo root so the default cache path resolves.
 test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
@@ -988,12 +1688,43 @@ test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rsca
 # Which raster kernels the RS727 QBD *source* models demand: texture render
 # types, face shading, face alpha, and the per-material compositing properties.
 # Reads the RS727 cache read-only and writes nothing.
-rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_qbd_kernel_survey \
 		engine/proctex/test/rs2012_qbd_kernel_survey.c \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: plugin-model-extract plugin-beam-assets
+
+plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_model_extract \
+		plugin/tools/plugin_model_extract.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+# The loot beam's two shipped models, lifted out of OSRS 239.
+#
+# Committed under script/plugins/assets/, so a clone has them and no boot reads
+# a model id out of whatever cache it happens to be running. Re-run this only
+# to refresh them or to re-point the plugin at different geometry; the source
+# cache is ~ a gigabyte and is NOT carried by a clone (.gitignore's `cache.*/`),
+# so the recipe names it rather than assuming it.
+PLUGIN_BEAM_SRC_CACHE ?= $(REPO_ROOT)/cache.osrs239
+PLUGIN_BEAM_ASSETS = $(REPO_ROOT)/script/plugins/assets/loot-beam
+
+plugin-beam-assets: plugin-model-extract
+	@test -d $(PLUGIN_BEAM_SRC_CACHE) || { \
+		echo "plugin-beam-assets: $(PLUGIN_BEAM_SRC_CACHE) is missing;"; \
+		echo "  obtain the OSRS 239 cache or set PLUGIN_BEAM_SRC_CACHE=<dir>"; \
+		exit 1; }
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 43330 --out $(PLUGIN_BEAM_ASSETS)/beam_modern.model
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 5809 --out $(PLUGIN_BEAM_ASSETS)/beam_light.model
 
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
@@ -1023,23 +1754,29 @@ define RS2012_REQUIRE_SRC_CACHE
 		echo "  Copy it there, or pass RS2012_SRC_CACHE=<dir>." >&2; exit 1; }
 endef
 
+# A bake is not a compile: it reads the lane's directories directly, so it names
+# its own path here rather than discovering it from lane.ini the way the script
+# compile does. Recursive `=` so TORIRSSERVER_CONTENT_DIR (defined further down, and
+# overridable) is expanded when a recipe runs.
+RS2012_QBD_TD_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/rs2012_qbd_td
+
 # Both the source cache and the tree are usually supplied from outside, and on
 # Windows the usual mistake is a backslash path, which make's shell eats
 # silently -- the bake then reports a missing pack under a mangled name. Check
 # the lane up front and say which variable is wrong.
 define RS2012_REQUIRE_LANE
-	@test -d "$(RS2012_QBD_TD_CLIENT_LANE)" || { \
-		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_CLIENT_LANE)" >&2; \
-		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
+	@test -d "$(RS2012_QBD_TD_LANE)" || { \
+		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_LANE)" >&2; \
+		echo "  TORIRSSERVER_CONTENT_DIR=$(TORIRSSERVER_CONTENT_DIR)" >&2; \
 		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
-		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
+		case '$(TORIRSSERVER_CONTENT_DIR)' in *\\*) \
 			echo "  (that path contains backslashes -- use forward slashes)" >&2;; esac; \
 		exit 1; }
 endef
 
 # Re-backport the QBD/TD lane from the RS727 cache into the content tree, then
-# tell you to re-pack. Writes $(MOCK230_CONTENT_DIR) in place -- point that at
-# the tree you mean (see the note at MOCK230_CONTENT_DIR).
+# tell you to re-pack. Writes $(TORIRSSERVER_CONTENT_DIR) in place -- point that at
+# the tree you mean (see the note at TORIRSSERVER_CONTENT_DIR).
 #
 # This exists because the bake was previously a hand-typed command whose one
 # load-bearing flag (--matte) lived only in a branch name, so no two machines
@@ -1049,9 +1786,9 @@ rs2012-lane-bake: rs2012-material-bake
 	$(RS2012_REQUIRE_SRC_CACHE)
 	$(RS2012_REQUIRE_LANE)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/rs2012_material_bake \
-		--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+		--cache $(RS2012_SRC_CACHE) --tree $(TORIRSSERVER_CONTENT_DIR) \
 		--matte $(RS2012_LANE_MATTE) --apply
-	@echo "rs2012-lane-bake: wrote $(MOCK230_CONTENT_DIR); now run mock230-cache-rs2012"
+	@echo "rs2012-lane-bake: wrote $(TORIRSSERVER_CONTENT_DIR); now run torirsserver-cache-rs2012"
 
 # Determinism gate. Two bakes into disposable directories must be byte-identical;
 # if they are not, the bake has picked up uninitialised or address-dependent
@@ -1064,7 +1801,7 @@ rs2012-lane-bake-check: rs2012-material-bake
 		cd $(REPO_ROOT) && for run in a b; do \
 			mkdir -p "$$tmp/$$run"; \
 			./src/$(OBJ_DIR)/rs2012_material_bake \
-				--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+				--cache $(RS2012_SRC_CACHE) --tree $(TORIRSSERVER_CONTENT_DIR) \
 				--matte $(RS2012_LANE_MATTE) --models-out "$$tmp/$$run" >/dev/null || exit 1; \
 		done; \
 		if diff -r "$$tmp/a" "$$tmp/b" >/dev/null; then \
@@ -1078,7 +1815,7 @@ rs2012-lane-bake-check: rs2012-material-bake
 
 # RS2012 models were authored against a z-buffered client, so their face render
 # priorities never ordered anything; honouring them overrides ToriDraw's depth
-# sort. Rewrites the lane's OB3 assets, so re-run mock230-cache-rs2012 after.
+# sort. Rewrites the lane's OB3 assets, so re-run torirsserver-cache-rs2012 after.
 rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_strip_priorities \
@@ -1145,8 +1882,8 @@ rs2012-model-faces: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # OB3 viewer: renders a model through the real project/sort/raster path and
 # writes a multi-angle contact sheet. The iteration loop for face-priority
 # authoring -- no cache, no window, no game.
-RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
-	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
+RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+	$(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
 rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
@@ -1160,7 +1897,7 @@ rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
 .PHONY: rs2012-wake-dump
 
 # Prints decoded per-bone transform values for every frame of a QBD sequence,
-# straight out of the shipped cache — no rendering. For finding which specific
+# straight out of the shipped cache â no rendering. For finding which specific
 # keyframes of a sequence decode to garbage (see docs/rs2012_qbd_wakeup).
 rs2012-wake-dump: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -1263,8 +2000,34 @@ test-rsareabuf: $(OBJ_DIR)
 $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(INI_SRC) -o $@
 
+# Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
+# deliberately left out of it). -w because a vendored library's warnings are
+# not ours to fix and would drown the tree's own.
+#
+# -fno-lto for the same reason, and it is not redundant with -w: under OPT=1
+# this object would otherwise carry GCC IR into the link, where lto1 re-runs the
+# analyses with the LINK line's flags and -w no longer applies. That is where
+# Lua's known str_gsub/luaL_addlstring -Wstringop-overflow false positive comes
+# back (lto1 follows the resl == CAP_POSITION branch it cannot correlate). Lua
+# is already a single translation unit and talks to the client only through its
+# C API, so the cross-module inlining given up here is close to nothing.
+LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(OPT_RELEASE_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
+$(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
+	$(CC) $(LUA_CFLAGS) -w -fno-lto -c $(SRC_DIR)/plugin/lua_unity.c -o $@
+
+# The one TU that includes lua.h. Everything else in src/plugin/ is written
+# against the plugin contract alone and needs no Lua on its include path.
+$(OBJ_DIR)/torirs_plugin_lua.o: $(SRC_DIR)/plugin/torirs_plugin_lua.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(LUA_DIR) -c $(SRC_DIR)/plugin/torirs_plugin_lua.c -o $@
+
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
+
+# stb_image, JPEG only. -w for the same reason rscache_unity gets it: vendored
+# code is not ours to make -Wall -Wextra clean, and keeping it in its own object
+# is what lets engine/jpeg_decode.c keep every warning the build asks for.
+$(OBJ_DIR)/stb_image_impl.o: $(STB_DIR)/stb_image_impl.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $(STB_DIR)/stb_image_impl.c -o $@
 
 $(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
@@ -1345,17 +2108,82 @@ $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
 
+$(OBJ_DIR)/projection16.aarch64.o: $(TORIDRAW_DIR)/impl/projection/projection.perspective.prepared.aarch64.S | $(OBJ_DIR)
+	$(CC) -c $< -o $@
+
+# Assembled through $(CC) so the target architecture follows the lane's own
+# compiler and the C preprocessor runs first -- the .S is cpp'd, and its two
+# texture-width specialisations are macro expansions.
+#
+# It deliberately does NOT take $(PLATFORM_BASE_CFLAGS). Those carry the lane's
+# -include win32_compat.h, and a force-included C header handed to the
+# assembler is several hundred lines of "no such instruction". Nothing else in
+# there can change what this file assembles to: it names its own registers.
+ifneq ($(TEXSPAN_ASM_SRC),)
+$(TEXSPAN_ASM_OBJ): $(TEXSPAN_ASM_SRC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Same treatment, and for the same two reasons: cpp runs first (the kernel is
+# built out of macros) and PLATFORM_BASE_CFLAGS stays out (its -include of a C
+# header would reach the assembler as a few hundred bad instructions).
+ifneq ($(GOURAUD_TRI_ASM_SRC),)
+$(GOURAUD_TRI_ASM_OBJ): $(GOURAUD_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Same again for the flat pair.
+ifneq ($(FLAT_TRI_ASM_SRC),)
+$(FLAT_TRI_ASM_OBJ): $(FLAT_TRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/edge_slopes_i686.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# Third of the same shape. It also #includes span/tex_span_body.inc, so the
+# -I is load-bearing here rather than merely conventional.
+ifneq ($(TEXTRI_ASM_SRC),)
+$(TEXTRI_ASM_OBJ): $(TEXTRI_ASM_SRC) $(TORIDRAW_DIR)/graphics/raster/texture/span/tex_span_body.inc | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+# The NEON presorted-run kernels. Same treatment as the i686 lanes: cpp first,
+# no PLATFORM_BASE_CFLAGS. The ISA in the filename is the one the gate above
+# picked for this target; edge_slopes_$(ISA).inc is the shared slope
+# reciprocal, so every one of the three depends on it.
+#
+# $(PLATFORM_CC) matters on the cross lanes: the .S files are guarded on
+# __arm__ / __aarch64__ and would assemble to nothing under the host compiler.
+ifneq ($(NEON_TRI_ASM_OBJS),)
+$(OBJ_DIR)/flat_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.flat.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
+$(OBJ_DIR)/gouraud_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.gouraudhsllightness.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
+$(OBJ_DIR)/tex_tri_neon.o: $(TORIDRAW_DIR)/impl/raster/asm/tri.tex.$(NEON_TRI_ASM_ISA).S $(NEON_TRI_EDGE_INC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) $(NEON_TRI_ASM_FLAGS) -c $< -o $@
+endif
+
+# Fourth of the same shape, and the simplest: no include, no template.
+ifneq ($(FB_CLEAR_ASM_SRC),)
+$(FB_CLEAR_ASM_OBJ): $(FB_CLEAR_ASM_SRC) | $(OBJ_DIR)
+	$(CC) -I$(TORIDRAW_DIR) -c $< -o $@
+endif
+
+$(FRAME_AB_OBJ): $(TORIDRAW_DIR)/toridraw_frame_ab.c $(TORIDRAW_DIR)/toridraw_frame_ab.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_CFLAGS) -c $< -o $@
+
+$(EIP_SAMPLE_OBJ): $(TORIDRAW_DIR)/toridraw_eip_sample.c $(TORIDRAW_DIR)/toridraw_eip_sample.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_CFLAGS) -c $< -o $@
+
 $(OBJ_DIR)/trspk_unity.o: $(TRSPK_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_UNITY_SRC) -o $@
-
-$(OBJ_DIR)/webgl1_index16.o: $(TRSPK_DIR)/webgl1/webgl1_index16.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/opengl3_sdlgl.o: $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -w -c $(TRSPK_DIR)/opengl3/opengl3_sdlgl.c -o $@
 
-$(OBJ_DIR)/toridraw_font.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
-	$(CC) $(TORIDRAW_CFLAGS) -I$(REPO_ROOT)/v0 -w -c $(TORIDRAW_DIR)/toridraw_font.c -o $@
+# toridraw_font.c is part of toridraw_unity.c now -- the unity build's own
+# header promises `-I<toridraw>` is enough to compile it, and it was not:
+# toridraw_scene.c's font registry calls ToriDraw_FontFree, so a standalone
+# link came up short by exactly this object. Building it here as well would
+# now be a duplicate definition of every symbol in it.
 
 $(OBJ_DIR)/toridraw_model_sprite.o: $(TORIDRAW_DIR)/toridraw_model_sprite.c | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_DIR)/toridraw_model_sprite.c -o $@
@@ -1367,6 +2195,449 @@ test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
 
+test-preview-state: $(OBJ_DIR) game/preview_state.c game/test/preview_state_test.c \
+		game/rs_player_stats.c varp/varp_manager.c varc/varc_manager.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/preview_state_test \
+		game/preview_state.c game/test/preview_state_test.c \
+		game/rs_player_stats.c varp/varp_manager.c varc/varc_manager.c
+	./$(OBJ_DIR)/preview_state_test
+
+# ---- map editor ------------------------------------------------------------
+#
+# The content root the editor edits. Both map-editor tests are read-only over
+# it; neither writes into a content tree.
+EDITOR_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
+
+# Document and command layer: undo restoring an authored *absence*, strokes
+# undoing as one step, edits at a square edge reaching the neighbour. Pure
+# data â no cache, no window, runs in milliseconds.
+# The plugin host against a FAKE engine -- no client, no cache, no window.
+# That standalone link is the whole reason the engine is a vtable, so keeping
+# this target buildable is what keeps the seam honest.
+# The cache's HIGHLIGHT_* family, as state. Pure data -- no VM, no client, no
+# cache. Every call in it is a real one lifted out of a decompiled clientscript,
+# because the failure this guards is not the bookkeeping but which argument slot
+# holds the group: three of the eight kinds put it somewhere different, and
+# reading the wrong one gives a plausible group number every time.
+test-highlight: $(OBJ_DIR) game/rs_highlight.c game/test/rs_highlight_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_highlight_test \
+		game/rs_highlight.c game/test/rs_highlight_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_highlight_test
+
+# The cache's CLIENTOP_* registry and its context getters. Pure data. Every
+# registration in it is a real one lifted out of a decompiled clientscript,
+# because the two things most likely to be wrong -- which KIND an opcode
+# belongs to, and whether a context getter answers when it should not -- both
+# show up only as "the row does nothing".
+# Client triggers + the scripted-overlay store. Both are pure state modules, so
+# this needs no cache and no renderer -- but the trigger hashes ARE checked
+# against real cache.osrs239 group identifiers (see the file).
+test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_client_trigger_test \
+		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_client_trigger_test
+
+# The hitsplat multi-var selector -- settings 5 (tinting) and 279 (max hit),
+# which the cache implements inside the .hitmark record and this client threw
+# away until it resolved opcode 17/18. Uses the real decoder on the cache's own
+# record bytes, because the failure is not "no splat" but "the wrong splat, on
+# the right hit": both of the ways to get the resolution wrong still draw.
+test-hitsplat: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o game/rs_hitsplat.c \
+		varp/varp_manager.c game/test/rs_hitsplat_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_hitsplat_test \
+		game/rs_hitsplat.c varp/varp_manager.c game/test/rs_hitsplat_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(LDFLAGS)
+	./$(OBJ_DIR)/rs_hitsplat_test
+
+test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientop_test \
+		game/rs_clientop.c game/test/rs_clientop_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_clientop_test
+
+# The Activities builtins, against the same fake engine. They are hidden
+# plugins with no roster row and no config page, so a broken one draws nothing
+# and looks exactly like a setting somebody left switched off -- which is what
+# the whole category looked like before they existed. This is where that shows.
+test-nxt-plugins: $(OBJ_DIR) \
+		plugin/test/nxt_activities_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/plugins/nxt_highlight.c \
+		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
+		plugin/test/nxt_activities_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/nxt_activities_test
+
+# The LuaLS declarations are a public API too. Derive the callable/table
+# inventory from the real registration arrays and compare it bidirectionally
+# with plugin_api.meta.lua, so neither a missing completion nor a documented
+# nil function can ship unnoticed.
+.PHONY: test-plugin-lua-api-inventory
+test-plugin-lua-api-inventory: plugin/torirs_plugin_lua.c plugin/torirs_plugin_api.h \
+		plugin/test/plugin_lua_api_inventory_test.py \
+		$(REPO_ROOT)/script/plugins/plugin_api.meta.lua
+	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_lua_api_inventory_test.py
+
+# Native-V2 Lua runtime smoke test. Its fake host captures the dynamic
+# definitions, runs scoped callbacks, exercises source reload, and compiles all
+# bundled scripts inside the real sandboxed Lua VM.
+PLUGIN_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+PLUGIN_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+.PHONY: plugin-engine-cache-hooks
+.PHONY: test-plugin-native-hooks
+test-plugin-native-hooks:
+	python3 $(REPO_ROOT)/tools/test_plugin_engine_script_hooks.py
+
+PLUGIN_HOOK_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239-curses
+PLUGIN_HOOK_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239-plugin-hooks
+plugin-engine-cache-hooks:
+	python3 $(REPO_ROOT)/tools/plugin_engine_script_hooks.py --build \
+		--base "$(PLUGIN_HOOK_CACHE_BASE)" --cache "$(PLUGIN_HOOK_CACHE_DIR)"
+
+.PHONY: test-plugin-lua
+test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
+		plugin/torirs_plugin_lua.c \
+		plugin/test/plugin_lua_test.c test-plugin-lua-api-inventory \
+		$(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
+		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
+		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
+		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
+
+# The item-stats tooltip, against a hand-built api table rather than the host:
+# the whole plugin is "given a hovered item and a set of levels, what does the
+# panel say", and every input to that is an api verb. It reads the real
+# text.ini, so a rebaked atlas whose metrics moved shows up here as a row count
+# that no longer matches.
+test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c plugin/test/item_stats_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/item_stats_test \
+		plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c engine/png_decode.c \
+		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/item_stats_test.c $(LDFLAGS)
+	ITEM_STATS_TEST_BMP=$(OBJ_DIR)/item_stats_test.bmp ./$(OBJ_DIR)/item_stats_test
+
+# The XP tracker and the loot tracker, against a hand-built api table rather
+# than the host: both plugins are entirely "given these events and these api
+# answers, what does the page say", and the page is what the fake keeps. The
+# arithmetic each is a port of -- xp/hr over TRAINING time, and attributing a
+# drop to the despawn it landed on -- is what the cases pin.
+# What the two trackers LOOK like: the real strips composed out of the real
+# shipped art, written to PNGs. The layout is the half no assertion holds, so
+# this pins the few numbers a regression moves (strip height, box pitch) and
+# leaves the rest to the picture.
+TRACKER_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+TRACKER_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+test-tracker-render: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c plugin/test/tracker_render_test.c $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_render_test \
+		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c engine/png_decode.c \
+		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/tracker_render_test.c $(LDFLAGS)
+	$(TRACKER_TEST_ENV) TRACKER_RENDER_XP_PNG=$(OBJ_DIR)/xp_strip.png \
+		TRACKER_RENDER_LOOT_PNG=$(OBJ_DIR)/loot_strip.png \
+		./$(OBJ_DIR)/tracker_render_test
+
+test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
+		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
+		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(LDFLAGS)
+	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
+
+test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
+
+# Public major-3 source contract. This target stays parse/type-check only so an API
+# header regression is reported directly; runtime registration and behavior
+# are covered by test-plugin-host and the bundled-plugin suites.
+.PHONY: test-plugin-api
+test-plugin-api: plugin/torirs_plugin_api.h plugin/test/plugin_api_compile_test.c \
+		plugin/test/plugin_api_single_version_test.py
+	$(CC) -std=c11 -fsyntax-only -Wall -Wextra -Werror=incompatible-pointer-types \
+		-I$(SRC_DIR) plugin/test/plugin_api_compile_test.c
+	@cd $(REPO_ROOT) && python3 src/plugin/test/plugin_api_single_version_test.py
+	@echo "test-plugin-api: ok"
+
+# First bundled v2 consumer. The fake modules pin the old tile indicator's
+# drawing order and colours while proving it needs neither a global API pointer
+# nor per-instance mutable state.
+.PHONY: test-tileind-v2
+test-tileind-v2: $(OBJ_DIR) plugin/plugins/tileind.c plugin/test/tileind_v2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tileind_v2_test \
+		plugin/plugins/tileind.c plugin/test/tileind_v2_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/tileind_v2_test
+
+.PHONY: test-plugin-frame
+test-plugin-frame: $(OBJ_DIR) plugin/torirs_plugin_frame.c \
+		plugin/test/torirs_plugin_frame_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_frame_test \
+		plugin/torirs_plugin_frame.c plugin/test/torirs_plugin_frame_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_frame_test
+
+.PHONY: test-plugin-panel-route
+test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
+		plugin/torirs_plugin_panel_route.h ui/torirs_chrome_rail.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_panel_route_test \
+		plugin/test/plugin_panel_route_test.c ui/torirs_chrome_rail.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_panel_route_test
+
+# The client-owned Gameframe dropdown against the public legacy API. This is a
+# small adapter test: visible titles may change (or even contain the old pipe
+# delimiter), while a click must always send the canonical catalogue id.
+.PHONY: test-client-settings
+test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
+		plugin/test/client_settings_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test \
+		plugin/plugins/client_settings.c plugin/test/client_settings_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/client_settings_test
+
+# The Feature Flags plugin against a fake engine that publishes three flags,
+# one of each shape. What is under test is the round trip -- the page built
+# from the engine's list, a pick reaching the engine, the ini keeping the words
+# rather than an ordinal, and "Revision default" restoring rather than merely
+# stopping. Not which flags the client publishes: that is app.c's statement
+# about what is client-only, and a test restating it would only compare two
+# hand-typed lists.
+.PHONY: test-feature-flags
+test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/feature_flags_test
+
+# The XP drop orbs, against a fake engine with a real PNG decode and a real
+# image table -- because this plugin's whole draw path is read-pixels /
+# compose / blit, and a stub that answered nothing would exercise none of it.
+# It also writes build/xp_orbs_test.png, which is the half of the result no
+# assertion can state: whether the picture is a globe.
+# The gameframe layout plugin against the fake engine, with the same real PNG
+# decode and image table -- this plugin composes its mirrored redstones out of
+# pixels it loaded, so an image table that answered nothing would exercise none
+# of it. Run from src/, where the shipped assets resolve.
+.PHONY: test-gameframe
+# The forty-permutation gameframe gate: OSRS239 toplevel x frame x window size,
+# rendered headlessly and scored on root opened, chat bar present and the LANE's
+# own filter count (8 desktop, 7 on the mobile top). About four minutes.
+#
+# Its own OPT=0 embed binary in its own object dir, so it never disturbs a
+# working src/torirs, and its own preferences.ini written from nothing, so the
+# repo's live device settings (which have carried a 150% interface scale) cannot
+# make every capture look like a regression.
+.PHONY: test-gameframe-matrix
+test-gameframe-matrix:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	../tools/gameframe_matrix.sh
+
+.PHONY: test-gameframe-contract
+test-gameframe-contract:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	GF_MATRIX_SCENARIOS=1 ../tools/gameframe_matrix.sh
+
+.PHONY: test-gameframe-baseline test-gameframe-fixture
+test-gameframe-baseline:
+	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
+		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
+	GF_MATRIX_BASELINE=1 ../tools/gameframe_matrix.sh
+
+test-gameframe-fixture:
+	python3 ../tools/test_gameframe_fixture.py
+
+.PHONY: test-plugin-engine-content
+test-plugin-engine-content:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
+	python3 ../tools/test_cachepack_param_assets.py
+	python3 ../tools/test_cs2_proc_headers.py
+
+.PHONY: test-plugin-contract test-plugin-contract-native
+test-plugin-contract: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_contract_test \
+		plugin/torirs_plugin_contract.c plugin/test/torirs_plugin_contract_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_contract_test
+
+# M1 red cases; uses the existing UITree harness rather than another runner.
+test-plugin-contract-native:
+	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
+
+test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/gameframe_test
+
+# The Stone Drawer mobile gameframe, same harness. What it asserts that the
+# desktop one cannot is the DRAWER: a role the declaration stops mentioning is
+# one the host hides, so "shut" has to be visible as a slot that was not placed.
+# Run from src/, where the shipped assets resolve.
+.PHONY: test-mobile-gameframe
+test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test \
+		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		cmd/cmdbus.c cmd/cmdring.c \
+		input/test/torirs_touch_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_touch_test
+
+test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
+		plugin/plugins/mobile_gameframe.c \
+		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/mobile_gameframe_test
+
+.PHONY: test-minimap-orbs-v2
+test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
+		plugin/test/minimap_orbs_v2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
+		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
+
+test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
+		plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
+		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+			ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/xp_orbs_test
+
+test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	./$(OBJ_DIR)/editor_cmd_test
+
+# Codec fidelity over the whole content tree: every .jm2/.jl2 must survive
+# parse -> emit byte for byte. The editor's save path rewrites the file it
+# loaded, so any asymmetry here is a diff the user never asked for, landing
+# across thousands of squares at once.
+test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
+		editor/test/editor_jm2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/test/editor_jm2_test.c
+	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
+
+# The editor renders what the game renders: a square loaded from text derives
+# to exactly the terrain the cache decodes, resolved heights included. This is
+# the one test that exercises the Perlin height fixup end to end.
+test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_derive_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
+
+# The save path through the real host: only the dirty half is written, the
+# untouched half stays byte-identical, the file reloads, no .tmp is stranded,
+# and a session without the lock cannot write at all.
+test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
+	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
+	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
+# The whole ToriRSMapEd loop with no socket: the client-side remote binding,
+# the frame protocol, the server core, and the real file layer, end to end
+# through the embed pipes. Everything the save test proves about files must
+# still hold across the wire, plus the wire-only properties (absent != empty,
+# a second embed finding the tree locked, no stranded lock).
+test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_cmdwire.c \
+		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
+		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test \
+		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_cmdwire.c \
+		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
+		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+	rm -rf $(OBJ_DIR)/maped_scratch
+	mkdir -p $(OBJ_DIR)/maped_scratch/maps
+	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
+# The multi-PROCESS half: a real daemon, several client processes, and the
+# Client scoping that decides who hears what. Covers what the in-process test
+# structurally cannot â that the same protocol works between processes, and
+# that one Client's selection never reaches another's.
+#
+# TORIRSMAPED_TEST_PORT overrides the port when 43611 is busy.
+test-torirsmaped-daemon: torirsmaped torirsmapedctl
+	sh torirsmaped/test/maped_daemon_test.sh \
+		$(OBJ_DIR)/torirsmaped $(OBJ_DIR)/torirsmapedctl \
+		$(OBJ_DIR)/maped_daemon_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
+# Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
+# degenerate shapes real footprints produce -- edge-on, collinear, duplicated
+# corners shared between adjacent tiles.
+test-convex-hull: $(OBJ_DIR) $(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/convex_hull_test \
+		$(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	./$(OBJ_DIR)/convex_hull_test
+
+# Convex polygon span decomposition -- the geometry all four renderers share, so
+# a bug in it is a bug in every backend at once.
+test-polygon-fill: $(OBJ_DIR) render/torirs_polygon.c render/test/torirs_polygon_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_polygon_test \
+		render/torirs_polygon.c render/test/torirs_polygon_test.c
+	./$(OBJ_DIR)/torirs_polygon_test
+
+# ToriRSChrome dropdown interaction, driven through the real input entry points:
+# opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
+# and swapping the option list out from under an open one.
+test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_test_dropdown \
+		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	./$(OBJ_DIR)/uitree_test_dropdown
+
+test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
+	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed \
+	test-torirsmaped-daemon
+
+# NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
+# struct plumbing, no cache file or App needed.
+test-npctype-multi: $(OBJ_DIR) engine/torirs_npctype_from_rscache.c \
+		engine/test/torirs_npctype_from_rscache_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_npctype_from_rscache_test \
+		engine/torirs_npctype_from_rscache.c \
+		engine/test/torirs_npctype_from_rscache_test.c
+	./$(OBJ_DIR)/torirs_npctype_from_rscache_test
+
 test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test varc/varc_manager.c varc/varc_manager_test.c
 	./$(OBJ_DIR)/varc_manager_test
@@ -1375,11 +2646,18 @@ test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_loot_store_test game/rs_loot_store.c game/test/rs_loot_store_test.c
 	./$(OBJ_DIR)/rs_loot_store_test
 
+# Notable-moment recognition: the text patterns behind the plugin layer's
+# game events. Pure text in, struct out -- no cache, no server, no window.
+test-game-events: $(OBJ_DIR) game/rs_game_events.c game/test/rs_game_events_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_game_events_test \
+		game/rs_game_events.c game/test/rs_game_events_test.c
+	./$(OBJ_DIR)/rs_game_events_test
+
 # ---------------------------------------------------------------------------
 # ServerScript (LostCity RuneScript) reader / compiler / VM.
 #
 # Engine-agnostic by construction: libc plus 3rd/rsareabuf and nothing else, so
-# it links into the standalone mock230 server without dragging in SDL, the task
+# it links into the standalone ToriRSServer server without dragging in SDL, the task
 # queue or the client's UI tree. Every target here links only the subsystem's
 # own sources. See docs/serverscript.md.
 #
@@ -1392,7 +2670,7 @@ test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
 # script and immediately run it.
 SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
 	content/content_register.c content/content_fields.c $(INI_SRC) \
-	serverscript/ssc_compile.c
+	serverscript/ssc_compile.c serverscript/ssc_lane.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
 # relation, and the 64-bit lookup key that a rev-230 component uid overflows.
@@ -1426,7 +2704,7 @@ test-ss-vm: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_vm_test.c
 		$(SS_SRCS) serverscript/test/ss_vm_test.c
 	./$(OBJ_DIR)/ss_vm_test
 
-# The trigger lookup order — exact type, then category, then the bare `_`, and
+# The trigger lookup order â exact type, then category, then the bare `_`, and
 # nothing after that. Synthetic scripts, because every way of getting the order
 # wrong still finds *a* script: swapping the first two rungs runs the category's
 # script for an item that had its own, which looks entirely reasonable in a log.
@@ -1444,8 +2722,25 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 	./$(OBJ_DIR)/ss_verify_test $(SS_CORPUS)
 
 # RuneScript compiler: .rs2 -> script.dat/.idx.
+#
+# Always -O3, whatever flavor the client is being built in. sscompile is a build
+# tool, not the program under test: it reads ~15k scripts on every content
+# change, and inheriting OPT=0 from a debug client build turns a five-second
+# step into a much longer one for no diagnostic gain â nobody debugs the client
+# by stepping through the script compiler. $(CFLAGS) is still the base, so the
+# include paths, the C standard and the warning set stay identical; only the
+# optimisation level is pinned. The trailing -O3 wins because the last -O on a
+# command line is the one gcc and clang obey.
+#
+# The sanitizers are deliberately NOT stripped the same way. ENABLE_ASAN=1 is an
+# explicit ask, and a compiler that reads 15k files is a good place for ASan to
+# find something; -O3 and -fsanitize=address compose. What is being pinned here
+# is the accident (a debug client build slowing the content loop), not the
+# deliberate choice.
+SSC_CFLAGS = $(CFLAGS) -O3
+
 sscompile: $(OBJ_DIR) $(SSC_SRCS) serverscript/ssc_main.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
+	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
 	@echo "built $(OBJ_DIR)/sscompile"
 
 # Compiler end to end: each case writes real RuneScript, compiles it, loads it
@@ -1468,15 +2763,19 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 		game/rs_cs1_host.c game/rs_player_stats.c \
 		inv/inv_manager.c varp/varp_manager.c \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
-		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
+		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c ui/torirs_chrome_inkwell.c \
 		perf/torirs_perf.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
 
+# -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
+# CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
+# assertion in the file out and left it passing on values it was asserting
+# against. TEST_CHECK survived, the payload comparisons did not.
 test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/cmdbus_test cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 	./$(OBJ_DIR)/cmdbus_test
 
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
@@ -1484,7 +2783,9 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
 	$(OBJ_DIR)/loginproto_xrsps.o $(OBJ_DIR)/loginproto_osrs230.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
-	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
+	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_lc289.o \
+	$(OBJ_DIR)/lc289_entity_info.o $(OBJ_DIR)/pkt_player_info.o $(OBJ_DIR)/pkt_npc_info.o \
+	$(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
 	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/pkt_player_appearance.o \
@@ -1506,7 +2807,7 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o
 # the wrong players rather than erroring.
 test-mock239-playerinfo: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test \
-		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
+		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
@@ -1516,8 +2817,8 @@ test-mock239-playerinfo: $(OBJ_DIR)
 # fail directly rather than only as a click that appears to do nothing.
 test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
-		net/mock/test/mock239_interface_inbound_test.c \
-		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
+		torirsserver/test/mock239_interface_inbound_test.c \
+		torirsserver/mock239_interface_inbound.c torirsserver/mock239_inbound.c \
 		$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_inbound_test
 
@@ -1526,32 +2827,32 @@ test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
 # a second implementation with the same possible mistake.
 test-mock239-runclientscript: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_runclientscript_test \
-		net/mock/test/mock239_runclientscript_test.c \
-		net/mock/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_runclientscript_test.c \
+		torirsserver/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_runclientscript_test
 
 # Every additional fixed-body rev239 model/interface setter. The expected
 # bodies are independent literal RSProt fixtures, not a decode round-trip.
 test-mock239-interface-setters: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_setters_test \
-		net/mock/test/mock239_interface_setters_test.c \
-		net/mock/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_interface_setters_test.c \
+		torirsserver/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_setters_test
 
 test-mock239-varp: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_varp_test \
-		net/mock/test/mock239_varp_test.c \
-		net/mock/mock239_varp.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_varp_test.c \
+		torirsserver/mock239_varp.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_varp_test
 
 # Server->client revision-239 interface authority and golden packet bodies.
 # Expected bytes are literal fixtures taken from RSProt's encoders rather than
 # decoded through a mirror of this implementation.
-test-mock230-interface-state: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_interface_state_test \
-		net/mock/test/mock230_interface_state_test.c \
-		net/mock/mock230_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock230_interface_state_test
+test-torirsserver-interface-state: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_InterfaceStateTest \
+		torirsserver/test/torirs_server_interface_state_test.c \
+		torirsserver/torirs_server_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/ToriRSServer_InterfaceStateTest
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
@@ -1580,7 +2881,7 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test \
-		net/test/net_loopback_test.c net/mock/mock_server.c \
+		net/test/net_loopback_test.c torirsserver/mock_server.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	./$(OBJ_DIR)/net_loopback_test
 
@@ -1588,7 +2889,7 @@ test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_manager_test inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
 
-test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-world: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_test \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -1597,14 +2898,41 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		features/features.c \
 		world/test/world_test_unit.c world/test/world_test_sim.c \
 		world/test/world_test_route.c world/test/world_test_main.c \
-		$(OBJ_DIR)/toridraw_unity.o
+		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/world_test
 
-test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-pick: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/pick_face_test
+
+# The terrain pick's level guard. Links the world the same way test-world does,
+# because the guard's whole subject is a bridge column's tile flags.
+test-pick-level: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_level_test \
+		render/test/pick_level_test.c render/torirs_pick.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/pick_level_test
+
+.PHONY: test-wev-population
+test-wev-population: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/wev_population_test \
+		world/test/wev_population_test.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/wev_population_test
 
 test-trig-tables-share: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trig_tables_share_test \
@@ -1630,16 +2958,84 @@ test-painters-terrain-levels: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_terrain_levels
 
-test-uitree: $(OBJ_DIR)
+test-painters-ground-decor: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_ground_decor_dynamic \
+		painters/test/painters_test_ground_decor_dynamic.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_ground_decor_dynamic
+
+# Painter descent into nested world views (sailing, SAILING_PLAN C3): a boat's
+# painter run to completion between BEGIN_WORLD/END_WORLD, in the PARENT
+# painter's draw order (a loc behind the boat before the pair, a loc in front
+# after it), plus the two refusals that must still balance the marker stream
+# (unbound view, A -> B -> A cycle), nesting to the 16-view registry bound on
+# the explicit stack, and zero-boat parity. Bare painter, no cache, no world.
+#
+# C5 extends the same family to actors: an actor routed onto a deck emits
+# between that boat's markers and one left ashore does not, plus the deck <->
+# parent transform and the half-open footprint that decide which of the two an
+# actor is (world/wev_deck.c -- pure arithmetic, still no cache and no world).
+# The painter's per-cycle dynamic pass: the scenery pool must not grow across
+# frames (the static high-water hands dynamic nodes back), and the registration
+# journal (TORIRS_PAINTER_DYN_SKIP) must paint byte-identical streams whether a
+# cycle was skipped or rebuilt. Bare painter, no cache, no world.
+test-painters-dynamic-pool: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_dynamic_pool_test \
+		engine/test/painters_dynamic_pool_test.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_dynamic_pool_test
+
+test-painters-world-entity: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_world_entity \
+		painters/test/painters_test_world_entity.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		world/wev_deck.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_world_entity
+
+.PHONY: test-sailing-paint-order
+test-sailing-paint-order: $(OBJ_DIR)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/sailing_paint_order_test \
+		game/test/sailing_paint_order_test.c
+	./$(OBJ_DIR)/sailing_paint_order_test
+
+.PHONY: test-wev-visibility
+test-wev-visibility: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_visibility_test \
+		world/test/wev_visibility_test.c world/wev.c -lm
+	./$(OBJ_DIR)/wev_visibility_test
+
+# The model tests link no platform, so they deliberately exercise the internal
+# BUFFER fallback. Strip every external executor advertised by the selected
+# platform; otherwise a macOS test compile, for example, selects BROWSER while
+# this focused harness quite correctly links no browser transport or executor.
+CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
+	-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE
+
+UITREE_TEST_ENV =
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+UITREE_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+
+test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
-		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
+		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
+		ui/torirs_chrome_inkwell.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -1647,53 +3043,170 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_drag_scrolled.c ui/test/uitree_test_emit_icons.c \
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
+		ui/test/uitree_test_input_field.c ui/test/uitree_test_plugin_contract.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
-		ui/test/uitree_test_debug_overlay.c
-	./$(OBJ_DIR)/uitree_test
+		ui/test/uitree_test_debug_overlay.c \
+		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
+		ui/test/uitree_test_chrome_panel_draw.c ui/torirs_chrome_panel_draw.c \
+		ui/torirs_chrome_rail.c \
+		ui/torirs_chrome_exec_kind.c \
+		ui/test/uitree_test_chrome_shell.c ui/torirs_chrome_shell.c \
+		ui/torirs_chrome_mirror.c \
+		$(CHROME_EXEC_TEST_CFLAGS) \
+		ui/test/uitree_test_entity_overlay_order.c \
+		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_frame.c \
+		ui/test/uitree_test_roles.c \
+		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/uitree_test
+
+# The attached plugin pane's WINDOW-SIZE policy alone (grow only where the
+# display has room, never while maximised, Close gives back what was grown,
+# the pump relayouts a pane that changed inside the frame). This is platform
+# window geometry only; plugin chrome itself is presented by a web executor.
+.PHONY: test-sdl-chrome-geometry
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-chrome-geometry: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test \
+		platform/test/sdl_chrome_geometry_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_geometry_test
+else
+test-sdl-chrome-geometry:
+	@echo "test-sdl-chrome-geometry requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
+# What PlatformWindow_SetTextInput(off) may do on a backend with no on-screen
+# keyboard: nothing. This needs only the platform window/input path.
+.PHONY: test-sdl-text-input
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-text-input: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test \
+		platform/test/sdl_text_input_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_text_input_test
+else
+test-sdl-text-input:
+	@echo "test-sdl-text-input requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
 # plain buffer with the baked font. Pixel-level, but needs no cache and no
-# renderer — ToriDraw2D_DrawString writes the buffer itself.
-test-font-markup: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+# renderer â ToriDraw2D_DrawString writes the buffer itself.
+test-font-markup: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/font_markup_test \
 		ui/test/font_markup_test.c engine/torirs_debug_font_baked.c \
 		$(BMP_DIR)/bmp.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o -lm
-	./$(OBJ_DIR)/font_markup_test
+		$(TORIDRAW_UNITY_LINK_OBJS) -lm
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/font_markup_test
 
 # Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
 # with the *baked* fonts, one BMP per feature into build/. This is the only test
 # that proves the pictures are right (baselines, scissor boxes, the slot -> font
 # mapping); test-uitree covers the model. It links the real frame translator and
-# the real software rasteriser but NOT world.c — torirs_frame.c only reaches the
+# the real software rasteriser but NOT world.c â torirs_frame.c only reaches the
 # two World_* symbols on the UITREE_EMIT_WORLD path, which an overlay-only emit
 # buffer never takes, and the test closes the link itself rather than dragging
 # painters/collision/heightmap/minimap into a rectangles-and-text test.
-test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
-		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
+# Shared browser protocol serializer/parser, with a fake PlatformWindow
+# transport. This runs on every host; WebView2/MSHTML engine tests are separate.
+.PHONY: test-chrome-browser-exec
+test-chrome-browser-exec: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+		-o $(OBJ_DIR)/chrome_browser_exec_test \
+		ui/test/torirs_chrome_exec_browser_test.c \
+		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c
+	./$(OBJ_DIR)/chrome_browser_exec_test
+
+# The web executor's half of the skin: the real base64 encoder over the real
+# bake, decoded back and checked for what the pixels MEAN. See the file comment
+# on why a byte-order slip is invisible to every other test.
+#
+# ui/torirs_chrome_exec_web.c is a web-lane source, and it compiles natively
+# because it stubs EM_JS itself -- which is what lets this run on the host.
+.PHONY: test-chrome-web-skin
+test-chrome-web-skin: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test \
+		ui/test/uitree_test_chrome_web_skin.c \
+		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
+	./$(OBJ_DIR)/chrome_web_skin_test
+
+# The web panel channel: the wire codec, and a two-tab handshake driven through
+# the real torirs_channel.js with two fake windows. Node only -- no browser, no
+# wasm, no build step, because the channel deliberately has none of those.
+.PHONY: test-web-channel
+test-web-channel:
+	node plugin_chrome/test/runtime_test.js
+	node plugin_chrome/test/runtime_legacy_test.js
+	node plugin_chrome/test/compat_test.js
+	node web/test/channel_codec_test.js
+	node web/test/channel_handshake_test.js
+	node web/test/chrome_enum_sync_test.js
+	node web/test/chrome_dom_test.js
+	node web/test/chrome_layout_test.js
+	node web/test/host_plugin_files_test.js
+	$(MAKE) test-chrome-web-skin
+
+test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
+		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
+		perf/torirs_perf.c \
 		$(BMP_DIR)/bmp.c \
-		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o -lm
 	./$(OBJ_DIR)/debug_overlay_visual
 
-# The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
-test-chat-widgets: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
-		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c net/jbase37.c \
+# A plugin image is carried through UITREE's entity-overlay list. Positive
+# destination dimensions must select the renderers' scaled/IF3 sprite path;
+# built-in hitsplats and headicons leave those dimensions zero and stay 1:1.
+.PHONY: test-frame-entity-overlay-sprite
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+FRAME_ENTITY_OVERLAY_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_entity_overlay_sprite_test \
+		render/test/torirs_frame_entity_overlay_sprite_test.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
+
+.PHONY: test-frame-flat
+test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_flat_test \
+		render/test/torirs_frame_flat_test.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_flat_test
+
+# The message store the cache's chatbox scripts read: per-type rings, the uid
+# walk rebuildchatbox drives, ring recycling, friend/ignore state.
+test-chat-store: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chat_store_test \
+		game/rs_chat.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		perf/torirs_perf.c \
-		game/test/rs_chat_widgets_test.c -lm
-	./$(OBJ_DIR)/chat_widgets_test
+		game/test/rs_chat_store_test.c -lm
+	./$(OBJ_DIR)/chat_store_test
 
 # Widget-rebuild burst benchmark (cc_deleteall + a run of cc_create). Always
-# optimized — the point is the algorithm, not -O0 call overhead. Override the
+# optimized â the point is the algorithm, not -O0 call overhead. Override the
 # shape with BENCH_ROWS / BENCH_ITERS / BENCH_STATIC_CHILDREN.
 BENCH_ROWS ?= 400
 BENCH_ITERS ?= 20
@@ -1712,9 +3225,61 @@ bench-uitree: $(OBJ_DIR)
 test-uitree-builder: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \
 		engine/uitree_builder/uitree_builder_manifest.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		engine/uitree_builder/test/uitree_builder_test_manifest.c
 	./$(OBJ_DIR)/uitree_builder_test
+
+# Title-screen model: typing, focus, submit, per-revision caps and charsets.
+# A leaf model, so this links two files and needs neither cache nor server.
+test-rs-title: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
+		game/test/rs_title_test.c game/rs_title.c
+	./$(OBJ_DIR)/rs_title_test
+
+# The startup progress bar, against the references' own measurements. Asserted
+# rather than screenshotted: the exit-frame capture re-renders after boot, so
+# it cannot contain this bar at all.
+test-boot-bar: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/boot_bar_test \
+		engine/test/boot_bar_test.c engine/boot_bar.c
+	./$(OBJ_DIR)/boot_bar_test
+
+# The title screen's fire. Deterministic by construction (private seeded LCG),
+# so these are assertions about how it burns rather than eyeballing.
+test-title-flames: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/title_flames_test \
+		engine/test/title_flames_test.c engine/title_flames.c -lm
+	./$(OBJ_DIR)/title_flames_test
+
+# The login-reply table, read from the shipped profile: a rejection the profile
+# has no words for shows a blank box, which is the one failure a login screen
+# cannot afford.
+# The loading screen's work list, read from the profiles that ship: the bar
+# never moves backwards, every caption names a string that exists, and each
+# lane names work its own machinery can do.
+test-preload: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test \
+		game/test/rs_preload_test.c game/rs_preload.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_preload_test
+
+test-login-replies: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \
+		game/test/rs_login_replies_test.c game/rs_login_replies.c \
+		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_login_replies_test
+
+# JPEG decode over the real title backgrounds on disk. Skips a cache that is
+# not checked out; the point is the RS caches' corrupted SOI byte, not stb.
+test-jpeg-decode: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/stb_image_impl.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/jpeg_decode_test \
+		engine/test/jpeg_decode_test.c engine/jpeg_decode.c \
+		$(OBJ_DIR)/stb_image_impl.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/jpeg_decode_test
 
 test-minimap: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/minimap -I$(BMP_DIR) -o $(OBJ_DIR)/minimap_test \
@@ -1727,12 +3292,12 @@ test-entity-decode: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test \
 		net/test/entity_decode_test.c net/bitbuffer.c \
 		net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
-		net/rev/packets/pkt_player_appearance.c \
+		net/rev/packets/pkt_player_appearance.c net/rev/lc289/lc289_entity_info.c \
 		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test
 
-# RUNCLIENTSCRIPT (op 84): the encoder's layout read back by osrs230_parse —
+# RUNCLIENTSCRIPT (op 84): the encoder's layout read back by osrs230_parse â
 # the mixed int/string payload, and the argument-count guard that used to
 # accept an over-long packet as PKT_RUNCLIENTSCRIPT_ARG_MAX garbage arguments.
 .PHONY: test-runclientscript
@@ -1747,15 +3312,27 @@ test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/rsprot_buf.o -lm
 	./$(OBJ_DIR)/runclientscript_test
 
+# A task can interrupt the settle loop to have the screen drawn, and says
+# what should be on it. Opt-in: a plain yield still settles straight through.
+test-task-render-yield: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_render_yield_test game/test/task_render_yield_test.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_render_yield_test
+
 # Serial-FIFO ordering guarantee (head-only task execution across IO yields).
 test-task-order: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_order_test game/test/task_order_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/task_order_test
+
+# The sibling join: a fan-out on the parallel asset queue goes out in one pass
+# and its parent resumes when every loader has ENDED, refused ones included.
+test-task-join: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/task_join_test game/test/task_join_test.c perf/torirs_perf.c -lm
+	./$(OBJ_DIR)/task_join_test
 
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
 test-cs2-frame-settle: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test game/test/cs2_frame_settle_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/cs2_frame_settle_test
 
 # No blocking IO outside tests: TaskRunner_Drain must appear only under */test/.
@@ -1763,12 +3340,12 @@ check-no-drain:
 	@! grep -rn "TaskRunner_Drain" --include="*.c" --include="*.h" . \
 		| grep -v "/test/" | grep -v "task_runner.h" \
 		&& echo "check-no-drain: PASS (no runtime Drain)" \
-		|| (echo "check-no-drain: FAIL — runtime TaskRunner_Drain found" && exit 1)
+		|| (echo "check-no-drain: FAIL â runtime TaskRunner_Drain found" && exit 1)
 
 # Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
-test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-walkmerge: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/walkmerge_test \
-		world/test/walkmerge_test.c $(OBJ_DIR)/toridraw_unity.o
+		world/test/walkmerge_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/walkmerge_test
 
 # Parity of the `scanline` raster family against the shipping `branching`
@@ -1780,6 +3357,219 @@ test-scanline: $(OBJ_DIR)
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_test \
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
+
+# The same parity, on every pixel format the library claims to support.
+#
+# This is the proof that the raster families are format-agnostic: a solid face
+# reaches the framebuffer through the palette and alpha_blend, and a textured
+# one composes in 8-bit texel lanes and converts once at the store. Neither a
+# channel order nor a channel width is a term in what they compute, so every
+# format runs every arm -- solid and textured -- and all of them must agree
+# with the same branching references.
+#
+# -Werror=incompatible-pointer-types is the point of the compile: a kernel that
+# has not been converted cannot silently accept a native buffer.
+TORIDRAW_PIXEL_FORMATS = \
+	XRGB8888:1 ARGB8888:2 RGBA8888:3 ABGR8888:4 BGRA8888:5 RGB565:6 ARGB1555:7 \n	RGB565_BE:8
+
+.PHONY: test-scanline-formats
+test-scanline-formats: $(OBJ_DIR)
+	@fail=""; \
+	for spec in $(TORIDRAW_PIXEL_FORMATS); do \
+		name=$${spec%%:*}; val=$${spec##*:}; \
+		$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+			-Werror=incompatible-pointer-types -DTORIDRAW_PIXEL_FORMAT=$$val \
+			-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_$$name \
+			$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm \
+			|| { echo "  $$name: COMPILE FAILED"; fail="$$fail $$name"; continue; }; \
+		out=$$(./$(OBJ_DIR)/scanline_parity_$$name 2>&1); \
+		bad=$$(printf '%s\n' "$$out" | grep -c '  FAIL ' || true); \
+		if [ "$$bad" -ne 0 ]; then \
+			echo "  $$name: $$bad failure(s)"; fail="$$fail $$name"; \
+		else \
+			echo "  $$name: all families agree"; \
+		fi; \
+	done; \
+	if [ -n "$$fail" ]; then echo "scanline format matrix FAILED:$$fail"; exit 1; fi; \
+	echo "scanline format matrix: all green"
+
+# Public model-face dispatch: four typed SD slots, six typed HD slots, complete
+# vtables, pass-requirement flags, and per-call selection. CPU-only, no cache/disk.
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+RASTER_KERNEL_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+
+test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(filter -fsanitize=%,$(LDFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/raster_kernel_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
+
+# The same routing contract, compiled and linked under a SECOND pixel format.
+#
+# It used to be "the 16-bit ABI", and the test carried a set of #ifdefs saying
+# what a 16-bit build could not do: textured faces collapsed to solid classes,
+# the depth family was absent, HD was six no-op callbacks. None of that is true
+# any more, and the test has no format conditionals left -- the same source
+# asserts the same contract, and the point of building it twice is that it HAS
+# to.
+#
+# RGB565 is the arm that proves the most, because it differs from the default
+# in both of the ways a format can: channel width and the pack that follows
+# from it. The asm lanes stay in $(TORIDRAW_CFLAGS) deliberately -- each door
+# is gated on TORIPIXEL_IS_XRGB8888 and declines on its own, and this recipe
+# not needing to strip them is the check that they do.
+TORIDRAW_ALT_FORMAT = TORIDRAW_PF_RGB565
+TORIDRAW_ALT_FORMAT_NAME = rgb565
+
+# The font object is gone from this list for the same reason as its
+# XRGB8888 twin: toridraw_unity.c compiles toridraw_font.c itself.
+RASTER_KERNEL_ALTFMT_OBJS = $(OBJ_DIR)/toridraw_unity_altfmt.o \
+	$(OBJ_DIR)/bmp_altfmt.o
+
+TORIDRAW_ALTFMT_CFLAGS = $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT)
+
+$(OBJ_DIR)/toridraw_unity_altfmt.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) -w -c $< -o $@
+
+
+$(OBJ_DIR)/bmp_altfmt.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) -w -c $< -o $@
+
+test-raster-kernel-altformat: $(OBJ_DIR) $(RASTER_KERNEL_ALTFMT_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) \
+		$(filter -fsanitize=%,$(LDFLAGS)) \
+		-lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_ALTFMT_OBJS) \
+		$(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_$(TORIDRAW_ALT_FORMAT_NAME)_test
+
+# ToriDraw2D_BlitArgbScaledAlpha's 1:1 shortcut against the stepping loop it
+# skips. Every if3 interface sprite reaches that call whether or not its
+# component box differs from the image, and in a measured client frame all of
+# them were 1:1 -- so the shortcut is the common path, not the rare one, and it
+# has to be exact. Standalone TU, no cache or disk.
+# Gouraud span-fill kernels: bit-exactness against the reference twin first,
+# then ns/pixel over a replayed trace of real spans. The scene bench's `render`
+# p50 repeats to +/-1-3% and the whole span fill is a few percent of it, so a
+# kernel change is smaller than that harness's own spread and has to be scored
+# here instead. TRACE=<file> replays a capture made with -DTORIDRAW_SPAN_TRACE=1;
+# without one it falls back to a synthetic distribution and says so.
+test-span-bench: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/span_bench \
+		$(TORIDRAW_DIR)/toridraw_span_bench.c -lm
+	./$(OBJ_DIR)/span_bench $(TRACE)
+
+# The hand-written texture span kernel against the C twin it replaces: every
+# pixel of 8000 spans compared, then a timing of both, interleaved, best-of.
+#
+# Interleaved and best-of because the two are within a factor of two of each
+# other and this machine's clock drifts more than that difference over a run of
+# consecutive passes -- alternating them puts both sides in the same weather.
+#
+# Only the two x86 Windows lanes have a kernel; anywhere else there is nothing
+# to score, and saying so is better than silently testing the C against itself.
+test-texspan-asm: $(OBJ_DIR)
+ifeq ($(TEXSPAN_ASM_SRC),)
+	@echo "test-texspan-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Two steps, and for the same reason $(TEXSPAN_ASM_OBJ) is its own rule:
+	@# the C half needs $(PLATFORM_BASE_CFLAGS) or the lane's ISA floor is not
+	@# the one being tested -- win32 without -march=pentium4 has no SSE2 and
+	@# the reference twin does not compile -- while the asm half must not see
+	@# them, because -include win32_compat.h reaches the assembler as several
+	@# hundred lines of "no such instruction".
+	$(CC) -I$(TORIDRAW_DIR) -c $(TEXSPAN_ASM_SRC) -o $(OBJ_DIR)/texspan_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texspan_asm_test 		$(TORIDRAW_DIR)/toridraw_texspan_asm_test.c 		$(OBJ_DIR)/texspan_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/texspan_asm_test
+endif
+
+# The hand-written gouraud triangle against the C twin it replaces: every pixel
+# of a framebuffer, over randomised triangles, compared exactly.
+#
+# Exactly, not approximately. The 4-pixel colour quantization in
+# toridraw_gouraud_span_fill_short is visible output -- toridraw_scanline_parity
+# _test pins it separately -- so a kernel that merely looked the same would be
+# changing what the client draws.
+#
+# The generators are the point, not the count: uniform random triangles are
+# almost all interior and would never reach the degenerate, flat-topped, sliver
+# and fully-offscreen cases where a hand-written walk actually breaks.
+#
+# i686 only; anywhere else there is nothing to score, and saying so beats
+# silently testing the C against itself.
+test-gouraud-tri-asm: $(OBJ_DIR)
+ifeq ($(GOURAUD_TRI_ASM_SRC),)
+	@echo "test-gouraud-tri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Split for the same reason as test-texspan-asm: the C half needs
+	@# $(PLATFORM_BASE_CFLAGS) or it is not the lane's ISA floor under test,
+	@# and the asm half must not see them, because -include win32_compat.h
+	@# reaches the assembler as several hundred bad instructions.
+	$(CC) -I$(TORIDRAW_DIR) -c $(GOURAUD_TRI_ASM_SRC) -o $(OBJ_DIR)/gouraud_tri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/gouraud_tri_asm_test 		$(TORIDRAW_DIR)/toridraw_gouraud_tri_asm_test.c 		$(OBJ_DIR)/gouraud_tri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/gouraud_tri_asm_test
+endif
+
+# The hand-written flat triangle kernels against the C twins they replace --
+# all four entries, because each can fail in a way the others cannot: the
+# single walk, the blend, the batch's draw order, and the batch's per-row
+# alpha. Same split-compile argument as test-gouraud-tri-asm.
+#
+# i686 only; anywhere else there is nothing to score.
+test-flat-tri-asm: $(OBJ_DIR)
+ifeq ($(FLAT_TRI_ASM_SRC),)
+	@echo "test-flat-tri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	$(CC) -I$(TORIDRAW_DIR) -c $(FLAT_TRI_ASM_SRC) -o $(OBJ_DIR)/flat_tri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
+		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/flat_tri_asm_test \
+		$(TORIDRAW_DIR)/toridraw_flat_tri_asm_test.c \
+		$(OBJ_DIR)/flat_tri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/flat_tri_asm_test
+endif
+
+# The hand-written perspective-textured triangle against the C twin it
+# replaces. Same argument as test-gouraud-tri-asm, plus two of its own.
+#
+# The framebuffer is compared WITH guard bands on both sides, not just the
+# picture: this walk clamps its own row count, and a kernel that ran one row
+# past the bottom would write outside the viewport, which a picture-only
+# comparison would score as a pass.
+#
+# Both texture widths are generated, because the kernel hoists the 64-vs-128
+# dispatch out of the row loop and into the prologue -- so the two widths are
+# two separately assembled copies of the fill, and testing one says nothing
+# about the other.
+#
+# i686 only; anywhere else there is nothing to score.
+test-textri-asm: $(OBJ_DIR)
+ifeq ($(TEXTRI_ASM_SRC),)
+	@echo "test-textri-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
+else
+	@# Split for the same reason as the two above: the C half needs
+	@# $(PLATFORM_BASE_CFLAGS) or it is not the lane's ISA floor under test,
+	@# and the asm half must not see them.
+	$(CC) -I$(TORIDRAW_DIR) -c $(TEXTRI_ASM_SRC) -o $(OBJ_DIR)/textri_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function -Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) -I$(TORIDRAW_DIR) -o $(OBJ_DIR)/textri_asm_test $(TORIDRAW_DIR)/toridraw_textri_asm_test.c $(OBJ_DIR)/textri_asm_test_kernel.o -lm
+	./$(OBJ_DIR)/textri_asm_test
+endif
+
+test-blit-scaled: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \
+		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c -lm
+	./$(OBJ_DIR)/blit_scaled_test
+
+test-blit-opaque: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_opaque_test \
+		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c -lm
+	./$(OBJ_DIR)/blit_opaque_test
 
 # The `gouraudrgb` family: per-channel RGB interpolation, as opposed to
 # `gouraudhsllightness`, which walks a packed HSL16 word through the palette.
@@ -1793,7 +3583,7 @@ test-gouraudrgb: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
 	./$(OBJ_DIR)/gouraudrgb_test
 
-.PHONY: test-scanline test-gouraudrgb test-texture-matrix test-texmap test-render-hd
+.PHONY: test-scanline test-raster-kernel test-raster-kernel-altformat test-gouraudrgb test-texture-matrix test-texmap test-render-hd
 
 # The `texplane` compositing matrix on the `branching` family:
 # gate {texopaque,textrans,texalpha} x facealpha x modulate, plus clamp
@@ -1820,10 +3610,10 @@ test-texmap: $(OBJ_DIR)
 # ToriDraw_RenderHD's per-face routing: does each face reach the kernel its
 # render type, material gate and alpha name? Asserts on ToriDraw_HDRenderStats,
 # because a mis-routed face still produces pixels and the image cannot tell.
-test-render-hd: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-render-hd: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/render_hd_test \
-		$(TORIDRAW_DIR)/toridraw_render_hd_test.c $(OBJ_DIR)/toridraw_unity.o \
-		$(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_render_hd_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		
 	./$(OBJ_DIR)/render_hd_test
 
 # Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
@@ -1833,13 +3623,41 @@ scanline-compare: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/scanline_compare \
 		render/test/scanline_compare_sdl.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	@echo "built $(OBJ_DIR)/scanline_compare — run: $(OBJ_DIR)/scanline_compare $(DAT1_CACHE)"
+	@echo "built $(OBJ_DIR)/scanline_compare â run: $(OBJ_DIR)/scanline_compare $(DAT1_CACHE)"
 
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
-test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-rotate-blit: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
-		render/test/rotate_blit_test.c render/trspk_sprite.c $(OBJ_DIR)/toridraw_unity.o
+		render/test/rotate_blit_test.c render/trspk_sprite.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/rotate_blit_test
+
+# The indexed arena find must answer what the old linear scan answered.
+test-trspk-modelarena-index: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
+		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
+	./$(OBJ_DIR)/trspk_modelarena_index_test
+
+# The SSE2 sprite swizzle must reproduce the per-pixel rule bit for bit.
+test-trspk-swizzle-simd: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_swizzle_simd_test \
+		render/test/trspk_swizzle_simd_test.c
+	./$(OBJ_DIR)/trspk_swizzle_simd_test
+
+# The SSE2 colour kernel must reproduce the scalar one exactly.
+test-trspk-color-simd: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_color_simd_test \
+		render/test/trspk_color_simd_test.c
+	./$(OBJ_DIR)/trspk_color_simd_test
+
+# Vertex-bake microbenchmark: the inner loop of d3d9_bake_pose_vertices.
+# It drives the REAL bake functions, never a copy, so a change to the
+# shipping path is what moves this number. Run it with OPT=1 -- the frame
+# it stands in for is an OPT=1 frame.
+bench-trspk-bake: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_bake_bench \
+		render/test/trspk_bake_bench.c render/trspk_toridraw.c $(TRSPK_UNITY_SRC) \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(PLATFORM_STRIP_LDFLAGS) -lm
+	./$(OBJ_DIR)/trspk_bake_bench
 
 # Packet exec seam against bare managers (no cache/disk). Links the app
 # object set (exec calls into RS_UISlots which references App) minus main.
@@ -1849,11 +3667,35 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
 
+# World entities (sailing, SAILING_PLAN C1): the WORLDENTITY_INFO delta
+# reader, the class458 interpolator (incl. the 2047->1 wraparound arc), the
+# footprint corner bake, and the archive-72 WevConfig decode against the real
+# cache at ../cache.osrs239 (loud SKIP when absent).
+test-wev: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_test \
+		world/test/wev_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_test
+
+# World entities (sailing, SAILING_PLAN C2): REBUILD_WORLDENTITY_V4 (op 109)
+# — the raw-carry parse arm, the view-sized bit-grid decode (13x13 stride,
+# whole-stream rejection), and a 1-zone raft deck rebuilt through
+# CreateTask_WorldLoad into a boat world sharing the root's ToriDraw scene,
+# height-checked against a real root Lumbridge rebuild. Also the per-view
+# element pools that make one shared scene safe: each view rebuilt with the
+# other already built, plus the despawn sweep. Cache-backed against
+# ../cache.osrs239 (loud SKIP when absent; the parse/decode/pool checks run).
+test-wev-rebuild: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_rebuild_test \
+		world/test/wev_rebuild_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/wev_rebuild_test
+
 # The CLIENT half of friends / ignore / private chat: the store, the CS2 host
 # ops, the friend-transmit registration, and the generated stack shapes. The
-# server half already has two gates (`mock230 --selftest` and
-# `test-mock230-embed`); every bug this feature actually hit was on this side of
-# the wire, and it had none. Needs no cache and no server on purpose — a gate
+# server half already has two gates (`ToriRSServer --selftest` and
+# `test-torirsserver-embed`); every bug this feature actually hit was on this side of
+# the wire, and it had none. Needs no cache and no server on purpose â a gate
 # that can SKIP is a gate that eventually only ever skips.
 test-social: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_social_test \
@@ -1861,7 +3703,22 @@ test-social: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_social_test
 
+# The ground-item pile ops (7120..7122, 6859..6863) -- the whole input to the
+# cache's ground-items overlay. All eight used to reach CS2VM2_Op_StackMetaStub
+# and fake a zero, which for OBJSTACK_COUNT reads as "the tile is empty".
+test-ground-items: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ground_items_test \
+		game/test/rs_ground_items_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_ground_items_test
+
 # Player-pick stack expansion + local-skip (Client-TS addViewportOptions).
+test-sailing-navigation: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sailing_navigation_test \
+		game/test/sailing_navigation_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/sailing_navigation_test
+
 test-minimenu-world: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/rs_minimenu_world_test \
 		game/test/rs_minimenu_world_test.c \
@@ -1885,19 +3742,19 @@ test-minimap-dots: $(OBJ_DIR) $(OBJS)
 # RS_CS2_PumpTransmits' early-return guard, one dirty flag at a time. The guard
 # was a hand-written condition list that had drifted from the clear-down in the
 # same function: `stat_transmit_dirty` was cleared but was never a guard key, so
-# a tick carrying only UPDATE_STAT — an xp gain — early-returned AND kept the
+# a tick carrying only UPDATE_STAT â an xp gain â early-returned AND kept the
 # flag, and the XP-drop panel (interface 122) drew nothing. That was mis-blamed
 # on the CS2 VM for two lanes. Each case sets exactly ONE flag, because with any
 # second flag set the guard opens and the bug is invisible. Needs no cache and
 # no server.
-test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS)
+test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_cs2_transmit_pump_test \
 		game/test/rs_cs2_transmit_pump_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	./$(OBJ_DIR)/rs_cs2_transmit_pump_test
+	$(UITREE_TEST_ENV) ./$(OBJ_DIR)/rs_cs2_transmit_pump_test
 
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
-# surface) against the real dat1 cache + rev_245_2 RevConfig build.
+# surface) against the real dat1 cache + rs245_2lc RevConfig build.
 test-ui-slots: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ui_slots_test \
 		game/test/rs_ui_slots_test.c \
@@ -1915,34 +3772,41 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+		revconfig/revconfig_profile.c ui/torirs_chrome_inkwell.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
-		revconfig/test/revconfig_test_parse.c
+		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
+		revconfig/test/revconfig_test_profile.c revconfig/test/revconfig_test_roles.c
 	./$(OBJ_DIR)/revconfig_test
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
 # on-login burst, and a 600 ms game tick driving movement, npcs, inventory and
-# equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
+# equipment. Run: src/build/torirsserver [port]. See docs/osrs230_mockserver.md.
 #
 # Everything but main(). Split out so the same server can be linked into a host
-# that has its own entry point — the in-process build (test-mock230-embed) is
+# that has its own entry point â the in-process build (test-torirsserver-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-# jbase37 and wordpack are here rather than in MOCK230_CORE_SRCS because the
+# jbase37 and wordpack are here rather than in TORIRSSERVER_CORE_SRCS because the
 # embed test already links both as objects out of NET_CORE_OBJS, and the client
-# under EMBED_SERVER=1 already has both in SRCS — listing them in both places is
+# under EMBED_SERVER=1 already has both in SRCS â listing them in both places is
 # a duplicate symbol. The appearance encoder needs jbase37: a player's name goes
 # on the wire base-37 packed. MESSAGE_PRIVATE needs wordpack in *both*
 # directions: the client's outbound builder wordpacks, so the server unpacks to
 # read the message and packs again to relay it (docs/FRIENDS_PRIVATE_CHAT.md
-# §3.4 — a plaintext override on the inbound side was rejected because it would
-# make the two halves of net_out.c/mock230 disagree).
-MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
+# Â§3.4 â a plaintext override on the inbound side was rejected because it would
+# make the two halves of net_out.c/torirsserver disagree).
+# `torirs_server_host.c` sits here rather than in TORIRSSERVER_CORE_SRCS because
+# it is the *socket* host -- select(), accept(), a listening descriptor. The core
+# list is also what EMBED_SERVER=1 links into the client, which has no listener
+# and drives ToriRSServer_EmbedPump itself.
+TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
+	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
 # Dedicated read-only, multi-client JS5 cache service.
 #
-# It is separate from mock230 because a client uses ONE port for JS5 and the
-# game, choosing with its first byte — so the two cannot both own 43594 in a
-# finished deployment, and the branch belongs in mock230_session's handshake.
+# It is separate from ToriRSServer because a client uses ONE port for JS5 and the
+# game, choosing with its first byte â so the two cannot both own 43594 in a
+# finished deployment, and the branch belongs in ToriRSServer_Session's handshake.
 # This binary exists because it is the half that can be verified today against
 # a real OldSchool client and against Jagex's own service:
 #
@@ -1972,31 +3836,88 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
-mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# $(TORIRSSERVER_SRCS) is listed as a prerequisite, not just on the command
+# line. Without it this target depends only on the third-party .o files, which
+# almost never change -- so editing the server's own C left `make torirsserver`
+# reporting "up to date" and the old binary in place. That is worse than a slow
+# build: a selftest row added to torirs_server_world_selftest.c was silently
+# absent from the binary that ran, and an absent row cannot fail, so it reads
+# exactly like a passing one. Found after a mutation refused to bite twice.
+torirsserver: $(OBJ_DIR) $(TORIRSSERVER_SRCS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/mock230"
+	@echo "built $(OBJ_DIR)/torirsserver"
+
+# ---- ToriRSMapEd -----------------------------------------------------------
+#
+# The map editor's server: the EditorHost operations (square list/load/save,
+# spawn save, bake, the content-tree lock) served as length-prefixed frames.
+# The client's editor session is its client, through editor_host_remote.c,
+# and the manifest picks the deployment: `[editor:boot] server=embed` hosts
+# it inside the client's process, `server=tcp` dials this daemon.
+#
+# Unlike the game server there is no EMBED flag: the embedded ToriRSMapEd is
+# in every client build, because it is a file server measured in kilobytes
+# with no content-tree build dependency â the cost that made EMBED_SERVER
+# opt-in does not exist here.
+#
+#   src/build/torirsmaped [port] [--content-dir <dir>] [--repo-root <dir>]
+#
+# POSIX only for now (the client's tcp binding is likewise); the browser
+# lane's WebSocket front door is future work.
+# The two ws_ units are what lets a BROWSER reach this daemon at all: an
+# emscripten client's connect() is a WebSocket, so the reactor sniffs the
+# first byte and speaks either raw frames or RFC 6455 on the same port.
+TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
+	torirsmaped/torirs_maped_buf.c torirsmaped/torirs_maped_cmdwire.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
+	editor/editor_host_local.c \
+	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c
+
+torirsmaped: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIRSMAPED_SRCS)
+	@echo "built $(OBJ_DIR)/torirsmaped"
+
+# The controller client: a ToriRSMapEd connection in its own process with no
+# world, no renderer and no cache â the design's "controllers have no world at
+# all" made literal. It drives and follows a session through exactly the API
+# the game client's editor uses (editor_host_remote.c), so what it can do a
+# panel can do.
+#
+#   src/build/torirsmapedctl --client <id> watch
+#
+# The `--client <id>` is the Client the viewer printed at boot; without it this
+# connection is its own Client and hears only its own state.
+# No server, by construction: TORIRS_MAPED_NO_EMBED compiles the client
+# binding's TCP half only, so this binary cannot contain a document, a content
+# tree or a bake even by accident.
+TORIRSMAPEDCTL_SRCS = torirsmaped/torirs_mapedctl_main.c torirsmaped/torirs_maped_buf.c \
+	torirsmaped/torirs_maped_cmdwire.c editor/editor_host_remote.c
+
+torirsmapedctl: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIRSMAPEDCTL_SRCS)
+	@echo "built $(OBJ_DIR)/torirsmapedctl"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
 # It exists so two people (or two agents) can each hold a live session against
 # their own server without fighting over the port or over one output file.
-# manifest_osrs230_dev.ini points at it; everything else is identical.
+# manifests/manifest_osrs230_dev.ini points at it; everything else is identical.
 #
-# The name is `dev_mock230`, not `mock230_dev`, on purpose: the usual way to
-# stop a stray server is `pkill -f build/mock230`, and that pattern is a prefix
-# match — anything named `mock230*` in the same directory dies with it.
-mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# The name is `dev_torirsserver`, not `ToriRSServer_Dev`, on purpose: the usual way to
+# stop a stray server is `pkill -f build/torirsserver`, and that pattern is a prefix
+# match â anything named `ToriRSServer*` in the same directory dies with it.
+torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/dev_mock230"
+	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
 # suite a gate at all.
@@ -2004,26 +3925,26 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 # Measured 2026-08-06: six identical runs produce exactly TWO distinct failure
 # sets, three each, differing in a pair of npc-pathing checks. Under
 # MallocScribble/MallocPreScribble the result is the same every run. That
-# signature — varies with heap contents, stabilises when the heap is poisoned —
+# signature â varies with heap contents, stabilises when the heap is poisoned â
 # is a read of dead memory, and it is somewhere under the interaction re-flood
 # path (`collision_flood` initialises its own dir/dist maps, so it is not those).
 #
 # **The site was found on 2026-08-08, and it was a use-after-free in the
 # selftest's own fixture, not an uninitialised read in the engine.** The
-# re-flood stanza took `mock230_scene_find_loc` for the castle door, then called
+# re-flood stanza took `ToriRSServer_SceneFindLoc` for the castle door, then called
 # `selftest_park_player`, then dereferenced the loc. A park ends in
-# `maybe_rebuild` -> `mock230_scene_build` -> `mock230_scene_free`, which
-# `free()`s `g_locs` — so both the slot index and the pointer died at the park,
+# `maybe_rebuild` -> `ToriRSServer_SceneBuild` -> `ToriRSServer_SceneFree`, which
+# `free()`s `g_locs` â so both the slot index and the pointer died at the park,
 # and the interaction was latched on whatever the freed page happened to hold.
 # Under scribble that reads 0x55555555 every time, which is why poisoning made
 # it deterministic. When the garbage happened to spell a routable loc the checks
 # PASSED for the wrong reason, routing 74 steps to a loc 34 tiles away.
 #
 # The fixture now resolves the loc after the park (the same rule `p_oploc`
-# states for itself in mock230_ops_player.c: a rebuild reallocates the array
+# states for itself in torirs_server_ops_player.c: a rebuild reallocates the array
 # underneath anything holding into it). Both checks were mutation-tested
-# afterwards — skipping `queue_path_as_waypoints` in the re-flood turns exactly
-# those two red — so they measure the engine path they name rather than the heap.
+# afterwards â skipping `queue_path_as_waypoints` in the re-flood turns exactly
+# those two red â so they measure the engine path they name rather than the heap.
 #
 # Scribble stays, because it turned a 1-in-8 flake into a reproducible failure
 # and that is what made this findable. It deliberately errs the loud way:
@@ -2032,83 +3953,75 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 # runs. A suite whose failure count wandered 10..14 could not answer "did I
 # break something", which is exactly how four regressions reached a user with
 # "baseline, no regression" attached to them.
-test-mock230-dev: mock230-dev
+test-torirsserver-dev: torirsserver-dev
 	cd $(REPO_ROOT) && MallocScribble=1 MallocPreScribble=1 \
-		./src/$(OBJ_DIR)/dev_mock230 --selftest
+		./src/$(OBJ_DIR)/dev_torirsserver --selftest
 
-# A third binary on 43599, same deal as mock230-dev above — one more parallel
+# A third binary on 43599, same deal as torirsserver-dev above â one more parallel
 # session that owns its own port and its own output file.
-# manifest_osrs230_alt.ini points at it.
-mock230-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# manifests/manifest_osrs230_alt.ini points at it.
+torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
-	@echo "built $(OBJ_DIR)/alt_mock230"
+	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
-test-mock230-alt: mock230-alt
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/alt_mock230 --selftest
+test-torirsserver-alt: torirsserver-alt
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/alt_torirsserver --selftest
 
 # A fourth binary on 43601, for the bank work. Same sources, same reason as the
 # two above: a live session that owns its own port and its own output file.
-# manifest_osrs230_bank.ini points at it.
-# `rsprot_buf.o` is in this list because $(MOCK230_SRCS) includes
-# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `mock230`
-# links it and this target did not, so `mock230-bank` had been failing to link
-# since that file joined the sources — a build break nothing ran often enough to
+# manifests/manifest_osrs230_bank.ini points at it.
+# `rsprot_buf.o` is in this list because $(TORIRSSERVER_SRCS) includes
+# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `ToriRSServer`
+# links it and this target did not, so `torirsserver-bank` had been failing to link
+# since that file joined the sources â a build break nothing ran often enough to
 # notice.
-mock230-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
-	@echo "built $(OBJ_DIR)/bank_mock230"
+	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
-test-mock230-bank: mock230-bank
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/bank_mock230 --selftest
+test-torirsserver-bank: torirsserver-bank
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/bank_torirsserver --selftest
 
 # Mock server game logic with no socket: movement, scene rebuild, equipment
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
-# Runs from the repo root so the default cache path (cache.osrs230) resolves —
+# Runs from the repo root so the default cache path (cache.osrs230) resolves â
 # the equipment checks need the cache's wearpos fields to mean anything.
 # Compile the mock's own content. The content itself lives in the OSRS-Content
 # submodule, so a checkout without `git submodule update --init` has none of it.
-# The output lands in mock230/scripts/build, which that repo's .gitignore
+# The output lands in ToriRSServer/scripts/build, which that repo's .gitignore
 # excludes (`build/`), so a fresh checkout has no script pack until this runs.
 # That IS fatal now, in the sense that matters: the engine's fallbacks are gated
-# on a pack being loaded (enum Mock230Fallback), so a server without one prints
+# on a pack being loaded (enum ToriRSServerFallback), so a server without one prints
 # a banner and then does almost nothing, rather than answering every trigger out
 # of C and playing a second, silently different game.
 # Ids are rev-230 ids from cache.osrs239, NOT LostCity's.
 #
 # `?=` so a content tree elsewhere (a second clone parked on a porting branch,
 # which is how the ported/ lanes are usually carried) can be selected by
-# exporting MOCK230_CONTENT_DIR once, instead of repeating it on every make
+# exporting TORIRSSERVER_CONTENT_DIR once, instead of repeating it on every make
 # command line. A command-line assignment still wins over both.
-MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
-SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
-SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
-RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
-CURSES_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_rs558_ancient_curses
-CURSES_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
-# Genuinely new items authored outside the cache (HERBLORE_PORT_QUEUE.md
-# slice 30 — herb tar). Same shape as the lanes above: its own pack/obj.alloc
-# + obj.client, registered as its own --pack root below.
-HERBLORE_ITEMS_LANE = $(MOCK230_CONTENT_DIR)/ported/herblore_items
-SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
-SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
-# Allocate first, then compile.
+TORIRSSERVER_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+# The four ported/ lanes used to be spelled out here â SUMMONING_CLIENT_LANE,
+# RS2012_QBD_TD_CLIENT_LANE, CURSES_CLIENT_LANE, HERBLORE_ITEMS_LANE â and
+# threaded through every compile recipe as --pack and --component-root roots.
+# Each lane now describes itself in `<content>/ported/<lane>/lane.ini`, which is
+# what makes adding a fifth lane, or leaving one out, a content edit rather than
+# a makefile edit. See the torirsserver-scripts-lanes recipe below and
+# src/serverscript/ssc_lane.h. The cache bakes and the per-lane cs2 tests still
+# name their own lane paths (SUMMONING_LANE, CURSES_LANE, RS2012_QBD_TD_LANE):
+# a bake is not a compile and reads different directories.
 #
-# A `.enum` or `.dbtable` block declares a record by name and the compiler needs a
-# number, so tools/ss_allocate.py has to have run before sscompile sees the tree —
-# otherwise the first script that names one fails to compile. It only ever appends
-# below its marker, so running it on every build is idempotent.
-#
-# `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
+# `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md Â§3).
 # `names/` is the layer it replaced and may not exist; sscompile skips a missing
 # --pack directory with a warning rather than failing, so both layouts build.
 # This cross-boundary gate exists because ::crystal_set once failed on both
@@ -2120,117 +4033,292 @@ SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # docs/CRYSTAL_SET_COMMAND.md.
 check-crystal-set-contract:
 	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test \
-		--content $(MOCK230_CONTENT_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR)
 
-# scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
-# for every cohort creature) that are known-stale against the lane's own pack/
-# (see the mock230-cache-summoning comment above) — pointing sscompile at the
-# whole directory reintroduces that drift into every OTHER lane's symbol table
-# (observed: it shifted QBD's own render state). content_restrict_summoning_
-# serverside is the one declared-but-unpacked symbol scripts actually need, and
-# it already lives in the aggregate all.varbit.compack (not the standalone
-# summoning.varbit, which sscompile's --pack does not read on its own) — so
-# stage only that one file rather than the whole directory.
+check-gauntlet-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_gauntlet_contract.py
+
+# Every Agility course against the per-lap experience its own wiki page states.
+# The XP lives in triggers rather than a table, so ::agilityrun cannot see it
+# and only this can: four courses were paying the wrong amount when it was
+# written, and nothing in the tree noticed.
+check-agility-xp:
+	@cd $(REPO_ROOT) && python3 tools/agility_xp_audit.py --tree $(TORIRSSERVER_CONTENT_DIR)
+
+.PHONY: check-wintertodt-rewards
+check-wintertodt-rewards:
+	@cd $(REPO_ROOT) && python3 tools/wintertodt_reward_audit.py --tree $(TORIRSSERVER_CONTENT_DIR)
+
+# Audits that are settled, and no longer gate a script build.
 #
-# v3 solved the same missing-symbol problem the other way, with
-# `--pack $(SUMMONING_CLIENT_LANE)/configs`. That is the broad form this comment
-# rules out, so the merge kept the stage and dropped it. If a cohort script now
-# wants a symbol the stage does not carry, ss_unresolved.py (test-port) names it
-# — add that symbol, rather than the whole directory.
-SUMMONING_VARBIT_STAGE = $(REPO_ROOT)/build/summoning-varbit-stage
+# These three answered questions that are now closed: the Agility courses were
+# reconciled against their wiki lap totals, the Wintertodt reward table against
+# its published coefficients, and the ::~crystal_set client/server contract
+# after the incident in docs/CRYSTAL_SET_COMMAND.md. Each re-derives the same
+# verdict from content that no longer moves, so hanging them off
+# torirsserver-scripts meant every launch that touched a script re-proved three
+# settled facts. They run here, in test-content, and on demand:
+#
+#     make -C src check-content-audits
+#
+# The cache half of the crystal-set gate is unchanged: torirsserver-cache and
+# its lane variants still depend on check-crystal-set-contract directly, so the
+# bake that packs the clientscript half cannot ship half a fix. What is gone is
+# only the per-compile repeat on the server half.
+.PHONY: check-content-audits
+check-content-audits: check-crystal-set-contract check-agility-xp check-wintertodt-rewards
 
-mock230-scripts: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(SUMMONING_CONSTANTS_OFF) --enabled 0
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(SUMMONING_CONSTANTS_OFF)
+check-godwars-manifest:
+	@cd $(REPO_ROOT) && python3 tools/generate_godwars_combat_manifest.py --check
 
-# The feature-on sibling. Sources and symbol packs are identical to the default
-# build; only the generated constant root differs, so the flag cannot drift into
-# a second copy of the gameplay scripts.
-mock230-scripts-summoning: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(SUMMONING_CONSTANTS_ON) --enabled 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(SUMMONING_CONSTANTS_ON)
+check-godwars-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_godwars_contract.py
 
-# The Ancient Curses feature-on build. Same sources and symbol packs as the
-# default; only the generated constant root differs, so ^curses_enabled cannot
-# drift into the ordinary pack. Summoning stays off here — the two lanes are
-# independent, and a build that turns both on is a third target, not this one.
-CURSES_CONSTANTS_ON = $(REPO_ROOT)/build/curses-constants-on
+# These targets consume the already-compiled full content pack. Keeping the
+# script build separate lets a God Wars evidence run diagnose its own lane even
+# when an unrelated content contract blocks the aggregate torirsserver-scripts gate.
+.PHONY: godwars-evidence check-godwars-evidence test-godwars-restart
+godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
+	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --skip-contracts \
+		--server src/$(OBJ_DIR)/torirsserver
 
-mock230-scripts-curses: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_curses
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(CURSES_CONSTANTS_ON) --enabled 0 --curses 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_curses \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(CURSES_CONSTANTS_ON)
+check-godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
+	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --check --skip-contracts \
+		--server src/$(OBJ_DIR)/torirsserver
 
-test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
+test-godwars-restart: torirsserver
+	@cd $(REPO_ROOT) && python3 tools/test_godwars_restart.py \
+		--server src/$(OBJ_DIR)/torirsserver \
+		--scripts OSRS-Content/osrs239-content/server/scripts/build
+
+check-quest-combat-manifest:
+	@cd $(REPO_ROOT) && python3 tools/generate_quest_combat_manifest.py --check
+
+check-quest-combat-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_quest_combat_contract.py
+
+check-charter-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_charter_contract.py
+
+# Every selftest stanza must actually run somewhere. Written after a false
+# pass: a stanza whose registration edit was lost reported green and then
+# survived a mutation that should have failed it, because a stanza that never
+# runs cannot fail. Neither the C loop's null-script check nor
+# tools/trail_selftest_check.sh can see that -- the first looks for the
+# opposite direction, the second reads FAIL lines and an absent stanza emits
+# none. So this runs from the outside, over the tree.
+check-selftest-registration:
+	@cd $(REPO_ROOT) && python3 tools/check_selftest_registration.py
+
+check-stronghold-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_stronghold_contract.py
+
+# The Dagannoth Kings are four authored npc params and nothing else, and those
+# cannot be asserted from a script: `nc_param` reads the cache's param table
+# while an authored `param=` row lands in the server's own def, which only
+# `npc_param` sees â and that needs a live npc, which the C-driven selftest has
+# no scene to provide. So the config is held to the pinned wiki here instead.
+check-dks-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_dks_contract.py
+
+# The solo bosses whose whole encounter is a combat contract â attack rate,
+# attack style, and a hitpoints cross-check against the cache record. Same
+# reason as check-dks-contract: an authored npc param cannot be asserted from a
+# script here. The hitpoints check is on the CACHE rather than the config and
+# catches a record picked by the wrong name, which is the likeliest mistake in a
+# batch and the hardest to see afterwards.
+check-superior-coverage:
+	@cd $(REPO_ROOT) && python3 tools/check_superior_coverage.py
+
+# The five character-design palettes live in the client and their LENGTHS live
+# in content, because the server does not link the renderer and the panel's
+# arrows have to know where to wrap. Two copies of one fact; this is the check
+# that stops them drifting into an arrow that quietly does nothing.
+check-design-colours:
+	@cd $(REPO_ROOT) && python3 tools/check_design_colours.py
+
+check-smithing:
+	@cd $(REPO_ROOT) && python3 tools/check_smithing_contract.py
+
+check-smelting:
+	@cd $(REPO_ROOT) && python3 tools/check_smelting_contract.py
+
+check-mining:
+	@cd $(REPO_ROOT) && python3 tools/check_mining_contract.py
+
+check-thieving-tables:
+	@cd $(REPO_ROOT) && python3 tools/check_thieving_tables.py
+
+check-stalls:
+	@cd $(REPO_ROOT) && python3 tools/check_stall_contract.py
+
+check-pickpocket:
+	@cd $(REPO_ROOT) && python3 tools/check_pickpocket_contract.py
+
+check-npc-style-defaults:
+	@cd $(REPO_ROOT) && python3 tools/check_npc_style_defaults.py
+
+check-corpbane:
+	@cd $(REPO_ROOT) && python3 tools/gen_corpbane_weapons.py --check
+
+check-agility-courses:
+	@cd $(REPO_ROOT) && python3 tools/check_agility_course_contract.py
+
+check-spellbooks:
+	@cd $(REPO_ROOT) && python3 tools/gen_spellbook_tables.py --check
+
+check-dbtable-rows:
+	@cd $(REPO_ROOT) && python3 tools/check_dbtable_rows.py --check
+
+check-agility-shortcuts:
+	@cd $(REPO_ROOT) && python3 tools/gen_agility_shortcuts.py --check
+
+check-krystilia-tasks:
+	@cd $(REPO_ROOT) && python3 tools/gen_krystilia_tasks.py --check
+
+check-chompy-hats:
+	@cd $(REPO_ROOT) && python3 tools/gen_chompy_hats.py --check
+
+check-konar-locations:
+	@cd $(REPO_ROOT) && python3 tools/gen_konar_locations.py --check
+
+check-clan-crystals:
+	@cd $(REPO_ROOT) && python3 tools/gen_clan_crystals.py --check
+
+check-boss-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_boss_contract.py
+
+# The Theatre's Nylocas pillars are the one npc in the raid whose hitpoints go UP
+# as the party shrinks (Jagex published 130 at five players and 330 solo). That
+# inverts the convention every boss here uses, and the failure mode is silent:
+# `npc_statheal` cannot raise an npc above its config base, so a support authored
+# at the five-man 130 would hand every smaller party a five-man pillar with the
+# scaling line still compiling and still running. No script command can read
+# another npc type's base, so `~tobrun` cannot assert this and it lives here.
+check-tob-pillar-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_tob_pillar_contract.py
+
+test-construction-catalog:
+	@cd $(REPO_ROOT) && python3 tools/check_construction_catalog.py --self-test \
+		--content $(TORIRSSERVER_CONTENT_DIR)
+	@cd $(REPO_ROOT) && python3 tools/generate_construction_crosswalk.py --check \
+		--content $(TORIRSSERVER_CONTENT_DIR)
+	@cd $(REPO_ROOT) && python3 tools/generate_poh_quest_status.py --check
+
+test-poh-quest-status:
+	@cd $(REPO_ROOT) && python3 tools/generate_poh_quest_status.py --check
+
+test-poh-menagerie:
+	@cd $(REPO_ROOT) && python3 tools/check_poh_menagerie.py
+
+test-poh-league-hall:
+	@cd $(REPO_ROOT) && python3 tools/check_poh_league_hall.py
+
+test-poh-house-styles:
+	@cd $(REPO_ROOT) && python3 tools/check_poh_house_styles.py
+
+test-torirsserver-poh: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_PohTest \
+		torirsserver/test/torirs_server_poh_test.c torirsserver/torirs_server_poh.c
+	./$(OBJ_DIR)/ToriRSServer_PohTest
+
+test-poh-servants:
+	@cd $(REPO_ROOT) && python3 tools/check_poh_servants.py
+
+# ---------------------------------------------------------------------------
+# The script pack, and which content lanes go into it
+# ---------------------------------------------------------------------------
+#
+# One recipe, parameterised by the lane list. It used to be four near-identical
+# ones â default, summoning-on, curses-on, both-on â each repeating seven --pack
+# roots, three --component-roots and a python step that staged a copy of the
+# whole constant tree just to write one `^flag = 0`. A fifth lane meant a fifth
+# copy of all of it, and there was no way to spell "compile without this lane":
+# every recipe passed every lane's symbols and compiled every lane's scripts,
+# with only the flag telling them apart at runtime.
+#
+# Now a lane describes itself, in `<content>/ported/<lane>/lane.ini`, and
+# sscompile reads that (src/serverscript/ssc_lane.h). Nothing below names a lane
+# path, a lane's packs or a lane's components; TORIRSSERVER_SCRIPT_LANES names lanes,
+# and a lane not named is genuinely not in the pack.
+#
+# The two --pack defaults sscompile applies with no --pack at all are exactly
+# $(TORIRSSERVER_CONTENT_DIR)/pack and /configs, and --constants defaults to --src,
+# which is the real tree rather than a staged copy of it. So the whole command
+# is the source, the output and the lanes.
+TORIRSSERVER_SCRIPT_LANES ?=
+TORIRSSERVER_SCRIPT_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
+
+# Allocate first, then compile: a `.enum` or `.dbtable` block declares a record
+# by name and the compiler needs a number, so tools/ss_allocate.py has to have
+# run before sscompile sees the tree. It only ever appends below its marker, so
+# running it on every build is idempotent.
+# The content contracts hang off torirsserver-scripts, and the settled audits
+# off check-content-audits (see above); neither is repeated here. A lane build
+# compiles the same tree the default pack already gated.
+torirsserver-scripts-lanes: sscompile
+	@mkdir -p $(TORIRSSERVER_SCRIPT_OUT)
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(TORIRSSERVER_CONTENT_DIR)
+	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--out $(TORIRSSERVER_SCRIPT_OUT) \
+		--content-root $(TORIRSSERVER_CONTENT_DIR) \
+		$(foreach lane,$(TORIRSSERVER_SCRIPT_LANES),--lane $(lane))
+
+# What lanes this tree declares, and which of them a bare build would compile.
+torirsserver-lanes: sscompile
+	@./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--content-root $(TORIRSSERVER_CONTENT_DIR) --list-lanes
+
+# The ordinary pack: the base tree plus the lanes whose descriptors say
+# `default=on` â the additive ones base content already names (the QBD's records,
+# herb tar). The gated lanes are off, and off now means absent rather than
+# present-but-flagged.
+#
+# This is the target the content contracts hang off, so it carries them all;
+# the lane variants below are development builds of the same tree and do not
+# re-run gates the default build has already passed. The three settled audits
+# are the exception and live on check-content-audits instead; see there for why.
+torirsserver-scripts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES= \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
+
+# Summoning on. Same sources, same symbol roots; the lane is added rather than
+# unlocked, so nothing about the default pack can drift into this one.
+torirsserver-scripts-summoning:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=scape2009_summoning \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning
+
+# Ancient Curses on, Summoning off: the two lanes are independent, and a build
+# that wants both is the target below rather than this one twice.
+torirsserver-scripts-curses:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=rs558_ancient_curses \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_curses
+
+# QBD / Tormented Demons on. The lane was `default=on` until base content
+# stopped naming its objs; it is asked for by name now, here and in
+# manifests/manifest_osrs239_rs2012.ini, and the pack goes to its own directory
+# so the pristine one stays pristine.
+torirsserver-scripts-rs2012:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=rs2012_qbd_td \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_rs2012
+
+test-summoning-phase3: torirsserver-scripts torirsserver-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py
 
-# The server band, `mock230-scripts`' sibling (PORTING_GUIDE §3.6 item 1): the
+# The server band, `torirsserver-scripts`' sibling (PORTING_GUIDE Â§3.6 item 1): the
 # npc/loc server fields the boot reads from <content>/server/pack instead of
-# re-parsing the text overlays. `--server-only` is the cheap form — no cache is
+# re-parsing the text overlays. `--server-only` is the cheap form â no cache is
 # copied or opened; a full `cachepack pack` writes the identical bands. Without
-# this the boot warns and falls back to the text parse — which is still a real
+# this the boot warns and falls back to the text parse â which is still a real
 # fallback, unlike the script pack's, whose absence now turns the engine's
-# trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
-.PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale \
+# trigger fallbacks off rather than on (osrs230_mockserver.md Â§3.18).
+.PHONY: test-rs2012-server-overlay torirsserver-cache-rs2012 test-cache-overlay-stale \
 	test-droptable-versions test-loc-var-audit check-loc-var-carriers
 
 # The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
@@ -2248,12 +4336,12 @@ test-loc-var-audit:
 # A varbit is a bit range inside a varp, and only the varp goes on the wire: a
 # script that sets a loc's transform varbit whose carrier is not declared
 # `transmit=yes` updates the server and nothing else, and the multiloc never
-# moves for anybody. Nothing else in the build can see it — sscompile only
-# checks that the varbit resolves, and mock230_world_mark_varp drops the packet
+# moves for anybody. Nothing else in the build can see it â sscompile only
+# checks that the varbit resolves, and ToriRSServer_WorldMarkVarp drops the packet
 # without a word. 204 written varbits were in that state, over 1,811 loc
 # placements, before this ran.
 check-loc-var-carriers:
-	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(MOCK230_CONTENT_DIR) \
+	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(TORIRSSERVER_CONTENT_DIR) \
 		--check-carriers
 
 # The two drop-table invariants that shipped broken and that nothing else can
@@ -2262,7 +4350,7 @@ check-loc-var-carriers:
 # `dropversion` tables must bind each npc to its own rather than to the first
 # one written. Reads the generated files, so it catches a bad regeneration as
 # well as a bad generator. Hermetic and sub-second; see
-# docs/NPC_WIKI_DROPTABLES_PLAN.md §9.
+# docs/NPC_WIKI_DROPTABLES_PLAN.md Â§9.
 test-droptable-versions:
 	@cd $(REPO_ROOT) && python3 tools/test_droptable_versions.py
 
@@ -2271,27 +4359,27 @@ test-rs2012-server-overlay:
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_server_overlay.py \
 		--cachepack $(CACHEPACK_BIN)
 
-mock230-servpack: test-rs2012-server-overlay
+torirsserver-servpack: test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src $(MOCK230_CONTENT_DIR) --server-only
+		--src $(TORIRSSERVER_CONTENT_DIR) --server-only
 
 # The client half of the same bake: the tree written back into a cache the
-# client can boot (PORTING_GUIDE §1, `cachepack pack ──► client cache (--out)`).
+# client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).
 #
 # `cache.osrs239` is the pristine unpack source and stays frozen, so nothing the
 # tree says about a *client-visible* record reached a running client until this
-# existed — a `.cs2` edit packed into no cache is an edit that ships nowhere, and
+# existed â a `.cs2` edit packed into no cache is an edit that ships nowhere, and
 # the Display panel's layout dropdown was the case that found it. Server-side
 # `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
 # CS2, interfaces and configs are read out of the cache and do.
 #
 # When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
 # interface imports, sprites, native config fields, authored client patches.
-# Pure server work — scripts, db tables, params, varps, npc/loc server fields —
-# travels by `mock230-scripts` + `mock230-servpack` alone, and the world boots
+# Pure server work â scripts, db tables, params, varps, npc/loc server fields â
+# travels by `torirsserver-scripts` + `torirsserver-servpack` alone, and the world boots
 # from the pristine cache by default (the one-cache rule: the world reads what
-# JS5 serves; MOCK230_CACHE_DIR_DEFAULT in mock230.h). When you do bake, point
+# JS5 serves; TORIRSSERVER_CACHE_DIR_DEFAULT in torirs_server.h). When you do bake, point
 # BOTH the world and JS5 at the result.
 #
 # `--base` copies the pristine cache first, so every record the tree does not
@@ -2301,40 +4389,40 @@ mock230-servpack: test-rs2012-server-overlay
 # Base and output are variables, not literals, so a bake can be aimed somewhere
 # else without editing this file:
 #
-#   make -C src mock230-cache MOCK230_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
+#   make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
 #
-# The default output stays `cache.osrs239.baked` because manifest_osrs239_net.ini
+# The default output stays `cache.osrs239.baked` because the osrs239-net profile (profiles/osrs239-net.ini)
 # and the rev-230 manifests name that directory. Previously `--base`/`--out`
-# were spelled literally in the recipe while MOCK230_CACHE_DIR was used only by
+# were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
 # the `rm -rf` above them, so the two could disagree and the wrong tree would be
 # cleared.
-MOCK230_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
-MOCK230_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
-# Optional RuneStar CS2 name tables (script/graphic/…). Without them, ~proc
+TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
+TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
+# Optional RuneStar CS2 name tables (script/graphic/â¦). Without them, ~proc
 # calls into .cs2b-only scripts cannot resolve (PROC no longer falls back to a
-# sole clientscript alias — that rebound trampoline wrappers to themselves).
+# sole clientscript alias â that rebound trampoline wrappers to themselves).
 # Pack then keeps the base bytes. With the tables, trampolines recompile to the
 # real proc id.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
-mock230-cache: check-crystal-set-contract
+torirsserver-cache: check-crystal-set-contract
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@# --base is optional. With one, the pristine cache is copied and every record
 	@# the tree does not change keeps the bytes it had. Without one, cachepack
 	@# creates the cache and what lands is exactly what the content tree states --
 	@# so a missing base is a narrower cache, not an error.
-	rm -rf $(MOCK230_CACHE_DIR)
+	rm -rf $(TORIRSSERVER_CACHE_DIR)
 	cd $(REPO_ROOT) && \
 		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
 			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
 		fi; \
 		$(CACHEPACK_BIN) pack \
-		--src $(MOCK230_CONTENT_DIR) \
-		$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
-		--out $(MOCK230_CACHE_DIR) \
+		--src $(TORIRSSERVER_CONTENT_DIR) \
+		$(if $(wildcard $(TORIRSSERVER_CACHE_BASE)),--base $(TORIRSSERVER_CACHE_BASE),) \
+		--out $(TORIRSSERVER_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(MOCK230_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(TORIRSSERVER_CACHE_DIR)
 
-# Every dat2 table an OldSchool cache carries, by idx id — the OSRS column of
+# Every dat2 table an OldSchool cache carries, by idx id â the OSRS column of
 # DAT2_TABLE_IDS_OSRS in 3rd/rscache/src/dat2disk.c. 16/17 and 23 are unused in
 # this era; 255 is the reference-table index, without which nothing else in the
 # cache is reachable.
@@ -2342,72 +4430,72 @@ mock230-cache: check-crystal-set-contract
 # A bake is only "the whole cache" if every one of these lands. They come from
 # three different writers (configs from the pack itself, the asset tables from
 # --assets/--binary, gamevals from --gamevals), so a missing flag silently costs
-# a table rather than failing — which is exactly what --gamevals did before it
+# a table rather than failing â which is exactly what --gamevals did before it
 # was added above.
-MOCK230_CACHE_TABLES = 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255
+TORIRSSERVER_CACHE_TABLES = 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255
 
-mock230-cache-check:
-	@test -f "$(MOCK230_CACHE_DIR)/main_file_cache.dat2" || { \
-		echo "mock230-cache-check: no cache at $(MOCK230_CACHE_DIR)" >&2; exit 1; }
-	@missing=""; for t in $(MOCK230_CACHE_TABLES); do \
-		[ -f "$(MOCK230_CACHE_DIR)/main_file_cache.idx$$t" ] || missing="$$missing $$t"; \
+torirsserver-cache-check:
+	@test -f "$(TORIRSSERVER_CACHE_DIR)/main_file_cache.dat2" || { \
+		echo "torirsserver-cache-check: no cache at $(TORIRSSERVER_CACHE_DIR)" >&2; exit 1; }
+	@missing=""; for t in $(TORIRSSERVER_CACHE_TABLES); do \
+		[ -f "$(TORIRSSERVER_CACHE_DIR)/main_file_cache.idx$$t" ] || missing="$$missing $$t"; \
 	done; \
 	if [ -n "$$missing" ]; then \
-		echo "mock230-cache-check: $(MOCK230_CACHE_DIR) is missing idx:$$missing" >&2; \
+		echo "torirsserver-cache-check: $(TORIRSSERVER_CACHE_DIR) is missing idx:$$missing" >&2; \
 		echo "  A table with no .idx file is a table the client cannot read." >&2; \
 		exit 1; \
 	fi; \
-	echo "mock230-cache-check: all $(words $(MOCK230_CACHE_TABLES)) tables present in $(MOCK230_CACHE_DIR)"
+	echo "torirsserver-cache-check: all $(words $(TORIRSSERVER_CACHE_TABLES)) tables present in $(TORIRSSERVER_CACHE_DIR)"
 
 # The cache-727 QBD/TD client records are isolated below `ported/` and therefore
-# do not enter an ordinary `mock230-cache` bake. Compose that marked lane through
+# do not enter an ordinary `torirsserver-cache` bake. Compose that marked lane through
 # its audited sparse stager, then verify the client-facing interface/sprite/script
-# archives against the resulting cache. `manifest_osrs239_rs2012.ini` points the
+# archives against the resulting cache. `manifests/manifest_osrs239_rs2012.ini` points the
 # client at this directory; main.c hands the same resolved path to the embedded
 # mock, so scene/NPC reads and JS5 cannot fall back to pristine cache.osrs239.
 RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
 RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
 RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012
 
-mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
+torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack audioprobe
-	@# --base is optional, exactly as in mock230-cache. With a base cache the
+	@# --base is optional, exactly as in torirsserver-cache. With a base cache the
 	@# stager emits the sparse lane overlay and the pack resolves everything
 	@# else from the base -- much less to copy and to write. Without one it
 	@# stages the base tree behind the lane (--full) and unions the pack
 	@# indexes, so the content repo alone produces a complete cache. The two
-	@# routes must agree on the lane; `mock230-cache-rs2012-check` proves it.
+	@# routes must agree on the lane; `torirsserver-cache-rs2012-check` proves it.
 	@cd $(REPO_ROOT) && python3 tools/test_stage_rs2012_overlay.py
 	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR) \
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR) \
 		$(if $(wildcard $(RS2012_CACHE_BASE)),,--full)
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--content $(MOCK230_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
 	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_BASE))" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "/" || { \
-		echo "mock230-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
+		echo "torirsserver-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
 	rm -rf "$(RS2012_CACHE_DIR)"
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(RS2012_OVERLAY_DIR) \
 		$(if $(wildcard $(RS2012_CACHE_BASE)),--base $(RS2012_CACHE_BASE),) \
 		--out $(RS2012_CACHE_DIR) --rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(RS2012_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(RS2012_CACHE_DIR)
 	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
 		cd $(REPO_ROOT) && $(CACHEPACK_BIN) verify \
 			--cache $(RS2012_CACHE_DIR) --rev osrs239 --src $(RS2012_OVERLAY_DIR) \
 			--assets=interfaces,sprites,scripts,synth,songs,samples,patches --tmp "$$tmp"
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--content $(MOCK230_CONTENT_DIR) \
+		--content $(TORIRSSERVER_CONTENT_DIR) \
 		--cache $(RS2012_CACHE_DIR) --audioprobe $(AUDIOPROBE_BIN)
-	@echo "mock230-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
+	@echo "torirsserver-cache-rs2012: use ./run-live.sh manifests/manifest_osrs239_rs2012.ini"
 
 # The 2009scape Summoning client records are deliberately absent from the
 # ordinary content walk.  A feature-on cache is a second pass over the explicit
 # marked-lane staging tree.  Its CS2 gate is separate because the committed
 # ordinary tree has known stale sources: cachepack keeps base bytes when a
 # source declines, so only an exact non-zero `compiled N, failed 0` is evidence.
-SUMMONING_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
+SUMMONING_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/scape2009_summoning
 SUMMONING_OVERLAY_DIR = $(REPO_ROOT)/build/summoning-overlay
 SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.summoning
@@ -2420,7 +4508,7 @@ test-summoning-cs2:
 		expected=$$(find "$(SUMMONING_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-summoning-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(SUMMONING_LANE)/scripts" \
-			--raw "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+			--raw "$(TORIRSSERVER_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -2428,20 +4516,20 @@ test-summoning-cs2:
 
 test-summoning-isolation:
 	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 
 # Phase 5a establishes whether a generated roster candidate may enter the
 # feature-on cache at all. It deliberately has no roster render/summon proof;
 # that bounded cohort acceptance is Phase 5b.
 test-summoning-phase5a:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5a.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # Phase 5b admits one exact closure beside the held review-only experiment.
 # It runs before a feature-on bake, never before the ordinary cache path.
 test-summoning-phase5b:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # Superseded by the 77 per-familiar cohorts merged from v3, which cover all 45
 # of this cohort's sources and claim its destination ranges. Kept, but out of
@@ -2455,7 +4543,7 @@ test-summoning-phase5c-corpus:
 # UI, actual familiar transfer rules, and shared shop scope remain separate.
 test-summoning-phase6:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 test-summoning-phase6-cache:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6_cache.py \
@@ -2466,13 +4554,13 @@ test-summoning-phase6-cache:
 # adds one rev-727 object, for 68 packed icons and 63 inventory models total.
 test-summoning-scroll-assets:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_scroll_assets.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # The Pets subsection has 33 rows sourced from the rev-727 guide.  Each row
 # owns a packed display object and inventory model so script 1904 can render it.
 test-summoning-pet-guide-assets:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_pet_guide_assets.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 test-summoning-specials:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_specials.py
@@ -2484,50 +4572,50 @@ test-summoning-source-provenance:
 # Runtime proof is intentionally separate from the cache and port gates. It
 # retains the Phase-5b structural/staging fingerprint as a prerequisite, builds
 # a normal non-ASAN embedded client, and drives a fresh real pouch UI.
-test-summoning-phase5b-runtime: test-summoning-phase5b mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase5b-runtime: test-summoning-phase5b torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 ENABLE_ASAN=0 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b_runtime.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase6b: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-phase6b: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6b.py
 
-test-summoning-phase7d: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-phase7d: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase7d.py
 
 # Familiar npc op1. Needs the client because the proof is the real OPNPC1
 # packet; --static-only drops that and checks the bindings and source values.
-test-summoning-interact: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-interact: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_interact.py
 
 # The familiar leash: an owner who teleports away gets their familiar back.
 # Needs the client because where an npc stands is only observable through a
 # live session; --static-only drops that and checks the shared leash range.
-test-summoning-leash: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-leash: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_leash.py
 
 # The same leash across a map instance, for both kinds of follower. Nobody walks
 # into a private copy of a square, so this is the crossing `playerfollow` cannot
-# make — and a pet had no tick to leash from at all. Two client runs.
-test-summoning-instance: mock230-cache-summoning mock230-scripts-summoning
+# make â and a pet had no tick to leash from at all. Two client runs.
+test-summoning-instance: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_instance.py
 
 # Recompile summoning_dialogue.rs2 from the checked-in transcript corpus. The
-# corpus itself is a one-off wiki pull — `build_familiar_dialogue_corpus.py
+# corpus itself is a one-off wiki pull â `build_familiar_dialogue_corpus.py
 # --fetch` refreshes it, and its diff wants reading before it is committed. This
 # target never reaches the network.
 summoning-dialogue:
 	@cd $(REPO_ROOT) && python3 tools/generate_familiar_dialogue_script.py
 
-test-summoning-phase7f: mock230-pack
+test-summoning-phase7f: torirsserver-pack
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase7f.py
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX) \
-		--content $(MOCK230_CONTENT_DIR) --cache $(MOCK230_CACHE_BASE) --check-only
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_Pack$(PLATFORM_EXE_SUFFIX) \
+		--content $(TORIRSSERVER_CONTENT_DIR) --cache $(TORIRSSERVER_CACHE_BASE) --check-only
 
-summoning-texture-review: mock230-cache-summoning
+summoning-texture-review: torirsserver-cache-summoning
 	@cd $(REPO_ROOT) && python3 tools/build_summoning_texture_review.py
 
 test-summoning-import:
@@ -2559,29 +4647,32 @@ test-summoning-byte-identity:
 CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
+# As with SUMMONING_LANE: the cs2 test compiles the lane's own scripts, so it
+# needs the path, not the lane.ini discovery the server-script build uses.
+CURSES_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/rs558_ancient_curses
 
-mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
+torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(CURSES_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-curses: no base cache at $(CURSES_CACHE_BASE); run mock230-cache first" >&2; exit 1; }
+		echo "torirsserver-cache-curses: no base cache at $(CURSES_CACHE_BASE); run torirsserver-cache first" >&2; exit 1; }
 	@cd $(REPO_ROOT) && python3 tools/stage_curses_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(CURSES_OVERLAY_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(CURSES_OVERLAY_DIR)
 	rm -rf "$(CURSES_CACHE_DIR)"
 	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
 		$(CACHEPACK_BIN) pack --src $(CURSES_OVERLAY_DIR) \
 		--base $(CURSES_CACHE_BASE) --out $(CURSES_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(CURSES_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(CURSES_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(CURSES_CACHE_DIR)" --rev osrs239 \
 		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 463 547 6723 7053 7054 7055 7823 >"$$log" 2>&1; \
 		cat "$$log"; \
-		grep -Rqs 'return(6035)' "$$tmp" || { echo "mock230-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
-		grep -Rqs 'varbit20412' "$$tmp" || { echo "mock230-cache-curses: the active-mask varbit did not reach the baked cache" >&2; exit 1; }; \
+		grep -Rqs 'return(6035)' "$$tmp" || { echo "torirsserver-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
+		grep -Rqs 'varbit20412' "$$tmp" || { echo "torirsserver-cache-curses: the active-mask varbit did not reach the baked cache" >&2; exit 1; }; \
 		echo "curses cs2: third-book arm and mask varbit present in $(CURSES_CACHE_DIR)"
 
 # ------------------------------------------------------------------
-# All lanes on: the combination manifest_osrs239_torirs.ini boots
+# All lanes on: the combination manifests/manifest_osrs239_torirs.ini boots
 # ------------------------------------------------------------------
 #
 # The default manifest carries rs2012 + Summoning + Ancient Curses, so it needs
@@ -2591,32 +4682,16 @@ mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curs
 CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.rs2012-summoning-curses
 
-mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(REPO_ROOT)/build/all-constants-on --enabled 1 --curses 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(REPO_ROOT)/build/all-constants-on
+# Both gated lanes at once, for manifests/manifest_osrs239_torirs.ini. Two names on one
+# line rather than a third recipe: that the combination is expressible at all,
+# without restating either lane's inputs, is the point of the descriptors.
+torirsserver-scripts-summoning-curses:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES="scape2009_summoning rs558_ancient_curses" \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning_curses
 
 # The curses overlay on top of the rs2012+Summoning cache. Same recipe as
-# mock230-cache-curses with the base and output moved, which is why the id
+# torirsserver-cache-curses with the base and output moved, which is why the id
 # bases were picked clear of every other lane in the first place.
 #
 # The rs2012+Summoning cache is treated as an INPUT that must already exist,
@@ -2624,17 +4699,17 @@ mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
 # is currently red for reasons that predate this lane: port/summoning_530.map is
 # committed with 311 seq and 21 synth rows while the test's preserved
 # fingerprint still expects 305 and 8 (the "summoning based on Nocturne"
-# commit moved one and not the other). That is the Summoning lane's to fix —
+# commit moved one and not the other). That is the Summoning lane's to fix â
 # muting it here to green this build is exactly what
-# .cursor/rules/no-park-sibling-content.mdc forbids — but neither should a
+# .cursor/rules/no-park-sibling-content.mdc forbids â but neither should a
 # stale fingerprint in another lane block this one from baking.
 #
-#   make -C src mock230-cache-rs2012-summoning   # when that test is green again
-mock230-cache-all:
+#   make -C src torirsserver-cache-rs2012-summoning   # when that test is green again
+torirsserver-cache-all:
 	@test -f "$(CURSES_ALL_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-all: no base cache at $(CURSES_ALL_CACHE_BASE)." >&2; \
-		echo "  build it with: make -C src mock230-cache-rs2012-summoning" >&2; exit 1; }
-	@$(MAKE) --no-print-directory mock230-cache-curses \
+		echo "torirsserver-cache-all: no base cache at $(CURSES_ALL_CACHE_BASE)." >&2; \
+		echo "  build it with: make -C src torirsserver-cache-rs2012-summoning" >&2; exit 1; }
+	@$(MAKE) --no-print-directory torirsserver-cache-curses \
 		CURSES_CACHE_BASE=$(CURSES_ALL_CACHE_BASE) \
 		CURSES_CACHE_DIR=$(CURSES_ALL_CACHE_DIR)
 
@@ -2645,10 +4720,10 @@ test-curses-cs2:
 	@test -d "$(RUNESTAR_CS2_NAMES)" || { \
 		echo "test-curses-cs2: missing RuneStar names: $(RUNESTAR_CS2_NAMES)" >&2; exit 1; }
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
-		expected=$$(find "$(CURSES_CLIENT_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
+		expected=$$(find "$(CURSES_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
-		$(CS2_BIN) compile --src "$(CURSES_CLIENT_LANE)/scripts" \
-			--cache "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+		$(CS2_BIN) compile --src "$(CURSES_LANE)/scripts" \
+			--cache "$(TORIRSSERVER_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -2656,20 +4731,20 @@ test-curses-cs2:
 
 test-curses-isolation:
 	@cd $(REPO_ROOT) && python3 tools/check_curses_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2 test-cache-overlay-stale
+torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2 test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
+		echo "torirsserver-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
 	rm -rf "$(SUMMONING_CACHE_DIR)"
 	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
 		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@$(MAKE) --no-print-directory test-summoning-phase6-cache
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
@@ -2677,102 +4752,102 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		cat "$$log"; grep -qx 'decompiled 9, failed 0, total 9' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
-		echo "mock230-cache-summoning: verified 9 clientscript archives"
+		echo "torirsserver-cache-summoning: verified 9 clientscript archives"
 
-# Both marked lanes in one cache, for manifest_osrs239_rs2012_summoning.ini.
+# Both marked lanes in one cache, for manifests/manifest_osrs239_rs2012_summoning.ini.
 #
-# Neither lane's own bake carries the other's records — `ported/` is out of the
+# Neither lane's own bake carries the other's records â `ported/` is out of the
 # ordinary content walk precisely so that a lane reaches a client through one
-# route only — so a session that wants a familiar fighting the dragon needs the
+# route only â so a session that wants a familiar fighting the dragon needs the
 # two composed. Composition is layering, not a third stager: `cachepack pack`
 # keeps every base byte a source does not claim, so the Summoning overlay
 # packed over the QBD/TD cache leaves the imported rev-727 npc/loc/model ids
 # exactly as that bake wrote them.
 #
 # Order is QBD/TD first. The Summoning lane's CS2 is authored and gated against
-# the pristine cache (test-summoning-cs2 compiles with --raw MOCK230_CACHE_BASE),
+# the pristine cache (test-summoning-cs2 compiles with --raw TORIRSSERVER_CACHE_BASE),
 # so it is the layer that must land last, on top of whatever the other lane
 # staged.
 #
-# Base and output must be different directories: mock230-cache-summoning deletes
+# Base and output must be different directories: torirsserver-cache-summoning deletes
 # its output before packing, so aiming both at one path would delete the base
 # mid-recipe. The QBD/TD cache is reused as-is rather than rebuilt into a
-# private copy — it is the same bytes manifest_osrs239_rs2012.ini boots, which
+# private copy â it is the same bytes manifests/manifest_osrs239_rs2012.ini boots, which
 # is what makes a defect seen here reproducible there.
 RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 
-.PHONY: mock230-cache-rs2012-summoning
-mock230-cache-rs2012-summoning:
+.PHONY: torirsserver-cache-rs2012-summoning
+torirsserver-cache-rs2012-summoning:
 	@test -f "$(RS2012_CACHE_DIR)/main_file_cache.dat2" || { \
-		echo "mock230-cache-rs2012-summoning: no QBD/TD base at $(RS2012_CACHE_DIR)" >&2; \
+		echo "torirsserver-cache-rs2012-summoning: no QBD/TD base at $(RS2012_CACHE_DIR)" >&2; \
 		echo "  That cache is this composition's first layer; bake it with" >&2; \
-		echo "    $(MAKE) -C src mock230-cache-rs2012" >&2; \
+		echo "    $(MAKE) -C src torirsserver-cache-rs2012" >&2; \
 		exit 1; }
 	@test "$(abspath $(RS2012_SUMMONING_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_DIR))" || { \
-		echo "mock230-cache-rs2012-summoning: output must differ from its base" >&2; exit 1; }
-	@$(MAKE) --no-print-directory mock230-cache-summoning \
+		echo "torirsserver-cache-rs2012-summoning: output must differ from its base" >&2; exit 1; }
+	@$(MAKE) --no-print-directory torirsserver-cache-summoning \
 		SUMMONING_CACHE_BASE=$(RS2012_CACHE_DIR) \
 		SUMMONING_CACHE_DIR=$(RS2012_SUMMONING_CACHE_DIR)
-	@echo "mock230-cache-rs2012-summoning: use ./run-live.sh manifest_osrs239_rs2012_summoning.ini"
+	@echo "torirsserver-cache-rs2012-summoning: use ./run-live.sh manifests/manifest_osrs239_rs2012_summoning.ini"
 
-test-summoning-phase1: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
-		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4c: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4c.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4d: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4d.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 # Ordinary world replies must not be mistaken for unfinished CS2/UI ticks, and
 # a real settlement pause must not discard its pending mouse-up. This burst used
 # to inject ten releases but reach the world-click path only six or seven times.
-test-cs2-world-click-responsiveness: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_cs2_world_click_responsiveness.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4e: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4e.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4f: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4f.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
@@ -2780,107 +4855,193 @@ test-summoning-phase4f: mock230-cache-summoning mock230-scripts-summoning mock23
 #
 # `cp_membership.c` comes in from cachepack rather than being re-implemented.
 # `pack/<ns>.client` / `.server` have one parser, and the two tools that read them
-# — cachepack's provenance check and this validator's id check — are two callers
+# â cachepack's provenance check and this validator's id check â are two callers
 # of it. A second reader is how the two halves of one check end up disagreeing
 # about which lines a file holds. It depends on nothing but stdio, which is why
 # this direction of borrowing is the safe one: cachepack still links nothing from
 # src/ (see cp_register.h).
-MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
-	net/mock/mock230_db.c \
-	net/mock/mock230_ids.c \
-	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
-	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_zone_index.c net/mock/mock230_varbit.c \
+TORIRSSERVER_PACK_SRCS = torirsserver/torirs_server_pack.c torirsserver/torirs_server_content.c \
+	torirsserver/torirs_server_db.c \
+	torirsserver/torirs_server_ids.c \
+	torirsserver/torirs_server_objinfo.c torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_seqinfo.c \
+	torirsserver/torirs_server_dbinfo.c torirsserver/torirs_server_healthbarinfo.c \
+	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_paramtable.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_varbit.c \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+	torirsserver/torirs_server_shop.c torirsserver/torirs_server_bank_tables.c \
+	engine/world_builder/collision_map.c features/features.c \
+	torirsserver/torirs_server_pack_stubs.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
-mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(RSCACHE_DIR)/tools/cachepack \
-		-o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
+		-o $(OBJ_DIR)/ToriRSServer_Pack $(TORIRSSERVER_PACK_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	@echo "built $(OBJ_DIR)/mock230_pack"
+	@echo "built $(OBJ_DIR)/ToriRSServer_Pack"
 
-# `mock230-scripts` and not just `mock230`: combat, prayer and the interface
+# `ToriRSServer` (capitalised) is DELIBERATELY not the prerequisite here any
+# more, and the reason is the same hazard this comment block is about.
+#
+# It is listed in .PHONY and has no rule anywhere in this file. On the
+# case-insensitive filesystem this tree is developed on it resolves to the
+# already-built `torirsserver`, so make answers "Nothing to be done" and moves
+# on -- which means `test-torirsserver` ran whatever binary happened to be on
+# disk, however old. That is the C-side twin of the stale-script hazard below,
+# and it is worse: the stale-script guard at least refuses to run. This one
+# reported green for a binary built before the change under test, which is a
+# negative control that cannot go red.
+#
+# Found by mutating a function the suite asserts on and watching the suite stay
+# green. The other three users of the empty phony (godwars-evidence,
+# check-godwars-evidence, test-godwars-restart) had the same hole and are fixed
+# the same way.
+#
+# `torirsserver-scripts` and not just `torirsserver`: combat, prayer and the interface
 # arming are content now, so an assertion about them is an assertion about
 # `script.dat`. Without this the selftest happily runs a binary built from
-# today's C against a script pack built days ago — which is not a stale-result
+# today's C against a script pack built days ago â which is not a stale-result
 # hazard in theory. Removing the prayer multiplier from
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-mock230: mock230 mock230-scripts mock230-servpack check-crystal-set-contract
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
+test-torirsserver: torirsserver torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/torirsserver --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
-# core and the host command seam, so it cannot disagree with them — provided it
+# core and the host command seam, so it cannot disagree with them â provided it
 # is regenerated when either changes. This fails when it is not.
 #
 # The failure direction is safe either way: a stale table over-reports, so the
 # load-time gap report nags about an opcode that is actually implemented rather
 # than hiding one that is not.
-test-mock230-coverage:
-	python3 net/mock/gen_opcode_coverage.py --check
+test-torirsserver-coverage:
+	python3 torirsserver/gen_opcode_coverage.py --check
 
 # The `*_param` family: the loc and struct tables, and the stack the result
 # lands on. Links the server minus its main(), plus the three compiler-only
-# sources — `MOCK230_CORE_SRCS` already carries the VM, the register and ini,
+# sources â `TORIRSSERVER_CORE_SRCS` already carries the VM, the register and ini,
 # which is why `SSC_SRCS` cannot be used whole here.
 #
 # It needs the real cache and the real content tree, and it is exhaustive over
 # both param groups, so it is a second-long test rather than an instant one.
-# `net/wordpack.c` for the same reason MOCK230_SRCS carries it: MESSAGE_PRIVATE
-# put wordpack calls into mock230_encode.c and mock230_world.c, both of which are
-# in MOCK230_CORE_SRCS, so every consumer of CORE needs it. These three targets
+# `net/wordpack.c` for the same reason TORIRSSERVER_SRCS carries it: MESSAGE_PRIVATE
+# put wordpack calls into torirs_server_encode.c and torirs_server_world.c, both of which are
+# in TORIRSSERVER_CORE_SRCS, so every consumer of CORE needs it. These three targets
 # were authored on a branch where that was not yet true, which is why the merge
 # was textually clean and then failed at `_wordpack_pack, referenced from`.
-PARAM_TEST_SRCS = $(MOCK230_CORE_SRCS) net/jbase37.c net/wordpack.c \
+PARAM_TEST_SRCS = $(TORIRSSERVER_CORE_SRCS) net/jbase37.c net/wordpack.c \
 	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
-.PHONY: test-mock230-param
-test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+.PHONY: test-torirsserver-param
+test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/param_test \
-		net/mock/test/param_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/param_test \
+		torirsserver/test/param_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
 
+# The two run-energy models the era table selects between, and the era/name
+# wiring that selects them. Two source files and no fixtures: the formulas were
+# split out of the world tick precisely so they could be checked without a
+# server, a player or a cache.
+.PHONY: test-run-energy
+test-run-energy: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/run_energy_test \
+		torirsserver/test/run_energy_test.c torirsserver/torirs_server_runenergy.c features/features.c
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/run_energy_test
+
+# Shared dynamic-map session registers: bounded slots, signed values and the
+# important handle-reuse invariant (a new tenant never inherits the old
+# tenant's game phase, score or prize balance).
+.PHONY: test-torirsserver-mapinstance
+test-torirsserver-mapinstance: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/ToriRSServer_MapInstanceTest \
+		torirsserver/test/torirs_server_mapinstance_test.c torirsserver/torirs_server_mapinstance.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_MapInstanceTest
+
+# `split_init`: which markup a continuation row inherits. Links the splitter and
+# the string pool only -- the world and the VM are supplied as two stub seams in
+# the test itself, so this stays instant despite needing the real cache font.
+.PHONY: test-torirsserver-split
+test-torirsserver-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/split_test \
+		torirsserver/test/split_test.c torirsserver/torirs_server_split.c \
+		serverscript/ssvm_strpool.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/split_test
+
 # The collision map the server routes on, against real map squares: wall bits
 # paired on both tiles of every edge, closed doors blocking their own edge, no
 # diagonal step across any doorway open or shut, and a door that opens and
-# closes leaving the map byte-identical. That last one is the regression — a
+# closes leaving the map byte-identical. That last one is the regression â a
 # door swinging flush against a wall used to clear the wall's bits when it shut,
 # on 75 of the game's doors.
 #
 # Only the scene builder and the collision map link here: no content, no VM, no
-# world. `mock230_varbit_get` is stubbed in the test for the multiloc resolve.
+# world. `ToriRSServer_VarbitGet` is stubbed in the test for the multiloc resolve.
 # TORIRS_COLLISION_DOORS_FULL=1 sweeps the whole overworld instead of the
 # curated squares (~45s).
 .PHONY: test-collision-doors
 test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/collision_doors_test \
-		net/mock/test/collision_doors_test.c \
-		net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/collision_doors_test \
+		torirsserver/test/collision_doors_test.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/collision_doors_test
 
-# The `loc_*` / `lc_*` config reads. Same two halves as test-mock230-param and
+# "Is this tile standable, and what is standable near it?" â the geometry
+# question authoring an agility course asks nine times per course. Same link
+# line as test-collision-doors (scene builder + collision map, no content, no
+# world), because it asks the same collision map the server routes on.
+.PHONY: loc-placement-probe
+# "Where is this loc placed, and which way does it face?" â the companion to
+# walkable-probe, and the other half of what authoring an obstacle handler
+# needs. Same link line: it builds a real scene out of real map squares.
+loc-placement-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/loc_placement_probe \
+		torirsserver/test/loc_placement_probe.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/loc_placement_probe"
+
+.PHONY: walkable-probe
+walkable-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/walkable_probe \
+		torirsserver/test/walkable_probe.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/walkable_probe"
+
+# The `loc_*` / `lc_*` config reads. Same two halves as test-torirsserver-param and
 # the same link line, plus one thing that test does not need: it builds a real
 # scene and adds a real loc to it, because `loc_param` and `loc_name` read the
 # *active* loc and a fixture that set the pointer to a made-up slot would prove
 # nothing about the slot-not-pointer convention that exists to survive a rebuild.
-.PHONY: test-mock230-loc
-test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+.PHONY: test-torirsserver-loc
+test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_test \
-		net/mock/test/loc_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/loc_test \
+		torirsserver/test/loc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
@@ -2888,23 +5049,23 @@ test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 
 # The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
 # link line again, plus the one thing the other two do not need: a real (zeroed,
-# heap-allocated) `struct Mock230Server`, because `npc_hunt` and `npc_huntall`
+# heap-allocated) `struct ToriRSServer`, because `npc_hunt` and `npc_huntall`
 # walk the npc roster and write the shared iterator. Still no world, no socket
-# and no pack — the npcs go straight into the pool.
-.PHONY: test-mock230-npc
-test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# and no pack â the npcs go straight into the pool.
+.PHONY: test-torirsserver-npc
+test-torirsserver-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/npc_test \
-		net/mock/test/npc_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/npc_test \
+		torirsserver/test/npc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/npc_test
 
 # The namespace register: defaults, [namespace:*] overlay, pack-filename
-# resolution. Its failure mode is silence — a misspelled content.ini loads
-# perfectly with everything it meant to declare ignored — so the assertions that
+# resolution. Its failure mode is silence â a misspelled content.ini loads
+# perfectly with everything it meant to declare ignored â so the assertions that
 # matter are the ones proving the file was read.
 # Every content bar in one command.
 #
@@ -2913,27 +5074,27 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 # to run, so the one that would have caught it was simply never run. A regression
 # that only shows up in a command nobody types is not covered.
 #
-# Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
+# Deliberately does not include `make -C 3rd/rscache test` â that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content test-port test-membership test-dbindex
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-server-clean test-port
+test-content: check-content-audits test-content-register test-servercodec test-ss-symbols test-construction-catalog torirsserver-scripts torirsserver-servpack test-membership torirsserver-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_Pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
 
 # The separation property, pinned as a command: pure server work touches no
-# client-side file. After the full server pipeline (allocator, compiler, band —
+# client-side file. After the full server pipeline (allocator, compiler, band â
 # all run by this target's prerequisites), the machine-owned client mirrors must
 # be exactly as git left them: configs/ (the cache's member indexes and text
 # exports), pack/*.pack (layer-0 name tables) and pack/*.client (explicit client
 # claims). The allocator writes pack/<ns>.alloc, the compiler writes
-# server/scripts/build, the band writes server/pack — and nothing else moves.
+# server/scripts/build, the band writes server/pack â and nothing else moves.
 # This is the gate that turns "server content stays out of the client cache"
 # from a design intent into a failure you can see, and it fails on the tree
 # this refactor started from (ss_allocate appended to the compacks).
-test-server-clean: mock230-scripts mock230-servpack
+test-server-clean: torirsserver-scripts torirsserver-servpack
 	@echo "--- server-clean: a server build must not touch client-side files ---"
-	@cd $(MOCK230_CONTENT_DIR) && \
+	@cd $(TORIRSSERVER_CONTENT_DIR) && \
 	DIRTY=$$(git status --porcelain -- configs 'pack/*.pack' 'pack/*.client' 2>/dev/null); \
 	if [ -n "$$DIRTY" ]; then \
 		echo "test-server-clean: the server pipeline modified client-side files:"; \
@@ -2942,7 +5103,7 @@ test-server-clean: mock230-scripts mock230-servpack
 	fi
 	@echo "test-server-clean: configs/ and client packs untouched"
 
-# The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md §3.3).
+# The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md Â§3.3).
 #
 # `pack/<ns>.client` and `pack/<ns>.server` say which *entities* have a half on
 # each side. That fact is stated twice on purpose, and these are the two readings
@@ -2954,47 +5115,47 @@ test-server-clean: mock230-scripts mock230-servpack
 #                              a field to; and every record the tree authors is
 #                              named by a file. Needs the two-rank merge, which is
 #                              the packer's, so it runs in cachepack.
-#   membership vs the id range in `mock230_pack`, below — `server_base` is the
+#   membership vs the id range in `ToriRSServer_Pack`, below â `server_base` is the
 #                              register's and cachepack links nothing from src/.
 #
 # Split across two binaries because each half runs where its authority lives, and
-# neither half restates the other's fact. Neither is what *enforces* membership —
-# `cachepack pack` routes on the same files (§4 step 3) and fails on the plan's
+# neither half restates the other's fact. Neither is what *enforces* membership â
+# `cachepack pack` routes on the same files (Â§4 step 3) and fails on the plan's
 # cells (a) and (c) itself. These two are the second reading: the packer can only
 # ask what the files say, and these ask whether what they say is true of the tree.
 test-membership:
 	@echo "--- membership: entities against provenance ---"
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) membership \
-		--src $(MOCK230_CONTENT_DIR) --check-only
+		--src $(TORIRSSERVER_CONTENT_DIR) --check-only
 
-# The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md §9 step 2).
+# The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md Â§9 step 2).
 #
 # Two bars the compilers and the validator cannot state:
 #
 #   ss_unresolved --check   every name an *authored config* references resolves,
-#                           and no content file carries a bare id (§13 bars 1
-#                           and 5). The script half is already exact — sscompile
-#                           refuses an unresolved name — so this is the half that
+#                           and no content file carries a bare id (Â§13 bars 1
+#                           and 5). The script half is already exact â sscompile
+#                           refuses an unresolved name â so this is the half that
 #                           had no checker.
 #   port_name_diff --check  every name present in BOTH trees has a signed row
-#                           saying the two records are the same thing (§4.1,
+#                           saying the two records are the same thing (Â§4.1,
 #                           bar 6). A name resolving proves a spelling exists;
 #                           only this proves it means what it meant there.
 #                           `obj rock_sample1` is id 671 in both trees and is
-#                           'Rock sample 1' there and 'Animal skull' here — every
+#                           'Rock sample 1' there and 'Animal skull' here â every
 #                           other check in this file passes on it.
-#   port_category_crawl     `category` is the tree's one DERIVED namespace — the
+#   port_category_crawl     `category` is the tree's one DERIVED namespace â the
 #   --check                 reference never authors it, it crawls the `category=`
 #                           key out of every record (CategoryType.ts). So the
-#                           port re-runs that crawl — for BOTH domains, npc into
+#                           port re-runs that crawl â for BOTH domains, npc into
 #                           `port/categories.map` and loc into
 #                           `port/categories_loc.map` (config opcode 61, readable
-#                           since 2026-08-02) — and holds the tree to what each
+#                           since 2026-08-02) â and holds the tree to what each
 #                           file states about each of the reference's 53 npc and
 #                           91 loc categories: a minted name whose
-#                           members no longer agree on an id, and — the one that
-#                           matters — a name held back for a human that got
+#                           members no longer agree on an id, and â the one that
+#                           matters â a name held back for a human that got
 #                           minted anyway. `black_demon`'s members all read 275
 #                           and 275 is the *demon* category; minting it gives 33
 #                           lesser and greater demons the black demon's drops.
@@ -3002,11 +5163,11 @@ test-membership:
 #   --check                 structurally blind to: a constant names nothing in any
 #                           pack, so it has nothing to fail to resolve. 14 of the
 #                           111 constants both trees spell agree on the name and
-#                           disagree on the number (§9 step 3a); this holds the
+#                           disagree on the number (Â§9 step 3a); this holds the
 #                           tree to `port/constants.map`'s statement about each.
 #   port_config_diff        and the same bar for the five namespaces whose ids
-#   --check                 are *ours* — param, struct, enum, dbtable, dbrow
-#                           (§9 step 3c). Those resolve against nothing in the
+#   --check                 are *ours* â param, struct, enum, dbtable, dbrow
+#                           (Â§9 step 3c). Those resolve against nothing in the
 #                           cache by design, so the name gate is blind to them
 #                           too; what `port/configs.map` states instead is what
 #                           this tree does with each of the reference's 1,619
@@ -3015,11 +5176,11 @@ test-membership:
 #                           `collision`: `music` is dbtable 44 here with fifteen
 #                           columns starting `sortname` and four starting `name`
 #                           there, and 195 LostCity dbrows name it.
-#   port_vars_diff          and the same bar for `%name` (§9 step 3d / §7.5),
+#   port_vars_diff          and the same bar for `%name` (Â§9 step 3d / Â§7.5),
 #   --check                 which is the one namespace where resolving is not
 #                           evidence of anything: osrs239 kept the legacy
 #                           `prayerN` labels on ids it reused, so `%prayer9`
-#                           resolves — to the Clan Wars block. `port/vars.map`
+#                           resolves â to the Clan Wars block. `port/vars.map`
 #                           states what each of the reference's 357 `%name`
 #                           references becomes here, and this fails on a new one,
 #                           on a resolution that changed under a decision already
@@ -3029,9 +5190,9 @@ test-membership:
 #                           carrier and the selftest asserts the engine made none.
 #   port_names_diff         and the last of the six, for the namespaces where the
 #   --check                 reference names a record this tree has no spelling for
-#                           (§9 step 3e). Every one of those *does* fail loudly
+#                           (Â§9 step 3e). Every one of those *does* fail loudly
 #                           the moment a script naming it is ported, which is bar
-#                           1 working — so what this checks is the other side: the
+#                           1 working â so what this checks is the other side: the
 #                           524 rows of `port/names.map` claiming two records are
 #                           the same thing, each with facts re-derived from both
 #                           trees on every run. It fails on a new reference name
@@ -3040,43 +5201,43 @@ test-membership:
 #                           stopped holding its record, and on two names claiming
 #                           one target. `npc macro_bigfish` is why it exists:
 #                           unique display, same vislevel, injective, no
-#                           collision — and this tree's only 'Big Fish' is a
+#                           collision â and this tree's only 'Big Fish' is a
 #                           Shadow-of-the-Storm troll.
 #
 # Folded into `test-content` rather than given its own top-level target, for the
 # reason stated above it: a bar in a command nobody types is not covered. The
 # name diff needs the LostCity checkout and says so and passes when it is absent
-# — a bar that cannot run has not failed.
+# â a bar that cannot run has not failed.
 test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets
 	@echo "--- port: the name-resolution gate ---"
 	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--pack $(TORIRSSERVER_CONTENT_DIR)/pack \
+		--pack $(TORIRSSERVER_CONTENT_DIR)/configs \
 		--check
 	@cd $(REPO_ROOT) && python3 tools/port_name_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_constant_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_category_crawl.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_config_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_vars_diff.py --check
 	@cd $(REPO_ROOT) && python3 tools/cs2_varp_audit.py --check
 	@cd $(REPO_ROOT) && python3 tools/port_names_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_summoning_ids.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/gen_dbindex.py --check
 	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/ladder_import.py \
-		--content $(MOCK230_CONTENT_DIR) --check
+		--content $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/bank_import.py \
-		--content $(MOCK230_CONTENT_DIR) --check
+		--content $(TORIRSSERVER_CONTENT_DIR) --check
 
 test-dbindex:
 	@cd $(REPO_ROOT) && python3 tools/test_gen_dbindex.py
@@ -3090,21 +5251,44 @@ test-dbindex:
 test-ss-symbols: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test \
 		serverscript/test/ssc_symbols_test.c $(SSC_SRCS)
-	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(MOCK230_CONTENT_DIR)
+	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(TORIRSSERVER_CONTENT_DIR)
 
 # The npc server-band codec, and its agreement with `fields/npc.ini`.
 #
 # The round trip is the easy half. The half that matters is the cross-check: the
 # register declares each field's opcode and width, and the codec holds a C table
 # saying the same. If they drift, the packer writes a field under one opcode and
-# the server reads it under another — and nothing errors, because both streams
+# the server reads it under another â and nothing errors, because both streams
 # are well-formed. The value just lands somewhere else.
 test-servercodec: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/servercodec_test \
-		net/mock/test/mock230_servercodec_test.c net/mock/mock230_servercodec.c \
+		torirsserver/test/torirs_server_servercodec_test.c torirsserver/torirs_server_servercodec.c \
 		$(RSCACHE_DIR)/src/rsbuffer.c
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test \
 		OSRS-Content/osrs239-content/fields
+
+# LOC_ADD_CHANGE_V2's per-placement right-click menu, server writer against
+# client reader.
+#
+# The slot index is offset-encoded (the wire byte is the zero-based slot; the
+# codec's XFORM puts the one-based op number back on decode), and an off-by-one
+# in either direction is silent: the packet still frames and the door still
+# swings, the label just lands on the wrong row â or on a row the op mask hid,
+# which reads as a door that cannot be clicked. Only a round trip catches it.
+.PHONY: test-loc-ops-wire
+test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o \
+		$(OBJ_DIR)/jbase37.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/loc_ops_wire_test \
+		torirsserver/test/loc_ops_wire_test.c \
+		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
+		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
+		torirsserver/mock239_runclientscript.c torirsserver/mock239_varp.c \
+		torirsserver/mock239_inbound.c torirsserver/mock239_interface_inbound.c \
+		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c \
+		$(RSAREABUF_DIR)/rsareabuf.c \
+		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
+		$(OBJ_DIR)/jbase37.o -lm
+	./$(OBJ_DIR)/loc_ops_wire_test
 
 test-content-register: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
@@ -3114,27 +5298,38 @@ test-content-register: $(OBJ_DIR)
 # The server hosted in-process: a real client subsystem and a real server joined
 # by two byte buffers, no socket and no thread. Links the server core (no
 # main()) against the client's net stack. If this hangs, the login handshake has
-# gone back to blocking — see net/mock/test/embed_test.c.
+# gone back to blocking â see torirsserver/test/embed_test.c.
 # net_out.c, pkt_player_info.c and pkt_npc_info.c are here because the
 # two-client half of the test drives the *client's* encoder for a ground click
-# and the client's own readers for PLAYER_INFO and NPC_INFO — asserting on the
+# and the client's own readers for PLAYER_INFO and NPC_INFO â asserting on the
 # server's own view of its stream would be asserting the encoder against itself.
 #
 # `net/bitbuffer.c` is NOT in that list even though those readers need it: it is
 # already in $(NET_CORE_OBJS) as $(OBJ_DIR)/bitbuffer.o, and naming it here too
-# compiles it a second time into the same link — four duplicate symbols and a
-# link failure. This target had been unbuildable for that reason, which is worse
+# compiles it a second time into the same link â four duplicate symbols and a
+# link failure. `pkt_player_info.c`/`pkt_npc_info.c` were named in the recipe and
+# then joined $(NET_CORE_OBJS) later, which broke this link again the same way;
+# they are gone from the recipe now and the objects carry them.
+# This target had been unbuildable for that reason, which is worse
 # than it sounds: it is the only test that asserts the two-peer zone replay (a
 # door one client opens being open for a client that connects later), so the
 # whole multi-client half of the zone work was going unverified with nothing
 # saying so.
-test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
-		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
-		net/net_out.c net/rev/packets/pkt_player_info.c \
-		net/rev/packets/pkt_npc_info.c \
+test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
+		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
+
+# mDNS response parser: name compression (including a pointer chain and a
+# self-referential one), truncation, out-of-range RDLENGTH, reserved label
+# types, and the `.local` suffix classifier. No socket -- every packet is built
+# by hand, because a cooperating responder never sends the malformed ones and
+# those are exactly the cases that would read out of bounds.
+test-mdns: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mdns_parse_test platform/test/mdns_parse_test.c
+	./$(OBJ_DIR)/mdns_parse_test
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)
@@ -3146,63 +5341,481 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c executor_config.c features/features.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c executor_config.c features/features.c \
+		ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
 		$(RSCACHE_DIR)/build/xteas.o
 	./$(OBJ_DIR)/bootmanifest_test
 
+# Half-shared placements: the seam hide one placement performs must not reach
+# its siblings through the borrowed face arrays.
+test-shared-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/shared_model_test 		$(TORIDRAW_DIR)/toridraw_shared_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/shared_model_test
+
 # Actor vs scene model-light regimes (toridraw profiles + LightSetProfiles).
-test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-light-model: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/light_model_test \
-		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
+		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/light_model_test
 
+# ToriDraw_SceneElementApplyAnimation skips a pose the model already holds
+# (TORIDRAW_ANIM_SKIP_SAME); every mutator that can change a pose must force a
+# re-pose. Run on both arms: the control arm re-poses every call.
+test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_anim_skip_test \
+		$(TORIDRAW_DIR)/toridraw_scene_anim_skip_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/scene_anim_skip_test
+	TORIDRAW_ANIM_SKIP_SAME=1 ./$(OBJ_DIR)/scene_anim_skip_test
+
+# The dual-core GLES2 lane's model stage on a scratch view of the scene
+# against the same stage on the scene itself: parity, bench independence,
+# the depth path's sort gate, arena exhaustion, view sync. GL-free.
+test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test \
+		platform/platform_renderer_gles2_dualcore_stage.c \
+		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/gles2_dualcore_stage_test
+	# Again with every model past the bitonic limit: the radix sort path, which
+	# the concurrent case exists for (its tables must not be shared).
+	TORIDRAW_SORT_BITONIC_MAX=4 ./$(OBJ_DIR)/gles2_dualcore_stage_test
+
 # DynamicObject sequence termination: frameStep governs the final location pose.
-test-animation-object-step: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-animation-object-step: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/animation_object_step_test \
-		$(TORIDRAW_DIR)/toridraw_animation_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_animation_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/animation_object_step_test
 
 # Public scene scratch-capacity profile contract and independent SMALL/lazy
 # texture behavior.
-test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+# --- the small-client surface -------------------------------------------
+#
+# toridraw_mini.h / toridraw_arena.h: a model drawn into a buffer out of
+# memory the caller owns. See 3rd/toridraw/MINI.md.
+#
+# Built against toridraw_unity.o ALONE, with -I$(TORIDRAW_DIR) and nothing
+# else -- that is the claim the unity build's header makes and this recipe is
+# what holds it to it. Adding a -I here to make a link work means the claim
+# has been broken, not that the recipe needs fixing.
+#
+# The --wrap flags are what make the zero-allocation check mean anything: the
+# test counts every malloc/calloc/realloc the library reaches for while
+# drawing, and holds it to zero. Without them the test still runs and says so.
+TORIDRAW_MINI_WRAP_LDFLAGS = -Wl,--wrap=malloc -Wl,--wrap=calloc \
+	-Wl,--wrap=realloc -Wl,--wrap=free
+
+# -fno-lto, and the four -fno-builtin-*, are load-bearing rather than tidy.
+#
+# `--wrap` rewrites an UNDEFINED reference at link time. Under -flto the
+# plugin resolves those before the wrap runs, so the library's own
+# allocations stop being counted -- and the test then reports zero for the
+# best possible reason and the worst possible one, indistinguishably. The
+# builtins matter for the same reason from the other end: GCC recognises a
+# malloc whose result is freed on the same path and simply removes the pair,
+# which is what made the first two attempts to make this test FAIL appear to
+# pass.
+#
+# So this test builds its own object rather than sharing the lane's.
+TORIDRAW_MINI_TEST_CFLAGS = -fno-lto -fno-builtin-malloc -fno-builtin-calloc \
+	-fno-builtin-realloc -fno-builtin-free
+
+$(OBJ_DIR)/toridraw_unity_nolto.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) -w -c $< -o $@
+
+# toridraw_model_sprite.c is not in the unity, and the parity check needs it:
+# ToriDraw_SpriteNewFromModelRaster is the independent spelling of the same
+# reference pose the mini API reproduces.
+$(OBJ_DIR)/toridraw_model_sprite_nolto.o: \
+		$(TORIDRAW_DIR)/toridraw_model_sprite.c | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) -w -c $< -o $@
+
+$(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o: \
+		$(TORIDRAW_DIR)/toridraw_model_sprite.c | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) -w -c $< -o $@
+
+$(OBJ_DIR)/toridraw_unity_nolto_altfmt.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_ALTFMT_CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) -w -c $< -o $@
+
+# Compiled to an object first, then linked WITHOUT -fno-lto: the flag belongs
+# on the compiles (so nothing is folded away and the wrap has real references
+# to rewrite), and passing it to the link as well drops the LTO plugin, which
+# this lane's sidecar objects need.
+$(OBJ_DIR)/toridraw_mini_test.o: $(TORIDRAW_DIR)/toridraw_mini_test.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) \
+		-DTORIDRAW_MINI_TEST_WRAP_MALLOC -I$(TORIDRAW_DIR) -c $< -o $@
+
+test-toridraw-mini: $(OBJ_DIR) $(OBJ_DIR)/toridraw_mini_test.o \
+		$(OBJ_DIR)/toridraw_unity_nolto.o $(OBJ_DIR)/toridraw_model_sprite_nolto.o \
+		$(TORIDRAW_UNITY_SIDECAR_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/toridraw_mini_test \
+		$(OBJ_DIR)/toridraw_mini_test.o $(OBJ_DIR)/toridraw_unity_nolto.o $(OBJ_DIR)/toridraw_model_sprite_nolto.o \
+		$(TORIDRAW_UNITY_SIDECAR_OBJS) \
+		$(TORIDRAW_MINI_WRAP_LDFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/toridraw_mini_test
+
+# The same, at the 16-bit format the small clients actually run. A separate
+# target rather than a variable, because the point is that BOTH are built.
+test-toridraw-mini-16bpp: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity_nolto_altfmt.o \
+		$(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o
+	$(CC) $(CFLAGS) $(TORIDRAW_MINI_TEST_CFLAGS) \
+		-DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_ALT_FORMAT) \
+		-DTORIDRAW_MINI_TEST_WRAP_MALLOC -I$(TORIDRAW_DIR) \
+		-o $(OBJ_DIR)/toridraw_mini_test_altfmt \
+		$(TORIDRAW_DIR)/toridraw_mini_test.c \
+		$(OBJ_DIR)/toridraw_unity_nolto_altfmt.o $(OBJ_DIR)/toridraw_model_sprite_nolto_altfmt.o \
+		$(TORIDRAW_MINI_WRAP_LDFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/toridraw_mini_test_altfmt
+
+# --- the RSCache adaptor -------------------------------------------------
+#
+# 3rd/toridraw_rscache is its own library: it depends on ToriDraw and RSCache
+# and nothing depends on it. Compiled here from its own unity file with its
+# own three include paths, exactly as the README tells an outside project to.
+TORIDRAW_RSCACHE_DIR := $(REPO_ROOT)/3rd/toridraw_rscache
+# RSCache's own link set, spelled out as the other rscache-linking targets in
+# this file spell it (test-io-wire and friends).
+TORIDRAW_RSCACHE_LINK_OBJS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+	$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+TORIDRAW_RSCACHE_CFLAGS = -I$(TORIDRAW_RSCACHE_DIR)/include -I$(TORIDRAW_DIR) \
+	-I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src
+
+$(OBJ_DIR)/toridraw_rscache_unity.o: \
+		$(TORIDRAW_RSCACHE_DIR)/toridraw_rscache_unity.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(TORIDRAW_RSCACHE_CFLAGS) -w -c $< -o $@
+
+test-toridraw-rscache: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_rscache_unity.o $(TORIDRAW_RSCACHE_LINK_OBJS)
+	$(CC) $(CFLAGS) $(TORIDRAW_RSCACHE_CFLAGS) \
+		-o $(OBJ_DIR)/toridraw_rscache_test \
+		$(TORIDRAW_RSCACHE_DIR)/toridraw_rscache_test.c \
+		$(OBJ_DIR)/toridraw_rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(TORIDRAW_RSCACHE_LINK_OBJS) -lm $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/toridraw_rscache_test
+
+# The worked example: a model blob in, a PPM out, one static arena.
+toridraw-model-to-ppm: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_rscache_unity.o $(TORIDRAW_RSCACHE_LINK_OBJS)
+	$(CC) $(CFLAGS) $(TORIDRAW_RSCACHE_CFLAGS) \
+		-o $(OBJ_DIR)/model_to_ppm$(PLATFORM_EXE_SUFFIX) \
+		$(TORIDRAW_RSCACHE_DIR)/examples/model_to_ppm.c \
+		$(OBJ_DIR)/toridraw_rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(TORIDRAW_RSCACHE_LINK_OBJS) -lm $(PLATFORM_STRIP_LDFLAGS)
+
+# --- precomputed tables ---------------------------------------------------
+#
+# Turns the 193 KB of lookup tables ToriDraw_Init builds into `const` arrays a
+# linker script can put in ROM. The generator is built with the SAME pixel
+# format as the target, because the palette's element is toripixel_t.
+#
+# Not wired into any lane's build: which format a target wants and where its
+# .rodata goes are the target's decisions. This target is how you get the file.
+TORIDRAW_TABLES_FORMAT ?= TORIDRAW_PF_RGB565
+
+toridraw-tables-gen: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-I$(TORIDRAW_DIR) -w \
+		-o $(OBJ_DIR)/toridraw_tables_gen$(PLATFORM_EXE_SUFFIX) \
+		$(TORIDRAW_DIR)/tools/toridraw_tables_gen.c -lm
+	./$(OBJ_DIR)/toridraw_tables_gen$(PLATFORM_EXE_SUFFIX) \
+		> $(OBJ_DIR)/toridraw_tables_precomputed.c
+	@echo 'wrote $(OBJ_DIR)/toridraw_tables_precomputed.c'
+
+# That the precomputed unit and the runtime builders agree, and that the
+# resulting library still draws. A generated table that is subtly wrong does
+# not fail -- it looks slightly wrong on the target and nowhere else -- so the
+# check is that the SAME test passes against both.
+test-toridraw-tables-precomputed: toridraw-tables-gen
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-DTORIDRAW_TABLES_PRECOMPUTED -I$(TORIDRAW_DIR) -w \
+		-c $(TORIDRAW_UNITY_SRC) -o $(OBJ_DIR)/toridraw_unity_precomputed.o
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-DTORIDRAW_TABLES_PRECOMPUTED -I$(TORIDRAW_DIR) -w \
+		-c $(OBJ_DIR)/toridraw_tables_precomputed.c \
+		-o $(OBJ_DIR)/toridraw_tables_precomputed.o
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-DTORIDRAW_TABLES_PRECOMPUTED -I$(TORIDRAW_DIR) -w \
+		-c $(TORIDRAW_DIR)/toridraw_model_sprite.c \
+		-o $(OBJ_DIR)/toridraw_model_sprite_precomputed.o
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL_FORMAT=$(TORIDRAW_TABLES_FORMAT) \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/toridraw_mini_test_precomputed \
+		$(TORIDRAW_DIR)/toridraw_mini_test.c \
+		$(OBJ_DIR)/toridraw_unity_precomputed.o \
+		$(OBJ_DIR)/toridraw_model_sprite_precomputed.o \
+		$(OBJ_DIR)/toridraw_tables_precomputed.o -lm $(PLATFORM_STRIP_LDFLAGS)
+	./$(OBJ_DIR)/toridraw_mini_test_precomputed
+
+test-toridraw-small: test-toridraw-mini test-toridraw-mini-16bpp \
+		test-toridraw-rscache test-toridraw-tables-precomputed
+	@echo 'small-client surface: all checks passed'
+test-scene-profiles: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_profile_test \
-		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o \
-		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
+
+# The NEON presorted-run kernels against the C per-face kernels, all eight
+# doors. The default arm is the reciprocal one (a triangle/pixel ppm budget,
+# as the i686 ladder is scored); NEON_TRI_ASM_FLAGS=-DTORIDRAW_EDGE_IDIV
+# assembles the exact-divide lane, under which the test demands zero -- that
+# is what separates a regression in the walk from the approximation in the
+# slope, and BOTH kernels are held to it.
+# Scores whichever encoding the gate picked: aarch64 on Apple arm64 and
+# Android arm64-v8a, aarch32 on Android armeabi-v7a.
+# The test includes the unity source itself (it reaches the static C
+# kernels), so it links the three asm objects alone, not the unity object.
+#
+# HOW IT IS RUN. A cross-compiled lane cannot execute on the build host, and a
+# target that quietly skipped the run would report a pass nothing observed --
+# so the Android lanes push to an attached device and run there, and say so
+# loudly if there is none. ANDROID_SERIAL picks one when several are attached.
+# adb shell on an older device does not propagate an exit status, hence the
+# RC= marker rather than trusting adb's own.
+ifeq ($(PLATFORM),android)
+ADB := adb $(if $(ANDROID_SERIAL),-s $(ANDROID_SERIAL),)
+define NEON_TEST_RUN
+	@$(ADB) get-state >/dev/null 2>&1 || { \
+		echo "test-presorted-neon: built for $(ANDROID_ABI), but no adb device is attached."; \
+		echo "  The kernels cannot run on the build host. Attach a device (or set"; \
+		echo "  ANDROID_SERIAL) and re-run; nothing was scored."; \
+		exit 1; }
+	$(ADB) push $(1) /data/local/tmp/presorted_neon_test >/dev/null
+	@$(ADB) shell "chmod 755 /data/local/tmp/presorted_neon_test && \
+		/data/local/tmp/presorted_neon_test; echo RC=\$$?" 2>&1 \
+		| grep -v -i "warning: linker" | tee $(1).log
+	@grep -q "RC=0" $(1).log || { echo "test-presorted-neon: FAILED on device"; exit 1; }
+endef
+else
+define NEON_TEST_RUN
+	./$(1)
+endef
+endif
+
+test-presorted-neon: $(OBJ_DIR) $(NEON_TRI_ASM_OBJS)
+ifeq ($(NEON_TRI_ASM_OBJS),)
+	@echo "test-presorted-neon: no kernel for PLATFORM=$(PLATFORM) ABI=$(ANDROID_ABI) -- nothing to score"
+else
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function \
+		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) $(NEON_TRI_ASM_CFLAGS) \
+		$(NEON_TRI_ASM_FLAGS) -I$(TORIDRAW_DIR) -I$(BMP_DIR) \
+		-o $(OBJ_DIR)/presorted_neon_test \
+		$(TORIDRAW_DIR)/toridraw_presorted_neon_test.c $(NEON_TRI_ASM_OBJS) -lm
+	$(call NEON_TEST_RUN,$(OBJ_DIR)/presorted_neon_test)
+endif
+
+# --- the Xtensa lane, as far as a host can take it -------------------------
+#
+# tri.flat.rgb565.xtensa.S ASSEMBLES. That is the whole claim, and it is worth
+# a target because the file is reached by no other build on this machine and
+# would rot silently otherwise: a stray register name or a frame offset off
+# the grammar is caught here rather than by someone flashing a part.
+#
+# It is NOT a test and must not be described as one -- the assembler does not
+# police the ISA's zero-overhead-loop restrictions, and it accepts a loop
+# ending in a branch, which is architecturally illegal. The proof runs on the
+# device: 3rd/toridraw/test/xtensa, an ESP-IDF app that scores both doors
+# against the same C references. Nothing a host does substitutes for it.
+#
+# Skips rather than fails without an ESP toolchain. This is the one lane whose
+# compiler is not a normal cross-compiler to have lying around.
+XTENSA_AS := $(shell command -v xtensa-esp32s3-elf-gcc 2>/dev/null)
+
+.PHONY: check-xtensa-asm
+check-xtensa-asm:
+ifeq ($(XTENSA_AS),)
+	@echo "check-xtensa-asm: no xtensa-esp32s3-elf-gcc on PATH -- skipped"
+else
+	@mkdir -p $(OBJ_DIR)
+	$(XTENSA_AS) -mlongcalls -mtext-section-literals -I$(TORIDRAW_DIR) \
+		-c -x assembler-with-cpp \
+		$(TORIDRAW_DIR)/impl/raster/asm/tri.flat.rgb565.xtensa.S \
+		-o $(OBJ_DIR)/tri_flat_rgb565_xtensa.o
+	$(XTENSA_AS) -mlongcalls -mtext-section-literals -I$(TORIDRAW_DIR) \
+		-DTORIDRAW_XTENSA_NO_PIE=1 -c -x assembler-with-cpp \
+		$(TORIDRAW_DIR)/impl/raster/asm/tri.flat.rgb565.xtensa.S \
+		-o $(OBJ_DIR)/tri_flat_rgb565_xtensa_nopie.o
+	@echo "check-xtensa-asm: both fills assemble"
+endif
+
+# The bitonic+radix face sort (SIMD cull + bitonic/radix) against the bucket
+# sort it replaces: order for order, across clip candidates, priorities, the
+# radix threshold and tail faces. Runs on every lane; the SIMD body has a
+# scalar twin, so a lane without NEON still has the sort to hold to the
+# reference -- there it is the radix half alone, and the kernel says so.
+# How much of a projection call is fixed per MODEL rather than per vertex.
+# 59% of projections are four-vertex terrain tiles, where the 4-wide loop runs
+# once and everything around it is amortised over nothing -- so this is what
+# says whether a frame-start terrain arena is worth building at all.
+# How far outside a triangle's vertices the raster paints. The number it
+# prints is the padding a cull box derived from projected vertices needs, and
+# the test is what keeps that number true when a kernel changes.
+test-raster-overshoot: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/raster_overshoot_test \
+		$(TORIDRAW_DIR)/toridraw_raster_overshoot_test.c
+	./$(OBJ_DIR)/raster_overshoot_test
+test-proj-model-bench: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/proj_model_bench \
+		$(TORIDRAW_DIR)/toridraw_proj_model_bench.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/proj_model_bench
+
+test-face-sort-bitonic-radix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/face_sort_bitonic_radix_test \
+		$(TORIDRAW_DIR)/toridraw_face_sort_bitonic_radix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/face_sort_bitonic_radix_test
 
 # Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
 # resolves its own faces per pixel, the result does not depend on face order,
 # and the buffer is reset per model so nothing leaks between them.
-test-zbuffer: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+test-zbuffer: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/zbuffer_test \
-		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(OBJ_DIR)/toridraw_unity.o \
-		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/zbuffer_test
 
 # The ToriRS -> ToriDraw adaptor must not forward decode flags into the render
 # flag word: the two `flags` bytes are different namespaces, and bit 0 on the
 # ToriDraw side is TORIDRAW_MODEL_FLAG_ZBUFFER, which drops face priorities.
-test-model-render-flags: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+test-model-render-flags: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/model_render_flags_test \
 		engine/test/model_render_flags_test.c engine/toridraw_model_from_torirs.c \
-		engine/torirs_types.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		engine/torirs_types.c $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/model_render_flags_test
+
+# TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES reaches the raster: a model carrying it
+# draws exactly what the camera's texture_affine draws, and not what the
+# perspective walk draws. Run on both arms of the batcher where the lane has
+# run kernels (the second run forces the per-face C path); a lane without
+# them takes the per-face path both times.
+test-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/affine_flag_test \
+		$(TORIDRAW_DIR)/toridraw_affine_flag_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/affine_flag_test
+	TORIDRAW_RASTER_BATCH=0 ./$(OBJ_DIR)/affine_flag_test
+
+# The tile decoder sets that flag on exactly the textured tiles.
+test-terrain-affine-flag: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/terrain_affine_flag_test \
+		engine/test/terrain_affine_flag_test.c engine/world_builder/world_decode_tile.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/terrain_affine_flag_test
 
 # Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
 # winding, then the clipped polygon receives the real front-face test.
 # bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
 # it needs bmp_write_file. Without it these two fail to LINK, which reads as a
 # failing test rather than a missing object.
-test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+# The screen box ToriDraw_Project leaves in scene->aabb, against one computed
+# straight from the projected vertices: exercises the AArch64 kernel's
+# in-register accumulation (and its tail hand-off) where that lane is built,
+# and the C sweep everywhere else. Sizes 1..390, yaw and no-yaw, textured and
+# not, and a camera-straddling placement for the clipping family.
+
+# The two stock projection kernels against each other, vertex for vertex. They
+# differ only in the two perspective vtable slots, so a divergence means the
+# prepared-camera kernel and the portable ladder are not interchangeable --
+# which is the whole premise of making them selectable.
+test-projection-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/projection_kernel_test \
+		$(TORIDRAW_DIR)/toridraw_projection_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/projection_kernel_test
+
+test-projected-bound: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/projected_bound_test \
+		$(TORIDRAW_DIR)/toridraw_projected_bound_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/projected_bound_test
+
+test-near-clip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
-		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o \
-		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/near_clip_test
+
+
+# The kernel TABLE matrix: the agreements BETWEEN the three stages.
+#
+# Every other kernel target here holds one seam. This one renders a fixture
+# built to make face order matter -- overlapping triangles at descending
+# depths, all four SD classes, translucency -- through every prebaked table x
+# {bucket,bitonic_radix} x batch{0,1}, and hashes the frame.
+#
+# Within a table the hash must not move: which sort ran and whether the run
+# doors were armed are speed decisions. Across rasterisers it must move, or
+# the matrix is agreeing about a blank screen. Nothing is pinned to a golden
+# constant -- the goldens come from the first arm of the same run, so a
+# legitimate kernel change stays green and a change that moves one arm and
+# not its twin does not.
+test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/kernel_matrix_test \
+		$(TORIDRAW_DIR)/toridraw_kernel_matrix_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/kernel_matrix_test
+
+# The kernel naming grammar, as a check.
+#
+# The variant space under 3rd/toridraw is only navigable if a filename is a
+# complete coordinate in it. tools/kernel_names.py holds that grammar in one
+# place and answers two questions with it: what every file WOULD be called
+# (the rename map, reviewed by a person before any move runs), and whether
+# every file can be placed at all.
+#
+# It moves nothing and is safe to run at any time.
+check-kernel-names:
+	python3 $(REPO_ROOT)/tools/kernel_names.py --check
+
+# ---- The kernel suite -------------------------------------------------
+#
+# Every proof the three-stage kernel system rests on, in one target.
+#
+# A kernel, a table, a family, or the scratch two stages hand each other is
+# not done until this passes. The individual targets each hold ONE seam --
+# the four SD face classes, the two projection kernels against each other,
+# the bitonic+radix sort against the bucket sort, the scanline family against
+# the
+# branching one -- and the seams only mean anything together: a change that
+# keeps every kernel correct in isolation and breaks the agreement between
+# two of them passes each of these alone.
+#
+# A lane with no assembly to score (test-presorted-neon off Apple arm64)
+# prints that and succeeds. It stays in the list on every platform, because
+# "there is nothing to run here" is a different report from "it was not run".
+.PHONY: test-toridraw-kernels test-kernel-matrix check-kernel-names
+TORIDRAW_KERNEL_TESTS = \
+	test-raster-kernel \
+	test-raster-kernel-altformat \
+	test-kernel-matrix \
+	check-kernel-names \
+	test-projection-kernel \
+	test-projected-bound \
+	test-near-clip \
+	test-face-sort-bitonic-radix \
+	test-zbuffer \
+	test-scene-profiles \
+	test-render-hd \
+	test-raster-overshoot \
+	test-scanline \
+	test-scanline-formats \
+	test-texture-matrix \
+	test-texmap \
+	test-gouraudrgb \
+	test-presorted-neon
+
+test-toridraw-kernels:
+	@fail=""; \
+	for t in $(TORIDRAW_KERNEL_TESTS); do \
+		echo "=== $$t"; \
+		$(MAKE) --no-print-directory $$t >/dev/null 2>$(OBJ_DIR)/tdk_$$t.log \
+			|| { fail="$$fail $$t"; tail -20 $(OBJ_DIR)/tdk_$$t.log; }; \
+	done; \
+	if [ -n "$$fail" ]; then echo "toridraw kernel suite FAILED:$$fail"; exit 1; fi; \
+	echo "toridraw kernel suite: all green"
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource
@@ -3221,25 +5834,76 @@ endif
 # so they run under either repository MinGW lane without booting the client.
 .PHONY: test-win32-platform
 ifneq ($(filter $(PLATFORM),win32 win64),)
-WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g -I$(SRC_DIR) \
-	$(PLATFORM_BASE_CFLAGS)
+WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g \
+	-DTORIRS_PERF_DISABLE=1 -I$(SRC_DIR) \
+	$(PLATFORM_CFLAGS)
 WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
-	-lgdi32 -luser32 -lwinmm -lkernel32
+	-lgdi32 -luser32 -lole32 -loleaut32 -luuid -lwinmm -lkernel32
+WIN32_CHROME_CAPTURE_BMP ?= $(OBJ_DIR)/plugin_chrome_browser_capture.bmp
+WIN32_CHROME_CAPTURE_OUT ?= $(OBJ_DIR)/plugin_chrome_browser_capture.png
+ifeq ($(PLATFORM),win32)
+WIN32_CHROME_BROWSER_BACKEND := platform/platform_win32_mshtml.c
+WIN32_CHROME_CAPTURE_RUN_ENV :=
+else
+WIN32_CHROME_BROWSER_BACKEND := platform/platform_win32_webview2.c
+WIN32_CHROME_CAPTURE_RUN_ENV := \
+	TORIRS_WEBVIEW2_LOADER="$(WEBVIEW2_SDK_DIR)/x64/WebView2Loader.dll"
+endif
 test-win32-platform: $(OBJ_DIR)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
 		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
-		platform/platform_win32_timing.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+		platform/test/win32_browser_backend_fake.c \
+		platform/platform_win32_timing.c platform/platform_app_icon.c \
+		cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
 		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/win32_timing_test.c platform/platform_win32_timing.c \
 		$(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX)
+
+.PHONY: build-win32-plugin-chrome-capture capture-win32-plugin-chrome
+build-win32-plugin-chrome-capture: $(OBJ_DIR)
+	@if [ "$(PLATFORM)" = "win64" ] && \
+		[ ! -f "$(WEBVIEW2_SDK_DIR)/x64/WebView2Loader.dll" ]; then \
+		echo "capture-win32-plugin-chrome: set WEBVIEW2_SDK_DIR to Microsoft.Web.WebView2 build/native"; \
+		exit 1; \
+	fi
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
+		-DTORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+		-DTORIRS_WIN32_BROWSER_CAPTURE_API=1 \
+		-o $(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_plugin_chrome_capture.c \
+		platform/platform_win32gdi.c platform/platform_win32_timing.c \
+		platform/platform_app_icon.c $(WIN32_CHROME_BROWSER_BACKEND) \
+		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c \
+		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c \
+		-lm $(WIN32_PLATFORM_TEST_LDFLAGS)
+
+capture-win32-plugin-chrome: build-win32-plugin-chrome-capture
+	$(WIN32_CHROME_CAPTURE_RUN_ENV) \
+		./$(OBJ_DIR)/win32_plugin_chrome_capture$(PLATFORM_EXE_SUFFIX) \
+		"$(WIN32_CHROME_CAPTURE_BMP)"
+ifeq ($(PLATFORM),win64)
+	powershell.exe -NoProfile -Command '$$ErrorActionPreference="Stop"; Add-Type -AssemblyName System.Drawing; $$main=[System.Drawing.Bitmap]::FromFile("$(WIN32_CHROME_CAPTURE_BMP)"); $$pane=[System.Drawing.Bitmap]::FromFile("$(WIN32_CHROME_CAPTURE_BMP).browser.png"); $$graphics=[System.Drawing.Graphics]::FromImage($$main); $$graphics.DrawImageUnscaled($$pane,$$main.Width-$$pane.Width,0); $$graphics.Dispose(); $$main.Save("$(WIN32_CHROME_CAPTURE_OUT)",[System.Drawing.Imaging.ImageFormat]::Png); $$pane.Dispose(); $$main.Dispose()'
+	@echo "capture-win32-plugin-chrome: wrote $(WIN32_CHROME_CAPTURE_OUT)"
+else
+	@echo "capture-win32-plugin-chrome: wrote $(WIN32_CHROME_CAPTURE_BMP)"
+endif
 else
 test-win32-platform:
 	@echo "test-win32-platform requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+
+.PHONY: build-win32-plugin-chrome-capture capture-win32-plugin-chrome
+build-win32-plugin-chrome-capture:
+	@echo "build-win32-plugin-chrome-capture requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+
+capture-win32-plugin-chrome:
+	@echo "capture-win32-plugin-chrome requires PLATFORM=win32 or PLATFORM=win64"
 	@false
 endif
 
@@ -3258,7 +5922,18 @@ clean:
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \
 		$(REPO_ROOT)/build-web/torirs.data $(REPO_ROOT)/build-web/torirs.wasm.map \
 		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js \
-		$(REPO_ROOT)/build-web/viewer.html
+		$(REPO_ROOT)/build-web/torirs_hostio.js $(REPO_ROOT)/build-web/torirs_idb.js \
+		$(REPO_ROOT)/build-web/torirs_js5.js $(REPO_ROOT)/build-web/torirs_ondemand.js \
+		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/torirs_chrome.js \
+		$(REPO_ROOT)/build-web/panel.html \
+		$(REPO_ROOT)/build-web/viewer.html \
+		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \
+		$(REPO_ROOT)/build-web/icon-32.png \
+		$(REPO_ROOT)/build-web/apple-touch-icon.png \
+		$(REPO_ROOT)/build-web/site.webmanifest \
+		$(REPO_ROOT)/build-web/icon-192.png $(REPO_ROOT)/build-web/icon-512.png \
+		$(REPO_ROOT)/build-web/icon-maskable-512.png
+	rm -rf $(REPO_ROOT)/build-web/plugin_chrome
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
@@ -3322,7 +5997,7 @@ test-midi-packets: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 	./$(OBJ_DIR)/midi_packet_test
 
 # seal_rig_scan: which sequence can drive which model, computed from the cache.
-# Model labels vs framemap bone groups — see src/engine/test/seal_rig_scan.c.
+# Model labels vs framemap bone groups â see src/engine/test/seal_rig_scan.c.
 test-seal-rig: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/seal_rig_scan \
@@ -3330,3 +6005,39 @@ test-seal-rig: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 	cd .. && ./src/$(OBJ_DIR)/seal_rig_scan
+
+# Sea terrain and hull geometry use a map distinct from walking collision.
+ifeq ($(shell uname -s),Darwin)
+SAILING_COLLISION_GC = -Wl,-dead_strip
+else
+SAILING_COLLISION_GC = -ffunction-sections -fdata-sections -Wl,--gc-sections
+endif
+.PHONY: test-sailing-collision
+test-sailing-collision: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/sailing_collision_test \
+		torirsserver/test/sailing_collision_test.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c \
+		torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
+		world/wev.c world/wev_deck.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c $(TORIDRAW_DIR)/toridraw_math.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(SAILING_COLLISION_GC) -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/sailing_collision_test
+
+# Persistent content acceptance client. Its output cannot replace a live torirs.
+.PHONY: content-test-client test-canoes-server
+content-test-client:
+	$(MAKE) OPT=1 EMBED_SERVER=1 PLATFORM_TARGET=torirs_contenttest torirs_contenttest
+
+test-canoes-server:
+	$(MAKE) OPT=1 torirsserver
+	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_CANOES_ONLY=1 TORIRSSERVER_CACHE=cache.osrs239 ./src/build_opt/torirsserver --selftest
+
+# Same S0/S1/S2 runtime assertions as the complete world selftest, without
+# requiring unrelated content suites to reach the sailing section first.
+.PHONY: test-sailing-server
+test-sailing-server: torirsserver
+	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_SAILING_ONLY=1 TORIRSSERVER_REV=osrs239 \
+		TORIRSSERVER_CACHE=cache.osrs239 ./src/$(OBJ_DIR)/torirsserver --selftest

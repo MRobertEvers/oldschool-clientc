@@ -20,8 +20,8 @@
     carries the same build under emsdk-win64\python\, so this resolver's PATH
     setup does not depend on the host having Python installed at all.
 
-    Extraction lands at toolchain\emsdk-win64\{upstream,node,python}, mirroring
-    toolchain\mingw64\ next to it. Unlike gcc, emcc has no baked-in knowledge
+    Extraction lands at toolchains\emsdk-win64\{upstream,node,python}, mirroring
+    toolchains\mingw64\ next to it. Unlike gcc, emcc has no baked-in knowledge
     of where its own LLVM/binaryen/node live -- that comes from a `.emscripten`
     config file pointed to by EM_CONFIG, which real `emsdk activate` writes.
     Nothing here runs `emsdk`, so New-ToriRSEmConfig writes the same three
@@ -41,7 +41,7 @@ function Resolve-ToriRSEmscriptenToolchain {
     )
 
     $RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
-    $toolchainParent = Join-Path $RepoRoot "toolchain"
+    $toolchainParent = Join-Path $RepoRoot "toolchains"
     $toolchainRoot = Join-Path $toolchainParent "emsdk-win64"
 
     $root = if ($Override) { [IO.Path]::GetFullPath($Override) } else { $toolchainRoot }

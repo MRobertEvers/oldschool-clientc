@@ -46,6 +46,20 @@ enum ToriRS_RenderCommandKind
     TORIRSRC_SPRITE,
     TORIRSRC_FONT,
     TORIRSRC_LINE,
+    /* Convex polygon, as a begin / point... / end run.
+     *
+     * A run rather than one command carrying an array: the emit layer produces
+     * exactly one command per step, so a primitive whose size varies has to be
+     * spelled as a sequence or the walk needs a sub-step counter threaded
+     * through it and every backend. The overlay stream is bracketed the same
+     * way, so one overlay item maps to one command the whole way down.
+     *
+     * Backends accumulate points between BEGIN and END and draw on END. A run
+     * that is never closed draws nothing, which is the right failure: a
+     * truncated command list should lose the polygon, not paint a half one. */
+    TORIRSRC_POLYGON_BEGIN,
+    TORIRSRC_POLYGON_POINT,
+    TORIRSRC_POLYGON_END,
 
     /* --- BATCHING (3D) — reserved for GPU; Soft3D no-ops --- */
     TORIRSRC_BATCH3D_BEGIN,
@@ -95,6 +109,11 @@ struct ToriRS_RenderCommand_Model
     int pick_tile_x; /* -1 for non-terrain */
     int pick_tile_z;
     int pick_tile_level;
+    /** World-entity view this draw came out of, 0 for the root scene. For a
+     *  view draw, pick_tile_x/z are that view's OWN (deck-local) tiles — the
+     *  deob's per-view hovered tile — and a walk click resolves them against
+     *  the view's staging base, not the root scene's. */
+    int pick_view;
 };
 
 struct ToriRS_RenderCommand_ModelWidget
@@ -114,6 +133,11 @@ struct ToriRS_RenderCommand_ModelWidget
     int model_zan;
     int model_x_offset;
     int model_y_offset;
+    /* Vertical centring term, added to the y translation only (the reference's
+     * `model_min_y / 2` — see ToriDraw_SpriteNewFromObjIconRaster, which is the
+     * composition an obj icon is authored against). 0 for an ordinary widget
+     * model, which is positioned by its own record. */
+    int model_center_y;
     uint8_t model_orthog;
     uint8_t model_fixed_zoom;
 };
@@ -259,7 +283,7 @@ struct ToriRS_RenderCommand_Font
     int center;
     int y_align;
     int line_height;
-    int shadowed;
+    int shadowed; /* 0=none, 1=one-pixel shadow, 2=four-sided outline */
     /** Baseline mode: `y` is the text bottom (reference PixFont.drawString does
      * `y -= height2d`), not a box top. Set for world-space overlay text like
      * hitsplats, which the reference draws with `centreString`, not a widget
@@ -270,6 +294,24 @@ struct ToriRS_RenderCommand_Font
     int scissor_y;
     int scissor_w;
     int scissor_h;
+};
+
+struct ToriRS_RenderCommand_PolygonBegin
+{
+    int argb;
+    /** 0..255, 0 = opaque. Highlights are drawn as a wash over the model, so
+     *  the fill is nearly always translucent. */
+    int trans;
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
+};
+
+struct ToriRS_RenderCommand_PolygonPoint
+{
+    int x;
+    int y;
 };
 
 struct ToriRS_RenderCommand_Line
@@ -306,6 +348,8 @@ struct ToriRS_RenderCommand
         struct ToriRS_RenderCommand_FillRect fill_rect;
         struct ToriRS_RenderCommand_Font font;
         struct ToriRS_RenderCommand_Line line;
+        struct ToriRS_RenderCommand_PolygonBegin polygon_begin;
+        struct ToriRS_RenderCommand_PolygonPoint polygon_point;
     } u;
 };
 

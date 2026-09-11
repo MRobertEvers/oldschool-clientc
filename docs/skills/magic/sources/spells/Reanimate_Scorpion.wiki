@@ -1,0 +1,65 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating scorpions|Basic reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Scorpion
+|image = [[File:Reanimate Scorpion.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 19
+|spellbook = Arceuus
+|type = Utility
+|exp = 38
+|cost = {{RuneReq|Soul=1|Nature=1}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Scorpion icon (mobile).png|left]]
+'''Reanimate Scorpion''' was a [[reanimation spell]] which required a [[Magic]] level of 19 and an [[ensouled scorpion head]] to cast. This spell would summon a [[reanimated scorpion]] with 15 Hitpoints.
+
+Upon killing the reanimated scorpion, players would gain 454 [[Prayer]] experience and 1.0% [[Arceuus]] [[favour]].
+
+The spell can be cast anywhere across [[Gielinor]] '''only if''' the ensouled head is obtained as a drop from the respective monster, and using it within a certain time frame in the area it was killed in.
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = nature
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Scorpion v1.png|center]]
+|[[File:Reanimate Scorpion.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

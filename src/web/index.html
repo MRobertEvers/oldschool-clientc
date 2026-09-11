@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>torirs (web)</title>
+<title>ToriRS (web)</title>
+<!-- Generated from res/torirs_icon.jpg by tools/make_app_icons.py. The .ico
+     carries 16/32/48 for browsers that still ask for one by default path. -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
 <style>
   :root { color-scheme: dark; }
   body {
@@ -11,9 +18,13 @@
     background: #14100c;
     color: #c8bda4;
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    min-height: 100vh;
+  }
+  #torirs-app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    width: 100%;
   }
   header {
     display: flex;
@@ -46,7 +57,39 @@
     border-color: #6b5426;
     color: #e8dcb8;
   }
-  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; }
+  main { display: flex; flex: 1; min-width: 0; min-height: 0; }
+  #game-region {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  #plugin-chrome-mount {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 0;
+    align-self: stretch;
+    overflow: hidden;
+  }
+  #plugin-chrome-mount[hidden] { display: none; }
+  #plugin-chrome-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    background: #0e0e0c;
+  }
+  main.torirs-chrome-exclusive #game-region { display: none; }
+  main.torirs-chrome-exclusive #plugin-chrome-mount {
+    flex: 1 1 100%;
+    width: 100%;
+  }
   #stage { flex: 0 0 auto; min-width: 0; min-height: 0; }
   /* The client renders at a fixed 765x503; scale it without smoothing so the
      software rasterizer's pixels stay the pixels it drew. */
@@ -66,7 +109,7 @@
      box being measured; the script sizes it to the largest rectangle of the
      backbuffer's aspect that fits, which is what the native window does when
      it letterboxes a fixed frame. */
-  body.fit main { flex-wrap: nowrap; }
+  body.fit #game-region { flex-wrap: nowrap; }
   body.fit #stage { position: relative; flex: 1 1 auto; align-self: stretch; }
   /* The panels are capped at the fixed frame's height; once the canvas is
      taller than that, they should be too. */
@@ -82,18 +125,21 @@
      strip, faded until pointed at, so the toggles stay reachable without
      taking a row from the picture. */
   body.fullcanvas { height: 100vh; overflow: hidden; }
-  body.fullcanvas main { padding: 0; gap: 0; }
+  body.fullcanvas #game-region { padding: 0; gap: 0; }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
   body.fullcanvas header {
     position: fixed;
     top: 0;
-    right: 0;
+    /* Clear of the plugin window docked beside the canvas, whose width
+       torirs_chrome.js publishes here — 0px whenever nothing is docked. A
+       corner pinned to the viewport instead lands on that window's title bar,
+       which is the one row of it the user needs to reach. */
+    right: var(--torirs-dock-width, 0px);
     z-index: 10;
     padding: 0.25rem 0.4rem;
     border: 1px solid #3a2f22;
     border-top: 0;
-    border-right: 0;
     background: rgba(20, 16, 12, 0.85);
     opacity: 0.2;
     transition: opacity 0.12s ease-out;
@@ -102,6 +148,17 @@
   body.fullcanvas header:focus-within { opacity: 1; }
   body.fullcanvas header h1,
   body.fullcanvas header #status { display: none; }
+  /* Exclusive plugin chrome still belongs to the fullscreened application.
+     Keep its application controls in flow instead of floating them over the
+     only visible page. */
+  body.fullcanvas #torirs-app.torirs-chrome-exclusive > header {
+    position: static;
+    right: auto;
+    z-index: auto;
+    opacity: 1;
+    border-left: 0;
+    border-right: 0;
+  }
   .panel {
     display: flex;
     flex-direction: column;
@@ -152,6 +209,7 @@
 </style>
 </head>
 <body>
+<div id="torirs-app">
 <header>
   <h1>torirs — wasm</h1>
   <span id="status">loading…</span>
@@ -179,7 +237,8 @@
     </button>
   </span>
 </header>
-<main>
+<main id="app-content">
+  <div id="game-region">
   <div id="stage">
     <canvas id="canvas" width="765" height="503" tabindex="-1"
             oncontextmenu="event.preventDefault()"></canvas>
@@ -192,7 +251,14 @@
     <h2>client</h2>
     <pre id="log"></pre>
   </section>
+  </div>
+  <!-- One stable slot shared by every plugin page. torirs_chrome.js mounts one
+       app-owned canonical-bundle iframe here and never creates a frame per
+       plugin. Responsive layout either keeps it beside #game-region or
+       replaces that region, never overlaps it. -->
+  <aside id="plugin-chrome-mount" aria-label="Plugin tools" hidden></aside>
 </main>
+</div>
 
 <!--
   View controls. Page chrome only — deliberately ahead of the module scripts
@@ -206,28 +272,29 @@
   so a scaled canvas reports backbuffer pixels either way.
 -->
 <script>
-(function () {
+(() => {
   'use strict';
 
-  var body = document.body;
-  var canvas = document.getElementById('canvas');
-  var stage = document.getElementById('stage');
-  var btnCanvas = document.getElementById('btn-fullcanvas');
-  var btnFull = document.getElementById('btn-fullscreen');
-  var STORE_KEY = 'torirs.fullcanvas';
+  const body = document.body;
+  const app = document.getElementById('torirs-app');
+  const canvas = document.getElementById('canvas');
+  const stage = document.getElementById('stage');
+  const btnCanvas = document.getElementById('btn-fullcanvas');
+  const btnFull = document.getElementById('btn-fullscreen');
+  const STORE_KEY = 'torirs.fullcanvas';
 
   function fullscreenElement() {
     return document.fullscreenElement || document.webkitFullscreenElement || null;
   }
 
   function requestFullscreen(el) {
-    var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen;
     if (fn) { return fn.call(el); }
     return null;
   }
 
   function exitFullscreen() {
-    var fn = document.exitFullscreen || document.webkitExitFullscreen;
+    const fn = document.exitFullscreen || document.webkitExitFullscreen;
     if (fn) { return fn.call(document); }
     return null;
   }
@@ -236,22 +303,22 @@
   // Cleared, not recomputed, outside fit mode: the stylesheet's 1:1 size is
   // then the one that applies.
   function fit() {
-    var fullCanvas = body.classList.contains('fullcanvas');
-    var fitting = fullCanvas || !!fullscreenElement();
+    const fullCanvas = body.classList.contains('fullcanvas');
+    const fitting = fullCanvas || !!fullscreenElement();
     body.classList.toggle('fit', fitting);
     if (!fitting) {
       canvas.style.width = '';
       canvas.style.height = '';
       return;
     }
-    var availW = stage.clientWidth;
-    var availH = stage.clientHeight;
-    var srcW = canvas.width || 1;
-    var srcH = canvas.height || 1;
+    const availW = stage.clientWidth;
+    const availH = stage.clientHeight;
+    const srcW = canvas.width || 1;
+    const srcH = canvas.height || 1;
     if (availW <= 0 || availH <= 0) { return; }
-    var scale = Math.min(availW / srcW, availH / srcH);
-    canvas.style.width = Math.max(1, Math.floor(srcW * scale)) + 'px';
-    canvas.style.height = Math.max(1, Math.floor(srcH * scale)) + 'px';
+    const scale = Math.min(availW / srcW, availH / srcH);
+    canvas.style.width = `${Math.max(1, Math.floor(srcW * scale))}px`;
+    canvas.style.height = `${Math.max(1, Math.floor(srcH * scale))}px`;
   }
 
   function setFullCanvas(on) {
@@ -261,16 +328,15 @@
     fit();
   }
 
-  btnCanvas.onclick = function () {
+  btnCanvas.onclick = () => {
     setFullCanvas(!body.classList.contains('fullcanvas'));
   };
 
-  btnFull.onclick = function () {
-    // The page, not the canvas: fullscreening the canvas element alone would
-    // take the header — and with it the way back out of full canvas — off
-    // screen, and hand sizing to the browser's own letterbox.
-    var p = fullscreenElement() ? exitFullscreen() : requestFullscreen(document.documentElement);
-    if (p && p.catch) { p.catch(function () { /* denied or unsupported */ }); }
+  btnFull.onclick = () => {
+    // The application root, not the canvas: rail, active plugin pane and the
+    // way back out must stay in the same fullscreen presentation.
+    const p = fullscreenElement() ? exitFullscreen() : requestFullscreen(app);
+    if (p && p.catch) { p.catch(() => { /* denied or unsupported */ }); }
   };
 
   function syncFullscreenButton() {
@@ -296,14 +362,121 @@
       canvas, { attributes: true, attributeFilter: ['width', 'height'] });
   }
 
-  var stored = null;
+  let stored = null;
   try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
-  var forced = new URLSearchParams(window.location.search).get('fullcanvas');
+  const forced = new URLSearchParams(window.location.search).get('fullcanvas');
   setFullCanvas(forced !== null ? forced !== '0' : stored === '1');
 })();
 </script>
 
 <!-- Order matters: the harness defines Module, which the runtime reads on load. -->
+<script src="torirs_channel.js"></script>
+<!-- The protocol-1 adapter for the canonical retained bundle. Loaded before
+     wasm so its window.torirsChrome* compatibility hooks exist when the
+     executor probes them; all actual rail/page DOM lives in one app-owned
+     plugin_chrome/modern.html iframe. -->
+<script src="torirs_chrome.js"></script>
+<script>
+/*
+ * The renderer half of the panel channel.
+ *
+ * Created unconditionally but idle: no tab is opened until the wasm side calls
+ * torirsOpenPanelTab(), which it does only for `[editor:boot] panel=tab`. So a
+ * plain game boot, or an editor boot with panel=inprocess, pays nothing for
+ * this beyond the listener.
+ *
+ * The host owns the state; this page is where it lives. buildSnapshot and
+ * onIntent are the two seams to fill in as the editor's state is exposed to
+ * the wasm boundary -- until then a panel tab attaches, syncs, and shows an
+ * empty mirror, which is the honest picture of what is wired.
+ */
+window.torirsChannelHost = ToriRSChannel.createHost({
+  buildSnapshot() {
+    const state = (window.torirsEditorState && window.torirsEditorState()) || {};
+    return new TextEncoder().encode(JSON.stringify(state));
+  },
+  onIntent(type, payload) {
+    /* Intents are handed to the wasm side verbatim. Nothing is interpreted
+     * here: the renderer owns the state, and a page that started making
+     * decisions about intents would be a second writer of it. */
+    if (typeof window.torirsOnPanelIntent === 'function') {
+      window.torirsOnPanelIntent(type, payload);
+    }
+  }
+});
+
+/** Called from C (web_editor_open_panel_tab) when the manifest asked for a tab. */
+window.torirsOpenPanelTab = () => {
+  const conn = window.torirsChannelHost.openPanelTab('./panel.html');
+  if (!conn) {
+    console.warn('[torirs] the panel tab was blocked \u2014 allow popups for this site');
+  }
+  return !!conn;
+};
+
+/** A second view of the world, in its own tab and its own wasm instance. */
+window.torirsOpenCanvasTab = () => !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
+
+/*
+ * The inbound half: a page that EMBEDDED this client driving it.
+ *
+ * The channel above is the client opening a panel of its own. This is the
+ * reverse and it needs no handshake, because there is no state to mirror -- an
+ * embedder (tools/cs2dom's dev page, a test harness) posts a batch of cmdbus
+ * frames and they go on the same ring the keyboard and the socket use. What
+ * arrives is bytes in cmdring.h's layout, which the client already validates;
+ * this listener's whole job is to get them to the module.
+ *
+ * WHY A LISTENER AND NOT A CALL. A cross-origin iframe cannot be reached into,
+ * and even same-origin it should not be: postMessage is the seam that works in
+ * both arrangements and in a popup, so the embedder does not have to know which
+ * one it got.
+ *
+ * Frames that arrive before the runtime is up are DROPPED, and loudly. Queueing
+ * them would mean an interface that opens seconds later for reasons the caller
+ * cannot see; the embedder is waiting for a ready signal anyway (below), and
+ * the honest answer is that it sent too early.
+ */
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.type !== 'torirs-cmdbus' || !data.buffer) return;
+  const push = window.Module && window.Module._torirs_cmdbus_push_bytes;
+  if (typeof push !== 'function') {
+    console.warn('[torirs] cmdbus frames arrived before the client was running');
+    return;
+  }
+  const bytes = new Uint8Array(data.buffer);
+  const at = window.Module._malloc(bytes.length);
+  try {
+    window.Module.HEAPU8.set(bytes, at);
+    const accepted = push(at, bytes.length);
+    if (accepted < 0) console.warn('[torirs] the client refused a cmdbus batch');
+  } finally {
+    window.Module._free(at);
+  }
+});
+
+/*
+ * "The client is running" -- the one fact an embedder cannot work out for itself.
+ *
+ * A page can see the iframe load and the canvas appear long before the module
+ * is far enough in to take a command, and every harness that guessed at that
+ * gap guessed wrong somewhere. So the client says so, once, to whoever opened
+ * it. Fire-and-forget in both directions: no embedder means no listener, which
+ * costs a postMessage into nothing.
+ */
+window.torirsAnnounceReady = () => {
+  const to = window.parent !== window ? window.parent : window.opener;
+  if (to) to.postMessage({ type: 'torirs-ready' }, '*');
+};
+</script>
+<!-- All four before torirs_host.js, which reaches for them while building the
+     Module object the runtime reads. Order matters only in that the database
+     comes before the two producers and the provider that use it. -->
+<script src="torirs_idb.js"></script>
+<script src="torirs_js5.js"></script>
+<script src="torirs_ondemand.js"></script>
+<script src="torirs_hostio.js"></script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>
 </body>

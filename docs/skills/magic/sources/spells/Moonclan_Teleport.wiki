@@ -1,0 +1,36 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Moonclan teleport (tablet)}}
+{{Infobox Spell
+|name = Moonclan Teleport
+|image = [[File:Moonclan Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 69
+|spellbook = Lunar
+|type = Teleport
+|exp = 66
+|cost = {{RuneReq|Law=1|Earth=2|Astral=2}}
+|speed = 4 ticks
+|description = Teleports you to Moonclan Island
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Moonclan Teleport icon (mobile).png|left|class=pageimage]]
+'''Moonclan Teleport''' teleports the caster to the gate to the village on [[Lunar Isle]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed in order to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Earth
+|Rune1num = 2
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2113,3915|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

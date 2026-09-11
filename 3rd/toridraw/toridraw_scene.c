@@ -5,9 +5,12 @@
 #include "toridraw_map.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "toridraw_model_transform.h"
+#include "toridraw_shared_model.h"
 #include "toridraw_sprite.h"
 
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +28,7 @@
 struct MapEntry_ToriModel
 {
     int id;
+    uint64_t revision;
     struct ToriDraw_ModelHandle model;
 };
 
@@ -46,6 +50,22 @@ struct MapEntry_Font
     int id;
     struct ToriDraw_Font* font;
 };
+
+static void
+td_scene_ui_assets_changed(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    scene->ui_asset_revision++;
+    if( scene->ui_asset_revision == 0 )
+        scene->ui_asset_revision++;
+}
+
+uint64_t
+ToriDraw_SceneUIAssetRevision(struct ToriDraw_Scene const* scene)
+{
+    assert(scene);
+    return scene->ui_asset_revision;
+}
 
 struct MapEntry_Sound
 {
@@ -142,6 +162,33 @@ td_scene_element_ptr(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/* Makes room for one more event. The caller has already refused the push at
+ * TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE, so this only ever grows toward it. */
+static void
+td_event_queue_reserve(struct ToriDraw_EventQueue* queue)
+{
+    struct ToriDraw_Event* grown;
+    int next;
+
+    assert(queue);
+    assert(queue->count < TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE);
+    if( queue->count < queue->cap )
+        return;
+
+    /* 3/2, not 2x. Doubling carries up to 100% dead capacity at the moment it
+     * grows, and this queue stops at its high-water for the rest of the
+     * session -- the last doubling overshot to the 32768-entry cap and held
+     * 2.75 MB against a count well under it. 3/2 bounds the slack at 50% and
+     * is still amortised O(1). */
+    next = queue->cap ? queue->cap + queue->cap / 2 : 256;
+    if( next > TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+        next = TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE;
+    grown = realloc(queue->events, (size_t)next * sizeof(*queue->events));
+    assert(grown);
+    queue->events = grown;
+    queue->cap = next;
+}
+
 static void
 td_scene_emit(
     struct ToriDraw_Scene* scene,
@@ -177,6 +224,7 @@ td_scene_emit(
             event.world_position = element->world_position;
     }
 
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -199,6 +247,7 @@ td_scene_emit_sprite(
     event.element_id = element_id;
     event.sprites = sprites;
     event.sprite_count = count;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -219,6 +268,7 @@ td_scene_emit_font(
     event.kind = kind;
     event.texture_id = font_id;
     event.font = font;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -239,6 +289,7 @@ td_scene_emit_sound(
     event.kind = kind;
     event.sound_id = sound_id;
     event.sound = sound;
+    td_event_queue_reserve(&scene->event_queue);
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -270,6 +321,9 @@ td_scene_element_valid(
     int element_id)
 {
     assert(scene);
+    /* The id may carry a kind in its top bits; the list is indexed by the
+     * bottom ones. Untagged ids are kind NONE and mask to themselves. */
+    element_id = ToriDraw_ElementIndexOfRaw(element_id);
     if( element_id < 0 || element_id >= TORIDRAW_SCENE_MAX_ELEMENTS )
         return false;
     return ToriDraw_IntrusiveListIsLive(&scene->elements, element_id);
@@ -282,7 +336,8 @@ td_scene_element_ptr(
 {
     if( !td_scene_element_valid(scene, element_id) )
         return NULL;
-    return (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(&scene->elements, element_id);
+    return (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
+        &scene->elements, ToriDraw_ElementIndexOfRaw(element_id));
 }
 
 static void
@@ -293,6 +348,87 @@ td_scene_reset_element(struct ToriDraw_SceneElement* element)
     memset(element, 0, sizeof(*element));
     element->scene_id = scene_id;
     element->anim_seq_id = -1;
+    element->posed_primary = -1;
+}
+
+/*
+ * The model no longer holds a pose ApplyAnimation may trust. Called by every
+ * mutator that can change what a (track, frame) pair produces; the revision
+ * is a count of those, kept for the readout rather than for the compare.
+ */
+static void
+td_scene_element_pose_invalidate(struct ToriDraw_SceneElement* element)
+{
+    assert(element);
+    element->posed_primary = -1;
+    element->posed_track = NULL;
+    element->posed_track2 = NULL;
+    element->model_revision++;
+}
+
+/*
+ * TORIDRAW_ANIM_SKIP_SAME=1 skips a re-pose whose (track, frame, secondary
+ * track, secondary frame) equals the pose the model holds; the default
+ * re-poses on every call. OFF BY DEFAULT ON MEASUREMENT: on the Moto X
+ * (rs289lc) two interleaved client pairs read 12.51 / 13.66 ms CPU/frame
+ * with the skip against 12.16 / 12.75 without -- the tuple compare and the
+ * revision bookkeeping on every drawn element cost as much as the poses
+ * they save at this scene's animation density. Read once.
+ */
+static int
+td_anim_skip_same_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIDRAW_ANIM_SKIP_SAME");
+
+        cached = (v && v[0] == '1') ? 1 : 0;
+    }
+    return cached;
+}
+
+static bool
+td_scene_element_pose_matches(
+    const struct ToriDraw_SceneElement* element,
+    bool primary,
+    int frame,
+    int frame2,
+    const void* track,
+    const void* track2,
+    bool reuse)
+{
+    assert(element);
+    if( !reuse )
+        return false;
+    return element->posed_primary == (int8_t)(primary ? 1 : 0) &&
+           element->posed_frame == frame && element->posed_frame2 == frame2 &&
+           element->posed_track == track && element->posed_track2 == track2;
+}
+
+static void
+td_scene_element_pose_record(
+    struct ToriDraw_SceneElement* element,
+    bool primary,
+    int frame,
+    int frame2,
+    const void* track,
+    const void* track2)
+{
+    assert(element);
+    /* A frame index past int16 would alias: refuse to remember rather than
+     * risk a false match. No sequence in any supported cache comes close. */
+    if( frame < 0 || frame > INT16_MAX || frame2 < 0 || frame2 > INT16_MAX )
+    {
+        element->posed_primary = -1;
+        return;
+    }
+    element->posed_primary = (int8_t)(primary ? 1 : 0);
+    element->posed_frame = (int16_t)frame;
+    element->posed_frame2 = (int16_t)frame2;
+    element->posed_track = track;
+    element->posed_track2 = track2;
 }
 
 static int
@@ -304,19 +440,28 @@ td_scene_allocate_element_id(
     int id;
 
     assert(scene);
+    /* The pool tag is one byte on the element; a view pool past the end would
+     * wrap onto another view's elements and free them on that view's clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
 
     if( scene->elements.free_head != TORIDRAW_INTRUSIVE_NIL )
-        element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListGet(
+    {
+        element = (struct ToriDraw_SceneElement*)ToriDraw_IntrusiveListAt(
             &scene->elements, scene->elements.free_head);
+        td_scene_reset_element(element);
+    }
     else
     {
         if( scene->elements.count >= TORIDRAW_SCENE_MAX_ELEMENTS )
             return -1;
+        /* calloc already hands back the zeroed state td_scene_reset_element
+         * would write, and scene_id is assigned below on both paths, so only
+         * the one non-zero default is left to set. */
         element = calloc(1, sizeof(struct ToriDraw_SceneElement));
         assert(element);
+        element->anim_seq_id = -1;
     }
-
-    td_scene_reset_element(element);
 
     id = ToriDraw_IntrusiveListAlloc(&scene->elements, element);
     if( id < 0 )
@@ -332,12 +477,68 @@ td_scene_allocate_element_id(
     return id;
 }
 
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SceneSharedFaces(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    if( !scene->shared_faces )
+        scene->shared_faces = ToriDraw_SharedFacesStoreNew();
+    return scene->shared_faces;
+}
+
+struct ToriDraw_SharedModelStore*
+ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene)
+{
+    assert(scene);
+    if( !scene->shared_models )
+        scene->shared_models = ToriDraw_SharedModelStoreNew();
+    return scene->shared_models;
+}
+
+struct ToriDraw_Model*
+ToriDraw_SceneElementModelForWrite(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Model* model;
+
+    assert(scene);
+
+    if( element_id < 0 || !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return NULL;
+    element = ToriDraw_SceneElementGet(scene, element_id);
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return NULL;
+    /* The caller asked in order to WRITE: whatever pose the model holds is
+     * about to be edited under it. */
+    td_scene_element_pose_invalidate(element);
+    /* Already ours: nothing to un-share. */
+    if( element->model.kind == TORIDRAWMK_MODEL || element->model.kind == TORIDRAWMK_MODEL_HD )
+        return element->model.u.model.model;
+
+    /* Give this element geometry it can edit and hand the loan back. The copy
+     * carries the bind pose, so an element about to be animated is no worse off
+     * for being copied here than it would have been built unshared.
+     *
+     * The element changes TYPE here -- ToriDraw_ModelCopy reads the shared
+     * geometry and returns one that owns itself -- which is the whole job of
+     * this function, and is now a fact about its handle rather than about two
+     * fields nobody had to look at. */
+    model = ToriDraw_ModelCopy(ToriDraw_ModelRead(element->model));
+    ToriDraw_ModelHandleFree(element->model);
+    element->model = ToriDraw_ModelHandleOwned(model);
+    return model;
+}
+
 static void
 td_scene_dispose_element_model(struct ToriDraw_SceneElement* element)
 {
     assert(element);
-    if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
-        ToriDraw_ModelFree(element->model.u.model.model);
+    /* Whatever the element holds, by its kind: an owned model outright, a
+     * shared one by dropping a holder, a lent-faces one by dropping its own
+     * arrays and its share of the loan. */
+    ToriDraw_ModelHandleFree(element->model);
     element->model.kind = TORIDRAWMK_NONE;
     element->model.u.model.model = NULL;
 }
@@ -364,7 +565,7 @@ td_scene_free_element_id(
                 element_id,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -386,8 +587,7 @@ td_scene_free_models_map(struct ToriDraw_Map* map)
     struct MapEntry_ToriModel* entry = NULL;
     while( (entry = (struct MapEntry_ToriModel*)ToriDraw_MapIterNext(iter)) )
     {
-        if( entry->model.kind == TORIDRAWMK_MODEL )
-            ToriDraw_ModelFree(entry->model.u.model.model);
+        ToriDraw_ModelHandleFree(entry->model);
     }
     ToriDraw_MapIterFree(iter);
 }
@@ -448,6 +648,8 @@ bool
 ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 {
     assert(scene);
+
+    scene->ui_asset_revision = 0;
 
     scene->models_hmap = td_scene_map_new(sizeof(struct MapEntry_ToriModel), 1024);
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
@@ -576,6 +778,7 @@ ToriDraw_SceneSpriteAdd(
     entry->sprites = sprites;
     entry->count = count;
     td_scene_emit_sprite(scene, TORIDRAW_EVENT_SPRITE_LOAD, element_id, sprites, count);
+    td_scene_ui_assets_changed(scene);
 }
 
 void
@@ -605,6 +808,7 @@ ToriDraw_SceneSpriteRemove(
     entry->sprites = NULL;
     entry->count = 0;
     ToriDraw_MapSearch(scene->sprites_hmap, &element_id, TORIDRAW_MAP_REMOVE);
+    td_scene_ui_assets_changed(scene);
 }
 
 struct ToriDraw_Sprite**
@@ -664,6 +868,7 @@ ToriDraw_SceneFontAdd(
     entry->id = font_id;
     entry->font = font;
     td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_LOAD, font_id, font);
+    td_scene_ui_assets_changed(scene);
 }
 
 /* --- sound assets --------------------------------------------------------- */
@@ -889,8 +1094,12 @@ ToriDraw_SceneModelAdd(
      * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
      * write actually looks like when it happens. */
 
+    static _Atomic uint64_t next_model_revision = 1;
     entry->id = model_id;
+    entry->revision = atomic_fetch_add(&next_model_revision, 1);
+    if( !entry->revision ) abort();
     entry->model = model;
+    td_scene_ui_assets_changed(scene);
 }
 
 struct ToriDraw_ModelHandle
@@ -908,12 +1117,20 @@ ToriDraw_SceneModelGet(
     return entry->model;
 }
 
+uint64_t
+ToriDraw_SceneModelRevision(struct ToriDraw_Scene* scene, int model_id)
+{
+    struct MapEntry_ToriModel* entry = (struct MapEntry_ToriModel*)ToriDraw_MapSearch(
+        scene->models_hmap, &model_id, TORIDRAW_MAP_FIND);
+    return entry ? entry->revision : 0;
+}
+
 bool
 ToriDraw_SceneModelHas(
     struct ToriDraw_Scene* scene,
     int model_id)
 {
-    return ToriDraw_SceneModelGet(scene, model_id).kind == TORIDRAWMK_MODEL;
+    return ToriDraw_ModelKindIsFull(ToriDraw_SceneModelGet(scene, model_id).kind);
 }
 
 struct ToriDraw_ModelHandle
@@ -929,17 +1146,24 @@ ToriDraw_SceneModelRemove(
     if( !entry )
         return none;
 
+    td_scene_ui_assets_changed(scene);
     return entry->model;
 }
 
 void
 ToriDraw_SceneModelsClearAll(struct ToriDraw_Scene* scene)
 {
+    bool changed;
+
     assert(scene);
     assert(scene->models_hmap);
 
+    changed = ToriDraw_MapCount(scene->models_hmap) > 0;
+
     td_scene_free_models_map(scene->models_hmap);
     td_scene_map_reset(&scene->models_hmap, sizeof(struct MapEntry_ToriModel), 1024);
+    if( changed )
+        td_scene_ui_assets_changed(scene);
 }
 
 void
@@ -1086,7 +1310,7 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -1097,7 +1321,7 @@ ToriDraw_SceneClear(struct ToriDraw_Scene* scene)
             i,
             0,
             0,
-            element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+            ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
             NULL,
             NULL);
         td_scene_dispose_element_model(element);
@@ -1124,6 +1348,12 @@ ToriDraw_SceneClearPool(
     bool clear_retained_batch;
 
     assert(scene);
+    assert(pool >= 0);
+    assert(pool < 256);
+    /* Only view 0's static geometry goes into the retained batch arena, so
+     * only its clear may drop the arena wholesale; every other pool (a boat
+     * deck's static half, any view's entities) is unloaded element by element
+     * so the arena — and with it the mainland — is left alone. */
     clear_retained_batch = pool == TORIDRAW_SCENE_POOL_STATIC;
 
     for( i = scene->elements.head; i != TORIDRAW_INTRUSIVE_NIL; i = next )
@@ -1144,7 +1374,7 @@ ToriDraw_SceneClearPool(
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         }
@@ -1156,7 +1386,7 @@ ToriDraw_SceneClearPool(
                 i,
                 0,
                 0,
-                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
                 NULL,
                 NULL);
         td_scene_dispose_element_model(element);
@@ -1204,6 +1434,37 @@ ToriDraw_SceneElementAddPool(
     return td_scene_allocate_element_id(scene, pool);
 }
 
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    /* Same bound as the allocator: the tag is one byte, and a pool past the end
+     * would wrap onto another view's elements and be freed on that view's
+     * clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    element->pool = (uint8_t)pool;
+}
+
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    assert(scene);
+    if( !td_scene_element_valid(scene, element_id) )
+        return -1;
+    return (int)td_scene_element_ptr(scene, element_id)->pool;
+}
+
 int
 ToriDraw_SceneElementRemove(
     struct ToriDraw_Scene* scene,
@@ -1224,7 +1485,7 @@ ToriDraw_SceneElementRemove(
         element_id,
         0,
         0,
-        element && element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+        element && ToriDraw_ModelKindIsFull(element->model.kind) ? &element->model : NULL,
         NULL,
         NULL);
 
@@ -1238,6 +1499,110 @@ ToriDraw_SceneElementGet(
     int element_id)
 {
     return td_scene_element_ptr(scene, element_id);
+}
+
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    __builtin_prefetch(&scene->elements.nodes[index], 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const void* data;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    data = scene->elements.nodes[index].data;
+    if( data )
+        __builtin_prefetch(data, 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchDataBothLines(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const void* data;
+    assert(scene);
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return;
+    data = scene->elements.nodes[index].data;
+    if( !data )
+        return;
+    __builtin_prefetch(data, 0, 1);
+    __builtin_prefetch((const char*)data + 64, 0, 1);
+}
+
+static const struct ToriDraw_Model*
+td_scene_element_prefetch_model_of(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    int index;
+    const struct ToriDraw_SceneElement* element;
+    index = ToriDraw_ElementIndexOfRaw(element_id);
+    if( index < 0 || index >= scene->elements.count )
+        return NULL;
+    element = scene->elements.nodes[index].data;
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return NULL;
+    return element->model.u.model.model;
+}
+
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    /* flags, counts and the array pointers sit in the first two lines; the
+     * bounds cylinder some 270 bytes in. */
+    __builtin_prefetch(model, 0, 1);
+    __builtin_prefetch((const char*)model + 64, 0, 1);
+    __builtin_prefetch(&model->bounds_cylinder, 0, 1);
+}
+
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    const struct ToriDraw_Model* model;
+    assert(scene);
+    model = td_scene_element_prefetch_model_of(scene, element_id);
+    if( !model )
+        return;
+    if( model->vertices_x )
+        __builtin_prefetch(model->vertices_x, 0, 1);
+    if( model->vertices_y )
+        __builtin_prefetch(model->vertices_y, 0, 1);
+    if( model->vertices_z )
+        __builtin_prefetch(model->vertices_z, 0, 1);
+    if( model->face_indices_a )
+        __builtin_prefetch(model->face_indices_a, 0, 1);
+    if( model->face_indices_b )
+        __builtin_prefetch(model->face_indices_b, 0, 1);
+    if( model->face_indices_c )
+        __builtin_prefetch(model->face_indices_c, 0, 1);
 }
 
 bool
@@ -1320,7 +1685,7 @@ td_scene_element_assign_model(
     struct ToriDraw_SceneElement* element;
 
     assert(scene);
-    assert(model.kind == TORIDRAWMK_MODEL);
+    assert(ToriDraw_ModelKindIsFull(model.kind));
     assert(td_scene_element_valid(scene, element_id));
 
     element = td_scene_element_ptr(scene, element_id);
@@ -1328,6 +1693,7 @@ td_scene_element_assign_model(
 
     td_scene_dispose_element_model(element);
     element->model = model;
+    td_scene_element_pose_invalidate(element);
 
     if( scene->batch_building )
         element->pending_batch_add = true;
@@ -1336,12 +1702,53 @@ td_scene_element_assign_model(
             scene, TORIDRAW_EVENT_MODEL_LOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
 }
 
+/*
+ * Whether this element can pose the model it is holding. Only an element that
+ * can be posed needs a bind pose, and in a loaded region almost none can: the
+ * ~19k elements are overwhelmingly static scenery.
+ */
+static bool
+td_scene_element_is_animated(const struct ToriDraw_SceneElement* element)
+{
+    assert(element);
+    return element->animation != NULL || element->secondary_animation != NULL ||
+           element->skeletal_animation != NULL || element->anim_seq_id > 0 ||
+           element->anim2_seq_id > 0;
+}
+
+/*
+ * The pose every keyframe composes against. Idempotent on purpose: a model that
+ * already carries a bind pose keeps it, or whatever pose it is currently in
+ * would become the new bind -- the same corruption from the other direction.
+ */
+static void
+td_ensure_bind_pose(struct ToriDraw_ModelHandle* handle)
+{
+    struct ToriDraw_Model* model;
+
+    assert(handle);
+    if( handle->kind != TORIDRAWMK_MODEL )
+        return;
+    model = handle->u.model.model;
+    if( !model || model->vertex_count <= 0 || model->original_vertices_x )
+        return;
+    ToriDraw_ModelCaptureOriginalVertices(model);
+}
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,
     int element_id,
     struct ToriDraw_ModelHandle model)
 {
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+
     /*
      * Mounting a model is the last moment it is guaranteed to be at its bind
      * pose, and the first at which the renderer may animate it -- so it is
@@ -1350,20 +1757,21 @@ ToriDraw_SceneElementSetModel(
      * with the one before it, which looks like the model inflating into shards
      * rather than like anything missing.
      *
-     * SetAnimationSeq also captures, and for the ordinary spawn-then-animate
-     * order that was enough, which is why this gap survived: it only shows when
-     * a model is swapped UNDER a running animation without the sequence being
-     * re-bound afterwards (a same-tick npc_changetype + npc_anim that re-binds
-     * the sequence already playing). Capturing here removes the ordering
-     * dependency entirely -- an element cannot hold an unresettable model.
+     * The case that reaches here is a model swapped UNDER a running animation
+     * without the sequence being re-bound afterwards (a same-tick npc_changetype
+     * + npc_anim that re-binds the sequence already playing), so the gate is
+     * that the element is ALREADY animated. The opposite order -- model first,
+     * animation after -- is covered where the element becomes animated:
+     * SetAnimation, SetAnimationSeq and SetSecondaryAnimationSeq each capture.
+     * Between the four, an element still cannot hold an unresettable model.
      *
-     * Conditional, so it never overwrites a bind pose the model already has:
-     * re-capturing unconditionally would take whatever pose the model is in and
-     * make THAT the bind, which is the same bug from the other direction.
+     * The gate is what makes it affordable. Capturing for every element that
+     * merely HAS a model meant three mallocs apiece across a whole region --
+     * 3.3 MB of bind poses that nothing could ever read, in 58k heap blocks
+     * whose per-block overhead the allocation tracker does not even see.
      */
-    if( model.kind == TORIDRAWMK_MODEL && model.u.model.model &&
-        model.u.model.model->vertex_count > 0 && !model.u.model.model->original_vertices_x )
-        ToriDraw_ModelCaptureOriginalVertices(model.u.model.model);
+    if( td_scene_element_is_animated(element) )
+        td_ensure_bind_pose(&model);
 
     td_scene_element_assign_model(scene, element_id, model);
 }
@@ -1385,10 +1793,16 @@ ToriDraw_SceneElementSetAnimation(
     assert(element);
 
     slot = primary ? &element->animation : &element->secondary_animation;
+    /* Either branch changes what the next pose composes from: a new track,
+     * or (below) the model reset to its bind pose. */
+    td_scene_element_pose_invalidate(element);
 
     if( animation )
     {
         *slot = animation;
+        /* Animated from here on, and SetModel declined to capture while it was
+         * not. Whatever the model is holding now is its bind pose. */
+        td_ensure_bind_pose(&element->model);
         if( !element->dynamic )
         {
             struct ToriDraw_Event* event;
@@ -1426,6 +1840,10 @@ ToriDraw_SceneElementSetAnimation(
             if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
             {
                 ToriDraw_ModelAnimateReset(element->model.u.model.model);
+                /* The reset restores the AUTHORED bind pose; a model with a
+                 * post-resize has to be put back into render scale or it
+                 * springs to full size the moment its animation is dropped. */
+                ToriDraw_ModelApplyPostTransforms(element->model.u.model.model);
                 ToriDraw_ModelSetBoundsCylinder(element->model.u.model.model);
             }
         }
@@ -1473,13 +1891,17 @@ ToriDraw_SceneElementSetAnimationSeq(
     element->skeletal_animation = NULL;
     element->skeletal_play_frames = 0;
     scene->anim_list_dirty = true;
+    td_scene_element_pose_invalidate(element);
 
     if( element->model.kind == TORIDRAWMK_MODEL )
     {
         struct ToriDraw_Model* model = element->model.u.model.model;
         ToriDraw_ModelAnimateReset(model);
-        ToriDraw_ModelSetBoundsCylinder(model);
+        /* Capture before the resize: the bind pose every keyframe is applied to
+         * is the model at its AUTHORED size (see post_resize). */
         ToriDraw_ModelCaptureOriginalVertices(model);
+        ToriDraw_ModelApplyPostTransforms(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
     }
 }
 
@@ -1499,8 +1921,26 @@ ToriDraw_SceneElementSetSecondaryAnimationSeq(
 
     element->anim2_seq_id = seq_id;
     element->anim2_frame = 0;
+    td_scene_element_pose_invalidate(element);
     if( seq_id <= 0 )
         element->secondary_animation = NULL;
+    else
+        td_ensure_bind_pose(&element->model);
+}
+
+void
+ToriDraw_SceneElementPoseInvalidate(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    assert(element);
+    td_scene_element_pose_invalidate(element);
 }
 
 void
@@ -1522,22 +1962,13 @@ ToriDraw_SceneElementSetAnimFrames(
     element->anim2_frame = secondary_frame;
 }
 
-void
-ToriDraw_SceneElementApplyAnimation(
-    struct ToriDraw_Scene* scene,
-    int element_id,
-    bool primary,
-    int frame)
+static void
+td_scene_element_apply_animation(
+    struct ToriDraw_SceneElement* element, int element_id,
+    bool primary, int frame, bool reuse)
 {
-    struct ToriDraw_SceneElement* element;
     struct ToriDraw_Model* model;
-
-    assert(scene);
-    assert(td_scene_element_valid(scene, element_id));
-
-    element = td_scene_element_ptr(scene, element_id);
     assert(element);
-
     if( element->model.kind != TORIDRAWMK_MODEL )
         return;
     model = element->model.u.model.model;
@@ -1556,7 +1987,10 @@ ToriDraw_SceneElementApplyAnimation(
             return;
         if( frame < 0 || frame >= skeletal->frame_count )
             frame = 0;
+        if( td_scene_element_pose_matches(element, primary, frame, 0, skeletal, NULL, reuse) )
+            return;
         ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
+        td_scene_element_pose_record(element, primary, frame, 0, skeletal, NULL);
     }
     else
     {
@@ -1571,8 +2005,37 @@ ToriDraw_SceneElementApplyAnimation(
         if( animation->frames[frame].length <= 0 )
         {
             ToriDraw_ModelAnimateReset(model);
+            ToriDraw_ModelApplyPostTransforms(model);
             ToriDraw_ModelSetBoundsCylinder(model);
+            element->posed_primary = -1;
             return;
+        }
+
+        /* The walkmerge blend below reads the secondary track; resolve what
+         * it would use so the pose the model holds can be compared against
+         * the one this call would produce before any of the work is done. */
+        {
+            struct ToriDraw_Animation* second = NULL;
+            int frame2 = 0;
+            if( primary && animation->walkmerge && element->secondary_animation &&
+                element->secondary_animation->base && element->secondary_animation->frames &&
+                element->secondary_animation->frame_count > 0 )
+            {
+                second = element->secondary_animation;
+                frame2 = element->anim2_frame;
+                if( frame2 < 0 || frame2 >= second->frame_count )
+                    frame2 = 0;
+                if( second->frames[frame2].length <= 0 )
+                {
+                    second = NULL;
+                    frame2 = 0;
+                }
+            }
+            if( td_scene_element_pose_matches(element, primary, frame, frame2, animation, second, reuse) )
+                return;
+            /* Remembered before the pose is applied: every path below leaves
+             * the model at exactly this (track, frame) pair. */
+            td_scene_element_pose_record(element, primary, frame, frame2, animation, second);
         }
         ToriDraw_ModelAnimateReset(model);
 
@@ -1628,7 +2091,19 @@ ToriDraw_SceneElementApplyAnimation(
          * the keyframe above composes with the previous frame's output forever.
          * The model does not animate, it accumulates.
          */
-        if( getenv("TORIRS_ANIM_STACK") && !model->original_vertices_x &&
+        /* All three of these run once per posed element per frame, so the
+         * env probes are resolved once rather than per call. */
+        static int anim_stack = -1;
+        static int anim_blowup = -1;
+        static int anim_debug = -1;
+        if( anim_stack < 0 )
+        {
+            anim_stack = getenv("TORIRS_ANIM_STACK") != NULL;
+            anim_blowup = getenv("TORIRS_ANIM_BLOWUP") != NULL;
+            anim_debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
+        }
+
+        if( anim_stack && !model->original_vertices_x &&
             model->vertex_count > 0 )
             fprintf(
                 stderr,
@@ -1638,7 +2113,7 @@ ToriDraw_SceneElementApplyAnimation(
                 element_id, element->anim_seq_id, frame, (void*)model,
                 model->vertex_count);
 
-        if( getenv("TORIRS_ANIM_STACK") && model->original_vertices_x &&
+        if( anim_stack && model->original_vertices_x &&
             model->original_vertices_y && model->original_vertices_z &&
             model->vertex_count > 0 )
         {
@@ -1665,8 +2140,16 @@ ToriDraw_SceneElementApplyAnimation(
                 if( p > pose_hi ) pose_hi = p;
                 if( d > worst_d ) { worst_d = d; worst_v = i; }
             }
-            int const bind_span = bind_hi - bind_lo;
+            /* The bind pose is the AUTHORED size and the pose has already had
+             * the model's post-resize applied (see post_resize), so the two
+             * spans are in different scales -- a half-size npc would never trip
+             * the ratio below and a double-size one would trip it on every
+             * healthy frame. Compare the bind span the pose was actually built
+             * from. */
+            int bind_span = bind_hi - bind_lo;
             int const pose_span = pose_hi - pose_lo;
+            if( model->post_resize )
+                bind_span = bind_span * model->post_resize_height / 128;
             /* Her wake sequence legitimately reaches ~5x the bind span (she
              * rears up out of a coiled rest pose), which is why this is 8x and
              * not the 3x that looked generous on paper -- 3x reported every
@@ -1695,7 +2178,7 @@ ToriDraw_SceneElementApplyAnimation(
          * whole session produces a handful of lines instead of one per pose --
          * TORIRS_ANIM_DEBUG's per-frame firehose is why this was never legible.
          */
-        if( model->bounds_cylinder && getenv("TORIRS_ANIM_BLOWUP") )
+        if( anim_blowup && model->has_bounds_cylinder )
         {
             /* Per ELEMENT. A single shared `last` compares one model's radius
              * against whatever was posed immediately before it, which fires on
@@ -1704,7 +2187,7 @@ ToriDraw_SceneElementApplyAnimation(
             static int last_radius[256];
             static bool last_seen[256];
             int const key = element_id & 255;
-            int const r = model->bounds_cylinder->radius;
+            int const r = model->bounds_cylinder.radius;
             int const prev = last_seen[key] ? last_radius[key] : -1;
 
             if( prev >= 0 && (r > prev * 2 + 64 || prev > r * 2 + 64) )
@@ -1714,8 +2197,8 @@ ToriDraw_SceneElementApplyAnimation(
                     "(min_y=%d max_y=%d bias=%d) -- this keyframe changed the "
                     "model's extent by more than 2x\n",
                     element_id, element->anim_seq_id, frame, prev, r,
-                    model->bounds_cylinder->min_y, model->bounds_cylinder->max_y,
-                    model->bounds_cylinder->min_z_depth_any_rotation);
+                    model->bounds_cylinder.min_y, model->bounds_cylinder.max_y,
+                    model->bounds_cylinder.min_z_depth_any_rotation);
             last_radius[key] = r;
             last_seen[key] = true;
         }
@@ -1724,7 +2207,7 @@ ToriDraw_SceneElementApplyAnimation(
          * bounds cylinder, to catch a keyframe whose decoded transforms blow
          * the model's geometry out to a radius the camera/culling can't
          * handle. See docs/rs2012_qbd_wakeup. */
-        if( getenv("TORIRS_ANIM_DEBUG") && model->bounds_cylinder )
+        if( anim_debug && model->has_bounds_cylinder )
             fprintf(
                 stderr,
                 "anim: element=%d primary=%d seq=%d frame=%d verts=%d radius=%d min_y=%d "
@@ -1734,11 +2217,72 @@ ToriDraw_SceneElementApplyAnimation(
                 element->anim_seq_id,
                 frame,
                 model->vertex_count,
-                model->bounds_cylinder->radius,
-                model->bounds_cylinder->min_y,
-                model->bounds_cylinder->max_y);
+                model->bounds_cylinder.radius,
+                model->bounds_cylinder.min_y,
+                model->bounds_cylinder.max_y);
     }
 }
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+#include "../../tools/perf/anim_chain_capture.u.c"
+#endif
+
+void
+ToriDraw_SceneElementApplyAnimationResolved(
+    struct ToriDraw_SceneElement* element, int element_id,
+    bool primary, int frame, bool reuse)
+{
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    bool captured=anim_chain_before(element,element_id,primary,frame);
+#endif
+#if defined(TORIRS_POSE_VERIFY)
+    static int verify_enabled=-1;
+    static unsigned verified=0;
+    if( verify_enabled<0 ) verify_enabled=getenv("TORIRS_POSE_VERIFY")!=NULL;
+    struct ToriDraw_Model* reference=NULL;
+    struct ToriDraw_SceneElement reference_element;
+    if( verify_enabled && reuse && element->model.kind==TORIDRAWMK_MODEL && element->model.u.model.model )
+    {
+        reference=ToriDraw_ModelCopy(element->model.u.model.model);
+        reference_element=*element;
+        reference_element.model.u.model.model=reference;
+    }
+#endif
+    td_scene_element_apply_animation(element,element_id,primary,frame,reuse);
+#if defined(TORIRS_POSE_VERIFY)
+    if( reference )
+    {
+        td_scene_element_apply_animation(&reference_element,element_id,primary,frame,false);
+        const struct ToriDraw_Model* actual=element->model.u.model.model;
+        size_t n=(size_t)actual->vertex_count*sizeof(vertexint_t);
+        if( memcmp(actual->vertices_x,reference->vertices_x,n) ||
+            memcmp(actual->vertices_y,reference->vertices_y,n) ||
+            memcmp(actual->vertices_z,reference->vertices_z,n) ||
+            (actual->face_alphas && memcmp(actual->face_alphas,reference->face_alphas,(size_t)actual->face_count)) ||
+            actual->has_bounds_cylinder!=reference->has_bounds_cylinder ||
+            memcmp(&actual->bounds_cylinder,&reference->bounds_cylinder,sizeof(actual->bounds_cylinder)) )
+        {
+            fprintf(stderr,"pose verification FAILED: element %d frame %d\n",element_id,frame);
+            abort();
+        }
+        ToriDraw_ModelFree(reference);
+        if( (++verified % 500u)==0 ) fprintf(stderr,"pose verification: %u real prepared poses matched reference\n",verified);
+    }
+#endif
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+    if( captured ) anim_chain_after(element);
+#endif
+}
+
+void
+ToriDraw_SceneElementApplyAnimation(struct ToriDraw_Scene* scene,
+    int element_id, bool primary, int frame)
+{
+    assert(scene);
+    assert(td_scene_element_valid(scene,element_id));
+    ToriDraw_SceneElementApplyAnimationResolved(td_scene_element_ptr(scene,element_id),
+        element_id,primary,frame,td_anim_skip_same_enabled()!=0);
+}
+
 
 void
 ToriDraw_SceneElementSetPosition(

@@ -1,0 +1,31 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolt (Onyx)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 87
+|spellbook = Normal
+|type = Utility
+|exp = 97
+|cost = {{RuneReq|Cosmic=1|Fire=20|Death=1}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on onyx-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Onyx bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Onyx)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 87 to cast. It imbues 10 [[onyx bolts]] each cast and turns them into [[onyx bolts (e)]] or 10 [[onyx dragon bolts]] into 10 [[onyx dragon bolts (e)]]. The enchantment gives the effect ''Life Leech''. This effect has a small chance to do extra damage and restore [[Hitpoints]] back to the player, but does not work on the [[undead]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 20
+|Rune2 = death
+|Rune2num = 1
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Standard spellbook}}

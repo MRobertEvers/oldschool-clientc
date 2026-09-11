@@ -1,0 +1,80 @@
+{{Otheruses|Lunar spellbook spell|for the Treasure Trail reward|Charge dragonstone jewellery scroll}}
+{{Infobox Spell
+|name = Recharge Dragonstone
+|image = [[File:Recharge Dragonstone.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|members = Yes
+|level = 89
+|spellbook = Lunar
+|type = Utility
+|exp = 97.5
+|cost = {{RuneReq|Astral=1|Soul=1|Water=4}}
+|speed = 
+|description = Recharges enchanted dragonstone jewellery
+|anim = [[File:Recharge Dragonstone.gif]]
+|sound = [[File:Recharge Dragonstone.ogg]]
+}}
+[[File:Recharge Dragonstone icon (mobile).png|left]]
+'''Recharge Dragonstone''' is a utility spell on the [[Lunar spellbook]], requiring 89 [[Magic]] and completion of the hard [[Fremennik Diary]] to cast.
+
+This spell recharges any [[amulet of glory]], [[combat bracelet]], and [[skills necklace]] with 4 charges, although the latter two can only be recharged after completion of the [[Legends' Quest]].
+
+This spell '''cannot''' charge the [[ring of wealth]]; only the [[Fountain of Rune]] in the deep [[Wilderness]] can do so.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Soul
+|Rune1num = 1
+|Rune2 = Astral
+|Rune2num = 1
+|Rune3 = Water
+|Rune3num = 4
+}}
+
+==Cost analysis==
+* Casting Recharge Dragonstone costs {{coins|{{GEP|Soul rune}}+{{GEP|Astral rune}}}} per inventory, while a [[charge dragonstone jewellery scroll]] costs {{coins|{{GEP|Charge dragonstone jewellery scroll}}}}.
+
+{|class="wikitable"
+!colspan=2|Item
+!Material Required<ref>Assumes the use of any [[elemental staves|staff]] that supplies water runes.</ref>
+!Material Cost (26 per inventory)
+!Profit/Loss
+!Material Cost (27 per inventory) <ref>27 items may be recharged per inventory with the use of a [[rune pouch]].</ref>
+!Profit/Loss
+|-
+|{{plinkt|Amulet of glory|pic=Amulet of glory(4)}} > [[Amulet of glory(4)]]
+|{{RuneReq|Soul=1|Astral=1}} {{Plinkp|Amulet of glory}}
+|{{coins|{{GEP|Amulet of glory|26}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Amulet of glory(4)|26}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Amulet of glory|26}})}}
+|{{coins|{{GEP|Amulet of glory|27}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Amulet of glory(4)|27}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Amulet of glory|27}})}}
+|-
+|{{plinkt|Combat bracelet}} > [[Combat bracelet(4)]]
+|{{RuneReq|Soul=1|Astral=1}} {{Plinkp|Combat bracelet}}
+|{{coins|{{GEP|Combat bracelet|26}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Combat bracelet(4)|26}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Combat bracelet|26}})}}
+|{{coins|{{GEP|Combat bracelet|27}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Combat bracelet(4)|27}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Combat bracelet|27}})}}
+|-
+|{{plinkt|Skills necklace}} > [[Skills necklace(4)]]
+|{{RuneReq|Soul=1|Astral=1}} {{Plinkp|Skills necklace}}
+|{{coins|{{GEP|Skills necklace|26}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Skills necklace(4)|26}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Skills necklace|26}})}}
+|{{coins|{{GEP|Skills necklace|27}}+{{GEP|Soul rune|1}}+{{GEP|Astral rune|1}}}}
+|{{coins|{{GEP|Skills necklace(4)|27}}-({{GEP|Astral rune|1}}+{{GEP|Soul rune|1}}+{{GEP|Skills necklace|27}})}}
+|}
+<references />
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = The recharge dragonstone spell animation has been given a [[graphical updates|graphical update]].
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

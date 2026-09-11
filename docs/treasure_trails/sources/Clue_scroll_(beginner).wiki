@@ -1,0 +1,163 @@
+{{HasStrategy|page=Treasure Trails/Full guide/Beginner}}
+{{Infobox Item
+|name = Clue scroll (beginner)
+|image = [[File:Clue scroll (beginner).png]]
+|release = [[11 April]] [[2019]]
+|update = Treasure Trails Expansion and Easter 2019
+|members = No
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = Hopefully leads to treasure.
+|value = 20
+|weight = 0.020
+|id = 23182
+|leagueRegion = desert,asgarnia
+}}
+[[File:Clue scroll (beginner) detail.png|left|150px]]
+A '''clue scroll (beginner)''' is a random drop from a large variety of lower-levelled monsters and certain skilling activities. It is the only clue type available in [[free-to-play]] and, if skilling, can be found when fishing ([[clue bottle (beginner)|clue bottle]]), mining ([[clue geode (beginner)|clue geode]]), or woodcutting ([[clue nest (beginner)|clue nest]]). Members can also get them from [[baby impling]]s and [[young impling]]s. Clue scrolls are the start of a [[Treasure Trail]] - a treasure hunt that sends players hunting all around [[Gielinor]] following a trail of clues that lead to rare and unique treasures. However, accounts that are less than 10 hours old will not be able to receive any unique rewards.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1418876325192929281|date=24 July 2021|archiveurl=https://reldo.runescape.wiki/i/106201|archivedate=22:34, 29 July 2021 (UTC)|quote=10 hours, applies to all accounts doing beginner clues.}}
+
+For a guide on how to complete a clue scroll, see [[Treasure Trails Guide]]. Beginner clues can be between one and three steps long. Unlike all other clue types, which are equally likely to have each number of steps, beginner clues have a 10% chance of completion at one step and a 45% chance of completion at two or three steps.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1239206991265964032|date=16 March 2020|archiveurl=https://reldo.runescape.wiki/i/98355|archivedate=26 May 2020|quote=While other tiers have equal chances of each length being chosen, beginners have a 10% chance of being 1-step, and 45% chances of 2 and 3 steps.}}
+
+Beginner clue scrolls are the easiest to obtain and complete, and offer low rewards in return. One is given as a reward by [[Veos]] after completing [[X Marks the Spot]] should players not have one already in their possession.
+
+With the current price of implings, the average cost to obtain a beginner clue is approximately {{Coins|25*({{GEP|Young impling jar}}) round 0}} from a [[Young impling jar]] or {{Coins|50*({{GEP|Baby impling jar}}) round 0}} from a [[Baby impling jar]]. This ignores all other loot obtained from the jars, easy clues, and/or caskets.
+
+After completing 600 beginner clues, the player will unlock the [[Explore]] emote.
+
+Beginner clue scrolls are '''not''' required to be given to [[Watson]] in exchange for a [[master clue scroll]]. In addition, beginner clue scrolls do not have a chance to give master clue scrolls as a reward.
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one beginner clue scroll can be held, kept in Death's Office, or stored in a bank at one time; attempting to open a [[scroll box (beginner)]] while holding a beginner clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Drop trick mechanics==
+Scrolls dropped by monsters appear on the ground with any other drops made by the monster - the scroll will despawn in 61 minutes. When skilling, the clue container appears in your backpack inventory and must be opened to extract the scroll. As for all clue scrolls, only one beginner clue scroll or container can be held, kept in Death's office or stored in a bank at one time; attempting to open a [[scroll box (beginner)]] while holding a beginner clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to use a variation of the [[drop trick]] to collect more than one clue scroll while skilling or levelling via [[PVM]]. 
+
+To utilise the drop trick mechanics, the player first opens the scroll container (if skilling) or picks up the scroll dropped by the monster. Once you have the scroll in your inventory you should drop it in a convenient close location. Dropping a scroll allows you to collect another: ideally, each should be dropped on separate squares to be able to track their individual timers. Each scroll you drop will despawn in 61 minutes - it is recommended that you do not rely on the final 60s - but each scroll timer can be reset by picking up and re-dropping the scroll. The dropped scrolls are not visible to other players. Use of the Runelite plugin "Ground items" is recommended so you can set timers on each dropped scroll. The game will continue to generate scrolls, but, by using the "drop trick", you can collect an unlimited number without having to do a clue trail before receiving the next scroll.   
+
+The scroll "drop trick" can be particularly useful for activities such as power mining or AFK mining of [[Crashed Star]]s which, in the case of the latter, is a time-limited resource (see also [[Guide:Clue Juggling]]). Once finished skilling etc, players will then have to do a series of clue trails and come back to the drop point to pick up the next scroll and, if needed reset the timers of unused scrolls.  Completion of beginner clue steps will give another clue or a [[reward casket (beginner)]], containing the final reward for the trail. Reward caskets will stack in the backpack inventory and bank, and have no weight.  When in the backpack they do not affect the receipt, or picking up, of another clue. 
+
+A feature of dropped clue scrolls - unlike other dropped items - is that they will follow the player if hopping to another world. This can be particularly useful in (for example) mining Crashed Stars as these can fall at the same location on different worlds - allowing the player to hop, continue mining, and bring all the clue scrolls (on the ground) at the same time. Similarly for other skilling or PVM activities which may become crowded and the player wishes to hop to a quieter world. Note also that dropped clue scrolls will survive a system update or log out and be available to the player when the game re-starts: ground timers will reset at that point.
+
+==Types of clues==
+''Please note that it is possible to receive the same clue more than once.''
+*[[Treasure Trails/Guide/Anagrams/Beginner|Anagram clues]]
+*[[Charlie the Tramp/Tasks|Charlie the Tramp tasks]]
+*[[Treasure Trails/Guide/Cryptic clues/Beginner|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Beginner|Emote clues]]
+*[[Treasure Trails/Guide/Hot Cold/Beginner|Hot/Cold clues]]
+*[[Treasure Trails/Guide/Maps/Beginner|Map clues]]
+
+==Item requirements==
+<onlyinclude>
+[[Charlie the Tramp/Tasks|Charlie the Tramp tasks]] and [[Treasure Trails/Guide/Emote clues/Beginner|emote clues]] require the player to obtain or equip specific items. There are '''no''' skill requirements to complete any of these steps. 
+===Emote clues===
+There are six items that are used in various [[Treasure Trails/Guide/Emote clues/Beginner|Beginner emote clues]]. All of these items can be purchased from other players. These items can be stored in their respective [[STASH]] unit. The STASH units require 2 [[plank|planks]] and 10 [[Nails]] to build.
+
+{{CostTableHead}}
+{{CostLine|Bronze axe}}
+{{CostLine|Chef's hat}}
+{{CostLine|Gold necklace}}
+{{CostLine|Gold ring}}
+{{CostLine|Leather boots}}
+{{CostLine|Red cape}}
+{{CostTableBottom}}
+
+[[Ironman mode|Ironmen]] may require level 5 [[Crafting]] for the [[gold ring]] and level 6 Crafting for the [[gold necklace]], as well as the relatively high [[Mining]] and [[Smithing]] levels to make the necessary [[gold bar]]s. However, the bars and jewellery can also be obtained via other methods, such as [[Pirate's Treasure|quests]], [[Capt' Arnav|random events]], and ground spawns, possibly requiring the magic spell [[Telekinetic Grab|telekinetic grab]].
+
+===Charlie the Tramp Tasks===
+[[Charlie the Tramp/Tasks|Charlie the Tramp tasks]] require the player to give [[Charlie the Tramp]] a specific item he requests. Charlie will always request one of the eight following items:
+
+{| class="wikitable sortable"
+|-
+!colspan=2|Item !! GE Price !! Skilling Source !! Other Sources
+|-
+|{{Plinkt|Trout}}
+|{{Coins|{{GEP|Trout}}}}
+|{{SCP|Cooking|15|sort=y}} {{Boostable|yes}}
+|[[Trout]] can be obtained by completing [[Adventurer Jon]]'s [[Adventure Paths]] or purchased from the [[Warrior Guild Food Shop]].
+|-
+|{{Plinkt|Pike}}
+|{{Coins|{{GEP|Pike}}}}
+|{{SCP|Cooking|20|sort=y}} {{Boostable|yes}}
+|[[Raw pike]] can be purchased be from [[Rufus' Meat Emporium]] in [[Canifis]] or fished at level 25 [[Fishing]] with a [[fishing rod]] and [[bait]] at the [[Rod Fishing spot (lure, bait)|lure/bait fishing spots]] at [[Barbarian Village]] or [[Lumbridge]] river and then cooked.
+|-
+|{{Plinkt|Leather body}}
+|{{Coins|{{GEP|Leather body}}}}
+|{{SCP|Crafting|14|sort=y}} {{Boostable|yes}}
+|[[Leather body|Leather bodies]] can be purchased from [[Aaron's Archery Appendages]] in the [[Ranging Guild]] or [[Thessalia's Fine Clothes]] north of Charlie. One also spawns nearby in a building south of [[Varrock east bank|Varrock East Bank]].
+|-
+|{{Plinkt|Leather chaps}}
+|{{Coins|{{GEP|Leather chaps}}}}
+|{{SCP|Crafting|18|sort=y}} {{Boostable|yes}}
+|[[Leather chaps]] can also be purchased from [[Aaron's Archery Appendages]] or be made by the player with materials found in [[Lumbridge]] and [[Al Kharid]].
+|-
+|{{Plinkt|Raw trout}}
+|{{Coins|{{GEP|Raw trout}}}}
+|{{SCP|Fishing|20|sort=y}} {{Boostable|yes}}
+|[[Raw trout]] can be fished with a [[fly fishing rod]] and feathers at Barbarian Village or Lumbridge river (or purchased at [[Rufus' Meat Emporium]] in [[Canifis]]) and be cooked into [[Trout]] if needed.
+|-
+|{{Plinkt|Raw herring}}
+|{{Coins|{{GEP|Raw herring}}}}
+|{{SCP|Fishing|10|sort=y}} {{Boostable|yes}}
+|[[Raw herring]] can be purchased at [[Frankie's Fishing Emporium]] in [[Port Piscarilius]], or be caught by hand in [[Draynor Village]].
+|-
+|{{Plinkt|Iron ore}}
+|{{Coins|{{GEP|Iron ore}}}}
+|{{SCP|Mining|15|sort=y}} {{Boostable|yes}}
+|[[Iron ore]] can be bought from the [[Ore Seller]] at the [[Blast Furnace]]. There are also [[iron rocks]] in the nearby [[South-west Varrock mine]].
+|-
+|{{Plinkt|Iron dagger}}
+|{{Coins|{{GEP|Iron dagger}}}}
+|{{SCP|Smithing|15|sort=y}} {{Boostable|yes}}
+|[[Iron dagger]]s can be bought from the [[Varrock Swordshop]] just north of Charlie. There is also an [[item spawn]] up at the goblin house in [[Lumbridge]].
+|-
+|}</onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (beginner)}}
+
+The average loot roll is worth {{Coins|floor({{BeginnerClueValue}})}}. On average, beginner clues are worth {{Coins|floor(2 * {{BeginnerClueValue}})}}.
+
+{{Clue scroll (beginner)/Rewards}}
+
+==Item sources==
+Skilling sources are not listed here; see [[clue bottle]], [[clue geode]], and [[clue nest]] for drop rate calculators.
+
+{{Drop sources|Clue scroll (beginner)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = Clue Scrolls dropped by a player now last 61 minutes on the ground rather than two minutes. This does not change existing behaviour for Clue Scrolls dropped by NPCs or other entities. Additionally, you are now told if you would have gotten a clue but didn't because you already have the maximum amount you can have.
+}}
+{{Subject changes
+|date = 1 December 2022
+|update = The Garden of Death & More
+|poll = Old School Content Poll 77: Quality of Life
+|change = [[Charlie the Tramp]] now accepts pre-made items.
+}}
+{{Subject changes
+|date = 29 January 2020
+|update = Poll 69, BH Rewards, and Welcome Screen
+|poll = Old School Content Poll 69: Game Improvements
+|change = [[Explore emote]] unlocked upon opening one's 600th (or more) beginner casket.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

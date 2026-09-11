@@ -29,6 +29,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 DEFAULT_BOUNDARY = REPO_ROOT / "docs" / "summoning_port" / "roster_boundary_530.json"
 LANE = Path("ported") / "scape2009_summoning"
+# `ported/<lane>/lane.ini` is the lane descriptor the ServerScript compiler reads
+# (src/serverscript/ssc_lane.c).  It names and gates the lane for script builds;
+# cachepack has no use for it, so it is skipped rather than staged.
+LANE_DESCRIPTOR = "lane.ini"
 ASSET_ROOTS = (
     "models",
     "animsets",
@@ -576,6 +580,8 @@ def stage(tree: Path, out: Path, boundary_path: Path) -> int:
     # provenance-named subdirectory of the config walk.
     for child in sorted(lane.iterdir()):
         if child.name == "PROVENANCE.md":
+            continue
+        if child.name == LANE_DESCRIPTOR:
             continue
         if child.is_dir() and child.name in {INTERFACE_OVERLAYS, CONFIG_OVERLAYS}:
             continue

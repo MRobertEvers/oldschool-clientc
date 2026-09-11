@@ -53,7 +53,7 @@ with screenshots under `tmp_panel_shots/after_*.png`, not a reading. See
 |---|---|---|---|---|
 | `xptracker` | 729 | **mounted in `popout:container`** | **right-docked 264×491 inside widened strip (312px); overview keeps `Total XP/Hr` / `Total XP Gained`**. Exit 0. Screenshots: `tmp_panel_shots/after_xptracker.png`. | Set Goal dead (§1.1). Skill rows still empty after `::xp attack N` in the same cheat batch — baseline/transmit timing, not mount. |
 | `hiscores` | 894 | **honest failure path, framed** | **right-docked; 7809 status 3; cache text `In-world lookup: Disabled` draws inside the nine-slice frame**. Exit 0. `after_hiscores.png`. | Real HTTP lookup stays out of band; do not fabricate ranks. |
-| `loottools` | 650 | **mounted + framed; kill drops populate** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). | Settings gear / ignore chrome; undeclared `loottools_varp1` 3798 if chrome wants it. |
+| `loottools` | 650 | **mounted + framed; kill drops populate; settings gear opens** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). Gear → `IF_BUTTON1 650:28` → All Settings on the Popout tab, Loot Tracker section (§3.3). | Ignore chrome (the in-panel item/source ignore lists); undeclared `loottools_varp1` 3798 if chrome wants it. |
 | `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)`. Op1 Show/Hide arms with Setup (`^xpdrops_orb_events`), toggles `%xpdrops_enabled`, and `~xpdrops_sync_mount` opens/closes interface `xp_drops` (not in `gameframe.enum` — default off). | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
@@ -92,7 +92,7 @@ Several row procs call `~xpdrops_data_get` (`script_1002.cs2`), which reads
 (`configs/all.varp.compack:1227-1275,4964-4965`, confirmed present, e.g.
 `1228=xpdrops_total_start`, `1253=xpdrops_attack_end`) — shared with the
 unrelated XP-drops number-panel feature. These already ride the generic
-`.varp` transmit wire (`src/net/mock/mock230_content.c:1686-1694`), the same
+`.varp` transmit wire (`src/torirsserver/torirs_server_content.c:1686-1694`), the same
 mechanism `%qp` needs in `docs/questlist_chatmenu_levelup.md` §1.2. **Nothing
 declares them**: `grep -rn "xpdrops_.*_start\|xpdrops_.*_end" server/scripts/`
 is empty.
@@ -109,7 +109,7 @@ dead in this cache. Nothing server- or engine-side can make it fire.
 
 ### 1.2 Server obligations
 
-| state | needed for | delivery | mock230 status |
+| state | needed for | delivery | ToriRSServer status |
 |---|---|---|---|
 | `STAT_XP`/`STAT_BASE`, timer dispatch | the whole tracking/rate display | already-landed transports | **landed, sufficient** |
 | `xpdrops_<skill>_start`/`_end` `.varp` overlay, `transmit=yes` (likely `scope=perm`) | "Set Goal" only | generic varp wire | **not declared** — small, isolated gap |
@@ -149,7 +149,7 @@ The actual gap is nine CS2 host ops the panel calls directly
 **confirmed zero cases for any of them** in `src/cs2vm2/cs2vm2.c`
 (`grep -n "case 78[0-2][0-9]:"` → nothing), so any is reached they hit
 `CS2VM2_ReportUnimplementedOpcode`. This is a **client VM gap**, not
-something mock230's server code addresses.
+something ToriRSServer's server code addresses.
 
 > **Superseded in part, 2026-08-02 (§7).** "Nine" was an undercount — the
 > measured closure is 20+ opcodes, and the panel's reached path today is
@@ -157,6 +157,41 @@ something mock230's server code addresses.
 > 7809, because §7.1's bridge gave the whole family real signatures. They no
 > longer abort; they report themselves as `cs2-stub` and answer zeros. The
 > conclusion is unchanged and now demonstrated rather than inferred.
+
+### 2.0 The header's two ops ARE the server's (2026-09-02)
+
+The headline above is about the panel's **data**, and it stands. It is not about
+the panel's **header**, and this section did not look there: `894:11`
+`settings_open` (the 22x22 gear) and `894:18` `hiscores_lookup_toggle` (the
+"Enable/Disable in-world lookup" stone) are both authored `clickmask=2 op1=…`
+in `interfaces/hiscores.if`, which arms op1 for the server from the interface
+record itself — the same shape §3.3 found on `loottools:settings_button` and
+read correctly there. Their only client-side hooks are an `opsound` apiece.
+
+Measured before the fix (headless, `TORIRSSERVER_VERBOSE`, `::hiscores` then a
+click on each):
+
+    torirsserver: <- IF_BUTTON1 894:11 sub=-1
+    torirsserver: no trigger for [if_button1,hiscores:settings_open] …
+    torirsserver: <- IF_BUTTON1 894:18 sub=-1
+    torirsserver: no trigger for [if_button1,hiscores:hiscores_lookup_toggle] …
+
+Content: `interface_hiscores/scripts/hiscores.rs2` binds both — the gear through
+`~settings_panel_open_tab(^settings_category_popout)` (the Hiscores row is
+struct_1083 on the All Settings **Popout** tab, confirmed by dumping interface
+134's text after the gear opened it), the stone by flipping
+`%popout_hiscores_globalclick_enabled` and pushing scripts 7541 and 7544. Its
+carrier `settings_varp_ehc_4` is declared `transmit=yes scope=perm` in
+`interface_hiscores/configs/hiscores.varp`, without which the server's write
+never reaches the client at all.
+
+**The third control on that header is not a server op and never was.** The name
+box (`894:13`) holds a `cc_create(…, 12, …)` child — the IF3 text-entry widget —
+and this client had no model for type 12: `UITree_CcCreate` mapped it to
+`UIELEM_CC_OBJ`, so it drew nothing, collected no hit and took no keys. That is
+now a real field (`rs_text.input` in `ui/uitree.h`, `RS_CS2_InputKey` in
+`game/rs_cs2_host.c`), which also lights up the bug-report body, the
+loot-tracker ignore prompt and the settings dropdowns' custom-value boxes.
 
 ### 2.1 Server obligations
 
@@ -176,7 +211,7 @@ writes a player's levels/xp into a separate SQL table (`hiscore`/
 **write-only, no read path anywhere in that checkout**, and structurally the
 same "separate service, not a RuneScript trigger" shape
 `docs/PORTING_GUIDE.md` §5.2 already names for LostCity's `FriendServer`. If
-mock230 ever wants real hiscore data, the LostCity-shaped move is a
+ToriRSServer ever wants real hiscore data, the LostCity-shaped move is a
 persistence-sync service, not content.
 
 ---
@@ -233,15 +268,59 @@ from any server gap.
 > needed.** What still blocks the panel is that 7601 and friends have no arity
 > in *either* signature table, so the bridge cannot reach them: see §7.6.
 
+### 3.3 The settings gear, as fixed (2026-08-22)
+
+`loottools:settings_button` (650:28) is authored `clickmask=2 op1=Settings` in
+the cache, so op1 is armed for the server by the interface record itself — no
+`if_setevents` anywhere. Its only client-side hook is the one `~script5996`
+stamps on every panel gear, `if_setonop("script3944")`, and script3944 is one
+gosub to script3945, which is one `sound_synth(synth_2266, 1, 0)`. A verb whose
+whole local handler is an opsound is a server op (PORTING_GUIDE §5.4 finding 1),
+and the click was already arriving — `torirsserver: <- IF_BUTTON1 650:28 sub=-1`
+under `TORIRSSERVER_VERBOSE`, falling through `ToriRSServer_ScriptsRunIfButton`
+with nothing bound. The gear played its sound and did nothing else.
+
+There is no loot-tracker settings sub-panel to open. Every one of its options is
+a row of **All Settings (134), Popout tab**: `enum_422` idx 8 is that tab
+(`param_743` = 8, the value `settings_category` varbit 9656 holds), `enum_4967`
+is its row list, and struct_4500 "Loot Tracker" sits in it with struct_4506 /
+4507 / 4508 / 4505 under it — Track loot, Track consumed Loot, Item ignore list,
+Clear all tracked loot.
+
+Content: `[if_button1,loottools:settings_button]` →
+`~settings_panel_open_tab(^settings_category_popout)`, a new proc beside
+`~settings_panel_arm` that writes the tab and *then* opens, because the panel's
+onload reads `%varbit9656` at mount (`script_3826` → 3827 → 3837/3840).
+
+**Two things this cost, worth writing down.**
+
+1. **`settings_tracking` (varp 2855) was undeclared**, so every server write to
+   `settings_category` / `floater_is_searching` /
+   `floater_search_listen_for_keyboard` was server-only. The panel kept opening
+   on Activities with the write "done". It also means
+   `~settings_search_release`'s clears — documented as transmitting — never
+   did. Declared `transmit=yes scope=temp` in
+   `interface_settings_side/configs/settings_side.varp`.
+2. **A pushed clientscript cannot prepare an interface opened in the same
+   tick.** The obvious first design was the panel's *search*: script_3841
+   filters rows on the `param_1088` keyword blob, and script_5968 is a one-line
+   `[clientscript](string) %varcstring417 = $string0` with no caller in the
+   cache's 9,724 scripts — written for a server to push. But this client holds
+   every RUNCLIENTSCRIPT until SERVER_TICK_END (`pending_clientscripts`,
+   `src/app.h`, so a pushed repaint cannot draw a half-applied tick), so the
+   search string lands *after* the interface has already built itself. Measured:
+   panel opened on Activities, search box showing a bare `*`. A var write has no
+   such fence, which is why the tab is the mechanism and the search is not.
+
 ### 3.1 Server obligations — loot-tracker-specific vs. pre-existing
 
-| what | scope | mock230 status |
+| what | scope | ToriRSServer status |
 |---|---|---|
 | A new packet/dbtable/RUNCLIENTSCRIPT push for tracker data | loot-tracker-specific | **not evidenced as needed** — pending `script7166` re-decompile |
 | `.varp`/`.varbit` overlay for the view/ignore/value-mode toggles (`settings_varp_ehc_5`, `loottools_varp1`) | loot-tracker-specific, minor | **not declared** (`grep` confirms zero hits under `server/scripts/`) — same class as `bank_closing`/`shop_quantity` in `docs/shop_server_reqs.md` §5 |
 | CS2 opcodes 7613/7614/7616/7617/7621 | loot-tracker-specific, client-side | **not implemented** in this build's VM |
 | Re-decompile `script_7166`/`script_7133` | prerequisite to everything else here | **corpus gap**, confirmed missing |
-| NPC-death drop-roll mechanism | **pre-existing, already documented** — NOT loot-tracker-specific; the tracker has nothing to show without it, same as it has nothing to show without NPCs existing | **mostly landed** — `mock230_world_npc_died` (`mock230_world.c:3360-3382`, confirmed) runs `[ai_queue3,<npc>]` drop scripts with a `param=death_drop` fallback; 71/71 LostCity `drop tables/scripts` confirmed present, 69 compiling (97.2%, `docs/LOSTCITY_PORT_TRIAGE.md`), blocked on npc-category plumbing for the rest |
+| NPC-death drop-roll mechanism | **pre-existing, already documented** — NOT loot-tracker-specific; the tracker has nothing to show without it, same as it has nothing to show without NPCs existing | **mostly landed** — `ToriRSServer_WorldNpcDied` (`torirs_server_world.c:3360-3382`, confirmed) runs `[ai_queue3,<npc>]` drop scripts with a `param=death_drop` fallback; 71/71 LostCity `drop tables/scripts` confirmed present, 69 compiling (97.2%, `docs/LOSTCITY_PORT_TRIAGE.md`), blocked on npc-category plumbing for the rest |
 
 ### 3.2 LostCity precedent
 
@@ -443,12 +522,12 @@ python3 src/cs2vm2/gen_opcode_stack.py
 #       cs2_command.gen.h [table size 8023], 53 acknowledged conflicts"
 
 make -C src PLATFORM_OBJ_BASE=/tmp/wfobj_vm EMBED_SERVER=1 -j4
-make -C src mock230-scripts        # the debugprocs live in the script pack
+make -C src torirsserver-scripts        # the debugprocs live in the script pack
 
 for p in xptracker loottools hiscores; do
   SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1500 TORIRS_NET_CHEAT="$p" \
     TORIRS_NET_DEBUG=1 TORIRS_EXIT_BMP=/tmp/$p.bmp \
-    ./src/torirs --manifest manifest_osrs230_embed.ini --user testbl --pass test
+    ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testbl --pass test
 done
 ```
 
@@ -577,7 +656,7 @@ not total GP — see §7.6 kill-count mapping note.
 
 ### 8.4 Verified by clicking
 
-Against embed / mock230, `TORIRS_SIM_CLICK_AT` at the measured button centres
+Against embed / ToriRSServer, `TORIRS_SIM_CLICK_AT` at the measured button centres
 (x 744; y 21 / 57 / 93 — icons stay right-anchored after widen). Re-measured
 2026-08-03 after the mount fix:
 
@@ -607,7 +686,7 @@ new canvas), not the old x≈744 on a 765 canvas.
 1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it
    lives inside that block, the same way `TORIRS_DUMP_TREE_EXIT` does. Without
    it the dump is silently empty and reads as "the component does not exist".
-2. **`MOCK230_VERBOSE` on the client does nothing.** `manifest_osrs230.ini`
+2. **`TORIRSSERVER_VERBOSE` on the client does nothing.** `manifests/manifest_osrs230.ini`
    connects to an *external* server on `localhost:43595`; the verbose flag has
    to be set on that server's own process. Chasing "the server never received
    my packet" through a log that structurally cannot contain it is the whole

@@ -2,12 +2,15 @@
 
 #include "entity_facets.h"
 
+#include "features/features.h"
+
 #include "toridraw_scene.h"
 
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 /* Rev-239 Statics.method6312: radians to the 2048-step yaw unit.  Keep the
  * gamepack's full double precision; the dated Client-TS value maps north/east
@@ -32,9 +35,102 @@ static int anim_step_active(struct WorldEntityFacet_AnimationStep const* step);
 static int cycle_seq_preanim_move(struct World* world, int seq_id);
 static int cycle_seq_postanim_move(struct World* world, int seq_id);
 
+/*
+ * Route-step speed, in draw units per 20ms client cycle.
+ *
+ * rev-239 class105.method3520 / method3611 -- both movers select the speed
+ * with this identical block, which is why it is one function here.
+ *
+ *   4          walking
+ *   2          while still turning toward the step, but only for an entity
+ *              free to turn: one locked onto a face target keeps full speed
+ *   6 / 8      the queue has run 3 / 4 deep -- the entity is BEHIND where the
+ *              server says it stands and closes the gap
+ *   8          catching up the cycles a DELAYMOVE seq held it still for
+ *   x2         the step arrived as a run step
+ *
+ * The 6/8 rungs are not decoration and must not be capped back to walking
+ * speed: 30 cycles at speed 4 covers 120 of a tile's 128 units, so an entity
+ * walking without pause falls 8 units further behind every server tick. The
+ * reference lets the queue depth pull it back; a cap leaves it drifting until
+ * the queue overflows, which is what read as the player "stuttering" behind a
+ * moving target.
+ *
+ * rev-239 also halves the speed for a CRAWL step (class174.field2475) and
+ * gives NPCs whose record carries config opcode 109 the lower 6/8 thresholds
+ * (>1 / >2 rather than >2 / >3). Neither is reachable here: no revision this
+ * tree speaks emits a crawl step, and the opcode is not decoded.
+ */
+static int
+World_MoverStepSpeed(
+    struct World_MoverInfo const* info,
+    int route_length,
+    bool consume_delay_move)
+{
+    int move_speed = 4;
+
+    if( info->orientation->yaw != info->orientation->dst_yaw &&
+        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
+        move_speed = 2;
+    if( route_length > 2 )
+        move_speed = 6;
+    if( route_length > 3 )
+        move_speed = 8;
+    if( info->animation->anim_delay_move > 0 && route_length > 1 )
+    {
+        move_speed = 8;
+        /* method3520 consumes a held cycle; method3611 reads the same counter
+         * without spending it, because the two run at different rates. */
+        if( consume_delay_move )
+            info->animation->anim_delay_move--;
+    }
+    if( info->pathing->route_run[route_length - 1] )
+        move_speed <<= 1;
+
+    return move_speed;
+}
+
+/*
+ * The DELAYMOVE hold -- rev-239 method3520/method3611 both open with it.
+ *
+ * A primary seq that forbids movement freezes the route where it is and banks
+ * a cycle in anim_delay_move for the speed-8 catch-up above.
+ */
+static bool
+World_MoverHeldByAnim(struct World_MoverInfo* info, bool bank_held_cycle)
+{
+    int seq;
+
+    if( !anim_step_active(&info->animation->primary) || info->animation->primary.delay != 0 )
+        return false;
+
+    seq = info->animation->primary.anim_id;
+    if( info->animation->preanim_route_length > 0 &&
+        cycle_seq_preanim_move(info->world, seq) == 0 )
+    {
+        if( bank_held_cycle )
+            info->animation->anim_delay_move++;
+        return true;
+    }
+    if( info->animation->preanim_route_length == 0 &&
+        cycle_seq_postanim_move(info->world, seq) == 0 )
+    {
+        if( bank_held_cycle )
+            info->animation->anim_delay_move++;
+        return true;
+    }
+    return false;
+}
+
 /**
- * Advances pathing draw position one tick and returns the secondary sequence id
- * to use (-1 means clear secondary).
+ * Per client cycle (20ms): rev-239 class105.method3520.
+ *
+ * Chooses the facing and the walk/run sequence for the step in progress, and
+ * hands back the secondary seq id (-1 = clear). It deliberately does NOT move
+ * the entity -- that is World_MoversAdvance, which runs per render frame. The
+ * split is the reference's, and it is the whole of "smooth": movement is
+ * integrated against real elapsed time, while the decisions that only change
+ * once per cycle stay on the cycle clock.
  */
 static int
 World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
@@ -47,34 +143,42 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
         goto yaw_turn;
     }
 
-    /* PreanimMove/PostanimMove.DELAYMOVE: hold the route still while a
-     * non-merge primary action plays (Client.ts routeMove 3813-3823). */
-    if( anim_step_active(&info->animation->primary) && info->animation->primary.delay == 0 )
-    {
-        int seq = info->animation->primary.anim_id;
-        if( info->animation->preanim_route_length > 0 &&
-            cycle_seq_preanim_move(info->world, seq) == 0 )
-        {
-            info->animation->anim_delay_move++;
-            return seqId;
-        }
-        if( info->animation->preanim_route_length == 0 &&
-            cycle_seq_postanim_move(info->world, seq) == 0 )
-        {
-            info->animation->anim_delay_move++;
-            return seqId;
-        }
-    }
+    if( World_MoverHeldByAnim(info, /*bank_held_cycle=*/true) )
+        return seqId;
 
     int x = (int)info->draw_position->x;
     int z = (int)info->draw_position->z;
     int dstX = info->pathing->route_x[route_length - 1] * 128 + info->size_x * 64;
     int dstZ = info->pathing->route_z[route_length - 1] * 128 + info->size_z * 64;
 
-    if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
+    /*
+     * Too far to walk: put the entity there.
+     *
+     * The threshold is the era's. rev-239 tests `max(|dx|, |dz|) > 288` against
+     * the *float* position; the 2004 client tests each axis against 256 on the
+     * integer one. 256 is a quarter-tile short of covering a two-tile run step
+     * taken from a fractional position, which is an ordinary state under the
+     * frame-paced mover and nowhere near one under the cycle mover -- so the
+     * two constants are not interchangeable and neither is a rounding of the
+     * other.
+     */
+    if( World_MoverModel(info->world) == TORIRS_MOVER_FRAME_DELTA )
     {
-        info->draw_position->x = (uint32_t)dstX;
-        info->draw_position->z = (uint32_t)dstZ;
+        float dx = (float)dstX - info->draw_position->fx;
+        float dz = (float)dstZ - info->draw_position->fz;
+        float far = fabsf(dx) > fabsf(dz) ? fabsf(dx) : fabsf(dz);
+
+        if( far > 288.0f )
+        {
+            World_DrawPositionSet(info->draw_position, dstX, dstZ);
+            info->grid_position->x = info->pathing->route_x[route_length - 1];
+            info->grid_position->z = info->pathing->route_z[route_length - 1];
+            return -1;
+        }
+    }
+    else if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
+    {
+        World_DrawPositionSet(info->draw_position, dstX, dstZ);
         info->grid_position->x = info->pathing->route_x[route_length - 1];
         info->grid_position->z = info->pathing->route_z[route_length - 1];
         return -1;
@@ -118,71 +222,158 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     if( seqId == -1 )
         seqId = info->idle->walkanim;
 
-    int moveSpeed = 4;
-    /* The turning slow-down only applies to an entity that is actually free
-     * to turn: a locked-on target or turnspeed 0 keeps full speed
-     * (Client-TS routeMove, `e.faceEntity === -1 && e.turnspeed !== 0`). */
-    if( info->orientation->yaw != info->orientation->dst_yaw &&
-        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
-        moveSpeed = 2;
-    if( route_length > 2 )
-        moveSpeed = 6;
-    if( route_length > 3 )
-        moveSpeed = 8;
-
-    if( !info->pathing->route_run[route_length - 1] && moveSpeed > 4 )
-        moveSpeed = 4;
-    /* Catch up after a DELAYMOVE hold: force walk-speed 8 for as many cycles
-     * as were spent held (Client.ts 3889-3892). After the non-run clamp so a
-     * held walk is not re-capped back to 4. */
-    if( info->animation->anim_delay_move > 0 && route_length > 1 )
-    {
-        moveSpeed = 8;
-        info->animation->anim_delay_move--;
-    }
-    if( info->pathing->route_run[route_length - 1] )
-        moveSpeed <<= 1;
-
-    if( info->pathing->route_run[route_length - 1] && moveSpeed >= 8 &&
-        seqId == info->idle->walkanim && info->idle->runanim != -1 )
+    /* Speed 8 is a run whatever queued the step: an entity closing a queue
+     * backlog runs, which is how both references show a walk that has fallen
+     * behind (method3520's `var20 >= 8` remap, Client.ts's `moveSpeed >= 8`). */
+    int move_speed = World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/true);
+    if( move_speed >= 8 && seqId == info->idle->walkanim && info->idle->runanim != -1 )
         seqId = info->idle->runanim;
 
-    if( x < dstX )
+    /*
+     * Classic only: spend the speed here, on the cycle clock, because there is
+     * no frame mover under that era to spend it. Under FRAME_DELTA this pass
+     * decides and World_MoverAdvance travels, and doing both would move the
+     * entity twice.
+     */
+    if( World_MoverModel(info->world) == TORIRS_MOVER_CYCLE_INTEGER )
     {
-        info->draw_position->x += (uint32_t)moveSpeed;
-        if( (int)info->draw_position->x > dstX )
-            info->draw_position->x = (uint32_t)dstX;
-    }
-    else if( x > dstX )
-    {
-        info->draw_position->x -= (uint32_t)moveSpeed;
-        if( (int)info->draw_position->x < dstX )
-            info->draw_position->x = (uint32_t)dstX;
-    }
-    if( z < dstZ )
-    {
-        info->draw_position->z += (uint32_t)moveSpeed;
-        if( (int)info->draw_position->z > dstZ )
-            info->draw_position->z = (uint32_t)dstZ;
-    }
-    else if( z > dstZ )
-    {
-        info->draw_position->z -= (uint32_t)moveSpeed;
-        if( (int)info->draw_position->z < dstZ )
-            info->draw_position->z = (uint32_t)dstZ;
+        if( x < dstX )
+        {
+            x += move_speed;
+            if( x > dstX )
+                x = dstX;
+        }
+        else if( x > dstX )
+        {
+            x -= move_speed;
+            if( x < dstX )
+                x = dstX;
+        }
+        if( z < dstZ )
+        {
+            z += move_speed;
+            if( z > dstZ )
+                z = dstZ;
+        }
+        else if( z > dstZ )
+        {
+            z -= move_speed;
+            if( z < dstZ )
+                z = dstZ;
+        }
+        World_DrawPositionSet(info->draw_position, x, z);
     }
 
-    if( (int)info->draw_position->x == dstX && (int)info->draw_position->z == dstZ )
+    /* Under FRAME_DELTA the frame mover retires a step the moment it lands on
+     * it, so this only covers the entity that was already standing exactly on
+     * its next tile when the step arrived. Under CYCLE_INTEGER it is the one
+     * and only retirement. */
+    if( x == dstX && z == dstZ )
     {
-        info->pathing->route_length--;
-        if( info->pathing->route_length < 0 )
-            info->pathing->route_length = 0;
+        /* route_length is a uint8_t: decrementing it at 0 wraps to 255, and the
+         * `< 0` clamp this used to carry could never fire. Guard the decrement,
+         * the way preanim_route_length below already does. */
+        if( info->pathing->route_length > 0 )
+            info->pathing->route_length--;
         info->grid_position->x = info->pathing->route_x[0];
         info->grid_position->z = info->pathing->route_z[0];
+        if( info->animation->preanim_route_length > 0 )
+            info->animation->preanim_route_length--;
     }
 
 yaw_turn:;
     return seqId;
+}
+
+/*
+ * Per render frame: rev-239 class105.method3611, driven by client.method2324
+ * with `elapsed_ns / 2.0e7` -- elapsed time expressed in 20ms client cycles,
+ * fractional.
+ *
+ * The loop is the reference's: walk toward the next queued tile, and when the
+ * frame's budget carries the entity *past* it, retire that tile and spend the
+ * remainder on the one behind it. That carry is what keeps a route continuous
+ * across a frame boundary instead of quantising every step to a whole cycle.
+ */
+static void
+World_MoverAdvance(
+    struct World_MoverInfo* info,
+    float cycles)
+{
+    /* Held once, before the loop, exactly as method3611 does: the seq gates the
+     * whole frame, not each tile of it. The cycle mover is what banks the held
+     * cycle for the catch-up; doing it here as well would bank once per frame. */
+    if( World_MoverHeldByAnim(info, /*bank_held_cycle=*/false) )
+        return;
+
+    while( info->pathing->route_length > 0 && cycles > 0.0f )
+    {
+        int route_length = info->pathing->route_length;
+        float fx = info->draw_position->fx;
+        float fz = info->draw_position->fz;
+        int dstX = info->pathing->route_x[route_length - 1] * 128 + info->size_x * 64;
+        int dstZ = info->pathing->route_z[route_length - 1] * 128 + info->size_z * 64;
+        int move_speed = World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/false);
+        float step = (float)move_speed * cycles;
+        float leftover = 0.0f;
+
+        if( fx < (float)dstX )
+        {
+            info->draw_position->fx += step;
+            if( info->draw_position->fx > (float)dstX )
+            {
+                leftover = (info->draw_position->fx - (float)dstX) / (float)move_speed;
+                info->draw_position->fx = (float)dstX;
+            }
+        }
+        else if( fx > (float)dstX )
+        {
+            info->draw_position->fx -= step;
+            if( info->draw_position->fx < (float)dstX )
+            {
+                leftover = ((float)dstX - info->draw_position->fx) / (float)move_speed;
+                info->draw_position->fx = (float)dstX;
+            }
+        }
+        if( fz < (float)dstZ )
+        {
+            info->draw_position->fz += step;
+            if( info->draw_position->fz > (float)dstZ )
+            {
+                float slack = (info->draw_position->fz - (float)dstZ) / (float)move_speed;
+                leftover = leftover > slack ? leftover : slack;
+                info->draw_position->fz = (float)dstZ;
+            }
+        }
+        else if( fz > (float)dstZ )
+        {
+            info->draw_position->fz -= step;
+            if( info->draw_position->fz < (float)dstZ )
+            {
+                float slack = ((float)dstZ - info->draw_position->fz) / (float)move_speed;
+                leftover = leftover > slack ? leftover : slack;
+                info->draw_position->fz = (float)dstZ;
+            }
+        }
+
+        cycles = leftover;
+        info->draw_position->x = (uint32_t)(int)info->draw_position->fx;
+        info->draw_position->z = (uint32_t)(int)info->draw_position->fz;
+
+        if( (int)info->draw_position->x == dstX && (int)info->draw_position->z == dstZ )
+        {
+            info->pathing->route_length--;
+            info->grid_position->x = info->pathing->route_x[0];
+            info->grid_position->z = info->pathing->route_z[0];
+            if( info->animation->preanim_route_length > 0 )
+                info->animation->preanim_route_length--;
+        }
+        else
+        {
+            /* Did not arrive, so the budget is spent. */
+            break;
+        }
+    }
 }
 
 /* Reference entity-facing update, run once per entity per cycle right after
@@ -200,6 +391,7 @@ World_EntityFace(
     struct World* world,
     struct WorldEntityFacet_Facing* facing,
     struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_ViewPlacement const* placement,
     struct WorldEntityFacet_Orientation* orientation,
     struct WorldEntityFacet_Pathing const* pathing,
     struct WorldEntityFacet_IdleAnimations const* idle,
@@ -207,10 +399,22 @@ World_EntityFace(
 {
     int dst_x;
     int dst_z;
+    /* Cross-frame facing (SAILING): all direction math below runs in the
+     * ROOT frame — an aboard facer's position is pushed out through the
+     * hull first — and the resulting yaw has the facer's FRAME yaw (the
+     * hull's angle) taken back out before it goes on the element, because a
+     * homed actor's element yaw is deck-frame and the descent adds the
+     * hull's yaw at draw. Root actors: identity, offset 0. */
+    int self_x = (int)draw_position->x;
+    int self_z = (int)draw_position->z;
+    int frame_yaw = 0;
     bool applied = false;
 
     if( facing->turn_speed == 0 )
         return -1;
+    if( world->actor_root_frame_fn && placement )
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &self_x, &self_z, &frame_yaw);
 
     /* class105.method3650 + method3537: a direct angle is one-shot, but mode
      * 0 defers it while walking whereas mode 1 permits it during a route. */
@@ -218,7 +422,7 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        orientation->dst_yaw = (uint16_t)(facing->direct_angle & 0x7ff);
+        orientation->dst_yaw = (uint16_t)((facing->direct_angle - frame_yaw) & 0x7ff);
         facing->direct_angle = -1;
         applied = true;
     }
@@ -231,14 +435,15 @@ World_EntityFace(
         (facing->face_during_movement || pathing->route_length == 0 ||
          animation->anim_delay_move > 0) )
     {
-        dst_x = (int)draw_position->x -
+        dst_x = self_x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
-        dst_z = (int)draw_position->z -
+        dst_z = self_z -
                 (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
         if( dst_x != 0 || dst_z != 0 )
             orientation->dst_yaw =
-                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                        WORLD_YAW_FROM_RADIANS)) &
+                (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                        WORLD_YAW_FROM_RADIANS)) -
+                            frame_yaw) &
                            0x7ff);
         facing->square_x = 0;
         facing->square_z = 0;
@@ -248,33 +453,50 @@ World_EntityFace(
     if( !applied && facing->entity_id != WORLD_FACING_ENTITY_NONE )
     {
         struct WorldEntityFacet_DrawPosition const* target = NULL;
+        struct WorldEntityFacet_ViewPlacement const* target_placement = NULL;
         if( facing->entity_id < WORLD_FACING_PLAYER_BASE )
         {
             struct WorldEntity_NPC* npc =
                 World_NpcGetByServerSlot(world, facing->entity_id);
             if( npc )
+            {
                 target = &npc->draw_position;
+                target_placement = &npc->view_placement;
+            }
         }
         else
         {
             struct WorldEntity_Player* player = World_PlayerGetByServerPid(
                 world, facing->entity_id - WORLD_FACING_PLAYER_BASE);
             if( player )
+            {
                 target = &player->draw_position;
+                target_placement = &player->view_placement;
+            }
         }
         if( target )
         {
-            dst_x = (int)draw_position->x - (int)target->x;
-            dst_z = (int)draw_position->z - (int)target->z;
+            int target_x = (int)target->x;
+            int target_z = (int)target->z;
+            int target_frame_yaw = 0;
+
+            if( world->actor_root_frame_fn && target_placement )
+                world->actor_root_frame_fn(
+                    world->actor_root_frame_userdata, target_placement, &target_x,
+                    &target_z, &target_frame_yaw);
+            dst_x = self_x - target_x;
+            dst_z = self_z - target_z;
             if( dst_x != 0 || dst_z != 0 )
                 orientation->dst_yaw =
-                    (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
-                                      WORLD_YAW_FROM_RADIANS)) &
+                    (uint16_t)((((int)(atan2((double)dst_x, (double)dst_z) *
+                                      WORLD_YAW_FROM_RADIANS)) -
+                                frame_yaw) &
                                0x7ff);
         }
         else if( facing->fallback_angle >= 0 )
         {
-            orientation->dst_yaw = (uint16_t)(facing->fallback_angle & 0x7ff);
+            orientation->dst_yaw =
+                (uint16_t)((facing->fallback_angle - frame_yaw) & 0x7ff);
         }
     }
 
@@ -387,6 +609,153 @@ anim_step_active(struct WorldEntityFacet_AnimationStep const* step)
     return step->anim_id != (uint16_t)-1 && step->anim_id != 0;
 }
 
+/*
+ * One frame crossed -> one frame sound, emitted here rather than sampled by the
+ * renderer.
+ *
+ * The reference notifies its listener from inside this loop (deob
+ * Statics.method5261, and method4366 for the frame-length branch), which is why
+ * a sound survives both a slow frame -- several cycles stepped at once, every
+ * frame in between still announced -- and an action animation covering the
+ * looping readyanim underneath it, whose sounds keep playing.
+ */
+static void
+World_EmitAnimFrameSound(
+    struct World* world,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int seq_id,
+    int frame)
+{
+    if( !world->anim_sound_sink.frame )
+        return;
+    world->anim_sound_sink.frame(
+        world->anim_sound_sink.userdata,
+        seq_id,
+        frame,
+        (int)draw_position->x,
+        (int)draw_position->z);
+}
+
+/*
+ * ONE STEPPER, BOTH TRACKS -- an exact port of the reference's `method4366`
+ * (Statics.java:11987), which is what `method5261` calls for a classic-frame
+ * sequence and which the entity update runs over the movement track
+ * (`field1504`) and the action track (`field1505`) alike.
+ *
+ *     int var9 = var1 + var7;                       // advance + carried cycle
+ *     while (var9 > var5.field4651[var6]) {         // > this frame's duration
+ *         var9 -= var5.field4651[var6];             // CARRY the remainder
+ *         var6++;
+ *         if ((var4 & 0x2) == 0 && var2 != null) var2.method9642(var5, var6, ..);
+ *         if (var6 >= var5.field4649.length) {
+ *             var8++; var4 |= 0x1;
+ *             var6 -= var5.field4652;               // frame -= frameStep
+ *             if (var8 >= var5.field4661) var4 |= 0x2;
+ *             if (!(var6 >= 0 && var6 < len)) { var4 |= 0x2; var6 = 0; }
+ *             if ((var4 & 0x2) == 0) var2.method9642(var5, var6, ..);
+ *         }
+ *     }
+ *
+ * The two tracks used to have two implementations here and only the action one
+ * was faithful. The secondary zeroed the accumulator on every frame advance
+ * instead of subtracting the frame's duration, and the arithmetic of that is
+ * not subtle: `cycle` is pre-incremented and the test is `cycle > duration`, so
+ * carrying the remainder costs a 3-cycle frame three cycles in the steady state
+ * and dropping it costs four. **Every idle and walk animation in the game ran a
+ * third slow**, on a different clock from the action animation covering it, and
+ * the error scaled with the frame duration -- a 1-cycle frame ran at half speed.
+ * Xarpus is where it is loudest, because his 4-tick spit cadence cuts to the
+ * idle twenty times a minute and it is never where the previous cut left it.
+ *
+ * It also used `if` rather than `while`, so a track could not advance more than
+ * one frame per call however many cycles it was handed, and wrapped to frame 0
+ * unconditionally rather than through `frameStep`/`maxLoops`.
+ */
+enum
+{
+    WORLD_ANIM_STEP_LOOPED = 0x1,
+    WORLD_ANIM_STEP_FINISHED = 0x2,
+    WORLD_ANIM_STEP_ADVANCED = 0x4,
+};
+
+static int
+World_StepAnimationTrack(
+    struct World* world,
+    struct WorldEntityFacet_AnimationStep* step,
+    int cycles,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int emit_sounds)
+{
+    int seq = step->anim_id;
+    int count = cycle_seq_frame_count(world, seq);
+    int frame;
+    int accumulated;
+    int loop;
+    int flags = 0;
+
+    assert(world);
+    assert(step);
+
+    /*
+     * A seq whose frames are not resident cannot advance and cannot end, so the
+     * entity holds frame 0 of it. That is what a corpse stuck in its death pose
+     * is: the animation never played and never finished, and both halves are
+     * silent -- `count > 0` simply skips the whole block.
+     */
+    if( count <= 0 )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            TORIRS_LOG("anim: seq %d has no frames; held at frame 0\n", seq);
+        return 0;
+    }
+
+    frame = step->frame;
+    accumulated = step->cycle;
+    loop = step->loop;
+    /* Reference guard: a frame index past the end of the seq resets both. It
+     * happens when a track keeps its frame across a seq change. */
+    if( frame >= count )
+    {
+        frame = 0;
+        accumulated = 0;
+    }
+
+    accumulated += cycles;
+    while( accumulated > cycle_seq_frame_duration(world, seq, frame) )
+    {
+        accumulated -= cycle_seq_frame_duration(world, seq, frame);
+        frame++;
+        flags |= WORLD_ANIM_STEP_ADVANCED;
+        if( !(flags & WORLD_ANIM_STEP_FINISHED) && emit_sounds )
+            World_EmitAnimFrameSound(world, draw_position, seq, frame);
+        if( frame >= count )
+        {
+            int frame_step = cycle_seq_frame_step(world, seq);
+            loop++;
+            flags |= WORLD_ANIM_STEP_LOOPED;
+            frame -= frame_step;
+            if( loop >= cycle_seq_max_loops(world, seq) )
+                flags |= WORLD_ANIM_STEP_FINISHED;
+            if( frame < 0 || frame >= count )
+            {
+                flags |= WORLD_ANIM_STEP_FINISHED;
+                frame = 0;
+            }
+            /* Looped rather than finished: the frame it looped back onto sounds,
+             * exactly as the frames before it did. Xarpus' first wing flap is on
+             * frame 1 of a looping readyanim, so a loop that emitted nothing on
+             * its way round would drop one flap in three. */
+            if( !(flags & WORLD_ANIM_STEP_FINISHED) && emit_sounds )
+                World_EmitAnimFrameSound(world, draw_position, seq, frame);
+        }
+    }
+
+    step->frame = (uint16_t)frame;
+    step->cycle = (uint16_t)accumulated;
+    step->loop = (uint8_t)(loop > 255 ? 255 : loop);
+    return flags;
+}
+
 /* One client cycle of frame stepping for an entity's animation tracks +
  * attached graphic (exact port of Client.ts entityAnim, 4000-4075). */
 static void
@@ -394,31 +763,34 @@ World_StepEntityAnimation(
     struct World* world,
     struct WorldEntityFacet_Animation* anim,
     struct WorldEntityFacet_EntitySpotanim* spot,
-    struct WorldEntityFacet_Pathing const* pathing)
+    struct WorldEntityFacet_Pathing const* pathing,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_IdleAnimations const* idle)
 {
     /* Reference entityAnim clears this at the top every cycle; only an active,
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
     anim->needs_forward_draw_padding = 0;
 
-    /* Secondary (idle/walk) loops forever. */
+    /*
+     * Secondary (idle/walk). The reference steps it first and resets it on the
+     * same terms as any other track (`Statics` ~40056):
+     *
+     *     int var10 = method5261(var1.field1504, 1, field6534, ..);
+     *     if ((var10 & 0x2) != 0) method9990(var1.field1504, ..);
+     *
+     * -- so a movement animation that runs out of loops restarts rather than
+     * parking, which is what makes a readyanim loop forever without the wrap
+     * being special-cased here.
+     */
     if( anim_step_active(&anim->secondary) )
     {
-        int seq = anim->secondary.anim_id;
-        int count = cycle_seq_frame_count(world, seq);
-        if( count > 0 )
+        int flags =
+            World_StepAnimationTrack(world, &anim->secondary, 1, draw_position, 1);
+        if( flags & WORLD_ANIM_STEP_FINISHED )
         {
-            anim->secondary.cycle++;
-            if( anim->secondary.frame < count &&
-                anim->secondary.cycle > cycle_seq_frame_duration(world, seq, anim->secondary.frame) )
-            {
-                anim->secondary.cycle = 0;
-                anim->secondary.frame++;
-            }
-            if( anim->secondary.frame >= count )
-            {
-                anim->secondary.frame = 0;
-                anim->secondary.cycle = 0;
-            }
+            anim->secondary.frame = 0;
+            anim->secondary.cycle = 0;
+            anim->secondary.loop = 0;
         }
     }
 
@@ -466,66 +838,71 @@ World_StepEntityAnimation(
 
         if( anim->primary.delay == 0 )
         {
-            int count = cycle_seq_frame_count(world, seq);
-
-            /*
-             * A seq whose frames are not resident cannot advance and cannot
-             * end, so the entity holds frame 0 of it for the rest of the
-             * session. That is what a corpse stuck in its death pose is: the
-             * animation never played and never finished, and both halves are
-             * silent — `count > 0` simply skips the whole block.
-             *
-             * The guard is still right (a seq that is still loading must wait,
-             * not expire instantly at frame 0 >= count 0), so what is missing
-             * is not a different rule but a way to see it happen.
-             */
-            if( count <= 0 && getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(
-                    stderr, "anim: primary seq %d has no frames; held at frame 0\n", seq);
-            if( count > 0 )
+            int flags = World_StepAnimationTrack(world, &anim->primary, 1, draw_position, 1);
+            if( flags & WORLD_ANIM_STEP_FINISHED )
             {
-                anim->primary.cycle++;
-                while( anim->primary.frame < count &&
-                       anim->primary.cycle >
-                           cycle_seq_frame_duration(world, seq, anim->primary.frame) )
+                /*
+                 * The reference clears the action track and then, in the same
+                 * breath, restarts the idle underneath it (Statics ~40139):
+                 *
+                 *   if ((var17 & 0x2) != 0) {
+                 *       var1.field1505.method9935(..);              // clear
+                 *       if (var1.field1504.method9969(..) == var1.field1498)
+                 *           if (var1.method2909(..))                // opcode 130
+                 *               method9990(var1.field1504, ..);     // frame = 0
+                 *   }
+                 *
+                 * `method9935` is `method9934(-1)`, i.e. seq = -1. The restart
+                 * exists because the secondary keeps stepping underneath the
+                 * action, so by the time the action ends it sits at an arbitrary
+                 * frame and revealing it there is a jump cut.
+                 *
+                 * TWO of the reference's three conditions are kept. The
+                 * secondary has to BE the readyanim -- restarting a walk
+                 * animation would stutter the gait, and it is positional -- and
+                 * it fires on the FINISH, not on a loop-back.
+                 *
+                 * THE OPCODE-130 CONDITION IS NOT. `method2909` gates this on
+                 * an NpcType flag that 33 records in the rev-239 cache set, and
+                 * the flag is the wrong instrument for the question: an action
+                 * animation ENDS on the readyanim's loop point whether or not
+                 * its record says so, because that is how the clip was authored.
+                 * `world_restart_readyanim_under_action` (world.c) states the
+                 * matching half at the other end and states the evidence; this
+                 * is its mirror, and the two have to agree or a clip is seamless
+                 * going in and a jump cut coming out.
+                 *
+                 * Xarpus is the measurement. Seq 8059 descends out of the spit
+                 * at ~73 authored units per frame -- its last three frames top
+                 * out at -1045, -972, -900 -- and seq 8058 frame 0 tops out at
+                 * -825, which continues that descent exactly. Resuming the
+                 * readyanim where the free-run left it instead put frame 26
+                 * (-1095) on screen: 195 units of upward snap, against the
+                 * direction he was moving. Same reading from the pose diff --
+                 * 14.94 to frame 0 against 19.74 to frame 26.
+                 *
+                 * What it costs elsewhere is a resume point that is fixed rather
+                 * than wandering, and the restart at the far end already spent
+                 * that: with both in place a readyanim under a repeating attack
+                 * shows its first `action length` of cycles, where before it
+                 * showed an arbitrary window that moved every time. Neither is
+                 * more of the loop than the other; only this one lands on the
+                 * frame the clip hands over to. `idle_anim_restart` stays
+                 * decoded and carried (ToriRS_Npctype, WorldEntityFacet_
+                 * IdleAnimations) because the cache states it and a field that
+                 * is read back is worth more than one that was dropped -- it is
+                 * simply no longer what decides this.
+                 */
+                anim->primary.anim_id = (uint16_t)-1;
+                anim->primary.frame = 0;
+                anim->primary.cycle = 0;
+                anim->primary.loop = 0;
+                if( idle && anim_step_active(&anim->secondary) &&
+                    anim->secondary.anim_id == (uint16_t)idle->readyanim )
                 {
-                    anim->primary.cycle = (uint16_t)(
-                        anim->primary.cycle -
-                        cycle_seq_frame_duration(world, seq, anim->primary.frame));
-                    anim->primary.frame++;
-
-                    if( anim->primary.frame >= count )
-                    {
-                        int fstep = cycle_seq_frame_step(world, seq);
-                        int mloops = cycle_seq_max_loops(world, seq);
-                        int stepped = (int)anim->primary.frame - fstep;
-                        anim->primary.loop++;
-                        if( getenv("TORIRS_ANIM_DEBUG") )
-                            fprintf(
-                                stderr,
-                                "loopback: seq=%d frame=%d count=%d frame_step=%d "
-                                "max_loops=%d loop=%d stepped=%d -> %s\n",
-                                seq,
-                                (int)anim->primary.frame,
-                                count,
-                                fstep,
-                                mloops,
-                                anim->primary.loop,
-                                stepped,
-                                (anim->primary.loop >= mloops || stepped < 0 || stepped >= count)
-                                    ? "STOP"
-                                    : "LOOP");
-                        if( anim->primary.loop >= cycle_seq_max_loops(world, seq) ||
-                            stepped < 0 || stepped >= count )
-                        {
-                            anim->primary.anim_id = (uint16_t)-1;
-                            anim->primary.frame = 0;
-                            anim->primary.cycle = 0;
-                            anim->primary.loop = 0;
-                            break;
-                        }
-                        anim->primary.frame = (uint16_t)stepped;
-                    }
+                    anim->secondary.frame = 0;
+                    anim->secondary.cycle = 0;
+                    anim->secondary.loop = 0;
                 }
             }
             /* Reference entityAnim (Client.ts:4069): an active, un-delayed
@@ -537,6 +914,19 @@ World_StepEntityAnimation(
         if( anim->primary.delay > 0 )
             anim->primary.delay--;
     }
+}
+
+/* Is a server-forced exact move still placing this entity? While one is, it
+ * owns the draw position and the route mover must keep off (rev-239
+ * method3611's `field1471 >= cycle || field1521 >= cycle` early-out). */
+static int
+World_ExactMoveActive(
+    struct World const* world,
+    struct WorldEntityFacet_ExactMove const* exact)
+{
+    if( exact->move_end == 0 && exact->move_start == 0 )
+        return 0;
+    return exact->move_start >= world->cycle;
 }
 
 /* Reference exactMove1/exactMove2 (Client.ts 3757-3803): server-forced
@@ -553,11 +943,9 @@ World_UpdateExactMove(
 {
     static const uint16_t k_facing_yaw[4] = { 1024, 1536, 0, 512 };
 
-    if( exact->move_end == 0 && exact->move_start == 0 )
-        return 0;
-    if( exact->move_start < world->cycle )
+    if( !World_ExactMoveActive(world, exact) )
     {
-        /* Window passed. */
+        /* Window passed (or never armed). */
         exact->move_end = 0;
         exact->move_start = 0;
         return 0;
@@ -572,8 +960,9 @@ World_UpdateExactMove(
         int delta = exact->move_end - world->cycle;
         int dst_x = exact->start_x * 128 + size * 64;
         int dst_z = exact->start_z * 128 + size * 64;
-        draw_position->x = (uint32_t)((int)draw_position->x + (dst_x - (int)draw_position->x) / delta);
-        draw_position->z = (uint32_t)((int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
+        World_DrawPositionSet(
+            draw_position, (int)draw_position->x + (dst_x - (int)draw_position->x) / delta,
+            (int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
         orientation->dst_yaw = exact->facing_is_yaw
                                    ? (uint16_t)(exact->facing & 0x7ff)
                                    : k_facing_yaw[exact->facing & 3];
@@ -597,8 +986,9 @@ World_UpdateExactMove(
             int dz1 = exact->end_z * 128 + size * 64;
             if( duration > 0 )
             {
-                draw_position->x = (uint32_t)((dx0 * (duration - delta) + dx1 * delta) / duration);
-                draw_position->z = (uint32_t)((dz0 * (duration - delta) + dz1 * delta) / duration);
+                World_DrawPositionSet(
+                    draw_position, (dx0 * (duration - delta) + dx1 * delta) / duration,
+                    (dz0 * (duration - delta) + dz1 * delta) / duration);
             }
         }
         orientation->dst_yaw = exact->facing_is_yaw
@@ -683,6 +1073,7 @@ World_CycleUpdatePlayers(
                     world,
                     &player->facing,
                     &player->draw_position,
+                    &player->view_placement,
                     &player->orientation,
                     &player->pathing,
                     &player->idle_animations,
@@ -691,7 +1082,12 @@ World_CycleUpdatePlayers(
                     World_ApplySecondaryAnim(&player->animation, face_seq);
             }
             World_StepEntityAnimation(
-                world, &player->animation, &player->spotanim, &player->pathing);
+                world,
+                &player->animation,
+                &player->spotanim,
+                &player->pathing,
+                &player->draw_position,
+                &player->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3161). */
             if( player->chat.timer > 0 && --player->chat.timer == 0 )
                 player->chat.message[0] = '\0';
@@ -747,6 +1143,7 @@ World_CycleUpdateNpcs(
                     world,
                     &npc->facing,
                     &npc->draw_position,
+                    &npc->view_placement,
                     &npc->orientation,
                     &npc->pathing,
                     &npc->idle_animations,
@@ -754,7 +1151,9 @@ World_CycleUpdateNpcs(
                 if( face_seq != -1 )
                     World_ApplySecondaryAnim(&npc->animation, face_seq);
             }
-            World_StepEntityAnimation(world, &npc->animation, &npc->spotanim, &npc->pathing);
+            World_StepEntityAnimation(
+                world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position,
+                &npc->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3174). */
             if( npc->chat.timer > 0 && --npc->chat.timer == 0 )
                 npc->chat.message[0] = '\0';
@@ -778,6 +1177,9 @@ World_ProjectileTrackTarget(
     struct WorldEntity_Projectile* proj)
 {
     struct WorldEntityFacet_DrawPosition const* dst = NULL;
+    struct WorldEntityFacet_ViewPlacement const* placement = NULL;
+    int fx;
+    int fz;
 
     if( proj->target == WORLD_PROJECTILE_TARGET_NONE )
         return;
@@ -786,23 +1188,45 @@ World_ProjectileTrackTarget(
     {
         struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(world, proj->target - 1);
         if( npc )
+        {
             dst = &npc->draw_position;
+            placement = &npc->view_placement;
+        }
     }
     else
     {
         struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, -proj->target - 1);
         if( player )
+        {
             dst = &player->draw_position;
+            placement = &player->view_placement;
+        }
     }
 
     if( !dst )
         return;
 
+    fx = (int)dst->x;
+    fz = (int)dst->z;
+    /* A target drawn by a world-entity view stands at a projected root
+     * position, and a HOMED rider's draw position is deck-local outright —
+     * both answered by the same root-frame hook the facing math uses. The
+     * projectile lives in the ROOT world (deob: one world per projectile), so
+     * the aim point must too; without this an arrow chasing a rider re-aims
+     * at deck-local numbers and flies at the map corner. */
+    if( placement && placement->view_id != 0 && world->actor_root_frame_fn )
+    {
+        int frame_yaw = 0;
+
+        world->actor_root_frame_fn(
+            world->actor_root_frame_userdata, placement, &fx, &fz, &frame_yaw);
+    }
+
     /* dst_level stays the projectile's own level: the reference samples the
      * target's height with getAvH(npc.x, npc.z, *proj.level*), not the
      * entity's level. */
-    proj->dst_x = (int)dst->x;
-    proj->dst_z = (int)dst->z;
+    proj->dst_x = fx;
+    proj->dst_z = fz;
 }
 
 static void
@@ -940,7 +1364,8 @@ World_CycleUpdateSpotanims(
 }
 
 #define WORLD_PROJECTILE_PAINTER_PADDING 60
-#define WORLD_MOVER_PAINTER_PADDING 60
+/* WORLD_MOVER_PAINTER_PADDING is in world.h: a foreign-actor registrar outside
+ * this file has to pad an actor the same way its native pass would. */
 
 /* A mover draws between tiles, so it registers over the tile span its
  * padded fine position covers rather than a single grid cell (Client-TS
@@ -1030,6 +1455,12 @@ world_dyn_tile_claim(
 static int
 world_local_level(struct World* world)
 {
+    /* The hook answers the MAP plane when a rider's own grid level is a deck
+     * plane — reference minusedlevel is the plane of the map the client
+     * holds, and aboard that is the hull's root plane. Without it a level-0
+     * projectile is unlinked against the rider's plane-1 and never draws. */
+    if( world->local_plane_fn )
+        return world->local_plane_fn(world->local_plane_userdata);
     if( world->local_pid < 0 )
         return 0;
     struct World_EntityPool* pool = &world->entities.player;
@@ -1087,6 +1518,12 @@ world_dyn_register_players(struct World* world, bool only_local, int local_level
         bool is_local = world->local_pid >= 0 && player->server_pid == world->local_pid;
         if( is_local != only_local )
             continue;
+        /* Aboard a boat (SAILING_PLAN C5.1): this world owns the record, but
+         * the view under their feet draws them. That view's own registration
+         * pass picks them up through World_ForeignActorRegisterFn, at
+         * deck-local coordinates the descent transform carries back here. */
+        if( player->view_placement.view_id != 0 )
+            continue;
         int grid_x = player->grid_position.x;
         int grid_z = player->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
@@ -1123,9 +1560,12 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
          ni = World_EntityPoolNext(pool, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
-        if( !npc || npc->element_id < 0 )
+        if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             continue;
         if( npc->alwaysontop != alwaysontop )
+            continue;
+        /* @see the same skip in world_dyn_register_players. */
+        if( npc->view_placement.view_id != 0 )
             continue;
         int size = npc->size > 0 ? npc->size : 1;
         int grid_x = npc->grid_position.x;
@@ -1171,7 +1611,10 @@ World_CycleRegisterPainterDynamics(struct World* world)
     struct World_EntityPool* pool;
     int local_level = world_local_level(world);
 
-    painter_reset_to_static(world->painter);
+    /* The registrations below are journaled: painter_dynamics_commit at the
+     * end tears down and rebuilds only when this cycle's list differs from the
+     * last one (TORIRS_PAINTER_DYN_SKIP), else the tiles keep what they hold. */
+    painter_dynamics_begin(world->painter);
     world->scene_cycle++;
 
     /* Runtime-spawned locs (zone LOC_ADD_CHANGE, e.g. an open door). The painter
@@ -1187,9 +1630,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
             continue;
         int grid_x = sc->grid_position.x;
         int grid_z = sc->grid_position.z;
+        int paint_level;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
+        /* The scenery pool holds cache levels; the painter wants the level the
+         * build's bridge push-down parked that tile on, which is the one the
+         * static locs beside this one ended up in. */
+        paint_level = World_LocPaintLevel(world, grid_x, grid_z, sc->grid_position.level);
         /* Wall locs re-register with their recorded wallside so the painter
          * orders them like a built wall (drawn on the correct side of the
          * tile); the removal path released the tile slot and reset_to_static
@@ -1197,19 +1645,41 @@ World_CycleRegisterPainterDynamics(struct World* world)
          * safe. Everything else draws as normal scenery. */
         if( sc->painter_wall_ab >= 0 )
             painter_add_wall(
-                world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
+                world->painter, grid_x, grid_z, paint_level, sc->element_id,
                 sc->painter_wall_ab, sc->painter_wall_side);
+        /* Ground decor (shape 22) belongs in the tile's exclusive decor slot,
+         * not in its scenery chain. The slot is emitted in the tile's BASE
+         * step, ahead of every scenery element whose footprint covers the
+         * tile — which is the whole difference for a puddle spawned under a
+         * 5x5 boss: as scenery it sorted against him and won on any tile
+         * nearer the camera than his anchor. */
+        else if( sc->painter_ground_decor )
+            painter_add_ground_decor_dynamic(
+                world->painter, grid_x, grid_z, paint_level, sc->element_id);
         else
             painter_add_normal_scenery(
                 world->painter,
                 grid_x,
                 grid_z,
-                sc->grid_position.level,
+                paint_level,
                 sc->element_id,
                 sc->size_x > 0 ? sc->size_x : 1,
                 sc->size_z > 0 ? sc->size_z : 1,
                 (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
     }
+
+    if( world->suppress_dynamic_population )
+    {
+        painter_dynamics_commit(world->painter);
+        return;
+    }
+
+    /* World entities (boats) go in with the runtime-spawn locs: the reference
+     * inserts each one as a temporary radius-60 GameObject in the parent scene,
+     * so it is a loc for ordering purposes and must land in the loc tier, ahead
+     * of ground items and actors. */
+    if( world->world_entity_register_fn )
+        world->world_entity_register_fn(world->world_entity_register_userdata, world);
 
     /* Ground items render below entities (reference tile.groundObject draws in
      * the tile's base step, before any dynamic sprite). Only the local plane —
@@ -1247,11 +1717,33 @@ World_CycleRegisterPainterDynamics(struct World* world)
     world_dyn_register_players(world, /*only_local=*/false, local_level);
     world_dyn_register_npcs(world, /*alwaysontop=*/false, local_level);
 
+    /* Actors standing on THIS world that another world owns the records for —
+     * i.e. this world is a boat deck and someone has boarded it. Last of the
+     * actor tier and ahead of projectiles, so a deck player sorts against deck
+     * locs and deck graphics exactly as a mainland player sorts on land. */
+    if( world->foreign_actor_register_fn )
+        world->foreign_actor_register_fn(world->foreign_actor_register_userdata, world);
+
     pool = &world->entities.projectile;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        /* TORIRS_PROJ_DEBUG=1: narrate the paint gate — the difference between
+         * "no projectile exists" and "one exists and is being culled" is
+         * invisible on screen and has burned a session each way. */
+        {
+            static int proj_debug = -1;
+
+            if( proj_debug < 0 )
+                proj_debug = getenv("TORIRS_PROJ_DEBUG") != NULL;
+            if( proj_debug && p && p->element_id >= 0 )
+                fprintf(stderr,
+                        "proj paint: el=%d cycle=%d t1=%d t2=%d level=%d local=%d at %d,%d "
+                        "y=%d\n",
+                        p->element_id, p->cycle, p->t1, p->t2, p->level, local_level,
+                        (int)p->x >> 7, (int)p->z >> 7, (int)p->y);
+        }
         /* Reference addProjectiles: unlink when level !== minusedlevel. */
         if( !p || p->element_id < 0 || p->cycle < p->t1 || p->level != local_level )
             continue;
@@ -1299,6 +1791,155 @@ World_CycleRegisterPainterDynamics(struct World* world)
             1,
             (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id) : 0));
     }
+
+    /* Plugin-owned objects, last, so a plugin's marker sits in front of a
+     * graphic sharing its tile rather than behind one -- the same reason
+     * spotanims are registered after projectiles. They are ordinary scenery to
+     * the painter, which is the whole point of putting them here instead of on
+     * the overlay: they sort against the world and are hidden by what stands
+     * in front of them.
+     *
+     * Level-gated like every other dynamic: the reference draws nothing from a
+     * plane the camera is not on. */
+    pool = &world->entities.plugin_object;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, pi);
+        if( !obj || obj->element_id < 0 || !obj->active || obj->level != local_level )
+            continue;
+        int grid_x = (int)(obj->draw_position.x >> 7);
+        int grid_z = (int)(obj->draw_position.z >> 7);
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(
+            world->painter,
+            grid_x,
+            grid_z,
+            local_level,
+            obj->element_id,
+            obj->size_x > 0 ? obj->size_x : 1,
+            obj->size_z > 0 ? obj->size_z : 1,
+            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, obj->element_id)
+                          : 0));
+    }
+
+    painter_dynamics_commit(world->painter);
+}
+
+/*
+ * Move every actor by `cycles` worth of route -- rev-239 client.method1894,
+ * called from method2324 once per rendered frame with the wall-clock delta
+ * expressed in 20ms client cycles.
+ *
+ * Separate from World_Cycle on purpose. The cycle clock is a 20ms grid and a
+ * frame almost never lands on it; integrating movement on the grid throws away
+ * the remainder every frame, which the frame pacer's own comment in app.c
+ * already describes as "a visible hitch even though no frame was late". Here
+ * the remainder is the whole point.
+ *
+ * An entity inside an exact-move window is skipped: the server is placing it
+ * explicitly and World_UpdateExactMove owns its position (method3611's
+ * `field1471 >= cycle || field1521 >= cycle` early-out).
+ */
+void
+World_MoversAdvance(
+    struct World* world,
+    float cycles)
+{
+    assert(world);
+    if( !world->load_complete || cycles <= 0.0f )
+        return;
+    /* Classic spends the speed inside World_Cycle instead; see the enum. */
+    if( World_MoverModel(world) != TORIRS_MOVER_FRAME_DELTA )
+        return;
+
+    {
+        struct World_EntityPool* pool = &world->entities.player;
+        for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+             pi = World_EntityPoolNext(pool, pi) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+            if( !player || player->element_id < 0 )
+                continue;
+            if( World_ExactMoveActive(world, &player->exact_move) )
+                continue;
+            {
+                struct World_MoverInfo info = {
+                    .world = world,
+                    .pathing = &player->pathing,
+                    .draw_position = &player->draw_position,
+                    .grid_position = &player->grid_position,
+                    .orientation = &player->orientation,
+                    .idle = &player->idle_animations,
+                    .animation = &player->animation,
+                    .facing = &player->facing,
+                    .size_x = 1,
+                    .size_z = 1,
+                };
+                World_MoverAdvance(&info, cycles);
+            }
+        }
+    }
+
+    {
+        struct World_EntityPool* pool = &world->entities.npc;
+        for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+             ni = World_EntityPoolNext(pool, ni) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+            int size;
+            if( !npc || npc->element_id < 0 )
+                continue;
+            if( World_ExactMoveActive(world, &npc->exact_move) )
+                continue;
+            size = npc->size > 0 ? npc->size : 1;
+            {
+                struct World_MoverInfo info = {
+                    .world = world,
+                    .pathing = &npc->pathing,
+                    .draw_position = &npc->draw_position,
+                    .grid_position = &npc->grid_position,
+                    .orientation = &npc->orientation,
+                    .idle = &npc->idle_animations,
+                    .animation = &npc->animation,
+                    .facing = &npc->facing,
+                    .size_x = size,
+                    .size_z = size,
+                };
+                World_MoverAdvance(&info, cycles);
+            }
+        }
+    }
+}
+
+void
+World_CycleRegisterDynamics(struct World* world)
+{
+    assert(world);
+    /* Same gate World_Cycle uses: a world whose scene has not landed has no
+     * painter grid to register against. */
+    if( !world->load_complete )
+        return;
+    World_CycleRegisterPainterDynamics(world);
+}
+
+void
+World_RegisterForeignActor(
+    struct World* world,
+    int element_id,
+    int level,
+    int deck_x,
+    int deck_z,
+    int padding,
+    int yaw,
+    int forward_padding)
+{
+    assert(world);
+    assert(element_id >= 0);
+    world_dyn_register_mover(
+        world, element_id, level, deck_x, deck_z, padding, yaw, forward_padding);
 }
 
 void

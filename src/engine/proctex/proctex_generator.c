@@ -1,4 +1,5 @@
 #include "engine/proctex/proctex_internal.h"
+#include "log/torirs_log.h"
 #include <assert.h>
 
 #include <stdio.h>
@@ -1071,9 +1072,7 @@ proctex_eval(
          * lets the caller refuse to publish the image. It is never a claim of correctness.
          */
         if( gen->unsupported_count == 0 && getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(
-                stderr,
-                "  proctex %d: op %d type %d (%s) has no evaluator — flat grey\n",
+            TORIRS_LOG("  proctex %d: op %d type %d (%s) has no evaluator — flat grey\n",
                 gen->tex->id,
                 op_index,
                 op->type,
@@ -1100,9 +1099,7 @@ fail:
      * absent — a missing input wiring, or a sprite/texture the host could not resolve. Worth
      * naming, because the two look identical from the caller's `render failed`. */
     if( getenv("TORIRS_PROCTEX_DEBUG") )
-        fprintf(
-            stderr,
-            "  proctex: op %d type %d (%s) REFUSED at line %d (inputs=%d)\n",
+        TORIRS_ERR("  proctex: op %d type %d (%s) REFUSED at line %d (inputs=%d)\n",
             op_index,
             op->type,
             RSCache_ProcTexOpName(op->type),
@@ -1135,9 +1132,7 @@ ProcTexGenerator_Render(
     if( texture->operation_count <= 0 || texture->colour_op < 0 )
     {
         if( getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(
-                stderr,
-                "  proctex %d: no output — %d operations, colour_op %d\n",
+            TORIRS_LOG("  proctex %d: no output — %d operations, colour_op %d\n",
                 texture->id,
                 texture->operation_count,
                 texture->colour_op);
@@ -1146,7 +1141,7 @@ ProcTexGenerator_Render(
     if( !proctex_setup(gen, texture, size, brightness) )
     {
         if( getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(stderr, "  proctex %d: setup failed at size %d\n", texture->id, size);
+            TORIRS_ERR("  proctex %d: setup failed at size %d\n", texture->id, size);
         return false;
     }
 
@@ -1203,7 +1198,7 @@ ProcTexGenerator_Render(
          * cannot express that meaningfully and nothing in the cache validates it, so it is a
          * property of the record rather than of this port. */
         if( getenv("TORIRS_PROCTEX_DEBUG") )
-            fprintf(stderr, "  proctex %d: operation graph has a cycle\n", texture->id);
+            TORIRS_LOG("  proctex %d: operation graph has a cycle\n", texture->id);
         return false;
     }
 

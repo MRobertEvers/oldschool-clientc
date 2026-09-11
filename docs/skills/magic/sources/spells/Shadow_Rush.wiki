@@ -1,0 +1,48 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Shadow Rush
+|image = [[File:Shadow Rush.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 52
+|spellbook = Ancient
+|type = Combat
+|exp = 31
+|element = Shadow
+|damage = 14
+|cost = {{RuneReq|Soul=1|Death=2|Chaos=2|Air=1}}
+|speed = 5 ticks
+|description = A single target shadow attack
+|anim = [[File:Shadow Rush.gif|300px]]
+|sound = [[File:Shadow Rush.ogg]]
+}}
+[[File:Shadow Rush icon (mobile).png|left]]
+'''Shadow Rush''' requires a [[Magic]] level of 52 and can do a maximum of 14 damage (without any [[magic damage]] boosts) per cast.
+
+Shadow Rush has the ability to lower your target's [[Attack]] level by 10%, this effect '''does not''' stack to lower the target's Attack level to zero.
+
+As with all [[Ancient Magicks]] spells, the [[Desert Treasure I]] quest is required to cast this spell.
+
+When used against the [[Abyssal Sire]], Shadow Rush has a 25% chance of disorienting it for the first phase of the fight.
+
+When used against The Leviathan, Shadow Rush (as with all shadow spells) will stun the boss and trigger an end to it's usual attack sequence, allowing the player to attack from behind The Leviathan for a critical hit, causing one of two special attacks to be launched at the player.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Shadow Rush|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 2
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 1
+|Rune4 = soul
+|Rune4num = 1
+|is_offensive = y
+}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

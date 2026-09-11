@@ -1,0 +1,61 @@
+{{External|rs}}
+{{Otheruses|the spell|the scenery object|Fertile Soil (scenery)}}
+{{Infobox Spell
+|name = Fertile Soil
+|image = [[File:Fertile Soil.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 83
+|spellbook = Lunar
+|type = Utility
+|exp = 87
+|cost = {{RuneReq|Earth=15|Nature=2|Astral=3}}
+|speed = 
+|description = Fertilise a farming patch with super compost
+|anim = [[File:Fertile Soil.gif]]
+|sound = [[File:Fertile Soil.ogg]]
+}}
+[[File:Fertile Soil icon (mobile).png|left]]
+'''Fertile Soil''' is a [[Lunar spells|Lunar spell]] that can treat any targeted [[Farming/Patch locations|farming patch]] with [[supercompost]]. Doing so grants 87 [[Magic]] [[experience]] and 18 [[Farming]] experience. As with all Lunar spells, completion of the [[Lunar Diplomacy]] [[quest]] is required to cast this spell.
+
+Players who have read the [[ash covered tome]] can have the spell treat a patch with [[ultracompost]] instead by casting the spell while having two [[volcanic ash]] in their inventory, which it consumes. The ash covered tome can be purchased from [[Petrified Pete's Ore Shop]] for 40,000 [[Volcanic Mine]] reward points.
+
+Just like using compost normally, the spell can be used on a patch before or after planting the seeds and at any growth stage.
+
+Casting this spell on the [[Morytania]] [[herb patch]] is a requirement for the elite [[Morytania Diary]].
+
+==Cost==
+The two additional [[volcanic ash]] for upgrading to [[ultracompost]] add an additional {{NoCoins|{{GEP|Volcanic ash|2}}|c}} to the cost. The cost can be compared to the current costs of [[supercompost]] ({{Coins|{{GEP|Supercompost|1}}}}) or [[ultracompost]] ({{Coins|{{GEP|Ultracompost|1}}}}) on the [[Grand Exchange]].
+
+{{Spell cost table
+|Rune1 = Nature
+|Rune1num = 2
+|Rune2 = Astral
+|Rune2num = 3
+|Rune3 = Earth
+|Rune3num = 15
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = You should now be able to use the Cure Plant and Fertile Soil lunar spells on both of Harmony Island's farming patches.
+}}
+{{Subject changes
+|date = 12 March 2015
+|update = Diary Skillcape Emote
+|change = Fertile Soil can now be cast on the Harmony Island herb patch.
+}}
+{{Subject changes footer}}
+
+== Trivia ==
+*If used on a patch that is finished growing, the player will get a chatbox message saying, "''Composting it isn't going to make it any bigger."''
+*If used on a [[compost bin]], the player will get a chatbox message saying, "''No, that would be silly.''"
+*If used on anything other than a farming patch or compost bin, the player will say, "''Um... I don't want to fertilize that!''"
+*If used on the [[barren patch]] in [[Etceteria]], the player will say, "''No, I think I'd better compost it the old-fashioned way.''"
+
+{{Lunar spellbook}}
+{{Utility spells}}

@@ -1,0 +1,83 @@
+{{Switch infobox
+|item1 =
+{{Infobox Monster
+|name = Ruptura Araxyte
+|image = [[File:Ruptura Araxyte.png|280px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|combat = 114
+|size = 2
+|examine = A colourful spider.
+|xpbonus = 7.5
+|max hit = 15
+|aggressive = Yes
+|poisonous = Yes
+|attack style = All
+|attack speed = 6
+|slaylvl = 92
+|slayxp = 65
+|cat = Spiders, Araxytes
+|assignedby = turael,spria,nieve,duradel
+|hitpoints = 58
+|att = 150
+|str = 120
+|def = 50
+|mage = 1
+|range = 60
+|attbns = 180
+|strbns = 12
+|amagic = 0
+|mbns = 0
+|arange = 450
+|rngbns = 0
+|dstab = 25
+|dslash = 25
+|dcrush = 25
+|dmagic = -10
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 13673
+|leagueRegion = Morytania
+}}
+|text1 = Hatched
+|item2 =
+{{Infobox NPC
+|name = Egg
+|image = [[File:Egg (Ruptura Araxyte).png|250px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|race = [[Araxyte]]
+|location = [[Morytania Spider Cave]]
+|options = Attack
+|examine = Egg.
+|map = No
+|id = 13672
+|leagueRegion = Morytania
+}}
+|text2 = Egg}}
+'''Ruptura Araxytes''' are a type of [[araxyte]] who hatch from red eggs during the battle with [[Araxxor]]. Though they do not directly attack the player, they will move towards them and explode once they are in melee range, dealing up to 70 damage if the player is under the araxyte. Moving three tiles away from the explosion when it detonates will avoid the damage. If they are killed normally they will not explode.
+
+If lured near Araxxor, its explosion can deal up to 80 damage to him if it explodes underneath him, and 64 if next to him. Against eggs, it will explode for 64 damage.
+
+Players will always [[max hit]] when attacking them with a [[Crush weapons|crush]] or heavy Ranged weapon (such as a [[Crossbow (weapon)|crossbow]] or [[ballista]]) if crush or ranged is their highest accuracy style respectively, or the [[noxious halberd]].
+
+Araxxor's minions and eggs are considered by the game to be part of an araxyte task without decrementing the task count, allowing accuracy and damage buff of the [[slayer helm]] to be utilised against them.
+
+==Gallery==
+<gallery mode="packed" heights="150">
+Araxxor - Ruptura Araxyte's own goal.mp4|The player can lure the ruptura araxyte towards Araxxor before quickly moving away to avoid the explosion attack. 
+Araxxor minions concept art.png|Concept art of Araxxor's minions, by [[Mod Skylark]].
+Araxyte eggs concept art.png|Concept art of the eggs which hatch Araxxor's minions, by Mod Skylark.
+Ruptura araxyte blast damage.png|alt=A grid depicting the damage dealt to the player in relation to the Ruptura Araxyte's blast|The damage a player will take depending on their distance from the blast.
+</gallery>
+
+{{Araxxor}}

@@ -1,0 +1,809 @@
+From cc6743031cec34b17927e257b1ae2db568818ee1 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:58 -0500
+Subject: [PATCH] wip(hunt-w14): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w14.
+
+files: src/engine/world_builder/occluder_buildmap.c src/painters/scene_occluders.c src/painters/scene_occluders.h src/platform/platform_sdl2_renderer_soft3d.c
+---
+ src/engine/world_builder/occluder_buildmap.c |  49 +++
+ src/painters/scene_occluders.c               | 325 ++++++++++++++++++-
+ src/painters/scene_occluders.h               |  12 +
+ src/platform/platform_sdl2_renderer_soft3d.c | 254 +++++++++++++++
+ 4 files changed, 632 insertions(+), 8 deletions(-)
+
+diff --git a/src/engine/world_builder/occluder_buildmap.c b/src/engine/world_builder/occluder_buildmap.c
+index d5038193d..410ebd3ff 100644
+--- a/src/engine/world_builder/occluder_buildmap.c
++++ b/src/engine/world_builder/occluder_buildmap.c
+@@ -7,6 +7,24 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++#include <stdio.h>
++/*
++ * Merge-area histogram at the two build gates.
++ *
++ * OCCLUDER_WALL_MIN_TILE_AREA / OCCLUDER_FLOOR_MIN_TILE_AREA are the reference
++ * client's 8 and 4, and nobody had checked what they throw away on this map.
++ * Index is (levels x tiles) clamped to 15; the two gates are counted
++ * separately, once per run at the run's origin tile so a rejected run -- whose
++ * marks are deliberately left set -- is not counted once per tile it covers.
++ */
++unsigned g_occ_build_wall_area_hist[16];
++unsigned g_occ_build_floor_area_hist[16];
++#define OCC_BUILD_HIST(h, a) ((h)[(a) < 15 ? (a) : 15]++)
++#else
++#define OCC_BUILD_HIST(h, a) ((void)0)
++#endif
++
+ #define OCCLUDER_TILE_SIZE 128
+ 
+ static inline int
+@@ -264,6 +282,8 @@ occluder_buildmap_build_occluders(
+                         }
+ 
+                         area = (max_level + 1 - min_level) * (max_tz + 1 - min_tile_z);
++                        if( tile_z == min_tile_z && level == min_level )
++                            OCC_BUILD_HIST(g_occ_build_wall_area_hist, area);
+                         if( area >= OCCLUDER_WALL_MIN_TILE_AREA )
+                         {
+                             int min_y =
+@@ -351,6 +371,8 @@ occluder_buildmap_build_occluders(
+                         }
+ 
+                         area = (max_level + 1 - min_level) * (max_tx + 1 - min_tile_x);
++                        if( tile_x == min_tile_x && level == min_level )
++                            OCC_BUILD_HIST(g_occ_build_wall_area_hist, area);
+                         if( area >= OCCLUDER_WALL_MIN_TILE_AREA )
+                         {
+                             int min_y =
+@@ -436,6 +458,10 @@ occluder_buildmap_build_occluders(
+                             max_tx++;
+                         }
+ 
++                        if( tile_x == min_tile_x && tile_z == min_tile_z )
++                            OCC_BUILD_HIST(
++                                g_occ_build_floor_area_hist,
++                                (max_tx + 1 - min_tile_x) * (max_tz + 1 - min_tile_z));
+                         if( (max_tx + 1 - min_tile_x) * (max_tz + 1 - min_tile_z) >=
+                             OCCLUDER_FLOOR_MIN_TILE_AREA )
+                         {
+@@ -463,4 +489,27 @@ occluder_buildmap_build_occluders(
+             }
+         }
+     }
++
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++    {
++        int a;
++        fprintf(stderr, "occluder build: per-level counts");
++        for( a = 0; a < map->levels; a++ )
++            fprintf(stderr, " L%d=%d", a, out->level_occluder_count[a]);
++        fprintf(stderr, "\n");
++        fprintf(stderr, "occluder build: wall merge areas (gate >= %d)\n",
++                OCCLUDER_WALL_MIN_TILE_AREA);
++        for( a = 1; a < 16; a++ )
++            if( g_occ_build_wall_area_hist[a] )
++                fprintf(stderr, "  area %2d%s : %u runs\n", a, a == 15 ? "+" : " ",
++                        g_occ_build_wall_area_hist[a]);
++        fprintf(stderr, "occluder build: floor merge areas (gate >= %d)\n",
++                OCCLUDER_FLOOR_MIN_TILE_AREA);
++        for( a = 1; a < 16; a++ )
++            if( g_occ_build_floor_area_hist[a] )
++                fprintf(stderr, "  area %2d%s : %u runs\n", a, a == 15 ? "+" : " ",
++                        g_occ_build_floor_area_hist[a]);
++        fflush(stderr);
++    }
++#endif
+ }
+diff --git a/src/painters/scene_occluders.c b/src/painters/scene_occluders.c
+index 78e2cbaa5..13bdd1d37 100644
+--- a/src/painters/scene_occluders.c
++++ b/src/painters/scene_occluders.c
+@@ -597,8 +597,19 @@ scene_occluders_census_dump(void)
+     fprintf(f, "  ground_tile_hidden: %llu calls (%.0f/frame), %llu cached (%.1f%%)\n",
+             s->tile_calls, (double)s->tile_calls / frames, s->tile_cached,
+             100.0 * (double)s->tile_cached / tiles);
+-    fprintf(f, "  wall_hidden: %llu calls (%.0f/frame)\n",
+-            s->wall_calls, (double)s->wall_calls / frames);
++    fprintf(f, "  ground_tile_hidden: %llu HIDDEN (%.1f%%)\n",
++            s->tile_hits, 100.0 * (double)s->tile_hits / tiles);
++    fprintf(f, "  wall_hidden: %llu calls (%.0f/frame), %llu hidden (%.1f%%)\n",
++            s->wall_calls, (double)s->wall_calls / frames, s->wall_hits,
++            100.0 * (double)s->wall_hits / (double)(s->wall_calls ? s->wall_calls : 1));
++    fprintf(f, "  column_hidden: %llu calls (%.0f/frame), %llu hidden (%.1f%%)\n",
++            s->column_calls, (double)s->column_calls / frames, s->column_hits,
++            100.0 * (double)s->column_hits
++                / (double)(s->column_calls ? s->column_calls : 1));
++    fprintf(f, "  footprint_hidden: %llu calls (%.0f/frame), %llu hidden (%.1f%%)\n",
++            s->footprint_calls, (double)s->footprint_calls / frames, s->footprint_hits,
++            100.0 * (double)s->footprint_hits
++                / (double)(s->footprint_calls ? s->footprint_calls : 1));
+     if( path )
+         fclose(f);
+ }
+@@ -651,6 +662,8 @@ scene_occluders_ground_tile_hidden(
+     {
+ #if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+         g_scene_occluder_census.tile_cached++;
++        if( cycle == occ->frame_no )
++            g_scene_occluder_census.tile_hits++;
+ #endif
+         return cycle == occ->frame_no;
+     }
+@@ -676,12 +689,164 @@ scene_occluders_ground_tile_hidden(
+             sz + 128 - 1) )
+     {
+         occ->tile_cycle[idx] = occ->frame_no;
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++        g_scene_occluder_census.tile_hits++;
++#endif
+         return true;
+     }
+     occ->tile_cycle[idx] = -occ->frame_no;
+     return false;
+ }
+ 
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++static bool
++scene_occluders_wall_hidden_impl(
++    struct SceneOccluders* occ,
++    int level,
++    int x,
++    int z,
++    int wall_side)
++{
++    int scene_x;
++    int scene_z;
++    int scene_y;
++    int y0;
++    int y1;
++    int y2;
++
++    assert(occ);
++    if( occ->active_count == 0 )
++        return false;
++    if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
++        return false;
++
++    scene_x = x << 7;
++    scene_z = z << 7;
++    scene_y = scene_occluders_ground_height(occ, x, z, level) - 1;
++    y0 = scene_y - 120;
++    y1 = scene_y - 230;
++    y2 = scene_y - 238;
++
++    if( wall_side < 16 )
++    {
++        if( wall_side == WALL_SIDE_WEST )
++        {
++            if( scene_x > occ->eye_x )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, scene_y, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(occ, scene_x, scene_y, scene_z + 128) )
++                    return false;
++            }
++            if( level > 0 )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, y0, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(occ, scene_x, y0, scene_z + 128) )
++                    return false;
++            }
++            if( !scene_occluders_point_hidden(occ, scene_x, y1, scene_z) )
++                return false;
++            return scene_occluders_point_hidden(occ, scene_x, y1, scene_z + 128);
++        }
++        if( wall_side == WALL_SIDE_NORTH )
++        {
++            if( scene_z < occ->eye_z )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, scene_y, scene_z + 128) )
++                    return false;
++                if( !scene_occluders_point_hidden(
++                        occ, scene_x + 128, scene_y, scene_z + 128) )
++                    return false;
++            }
++            if( level > 0 )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, y0, scene_z + 128) )
++                    return false;
++                if( !scene_occluders_point_hidden(
++                        occ, scene_x + 128, y0, scene_z + 128) )
++                    return false;
++            }
++            if( !scene_occluders_point_hidden(occ, scene_x, y1, scene_z + 128) )
++                return false;
++            return scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z + 128);
++        }
++        if( wall_side == WALL_SIDE_EAST )
++        {
++            if( scene_x < occ->eye_x )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x + 128, scene_y, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(
++                        occ, scene_x + 128, scene_y, scene_z + 128) )
++                    return false;
++            }
++            if( level > 0 )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x + 128, y0, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(
++                        occ, scene_x + 128, y0, scene_z + 128) )
++                    return false;
++            }
++            if( !scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z) )
++                return false;
++            return scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z + 128);
++        }
++        if( wall_side == WALL_SIDE_SOUTH )
++        {
++            if( scene_z > occ->eye_z )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, scene_y, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(occ, scene_x + 128, scene_y, scene_z) )
++                    return false;
++            }
++            if( level > 0 )
++            {
++                if( !scene_occluders_point_hidden(occ, scene_x, y0, scene_z) )
++                    return false;
++                if( !scene_occluders_point_hidden(occ, scene_x + 128, y0, scene_z) )
++                    return false;
++            }
++            if( !scene_occluders_point_hidden(occ, scene_x, y1, scene_z) )
++                return false;
++            return scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z);
++        }
++    }
++
++    if( !scene_occluders_point_hidden(occ, scene_x + 64, y2, scene_z + 64) )
++        return false;
++    if( wall_side == WALL_CORNER_NORTHWEST )
++        return scene_occluders_point_hidden(occ, scene_x, y1, scene_z + 128);
++    if( wall_side == WALL_CORNER_NORTHEAST )
++        return scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z + 128);
++    if( wall_side == WALL_CORNER_SOUTHEAST )
++        return scene_occluders_point_hidden(occ, scene_x + 128, y1, scene_z);
++    if( wall_side == WALL_CORNER_SOUTHWEST )
++        return scene_occluders_point_hidden(occ, scene_x, y1, scene_z);
++    return true;
++}
++
++/* Counting wrapper: the yield of this predicate is the number that
++ * decides whether the analytic occluders are already doing the job a
++ * screen-space pre-pass would duplicate. */
++bool
++scene_occluders_wall_hidden(
++    struct SceneOccluders* occ,
++    int level,
++    int x,
++    int z,
++    int wall_side)
++{
++    bool hit;
++    g_scene_occluder_census.wall_calls++;
++    hit = scene_occluders_wall_hidden_impl(occ, level, x, z, wall_side);
++    if( hit )
++        g_scene_occluder_census.wall_hits++;
++    return hit;
++}
++#else
+ bool
+ scene_occluders_wall_hidden(
+     struct SceneOccluders* occ,
+@@ -700,9 +865,6 @@ scene_occluders_wall_hidden(
+     assert(occ);
+     if( occ->active_count == 0 )
+         return false;
+-#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-    g_scene_occluder_census.wall_calls++;
+-#endif
+     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
+         return false;
+ 
+@@ -813,7 +975,68 @@ scene_occluders_wall_hidden(
+         return scene_occluders_point_hidden(occ, scene_x, y1, scene_z);
+     return true;
+ }
++#endif
++
++
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++static bool
++scene_occluders_column_hidden_impl(
++    struct SceneOccluders* occ,
++    int level,
++    int x,
++    int z,
++    int model_min_y)
++{
++    int sx;
++    int sz;
++    assert(occ);
++    if( occ->active_count == 0 )
++        return false;
++    if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
++        return false;
++    sx = x << 7;
++    sz = z << 7;
++    return scene_occluders_point_hidden(
++               occ,
++               sx + 1,
++               scene_occluders_ground_height(occ, x, z, level) - model_min_y,
++               sz + 1) &&
++           scene_occluders_point_hidden(
++               occ,
++               sx + 128 - 1,
++               scene_occluders_ground_height(occ, x + 1, z, level) - model_min_y,
++               sz + 1) &&
++           scene_occluders_point_hidden(
++               occ,
++               sx + 128 - 1,
++               scene_occluders_ground_height(occ, x + 1, z + 1, level) - model_min_y,
++               sz + 128 - 1) &&
++           scene_occluders_point_hidden(
++               occ,
++               sx + 1,
++               scene_occluders_ground_height(occ, x, z + 1, level) - model_min_y,
++               sz + 128 - 1);
++}
+ 
++/* Counting wrapper: the yield of this predicate is the number that
++ * decides whether the analytic occluders are already doing the job a
++ * screen-space pre-pass would duplicate. */
++bool
++scene_occluders_column_hidden(
++    struct SceneOccluders* occ,
++    int level,
++    int x,
++    int z,
++    int model_min_y)
++{
++    bool hit;
++    g_scene_occluder_census.column_calls++;
++    hit = scene_occluders_column_hidden_impl(occ, level, x, z, model_min_y);
++    if( hit )
++        g_scene_occluder_census.column_hits++;
++    return hit;
++}
++#else
+ bool
+ scene_occluders_column_hidden(
+     struct SceneOccluders* occ,
+@@ -827,9 +1050,6 @@ scene_occluders_column_hidden(
+     assert(occ);
+     if( occ->active_count == 0 )
+         return false;
+-#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+-    g_scene_occluder_census.wall_calls++;
+-#endif
+     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
+         return false;
+     sx = x << 7;
+@@ -855,7 +1075,94 @@ scene_occluders_column_hidden(
+                scene_occluders_ground_height(occ, x, z + 1, level) - model_min_y,
+                sz + 128 - 1);
+ }
++#endif
++
++
++#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
++static bool
++scene_occluders_footprint_hidden_impl(
++    struct SceneOccluders* occ,
++    int level,
++    int sx,
++    int sz,
++    int size_x,
++    int size_z,
++    int model_min_y)
++{
++    int min_x;
++    int max_x;
++    int min_z;
++    int max_z;
++    int x;
++    int z;
++    int px;
++    int pz;
++    int y0;
++    int x1;
++    int z1;
++
++    assert(occ);
++    if( occ->active_count == 0 )
++        return false;
++
++    assert(size_x >= 1);
++    assert(size_z >= 1);
++    min_x = sx;
++    min_z = sz;
++    max_x = sx + size_x - 1;
++    max_z = sz + size_z - 1;
++
++    if( min_x != max_x || min_z != max_z )
++    {
++        for( x = min_x; x <= max_x; x++ )
++            for( z = min_z; z <= max_z; z++ )
++            {
++                int idx;
++                if( x < 0 || z < 0 || x >= occ->width || z >= occ->height )
++                    return false;
++                idx = tile_cycle_idx(occ, level, x, z);
++                if( occ->tile_cycle[idx] == -occ->frame_no )
++                    return false;
++            }
++
++        px = (min_x << 7) + 1;
++        pz = (min_z << 7) + 2;
++        y0 = scene_occluders_ground_height(occ, min_x, min_z, level) - model_min_y;
++        if( !scene_occluders_point_hidden(occ, px, y0, pz) )
++            return false;
++        x1 = (max_x << 7) - 1;
++        if( !scene_occluders_point_hidden(occ, x1, y0, pz) )
++            return false;
++        z1 = (max_z << 7) - 1;
++        if( !scene_occluders_point_hidden(occ, px, y0, z1) )
++            return false;
++        return scene_occluders_point_hidden(occ, x1, y0, z1);
++    }
++
++    return scene_occluders_column_hidden(occ, level, min_x, min_z, model_min_y);
++}
+ 
++/* Counting wrapper: the yield of this predicate is the number that
++ * decides whether the analytic occluders are already doing the job a
++ * screen-space pre-pass would duplicate. */
++bool
++scene_occluders_footprint_hidden(
++    struct SceneOccluders* occ,
++    int level,
++    int sx,
++    int sz,
++    int size_x,
++    int size_z,
++    int model_min_y)
++{
++    bool hit;
++    g_scene_occluder_census.footprint_calls++;
++    hit = scene_occluders_footprint_hidden_impl(occ, level, sx, sz, size_x, size_z, model_min_y);
++    if( hit )
++        g_scene_occluder_census.footprint_hits++;
++    return hit;
++}
++#else
+ bool
+ scene_occluders_footprint_hidden(
+     struct SceneOccluders* occ,
+@@ -918,3 +1225,5 @@ scene_occluders_footprint_hidden(
+ 
+     return scene_occluders_column_hidden(occ, level, min_x, min_z, model_min_y);
+ }
++#endif
++
+diff --git a/src/painters/scene_occluders.h b/src/painters/scene_occluders.h
+index eefcf315d..78aad0d18 100644
+--- a/src/painters/scene_occluders.h
++++ b/src/painters/scene_occluders.h
+@@ -256,6 +256,18 @@ struct SceneOccluderCensus
+     unsigned long long tile_calls;
+     unsigned long long tile_cached;
+     unsigned long long wall_calls;
++    /**
++     * Decision-level counters. The visit counters above size the COST of the
++     * analytic occluder system; these size its YIELD -- how often a painter
++     * question ("is this scenery hidden?") actually comes back yes and so
++     * removes a whole draw command. Nobody had measured that at eye level.
++     */
++    unsigned long long tile_hits;
++    unsigned long long wall_hits;
++    unsigned long long column_calls;
++    unsigned long long column_hits;
++    unsigned long long footprint_calls;
++    unsigned long long footprint_hits;
+     unsigned long long frames;
+     unsigned long long active_sum;
+     unsigned int active_max;
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..29ff2978f 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -899,6 +899,236 @@ draw_trace_min_vertices(void)
+     return cached;
+ }
+ 
++#if defined(TORIDRAW_CMDCULL_CENSUS) && TORIDRAW_CMDCULL_CENSUS
++/*
++ * Whole-command rejection, measured but NOT acted on.
++ *
++ * The question this answers, and which no existing counter does: if the
++ * renderer walked the command buffer front-to-back and dropped every command
++ * whose screen AABB was already fully covered, how many commands would go?
++ * A dropped command takes its projection, its face sort, its span setup and
++ * its fill with it, so the answer scales the whole share of frame that the two
++ * raster kernels plus the sorter occupy.
++ *
++ * Two variants are counted because they bracket the truth:
++ *
++ *   opt   coverage is stamped from every cell a drawn command's AABB TOUCHES.
++ *         A model does not fill its AABB, so this over-states coverage; it is
++ *         an upper bound on what any AABB-granular scheme can ever reach, and
++ *         therefore the number that kills the route if it comes back small.
++ *   cons  coverage is stamped only from the cells an AABB covers ENTIRELY.
++ *         Still optimistic -- the model does not fill those cells either --
++ *         but it is the tighter of the two bounds.
++ *
++ * Rejection in both variants requires every cell the candidate AABB touches to
++ * be covered, which is the conservative direction.
++ *
++ * Counting only: commands are recorded as they draw and the backwards walk
++ * runs at END_3D, so the rendered frame is identical to the uninstrumented
++ * build.
++ */
++#define CMDCULL_MAX_CMDS 8192
++#define CMDCULL_CELL_SHIFT 3
++#define CMDCULL_MAX_CELLS 8192
++
++struct CmdCullRec
++{
++    short min_x;
++    short min_y;
++    short max_x;
++    short max_y;
++    int faces;
++};
++
++static struct CmdCullRec g_cmdcull_rec[CMDCULL_MAX_CMDS];
++static int g_cmdcull_n;
++static unsigned char g_cmdcull_opt[CMDCULL_MAX_CELLS];
++static unsigned char g_cmdcull_cons[CMDCULL_MAX_CELLS];
++
++static struct
++{
++    unsigned long long frames;
++    unsigned long long cmds;
++    unsigned long long culled;
++    unsigned long long sort_empty;
++    unsigned long long drawn;
++    unsigned long long faces;
++    unsigned long long overflow;
++    unsigned long long opt_hidden;
++    unsigned long long opt_hidden_faces;
++    unsigned long long cons_hidden;
++    unsigned long long cons_hidden_faces;
++    /* Extent of the 8-point AABB for the models that sort to zero faces, so
++     * the "43.6 models project and sort and draw nothing" line can be blamed
++     * on -- or cleared of -- a degenerate screen box. */
++    unsigned long long empty_w[6];
++    unsigned long long empty_h[6];
++} g_cmdcull;
++
++static int
++cmdcull_bucket(int v)
++{
++    if( v <= 0 )
++        return 0;
++    if( v == 1 )
++        return 1;
++    if( v == 2 )
++        return 2;
++    if( v < 4 )
++        return 3;
++    if( v < 8 )
++        return 4;
++    return 5;
++}
++
++static void
++cmdcull_dump(void)
++{
++    const char* path = getenv("TORIDRAW_CMDCULL_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    double frames = (double)(g_cmdcull.frames ? g_cmdcull.frames : 1);
++    double drawn = (double)(g_cmdcull.drawn ? g_cmdcull.drawn : 1);
++    double faces = (double)(g_cmdcull.faces ? g_cmdcull.faces : 1);
++    int i;
++
++    assert(f);
++    fprintf(f, "command-cull census over %llu frames\n", g_cmdcull.frames);
++    fprintf(f, "  model commands       %.1f/frame\n", (double)g_cmdcull.cmds / frames);
++    fprintf(f, "  projection-culled    %.1f/frame\n", (double)g_cmdcull.culled / frames);
++    fprintf(f, "  sorted to zero faces %.1f/frame\n",
++            (double)g_cmdcull.sort_empty / frames);
++    fprintf(f, "  rasterizing          %.1f/frame  (%.1f faces/frame)\n",
++            drawn / frames, faces / frames);
++    fprintf(f, "  record overflow      %llu\n", g_cmdcull.overflow);
++    fprintf(f, "  OPT  fully covered   %llu (%.2f%% of rasterizing, %.2f%% of faces)\n",
++            g_cmdcull.opt_hidden, 100.0 * (double)g_cmdcull.opt_hidden / drawn,
++            100.0 * (double)g_cmdcull.opt_hidden_faces / faces);
++    fprintf(f, "  CONS fully covered   %llu (%.2f%% of rasterizing, %.2f%% of faces)\n",
++            g_cmdcull.cons_hidden, 100.0 * (double)g_cmdcull.cons_hidden / drawn,
++            100.0 * (double)g_cmdcull.cons_hidden_faces / faces);
++    fprintf(f, "  sort-empty AABB width  buckets (0,1,2,3,4-7,8+):");
++    for( i = 0; i < 6; i++ )
++        fprintf(f, " %llu", g_cmdcull.empty_w[i]);
++    fprintf(f, "\n  sort-empty AABB height buckets (0,1,2,3,4-7,8+):");
++    for( i = 0; i < 6; i++ )
++        fprintf(f, " %llu", g_cmdcull.empty_h[i]);
++    fprintf(f, "\n");
++    if( path )
++        fclose(f);
++}
++
++static void
++cmdcull_arm(void)
++{
++    static int armed;
++    if( armed )
++        return;
++    armed = 1;
++    atexit(cmdcull_dump);
++}
++
++static void
++cmdcull_record(struct ToriRS_Soft3D* soft, int faces)
++{
++    struct CmdCullRec* r;
++    const struct ToriDraw_AABB* a = &soft->scene->aabb;
++
++    if( g_cmdcull_n >= CMDCULL_MAX_CMDS )
++    {
++        g_cmdcull.overflow++;
++        return;
++    }
++    r = &g_cmdcull_rec[g_cmdcull_n++];
++    r->min_x = (short)(a->min_screen_x < -4096 ? -4096 : a->min_screen_x);
++    r->min_y = (short)(a->min_screen_y < -4096 ? -4096 : a->min_screen_y);
++    r->max_x = (short)(a->max_screen_x > 4096 ? 4096 : a->max_screen_x);
++    r->max_y = (short)(a->max_screen_y > 4096 ? 4096 : a->max_screen_y);
++    r->faces = faces;
++}
++
++static void
++cmdcull_flush(struct ToriRS_Soft3D* soft)
++{
++    int w = soft->view_port_3d.width;
++    int h = soft->view_port_3d.height;
++    int cw = (w + 7) >> CMDCULL_CELL_SHIFT;
++    int ch = (h + 7) >> CMDCULL_CELL_SHIFT;
++    int i;
++
++    cmdcull_arm();
++    g_cmdcull.frames++;
++    if( cw <= 0 || ch <= 0 || cw * ch > CMDCULL_MAX_CELLS )
++    {
++        g_cmdcull_n = 0;
++        return;
++    }
++    memset(g_cmdcull_opt, 0, (size_t)(cw * ch));
++    memset(g_cmdcull_cons, 0, (size_t)(cw * ch));
++
++    /* Backwards over the recorded draw order is front-to-back. */
++    for( i = g_cmdcull_n - 1; i >= 0; i-- )
++    {
++        struct CmdCullRec* r = &g_cmdcull_rec[i];
++        int x0 = r->min_x < 0 ? 0 : r->min_x;
++        int y0 = r->min_y < 0 ? 0 : r->min_y;
++        int x1 = r->max_x >= w ? w - 1 : r->max_x;
++        int y1 = r->max_y >= h ? h - 1 : r->max_y;
++        int cx0;
++        int cx1;
++        int cy0;
++        int cy1;
++        int cx;
++        int cy;
++        int opt_cov = 1;
++        int cons_cov = 1;
++
++        if( x1 < x0 || y1 < y0 )
++            continue;
++        cx0 = x0 >> CMDCULL_CELL_SHIFT;
++        cx1 = x1 >> CMDCULL_CELL_SHIFT;
++        cy0 = y0 >> CMDCULL_CELL_SHIFT;
++        cy1 = y1 >> CMDCULL_CELL_SHIFT;
++
++        for( cy = cy0; cy <= cy1 && (opt_cov || cons_cov); cy++ )
++            for( cx = cx0; cx <= cx1; cx++ )
++            {
++                if( !g_cmdcull_opt[cy * cw + cx] )
++                    opt_cov = 0;
++                if( !g_cmdcull_cons[cy * cw + cx] )
++                    cons_cov = 0;
++                if( !opt_cov && !cons_cov )
++                    break;
++            }
++        if( opt_cov )
++        {
++            g_cmdcull.opt_hidden++;
++            g_cmdcull.opt_hidden_faces += (unsigned)r->faces;
++        }
++        if( cons_cov )
++        {
++            g_cmdcull.cons_hidden++;
++            g_cmdcull.cons_hidden_faces += (unsigned)r->faces;
++        }
++
++        for( cy = cy0; cy <= cy1; cy++ )
++            for( cx = cx0; cx <= cx1; cx++ )
++                g_cmdcull_opt[cy * cw + cx] = 1;
++
++        /* Interior cells only: cell c spans pixels [8c, 8c+7]. */
++        {
++            int ix0 = (x0 + 7) >> CMDCULL_CELL_SHIFT;
++            int iy0 = (y0 + 7) >> CMDCULL_CELL_SHIFT;
++            int ix1 = x1 >= 7 ? (x1 - 7) >> CMDCULL_CELL_SHIFT : -1;
++            int iy1 = y1 >= 7 ? (y1 - 7) >> CMDCULL_CELL_SHIFT : -1;
++            for( cy = iy0; cy <= iy1; cy++ )
++                for( cx = ix0; cx <= ix1; cx++ )
++                    g_cmdcull_cons[cy * cw + cx] = 1;
++        }
++    }
++    g_cmdcull_n = 0;
++}
++#endif
++
+ static void
+ soft3d_draw_model(
+     struct ToriRS_Soft3D* soft,
+@@ -916,6 +1146,9 @@ soft3d_draw_model(
+     if( cmd->model.kind == TORIDRAWMK_NONE )
+         return;
+ 
++#if defined(TORIDRAW_CMDCULL_CENSUS) && TORIDRAW_CMDCULL_CENSUS
++    g_cmdcull.cmds++;
++#endif
+     if( cmd->animation && cmd->element_id >= 0 )
+         ToriDraw_SceneElementApplyAnimation(
+             soft->scene, cmd->element_id, cmd->anim_index == 0, cmd->anim_frame);
+@@ -966,6 +1199,9 @@ soft3d_draw_model(
+     if( cull != TORIDRAW_CULL_VISIBLE )
+     {
+         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_CULLED, 1);
++#if defined(TORIDRAW_CMDCULL_CENSUS) && TORIDRAW_CMDCULL_CENSUS
++        g_cmdcull.culled++;
++#endif
+         return;
+     }
+ 
+@@ -1017,6 +1253,21 @@ soft3d_draw_model(
+          * `sorted <= 0` is work spent for no pixels and wants its own name. */
+         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
+         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
++#if defined(TORIDRAW_CMDCULL_CENSUS) && TORIDRAW_CMDCULL_CENSUS
++        if( sorted <= 0 )
++        {
++            const struct ToriDraw_AABB* a = &soft->scene->aabb;
++            g_cmdcull.sort_empty++;
++            g_cmdcull.empty_w[cmdcull_bucket(a->max_screen_x - a->min_screen_x)]++;
++            g_cmdcull.empty_h[cmdcull_bucket(a->max_screen_y - a->min_screen_y)]++;
++        }
++        else
++        {
++            g_cmdcull.drawn++;
++            g_cmdcull.faces += (unsigned)sorted;
++            cmdcull_record(soft, sorted);
++        }
++#endif
+         if( sorted <= 0 )
+         {
+             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
+@@ -1083,6 +1334,9 @@ ToriRS_Soft3D_Execute(
+         break;
+ 
+     case TORIRSRC_END_3D:
++#if defined(TORIDRAW_CMDCULL_CENSUS) && TORIDRAW_CMDCULL_CENSUS
++        cmdcull_flush(soft);
++#endif
+         ToriDraw_SceneClearProjectionCamera(soft->scene);
+         soft->has_3d = false;
+         break;

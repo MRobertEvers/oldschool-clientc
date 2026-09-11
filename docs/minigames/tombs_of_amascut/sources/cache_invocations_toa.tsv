@@ -1,0 +1,51 @@
+# Tombs of Amascut invocations, decoded from cache.osrs239 all.struct.
+# struct params: 1159 index, 1160 name, 1161 category, 1162 raid-level,
+# 1299 numeric argument, 1346 prerequisite struct, 1297/1298 sprites,
+# 1262 in-game description.
+index	struct	name	category	raid_level	arg	prereq_struct	sprite_off	sprite_on	description
+1	417	Try Again	3	5	10		4592	4616	Limits the overall number of attempts that can be made within the raid to 10. An attempt is failed if every member of the party dies during a challenge.
+2	418	Persistence	3	10	5		4592	4616	Limits the overall number of attempts that can be made within the raid to 5. An attempt is failed if every member of the party dies during a challenge.
+3	419	Softcore Run	3	15	3		4592	4616	Limits the overall number of attempts that can be made within the raid to 3. An attempt is failed if every member of the party dies during a challenge.
+4	420	Hardcore Run	3	25	1		4592	4616	Limits the overall number of attempts that can be made within the raid to 1. An attempt is failed if every member of the party dies during a challenge.
+5	421	Walk for It	4	10	4000		4593	4617	Sets a 40 minute time limit on the raid. If the time is achieved, the raid level is increased. Otherwise, the raid level is decreased.
+6	422	Jog for It	4	15	3500		4593	4617	Sets a 35 minute time limit on the raid. If the time is achieved, the raid level is increased. Otherwise, the raid level is decreased.
+7	423	Run for It	4	20	3000		4593	4617	Sets a 30 minute time limit on the raid. If the time is achieved, the raid level is increased. Otherwise, the raid level is decreased.
+8	424	Sprint for It	4	25	2500		4593	4617	Sets a 25 minute time limit on the raid. If the time is achieved, the raid level is increased. Otherwise, the raid level is decreased.
+9	425	Need Some Help?	5	15	66		4594	4618	The quantity of items offered by the helpful spirit will be reduced to 66%.
+10	426	Need Less Help?	5	25	33		4594	4618	The quantity of items offered by the helpful spirit will be reduced to 33%.
+11	427	No Help Needed	5	40	10		4594	4618	The quantity of items offered by the helpful spirit will be reduced to 10%.
+12	428	Walk the Path	9	50			4598	4622	Completing a path during the raid will cause other paths to level up, increasing enemy hitpoints and damage. For every two path levels, bosses will gain more potent special attacks.
+13	429	Pathseeker	6	15	1		4595	4619	All paths will level up once upon entering the raid, increasing enemy hitpoints and damage.
+14	430	Pathfinder	6	40	2		4595	4619	All paths will level up twice upon entering the raid, increasing enemy hitpoints and damage further. Bosses will gain more potent special attacks.
+15	431	Pathmaster	6	50	3		4595	4619	All paths will level up three times upon entering the raid, increasing enemy hitpoints and damage even further. Bosses will gain more potent special attacks.
+16	432	Quiet Prayers	7	20	10		4596	4620	Protection prayers will be 10% less effective within the raid.
+17	433	Deadly Prayers	7	20			4596	4620	Prayer is drained by 20% of damage taken.
+18	434	On a Diet	8	15			4603	4627	Food and other healing items will no longer heal you within the raid (with the exception of potions that restore health).
+19	435	Dehydration	8	30			4597	4621	Potions that restore health will no longer have an effect within the raid.
+20	436	Overly Draining	8	15			4604	4628	All special attacks use 100% of your special attack energy.
+21	437	Lively Larvae	11	5			4587	4611	Kephri will double the number of eggs containing an Agile Scarab during her egg attack.
+22	438	More Overlords	11	15			4587	4611	During healing phases, Kephri will summon an additional scarab.
+23	439	Blowing Mud	11	10			4587	4611	Kephri's dung special will be twice as potent.
+24	440	Medic!	11	15			4587	4611	Kephri will have continuous shield scarab spawns.
+25	441	Aerial Assault	11	10			4587	4611	Kephri's main attack will do significantly more damage and hit a larger area.
+26	442	Not Just a Head	12	15			4590	4614	Zebak will gain access to blood magic, casting Blood barrage and summoning blood clouds, healing Zebak when they damage players.
+27	444	Arterial Spray	12	10		442	4590	4614	The radius and healing of Zebak's blood magic will be increased.
+28	445	Blood Thinners	12	5		442	4590	4614	Zebak's blood magic spawns will be split into three and their health is increased.
+29	447	Upset Stomach	12	15			4590	4614	Zebak's acid pools will have increased spread and jugs will be less effective.
+30	448	Double Trouble	10	20			4588	4612	Akkha will do two special attacks at once.
+31	449	Keep Back	10	10			4588	4612	Akkha's ranged and magic attacks will also do melee damage to anyone next to him.
+32	542	Stay Vigilant	10	15			4588	4612	Akkha will randomly swap between attack styles and protection prayers rather than at set intervals.
+33	543	Feeling Special?	10	20			4588	4612	Akkha's detonate special attack will trigger in more directions, his memory special attack will be faster and his trail special attack will spawn additional orbs.
+34	603	Mind the Gap!	13	10			4589	4613	The pit at the entrance to Ba-Ba's room will be a lethal fall.
+35	752	Gotta Have Faith	13	10			4589	4613	Ba-Ba's sarcophagus energy will deal bonus damage based on how many prayer points you're missing.
+36	949	Jungle Japes	13	5			4589	4613	Ba-Ba's baboons will drop banana peels on the floor on death.
+37	1275	Shaking Things Up	13	10			4589	4613	The shockwave from Ba-Ba's slam will damage a wider area.
+38	1276	Boulderdash	13	10			4589	4613	Ba-Ba's rolling boulders will spawn faster.
+39	1278	Ancient Haste	14	10			4591	4615	The Wardens will charge at a faster rate in the first phase of the fight.
+40	1688	Acceleration	14	10			4591	4615	The Wardens will attack quicker and the obelisk will charge at a faster rate in the second phase of the fight.
+41	2874	Penetration	14	10			4591	4615	The Wardens obelisk attacks will be significantly more potent in the second phase of the fight.
+42	2933	Overclocked	14	10			4591	4615	The Wardens will attack faster in the final phase of the fight. Can be stacked with Overclocked 2.
+43	2934	Overclocked 2	14	10		2933	4591	4615	The Wardens will attack faster in the final phase of the fight. Can be stacked with Overclocked.
+44	2971	Insanity	14	50		2934	4591	4615	The Wardens will become unstoppable. Floor slams are more frequent, phantoms attack faster, and tiles are removed more frequently during their final phase.
+45	5892	Blazing Tombs I	15	200			4592	4616	An extra challenge for those most in tune with their Event rewards. Requires at least raid level 300.
+46	5893	Blazing Tombs II	15	200			4592	4616	An extra challenge for those most in tune with their Event rewards. Requires at least raid level 300.

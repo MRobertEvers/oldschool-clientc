@@ -1,0 +1,43 @@
+{{Infobox Spell
+|name = Shadow Veil
+|image = [[File:Shadow Veil.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 47
+|spellbook = Arceuus
+|type = Utility
+|exp = 58
+|cost = {{RuneReq|Earth=5|Fire=5|Cosmic=5}}
+|speed = 1
+|cooldown = 50 ticks
+|quest = [[A Kingdom Divided]]
+|description = Reduces your chance of being caught when pickpocketing
+|anim = [[File:Shadow Veil.gif|180px]]
+|sound = [[File:Shadow Veil.ogg]]
+}}
+[[File:Shadow Veil icon (mobile).png|left]]
+'''Shadow Veil''' is a [[utility spell]] in the [[Arceuus spellbook]] that requires 47 [[Magic]] and completion of [[A Kingdom Divided]] [[quest]] to be cast. The spell grants the caster a 15% chance to avoid being [[Stun (status)|stunned]] and damaged while [[pickpocketing]] [[NPC]]s. This stacks multiplicatively with the [[dodgy necklace]], where Shadow Veil will attempt to avoid the stun first for a total of 36.25% chance to not take damage from a failed pickpocket.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1408410617623498757|date=25 June 2021|archiveurl=https://archive.is/UeTyL|archivedate=25 June 2021|quote=The Veil tries first, with its 15% roll. If it succeeds, the NPC doesn't shout.
+If that fails, the NPC shouts, and then the necklace does its 25% roll.
+So your chance of dodging the penalty is indeed the 36.25% you calculated, and you can see which one happened to you.}} The spell does not affect the success rate of [[blackjacking]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1429717207647494145|archiveurl=https://archive.is/zh6Rr|archivedate=28 August 2021|date=23 August 2021|quote=It does not help with that.}}
+
+==Duration==
+The effects of the spell remain active for a duration (<math>0.6 * Y</math> seconds), where <math>Y</math> is the player's base Magic level at the time of casting.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1633128131325198338|date=7 March 2023|archiveurl=https://archive.ph/3SEoh|archivedate=7 March 2023|quote=It's looking at your base Magic level, so no. I didn't see a cap in its code, other than the limit of 99 for a base level (which would give you about 60 secs as you say).}} [[Temporary skill boost]]s will not extend the spell's duration, and it can only be cast once every 30 seconds. At 50 Magic, there is a 100% uptime if cast immediately after the spell is available.
+
+{{Chart data|Chart data/shadow veil|scatter}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 5
+|Rune2 = fire
+|Rune2num = 5
+|Rune3 = cosmic
+|Rune3num = 5
+}}
+
+==References==
+{{Reflist}}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

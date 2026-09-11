@@ -1,0 +1,53 @@
+# camera_small.png -- the same camera, cut down to a chat button.
+#
+# camera.txt's icon is 28x26, which is right for a control floating in a
+# corner of the scene and two rows too tall for the row of buttons under the
+# chatbox: a report button is 22 rows on an OldSchool frame and 23 on the
+# plate the gameframe composes, so the big icon lands with its flash and its
+# base sheared off by the clip. This one is 20x16 -- 14 rows of ink with a
+# row of margin either side of it inside the plate.
+#
+# Same palette as camera.txt, and deliberately the same drawing rather than a
+# smaller camera of its own: flash left, shutter right, lens centred, light
+# from the upper left. What is lost at this size is detail and not shape --
+# the flash reflector is one lit row, the barrel is two rings instead of
+# three -- so the two read as one icon at two sizes.
+#
+# '.' is transparent. SOURCES.sh bakes this file into camera_small.png; edit
+# here, not there.
+
+palette
+  k 0b0c09  lens glass, darkest
+  j 161514  lens glass / barrel shadow
+  i 262523  body shadow, lower-right
+  h 35312c  body shade
+  g 48423b  body
+  f 56504a  body, lit
+  e 666460  barrel, lit
+  d 786f61  body highlight
+  c 9c9899  top plate and bright edge
+  b b3a995  flash housing, warm light
+  a cac9c9  lens glint
+  A dad9d5  flash reflector
+  W fefefd  specular, flash core and lens glint
+  R 8d1414  shutter button
+  r 7a1312  shutter button, shade
+  P ca4244  shutter button, lit
+
+art
+  ....................
+  ....cccc............
+  ...cAWWAc....rPPr...
+  ...cAAAAc....PPPP...
+  ....cbbc.....RRRR...
+  ..cccccccccccccccc..
+  ..cddddddddddddddi..
+  ..cdiiiffhehgggggi..
+  ..cdiiifejjjeggggi..
+  ..cdfffejakkjegggi..
+  ..cffffejkkkjegggi..
+  ..cfffffejjjeggggi..
+  ..cffffffeeegggggi..
+  ...ggggggggggggggi..
+  ...iiiiiiiiiiiii....
+  ....................

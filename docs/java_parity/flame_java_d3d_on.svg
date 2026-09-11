@@ -1,0 +1,1892 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="293" viewBox="0 0 1200 293" font-family="Verdana,DejaVu Sans,sans-serif">
+<style>rect{stroke:#1116;stroke-width:.4}text{pointer-events:none}g:hover rect{stroke:#000;stroke-width:1}</style>
+<rect x="0" y="0" width="1200" height="293" fill="#f7f7f7"/>
+<text x="600" y="24" text-anchor="middle" font-size="15" font-weight="bold" fill="#1a1a1a">Java client - in-world frame (D3D enabled)</text>
+<text x="600" y="42" text-anchor="middle" font-size="11" fill="#555">hprof cpu=samples interval=10 depth=12; AWT idle pump and title-screen/boot stacks excluded. Poll-density biased - see README section 3.4</text>
+<g><title>all
+1466 samples, 100.00% of shown work</title><rect x="10.00" y="56" width="1180.00" height="16" fill="#909090" rx="1"/>
+<text x="13.00" y="67" font-size="10" fill="#111">all</text>
+</g>
+<g><title>java.lang.Thread.run
+1229 samples, 83.83% of shown work</title><rect x="10.00" y="73" width="989.24" height="16" fill="#9c6fa8" rx="1"/>
+<text x="13.00" y="84" font-size="10" fill="#111">run</text>
+</g>
+<g><title>jagex2.client.Client.run
+1192 samples, 81.31% of shown work</title><rect x="10.00" y="90" width="959.45" height="16" fill="#8a8f98" rx="1"/>
+<text x="13.00" y="101" font-size="10" fill="#111">run</text>
+</g>
+<g><title>jagex2.client.GameShell.run
+1192 samples, 81.31% of shown work</title><rect x="10.00" y="107" width="959.45" height="16" fill="#8a8f98" rx="1"/>
+<text x="13.00" y="118" font-size="10" fill="#111">run</text>
+</g>
+<g><title>jagex2.client.Client.mainredraw
+1030 samples, 70.26% of shown work</title><rect x="10.00" y="124" width="829.06" height="16" fill="#8a8f98" rx="1"/>
+<text x="13.00" y="135" font-size="10" fill="#111">mainredraw</text>
+</g>
+<g><title>jagex2.client.Client.gameDraw
+1027 samples, 70.05% of shown work</title><rect x="10.00" y="141" width="826.64" height="16" fill="#8a8f98" rx="1"/>
+<text x="13.00" y="152" font-size="10" fill="#111">gameDraw</text>
+</g>
+<g><title>jagex2.client.Client.gameDrawMain
+1022 samples, 69.71% of shown work</title><rect x="10.00" y="158" width="822.62" height="16" fill="#8a8f98" rx="1"/>
+<text x="13.00" y="169" font-size="10" fill="#111">gameDrawMain</text>
+</g>
+<g><title>jagex2.graphics.Pix2D.cls
+955 samples, 65.14% of shown work</title><rect x="10.00" y="175" width="768.69" height="16" fill="#d6a13a" rx="1"/>
+<text x="13.00" y="186" font-size="10" fill="#111">cls</text>
+</g>
+<g><title>jagex2.client.Client.addPlayers
+18 samples, 1.23% of shown work</title><rect x="778.69" y="175" width="14.49" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.addDynamic
+9 samples, 0.61% of shown work</title><rect x="778.69" y="192" width="7.24" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.setSprite
+8 samples, 0.55% of shown work</title><rect x="778.69" y="209" width="6.44" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.getAvH
+1 samples, 0.07% of shown work</title><rect x="785.93" y="192" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.addNpcs
+15 samples, 1.02% of shown work</title><rect x="793.18" y="175" width="12.07" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.addDynamic
+6 samples, 0.41% of shown work</title><rect x="793.18" y="192" width="4.83" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.setSprite
+4 samples, 0.27% of shown work</title><rect x="793.18" y="209" width="3.22" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.getAvH
+4 samples, 0.27% of shown work</title><rect x="798.01" y="192" width="3.22" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ClientNpc.isReady
+2 samples, 0.14% of shown work</title><rect x="801.23" y="192" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.camFollow
+12 samples, 0.82% of shown work</title><rect x="805.25" y="175" width="9.66" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.roofCheck
+6 samples, 0.41% of shown work</title><rect x="814.91" y="175" width="4.83" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.renderAll
+6 samples, 0.41% of shown work</title><rect x="819.74" y="175" width="4.83" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.method90
+6 samples, 0.41% of shown work</title><rect x="819.74" y="192" width="4.83" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.worldRender
+4 samples, 0.27% of shown work</title><rect x="819.74" y="209" width="3.22" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.render2
+3 samples, 0.20% of shown work</title><rect x="819.74" y="226" width="2.41" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.render3
+2 samples, 0.14% of shown work</title><rect x="819.74" y="243" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.textureTriangle
+1 samples, 0.07% of shown work</title><rect x="819.74" y="260" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.flatTriangle
+1 samples, 0.07% of shown work</title><rect x="820.55" y="260" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.renderQuickGround
+1 samples, 0.07% of shown work</title><rect x="822.96" y="209" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.textureTriangle
+1 samples, 0.07% of shown work</title><rect x="822.96" y="226" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.getTexels
+1 samples, 0.07% of shown work</title><rect x="822.96" y="243" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.otherOverlays
+3 samples, 0.20% of shown work</title><rect x="824.57" y="175" width="2.41" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.drawInterface
+3 samples, 0.20% of shown work</title><rect x="824.57" y="192" width="2.41" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.clientComponent
+1 samples, 0.07% of shown work</title><rect x="824.57" y="209" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="824.57" y="226" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.addPoint
+1 samples, 0.07% of shown work</title><rect x="824.57" y="243" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.graphics.Pix32.plotSprite
+1 samples, 0.07% of shown work</title><rect x="825.38" y="209" width="0.80" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>jagex2.graphics.Pix32.plot
+1 samples, 0.07% of shown work</title><rect x="825.38" y="226" width="0.80" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.addProjectiles
+1 samples, 0.07% of shown work</title><rect x="826.98" y="175" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.entityOverlays
+1 samples, 0.07% of shown work</title><rect x="827.79" y="175" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.minimapDraw
+2 samples, 0.14% of shown work</title><rect x="832.62" y="158" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.graphics.Pix32.scanlineRotatePlotSprite
+1 samples, 0.07% of shown work</title><rect x="832.62" y="175" width="0.80" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mainloop
+159 samples, 10.85% of shown work</title><rect x="839.06" y="124" width="127.98" height="16" fill="#8a8f98" rx="1"/>
+<text x="842.06" y="135" font-size="10" fill="#111">mainloop</text>
+</g>
+<g><title>jagex2.client.Client.gameLoop
+155 samples, 10.57% of shown work</title><rect x="839.06" y="141" width="124.76" height="16" fill="#8a8f98" rx="1"/>
+<text x="842.06" y="152" font-size="10" fill="#111">gameLoop</text>
+</g>
+<g><title>jagex2.io.ClientStream.write
+55 samples, 3.75% of shown work</title><rect x="839.06" y="158" width="44.27" height="16" fill="#4f8fc9" rx="1"/>
+<text x="842.06" y="169" font-size="10" fill="#111">write</text>
+</g>
+<g><title>jagex2.client.Client.tcpIn
+38 samples, 2.59% of shown work</title><rect x="883.33" y="158" width="30.59" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.io.ClientStream.available
+20 samples, 1.36% of shown work</title><rect x="883.33" y="175" width="16.10" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketInputStream.available
+20 samples, 1.36% of shown work</title><rect x="883.33" y="192" width="16.10" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.AbstractPlainSocketImpl.available
+17 samples, 1.16% of shown work</title><rect x="883.33" y="209" width="13.68" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.TwoStacksPlainSocketImpl.socketAvailable
+10 samples, 0.68% of shown work</title><rect x="883.33" y="226" width="8.05" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.TwoStacksPlainSocketImpl.isClosedOrPending
+2 samples, 0.14% of shown work</title><rect x="891.38" y="226" width="1.61" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.AbstractPlainSocketImpl.isConnectionReset
+2 samples, 0.14% of shown work</title><rect x="892.99" y="226" width="1.61" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>jagex2.io.ClientStream.read
+8 samples, 0.55% of shown work</title><rect x="899.43" y="175" width="6.44" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketInputStream.read
+6 samples, 0.41% of shown work</title><rect x="899.43" y="192" width="4.83" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketInputStream.read
+6 samples, 0.41% of shown work</title><rect x="899.43" y="209" width="4.83" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketInputStream.socketRead
+2 samples, 0.14% of shown work</title><rect x="899.43" y="226" width="1.61" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketInputStream.socketRead0
+2 samples, 0.14% of shown work</title><rect x="899.43" y="243" width="1.61" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.AbstractPlainSocketImpl.releaseFD
+1 samples, 0.07% of shown work</title><rect x="901.04" y="226" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.AbstractPlainSocketImpl.acquireFD
+1 samples, 0.07% of shown work</title><rect x="901.84" y="226" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.clientVar
+3 samples, 0.20% of shown work</title><rect x="905.87" y="175" width="2.41" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.initColourTable
+3 samples, 0.20% of shown work</title><rect x="905.87" y="192" width="2.41" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.getNpcPos
+1 samples, 0.07% of shown work</title><rect x="908.28" y="175" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.getNpcPosOldVis
+1 samples, 0.07% of shown work</title><rect x="908.28" y="192" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.moveNpcs
+12 samples, 0.82% of shown work</title><rect x="913.92" y="158" width="9.66" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.moveEntity
+10 samples, 0.68% of shown work</title><rect x="913.92" y="175" width="8.05" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.routeMove
+3 samples, 0.20% of shown work</title><rect x="913.92" y="192" width="2.41" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.entityAnim
+2 samples, 0.14% of shown work</title><rect x="916.33" y="192" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.config.SeqType.getDelay
+1 samples, 0.07% of shown work</title><rect x="916.33" y="209" width="0.80" height="16" fill="#6f7680" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.entityFace
+2 samples, 0.14% of shown work</title><rect x="917.94" y="192" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.lang.Math.atan2
+1 samples, 0.07% of shown work</title><rect x="917.94" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.movePlayers
+10 samples, 0.68% of shown work</title><rect x="923.57" y="158" width="8.05" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.moveEntity
+8 samples, 0.55% of shown work</title><rect x="923.57" y="175" width="6.44" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.entityAnim
+5 samples, 0.34% of shown work</title><rect x="923.57" y="192" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.config.SeqType.getDelay
+1 samples, 0.07% of shown work</title><rect x="923.57" y="209" width="0.80" height="16" fill="#6f7680" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.entityFace
+2 samples, 0.14% of shown work</title><rect x="927.60" y="192" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.followCamera
+8 samples, 0.55% of shown work</title><rect x="931.62" y="158" width="6.44" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.getAvH
+4 samples, 0.27% of shown work</title><rect x="931.62" y="175" width="3.22" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.checkMinimap
+7 samples, 0.48% of shown work</title><rect x="938.06" y="158" width="5.63" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.checkScene
+5 samples, 0.34% of shown work</title><rect x="938.06" y="175" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mapBuild
+5 samples, 0.34% of shown work</title><rect x="938.06" y="192" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.lang.System.gc
+3 samples, 0.20% of shown work</title><rect x="938.06" y="209" width="2.41" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Runtime.gc
+3 samples, 0.20% of shown work</title><rect x="938.06" y="226" width="2.41" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.initPool
+1 samples, 0.07% of shown work</title><rect x="940.48" y="209" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.showObject
+1 samples, 0.07% of shown work</title><rect x="941.28" y="209" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.delObj
+1 samples, 0.07% of shown work</title><rect x="941.28" y="226" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mouseLoop
+6 samples, 0.41% of shown work</title><rect x="943.70" y="158" width="4.83" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.iconLoop
+2 samples, 0.14% of shown work</title><rect x="948.53" y="158" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.locChangeDoQueue
+2 samples, 0.14% of shown work</title><rect x="950.14" y="158" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.handleInputKey
+2 samples, 0.14% of shown work</title><rect x="951.75" y="158" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.pollKey
+1 samples, 0.07% of shown work</title><rect x="951.75" y="175" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.timeoutChat
+1 samples, 0.07% of shown work</title><rect x="953.36" y="158" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.minimapLoop
+1 samples, 0.07% of shown work</title><rect x="954.16" y="158" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.soundsDoQueue
+1 samples, 0.07% of shown work</title><rect x="954.97" y="158" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.chatModeLoop
+1 samples, 0.07% of shown work</title><rect x="955.77" y="158" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.onDemandLoop
+2 samples, 0.14% of shown work</title><rect x="963.82" y="141" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.shutdown
+2 samples, 0.14% of shown work</title><rect x="967.04" y="124" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mainquit
+1 samples, 0.07% of shown work</title><rect x="967.04" y="141" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.lang.System.gc
+1 samples, 0.07% of shown work</title><rect x="967.04" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Runtime.gc
+1 samples, 0.07% of shown work</title><rect x="967.04" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.System.exit
+1 samples, 0.07% of shown work</title><rect x="967.84" y="141" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Runtime.exit
+1 samples, 0.07% of shown work</title><rect x="967.84" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.exit
+1 samples, 0.07% of shown work</title><rect x="967.84" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.halt
+1 samples, 0.07% of shown work</title><rect x="967.84" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.halt0
+1 samples, 0.07% of shown work</title><rect x="967.84" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>jagex2.io.ClientStream.run
+24 samples, 1.64% of shown work</title><rect x="969.45" y="90" width="19.32" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketOutputStream.write
+24 samples, 1.64% of shown work</title><rect x="969.45" y="107" width="19.32" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketOutputStream.socketWrite
+24 samples, 1.64% of shown work</title><rect x="969.45" y="124" width="19.32" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.SocketOutputStream.socketWrite0
+23 samples, 1.57% of shown work</title><rect x="969.45" y="141" width="18.51" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DScreenUpdateManager.run
+10 samples, 0.68% of shown work</title><rect x="988.77" y="90" width="8.05" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DSurfaceData.swapBuffers
+10 samples, 0.68% of shown work</title><rect x="988.77" y="107" width="8.05" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushNow
+10 samples, 0.68% of shown work</title><rect x="988.77" y="124" width="8.05" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushBuffer
+10 samples, 0.68% of shown work</title><rect x="988.77" y="141" width="8.05" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushBuffer
+10 samples, 0.68% of shown work</title><rect x="988.77" y="158" width="8.05" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>jagex2.io.OnDemand.run
+1 samples, 0.07% of shown work</title><rect x="996.82" y="90" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.lang.Thread.sleep
+1 samples, 0.07% of shown work</title><rect x="996.82" y="107" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sign.signlink.run
+1 samples, 0.07% of shown work</title><rect x="997.63" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="997.63" y="107" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.File.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="997.63" y="124" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.WinNTFileSystem.normalize
+1 samples, 0.07% of shown work</title><rect x="997.63" y="141" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.WinNTFileSystem.normalize
+1 samples, 0.07% of shown work</title><rect x="997.63" y="158" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit$$Lambda$6.23351678.run
+1 samples, 0.07% of shown work</title><rect x="998.43" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.shutdown
+1 samples, 0.07% of shown work</title><rect x="998.43" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+180 samples, 12.28% of shown work</title><rect x="999.24" y="73" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="84" font-size="10" fill="#111">copyImage</text>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.drawToBufImage
+180 samples, 12.28% of shown work</title><rect x="999.24" y="90" width="144.88" height="16" fill="#c9784f" rx="1"/>
+<text x="1002.24" y="101" font-size="10" fill="#111">drawToBufImage</text>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+180 samples, 12.28% of shown work</title><rect x="999.24" y="107" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="118" font-size="10" fill="#111">drawImage</text>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+180 samples, 12.28% of shown work</title><rect x="999.24" y="124" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="135" font-size="10" fill="#111">copyImage</text>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+180 samples, 12.28% of shown work</title><rect x="999.24" y="141" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="152" font-size="10" fill="#111">copyImage</text>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.renderImageCopy
+180 samples, 12.28% of shown work</title><rect x="999.24" y="158" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="169" font-size="10" fill="#111">renderImageCopy</text>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.blitSurfaceData
+180 samples, 12.28% of shown work</title><rect x="999.24" y="175" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="186" font-size="10" fill="#111">blitSurfaceData</text>
+</g>
+<g><title>sun.java2d.d3d.D3DSwToSurfaceBlit.Blit
+180 samples, 12.28% of shown work</title><rect x="999.24" y="192" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="203" font-size="10" fill="#111">Blit</text>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.Blit
+180 samples, 12.28% of shown work</title><rect x="999.24" y="209" width="144.88" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="220" font-size="10" fill="#111">Blit</text>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushNow
+179 samples, 12.21% of shown work</title><rect x="999.24" y="226" width="144.08" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="237" font-size="10" fill="#111">flushNow</text>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushBuffer
+179 samples, 12.21% of shown work</title><rect x="999.24" y="243" width="144.08" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="254" font-size="10" fill="#111">flushBuffer</text>
+</g>
+<g><title>sun.java2d.d3d.D3DRenderQueue.flushBuffer
+179 samples, 12.21% of shown work</title><rect x="999.24" y="260" width="144.08" height="16" fill="#c94f4f" rx="1"/>
+<text x="1002.24" y="271" font-size="10" fill="#111">flushBuffer</text>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.enqueueBlit
+1 samples, 0.07% of shown work</title><rect x="1143.32" y="226" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.RenderQueue.ensureCapacityAndAlignment
+1 samples, 0.07% of shown work</title><rect x="1143.32" y="243" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.RenderQueue.ensureAlignment
+1 samples, 0.07% of shown work</title><rect x="1143.32" y="260" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.run
+7 samples, 0.48% of shown work</title><rect x="1144.12" y="73" width="5.63" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.run
+7 samples, 0.48% of shown work</title><rect x="1144.12" y="90" width="5.63" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mainredraw
+5 samples, 0.34% of shown work</title><rect x="1144.12" y="107" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.gameDraw
+5 samples, 0.34% of shown work</title><rect x="1144.12" y="124" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.gameDrawMain
+5 samples, 0.34% of shown work</title><rect x="1144.12" y="141" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.renderAll
+5 samples, 0.34% of shown work</title><rect x="1144.12" y="158" width="4.02" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.method90
+5 samples, 0.34% of shown work</title><rect x="1144.12" y="175" width="4.02" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.worldRender
+4 samples, 0.27% of shown work</title><rect x="1144.12" y="192" width="3.22" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.render2
+4 samples, 0.27% of shown work</title><rect x="1144.12" y="209" width="3.22" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.render3
+4 samples, 0.27% of shown work</title><rect x="1144.12" y="226" width="3.22" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.textureTriangle
+2 samples, 0.14% of shown work</title><rect x="1144.12" y="243" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.textureRaster
+2 samples, 0.14% of shown work</title><rect x="1144.12" y="260" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.gouraudTriangle
+2 samples, 0.14% of shown work</title><rect x="1145.73" y="243" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Pix3D.gouraudRaster
+2 samples, 0.14% of shown work</title><rect x="1145.73" y="260" width="1.61" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ModelSource.worldRender
+1 samples, 0.07% of shown work</title><rect x="1147.34" y="192" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ClientPlayer.getTempModel
+1 samples, 0.07% of shown work</title><rect x="1147.34" y="209" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ClientPlayer.getTempModel2
+1 samples, 0.07% of shown work</title><rect x="1147.34" y="226" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1147.34" y="243" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.addPoint
+1 samples, 0.07% of shown work</title><rect x="1147.34" y="260" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.drawProgress
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="107" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.prepareTitle
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="124" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.graphics.PixMap.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="141" width="0.80" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>jagex2.graphics.PixMap.consumerSetPixels
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="158" width="0.80" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.setPixels
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.createBufferedImage
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.createCompatibleWritableRaster
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.Raster.createPackedRaster
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.Raster.createPackedRaster
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.SinglePixelPackedSampleModel.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1148.14" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.shutdown
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="107" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.lang.System.exit
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="124" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Runtime.exit
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="141" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.exit
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.sequence
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Shutdown.runHooks
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ApplicationShutdownHooks$1.run
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ApplicationShutdownHooks.runHooks
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Thread.start
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Thread.start0
+1 samples, 0.07% of shown work</title><rect x="1148.95" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.main
+7 samples, 0.48% of shown work</title><rect x="1149.75" y="73" width="5.63" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.initApplication
+5 samples, 0.34% of shown work</title><rect x="1149.75" y="90" width="4.02" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.graphics.PixMap.&lt;init&gt;
+2 samples, 0.14% of shown work</title><rect x="1149.75" y="107" width="1.61" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>jagex2.graphics.PixMap.consumerSetPixels
+2 samples, 0.14% of shown work</title><rect x="1149.75" y="124" width="1.61" height="16" fill="#d6a13a" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.setPixels
+2 samples, 0.14% of shown work</title><rect x="1149.75" y="141" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.createBufferedImage
+2 samples, 0.14% of shown work</title><rect x="1149.75" y="158" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.createCompatibleWritableRaster
+2 samples, 0.14% of shown work</title><rect x="1149.75" y="175" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.Raster.createPackedRaster
+1 samples, 0.07% of shown work</title><rect x="1149.75" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.Raster.createPackedRaster
+1 samples, 0.07% of shown work</title><rect x="1149.75" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.IntegerInterleavedRaster.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1149.75" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.IntegerInterleavedRaster.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1149.75" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.IntegerComponentRaster.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1149.75" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>jagex2.client.ViewBox.&lt;init&gt;
+2 samples, 0.14% of shown work</title><rect x="1151.36" y="107" width="1.61" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.awt.Window.show
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Component.show
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.setVisible
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.show
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.realShow
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.show
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.pShow
+1 samples, 0.07% of shown work</title><rect x="1151.36" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Frame.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Frame.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.init
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.initGC
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DGraphicsDevice.getDefaultConfiguration
+1 samples, 0.07% of shown work</title><rect x="1152.17" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>jagex2.client.ViewBox.getGraphics
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="107" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.awt.Component.getGraphics
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.getGraphics
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DScreenUpdateManager.createGraphics
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DScreenUpdateManager.validate
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1152.97" y="192" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.setHighMem
+1 samples, 0.07% of shown work</title><rect x="1153.78" y="90" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.net.InetAddress.getLocalHost
+1 samples, 0.07% of shown work</title><rect x="1154.58" y="90" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.Inet6AddressImpl.getLocalHostName
+1 samples, 0.07% of shown work</title><rect x="1154.58" y="107" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.initApplication
+4 samples, 0.27% of shown work</title><rect x="1155.39" y="73" width="3.22" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.ViewBox.&lt;init&gt;
+4 samples, 0.27% of shown work</title><rect x="1155.39" y="90" width="3.22" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>java.awt.Frame.&lt;init&gt;
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="107" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Frame.&lt;init&gt;
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="124" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.&lt;init&gt;
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="141" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.init
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="158" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.initGC
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="175" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.Win32GraphicsEnvironment.getDefaultScreenDevice
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="192" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphicsEnvironment.getScreenDevices
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="209" width="2.41" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.awt.Win32GraphicsEnvironment.makeScreenDevice
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="226" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DGraphicsDevice.&lt;clinit&gt;
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="243" width="2.41" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DGraphicsDevice.initD3D
+3 samples, 0.20% of shown work</title><rect x="1155.39" y="260" width="2.41" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.awt.Window.show
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Frame.addNotify
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.createFrame
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WPanelPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WCanvasPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.create
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.createAwtFrame
+1 samples, 0.07% of shown work</title><rect x="1157.80" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.EventQueue$4.run
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="73" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="90" width="2.41" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.ProtectionDomain$JavaSecurityAccessImpl.doIntersectionPrivilege
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="107" width="2.41" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="124" width="2.41" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.awt.EventQueue$3.run
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="141" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.EventQueue$3.run
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="158" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.EventQueue.access$500
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="175" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.EventQueue.dispatchEventImpl
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="192" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Component.dispatchEvent
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="209" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.dispatchEventImpl
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="226" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Container.validate
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="243" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.endValidate
+3 samples, 0.20% of shown work</title><rect x="1158.61" y="260" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageFetcher.run
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="73" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageFetcher.fetchloop
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="90" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.InputStreamImageSource.doFetch
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="107" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.JPEGImageDecoder.produceImage
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="124" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.JPEGImageDecoder.readImage
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="141" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.JPEGImageDecoder.sendPixels
+3 samples, 0.20% of shown work</title><rect x="1161.02" y="158" width="2.41" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageDecoder.setPixels
+2 samples, 0.14% of shown work</title><rect x="1161.02" y="175" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.PixelGrabber.setPixels
+1 samples, 0.07% of shown work</title><rect x="1161.02" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.getRGB
+1 samples, 0.07% of shown work</title><rect x="1161.02" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.getGreen
+1 samples, 0.07% of shown work</title><rect x="1161.02" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.setPixels
+1 samples, 0.07% of shown work</title><rect x="1161.83" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.createBufferedImage
+1 samples, 0.07% of shown work</title><rect x="1161.83" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.createCompatibleWritableRaster
+1 samples, 0.07% of shown work</title><rect x="1161.83" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.Raster.createPackedRaster
+1 samples, 0.07% of shown work</title><rect x="1161.83" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DataBufferInt.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1161.83" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.font.FontDesignMetrics.initMatrixAndMetrics
+3 samples, 0.20% of shown work</title><rect x="1163.44" y="73" width="2.41" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.FontUtilities.getFont2D
+2 samples, 0.14% of shown work</title><rect x="1163.44" y="90" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.awt.Font$FontAccessImpl.getFont2D
+2 samples, 0.14% of shown work</title><rect x="1163.44" y="107" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Font.access$000
+2 samples, 0.14% of shown work</title><rect x="1163.44" y="124" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Font.getFont2D
+2 samples, 0.14% of shown work</title><rect x="1163.44" y="141" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+2 samples, 0.14% of shown work</title><rect x="1163.44" y="158" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2DAllLocales
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.loadLocaleNames
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getAllFamilyNames
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.AbstractCollection.toArray
+1 samples, 0.07% of shown work</title><rect x="1163.44" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFontFromPlatform
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.getFullNameToFileMap
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.awt.Win32FontManager.populateFontFileNameMap
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.Win32FontManager.populateFontFileNameMap0
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.lang.String.toLowerCase
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Character.toLowerCase
+1 samples, 0.07% of shown work</title><rect x="1164.24" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.font.CompositeStrike.getFontMetrics
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.CompositeStrike.getStrikeForSlot
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.Font2D.getStrike
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.Font2D.getStrike
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.FileFont.createStrike
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.FileFontStrike.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getMapper
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeGlyphMapper.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.CMap.initialize
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.CMap.createCMap
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.CMap$CMapFormat4.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1165.05" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.launcher.LauncherHelper.checkAndLoadMain
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="73" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.launcher.LauncherHelper.validateMainClass
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="90" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.Class.getMethod
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="107" width="1.61" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.getMethod0
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="124" width="1.61" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.privateGetMethodRecursive
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="141" width="1.61" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.privateGetDeclaredMethods
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="158" width="1.61" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.getDeclaredMethods0
+2 samples, 0.14% of shown work</title><rect x="1165.85" y="175" width="1.61" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+2 samples, 0.14% of shown work</title><rect x="1167.46" y="73" width="1.61" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="90" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="107" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.drawToBufImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="141" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.renderImageCopy
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="192" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.blitSurfaceData
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DSwToSurfaceBlit.Blit
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="226" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.Blit
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="243" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.ScreenUpdateManager.getInstance
+1 samples, 0.07% of shown work</title><rect x="1167.46" y="260" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="90" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.drawToBufImage
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="124" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="141" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.renderImageCopy
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.blitSurfaceData
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="192" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DSwToSurfaceBlit.Blit
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.Blit
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="226" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.BufferedContext.validateContext
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="243" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.BufferedContext.validate
+1 samples, 0.07% of shown work</title><rect x="1168.27" y="260" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+2 samples, 0.14% of shown work</title><rect x="1169.07" y="73" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2DAllLocales
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.loadLocaleNames
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getAllFamilyNames
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.initAllNames
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getTableBuffer
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.read
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.IOUtil.read
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.Util.offerFirstTemporaryDirectBuffer
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.Util$BufferCache.offerFirst
+1 samples, 0.07% of shown work</title><rect x="1169.07" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2DAllLocales
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.loadLocaleNames
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getAllFullNames
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.initAllNames
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.makeString
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.String.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.StringCoding.decode
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.StringCoding.deref
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ThreadLocal.get
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ThreadLocal$ThreadLocalMap.access$000
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ThreadLocal$ThreadLocalMap.getEntry
+1 samples, 0.07% of shown work</title><rect x="1169.88" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFonts
+2 samples, 0.14% of shown work</title><rect x="1170.68" y="73" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+2 samples, 0.14% of shown work</title><rect x="1170.68" y="90" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+2 samples, 0.14% of shown work</title><rect x="1170.68" y="107" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+2 samples, 0.14% of shown work</title><rect x="1170.68" y="124" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.init
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.initNames
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getTableBuffer
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.read
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.IOUtil.read
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.Util.getTemporaryDirectBuffer
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.Util$BufferCache.get
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.Util$BufferCache.next
+1 samples, 0.07% of shown work</title><rect x="1170.68" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.verify
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.open
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont$1.run
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="209" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="226" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.open
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="243" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.open0
+1 samples, 0.07% of shown work</title><rect x="1171.49" y="260" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.awt.Font.access$000
+2 samples, 0.14% of shown work</title><rect x="1172.29" y="73" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Font.getFont2D
+2 samples, 0.14% of shown work</title><rect x="1172.29" y="90" width="1.61" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+2 samples, 0.14% of shown work</title><rect x="1172.29" y="107" width="1.61" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.loadFontFiles
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager$11.run
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.access$1100
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsOnPath
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsInDir
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addDirFonts
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.io.File.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1172.29" y="260" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findOtherDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.initialiseDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.verify
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.open
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addToPool
+1 samples, 0.07% of shown work</title><rect x="1173.10" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.usagetracker.UsageTrackerClient.getOSSpecificConfigFilePath
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="73" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.usagetracker.UsageTrackerClient.getEnvPrivileged
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.usagetracker.UsageTrackerClient$2.run
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.usagetracker.UsageTrackerClient$2.run
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.System.getenv
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ProcessEnvironment.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.util.TreeMap.putAll
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.AbstractMap.putAll
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.ProcessEnvironment$CheckedEntrySet.iterator
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.ProcessEnvironment$CheckedEntrySet$1.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.util.HashMap$EntrySet.iterator
+1 samples, 0.07% of shown work</title><rect x="1173.90" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>jagex2.client.GameShell.run
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="73" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.mainredraw
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="90" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.gameDraw
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="107" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.client.Client.gameDrawMain
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="124" width="0.80" height="16" fill="#8a8f98" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.renderAll
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="141" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.World.method90
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="158" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ModelSource.worldRender
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="175" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ClientNpc.getTempModel
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="192" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.ClientNpc.getTempModel2
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="209" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.config.NpcType.getTempModel
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="226" width="0.80" height="16" fill="#6f7680" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="243" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>jagex2.dash3d.Model.addPoint
+1 samples, 0.07% of shown work</title><rect x="1174.71" y="260" width="0.80" height="16" fill="#5f9e5f" rx="1"/>
+</g>
+<g><title>sun.awt.image.ImageRepresentation.drawToBufImage
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SunGraphics2D.drawImage
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="90" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="107" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.copyImage
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="124" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.renderImageCopy
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="141" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.DrawImage.blitSurfaceData
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DSwToSurfaceBlit.Blit
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.Blit
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="192" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.d3d.D3DBlitLoops.enqueueBlit
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.RenderQueue.ensureCapacityAndAlignment
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="226" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.RenderQueue.ensureAlignment
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="243" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.pipe.RenderBuffer.position
+1 samples, 0.07% of shown work</title><rect x="1175.51" y="260" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodHandle.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="73" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaForm.prepare
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="90" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaForm.compileToBytecode
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="107" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.InvokerBytecodeGenerator.generateCustomizedCode
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="124" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.InvokerBytecodeGenerator.generateCustomizedCodeBytes
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="141" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.InvokerBytecodeGenerator.classFileEpilogue
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>jdk.internal.org.objectweb.asm.MethodWriter.visitMaxs
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>jdk.internal.org.objectweb.asm.Frame.initInputFrame
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>jdk.internal.org.objectweb.asm.Type.getDescriptor
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.StringBuffer.toString
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.util.Arrays.copyOfRange
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.System.arraycopy
+1 samples, 0.07% of shown work</title><rect x="1176.32" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.make
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="73" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.make
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="90" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.make
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="107" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.preparedLambdaForm
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="124" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.preparedLambdaForm
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="141" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.DirectMethodHandle.makePreparedLambdaForm
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType.invokerType
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType.insertParameterTypes
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType.makeImpl
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType$ConcurrentWeakInternSet.get
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType$ConcurrentWeakInternSet$WeakEntry.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodType.hashCode
+1 samples, 0.07% of shown work</title><rect x="1177.12" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.net.URLClassLoader.findClass
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="73" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.net.URLClassLoader$1.run
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="107" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>java.net.URLClassLoader$1.run
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="124" width="0.80" height="16" fill="#7a6fc9" rx="1"/>
+</g>
+<g><title>sun.misc.URLClassPath.getResource
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.misc.URLClassPath$JarLoader.getResource
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.jar.JarFile.getJarEntry
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.jar.JarFile.getEntry
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.zip.ZipFile.getEntry
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.zip.ZipFile.getZipEntry
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.zip.ZipCoder.toString
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.cs.UTF_8$Decoder.decode
+1 samples, 0.07% of shown work</title><rect x="1177.93" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaFormEditor.makeArgumentCombinationForm
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="73" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaFormEditor.newSpeciesData
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="90" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$SpeciesData.extendWith
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="107" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$SpeciesData.get
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="124" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.util.concurrent.ConcurrentHashMap.computeIfAbsent
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$SpeciesData$1.apply
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$SpeciesData$1.apply
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$SpeciesData.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$Factory.makeCtors
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$Factory.makeCbmhCtor
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.BoundMethodHandle$Factory.makeSignature
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.StringBuilder.toString
+1 samples, 0.07% of shown work</title><rect x="1178.73" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.awt.image.BufImgSurfaceData.initSolidLoops
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.image.BufImgSurfaceData.getSolidLoops
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SurfaceData.makeRenderLoops
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="107" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.loops.DrawLine.locate
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="124" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.loops.GraphicsPrimitiveMgr.locate
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="141" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.loops.GraphicsPrimitiveMgr.locatePrim
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.loops.GraphicsPrimitiveMgr.locate
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.util.Arrays.sort
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.TimSort.sort
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.TimSort.mergeCollapse
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.TimSort.mergeAt
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.TimSort.mergeLo
+1 samples, 0.07% of shown work</title><rect x="1179.54" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.open
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="73" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.open
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addToPool
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.close
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont$TTDisposerRecord.dispose
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.nio.channels.spi.AbstractInterruptibleChannel.close
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.implCloseChannel
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.close
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="192" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.FileDescriptor.closeAll
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="209" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile$1.close
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="226" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.access$000
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="243" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>java.io.RandomAccessFile.close0
+1 samples, 0.07% of shown work</title><rect x="1180.34" y="260" width="0.80" height="16" fill="#4f8fc9" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.access$1100
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="73" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsOnPath
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsInDir
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addDirFonts
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFonts
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.init
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.nio.HeapByteBuffer.asIntBuffer
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.nio.ByteBufferAsIntBufferB.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.nio.IntBuffer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.15" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="73" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager$11.run
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.access$1100
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsOnPath
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsInDir
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addDirFonts
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFonts
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.init
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.nio.HeapByteBuffer.asIntBuffer
+1 samples, 0.07% of shown work</title><rect x="1181.95" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsOnPath
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="73" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontsInDir
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.addDirFonts
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFonts
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.init
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.initNames
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.getTableBuffer
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.position
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.position0
+1 samples, 0.07% of shown work</title><rect x="1182.76" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.awt.Font.getFont2D
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findFont2D
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.findOtherDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.initialiseDeferredFont
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="141" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.registerFontFile
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="158" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="175" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="192" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.init
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.TrueTypeFont.readBlock
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.FileChannelImpl.read
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.nio.ch.IOUtil.read
+1 samples, 0.07% of shown work</title><rect x="1183.56" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.awt.Window.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Container.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Component.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.DefaultKeyboardFocusManager.dispatchEvent
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.DefaultKeyboardFocusManager.typeAheadAssertions
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.KeyboardFocusManager.redispatchEvent
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Component.dispatchEvent
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Container.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Component.dispatchEventImpl
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.getInputContext
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.im.InputContext.getInstance
+1 samples, 0.07% of shown work</title><rect x="1184.37" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.show
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Frame.addNotify
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.createFrame
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WPanelPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WCanvasPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.setFont
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer._setFont
+1 samples, 0.07% of shown work</title><rect x="1185.17" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.Win32FontManager.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="90" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="107" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.font.SunFontManager$2.run
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="124" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.awt.Win32FontManager.createFontConfiguration
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.FontConfiguration.init
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.FontConfiguration.initFontConfig
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.FontConfiguration.initAllComponentFonts
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.util.HashSet.add
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="209" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.HashMap.put
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="226" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.util.HashMap.hash
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.lang.Short.hashCode
+1 samples, 0.07% of shown work</title><rect x="1185.98" y="260" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WPanelPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WCanvasPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WPanelPeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="158" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WCanvasPeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="175" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.initialize
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.setBounds
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="209" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WComponentPeer.setBounds
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WFramePeer.reshape
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WWindowPeer.reshapeFrame
+1 samples, 0.07% of shown work</title><rect x="1186.78" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.Disposer.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="90" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodHandleNatives.linkCallSite
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="107" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.MethodHandleNatives.linkCallSiteImpl
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="124" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.CallSite.makeSite
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="141" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaForm$MH.21589407.invoke_MT
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaForm$BMH.10634667.reinvoke
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaForm$DMH.15347575.invokeStatic_L6_L
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="192" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.LambdaMetafactory.metafactory
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="209" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.InnerClassLambdaMetafactory.buildCallSite
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="226" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.invoke.InnerClassLambdaMetafactory.spinInnerClass
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="243" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.misc.Unsafe.defineAnonymousClass
+1 samples, 0.07% of shown work</title><rect x="1187.59" y="260" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>java.awt.Window.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="73" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.init
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="90" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.Window.initGC
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.GraphicsEnvironment.createGE
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.lang.Class.forName
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="158" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.forName0
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="175" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.awt.Win32GraphicsEnvironment.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="192" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.windows.WindowsFlags.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.windows.WindowsFlags.initJavaFlags
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="226" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.security.AccessController.doPrivileged
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="243" width="0.80" height="16" fill="#909090" rx="1"/>
+</g>
+<g><title>sun.java2d.windows.WindowsFlags$1.run
+1 samples, 0.07% of shown work</title><rect x="1188.39" y="260" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.lang.Class.forName
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="73" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>java.lang.Class.forName0
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="90" width="0.80" height="16" fill="#9c6fa8" rx="1"/>
+</g>
+<g><title>sun.awt.Win32GraphicsEnvironment.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="107" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="124" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.awt.windows.WToolkit.initIDs
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="141" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>sun.java2d.SurfaceData.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="158" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.SurfaceData.initIDs
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="175" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.NullSurfaceData.&lt;clinit&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="192" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>sun.java2d.NullSurfaceData.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="209" width="0.80" height="16" fill="#c94f4f" rx="1"/>
+</g>
+<g><title>java.awt.image.ColorModel.getRGBdefault
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="226" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.image.DirectColorModel.&lt;init&gt;
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="243" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+<g><title>java.awt.color.ColorSpace.getInstance
+1 samples, 0.07% of shown work</title><rect x="1189.20" y="260" width="0.80" height="16" fill="#c9784f" rx="1"/>
+</g>
+</svg>

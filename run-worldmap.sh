@@ -5,7 +5,7 @@
 #
 # Everything comes from the manifest: cache dir + identity in [cache:boot], the
 # interface to boot in [ui:boot] interface_id, any sub-interfaces to mount in
-# [ui:gameframe]. manifest_osrs239_worldmap.ini / manifest_osrs230_worldmap.ini
+# [ui:gameframe]. manifests/manifest_osrs239_worldmap.ini / manifests/manifest_osrs230_worldmap.ini
 # boot 595 as the tree root, so nothing but the world map is in the tree.
 #
 # Runs the interface's onLoad CS2 scripts headless, then writes every interface
@@ -25,7 +25,7 @@ set -eu
 cd "$(dirname "$0")"
 
 HEADLESS=0
-MANIFEST=manifest_osrs239_worldmap.ini
+MANIFEST=manifests/manifest_osrs239_worldmap.ini
 for a in "$@"; do
     case "$a" in
     --headless) HEADLESS=1 ;;

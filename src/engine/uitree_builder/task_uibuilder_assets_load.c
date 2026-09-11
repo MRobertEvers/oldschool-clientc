@@ -2,6 +2,8 @@
 #include "uitree_builder_manifest.h"
 
 #include "engine/cache_provider.h"
+#include "engine/dat2/dat2_tasks.h"
+#include "engine/title_panel.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
 
 #include <assert.h>
@@ -89,6 +91,45 @@ Task_UIBuilderAssetsLoad_Run(
         {
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
         }
+        else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
+        {
+            /*
+             * `table=defaults slot=<n>`: read the id out of the defaults record,
+             * which is what the client does. Index 17 group 3 stores eleven
+             * sprite ids positionally and the engine loads each by id — it never
+             * looks a sprite up by name — so a slot is an address rather than a
+             * label, and this path does not depend on index 8 still shipping
+             * name hashes.
+             *
+             * Checked before the name path so a section may carry both: a
+             * profile can name `archive=` as documentation of what the slot
+             * resolved to at the revision it was written for, without that name
+             * being what the client acts on.
+             */
+            PT_TASK_AWAITSELF_IF(CreateTask_DefaultsSpriteLoad(
+                self->builder->provider, req->defaults_slot, req->name));
+        }
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+        {
+            /* The title backdrop, which OldSchool keeps in the BINARY table
+             * rather than among the sprites -- so it is addressed by table and
+             * name, and assembled by the same composite the dat1 lane uses. */
+            PT_TASK_AWAITSELF_IF(CreateTask_Dat2TitlePanelLoad(
+                self->builder->provider, req->archive, req->name));
+        }
+        else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
+        {
+            /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
+             * sprites table is addressed by archive NAME on this era, and the
+             * id it lands on differs between caches — which is the whole reason
+             * the name belongs in RevConfig and not in a C table. The dat1
+             * spelling is distinguished by carrying filename=, since a dat1
+             * section names both a jagfile archive and a file inside it. */
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_SpriteLoadByName(self->builder->provider, req->archive));
+        }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
             /* Dat1 name-keyed sprite: the local descriptor is fully consumed by
@@ -98,6 +139,11 @@ Task_UIBuilderAssetsLoad_Run(
                 .format = req->format,
                 .data_filename = req->data_filename,
                 .index_filename = req->index_filename,
+                /* Which jagfile: "title" for the login screen's art, the media
+                 * archive for everything else. Distinguished from the dat2
+                 * reading of `archive=` above by this branch carrying
+                 * filename=, which a dat2 section never does. */
+                .archive = req->archive,
                 .atlas_index = req->atlas_index,
                 .atlas_count = req->atlas_count,
                 .crop_x = req->crop_x,
@@ -110,7 +156,7 @@ Task_UIBuilderAssetsLoad_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
         }
     }
-    /* Re-register dat1 sprites with their assigned provider ids so bake's
+    /* Re-register name-keyed sprites with their assigned provider ids so bake's
      * UITreeBuilder_ResolveSpriteRef returns a loadable id. */
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
@@ -118,6 +164,17 @@ Task_UIBuilderAssetsLoad_Run(
         if( req->archive_id < 0 )
         {
             int assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->name);
+            /* A dat2 load registers under the ARCHIVE name, which need not be
+             * the section name — rev-239 ships the hitsplat pack as `hitmark`
+             * while the client asks for `hitmarks`. Alias the section name onto
+             * the same id so every later lookup, including the host's static
+             * slots, can use the one spelling C knows. */
+            if( assigned < 0 && req->archive[0] != '\0' )
+            {
+                assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->archive);
+                if( assigned >= 0 )
+                    CacheProvider_SpriteNameMapPut(self->builder->provider, req->name, assigned);
+            }
             if( assigned >= 0 )
                 UITreeBuilder_RegisterSprite(
                     self->builder, req->name, assigned, req->atlas_index, req->atlas_count);

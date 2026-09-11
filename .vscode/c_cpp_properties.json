@@ -46,7 +46,7 @@
                 "WINVER=0x0501",
                 "CACHE_PATH=\"../cache\""
             ],
-            "compilerPath": "${workspaceFolder}/toolchain/win32/mingw32/bin/gcc.exe",
+            "compilerPath": "${workspaceFolder}/toolchains/mingw32/bin/gcc.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-gcc-x86",

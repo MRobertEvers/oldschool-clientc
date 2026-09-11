@@ -1,0 +1,149 @@
+{{Infobox Monster
+|defver = 2
+|version1 = Entry
+|version2 = Normal
+|version3 = Hard
+|name = Pestilent Bloat
+|image = [[File:Pestilent Bloat.png|260px]]
+|release1 = [[3 June]] [[2021]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[3 June]] [[2021]]
+|update1 = Theatre of Blood: New Modes
+|update2 = The Theatre of Blood
+|update3 = Theatre of Blood: New Modes
+|members = Yes
+|combat1 = 312
+|combat2 = 870
+|combat3 = 1044
+|size = 5
+|examine = An infinite mass of decay and death.
+|attributes = undead
+|xpbonus1 = 22.5
+|xpbonus2 = 85
+|xpbonus3 = 85
+|max hit1 = 8 (Flies), 40 (Stomp)
+|max hit2 = 20 (Flies), 80 (Stomp)
+|max hit3 = 20 (Flies), 80 (Stomp)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 1
+|hitpoints1 = 1280
+|hitpoints2 = 2000
+|hitpoints3 = 2400
+|scaledhp = Yes
+|att1 = 100
+|att2 = 250
+|att3 = 250
+|str1 = 180
+|str2 = 340
+|str3 = 340
+|def1 = 80
+|def2 = 100
+|def3 = 100
+|mage1 = 120
+|mage2 = 150
+|mage3 = 150
+|range1 = 72
+|range2 = 180
+|range3 = 180
+|attbns1 = 60
+|attbns2 = 150
+|attbns3 = 150
+|strbns1 = 46
+|strbns2 = 82
+|strbns3 = 82
+|amagic = 0
+|mbns = 0
+|arange1 = 72
+|arange2 = 180
+|arange3 = 180
+|rngbns1 = 2
+|rngbns2 = 4
+|rngbns3 = 4
+|dstab1 = 10
+|dstab2 = 40
+|dstab3 = 40
+|dslash1 = 5
+|dslash2 = 20
+|dslash3 = 20
+|dcrush1 = 10
+|dcrush2 = 40
+|dcrush3 = 40
+|dmagic = 600
+|dlight = 800
+|dstandard = 800
+|dheavy = 800
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10812
+|id2 = 8359
+|id3 = 10813
+|leagueRegion = Morytania
+}}
+The '''Pestilent Bloat''' is the second encounter in the [[Theatre of Blood]]. It was created by a crazed [[vampyre]] known as "[[The Butcher (vampyre)|The Butcher]]" upon [[Verzik Vitur]]'s request.
+
+According to a book titled ''[[The butcher]]'', the Bloat was created by using three giant heads, an [[ogre]]'s corpse, four [[bucket]]s of human blood, two [[cyclops]] arms, two [[catablepon]] legs, an [[apple pie]], and a sense of pride.
+
+==Mechanics==
+[[File:Fighting Pestilent Bloat.png|thumb|left|280px|A group of players fighting The Butcher's crazed creation, the Pestilent Bloat.]]
+The Bloat will walk around its room in a square as soon as the party enters the room. If any player is within its line of sight, the Bloat's flies will attack them, causing players to take rapid hits of 10-20 every [[tick]] until they are out of the Bloat's line of sight. This will spread to other players in the raid also and can therefore kill a party very quickly. Additionally, the Bloat receives 50% less damage (rounded down) while moving. [[Protect from Missiles]] reduces damage from the flies by 25%.
+
+On the first walk after 39-47 game ticks (23.5 to 28.2 seconds), it will stop moving, allowing players to attack it and deal full damage. After 19.2 seconds, it will stomp the surrounding area, dealing 40-80 damage, though it can be tick eaten. After  the stomp, it will stop moving after 34 to 42 ticks (20.4 to 25.2 seconds). If its Defence has been reduced, it will regenerate to full when it stomps. If a player is hit by a mutilated flesh, it will deal 30–50 damage and stun them temporarily. Falling flesh can be evaded beforehand by looking for their shadow on the floor, and will only occur when the boss walks around upon reaching 90% of its health in normal mode. If the Bloat turns or changes speed during the walk, Bloat cannot go down for another 5 ticks which can slightly extend the length of the walk if the turn or speed change occurs close to the end of the walking phase. Bloat can be eligible to turn every 32 ticks in regular mode.
+
+Pestilent Bloat uses a custom implementation of the line of sight check for its attacks: rather than using one tile within the Bloat's 5x5 area as the reference point for these checks, all tiles on the side of the Bloat nearest to the player are checked for line of sight, and the attack is allowed to go through if any of them has an unobstructed view of the player.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1722220964929495045|date=8 November 2023|archiveurl=https://reldo.runescape.wiki/i/27964233|archivedate=23 July 2026|quote=It is line-of-sight as far as I can see in my colleagues' code, but that boss has custom line-of-sight checks. (...) The developer appears to have tried writing a manual check to see if any tile on the NPC's nearest side has line-of-sight to the target. The standard line-of-sight checks apparently aren't reliable for this for large NPCs.}}
+
+The speed at which the Bloat moves depends on its health; up to 60.0%, it will always walk; between 40% and 60%, it will always run. 
+
+At 39.9% and lower, the Bloat will alternate between walking or running for every attack made on it regardless if it hits or not.
+{{clear|left}}
+
+===Hard Mode===
+In [[Theatre_of_Blood/Hard_Mode|Hard Mode]], in addition to the previous mechanics, mutilated flesh will fall from the ceiling all of the time; starting as soon as the first player enters the room. It will continue to fall even when Bloat has stopped.
+
+The Bloat is also more likely to change direction whilst moving, and can do so multiple times per rotation. Unlike regular mode, it is eligible to turn every 16 ticks in hard mode. 
+
+===Entry Mode===
+In [[Theatre_of_Blood/Entry_Mode|Entry Mode]], Bloat can scale down to 20% of its original [[Hitpoints]] when done in a solo party. The encounter is generally less punishing for mistakes due to its lower damage from flies and the stomp. This allows players the freedom to practice against the Theatre of Blood bosses without as much risk.
+
+If a team wipes in Entry Mode, they will be taken back outside of the boss room and have unlimited attempts to fight the boss again. [[Hardcore ironmen]] will still lose their status upon death.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=The butcher|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = <nowiki />
+Hard mode and entry mode versions of the Theatre of Blood encounters added.
+}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|poll =
+|change = The falling flesh attack now falls another one tick slower and the shadows increase in size as they approach the ground.
+}}
+{{Subject changes
+|date = 8 June 2018
+|update =
+|poll =
+|type = hotfix
+|change = The falling flesh attack now falls one tick slower to make them easier to dodge.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1005036587909042176|date=8 June 2018|archiveurl=https://reldo.runescape.wiki/i/101960|archivedate=30 May 2020|quote=We've just hotfixed the falling body parts during the Pestilent Bloat encounter so they will now fall a little slower.}}
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Prior to the addition of [[Nex]], which came with under-the-hood game engine changes that allowed for proper running for NPCs, the Pestilent Bloat was one of the only [[NPC]]s (excluding some that only appear in cutscenes) capable of moving at a running speed, due to having a fixed path.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1173851473568051201|date=17 September 2019|archiveurl=https://reldo.runescape.wiki/i/96406|archivedate=30 May 2020|quote=The Bloat and certain cutscene NPCs have a hack to pretend they're running, but that only works for pre-defined paths}}
+*The Pestilent Bloat had a festive override wearing a [[red partyhat]] during the [[2018 Christmas event/Gallery|2018]] and [[2019 Christmas event/Gallery|2019]] Christmas events. For the [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events, the Bloat wore a [[Santa hat]] instead.
+
+==References==
+{{reflist}}
+
+{{Theatre of Blood}}
+{{Bosses}}

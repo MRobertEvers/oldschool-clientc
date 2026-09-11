@@ -41,8 +41,57 @@ struct CS2VM2_Frame
 {
     struct CS2VM2_Script* script;
     int pc;
-    int int_locals[CS2VM_MAX_LOCALS];
-    char* str_locals[CS2VM_MAX_LOCALS];
+    /*
+     * Locals, grown to what a script actually touches instead of reserved at
+     * CS2VM_MAX_LOCALS. `_cap` is the allocated length, `_dirty` how far the
+     * current occupant has written; NULL with both zero is the state of a frame
+     * that has never run anything, and is what a fresh block starts in.
+     *
+     * Two invariants carry the whole scheme:
+     *
+     *   1. slots in [dirty, cap) are zero;
+     *   2. slots at or above cap are *logically* zero — nothing is stored there,
+     *      and every read of one answers 0 / NULL.
+     *
+     * Together they make "above dirty" the single test a read needs, so an
+     * unwritten local never touches the buffer at all, and they mean a push has
+     * to clear only [0, dirty) to hand the next occupant the all-zero locals it
+     * is entitled to.
+     *
+     * The reservation this replaces was CS2VM_MAX_LOCALS ints plus
+     * CS2VM_MAX_LOCALS pointers inline in the struct — 12,288 of a 12,352-byte
+     * frame, up to 1.51 MB if the stack ever went its full 128 deep, against
+     * scripts that declare a handful of locals each. The frame is 96 bytes now,
+     * and a 2000-frame embedded-server run grows 4,032 bytes of locals in total
+     * across every block it ever allocates.
+     *
+     * The footprint was the smaller half. The arrays were also *cleared* in full
+     * on every push, and that is per-script work, not per-block: the same run
+     * pushes 138,215 frames and was zeroing 1.71 GB to do it, against 3.16 MB
+     * now — a mean of 22.9 bytes actually written per push. Nearly all of it was
+     * rewriting zeros over zeros. Measured on that workload, interleaved against
+     * a build with these buffers forced back to full size, it is 3.0% of the cs2
+     * stage p50 (338.3 vs 348.7 us, lower in all five pairs).
+     *
+     * `dirty` tracks actual writes rather than the script's declared
+     * `local_int_count`, and that is the safety of it: the opcodes that write a
+     * local bound their index against CS2VM_MAX_LOCALS, not against the declared
+     * count, so a script writing past what it declared would leave dirt above a
+     * declared-count mark and the next occupant would read the previous
+     * script's values instead of zero. Every write raises the mark and grows the
+     * buffer, so no write can escape the next clear.
+     *
+     * Buffers stay with the block across a release/acquire round trip — that is
+     * what keeps this from turning one memset into two allocations per push.
+     * A warm pool reallocs only when a frame reaches deeper than any script that
+     * has occupied it before.
+     */
+    int* int_locals;
+    char** str_locals;
+    int int_locals_cap;
+    int str_locals_cap;
+    int int_locals_dirty;
+    int str_locals_dirty;
 
     int return_pc;
     int return_frame;
@@ -127,173 +176,6 @@ struct CS2VM2_Array
 
 #define CS2VM2_CHILDREN_ITER_MAX 256
 
-/* Opcodes missing from cs2_opcode.h but used by gameframe scripts. */
-#define CS2_OP_CC_CREATECHILD 106
-#define CS2_OP_CC_CREATESIBLING 107
-#define CS2_OP_CC_FINDROOT 202
-#define CS2_OP_CC_CHILDREN_FIND 203
-#define CS2_OP_CC_CHILDREN_FINDNEXTID 204
-#define CS2_OP_IF_CHILDREN_FIND 205
-#define CS2_OP_IF_CHILDREN_FINDNEXTID 206
-/* Skill-guide Overview (9150..9199): children-find variant that also pushes
- * the match count (call-site (1i->1i) in scripts 9179/9186). */
-#define CS2_OP_CC_CHILDREN_FIND_COUNT 212
-/* Boolean children find-next after 212/203: set active/dot child, push 1/0.
- * Distinct from FINDNEXTID (204/206), which pushes the child sub-id. Script
- * 9179 arms Overview/Quest XP cc_setonop via this loop. */
-#define CS2_OP_CC_CHILDREN_FINDNEXT 213
-#define CS2_OP__213 CS2_OP_CC_CHILDREN_FINDNEXT
-/* IF_CHILDREN_COLLECT (211) + CHILDREN_ARRAY (215): script 9181 gathers
- * overview_tabs child subids into an int-array handle, then walks it to
- * if_sethide the non-selected Overview content panel. */
-#define CS2_OP_IF_CHILDREN_COLLECT 211
-#define CS2_OP_CHILDREN_ARRAY 215
-/* Array-handle family used by the Overview widget library. Names from xrsps
- * where it has them; 8012/8023 are call-site arities only. */
-#define CS2_OP_ARRAY_LENGTH 8003
-#define CS2_OP_ARRAY_SPLIT 8018
-#define CS2_OP_ARRAY_JOIN 8019
-#define CS2_OP_ARRAY_NEW 8022
-#define CS2_OP_ARRAY_SETLENGTH 8023
-#define CS2_OP_ARRAY_APPEND 8024
-#define CS2_OP_STRING_TO_INT 4036
-#define CS2_OP_CC_SETGRAPHIC2 1122
-#define CS2_OP_IF_SETGRAPHIC2 2122
-#define CS2_OP_CC_SETTRANSBOT 1124
-#define CS2_OP_CC_SETFILLMODE 1125
-#define CS2_OP_CC_SETARC 1128
-#define CS2_OP_CC_SETPINCH 1004
-#define CS2_OP_CC_SETPLAYERMODEL_SELF 1203
-#define CS2_OP_CC_SETMODEL_PLAYERCHATHEAD 1204
-#define CS2_OP_IF_SETTRANSBOT 2124
-#define CS2_OP_IF_SETFILLMODE 2125
-#define CS2_OP_IF_SETARC 2128
-#define CS2_OP_IF_SETCLICKMASK 2308
-#define CS2_OP_IF_SETPINCH 2004
-#define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
-/* HIGHLIGHT_NPC_* entity-highlight family (7000..7004); 7001/7002 are named in
- * the generated meta, the rest are placeholders there. */
-#define CS2_OP_HIGHLIGHT_NPC_SETUP 7000
-#define CS2_OP_HIGHLIGHT_NPC_GET 7003
-#define CS2_OP_HIGHLIGHT_NPC_CLEAR 7004
-/* HIGHLIGHT_LOC_* scene-object-highlight family (7011..7014); ON/OFF are named
- * in cs2_opcode.h, GET/CLEAR are placeholders there. Same shape as the NPC
- * family but keyed on (locTypeId, coordPacked, slot, group) instead of an NPC
- * slot, so ON/OFF/GET pop 4 (NPC pops 3). */
-#define CS2_OP_HIGHLIGHT_LOC_GET 7013
-#define CS2_OP_HIGHLIGHT_LOC_CLEAR 7014
-/* HIGHLIGHT_OBJ_* ground-item-highlight family (7021..7025); ON/OFF are named in
- * cs2_opcode.h, GET/SETUP are placeholders there. OBJ ON/OFF/GET pop 4 like the
- * LOC family; 7025 is the OBJTYPE setup (pop 5). */
-#define CS2_OP_HIGHLIGHT_OBJ_GET 7023
-#define CS2_OP_HIGHLIGHT_OBJTYPE_SETUP 7025
-/* MINIMENU_* mouseover / right-click-menu queries (7100..7110). All are no-arg
- * getters reading the current hovered target + open menu state; the host answers
- * them (CS2VM_HOST_REQUEST_MINIMENU). cs2_opcode.h has these as _71xx. */
-#define CS2_OP_MINIMENU_TYPE 7100
-#define CS2_OP_MINIMENU_ENTRY 7101
-#define CS2_OP_MINIMENU_FINDNPC 7102
-#define CS2_OP_MINIMENU_FINDLOC 7103
-#define CS2_OP_MINIMENU_FINDOBJ 7104
-#define CS2_OP_MINIMENU_FINDPLAYER 7105
-#define CS2_OP_MINIMENU_ISOPEN 7108
-#define CS2_OP_MINIMENU_FINDCOMPONENT 7109
-#define CS2_OP_MINIMENU_NUMOPS 7110
-/* Client / game / device option get/set (3209..3217). Unlike the direct volume
- * setters (3203..3208, which carry just a value), these are keyed by an option
- * id: SET pops (id, value), GET pops (id) -> value, GETRANGE pops (id) -> min,
- * max. The host answers them (CS2VM_HOST_REQUEST_CLIENT_OPTION). The volume ops
- * are already named in cs2_opcode.h; these _32xx are placeholders there. */
-#define CS2_OP_CLIENTOPTION_SET 3209
-#define CS2_OP_CLIENTOPTION_GET 3210
-#define CS2_OP_DEVICEOPTION_SET 3212
-#define CS2_OP_GAMEOPTION_SET 3213
-#define CS2_OP_DEVICEOPTION_GET 3214
-#define CS2_OP_GAMEOPTION_GET 3215
-#define CS2_OP_DEVICEOPTION_GETRANGE 3217
-/* Minimap zoom controls (7250..7254). Setters pop one value; GETZOOM pushes the
- * current zoom (2..8). The host owns the zoom (CS2VM_HOST_REQUEST_MINIMAP) so a
- * SETZOOM round-trips through GETZOOM. 7250 is also known as SETMINIMAPLOCK in
- * cs2_opcode.h (same opcode, both just pop a flag); 7253/7254 are past the meta
- * table there and decode via its default entry. */
-#define CS2_OP_MINIMAP_SETZOOMABLE 7250
-#define CS2_OP_MINIMAP_SETZOOM 7252
-#define CS2_OP_MINIMAP_GETZOOM 7253
-#define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
-/* UI zoom controls (6210..6214; 6213 unconfirmed, left out). SET/GET/RESET are
- * host-owned state (like MINIMAP zoom); GETDEFAULT answers a fixed constant
- * without touching that state. cs2_opcode.h has 6210/6212 as untyped
- * placeholders and no entry at all for 6211/6214. */
-#define CS2_OP_UIZOOM_SET 6210
-#define CS2_OP_UIZOOM_GET 6211
-#define CS2_OP_UIZOOM_RESET 6212
-#define CS2_OP_UIZOOM_GETDEFAULT 6214
-/* Safe-area bounds (6220..6223, plus the 6231 alternate MAXY). Desktop client,
- * no notch/home-indicator: MINX/MINY are 0, MAXX/MAXY are the live canvas size
- * (same source as GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE). cs2_opcode.h has
- * 6220..6223 as untyped placeholders and no entry at all for 6231. */
-#define CS2_OP_SAFEAREA_GETMINX 6220
-#define CS2_OP_SAFEAREA_GETMINY 6221
-#define CS2_OP_SAFEAREA_GETMAXX 6222
-#define CS2_OP_SAFEAREA_GETMAXY 6223
-#define CS2_OP_SAFEAREA_GETMAXY_ALT 6231
-/* Camera yaw getter. No setter in this range and no live link from RS_CS2Host
- * to the render-side camera yet (same situation as CAM_*FOLLOWHEIGHT), so this
- * is a host-owned value with no current writer — see RS_CS2Host.cam_yaw. Not in
- * cs2_opcode.h at all (no placeholder define existed for 6232). */
-#define CS2_OP_CAM_GETYAW 6232
-/* OC_* obj-config getters with no cs2_opcode.h define at all (the 4213..4221
- * gap, plus 4222). Same INT8-baked-operand convention as the rest of the OC_
- * family (4200..4212, all CS2_OPERAND_INT8 in the generated meta). Most still
- * have no backing data on ToriRS_Objtype; EXAMINE (desc) and SHIFTCLICKIOP
- * (shift_click_drop_index) are real — see the host handlers for the rest. */
-#define CS2_OP_OC_SHIFTCLICKIOP 4213
-#define CS2_OP_OC_WEARPOS 4214
-#define CS2_OP_OC_WEARPOS2 4215
-#define CS2_OP_OC_WEARPOS3 4216
-#define CS2_OP_OC_WEIGHT 4217
-#define CS2_OP_OC_EXAMINE 4218
-/* oc_isubop(obj, opIndex, subIndex) -> string. No sub-menu nesting exists on
- * ToriRS_Objtype (only flat inv_actions/ground_actions), so this stubs to "". */
-#define CS2_OP_OC_ISUBOP 4222
-/* CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks that install
- * or remove transient client-owned ops (Tag, Lookup, Mark tile, etc.) on an
- * entity/tile slot. SET pops (slot, scriptId) + string label; DEL pops slot.
- * The host stubs them for now (no enhanced menu entries yet) so scripts that
- * wire interface state do not abort. cs2_opcode.h has these as _67xx. */
-#define CS2_OP_CLIENTOP_NPC_SET 6700
-#define CS2_OP_CLIENTOP_NPC_DEL 6701
-#define CS2_OP_CLIENTOP_LOC_SET 6702
-#define CS2_OP_CLIENTOP_LOC_DEL 6703
-#define CS2_OP_CLIENTOP_OBJ_SET 6704
-#define CS2_OP_CLIENTOP_OBJ_DEL 6705
-#define CS2_OP_CLIENTOP_PLAYER_SET 6706
-#define CS2_OP_CLIENTOP_PLAYER_DEL 6707
-#define CS2_OP_CLIENTOP_TILE_SET 6708
-#define CS2_OP_CLIENTOP_TILE_DEL 6709
-/*
- * Input-field (widget type 16) configuration. These were previously numbered
- * 7200-7212, which is outside the real opcode space -- no cache script could
- * ever reach those handlers, while the real opcodes sat in the table as
- * "_unknown" with {0,0,0,0} stack metadata and desynced the operand stack.
- * SETACCEPTMODE was also missing entirely, which shifted every entry after
- * SETSELECTCOLOUR by one. Numbering per the reference (Opcodes.ts:119-132).
- */
-#define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
-#define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
-#define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
-#define CS2_OP_CC_INPUT_SETWRAPMODE 1136
-#define CS2_OP_CC_INPUT_SETLINEWRAPPINGWIDTH 1137
-#define CS2_OP_CC_INPUT_SETSELECTBGCOLOUR 1138
-#define CS2_OP_CC_INPUT_SETLINECOUNTLIMIT 1139
-#define CS2_OP_CC_INPUT_SETCURSORCOLOUR 1140
-#define CS2_OP_CC_INPUT_SETCURSORTRANS 1141
-#define CS2_OP_CC_INPUT_SETCURSORWIDTH 1142
-#define CS2_OP_CC_INPUT_SETCURSORHEIGHT 1143
-#define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
-#define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
-#define CS2_OP_CC_INPUT_SETCHARFILTER 1146
-
 /* A yield rolls the VM back to the start of the opcode that yielded. Per the
  * CS2VM_EXECNO_YIELD contract (see above), a yielding host op must not have mutated
  * frame contents or pushed/popped frames — only operand-stack tops. So the checkpoint
@@ -306,10 +188,35 @@ struct CS2VM2_YieldCheckpoint
     int frame_sp;
     int active_component_id;
     int dot_component_id;
-    int undo_log_len; /* undo_log length at op entry; on yield, roll back to here */
 };
 
-#define CS2VM2_MAX_THREADS 4
+/*
+ * One. Concurrency in this VM is one script per *block*, not one per thread
+ * slot.
+ *
+ * This was 4, and the other three were dead capacity that every script paid
+ * for twice. Nothing in the tree ever addressed `threads[1]` and up:
+ * `CS2VM2_ThreadMain` and `CS2VM2_Run` both hand out `threads[0]`, and when a
+ * script nests — awaits a load while another starts — the second one acquires
+ * its own VM from the pool in cs2vm2.c, which is exactly why that pool is a
+ * free list rather than a singleton. So the slots were never a scheduling
+ * resource; they were three copies of a 128-array table and a string pool that
+ * no code could reach.
+ *
+ * They were not free, because `CS2VM2_Init` and `CS2VM2_Free` both walk
+ * `thread_count` and the pool parks torn-down blocks rather than warm VMs: every
+ * script ran 4x the per-thread setup and teardown, three quarters of it over
+ * state untouched since the identical pass before it. Measured on the rev-239
+ * gameframe, the acquire/release round trip was 1,879 ns per script and 32.9% of
+ * the whole CS2 stage.
+ *
+ * Raising it again means restoring that cost, so a real multi-thread model has
+ * to make Init/Free track which slots were touched rather than walking all of
+ * them. Within one thread that tracking has since been done — Free walks
+ * `array_alloc` and a pooled block skips the array clear entirely — but it is
+ * per-thread work, so it does not make the thread count free again.
+ */
+#define CS2VM2_MAX_THREADS 1
 struct CS2VM2_Thread
 {
     struct CS2VM2* vm;
@@ -355,6 +262,12 @@ struct CS2VM2_Thread
     int yield_halt_script_id;
     int yield_halt_pc;
     int yield_halt_count;
+    /* Which RESOURCE the halt count is counting yields for. An opcode may need
+     * two different loads -- DB_GETFIELD wants the row and then its table
+     * index -- and those are progress, not a spin. See CS2VM2_CheckYieldHalt. */
+    enum CS2VM_HostRequestKind yield_halt_awaited_kind;
+    int yield_halt_awaited_id;
+    int yield_halt_awaited_id2;
 
     /* Cache-load retry identity belongs to the executing thread, not the
      * shared game host. Several Task_CS2Run instances can be parked at once;
@@ -450,6 +363,20 @@ struct CS2VM2_ThreadError
 
 /* Trace controls (0=off, 1=targeting ops, 2=all). */
 extern int g_cs2_trace_mode;
+
+/*
+ * What the client SAYS it is, to the scripts: the CLIENTTYPE and ON_MOBILE
+ * opcodes push these. One fact about the process (a client is one kind of
+ * client), set once at boot from the manifest / revconfig / platform default
+ * (app.c) and read by every VM thread. Defaults to the desktop enhanced
+ * client (10, not mobile) until set.
+ */
+void
+CS2VM2_SetClientIdentity(int clienttype, int on_mobile);
+int
+CS2VM2_ClientType(void);
+int
+CS2VM2_OnMobile(void);
 extern char g_cs2_trace_extra[512];
 
 /**
@@ -502,11 +429,12 @@ CS2VM2_Free(struct CS2VM2* vm);
  * allocator traffic in a boot — a gigabyte of it, interleaved with the small
  * long-lived allocations that fragment a wasm heap.
  *
- * Acquire returns an Init'd VM; Release runs the same CS2VM2_Free teardown and
- * parks the block. Recycling a block is exactly as safe as a fresh malloc:
- * cs2vm2_thread_init is written against uninitialised memory (see its comment).
- * Drain releases the parked blocks and the pooled call frames — call it at
- * shutdown or when trimming. */
+ * Acquire returns an Init'd VM; Release resets its live state and parks the
+ * block. One empty 8 KiB string bump block is retained per parked VM; no script
+ * strings, arrays, or call frames survive. A block that comes back out of the
+ * pool skips the wide array clear because Release left the table clean — see
+ * cs2vm2_init_warm. Overflow and Drain fully release the parked blocks and the
+ * pooled call frames — call Drain at shutdown or when trimming. */
 struct CS2VM2*
 CS2VM2_Acquire(void);
 

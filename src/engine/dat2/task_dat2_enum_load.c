@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2EnumLoad
 {
@@ -54,7 +55,7 @@ Task_Dat2EnumLoad_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 enum group for enum %d\n", task->enum_id);
+        TORIRS_ERR("Failed to decode dat2 enum group for enum %d\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
 
@@ -65,7 +66,7 @@ Task_Dat2EnumLoad_Run(
                                : task->enum_id);
     if( pos < 0 )
     {
-        fprintf(stderr, "Failed to find dat2 enum %d in config group\n", task->enum_id);
+        TORIRS_ERR("Failed to find dat2 enum %d in config group\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
 
@@ -79,7 +80,7 @@ Task_Dat2EnumLoad_Run(
     RSCache_Dat2ConfigEnumFreeInplace(&entry);
     if( !torirs )
     {
-        fprintf(stderr, "Failed to convert dat2 enum %d\n", task->enum_id);
+        TORIRS_ERR("Failed to convert dat2 enum %d\n", task->enum_id);
         PT_EXIT(&task->pt);
     }
 

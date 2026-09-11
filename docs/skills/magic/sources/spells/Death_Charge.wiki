@@ -1,0 +1,81 @@
+{{Infobox Spell
+|name = Death Charge
+|image = [[File:Death Charge.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 80
+|spellbook = Arceuus
+|type = Utility
+|exp = 90
+|cost = {{RuneReq|Death=1|Blood=1|Soul=1}}
+|speed = 
+|cooldown = 100 ticks
+|quest = [[A Kingdom Divided]]
+|description = Restores some of your special attack energy when you defeat a foe
+|anim = [[File:Death Charge.gif|180px]]
+|sound = [[File:Death Charge.ogg]]
+}}
+[[File:Death Charge icon (mobile).png|left]]
+'''Death Charge''' is a spell to restore special attack energy within the [[Arceuus spellbook]] that requires level 80 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 1
+|Rune2 = blood
+|Rune2num = 1
+|Rune3 = soul
+|Rune3num = 1
+}}
+
+==Effect==
+Casting Death Charge will restore 15% of the player's [[special attack]] energy after they dealt the killing blow to any monster within one minute after casting the spell. However, the special attack energy is restored only once per cast. Death Charge can only be cast once every 60 seconds. Casting the spell while fighting a monster does not interrupt combat.
+
+Killing a monster while the player's special attack bar is already at 100% '''will''' trigger the active effect of the spell without actually restoring any special attack energy.
+
+The restoration effect of Death Charge will not trigger if the player has been involved in PvP combat in the last ten ticks.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1585604418422063108|date=27 October 2022|archiveurl=https://reldo.runescape.wiki/i/98348|archivedate=20 November 2022|quote=The comment in the code for death charge says it checks the player "hasn't been in PVP in the last 10 cycles" - so if you defeated someone in PvP it sounds intentional that it won't trigger.}} The player must also be within 16 tiles of the slain creature in order for Death Charge to activate.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1567837910161932290|date=8 September 2022|archiveurl=https://reldo.runescape.wiki/i/101027|archivedate=4 March 2023|quote=It looks for the player who did the last hit (which I think might be the owner of a thrall, as you suggest) and proceeds if they're within 16 tiles and haven't been attacked by a player lately.}} In a [[Multicombat area|multicombat]] scenario, the restoration effect is triggered for the player who dealt the last hit.
+
+Not all monsters (or other attackable targets) can trigger the effect however. These monsters (or attackable targets) will '''not''' trigger the effect:
+*The [[unstable ice]] blocks formed by [[Amoxliatl]]
+*The [[Moons of Peril]]
+*[[The Nightmare]]'s (and [[Phosani's Nightmare]]) totems
+*The [[Boulder (Tombs of Amascut)|Boulders]] dropped by [[Ba-Ba]] when a health threshold is reached
+*The [[Jug (Tombs of Amascut)|Jugs]] used to clear poison during the fight with [[Zebak]]
+*The [[Obelisk (Tombs of Amascut)|obelisk]] and [[Energy Siphon]]s during the fight with the [[Wardens]]
+*The [[Glowing crystal]] during the fight with [[Vasa Nistirio]]
+*The [[Great Olm]]'s left and right hand
+*The [[Respiratory system|respiratory systems]] during the first phase of fight with [[Abyssal Sire]]
+*All [[Sea creatures]]
+
+==Upgrade==
+[[File:Death Charge upgraded.webp|right|thumb|Death Charge will instead be red after reading the rite of vile transference.|180px]]
+The spell can be upgraded by reading a [[rite of vile transference]], available as loot from opening [[dossier]]s, which are in turn a drop from [[Yama]]. The rite is untradeable, so players must fight Yama in order to obtain it; it is guaranteed to be obtained from the next dossier a player opens after reaching at least 100 victories against him, however. Players can opt to hold off on opening dossiers until they reach 100 victories, since the dossiers are bankable.
+
+After reading the rite, Death Charge is permanently upgraded to restore 15% special attack energy from two targets per cast (while still retaining the one minute expiration timer), and the skull is changed to a red colour.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|poll = Yama Rewards Poll
+|change = Death Charge can now be upgraded by reading the [[rite of vile transference]].
+}}
+{{Subject changes
+|date = 4 September 2024
+|update = Araxxor Tweaks & Poll 82 Updates
+|change = Death Charge now restores special attack energy when fighting [[Araxxor]].
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = Death Charge now restores special attack energy when fighting the [[Grotesque Guardians]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

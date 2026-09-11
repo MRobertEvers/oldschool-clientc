@@ -1,0 +1,74 @@
+{{External|rs=Bounty Teleport}}
+{{otheruses|the spell|the teleport tablet|Target teleport}}
+{{Infobox Spell
+|name = Teleport to Target
+|image = [[File:Teleport to Target.png]]
+|release = [[30 October]] [[2014]]
+|update = Target Teleport & Fedora Tip
+|members = Yes
+|level = 85
+|spellbook = all
+|type = Teleport
+|exp = 45
+|cost = {{RuneReq|Law=1|Chaos=1|Death=1}}
+|speed = 4 ticks
+|description = Teleports you near your Target
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Teleport to Target icon (mobile).png|left|class=pageimage]]
+'''Teleport to Target''' is a spell that requires level 85 [[Magic]] to cast, and must be unlocked by reading a [[target teleport scroll]]. While participating in the [[Bounty Hunter]] minigame, casting Teleport to Target will bring the player to within 12 squares of their assigned target inside of the [[Daimon's Crater]].
+
+The spell can only be cast within the crater, including the central lobby area, provided the player has been assigned a target. The spell cannot be used while the player is in combat. In addition, it can only be used five times per target. This spell is available on all [[spellbook]]s.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 1
+|Rune2 = death
+|Rune2num = 1
+|Rune3 = chaos
+|Rune3num = 1
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted teleport spell sack}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The spell has been added to the [[Arceuus spellbook]]. 
+}}
+{{Subject changes
+|date = 24 May 2023
+|update = Bounty Hunter is Back!
+|change = Teleport to Target can now be cast inside the lobby area of the newest Bounty Hunter iteration to be teleported near one's assigned target in the Daimon's Crater.
+}}
+{{Subject changes
+|date = 6 August 2020
+|update = PVP Changes
+|poll =
+|change = The spell's name was changed from "Teleport to Bounty Target" to "Teleport to Target".
+}}
+{{Subject changes
+|date = 23 March 2017
+|update = In-game Name Changing & Sortable Lists
+|change = The amount of teleports to the same Bounty Hunter target has been increased from 1 to 5 following feedback from the community.
+}}
+{{Subject changes
+|date = 16 March 2017
+|update = Quality of Life & Deadman Prep
+|change = The spell can now only be used once per target.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*This spell is the only one with a version in each of the four [[Spellbook|spellbooks]].
+*Prior to the closure of target worlds, Teleport to Target could be used to enter the [[Wilderness Agility Course]] without having the required 52 [[Agility]], if the player's target was inside the gate. However, the required Agility level of 49 was still required to complete the course.
+
+{{Teleport spells}}

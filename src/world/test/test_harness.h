@@ -3,6 +3,8 @@
 
 #include "world.h"
 
+#include "features/features.h"
+
 #include <stdio.h>
 
 extern int g_failures;
@@ -16,6 +18,27 @@ extern int g_failures;
             g_failures++;                                                                          \
         }                                                                                          \
     } while( 0 )
+
+/*
+ * One whole client cycle of world time.
+ *
+ * rev-239 splits the actor update across two clocks -- World_Cycle (per 20ms
+ * cycle: facings, walk/run sequence choice, route retirement) and
+ * World_MoversAdvance (per rendered frame: the ground actually covered). A
+ * test has no frame pacing, so it runs them lockstep at one cycle each, which
+ * is exactly what a client rendering at 50fps does.
+ */
+static inline void
+World_TestCycle(
+    struct World* world,
+    int cycles)
+{
+    for( int i = 0; i < cycles; i++ )
+    {
+        World_MoversAdvance(world, 1.0f);
+        World_Cycle(world, 1);
+    }
+}
 
 static inline struct WorldEntityFacet_IdleAnimations
 World_TestDefaultIdle(void)
@@ -32,12 +55,25 @@ World_TestDefaultIdle(void)
 }
 
 static inline struct World*
-World_TestMakeReady(int scene_size)
+World_TestMakeReadyEra(
+    int scene_size,
+    struct ToriRS_FeatureTable const* features)
 {
     struct World* world = World_New();
     World_ResetScene(world, 50, 50, scene_size);
     World_SetLoadComplete(world, true);
+    World_SetFeatures(world, features);
     return world;
+}
+
+/* The lane this tree ships: rev-239 features, so the frame-paced mover. A test
+ * that is about the 2004 mover asks for it by name with World_TestMakeReadyEra
+ * (ToriRS_Features_LostCity), which is the only era that still moves actors on
+ * the cycle clock. */
+static inline struct World*
+World_TestMakeReady(int scene_size)
+{
+    return World_TestMakeReadyEra(scene_size, ToriRS_Features_OSRS());
 }
 
 static inline int
@@ -88,9 +124,14 @@ void test_spotanim(void);
 void test_spotanim_immediate_activation(void);
 void test_spotanim_catchup_activation(void);
 void test_scenery(void);
+void test_bridge_levels(void);
 void test_cycle_movers(void);
 void test_delaymove_gate(void);
+void test_walk_keeps_up(void);
+void test_mover_model_flag(void);
+void test_stop_settles_promptly(void);
 void test_entity_face(void);
+void test_entity_face_across_frames(void);
 void test_try_route(void);
 void test_try_route_nearest_models(void);
 void test_try_route_op(void);
@@ -107,6 +148,8 @@ void test_tile_stack_dedup(void);
 void test_minusedlevel_entity_draw(void);
 void test_rebuild_shift(void);
 void test_obj_raise(void);
+void test_action_anim_restarts_the_readyanim(void);
+void test_action_anim_hands_back_to_the_readyanim_loop_point(void);
 void test_npc_retype_keeps_animation(void);
 void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);

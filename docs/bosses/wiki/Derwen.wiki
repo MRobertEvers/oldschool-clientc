@@ -1,0 +1,70 @@
+{{otheruses|the Guthixian ent|the elf|Derwen (elf)}}
+{{Infobox Monster
+|name = Derwen
+|image = [[File:Derwen.png|270px]]
+|release = [[8 February]] [[2018]]
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|members = Yes
+|combat = 235
+|size = 3
+|examine = An ancient Guthixian Ent.
+|xpbonus = 20
+|max hit = 43 (Magic), 16 (Melee)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Crush]]
+|attack speed = 6
+|hitpoints = 320
+|att = 250
+|str = 150
+|def = 100
+|mage = 80
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 180
+|mbns = 80
+|arange = 0
+|rngbns = 0
+|dstab = 200
+|dslash = 200
+|dcrush = 200
+|dmagic = -60
+|dlight = 200
+|dstandard = 200
+|dheavy = 200
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7513,7859
+|leagueRegion = Wilderness
+}}
+'''Derwen''' is an ancient servant of [[Guthix]], who takes great interest in [[Justiciar Zachariah]] and [[Porazdir]], attempting to keep a balance between them.{{CiteNPC|npc=Kolodion|quote=[Derwen] seems to take great interest in the other two creatures. Maybe he is trying to keep a balance between them.}} 
+
+During the [[Mage Arena II]] [[Miniquests|miniquest]], he has to be defeated in order to obtain [[ent's roots|his roots]] for [[Kolodion]]'s spell. In order to summon him, players have to use an [[enchanted symbol]] to locate him, similar to using an [[enchanted key]] or [[strange device]].
+[[File:Fighting Derwen.png|thumb|left|270px|A player fighting Derwen.]]
+When fighting Derwen, he will cast the [[Claws of Guthix]] spell - unlike the version cast by the Guthix [[Battle mage|battle mages]] in the [[Mage Arena]], this will reduce your [[Defence]] level by 1 + 5%. He can also use a special attack which will release multiple balls of energy in the area around him. These balls of energy will heal Derwen for five [[Hitpoints]] every few seconds. They can be destroyed by the player, having 20 hitpoints each. He can also [[Tele Block]] the player for one minute, and cast freezes preventing the player from moving.
+
+Derwen can only be harmed by the [[Claws of Guthix]] spell. As such, a [[Guthix staff]], a [[staff of balance]], or the [[void knight mace|Void Knight mace]] is required to defeat him. Despite being referred to as an ent, killing Derwen will not count towards an ent Slayer task from Krystillia.
+{{clear|left}}
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Ent's roots|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/3|gemw=No}}
+{{DropsTableBottom}}
+
+==Trivia==
+*He replaced the [[Demon of Balance]] after the Mage Arena II rework.
+*The word "Derwen" means "oak tree" in Welsh.
+
+==References==
+{{reflist}}
+
+{{Mage Arena II}}
+
+[[Category:Guthixians]]

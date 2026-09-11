@@ -1,0 +1,35 @@
+{{Infobox Combat Achievement
+|name = Perfect Sotetseg
+|image = [[File:Sotetseg.png|290px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Sotetseg without anyone in the team stepping on the wrong tile in the maze, without getting hit by the tornado and without taking any damage from Sotetseg's attacks whilst off prayer.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 247
+|leagueRegion = Morytania
+}}
+'''Perfect Sotetseg''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill Sotetseg without anyone in the team stepping on the wrong tile in the maze, without getting hit by the tornado and without taking any damage from Sotetseg's attacks whilst off prayer.
+
+== Strategy ==
+The achievement requires players to avoid damage from wrong tiles during the maze mechanic and from Sotetseg's auto-attacks. Sotetseg will attack with all three combat styles, but with either melee or magic as a primary attack style. The magic attack will shatter into either another magic attack or a ranged one. If players are out of melee distance, Sotetseg will only use magic attacks. The melee attack will tend to hit before a ranged or magic hit, but because of its unpredictability, players can alternatively use a [[halberd]] or ranged weapons instead and attack from a distance, ensuring that the melee attacks are never used.
+
+The charged ball can be shared or [[Tick eating|tick-eaten]], but players can skip the attack by triggering the maze at 66% and 33% hp instead. Wait at around 70% and 40% hp until the ball is sent, then do enough damage to reach the threshold.
+
+Make sure to [[Protect from Melee]] when exiting the maze to avoid accidentally taking a hit off prayer if selected by Sotetseg to enter the Shadow Realm.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = The name of the task has been changed from "Perfect Sotesteg" to "Perfect Sotetseg".
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

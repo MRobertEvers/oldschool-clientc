@@ -33,7 +33,9 @@
 
 /* Widest argument list a hook may carry. A bound, not an allocation size. */
 #define UITREE_HOOK_ARG_MAX 64
-#define UITREE_HOOK_STR_ARG_MAX 4
+/* Script 150's nine operation labels are the widest currently known hook;
+ * keep headroom so valid signatures are not silently truncated. */
+#define UITREE_HOOK_STR_ARG_MAX 16
 /* Longest string argument kept, including the terminator. */
 #define UITREE_HOOK_STR_ARG_LEN 80
 
@@ -97,9 +99,28 @@ struct UITreeRuntimeHooks
     /** CC/IF_SETONFRIENDTRANSMIT. Like on_misc_transmit it carries no trigger
      *  list: every registered hook re-runs when the friend store changes. */
     struct UITreeRuntimeScriptHook on_friend_transmit;
+    /** CC/IF_SETONCHATTRANSMIT. No trigger list either: the reference bumps
+     *  one chat stamp per message and every registered hook re-runs against
+     *  it. The chatbox's own hook (`chat_onchattransmit`, registered by
+     *  `[clientscript,chatbox_init]`) is what redraws the 500 line
+     *  components -- the client writes none of them itself. */
+    struct UITreeRuntimeScriptHook on_chat_transmit;
     struct UITreeRuntimeScriptHook on_dialog_abort;
     struct UITreeRuntimeScriptHook on_resize;
     struct UITreeRuntimeScriptHook on_sub_change;
+    /* An IF3 text-entry field's three lifecycle events (CC/IF_INPUT_SETON*).
+     * They belong to component type 12, the editable field CC_CREATE builds —
+     * see `rs_text.input` in uitree.h. SUBMIT is Enter, UPDATE is every
+     * accepted keystroke, and FOCUSCHANGED fires on both taking and losing the
+     * caret. The hiscores search box registers submit and focuschanged and does
+     * its lookup from the latter (`torirs_hiscores_from_text`, script 7527).
+     *
+     * `cc_input_setonabort` has no slot because nothing in cache.osrs239
+     * registers one; it stays an unmodeled event in rs_cs2_host.c rather than
+     * carrying 40 bytes per hooked component for a handler no script sets. */
+    struct UITreeRuntimeScriptHook on_input_submit;
+    struct UITreeRuntimeScriptHook on_input_update;
+    struct UITreeRuntimeScriptHook on_input_focus_changed;
 };
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +164,25 @@ UITree_HookStrArgv(
 void
 UITree_HookSet(
     struct UITreeRuntimeScriptHook* hook,
+    int script_id,
+    int const* argv,
+    int argc,
+    uint64_t str_mask,
+    char const* const* strv,
+    int str_argc);
+
+/** Would `UITree_HookSet` with these arguments leave the slot exactly as it
+ *  already is? Applies the same clamps and the same NULL normalisations first,
+ *  so a true answer means "identical", not "similar".
+ *
+ *  For skipping a re-registration: `if_seton*` is re-armed wholesale whenever a
+ *  script rebuilds an interface, and the great majority of those calls re-state
+ *  the binding already in the slot. Setting it again would free both tails,
+ *  malloc them back at the same sizes, and strdup every string, to arrive where
+ *  it started. */
+int
+UITree_HookEquals(
+    struct UITreeRuntimeScriptHook const* hook,
     int script_id,
     int const* argv,
     int argc,

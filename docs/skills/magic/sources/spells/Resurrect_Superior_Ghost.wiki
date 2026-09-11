@@ -1,0 +1,38 @@
+{{Infobox Spell
+|name = Resurrect Superior Ghost
+|image = [[File:Resurrect Superior Ghost.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 57
+|spellbook = Arceuus
+|type = Combat
+|exp = 70
+|cost = {{RuneReq|Earth=10|Death=5|Cosmic=1}} <sup>4</sup> {{SCP|Prayer}} {{plinkp|Book of the Dead}}
+|speed = 4 ticks
+|cooldown = 16 ticks
+|quest = [[A Kingdom Divided]]
+|description = Calls upon a superior ghostly thrall to fight alongside you
+|anim = [[File:Resurrect Ghost.gif|300px]]
+|sound = [[File:Resurrect Superior Ghost.ogg]]
+}}
+[[File:Resurrect Superior Ghost icon (mobile).png|left]]
+'''Resurrect Superior Ghost''' is a [[resurrection spells|resurrection spell]] within the [[Arceuus spellbook]] that requires level 57 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. In addition to the required runes, casting this spell requires four [[prayer points]] and having the [[Book of the Dead]] equipped or in the player's inventory.
+
+The spell will summon a [[superior ghostly thrall]], which has an [[attack speed]] of 4 (attacking every 2.4 seconds) and attacks using [[Magic]] (with a max hit of 2), ignoring any accuracy checks in the process. They will attack the same target that the player is attacking, and cannot be damaged. However, they '''cannot''' attack other players. Damage dealt by the thrall counts as damage dealt by the player that summoned it.
+
+Thralls will remain for a set amount of time (<math>0.6 * CurrentMagicLevel</math> seconds), but players can cast resurrection spells again after 10 seconds, albeit the existing thrall will disappear if players do so.
+
+Summoned [[thrall]]s last twice as long as normal after claiming the [[Master Combat Achievements]] rewards. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 10
+|Rune2 = death
+|Rune2num = 5
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Arceuus spellbook}}

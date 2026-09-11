@@ -1,4 +1,5 @@
 #include "rs_gameproto_exec.h"
+#include "torirs_env.h"
 
 #include "app.h"
 #include "inv/inv_manager.h"
@@ -8,6 +9,7 @@
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_clientcode.h"
 #include "rs_cs2_dispatch.h"
 #include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
@@ -22,6 +24,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
+
+/*
+ * Put a line in the chatbox.
+ *
+ * Through the CS2 host when there is one, because a message is two things and
+ * both have to happen: it goes in the store, and the chat-transmit channel
+ * has to say so, or the cache's `[proc,rebuildchatbox]` never runs and the
+ * line sits in a store nothing draws. The host also owns the client clock the
+ * node is stamped with.
+ *
+ * The app-less form is the unit tests and the headless packet harness, which
+ * have a store and no host; they get the store write and a zero clock, which
+ * is all a run with no chatbox can use.
+ */
+static void
+exec_chat_add(
+    struct RS_GameProtoCtx const* ctx,
+    int type,
+    char const* name,
+    char const* sender,
+    char const* text)
+{
+    assert(ctx);
+    if( !ctx->chat )
+        return;
+    if( ctx->app )
+        RS_CS2Host_ChatAdd(&ctx->app->host, type, name, sender, text);
+    else
+        RS_Chat_AddMessage(ctx->chat, type, name, sender, text, 0);
+}
 
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
 static int
@@ -61,18 +94,7 @@ exec_if_clearinv_node(
     c = &tree->components[idx];
     if( c->freed )
         return;
-    c->item_id = 0;
-    c->item_count = 0;
-    c->item_scene_id = -1;
-    c->item_atlas_index = 0;
-    if( c->type == UIELEM_CC_OBJ )
-    {
-        c->u.cc_obj.obj_id = 0;
-        c->u.cc_obj.obj_count = 0;
-        c->u.cc_obj.scene_id = -1;
-        c->u.cc_obj.atlas_index = 0;
-    }
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetObjectAt(tree, idx, 0, 0, -1, 0, c->item_num_mode);
     for( int32_t child = c->first_child; child >= 0; )
     {
         int32_t next = tree->components[child].next_sibling;
@@ -95,18 +117,17 @@ exec_update_inv_full(
     /* Containers arrive long after the interface that paints them was built,
      * so the CS2 paint script has to be told to run again. */
     if( ctx->app )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
     if( getenv("TORIRS_INV_DEBUG") )
     {
-        fprintf(
-            stderr,
-            "inv-full: container=%d (com 0x%08x) size=%d\n",
+        TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
             container,
             (unsigned)p->component_id,
             p->size);
         for( int i = 0; i < p->size; i++ )
             if( p->obj_ids[i] > 0 )
-                fprintf(stderr, "  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
+                TORIRS_LOG("  slot %2d obj=%d x%d\n", i, p->obj_ids[i], p->obj_counts[i]);
     }
 }
 
@@ -123,28 +144,33 @@ exec_update_inv_partial(
     if( src < 0 )
         return;
     if( getenv("TORIRS_INV_DEBUG") )
-        fprintf(
-            stderr,
-            "inv-partial: container=%d (com 0x%08x) slots=%d\n",
+        TORIRS_LOG("inv-partial: container=%d (com 0x%08x) slots=%d\n",
             container,
             (unsigned)p->component_id,
             p->count);
     for( int i = 0; i < p->count; i++ )
     {
+        /* The packet carries an item, not an icon: say so, rather than
+         * letting the zero-initialiser pass 0 off as a scene id. Zero is
+         * never allocated (the bridge counts up from 1), but it IS >= 0, so
+         * emit drew "sprite 0" — nothing — with the stack count over it, and
+         * it is not INV_MANAGER_NO_SCENE_ID, so the icon reconcile never
+         * looked at the slot again. Every destination of an item that moved
+         * between containers arrives on this path. */
         struct InvSlot slot = { 0 };
         slot.obj_id = p->entries[i].obj_id;
         slot.obj_count = p->entries[i].count;
+        slot.scene_id = INV_MANAGER_NO_SCENE_ID;
         InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
         if( getenv("TORIRS_INV_DEBUG") )
-            fprintf(
-                stderr,
-                "  slot %2d obj=%d x%d\n",
+            TORIRS_LOG("  slot %2d obj=%d x%d\n",
                 p->entries[i].slot,
                 slot.obj_id,
                 slot.obj_count);
     }
     if( ctx->app && p->count > 0 )
-        RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
+        RS_CS2Host_NotifyInvChanged(&ctx->app->host,
+                                   p->inv_id > 0 ? container & 0x7fff : container);
 }
 
 /* The local player's plane is the fallback for classic zone headers which do
@@ -201,14 +227,17 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
     app->need_redraw = 1;
 }
 
-/* Where a zone sub-packet applies: base + packed nibbles, at `level`. The
- * base/level pair is captured by the caller — live packets use the app's
- * current state, replayed ones the state as of arrival. */
+/* Where a zone sub-packet applies: base + packed nibbles, at `level`, in the
+ * world view `view`. All of it is captured by the caller — live packets use
+ * the app's current state, replayed ones the state as of arrival (a queued
+ * packet outlives the SET_ACTIVE_WORLD that addressed it; the tick fence
+ * resets the live cursor). */
 struct ZoneAt
 {
     int base_x;
     int base_z;
     int level;
+    int view;
 };
 
 static void
@@ -222,6 +251,32 @@ zone_tile_at(
     *out_x = at->base_x + ((pos >> 4) & 7);
     *out_z = at->base_z + (pos & 7);
     *out_level = at->level;
+}
+
+/*
+ * Same tile, but the level a *loc* packet means.
+ *
+ * A zone names the plane the player walks. On a bridge column that is one below
+ * the plane the map authored the deck's locs on, and the scene keeps them where
+ * the map put them (the push-down moves the painter tile, not the loc). So a
+ * LOC_ADD_CHANGE arriving for a deck has to climb back to the cache level or it
+ * cannot find the loc it is replacing — it spawns a second one on the plane
+ * below instead, which is two chests inside each other in the QBD reward room.
+ * Entities do not need this: their levels are walked levels all the way to the
+ * painter, and app_world_height makes the same climb for their heights.
+ */
+static void
+zone_loc_tile_at(
+    struct App* app,
+    struct ZoneAt const* at,
+    int pos,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    zone_tile_at(at, pos, out_x, out_z, out_level);
+    *out_level = World_LocCacheLevel(
+        App_ActiveWorldview(app)->world, *out_x, *out_z, *out_level);
 }
 
 /* Copy one zone sub-packet payload into a PktZoneSubPacket by name. Returns 0
@@ -298,7 +353,7 @@ zone_pending_push(
 
     if( app->pending_zone_count >= cap )
     {
-        fprintf(stderr, "gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
+        TORIRS_LOG("gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
         return;
     }
     entry = &app->pending_zone[app->pending_zone_count];
@@ -307,6 +362,7 @@ zone_pending_push(
     entry->base_x = app->zone_base_x;
     entry->base_z = app->zone_base_z;
     entry->level = app->zone_level;
+    entry->view = app->active_world;
     app->pending_zone_count++;
 }
 
@@ -314,14 +370,28 @@ void
 RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
 {
     struct App* app = ctx->app;
+    struct World* world;
     int i;
 
-    if( !app || !app->world || !app->world->load_complete )
+    /* `app->world` doubles as "the view registry has its root": a harness App
+     * with no world never registered one, so resolving would assert. */
+    if( !app || !app->world )
+        return;
+    world = App_ActiveWorldview(app)->world;
+    if( !world->load_complete )
         return;
     for( i = 0; i < app->pending_zone_count; i++ )
     {
         struct AppPendingZonePkt const* entry = &app->pending_zone[i];
-        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level };
+        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level, entry->view };
+
+        /* The entry captured its view when it queued; the view can be
+         * despawned before load_complete lets the replay run. A dead view's
+         * zone event has nowhere to land — drop it, don't resolve a released
+         * registry slot. */
+        if( entry->view != WORLDVIEW_ROOT &&
+            !WorldviewRegistry_IsLive(&app->worldviews, entry->view) )
+            continue;
         exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
     }
     app->pending_zone_count = 0;
@@ -336,9 +406,10 @@ exec_zone_sub_packet(
     struct App* app = ctx->app;
     struct ZoneAt at;
 
+    /* Same root-registered sentinel as RS_GameProto_FlushPendingZone. */
     if( !app || !app->world )
         return;
-    if( !app->world->load_complete )
+    if( !App_ActiveWorldview(app)->world->load_complete )
     {
         zone_pending_push(app, name, payload);
         return;
@@ -351,6 +422,7 @@ exec_zone_sub_packet(
     at.base_x = app->zone_base_x;
     at.base_z = app->zone_base_z;
     at.level = app->zone_level;
+    at.view = app->active_world;
     exec_zone_sub_packet_at(ctx, name, payload, &at);
 }
 
@@ -363,14 +435,34 @@ exec_zone_sub_packet_at(
 {
     struct App* app = ctx->app;
     int tile_x, tile_z, level;
+    int prev_view = app->active_world;
+
+    /* Apply under the cursor AS OF ARRIVAL. A replayed pending packet was
+     * queued behind a SET_ACTIVE_WORLD the tick fence has since reset, so the
+     * live cursor is the wrong view for it; the applicators below (and the
+     * spawn tasks they enqueue, which capture the cursor) all resolve their
+     * (world, builder) through App_ActiveWorldview. Restored on the way out —
+     * for a live packet this round-trips the same value. */
+    app->active_world = at->view;
 
     switch( name )
     {
     case PKT_NAME_OBJ_ADD:
     {
         struct PktObjAdd const* pkt = payload;
+        int idx;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        /* A refused add (-1: no objtype, no model, no scene element) has no
+         * stack to hang the ownership on. */
+        if( idx >= 0 )
+            App_WorldObjStackSetOwnership(
+                app,
+                idx,
+                pkt->time_until_public,
+                pkt->time_until_despawn,
+                pkt->ownership_type,
+                pkt->never_becomes_public);
         break;
     }
     case PKT_NAME_OBJ_DEL:
@@ -383,11 +475,8 @@ exec_zone_sub_packet_at(
     case PKT_NAME_OBJ_COUNT:
     {
         struct PktObjCount const* pkt = payload;
-        int idx;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        idx = World_ObjStackFind(app->world, tile_x, tile_z, level, pkt->obj_id);
-        if( idx >= 0 )
-            World_ObjStackSetCount(app->world, idx, pkt->new_count);
+        App_WorldObjStackSetCount(app, tile_x, tile_z, level, pkt->obj_id, pkt->new_count);
         break;
     }
     case PKT_NAME_OBJ_REVEAL:
@@ -403,7 +492,7 @@ exec_zone_sub_packet_at(
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         /* Remove the loc in this shape's layer (scene + collision). shape =
          * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
          * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
@@ -420,13 +509,14 @@ exec_zone_sub_packet_at(
          * preload, so the change applies once they're resident (reference
          * changeLocAvailable gate in locChangeDoQueue). */
         struct PktLocAddChange const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldLocChange(
-            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
+        /* The op mask and replacement labels ride along: they describe THIS
+         * placement, so they cannot be recovered from the loc id later. */
+        App_WorldLocChangeOps(
+            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
+            pkt->op_flags, pkt->ops);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
                 pkt->info >> 2,
                 pkt->info & 0x3,
@@ -438,7 +528,7 @@ exec_zone_sub_packet_at(
     case PKT_NAME_LOC_ANIM:
     {
         struct PktLocAnim const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
         break;
     }
@@ -522,7 +612,7 @@ exec_zone_sub_packet_at(
          * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
         struct PktLocMerge const* pkt = payload;
         int pid;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         pid = pkt->pid;
         App_WorldLocMerge(
             app,
@@ -540,6 +630,191 @@ exec_zone_sub_packet_at(
     default:
         break;
     }
+
+    app->active_world = prev_view;
+}
+
+/*
+ * Open the welcome screen (reference tcpIn LAST_LOGIN_INFO).
+ *
+ * The reference picks WHICH interface by scanning every loaded IfType for a
+ * component whose clientCode is 650 or 655 and taking that component's layer.
+ * It can: its interface archive is one blob, decoded whole at startup. This
+ * client loads interfaces as per-id packs and has nothing to scan, so the two
+ * answers that scan would give are declared in the profile instead
+ * (`[iface:welcome_screen]` / `[iface:welcome_screen_notice]`).
+ *
+ * What stays here is the CHOICE between them, because that is a fact about the
+ * packet rather than about the cache: 201 is the "nothing to say about
+ * recovery questions" sentinel, so anything else -- or a members-on-a-free-
+ * world warning -- means there is a paragraph to show, and the paragraph rows
+ * only exist on the second screen.
+ */
+static void
+exec_open_welcome_screen(struct App* app)
+{
+    char const* iface_name;
+    int iface_id;
+
+    assert(app);
+
+    /* No address means the server is not offering a welcome screen at all.
+     * The reference gates on the same field, and it is also what keeps a
+     * zero-filled App from opening one before any packet has arrived. */
+    if( app->welcome.last_ip == 0 )
+        return;
+    /* Never in front of something already open. LAST_LOGIN_INFO is a login
+     * packet by convention, not by rule, and the reference makes the same
+     * check rather than trusting that. */
+    if( app->slots.main_modal_id != -1 )
+        return;
+
+    iface_name = (app->welcome.days_since_recovery != RS_CC_RECOVERY_DAYS_SILENT ||
+                  app->welcome.member_warning == 1)
+                     ? "welcome_screen_notice"
+                     : "welcome_screen";
+    iface_id = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
+    /* -1 = this profile declares no such interface, which is the honest answer
+     * for a revision whose cache has no welcome screen. Not a fallback to the
+     * other name: the two hold different rows, and opening the wrong one shows
+     * a paragraph about recovery questions that the server never sent. */
+    if( iface_id < 0 )
+        return;
+
+    /* Clears a side modal or chat dialogue the way the reference's closeModal()
+     * does. It does NOT send CLOSE_MODAL: the reference's send is unconditional
+     * only because closeModal() is one function, and we have already
+     * established there is no viewport modal for the server to hear about. */
+    RS_UISlots_CloseModal(app);
+    RS_UISlots_OpenMain(app, iface_id);
+}
+
+/*
+ * WORLDENTITY_INFO (SAILING_PLAN C1, deob Statics.method977): the packet is
+ * per view — its `count` ops walk the ACTIVE view's server-ordered entity
+ * list in list order, so op i addresses list slot i, not entity id i. The
+ * count exceeding the list is the server and client disagreeing about how
+ * many boats exist, which is a protocol violation, not a state to walk past
+ * — the deob throws a RuntimeException on it, so the assert is faithful. A
+ * count SHORT of the list is the opposite: the tail is being despawned.
+ *
+ * Despawns are collected before being swept: removing a slot renumbers the
+ * indices the remaining ops address.
+ */
+static void
+exec_worldentity_info(
+    struct App* app,
+    struct PktWorldEntityInfo const* pkt)
+{
+    int view;
+    int despawn_ids[WORLDVIEW_MAX];
+    int despawn_count = 0;
+
+    assert(app);
+    assert(pkt);
+    view = app->active_world;
+    /* The count is WIRE data: a count past the view's actual list is a
+     * malformed or misaddressed packet (parse can bound it against 15, not
+     * against client state), and indexing the list with it walks past live
+     * entries — refuse the packet, don't assert (NDEBUG turns the assert
+     * into the OOB walk itself). */
+    if( pkt->count > Wevs_ViewListCount(&app->wevs, view) )
+    {
+        TORIRS_LOG(
+            "exec: WORLDENTITY_INFO refused, count %d > list %d (view %d)\n",
+            pkt->count,
+            Wevs_ViewListCount(&app->wevs, view),
+            view);
+        return;
+    }
+
+    /*
+     * A count SHORTER than the list is the server truncating it: every entity
+     * from `count` on is gone (deob Statics.method977's leading
+     * `for (i = count; i < list.size(); i++) remove`). Without this a boat
+     * that sails out of range never despawns — it keeps its view, its scene
+     * elements and its slot in the registry for the rest of the session.
+     *
+     * Collect first, despawn after: Wevs_Despawn compacts the list, so
+     * removing while indexing it walks past live entries.
+     */
+    for( int i = pkt->count; i < Wevs_ViewListCount(&app->wevs, view); i++ )
+        despawn_ids[despawn_count++] = Wevs_ViewListAt(&app->wevs, view, i)->id;
+    for( int i = 0; i < despawn_count; i++ )
+        App_WevDespawn(app, despawn_ids[i]);
+    despawn_count = 0;
+
+    for( int i = 0; i < pkt->count; i++ )
+    {
+        struct PktWevUpdate const* up = &pkt->updates[i];
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view, i);
+
+        if( up->op == PKT_WEV_OP_DESPAWN )
+        {
+            despawn_ids[despawn_count++] = wev->id;
+            continue;
+        }
+        if( up->op == PKT_WEV_OP_ENQUEUE || up->op == PKT_WEV_OP_SNAP )
+            Wev_ApplyMove(
+                wev,
+                up->dx,
+                up->dy,
+                up->dz,
+                up->dangle,
+                up->op == PKT_WEV_OP_SNAP,
+                app->wevs.clock);
+        /* Only a bit-0x2 payload replaces the op mask; the flags byte on its
+         * own says nothing about which right-click ops are enabled, and
+         * writing it here would blank every op on any flagless update. */
+        if( up->has_op_mask )
+            wev->op_mask = (unsigned)up->op_mask;
+        if( up->has_seq )
+        {
+            wev->seq_id = up->seq_id;
+            wev->seq_delay = up->seq_delay;
+            /* One animaya frame per 20 ms cycle; the delay holds frame 0
+             * that many cycles away (deob field5699). */
+            wev->seq_start_cycle = app->wevs.clock + up->seq_delay;
+        }
+    }
+
+    for( int i = 0; i < despawn_count; i++ )
+        App_WevDespawn(app, despawn_ids[i]);
+
+    for( int i = 0; i < pkt->spawn_count; i++ )
+    {
+        struct PktWevSpawn const* sp = &pkt->spawns[i];
+        struct Wev* wev;
+
+        /* A spawn naming an id that is already live replaces it (the deob
+         * despawns before re-adding; a repeat-spawn that skipped this would
+         * overwrite the view's owned world/builder and grow the parent list
+         * past its bound in release builds). */
+        if( sp->id > WORLDVIEW_ROOT && sp->id < WORLDVIEW_MAX &&
+            Wevs_IsLive(&app->wevs, sp->id) )
+            App_WevDespawn(app, sp->id);
+        wev = App_WevSpawn(
+            app,
+            sp->id,
+            sp->config_id,
+            sp->size_x_tiles,
+            sp->size_z_tiles,
+            sp->priority_group,
+            sp->x,
+            sp->z,
+            sp->angle,
+            (unsigned)sp->op_mask);
+        if( !wev )
+            continue; /* refused (bad config/size) — App_WevSpawn logged it */
+
+        if( sp->has_seq )
+        {
+            wev->seq_id = sp->seq_id;
+            wev->seq_delay = sp->seq_delay;
+            wev->seq_start_cycle = app->wevs.clock + sp->seq_delay;
+        }
+    }
+    app->need_redraw = 1;
 }
 
 void
@@ -554,6 +829,9 @@ RS_GameProto_Exec(
     /* ---- varps ---- */
     case PKT_NAME_VARP_SMALL:
         VarPManager_ApplySmall(ctx->varps, packet->_varp_small.variable, packet->_varp_small.value);
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET VARP_SMALL variable=%d value=%d\n",
+                packet->_varp_small.variable, packet->_varp_small.value);
         break;
     case PKT_NAME_VARP_LARGE:
         VarPManager_ApplyLarge(ctx->varps, packet->_varp_large.variable, packet->_varp_large.value);
@@ -566,6 +844,18 @@ RS_GameProto_Exec(
         {
             RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
+            if( getenv("TORIRS_TRACE_NATIVE_UI") )
+                TORIRS_REPORT("NATIVE_PACKET UPDATE_STAT applied stat=%d level=%d xp=%d\n",
+                    packet->_update_stat.stat, ctx->stats->current_level[packet->_update_stat.stat],
+                    packet->_update_stat.xp);
+            /* A level-up is read from the BASE level SetXp just derived, not
+             * from the boosted one on the wire: a potion raises that and a
+             * drain lowers it, and neither is an advance. */
+            if( ctx->app )
+                App_NotifyStatLevel(
+                    ctx->app,
+                    packet->_update_stat.stat,
+                    ctx->stats->base_level[packet->_update_stat.stat]);
             /* The reactive half. Without it the skills tab paints once at
              * build time — against the zeroes the client starts with — and
              * nothing ever asks it to paint again, which is the same shape as
@@ -611,7 +901,13 @@ RS_GameProto_Exec(
         /* Persist through the app store when available: journal/bonus texts
          * arrive before their interface mounts (tests exec without an app). */
         if( ctx->app )
+        {
             App_IfTextSet(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
+            /* A quest completion is painted onto the scroll and never said
+             * aloud (content: questscroll.rs2), so this is the only place the
+             * client can see one happen. */
+            App_NotifyInterfaceText(ctx->app, packet->_if_settext.text);
+        }
         else
             UITree_ApplyText(ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
@@ -627,6 +923,9 @@ RS_GameProto_Exec(
                 packet->_if_setevents.events);
         break;
     case PKT_NAME_IF_SETHIDE:
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET IF_SETHIDE received com=%d hide=%d\n",
+                packet->_if_sethide.component_id, packet->_if_sethide.hide);
         /* Persisting setter, not a one-shot apply: IF_SETHIDE routinely lands
          * before the interface it targets has finished mounting (the mount is
          * an async task), and the reference keeps `hide` on IfType.list where
@@ -638,10 +937,21 @@ RS_GameProto_Exec(
                 ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         break;
     case PKT_NAME_IF_SETCOLOUR:
-        UITree_ApplyColour(
-            ctx->tree,
-            packet->_if_setcolour.component_id,
-            rs15_to_rgb(packet->_if_setcolour.colour));
+        /* Persisting, like IF_SETTEXT and IF_SETHIDE above, and for the same
+         * reason: a colour written in the tick its interface is mounted has no
+         * node to land on yet. This applied straight to the tree, so it was the
+         * one setter of the family that could be silently dropped — and it was,
+         * every time, for an overlay the server opens and colours together. */
+        if( ctx->app )
+            App_IfColourSet(
+                ctx->app,
+                packet->_if_setcolour.component_id,
+                rs15_to_rgb(packet->_if_setcolour.colour));
+        else
+            UITree_ApplyColour(
+                ctx->tree,
+                packet->_if_setcolour.component_id,
+                rs15_to_rgb(packet->_if_setcolour.colour));
         break;
     case PKT_NAME_IF_SETMODEL:
         /* A wire model id addresses the cache, not the renderer's scene. The
@@ -795,6 +1105,9 @@ RS_GameProto_Exec(
             RS_UISlots_CloseModal(ctx->app);
         break;
     case PKT_NAME_IF_SETTAB:
+        if( getenv("TORIRS_TRACE_NATIVE_UI") )
+            TORIRS_REPORT("NATIVE_PACKET IF_SETTAB received tab=%d com=%d\n",
+                packet->_if_settab.tab_id, packet->_if_settab.component_id);
         if( ctx->app )
             RS_UISlots_SetTab(ctx->app, packet->_if_settab.tab_id, packet->_if_settab.component_id);
         break;
@@ -811,7 +1124,7 @@ RS_GameProto_Exec(
             break;
         if( top == cur )
             break;
-        fprintf(stderr, "if-opentop: switching root %d -> %d\n", cur, top);
+        TORIRS_LOG("if-opentop: switching root %d -> %d\n", cur, top);
         /*
          * The arming goes with the old root, and that is not tidiness.
          *
@@ -831,10 +1144,8 @@ RS_GameProto_Exec(
         break;
     }
     case PKT_NAME_IF_OPENSUB:
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("if-opensub: iface=%d target=0x%08x (%d<<16|%d) type=%d\n",
                 packet->_if_opensub.interface_id,
                 (unsigned)packet->_if_opensub.target_uid,
                 (packet->_if_opensub.target_uid >> 16) & 0xffff,
@@ -863,27 +1174,74 @@ RS_GameProto_Exec(
             struct PktIfResync const* sync = &packet->_if_resync;
             int root_changed = sync->root_interface_id > 0 &&
                                sync->root_interface_id != app->boot_interface_id;
+            struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+            int live_count = 0;
 
             if( root_changed )
                 App_OpenRootInterface(app, sync->root_interface_id);
-            else if( app->tree )
+
+            /*
+             * RECONCILE against what is already mounted; do not close and
+             * reopen the lot.
+             *
+             * The snapshot is the server's mount registry, so a slot it
+             * restates with the same group and type is a slot the client
+             * already has right — and closing it is destructive, not neutral.
+             * A close reclaims the whole widget group (App_CloseSubInterface),
+             * which throws away everything the CS2 scripts built on top of the
+             * cache pack: hidden/shown layers, dynamic children, the lot. The
+             * reopen re-bakes from the pack and only re-runs that pack's OWN
+             * onload, so anything configured from outside it stays lost.
+             *
+             * Measured on the Display panel's layout switch, which is the only
+             * thing that sends this packet: `ToriRSServer_GameframeOpentop`
+             * remounts the frame and then commits the same registry here. The
+             * toplevel's onload had already picked the popout strip's
+             * collapsed variant (`popout` 728: layer 4 shown, layer 7 hidden)
+             * and created its three panel buttons as dynamic children of
+             * 728:6; the blanket close threw all of it away and the reopen
+             * came back at the cache defaults — a black strip with no buttons.
+             *
+             * Closing what the snapshot does NOT restate is still this
+             * packet's job, and that is what removes the stale mounts an
+             * interrupted layout switch leaves behind.
+             */
+            if( app->tree )
             {
-                int uids[UITREE_INTERFACE_PARENT_MAX];
-                int count = app->tree->interface_parent_count;
-                if( count > UITREE_INTERFACE_PARENT_MAX )
-                    count = UITREE_INTERFACE_PARENT_MAX;
-                for( int i = 0; i < count; i++ )
-                    uids[i] = app->tree->interface_parents[i].container_uid;
-                for( int i = 0; i < count; i++ )
-                    App_CloseSubInterface(app, uids[i]);
+                live_count = app->tree->interface_parent_count;
+                if( live_count > UITREE_INTERFACE_PARENT_MAX )
+                    live_count = UITREE_INTERFACE_PARENT_MAX;
+                memcpy(
+                    live,
+                    app->tree->interface_parents,
+                    (size_t)live_count * sizeof(live[0]));
+            }
+            for( int i = 0; i < live_count; i++ )
+            {
+                int keep = 0;
+                for( int j = 0; !keep && j < sync->mount_count; j++ )
+                    keep = sync->mounts[j].target_uid == live[i].container_uid &&
+                           sync->mounts[j].interface_id == live[i].group_id &&
+                           sync->mounts[j].type == live[i].type;
+                if( !keep )
+                    App_CloseSubInterface(app, live[i].container_uid);
             }
             App_IfEventsClear(app);
             for( int i = 0; i < sync->mount_count; i++ )
+            {
+                int mounted = 0;
+                for( int j = 0; !mounted && j < live_count; j++ )
+                    mounted = live[j].container_uid == sync->mounts[i].target_uid &&
+                              live[j].group_id == sync->mounts[i].interface_id &&
+                              live[j].type == sync->mounts[i].type;
+                if( mounted )
+                    continue;
                 App_OpenSubInterface(
                     app,
                     sync->mounts[i].target_uid,
                     sync->mounts[i].interface_id,
                     sync->mounts[i].type);
+            }
             for( int i = 0; i < sync->event_count; i++ )
             {
                 uint32_t mask = sync->events[i].events1 |
@@ -899,7 +1257,7 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( ctx->app )
-            App_RunClientScript(ctx->app, &packet->_runclientscript);
+            App_RunClientScript(ctx->app, packet->_runclientscript);
         break;
     case PKT_NAME_TRIGGER_ONDIALOGABORT:
         exec_trigger_on_dialog_abort(ctx);
@@ -907,8 +1265,22 @@ RS_GameProto_Exec(
 
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
-        if( ctx->chat )
-            RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
+        /* The TYPE is the server's, not a constant: it picks the filter tab,
+         * the colour and the prefix the chatbox script draws the line with. */
+        exec_chat_add(
+            ctx,
+            packet->_message_game.type,
+            packet->_message_game.name,
+            packet->_message_game.name,
+            packet->_message_game.text);
+        /* Independent of the chatbox: a headless run has no chat model, and a
+         * plugin watching for a boss kill has to work there too. */
+        if( ctx->app )
+            App_NotifyChatMessage(
+                ctx->app,
+                packet->_message_game.type,
+                packet->_message_game.name,
+                packet->_message_game.text);
         /*
          * Printed by default, and that is a deliberate inversion.
          *
@@ -929,7 +1301,7 @@ RS_GameProto_Exec(
             char const* quiet = getenv("TORIRS_MES");
 
             if( !quiet || strcmp(quiet, "0") != 0 )
-                fprintf(stderr, "message_game: %s\n", packet->_message_game.text);
+                TORIRS_LOG("message_game: %s\n", packet->_message_game.text);
         }
         break;
 
@@ -938,10 +1310,8 @@ RS_GameProto_Exec(
     case PKT_NAME_REBUILD_REGION:
         /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
          * COMPLETE ack); reaching here means no app context. */
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: %s zone=%d,%d (no app ctx)\n",
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("gameproto_exec: %s zone=%d,%d (no app ctx)\n",
                 packet->_map_rebuild.zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
                 packet->_map_rebuild.zonex,
                 packet->_map_rebuild.zonez);
@@ -950,10 +1320,8 @@ RS_GameProto_Exec(
     case PKT_NAME_NPC_INFO:
         /* Normally consumed by Task_GameProtoExec's awaited entity-info
          * tasks; reaching here means no world is active (packet dropped). */
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "gameproto_exec: entity info packet %d dropped (no active world)\n",
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("gameproto_exec: entity info packet %d dropped (no active world)\n",
                 packet->packet_type);
         break;
 
@@ -981,16 +1349,8 @@ RS_GameProto_Exec(
             {
                 for( int dz = 0; dz < 8; dz++ )
                     for( int dx = 0; dx < 8; dx++ )
-                    {
-                        int idx;
-                        while( (idx = World_ObjStackFind(
-                                    app->world,
-                                    app->zone_base_x + dx,
-                                    app->zone_base_z + dz,
-                                    app->zone_level,
-                                    -1)) >= 0 )
-                            World_ObjStackDel(app->world, idx);
-                    }
+                        App_WorldObjStackClearTile(
+                            app, app->zone_base_x + dx, app->zone_base_z + dz, app->zone_level);
             }
         }
         break;
@@ -1208,21 +1568,50 @@ RS_GameProto_Exec(
             app->pm_message_ids[app->pm_message_head] = packet->_message_private.message_id;
             app->pm_message_head = (app->pm_message_head + 1) % 100;
             base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
-            RS_Chat_AddMessage(
-                ctx->chat,
+            exec_chat_add(
+                ctx,
                 packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                                    : RS_CHAT_TYPE_PRIVATE_FROM,
                 name,
+                name,
                 packet->_message_private.text);
+            if( ctx->app )
+                App_NotifyChatMessage(
+                    ctx->app,
+                    packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+                                                       : RS_CHAT_TYPE_PRIVATE_FROM,
+                    name,
+                    packet->_message_private.text);
         }
         break;
     case PKT_NAME_CHAT_FILTER_SETTINGS:
         if( ctx->app )
         {
+            /*
+             * Only the modes the packet actually carried.
+             *
+             * The classic wire sends three bytes and the private mode is one of
+             * them. Revision 239 sends TWO -- public and trade -- because the
+             * private-chat filter moved to a packet of its own: the deob's
+             * packet table has `field3058 = new class243(124, 2)`, whose handler
+             * writes only the public and trade fields (client.java:2820), beside
+             * `field2939 = new class243(5, 1)`, whose handler is the ONLY thing
+             * that writes the private filter the CS2 side reads back through
+             * chat_getfilter_private (Statics.field5072, opcode 5005).
+             *
+             * So a revision whose CHAT_FILTER_SETTINGS has no private byte marks
+             * the field absent with a negative value -- the same convention the
+             * zone headers use for a plane a revision does not send -- and the
+             * client's own copy stands. Writing the missing field through was
+             * what put "Private On" back under the player the instant after they
+             * chose Show friends, and then fed that stale 0 back to the server
+             * on their next filter change.
+             */
             ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
                 packet->_chat_filter_settings.chat_public_mode;
-            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
-                packet->_chat_filter_settings.chat_private_mode;
+            if( packet->_chat_filter_settings.chat_private_mode >= 0 )
+                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
+                    packet->_chat_filter_settings.chat_private_mode;
             ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
                 packet->_chat_filter_settings.chat_trade_mode;
             /* Script 681 reads these back through chat_getfilter_private before
@@ -1254,11 +1643,22 @@ RS_GameProto_Exec(
             ctx->app->welcome.days_since_login = packet->_last_login_info.days_since_login;
             ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
             ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
+            ctx->app->welcome.member_warning = packet->_last_login_info.member_warning;
+            /* The rows themselves are clientCode components RS_ClientCode_Tick
+             * refreshes off this struct; this packet also OPENS the screen they
+             * sit on, which is the only thing that ever does. */
+            exec_open_welcome_screen(ctx->app);
+            ctx->app->need_redraw = 1;
         }
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
+        /* The wire carries SERVER ticks; the countdown runs on the 20ms client
+         * cycle, so it is converted once here rather than at every read
+         * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
+         * spelled as a literal). */
         if( ctx->app )
-            ctx->app->reboot_ticks = packet->_update_reboot_timer.ticks;
+            ctx->app->reboot_timer =
+                packet->_update_reboot_timer.ticks * APP_SERVER_TICK_LOGIC_CYCLES;
         break;
     case PKT_NAME_P_COUNTDIALOG:
         if( ctx->chat )
@@ -1271,14 +1671,13 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            /* Shared with the connection-lost path in app.c: a session that
-             * ends is a session that ends, however it was told to. */
-            App_NetSessionReset(app);
-            if( ctx->chat )
-                RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, "You have been logged out.");
-            if( app->net )
-                ToriRS_Network_Logout(app->net);
-            app->need_redraw = 1;
+            /* The server ending the session and the player asking to are the
+             * same ending: socket closed, world forgotten, login screen back
+             * up. The chat line goes in first because App_Logout is what takes
+             * the chatbox away -- it is the only feedback a profile with no
+             * title screen to return to ever gets. */
+            exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
+            App_Logout(app);
         }
         break;
     case PKT_NAME_SET_PLAYER_OP:
@@ -1294,8 +1693,20 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( ctx->app )
+        if( ctx->app && ctx->app->multiway != packet->_set_multiway.multiway )
+        {
             ctx->app->multiway = packet->_set_multiway.multiway;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_MINIMAP_TOGGLE:
+        if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
+            TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);
+        if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
+        {
+            ctx->app->minimap_state = packet->_minimap_toggle.state;
+            ctx->app->need_redraw = 1;
+        }
         break;
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
@@ -1338,7 +1749,19 @@ RS_GameProto_Exec(
     /* ---- tutorial ---- */
     case PKT_NAME_TUT_FLASH:
         if( ctx->app )
+        {
             ctx->app->slots.flash_tab = packet->_tut_flash.tab;
+            /* Asked to flash the tab the player is already looking at, the
+             * reference moves them OFF it -- an open panel covers its own icon,
+             * so a blink nobody can see is no instruction at all. 3 is the
+             * inventory, which is where it sends you unless that IS the tab. */
+            if( packet->_tut_flash.tab >= 0 &&
+                packet->_tut_flash.tab == ctx->app->slots.side_tab )
+            {
+                ctx->app->slots.side_tab = packet->_tut_flash.tab == 3 ? 1 : 3;
+                ctx->app->need_redraw = 1;
+            }
+        }
         break;
     case PKT_NAME_TUT_OPEN:
         if( ctx->app )
@@ -1467,6 +1890,40 @@ RS_GameProto_Exec(
             ctx->app->npc_update_origin_valid = 1;
         }
         break;
+    case PKT_NAME_SET_ACTIVE_WORLD:
+        /* Points the zone/rebuild applicators at a world view until the tick
+         * fence resets it (deob class100 activeWorld). The id and level are
+         * WIRE data — a raw g2 and a raw byte — so a value outside the
+         * registry, a dead view, or an impossible plane is a malformed or
+         * lagging server, guarded rather than asserted: an assert-only check
+         * is an abort in debug and an OOB registry/heightmap index in the
+         * NDEBUG release lane. The deob throws here; our release build has
+         * to refuse instead. */
+        if( ctx->app )
+        {
+            int world_id = packet->_set_active_world.world_id;
+            int level = packet->_set_active_world.level;
+
+            if( world_id < 0 || world_id >= WORLDVIEW_MAX ||
+                !WorldviewRegistry_IsLive(&ctx->app->worldviews, world_id) )
+            {
+                TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, view %d not live\n", world_id);
+                break;
+            }
+            ctx->app->active_world = world_id;
+            /* The deob snapshots the plane alongside the id; nothing consumes
+             * it at C0 but dropping it here would strand the wire field. It
+             * feeds per-frame height sampling later, so clamp it to the
+             * heightmap's planes. */
+            ctx->app->active_world_level = level < 0 ? 0 : (level > 3 ? 3 : level);
+        }
+        break;
+    case PKT_NAME_WORLDENTITY_INFO:
+        /* App-less harnesses have no registry or scene to spawn into; the
+         * ops-address-the-active-view walk lives in the helper above. */
+        if( ctx->app )
+            exec_worldentity_info(ctx->app, &packet->_worldentity_info);
+        break;
     case PKT_NAME_SERVER_TICK_END:
         /* The fence. Every packet of this tick has been applied, so the scripts
          * the tick pushed can now repaint against the state the server meant
@@ -1475,13 +1932,24 @@ RS_GameProto_Exec(
         {
             ctx->app->server_tick_fence_seen = 1;
             ctx->app->server_tick_open = 0;
+            /* SET_ACTIVE_WORLD only lasts until the fence: the deob resets
+             * the cursor to the root view at end-of-tick, so a tick that
+             * never re-arms it cannot leak zone updates into a boat. */
+            ctx->app->active_world = WORLDVIEW_ROOT;
+            ctx->app->active_world_level = 0;
             App_FlushPendingClientScripts(ctx->app);
+            /* The 600ms cadence a plugin actually wants: every packet of this
+             * server tick is now in world state, so a snapshot read here
+             * agrees with what the server believes. Anything sampled mid-tick
+             * is reading a half-applied world. */
+            PluginHost_ServerTick(
+                ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
         }
         break;
 
     default:
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "gameproto_exec: unhandled packet %d\n", packet->packet_type);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("gameproto_exec: unhandled packet %d\n", packet->packet_type);
         break;
     }
 }

@@ -1,0 +1,14 @@
+{
+  "corpus": "benchmarks/krait_model_chains/lumbridge.chain.gz",
+  "corpus_sha256": "23d5d6b81ed9d6b59eaeb8447f0e7f69d667510eab58a7483b3080ede3c6104e",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "30b4c6791abe021cdba8b2c9d7d9ef8bc0ec0eed237ccf9abae3a90b1be73d13",
+  "mode": "chain",
+  "env": [],
+  "events": {},
+  "placement": "placement: requested cpu0, effective cpu0=1 cpu1=0",
+  "workload": "verified: 10604 chains, 4 passes, 2527 distinct posed assets, 2380 visible, 38481 faces, 0 clipped, 28 pick hits, 1284 prioritized, 136 animated snapshots, 0 dynamic"
+}

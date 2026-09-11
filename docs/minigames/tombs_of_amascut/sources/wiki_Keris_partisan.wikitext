@@ -1,0 +1,129 @@
+{{Infobox Item
+|name = Keris partisan
+|image = [[File:Keris partisan.png]]
+|release = [[27 April]] [[2022]]
+|update = Beneath Cursed Sands
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Drop
+|examine = A mystical-feeling polearm.
+|value = 60000
+|alchable = No
+|weight = 2.267
+|id = 25979
+|leagueRegion = Desert
+}}
+[[File:Keris partisan detail.png|left|150px]]
+The '''keris partisan''' is a one-handed [[partisan]] requiring 65 [[Attack]] to wield. It is obtained from [[Maisa]] as a reward for completing [[Beneath Cursed Sands]]. Players may own multiple partisans; additional partisans may be purchased from [[Selim]] in [[Al Kharid]] for 60,000 [[coins]] each. [[weapon poison (disambiguation)|Weapon poisons]] cannot be applied to the partisan.
+
+The keris partisan retains the effects of the [[keris]], dealing 33%{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1587016970926538753|date=31 October 2022|archiveurl=https://reldo.runescape.wiki/i/27963838|archivedate=4 August 2023|quote=[Is the keris partisan bonus damage against Kalphites/Scabarites 33% or 4/3?] 33%.}} bonus damage against all [[Kalphite_(attribute)|kalphites and scabarites]], alongside a 1/51 chance of puncturing a hole in their exoskeleton, dealing triple damage. When this special effect occurs, the chatbox will display the message: {{mes|You slip your weapon through a gap in the creature's chitin, landing a vicious blow.}} Unlike the [[keris]], however, the partisan provides a secondary crush bonus. 
+
+Players can attach one of four jewels, which are obtained as rewards from the [[Tombs of Amascut]], to the keris partisan. Doing so increases the requirement to wield them to 80 [[Attack]], and gives it differing effects within the raid.
+* The [[Breach of the Scarab]] creates the [[keris partisan of breaching]], granting an additional 33% accuracy against all Kalphites and Scabarites (effect persists outside the raid).
+* The [[Eye of the Corruptor]] creates the [[keris partisan of corruption]], granting a special attack that increases DPS.
+* The [[Jewel of Amascut]] creates the [[keris partisan of amascut]], decreasing damage bonus against Kalphites and Scabarites but enhancing base stats.
+* The [[Jewel of the Sun]] creates the [[keris partisan of the sun]], granting two passive effects and a special attack.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +58
+|aslash = -2
+|acrush = +57
+|amagic = +2
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +45
+|rstr = 0
+|mdmg = 0
+|prayer = 3
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Partisan
+|image = [[File:Keris partisan equipped male.png|200px]]
+|altimage = [[File:Keris partisan equipped female.png|200px]]
+}}
+
+{{CombatStyles|Partisan|speed=4|attackrange=1}}
+
+==Products==
+{{Uses material list|Keris partisan}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Keris partisan}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The jewel of Amascut has been added to the Tombs of Amascut, which can be attached to the partisan.
+}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = Players may no longer attach jewels obtained from the [[Tombs of Amascut]] to a wielded keris partisan if they do not have level 80 Attack.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = When players deal a critical hit to kalphites and scabarites with the keris partisan, the chat message was updated from "''You slip your weapon through a chink in the creature's chitin, landing a vicious blow.''" to "''You slip your weapon through a gap in the creature's chitin, landing a vicious blow.''"
+}}
+{{Subject changes
+|date = 24 August 2022
+|update = Tombs of Amascut
+|poll = 
+|change = * Players can now attach jewels acquired from the Tombs of Amascut to the partisan.
+* The item's inventory icon has been adjusted slightly.
+}}
+{{Subject changes
+|date = 4 May 2022
+|update = Guardians of the Rift & Beneath Cursed Sands Changes
+|change = The keris partisan's slash attack bonus has been decreased from +58 to -2, as it does not have a slash combat style.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Keris partisan (beta)
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|poll = 
+|change = 
+* The Attack requirement to equip the Keris partisan was decreased from level 80 to 70.
+* The item has been recategorised as a partisan (a new combat style) instead of a spear.
+}}
+{{Subject changes
+|daterange =  12 - 17 August 2021
+|beta = Tombs of Amascut: Rewards Beta
+|change = First present in the Tombs of Amascut: Rewards Beta.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Keris partisan detail v1.png|center|300x150px]]
+|[[File:Keris partisan detail.png|center|300x150px]]
+|-
+|[[File:Keris partisan v1.png|center]]
+|[[File:Keris partisan.png|center]]
+|-
+|27 April 2022 ⁠–<br/>24 August 2022
+|24 August 2022 ⁠–<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Stab weapons}}
+{{Crush weapons}}
+{{Attribute_affinities}}
+{{Beneath Cursed Sands}}
+
+[[Category:Quest items]]

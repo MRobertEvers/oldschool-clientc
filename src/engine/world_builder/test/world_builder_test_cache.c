@@ -9,6 +9,7 @@
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
 #include "platform/platform_x_io.h"
+#include "task_runner.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
 
@@ -17,6 +18,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
+/* MinGW's mkdir takes no mode argument — the same portability seam
+ * editor_host_local.c and rs2012_material_bake.c already carry. */
+#ifdef _WIN32
+#include <direct.h>
+#define test_mkdir(path) _mkdir(path)
+#else
+#define test_mkdir(path) mkdir(path, 0755)
+#endif
 
 #include <bmp.h>
 #include <rscache.h>
@@ -115,10 +125,28 @@ run_task(
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
+    /* The runner, not the bare queue: ToriRS_TaskQueue_Run steps only the
+     * head, so a task that fans out children behind itself and waits on their
+     * residency (Task_WorldLoad) would spin its wait budget without a child
+     * ever running. TaskRunner_Step walks the whole queue and hands the reads
+     * to the platform, which is what the client does per frame. BLOCKED is
+     * the residency wait itself; stepping again is the next frame. */
+    struct TaskRunner runner = {
+        .queue = queue,
+        .io = io,
+        .px = px,
+        /* The client's asset runner is parallel; serial steps the head only,
+         * which is the same starvation one level up. */
+        .parallel = 1,
+    };
+    enum TaskRunnerStat stat;
+
     assert(task);
     ToriRS_TaskQueue_Add(queue, task);
-    while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
-        PlatformX_IO_Process(px, io);
+    do
+    {
+        stat = TaskRunner_Step(&runner);
+    } while( stat != TASK_RUNNER_IDLE );
 }
 
 /* -------- rendering -------- */
@@ -147,7 +175,7 @@ strip_scene_face_textures(struct ToriDraw_Scene* scene)
         if( !ToriDraw_SceneElementIsLive(scene, element_id) )
             continue;
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, element_id);
-        if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+        if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
             continue;
         struct ToriDraw_Model* model = el->model.u.model.model;
         if( !model->face_textures )
@@ -173,8 +201,8 @@ render_scene(
     memset(pixels, 0, (size_t)FB_W * FB_H * sizeof(int));
 
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
         .near_plane_z = 50,
         .pitch = pitch,
         .yaw = yaw,
@@ -200,7 +228,7 @@ render_scene(
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
         {
-            element_id = (int)cmd->_entity._bf_entity;
+            element_id = painter_command_element_id(cmd);
         }
         else if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
         {
@@ -496,7 +524,7 @@ test_world_builder_cache_render(void)
     TEST_ASSERT(final_drawn > 0 || final_nonzero > 100, "rendered something");
     TEST_ASSERT(final_nonzero > 100, "framebuffer not empty");
 
-    mkdir("build", 0755);
+    test_mkdir("build");
     bmp_write_file("build/world_builder_cache_render.bmp", pixels, FB_W, FB_H);
     printf(
         "wrote build/world_builder_cache_render.bmp (%d cmds, %d drawn, %d px; pitch=%d off=%d)\n",
@@ -591,9 +619,9 @@ test_world_builder_cache_render(void)
                         ToriDraw_SceneElementGet(scene, re->element_id);
                     int lit = 0;
                     TEST_ASSERT(
-                        el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model,
+                        el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model,
                         "respawned loc has a scene model");
-                    if( el && el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+                    if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
                     {
                         struct ToriDraw_Model* dm = el->model.u.model.model;
                         for( int f = 0; f < dm->face_count && !lit; f++ )
@@ -623,6 +651,231 @@ cleanup:
     World_Free(world);
     /* ToriDraw_SceneFree pulls in ToriDraw_FontFree, which is not part of the current
      * toridraw build; the scene is reclaimed at process exit. */
+    VarPManager_Free(&varp);
+    PlatformX_IO_Free(px);
+    RSCache_Dat2DiskFree(disk);
+    ToriRS_TaskQueue_Free(queue);
+    ToriRS_IO_Free(io);
+    dat2_buildcache_free(bc);
+}
+
+/* ------------------------------------------------------------------ */
+/* Rebuild stutter bench (WB_BENCH=1)                                  */
+/* ------------------------------------------------------------------ */
+
+#include "engine/world_builder/task_world_load.h"
+
+#include <time.h>
+
+#if defined(__APPLE__)
+#include <malloc/malloc.h>
+static size_t
+heap_in_use(void)
+{
+    struct mstats ms = mstats();
+    return ms.bytes_used;
+}
+#else
+#include <malloc.h>
+static size_t
+heap_in_use(void)
+{
+    struct mallinfo mi = mallinfo();
+    return (size_t)mi.uordblks;
+}
+#endif
+
+static double
+bench_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+/*
+ * Times the live REBUILD_NORMAL path: one Task_WorldLoad (IO prefetch + the
+ * synchronous WorldBuilder_RebuildCenterzone) over the 3x3 map squares around
+ * Lumbridge, then warm re-runs of the rebuild alone — the warm number is the
+ * per-teleport stutter with every asset already resident, which is the common
+ * in-game case (walking across a zone boundary re-uses almost everything).
+ * Run with TORIRS_REBUILD_TIMING=1 for the per-phase split.
+ */
+void
+test_world_builder_bench(void)
+{
+    const char* cache_dir = getenv("CACHE_DIR");
+    if( !cache_dir )
+        cache_dir = DEFAULT_CACHE_DIR;
+
+    struct stat st;
+    if( stat(cache_dir, &st) != 0 || !S_ISDIR(st.st_mode) )
+    {
+        printf("SKIP: cache dir not found: %s\n", cache_dir);
+        return;
+    }
+
+    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    if( !disk )
+    {
+        printf("SKIP: could not open dat2 disk cache at %s\n", cache_dir);
+        ToriRS_TaskQueue_Free(queue);
+        ToriRS_IO_Free(io);
+        dat2_buildcache_free(bc);
+        return;
+    }
+
+    struct RSCache profile;
+    const char* profile_name = profile_name_for_cache_dir(cache_dir);
+    if( !profile_name || !RSCache_ProfileByName(profile_name, &profile) )
+    {
+        printf("SKIP: cache dir %s has no labelled profile\n", cache_dir);
+        RSCache_Dat2DiskFree(disk);
+        ToriRS_TaskQueue_Free(queue);
+        ToriRS_IO_Free(io);
+        dat2_buildcache_free(bc);
+        return;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+    CacheProvider_SetProfile(provider, &profile);
+
+    if( RSCache_MapLocsEncrypted(&profile) )
+    {
+        char xtea_path[1024];
+        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);
+        RSCache_XteaConfigLoadKeys(xtea_path);
+    }
+
+    struct PlatformX_IO* px = PlatformX_IO_New();
+    PlatformX_IO_InitDat2Disk(px, disk);
+
+    ToriDraw_Init();
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct World* world = World_New();
+    struct VarPManager varp;
+    VarPManager_Init(&varp);
+    struct WorldBuilder* builder = WorldBuilder_New(world, provider, scene, &varp);
+
+    /* Lumbridge: map square (50,50); the player's tile centre is
+     * (50*64+32) -> zone 404. Prefetch the full 3x3 the classic 104x104
+     * scene can touch. */
+    int chunks[18];
+    int count = 0;
+    for( int mx = 49; mx <= 51; mx++ )
+        for( int mz = 49; mz <= 51; mz++ )
+        {
+            chunks[count * 2] = mx;
+            chunks[count * 2 + 1] = mz;
+            count++;
+        }
+    int zone_x = (50 * 64 + 32) / 8;
+    int zone_z = (50 * 64 + 32) / 8;
+
+    double t0 = bench_now_ms();
+    run_task(
+        queue, io, px,
+        CreateTask_WorldLoad(
+            provider, builder, queue, chunks, count, zone_x, zone_z, 104, NULL, NULL, NULL));
+    double t1 = bench_now_ms();
+    printf("bench: cold WorldLoad (IO + rebuild) = %.1f ms\n", t1 - t0);
+
+    int bench_iters = atoi(getenv("WB_BENCH")) > 1 ? atoi(getenv("WB_BENCH")) : 4;
+    for( int iter = 0; iter < bench_iters; iter++ )
+    {
+        double w0 = bench_now_ms();
+        WorldBuilder_RebuildCenterzone(builder, zone_x, zone_z, 104);
+        double w1 = bench_now_ms();
+        printf("bench: warm rebuild %d = %.1f ms\n", iter, w1 - w0);
+    }
+
+    /*
+     * Walk mode (WB_WALK=laps): the leak probe. Each lap runs the full
+     * REBUILD_NORMAL path (Task_WorldLoad: trim, IO, rebuild) around a ring
+     * of eight map-square centres and ends back on Lumbridge, so lap-over-lap
+     * heap growth with every asset already resident is memory a rebuild
+     * failed to give back. The first lap pays for the squares and models it
+     * visits; from the second lap on the growth must be ~0.
+     */
+    int walk_laps = getenv("WB_WALK") ? atoi(getenv("WB_WALK")) : 0;
+    if( walk_laps > 0 )
+    {
+        static const int ring[8][2] = {
+            { 51, 50 }, { 52, 50 }, { 52, 51 }, { 52, 52 },
+            { 51, 52 }, { 50, 52 }, { 50, 51 }, { 50, 50 },
+        };
+        size_t lap_start = heap_in_use();
+        printf("walk: heap in use before = %zu KB\n", lap_start / 1024);
+        for( int lap = 0; lap < walk_laps; lap++ )
+        {
+            for( int s = 0; s < 8; s++ )
+            {
+                int cx = ring[s][0];
+                int cz = ring[s][1];
+                int wchunks[18];
+                int wc = 0;
+                for( int mx = cx - 1; mx <= cx + 1; mx++ )
+                    for( int mz = cz - 1; mz <= cz + 1; mz++ )
+                    {
+                        wchunks[wc * 2] = mx;
+                        wchunks[wc * 2 + 1] = mz;
+                        wc++;
+                    }
+                int zx = (cx * 64 + 32) / 8;
+                int zz = (cz * 64 + 32) / 8;
+                run_task(
+                    queue, io, px,
+                    CreateTask_WorldLoad(
+                        provider, builder, queue, wchunks, wc, zx, zz, 104, NULL, NULL, NULL));
+                printf(
+                    "walk: lap %d step %d centre %d,%d heap in use = %zu KB\n",
+                    lap, s, cx, cz, heap_in_use() / 1024);
+            }
+            size_t now = heap_in_use();
+            printf("walk: lap %d growth = %ld KB\n", lap, (long)(now - lap_start) / 1024);
+            lap_start = now;
+        }
+    }
+
+    printf(
+        "bench: scene elements terrain=%d scenery=%d\n",
+        world->entities.terrain.active_count,
+        world->entities.scenery.active_count);
+
+    /* Lighting checksum over every scenery model's lit face colours: any
+     * change to the sharelight merge/apply pipeline must keep this stable. */
+    {
+        unsigned long long sum = 1469598103934665603ull;
+        struct World_EntityPool* spool = &world->entities.scenery;
+        for( int i = World_EntityPoolHead(spool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(spool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(spool, i);
+            if( !sc )
+                continue;
+            struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, sc->element_id);
+            if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) || !el->model.u.model.model )
+                continue;
+            struct ToriDraw_Model* dm = el->model.u.model.model;
+            for( int f = 0; f < dm->face_count; f++ )
+            {
+                unsigned long long v =
+                    ((unsigned long long)(uint16_t)dm->face_colors_a[f] << 32) ^
+                    ((unsigned long long)(uint16_t)dm->face_colors_b[f] << 16) ^
+                    (unsigned long long)(uint16_t)dm->face_colors_c[f];
+                if( dm->face_infos )
+                    v ^= (unsigned long long)dm->face_infos[f] << 48;
+                sum = (sum ^ v) * 1099511628211ull;
+            }
+        }
+        printf("bench: lighting checksum = %llx\n", sum);
+    }
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
     VarPManager_Free(&varp);
     PlatformX_IO_Free(px);
     RSCache_Dat2DiskFree(disk);

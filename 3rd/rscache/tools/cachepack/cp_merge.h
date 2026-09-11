@@ -6,7 +6,7 @@
  *
  * `configs/all.npc` (rank 0) is the machine export from the cache; a file under `server/scripts` of the same extension (rank 1) is what a person
  * authored on top. Today they have two readers that never meet — rank 0 is read
- * only by `cachepack pack`, rank 1 only by `mock230_content.c` — which is the
+ * only by `cachepack pack`, rank 1 only by `torirs_server_content.c` — which is the
  * problem `docs/CONTENT_ARCHITECTURE.md` §3.5 calls the deepest in the toolchain.
  * Merging them is what lets one encoder see the whole record.
  *
@@ -121,6 +121,32 @@ struct CP_MergeSet
     int seen0_count;
     int seen0_capacity;
 };
+
+/**
+ * The rank a source file merges at.
+ *
+ * Three layers, not two, and the third one exists because the tree has files
+ * nobody wrote by hand. `index == 0` is the cache export (rank 0). Above it the
+ * authored layer splits: `*.generated.*` — `combat_stats.generated.npc`,
+ * `npc_anims.generated.npc`, the machine tables — merges at rank 1, and a file
+ * a person wrote at rank 2, so the person wins.
+ *
+ * That is not this reader's opinion; it is `torirs_server_content.c`'s, which has
+ * always loaded npc configs in three passes (`load_npc_default_config`, then
+ * `load_npc_generated_config`, then `load_npc_authored_config`). Flattening
+ * both authored classes to one rank here made the merge resolve ties by
+ * directory order instead — `npc/` sorts after `areas/`, so a generated anim
+ * table silently outranked the hand-written God Wars block — and the two
+ * readers disagreed about 56 npcs while each was internally consistent. The
+ * server band is validated against the runtime's parse, so every one of those
+ * surfaced as a mismatched archive that no amount of re-packing could settle.
+ *
+ * Ties *within* a class stay a hard error, which is what the rule is for: two
+ * hand-written files arguing about one npc is a content bug with no defined
+ * answer.
+ */
+int
+cp_merge_rank_for(int index, const char* path);
 
 /**
  * Fold `file` into `set` at `rank`.

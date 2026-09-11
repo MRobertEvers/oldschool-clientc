@@ -1,0 +1,188 @@
+{{Confuse|Crazy archaeologist}}
+{{HasStrategy}}
+{{Infobox Monster
+|name = Deranged archaeologist
+|image = [[File:Deranged archaeologist.png|120px]]
+|release = [[7 September]] [[2017]]
+|update = Fossil Island
+|members = Yes
+|combat = 276
+|size = 1
+|examine = He's seen things that people wouldn't believe.
+|xpbonus = 37.5
+|max hit = 25 (melee), 25 (range), 56 (special direct hit), 18+ (special indirect hit)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Crush]]
+|attack speed = 3
+|respawn = 50
+|slayxp = 275
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints = 200
+|att = 280
+|str = 160
+|def = 280
+|mage = 1
+|range = 320
+|attbns = 280
+|strbns = 30
+|amagic = 0
+|mbns = 0
+|arange = 90
+|rngbns = -10
+|dstab = 20
+|dslash = 20
+|dcrush = 50
+|dmagic = 300
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|id = 7806
+}}
+[[File:Deranged archaeologist chathead.png|left]]
+The '''Deranged archaeologist''' is a relatively simple boss that resides at the southern end of the [[Tar Swamp]] on [[Fossil Island]].  His special attack mechanic is similar to that of the [[Crazy archaeologist]] and the [[Chaos Fanatic]].
+
+The deranged archaeologist is notable for his unique [[steel ring]] drop, the best-in-slot melee defensive ring. Compared to his crazed counterpart, his common drops are slightly more valuable, though the steel ring is his only unique drop.
+
+The deranged archaeologist may be killed as an alternative on a crazy archaeologist boss [[Slayer task]], '''unless''' the Wilderness is specified as the task location when given by Krystilia or Konar quo Maten.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Deranged archaeologist
+|location = [[Fossil Island]] &ndash; South end of the [[Tar Swamp]]
+|levels = 276
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:3683,y:3706
+|mtype = pin
+|leagueRegion = misthalin
+}}
+{{LocTableBottom}}
+
+The fastest way to reach the boss is to use a [[Digsite pendant]] to teleport to [[Fossil Island]], then take the [[Mycelium Transportation System]] to the [[Sticky Swamp]]. An [[axe]] is required to chop a swamp vine in order to reach him. A [[rake]] is required for smaller vines only if traversing the entire swamp instead of taking the Mycelium. Directly before the area is a [[Spine mushroom|spine mushroom]] that will occasionally hit passing players for 10 damage and apply [[poison]].
+
+==Mechanics==
+{{main|Deranged archaeologist/Strategies}}
+[[File:Fighting Deranged archaeologist.png|thumb|left|A player damaged by the deranged archaeologist's special attack.]]
+
+The deranged archaeologist attacks primarily with [[Ranged]], only using [[Melee]] if the player is next to him. [[Protect from Ranged]] and [[Protect from Melee]] will nullify each respective attack.
+
+Periodically, he will yell {{overhead|Learn to read!}} before launching a special attack, throwing three books in an arc towards the player, which explode on impact with the ground four ticks (2.4 seconds) after he speaks. One will always hit exactly where the player was standing when the books were thrown. This book will burst into two additional books which also explode on impact after another delay.
+
+This attack hits much harder than his crazed counterpart, '''dealing a maximum of 92 initial damage if not avoided!'''
+
+Fighting from a distance will prevent him from using any melee attacks, allowing the use of [[Protect from Ranged]] to nullify all damage from his basic attacks, as well as giving the player more time to move away from his special attack.
+
+[[Magic]] is particularly effective against the boss, as despite his high base [[Magic]] defence, he has a negligible Magic level; Magic defence is primarily based on one's Magic level.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/636095399070158848|date=25 August 2015|archiveurl=https://reldo.runescape.wiki/i/107525|archivedate=26 May 2020|quote=NPCs' magic defence is calculated off their Magic level, not their Defence level, and his is negligible.}}
+{{Clear|left}}
+
+==Drops==
+{{DropLogProject|kills=46317}}
+
+{{Average drop value|mob=Deranged archaeologist}}
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Unique===
+{{DropsTableHead}}
+{{DropsLine|name=Steel ring|quantity=1|rarity=3/131}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Black d'hide body|quantity=1|rarity=6/131}}
+{{DropsLine|name=Rune 2h sword|quantity=1|rarity=3/131}}
+{{DropsLine|name=Rune sword|quantity=1|rarity=4/131}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Water rune|quantity=100|rarity=6/131}}
+{{DropsLine|name=Mud rune|quantity=40|rarity=6/131}}
+{{DropsLine|name=Rune knife|quantity=25|rarity=6/131}}
+{{DropsLine|name=Dragon arrow|quantity=60|rarity=1/131}}
+{{DropsLine|name=Steel cannonball|quantity=80|rarity=4/131}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{TreeHerbSeedDropTableInfo|1/131}}
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|1/131}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Grimy dwarf weed|quantity=4 (noted)|rarity=8/131}}
+{{DropsLine|name=White berries|quantity=10 (noted)|rarity=7/131}}
+{{DropsLine|name=Runite limbs|quantity=1|rarity=5/131|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1229121043173924866|date=16 February 2020|archiveurl=https://archive.ph/YQ5OW|archivedate=16 February 2020|quote=5/128}}}}
+{{DropsLine|name=Black dragonhide|quantity=8 (noted)|rarity=5/131}}
+{{DropsLine|name=Gold ore|quantity=10 (noted)|rarity=6/131}}
+{{DropsLine|name=Uncut diamond|quantity=5 (noted)|rarity=5/131}}
+{{DropsLine|name=Onyx bolt tips|quantity=6|rarity=6/131}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Anchovy pizza|quantity=2|rarity=4/131}}
+{{DropsLine|name=Prayer potion(3)|quantity=1|rarity=8/131}}
+{{DropsLine|name=Potato with cheese|quantity=3|rarity=8/131}}
+{{DropsLine|name=Shark|quantity=2|rarity=8/131}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Crystal key|quantity=1|rarity=7/131|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1104393582633467904|date=9 March 2019|archiveurl=https://archive.fo/aJNdM|archivedate=25 March 2019|quote=7/128}}}}
+{{DropsLine|name=Long bone|quantity=1|rarity=2/131|gemw=No}}
+{{DropsTableBottom}}
+
+===Rare drop table===
+{{RareDropTable|6/131|6/131|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{FossilDropLines|fossil=12|numulite=28}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|276}}|raritynotes=<ref group=d>Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Misthalin&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/200|raritynotes={{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://archive.fo/WUqwD|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Deranged Archaeologist}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The deranged archaeologist now drops a new unique, the [[steel ring]].
+}}
+{{Subject changes
+|date = 18 January 2018
+|update = Fossil Island Improvements
+|change = The deranged archaeologist's arena was expanded further south to move him away from the nearby [[sulliuscep]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Upon release, the Deranged archaeologist dropped uncharged [[Amulet of glory|amulets of glory]] at an uncommon rate. As the amulet of glory is one of the most coveted early-game [[ironman]] items (which has high requirements - either 83 [[Hunter]] to catch [[dragon impling]]s, or 80 [[Crafting]] to create), this caused player complaints about making it far too easy to obtain. This was changed and now he drops [[crystal key]]s instead.
+*Upon release, the deranged archaeologist could be [[safespotted]]. His {{overhead|No hiding!}} attack was soon added to counter this. This was removed later after the NPC was given its own dedicated lair.
+*His examine text may be a reference to the "Tears in Rain" monologue from the 1982 {{wp|Ridley Scott}} film ''{{wp|Blade Runner}}''.
+*Prior to the addition of the [[steel ring]] on [[25 June]] [[2025]], the deranged archaeologist was the only non-quest [[boss]] in ''Old School RuneScape'' to have no unique drops.
+
+==References==
+{{Reflist}}
+
+{{Bosses}}
+{{Fossil Island}}

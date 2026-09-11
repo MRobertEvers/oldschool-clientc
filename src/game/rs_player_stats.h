@@ -27,6 +27,22 @@ struct RS_PlayerStats
     int base_level[RS_PLAYER_STATS_SKILL_COUNT];
     int current_level[RS_PLAYER_STATS_SKILL_COUNT];
     int xp[RS_PLAYER_STATS_SKILL_COUNT];
+    /**
+     * The base level the client last saw the server state, or 0 for a skill it
+     * has not seen one for yet.
+     *
+     * Not a duplicate of base_level: that starts at 1 (10 for hitpoints)
+     * because a fresh account has those levels, so it cannot tell "the server
+     * just told me you are level 1" from "nobody has told me anything". A
+     * level-up is a RISE between two things the server said, and this is the
+     * first of them -- without it the login burst, where all 25 skills arrive
+     * at once, reads as 25 level-ups.
+     *
+     * Zeroed by Init along with everything else, which is what makes logging
+     * into a different account in the same session start over rather than
+     * announce the difference between two players' levels.
+     */
+    int last_seen_level[RS_PLAYER_STATS_SKILL_COUNT];
 
     int run_energy; /* 0..100 */
     int run_weight; /* kg */

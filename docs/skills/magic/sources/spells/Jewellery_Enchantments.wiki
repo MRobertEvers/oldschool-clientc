@@ -1,0 +1,127 @@
+[[File:Jewellery Enchantments icon (mobile).png|left]]
+[[File:Jewellery Enchantments interface.png|thumb|The Jewellery Enchantments interface.]]
+'''Jewellery Enchantments''' are a set of [[enchantment spells]] on the [[standard spellbook]] used specifically for gold and silver jewellery with gemstones to give the item new properties.
+
+Unlike [[Enchant Crossbow Bolt]], Jewellery Enchantments is not a single spell, but exists as a subpage of the standard spellbook, and houses the seven enchantment spells used for jewellery. Each spell requires different [[Magic]] levels for casting, as well as a suitable jewellery item. It is accessible for both [[free-to-play]] and [[members]], though free-to-play players may only use the first four levels of enchantments and can only enchant into items that are also free-to-play.
+
+==Spells==
+{| class="wikitable sortable"
+! class="unsortable" rowspan="2" | Icon
+! class="unsortable" rowspan="2" | [[Mobile]]<br/>icon
+! rowspan="2" | Spell
+! rowspan="2" | {{SCP|Magic}}<br/>level
+! class="unsortable" rowspan="2" | Runes
+! rowspan="2" | Experience
+! class="unsortable" rowspan="2" | Jewellery class
+! class="unsortable" colspan="4" | Enchanted Result
+|-
+! class="unsortable" | Ring
+! class="unsortable" | Necklace
+! class="unsortable" | Bracelet
+! class="unsortable" | Amulet
+|-
+| rowspan="2" | [[File:Lvl-1 Enchant.png|center]]
+| rowspan="2" | [[File:Lvl-1 Enchant icon (mobile).png|center]]
+| rowspan="2" | [[Lvl-1 Enchant]]
+| rowspan="2" | 7
+| rowspan="2" | {{RuneReq|Cosmic=1|Water=1}}
+| rowspan="2" | 17.5
+| {{plink|Sapphire}}
+| {{plink|Ring of recoil}}
+| {{plink|Games necklace}}
+| {{plink|Bracelet of clay}}
+| {{plink|Amulet of magic}}
+|-
+| {{plink|Opal}}
+| {{plink|Ring of pursuit}}
+| {{plink|Dodgy necklace}}
+| {{plink|Expeditious bracelet}}
+| {{plink|Amulet of bounty}}
+|-
+| rowspan="2" | [[File:Lvl-2 Enchant.png|center]]
+| rowspan="2" | [[File:Lvl-2 Enchant icon (mobile).png|center]]
+| rowspan="2" | [[Lvl-2 Enchant]]
+| rowspan="2" | 27
+| rowspan="2" | {{RuneReq|Cosmic=1|Air=3}}
+| rowspan="2" | 37
+| {{plink|Emerald}}
+| {{plink|Ring of dueling}}
+| {{plink|Binding necklace}}
+| {{plink|Castle wars bracelet}}
+| {{plink|Amulet of defence}} or<br/> {{plink|Amulet of nature}}
+|-
+| {{plink|Jade}}
+| {{plink|Ring of returning}}
+| {{plink|Necklace of passage}}
+| {{plink|Flamtaer bracelet}}
+| {{plink|Amulet of chemistry}}
+|-
+| rowspan="2" | [[File:Lvl-3 Enchant.png|center]]
+| rowspan="2" | [[File:Lvl-3 Enchant icon (mobile).png|center]]
+| rowspan="2" | [[Lvl-3 Enchant]]
+| rowspan="2" | 49
+| rowspan="2" | {{RuneReq|Cosmic=1|Fire=5}}
+| rowspan="2" | 59
+| {{plink|Ruby}}
+| {{plink|Ring of forging}}
+| {{plink|Digsite pendant}}
+| {{plink|Inoculation bracelet}}
+| {{plink|Amulet of strength}}
+|-
+| {{plink|Red topaz|txt=Topaz}}
+| {{plink|Efaritay's aid}}
+| {{plink|Necklace of faith}}
+| {{plink|Bracelet of slaughter}}
+| {{plink|Burning amulet}}
+|-
+| [[File:Lvl-4 Enchant.png|center]]
+| [[File:Lvl-4 Enchant icon (mobile).png|center]]
+| [[Lvl-4 Enchant]]
+| 57
+| {{RuneReq|Cosmic=1|Earth=10}}
+| 67
+| {{plink|Diamond}}
+| {{plink|Ring of life}}
+| {{plink|Phoenix necklace}}
+| {{plink|Abyssal bracelet}}
+| {{plink|Amulet of power}}
+|-
+| [[File:Lvl-5 Enchant.png|center]]
+| [[File:Lvl-5 Enchant icon (mobile).png|center]]
+| [[Lvl-5 Enchant]]
+| 68
+| {{RuneReq|Cosmic=1|Earth=15|Water=15}}
+| 78
+| {{plink|Dragonstone}}
+| {{plink|Ring of wealth}}
+| {{plink|Skills necklace}}
+| {{plink|Combat bracelet}}
+| {{plink|Amulet of glory}}
+|-
+| [[File:Lvl-6 Enchant.png|center]]
+| [[File:Lvl-6 Enchant icon (mobile).png|center]]
+| [[Lvl-6 Enchant]]
+| 87
+| {{RuneReq|Cosmic=1|Earth=20|Fire=20}}
+| 97
+| {{plink|Onyx}}
+| {{plink|Ring of stone}}
+| {{plink|Berserker necklace}}
+| {{plink|Regen bracelet}}
+| {{plink|Amulet of fury}}
+|-
+| [[File:Lvl-7 Enchant.png|center]]
+| [[File:Lvl-7 Enchant icon (mobile).png|center]]
+| [[Lvl-7 Enchant]]
+| 93
+| {{RuneReq|Cosmic=1|Blood=20|Soul=20}}
+| 110
+| {{plink|Zenyte}}
+| {{plink|Ring of suffering}}
+| {{plink|Necklace of anguish}}
+| {{plink|Tormented bracelet}}
+| {{plink|Amulet of torture}}
+|}
+
+{{Utility spells}}
+{{Standard spellbook}}

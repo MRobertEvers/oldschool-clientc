@@ -1,0 +1,335 @@
+From 788863b98ad49f61b3ab0097e8ce5b7f6a7e8432 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:46 -0500
+Subject: [PATCH] wip(r4-fixed): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r4-fixed.
+
+files: 3rd/toridraw/graphics/raster/huntfx_census.c 3rd/toridraw/graphics/raster/huntfx_census.h 3rd/toridraw/toridraw_unity.c 3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c 3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+---
+ 3rd/toridraw/graphics/raster/huntfx_census.c  |  45 ++++
+ 3rd/toridraw/graphics/raster/huntfx_census.h  | 196 ++++++++++++++++++
+ 3rd/toridraw/toridraw_unity.c                 |   1 +
+ .../triangles/toridraw_triangle_gouraud.u.c   |   3 +
+ .../toridraw_triangle_texture_opaque.u.c      |  11 +
+ 5 files changed, 256 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/huntfx_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/huntfx_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/huntfx_census.c b/3rd/toridraw/graphics/raster/huntfx_census.c
+new file mode 100644
+index 000000000..4bf5b6a14
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/huntfx_census.c
+@@ -0,0 +1,45 @@
++#include "graphics/raster/huntfx_census.h"
++
++#if defined(HUNTFX_CENSUS) && HUNTFX_CENSUS
++
++struct HuntFx_Census g_huntfx_census;
++
++void
++HuntFx_CensusDump(void)
++{
++    struct HuntFx_Census const* c = &g_huntfx_census;
++    char const* frames_s = getenv("TORIRS_MAX_FRAMES");
++    double frames = frames_s ? atof(frames_s) : 1.0;
++    char const* names[2] = { "gouraud", "texture" };
++    int k;
++    int b;
++
++    if( frames <= 0.0 )
++        frames = 1.0;
++
++    fprintf(stderr, "huntfx-census: per frame over %.0f frames\n", frames);
++    for( k = 0; k < 2; ++k )
++    {
++        fprintf(
++            stderr,
++            "  %-8s tris %.1f  rej_y %.1f  rej_area %.1f  live %.1f\n"
++            "           offx %.1f (left %.1f)  divs %.1f taken / %.1f skipped\n"
++            "           rows_walked %.1f\n",
++            names[k],
++            c->tris[k] / frames,
++            c->rej_y[k] / frames,
++            c->rej_area[k] / frames,
++            c->live[k] / frames,
++            c->offx[k] / frames,
++            c->offx_left[k] / frames,
++            c->div_taken[k] / frames,
++            c->div_skipped[k] / frames,
++            c->rows[k] / frames);
++        fprintf(stderr, "           dyAC hist");
++        for( b = 0; b < 8; ++b )
++            fprintf(stderr, " %.1f", c->dy_hist[k][b] / frames);
++        fprintf(stderr, "\n");
++    }
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/huntfx_census.h b/3rd/toridraw/graphics/raster/huntfx_census.h
+new file mode 100644
+index 000000000..93824f39c
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/huntfx_census.h
+@@ -0,0 +1,196 @@
++#ifndef TORIDRAW_RASTER_HUNTFX_CENSUS_H
++#define TORIDRAW_RASTER_HUNTFX_CENSUS_H
++
++/**
++ * Route "fixed": how much DIVISION and how much MULTIPLICATION does a frame
++ * actually execute inside the two handrolled triangle kernels, and how much of
++ * it is spent on triangles that draw nothing.
++ *
++ * Counts only, at the DISPATCH SITE, above either kernel -- the same place
++ * face_census.h counts, and for the same reason. Compile-time gated with
++ * -DHUNTFX_CENSUS=1; a shipping build has no branch here. The macro name is
++ * deliberately none of TORIDRAW_ABLATE / TORIDRAW_SPAN_CENSUS /
++ * TORIDRAW_SPAN_TRACE, so the makefile's asm gate never fires and a census
++ * build still runs the asm kernels it is describing.
++ */
++
++#if defined(HUNTFX_CENSUS) && HUNTFX_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct HuntFx_Census
++{
++    double tris[2];      /* 0 = gouraud, 1 = texture, entering the kernel  */
++    double rej_y[2];     /* rejected by the existing y2<0 / y0>screen_h    */
++    double rej_area[2];  /* rejected by sarea == 0 (after the y tests)     */
++    double live[2];      /* survives both, i.e. runs the whole prologue    */
++    double offx[2];      /* live, but every vertex x is off one side       */
++    double offx_left[2];
++    double div_taken[2]; /* edge divides actually executed on live tris    */
++    double div_skipped[2];
++    double rows[2];      /* clamped y2 - clamped y0 on live tris           */
++    double dy_hist[2][8];/* max(dy) bucket: 1,2,4,8,64,512,4096,huge       */
++    int registered;
++};
++
++extern struct HuntFx_Census g_huntfx_census;
++
++void
++HuntFx_CensusDump(void);
++
++static inline int
++huntfx_dybucket(int dy)
++{
++    if( dy <= 1 )
++        return 0;
++    if( dy <= 2 )
++        return 1;
++    if( dy <= 4 )
++        return 2;
++    if( dy <= 8 )
++        return 3;
++    if( dy <= 64 )
++        return 4;
++    if( dy <= 512 )
++        return 5;
++    if( dy <= 4096 )
++        return 6;
++    return 7;
++}
++
++/**
++ * Replays exactly the reject chain both kernels run, in their order:
++ * six-way stable y sort, y2 < 0, y0 > screen_height, then sarea == 0, then the
++ * three EDGESTEP divisor tests. `k` is 0 for gouraud, 1 for texture.
++ */
++static inline void
++huntfx_census_tri(
++    int k,
++    int xa,
++    int xb,
++    int xc,
++    int ya,
++    int yb,
++    int yc,
++    int screen_width,
++    int screen_height)
++{
++    int x0, x1, x2, y0, y1, y2;
++    int dyac, dyab, dybc, dxac, dxab, sarea;
++    int minx, maxx, cy0, cy2, mdy;
++
++    if( !g_huntfx_census.registered )
++    {
++        g_huntfx_census.registered = 1;
++        atexit(HuntFx_CensusDump);
++    }
++    g_huntfx_census.tris[k] += 1.0;
++
++    /* The kernels' own sort: every test is <=, so equal y keeps input order. */
++    if( ya <= yb && ya <= yc )
++    {
++        if( yb <= yc )
++        {
++            x0 = xa; x1 = xb; x2 = xc; y0 = ya; y1 = yb; y2 = yc;
++        }
++        else
++        {
++            x0 = xa; x1 = xc; x2 = xb; y0 = ya; y1 = yc; y2 = yb;
++        }
++    }
++    else if( yb <= yc )
++    {
++        if( yc <= ya )
++        {
++            x0 = xb; x1 = xc; x2 = xa; y0 = yb; y1 = yc; y2 = ya;
++        }
++        else
++        {
++            x0 = xb; x1 = xa; x2 = xc; y0 = yb; y1 = ya; y2 = yc;
++        }
++    }
++    else
++    {
++        if( ya <= yb )
++        {
++            x0 = xc; x1 = xa; x2 = xb; y0 = yc; y1 = ya; y2 = yb;
++        }
++        else
++        {
++            x0 = xc; x1 = xb; x2 = xa; y0 = yc; y1 = yb; y2 = ya;
++        }
++    }
++
++    if( y2 < 0 || y0 > screen_height )
++    {
++        g_huntfx_census.rej_y[k] += 1.0;
++        return;
++    }
++
++    dyac = y2 - y0;
++    dyab = y1 - y0;
++    dxac = x2 - x0;
++    dxab = x1 - x0;
++    sarea = dxac * dyab - dxab * dyac;
++    if( sarea == 0 )
++    {
++        g_huntfx_census.rej_area[k] += 1.0;
++        return;
++    }
++    dybc = y2 - y1;
++
++    g_huntfx_census.live[k] += 1.0;
++
++    /* EDGESTEP runs the divide only when the edge spans rows. AC and AB test
++     * dy > 0 in both kernels; BC tests dy > 0 in the texture kernel and
++     * dy != 0 in the gouraud one, and dy_BC is never negative after the sort,
++     * so the two agree on every input. */
++    if( dyac > 0 )
++        g_huntfx_census.div_taken[k] += 1.0;
++    else
++        g_huntfx_census.div_skipped[k] += 1.0;
++    if( dyab > 0 )
++        g_huntfx_census.div_taken[k] += 1.0;
++    else
++        g_huntfx_census.div_skipped[k] += 1.0;
++    if( dybc > 0 )
++        g_huntfx_census.div_taken[k] += 1.0;
++    else
++        g_huntfx_census.div_skipped[k] += 1.0;
++
++    mdy = dyac;
++    g_huntfx_census.dy_hist[k][huntfx_dybucket(mdy)] += 1.0;
++
++    minx = x0 < x1 ? x0 : x1;
++    if( x2 < minx )
++        minx = x2;
++    maxx = x0 > x1 ? x0 : x1;
++    if( x2 > maxx )
++        maxx = x2;
++    if( maxx < 0 )
++    {
++        g_huntfx_census.offx[k] += 1.0;
++        g_huntfx_census.offx_left[k] += 1.0;
++    }
++    else if( minx >= screen_width )
++    {
++        g_huntfx_census.offx[k] += 1.0;
++    }
++
++    cy0 = y0 < 0 ? 0 : y0;
++    cy2 = y2 > screen_height ? screen_height : y2;
++    if( cy2 > cy0 )
++        g_huntfx_census.rows[k] += (double)(cy2 - cy0);
++}
++
++#define HUNTFX_CENSUS_TRI(k, xa, xb, xc, ya, yb, yc, sw, sh)                   \
++    huntfx_census_tri((k), (xa), (xb), (xc), (ya), (yb), (yc), (sw), (sh))
++
++#else
++
++#define HUNTFX_CENSUS_TRI(k, xa, xb, xc, ya, yb, yc, sw, sh) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..db17d1583 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -27,6 +27,7 @@
+ #include "graphics/convex_hull.c"
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
++#include "graphics/raster/huntfx_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..bfe2b18ca 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -18,6 +18,7 @@
+ #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+ #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
+ #include "graphics/raster/face_census.h"
++#include "graphics/raster/huntfx_census.h"
+ // clang-format on
+ 
+ static inline void
+@@ -86,6 +87,8 @@ ToriDraw_TriangleGouraud(
+ 
+     if( alpha == 0xFF )
+     {
++        HUNTFX_CENSUS_TRI(
++            0, x1, x2, x3, y1, y2, y3, screen_width, screen_height);
+         // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
+         TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
+             pixel_buffer,
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+index 118d06959..9b1565716 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+@@ -21,6 +21,7 @@
+ #include "graphics/raster/texture/tex_tri_asm.h"
+ #include "graphics/raster/texture/tex_tri_asm_support.u.c"
+ #include "graphics/raster/face_census.h"
++#include "graphics/raster/huntfx_census.h"
+ // clang-format on
+ 
+ static inline void
+@@ -97,6 +98,16 @@ ToriDraw_TriangleTextureBlendOpaque(
+         return;
+     }
+ 
++    HUNTFX_CENSUS_TRI(
++        1,
++        screen_x0,
++        screen_x1,
++        screen_x2,
++        screen_y0,
++        screen_y1,
++        screen_y2,
++        screen_width,
++        screen_height);
+     TORIDRAW_TEX_TRI_PERSP_OPAQUE(
+         pixel_buffer,
+         stride,

@@ -1,0 +1,90 @@
+{{external|rs}}
+{{Infobox Location
+|name = Penguin Agility Course
+|image = [[File:Cold War - Penguin agility course.png]]
+|release = [[29 January]] [[2007]]
+|update = What's black and white and goes green when it's finished?
+|members = Yes
+|location = [[Iceberg]]
+|map = {{Map|name=Penguin Agility Course|x=2648|y=4055|zoom=2}}
+|type = agility course
+|leagueRegion = Fremennik
+}}
+The '''Penguin Agility Course''' is an Agility training area found whilst exploring the [[KGP Headquarters]] located on the [[Iceberg]]. This course is available to players with boosted level 30 [[Agility]] and partial completion of [[Cold War]]. To access the Agility course, the player has to wear a [[clockwork suit]].
+
+The Agility course rewards 540 Agility [[experience]] per completed lap. With an average time of 65 seconds per lap, it is possible to get upwards of 30,000 Agility experience per hour from this course. At lower Agility levels expect to get around 22,000–27,000 Agility experience per hour, depending on concentration levels.
+
+This course has the highest base chance to receive the [[giant squirrel]].{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/jagexkieren/status/780482243584069632|date=22 September 2016|archiveurl=https://reldo.runescape.wiki/i/105608|archivedate=29 May 2020|quote=Finally, the Agility pet rates! Try your best to get your hands on that Giant Squirrel!}} At level 99 Agility it would take an average of 132 hours to get the giant squirrel.
+{{clear|left}}
+
+==Introduction==
+This Agility course requires a boostable level 30 [[Agility]] and is located on the [[Iceberg]], which requires partial completion of {{SCP|Quest}} [[Cold War]] to access. To get to the course, players need to transform into a penguin, which can be done by talking to [[Larry]] with a [[clockwork suit]] in the inventory and choosing the "Tuxedo-time" option.
+
+The course consists of four obstacles. Even at level 99 the player is not safe from failing all of these obstacles.
+
+==Transportation==
+#Find [[Larry]], who is stationed by his boat to the north-east of [[Rellekka]] on the pier (outside the fence area), travel to the [[Iceberg]].
+#Once on the Iceberg, talk to Larry and choose the "Tuxedo-time" option. This requires a [[clockwork suit]].
+#Head west along the ice wall and "use" the avalanche.
+#Once inside the secret lair, take the first accessible door on the left (west).
+#Go through first room and then along passage west and north to large door. Open door.
+
+==Strategies==
+===Clothing===
+*The [[cape slot]] should be empty while transforming into a penguin, since the clockwork suit needs to go into that slot.
+*Wear [[weight-reducing clothing]] to achieve a weight of 0 kg or lower. This results in a lower run energy depletion rate.
+*Wear a [[regen bracelet]] for an increased [[Hitpoints]] restoration rate.
+
+===Inventory===
+*Bring some [[food]] to restore lost [[Hitpoints]] from taking damage from failing Agility obstacles.
+*Bring enough [[Energy#Energy-restoring items|Energy-restoring items]] for enough [[energy]] to constantly run around the course.
+
+===Tips===
+*The stepping stones and ice slope consist of multiple components that need to be clicked on individually. When clicked in the correct rhythm, which is one component per game tick (0.6 seconds), these obstacles can be cleared in a flowing motion.
+*If ''tread softly'' is not clicked while going under the icicles, players will always get hurt. Also note that if the player clicks the spot under the icicles farther away from them, they will first go on the spot closer to them and automatically get hurt.
+*While passing an icicle obstacle, already click on the next icicle before the animation is finished to save some time.
+*The crusher obstacle can always be passed without taking damage if you click through to the end as soon as the middle crusher on the south side finishes moving north when it is the only crusher moving.
+
+==Obstacles==
+[[File:Penguin Agility Course map.png|thumb|400px|right|Penguin Agility course map]]
+{| class="wikitable align-center-1 align-center-3"
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Penguin Agility Course (1).png|250px]]
+|[[Crusher (Penguin Agility Course)|Crusher]]
+|{{+=|xp|55|echo=2}}
+|-
+|[[File:Penguin Agility Course (2).png|250px]]
+|[[Stepping Stone (Penguin Agility Course)|Stepping Stone]]
+|{{+=|xp|80|echo=2}}
+|-
+|[[File:Penguin Agility Course (3).png|250px]]
+|[[Icicles (Penguin Agility Course)|Icicles]]
+|{{+=|xp|160|echo=2}} (40 each)
+|-
+|[[File:Penguin Agility Course (4).png|250px]]
+|[[Ice (Penguin Agility Course)|Ice]]
+|{{+=|xp|180|echo=2}}
+|-
+|[[File:Penguin Agility Course (5).png|250px]]
+|[[Gate (Penguin Agility Course)|Gate]]
+|{{+=|xp|65|echo=2}}
+|-
+! colspan=2 |Total
+!{{#var:xp}}
+|}
+
+==Experience rates==
+Due to the success rate of the obstacles, the experience rates scale with the player's Agility level. At higher levels expect to be able to complete around 55 laps per hour, resulting in 29,500–30,000 Agility experience per hour.
+
+==Trivia==
+*The crushers are treated as NPCs by the game.
+
+==References==
+{{Reflist}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Cold War}}

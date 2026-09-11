@@ -1,0 +1,38 @@
+{{Infobox Spell
+|name = Vile Vigour
+|image = [[File:Vile Vigour.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 66
+|spellbook = Arceuus
+|type = Utility
+|exp = 76
+|cost = {{RuneReq|Air=3|Soul=1}}
+|speed = 
+|cooldown = 17 ticks
+|quest = [[A Kingdom Divided]]
+|description = Converts your available prayer points into run energy
+|anim = [[File:Vile Vigour.gif|180px]]
+|sound = [[File:Vile Vigour.ogg]]
+}}
+[[File:Vile Vigour icon (mobile).png|left]]
+'''Vile Vigour''' is a spell within the [[Arceuus spellbook]] that requires level 66 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+Casting Vile Vigour will convert the player's [[prayer points]] into [[run energy]] at a 1:1 ratio. Only the amount of prayer required to reach 100% run energy is consumed; if the player's remaining prayer is insufficient, all available points will be converted. Players can only cast Vile Vigour once every 10.2 seconds.
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 3
+|Rune2 = soul
+|Rune2num = 1
+}}
+
+==Trivia==
+* The spell icon for Vile Vigour depicts the {{Wp|caduceus}}, a symbol representing {{Wp|Hermes}} in Greek mythology. Hermes is, among other things, considered the god of speed and athletes, making his symbol appropriate for a spell that restores run energy.
+* This spell appears to be a reworked version of the Divine Grace prayer that was [[Chambers_of_Xeric#Forgotten_prayers|mentioned as a potential reward]] from the [[Chambers of Xeric]], where prayer points were drained instead of run energy, but was scrapped alongside two other prayers.
+** The prayer was offered again in the form of [[Ruinous Grace]], where it was part of the scrapped [[Ruinous Powers]] prayer book that was intended to be a reward from completing [[Desert Treasure II - The Fallen Empire]].
+
+{{Arceuus spellbook}}
+{{Utility spells}}

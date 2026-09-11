@@ -3,8 +3,11 @@
 
 #include "engine/static_sprites.h"
 
+#include <stdint.h>
+
 struct ToriDraw_Scene;
 struct CacheProvider;
+struct ToriRS_Location;
 struct HMap;
 
 /**
@@ -16,6 +19,13 @@ struct UITreeSceneBridge
     struct ToriDraw_Scene* scene;
     struct CacheProvider* provider;
     int next_scene_id;
+
+    /** Monotonic version of scene-id bindings published by this bridge. */
+    uint64_t asset_revision;
+
+    /** Device pixels per chrome pixel for the baked overlay faces: 1, 2 or 3.
+     *  Init leaves 1; @see UITreeSceneBridge_SetChromeScale. */
+    int chrome_scale;
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
@@ -41,6 +51,17 @@ struct UITreeSceneBridge
      * node, so emit/draw fetch them through the host.
      */
     int static_sprite_scene[STATIC_SPRITE_COUNT];
+
+    /*
+     * The human ready animation, from the profile's `[seq:human_readyanim]`.
+     *
+     * It lives beside the player composite because that is what it poses, and
+     * because both paths that build a clientCode 327/328 preview -- the boot
+     * bake and the runtime interface mount -- hold a bridge and neither holds
+     * the other's manifest. -1 until the App states it, and -1 leaves the
+     * preview at its bind pose rather than posing it with another cache's seq.
+     */
+    int player_idle_seq;
 
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
@@ -101,11 +122,91 @@ struct UITreeSceneBridge
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
 #define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
 
-/* Reserved scene font ids for the two baked debug-overlay faces. Scene font ids
- * are cache font ids everywhere else (see EnsureFont), so these sit out of that
- * range alongside the reserved model/sprite ids above. */
+/** Native widget model kind 8: loc shape 10, orientation 0. */
+#define UITREE_SCENE_LOC_MODEL_BASE 0x59000000
+
+/** Borrow the native shape-10 model list; zero means this loc has no preview. */
+int
+UITreeSceneBridge_LocModelIds(struct ToriRS_Location const* loc, int const** ids);
+
+/** Build a resident loc's native interface model, including its transforms. */
+int
+UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
+
+/* Reserved scene font ids for the baked debug-overlay faces at 1x. Scene font
+ * ids are cache font ids everywhere else (see EnsureFont), so these sit out of
+ * that range alongside the reserved model/sprite ids above. */
 #define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
+
 #define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
+#define UITREE_SCENE_DEBUG_FONT_BODY_ID 0x40000008
+
+/**
+ * The same three faces at scale 2 and 3, one block of slots per scale.
+ *
+ * A separate block rather than an id arithmetic that runs on from the 1x ids:
+ * the next id after BODY is already taken (the chrome skin, below), and a
+ * scaled face silently landing on the skin's entry is the kind of collision
+ * that shows up as a missing panel background three subsystems away. Scale 1
+ * keeps its historic ids so nothing that already resolved one has to change.
+ */
+#define UITREE_SCENE_DEBUG_FONT_SCALED_BASE 0x40001000
+/** @param slot enum ToriRSChromeFontSlot. @param scale >= 2. */
+#define UITREE_SCENE_DEBUG_FONT_SCALED_ID(slot, scale)                                        \
+    (UITREE_SCENE_DEBUG_FONT_SCALED_BASE + ((scale) - 2) * 16 + (slot))
+/** The baked chrome skin: one scene entry, one atlas index per skin slot. */
+#define UITREE_SCENE_CHROME_SKIN_ID 0x40000009
+/** The editor catalog's model preview: one slot, re-rendered per pick. */
+#define UITREE_SCENE_EDITOR_PREVIEW_ID 0x4000000A
+/** The two title-screen braziers: one slot each, reuploaded every frame the
+ *  fire advances. @see engine/title_flames.h. */
+#define UITREE_SCENE_TITLE_FLAME_LEFT_ID 0x4000000B
+#define UITREE_SCENE_TITLE_FLAME_RIGHT_ID 0x4000000C
+
+/*
+ * The touch marker's artwork -- every style and colour in ONE scene entry, so a
+ * variant is an atlas index and switching one costs no upload. Same shape as
+ * UITREE_SCENE_CHROME_SKIN_ID above, and for the same reason: the render
+ * command already carries an atlas index, so nothing downstream needs a new
+ * field to reach these.
+ *
+ * 0x0D because it is the next free one. It was first written as 0x40000007,
+ * which is DEBUG_FONT_MENU's -- the exact collision the SCALED_BASE comment
+ * above warns about, and it behaves exactly as that comment says it does:
+ * whichever of the two uploads second owns the entry and the other draws the
+ * wrong atlas, three subsystems away from anything that mentions an inkwell.
+ * Keep this list contiguous and check it before adding to it.
+ *
+ * @see ui/torirs_chrome_inkwell.h for why the pixels are drawn rather than
+ * baked out of a cache.
+ */
+#define UITREE_SCENE_INKWELL_ID 0x4000000D
+
+/**
+ * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
+ * shipped as its own asset file and decoded at runtime (scene id = base +
+ * slot, one slot per resident image).
+ *
+ * A range rather than one multi-frame entry like the chrome skin's, because
+ * these arrive one at a time and at sizes nothing knows in advance: a skin is
+ * baked as a set and can be uploaded as a set, while a plugin loads an asset,
+ * gets an answer some frames later, and loads another. Re-uploading a growing
+ * atlas on each arrival would rebuild every sprite already in the scene.
+ */
+#define UITREE_SCENE_PLUGIN_IMAGE_BASE 0x48000000
+
+/**
+ * Slots in the plugin-image range: one per resident image across every plugin.
+ *
+ * It has to be at least the plugin host's TORIRS_PLUGIN_IMAGES_MAX, and it is
+ * stated here rather than there because the SCENE is what runs out -- an image
+ * the host handed a slot to and the bridge refused is an image that decodes
+ * fine and draws nothing, reported as "would not decode". The two are held
+ * together by a static assert in plugin/torirs_plugin_bridge.u.c, which is the
+ * one file that sees both numbers. The range above it starts 0x08000000
+ * higher, so there is no ceiling here worth economising against.
+ */
+#define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 192
 
 void
 UITreeSceneBridge_Init(
@@ -115,6 +216,10 @@ UITreeSceneBridge_Init(
 
 void
 UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge);
+
+/** Version of bridge-owned asset bindings observable by UITree host requests. */
+uint64_t
+UITreeSceneBridge_AssetRevision(struct UITreeSceneBridge const* bridge);
 
 /** Ensure sprite in scene. Returns scene_id or -1. */
 int
@@ -139,6 +244,18 @@ UITreeSceneBridge_EnsureStaticSprite(
     int cache_graphic_id);
 
 /** Scene id bound to a static sprite slot, or -1. */
+/**
+ * Upload the touch-marker frames if they are not already resident.
+ *
+ * @return UITREE_SCENE_INKWELL_ID, or -1 when the scene refused them.
+ *
+ * The atlas index for one frame is ToriRSInkwell_AtlasIndex(style, colour,
+ * frame) -- every combination is present, so the profile can pick a style
+ * without the bridge knowing which one it picked.
+ */
+int
+UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge);
+
 int
 UITreeSceneBridge_StaticSpriteSceneId(
     struct UITreeSceneBridge const* bridge,
@@ -160,7 +277,7 @@ UITreeSceneBridge_EnsureFont(
     int cache_font_id);
 
 /**
- * Register one of the two baked debug faces (enum ToriDbgFontSlot) in the scene
+ * Register one of the two baked debug faces (enum ToriRSChromeFontSlot) in the scene
  * and return its reserved scene font id.
  *
  * Needs no cache and no provider: the faces are compiled in. They are also
@@ -168,8 +285,89 @@ UITreeSceneBridge_EnsureFont(
  * registers a deep copy (~4 KB of glyph alpha per face) rather than the baked
  * struct itself.
  */
+/**
+ * Upload the baked chrome skin (src/engine/torirs_chrome_skin_baked.h) as one
+ * multi-frame scene sprite and return its scene id, or -1 when the build has
+ * no skin baked in. Idempotent. Registers deep copies, for the same reason
+ * EnsureDebugFont does: the scene frees what it holds and these are .rdata.
+ */
+int
+UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge);
+
+/**
+ * Publish one plugin image at `slot` and return its scene id.
+ *
+ * `argb` is COPIED: the scene frees every sprite it holds, and the caller's
+ * buffer is a decoded asset it goes on to free itself. A slot already holding
+ * an image is replaced, which is what lets a plugin re-save an asset and see
+ * the new pixels without a restart.
+ *
+ * @return the scene id, or -1 when the slot or the geometry is out of range.
+ */
+int
+UITreeSceneBridge_PublishPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb);
+
+/**
+ * Copy a published plugin image's pixels back into `out`, which holds `max`.
+ *
+ * The scene is where the pixels live -- the publish above deep-copies into it
+ * and the caller's buffer is gone -- so this is the only place a plugin's own
+ * art can be read back to compose something new out of.
+ *
+ * @return how many pixels were copied, or 0 when the slot holds nothing or the
+ * buffer is too small for the whole image. Never a partial copy: half an image
+ * is a torn picture, not a smaller one.
+ */
+int
+UITreeSceneBridge_ReadPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    uint32_t* out,
+    int max);
+
+/** Drop a published plugin image, freeing its scene entry. */
+void
+UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot);
+
+/**
+ * Which chrome scale the debug-overlay faces resolve at: 1, 2 or 3.
+ *
+ * Held here because this is where slot becomes scene font id, and the whole
+ * requirement is that the size the chrome LAID OUT with is the size the
+ * renderer DRAWS with. One value, read by every resolve, is what makes the two
+ * unable to disagree.
+ */
+void
+UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale);
+
+int
+UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge);
+
 int
 UITreeSceneBridge_EnsureDebugFont(
+    struct UITreeSceneBridge* bridge,
+    int font_slot);
+
+/**
+ * The same baked faces, pinned at 1x whatever the chrome scale is.
+ *
+ * For text that lands in INTERFACE pixels rather than chrome pixels -- a
+ * `[component:] font=chrome:<slot>`, which the gameframe lays out at its own
+ * scale and the shell then scales again. EnsureDebugFont resolves at the
+ * chrome's scale on purpose (the overlay measures and paints at the display's
+ * density), and asking it for a component's face is the giant-text bug: a 2x
+ * face drawn into 1x interface coordinates, doubled a second time on the way
+ * to the window.
+ *
+ * @return the scene font id, or -1 for an unknown slot.
+ */
+int
+UITreeSceneBridge_EnsureDebugFont1x(
     struct UITreeSceneBridge* bridge,
     int font_slot);
 

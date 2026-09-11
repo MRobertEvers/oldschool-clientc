@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Dat1 floor types.
@@ -44,7 +45,7 @@ task_dat1_flotype_decode_all(struct Task_Dat1FlotypeLoad* task)
     data_file_idx = RSCache_FileListDatFindFileByName(config_jagfile, "flo.dat");
     if( data_file_idx < 0 )
     {
-        fprintf(stderr, "dat1 flo: flo.dat missing from the config jagfile\n");
+        TORIRS_ERR("dat1 flo: flo.dat missing from the config jagfile\n");
         return;
     }
 
@@ -101,7 +102,7 @@ Task_Dat1FlotypeLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 config jagfile for flo %d\n", task->flo_id);
+            TORIRS_ERR("Failed to decode dat1 config jagfile for flo %d\n", task->flo_id);
             PT_EXIT(&task->pt);
         }
 

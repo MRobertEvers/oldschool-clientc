@@ -55,6 +55,9 @@ struct UITreeScrollbarHitInfo
 {
     enum UITreeScrollbarHitKind kind;
     int32_t layer_index;
+    /** A captured scrollbar must never transfer to a node later recycled into
+     * the same component-array slot. */
+    uint64_t layer_incarnation;
     int layer_x;
     int layer_y;
     int layer_w;
@@ -139,9 +142,14 @@ UITree_ScrollMaxX(struct UITreeComponent const* layer);
 int
 UITree_ScrollMaxY(struct UITreeComponent const* layer);
 
-/** Clamp UITreeComponent.scroll_x/y into valid range for an IF1 scroll layer. */
+/** Compute the canonical in-range scroll position without mutating the layer.
+ * Runtime owners publish the result through `UITree_SetScrollPosAt`; emit and
+ * hit testing may use the local result directly. */
 void
-UITree_ScrollClampComponent(struct UITreeComponent* layer);
+UITree_ScrollGetClamped(
+    struct UITreeComponent const* layer,
+    int* out_x,
+    int* out_y);
 
 void
 UITree_ScrollIntersectClip(
@@ -178,6 +186,21 @@ UITree_AccumScrollOffset(
     int* off_x,
     int* off_y);
 
+/**
+ * Resolve a node's actual drawn box in canvas coordinates. This is its laid-out
+ * box after the same ancestor-scroll and active-drag translation used by emit.
+ * Screen-anchored world/minimap/compass nodes deliberately keep their resolved
+ * box, matching the emit path which does not translate those surfaces.
+ */
+int
+UITree_NodeDrawnBounds(
+    struct UITree const* tree,
+    int32_t node_index,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+
 bool
 UITree_FindScrollbarAt(
     struct UITree const* tree,
@@ -188,7 +211,7 @@ UITree_FindScrollbarAt(
 
 bool
 UITree_ScrollbarHandle(
-    struct UITree const* tree,
+    struct UITree* tree,
     struct UITreeScrollbarHitInfo const* hit,
     int px,
     int py,

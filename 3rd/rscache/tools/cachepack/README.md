@@ -148,10 +148,26 @@ spelling and only the reader's knowledge told them apart.
 | `binary` | `binary/binary_0.jpg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |
+| `defaults` | `defaults/defaults_3.defaults` — one record as text; `defaults_1/<id>.colours` — one colour stop list per member | `defaults_1.filepack` (multi-file only) |
 
 "one payload" means the archive is stored whole, so there is no member list to
 index and nothing between the bytes on disk and the bytes in the cache. That is the
-default and it applies to sixteen of the twenty tables.
+default and it applies to sixteen of the twenty-one tables.
+
+`defaults` is OldSchool idx17 / RS2 idx28: the ids the engine needs before it can
+draw, `compass` among them. Neither the index nor its two groups is named by the
+cache — its reference table has the name bit clear — so both pack lines are filler.
+
+It is the one codec here whose two extensions are two *formats* rather than two
+layers of one: `.defaults` is the group-3 record (sprite ids, colour ramps, model
+ids) and `.colours` is a group-1 member. The archive's shape picks between them,
+not its group number, so a revision that moves them still works. Both decode,
+re-encode and compare before writing — bigsmart lets an id under 32767 be two
+bytes or four, so only the source bytes settle it — and decline to the raw
+payload when that fails, which is how RS2's differently-shaped idx28 stays out.
+
+See `docs/CACHE_INDEX_16_17.md` for the record schema, and for why there is no
+OldSchool index 16 to add alongside it.
 
 ### The world map is laid out kind by kind
 
@@ -342,6 +358,51 @@ Writing config filler cannot lose an authored name or the prose around it: a sav
 merge, the in-memory pack was loaded from the same file, and a filler line is only ever
 added for an id that has none. `configs/all.param.compack` keeps its 75-line header
 through a full rewrite, which is the case that once justified not writing at all.
+
+## Raw passthrough — the archives nothing decodes
+
+A pack with **no `--base`** builds the cache from the tree alone, so the tree has
+to state every archive — including the ones no codec claims. Two families used
+to fall through and simply vanish from a tree-only cache:
+
+- **Undecoded config groups.** osrs239's idx2 holds 41 groups; the type table
+  decodes 20. The other 21 (`2`, `7`, `15`, `18`, `20`, `22`, `24`–`31`, `37`,
+  `47`, `54`, `70`–`73`) are a few hundred bytes of near-empty records each,
+  exported as `configs/<name>.bin` and indexed by `pack/2_configs.pack` — the
+  same file that names the decoded groups, because they are archives of index 2
+  like any other. A group that gains a decoder later just stops being unclaimed;
+  its `.bin` becomes an orphan to delete, with no migration step.
+- **The nested gameval archives.** `--gamevals` regenerates the flat archives
+  from the pack files, but 14 (interface + component names) and 10 (dbtable +
+  column names) are shapes a flat write would destroy, and 11 names songs and
+  jingles in one id space no pack file mirrors. They ride as
+  `gamevals/<name>.bin`, indexed by `gamevals/gamevals.filepack`, and the emit
+  imports them after the flat archives.
+
+Both are **raw container bytes** — byte-exact by construction, like the
+`--binary` escape hatch — and both travel with a `<name>.memberpack` stating the
+archive's member ids, because a multi-file payload cannot be parsed without its
+child list and a from-scratch reference table has no entry to inherit one from.
+
+**The member ids are the tree's to state, not just for raw archives.** A whole
+payload carries its chunk table but never its file ids — those live only in the
+reference table — so any table stored whole writes `<name>.memberpack` beside
+the file whenever the list is not the single file 0: animsets (10,855 of
+osrs239's 10,902 list sparse frame ids, up to 295), 122 synths, 469 world-map
+ground squares. Everything else — models, scripts, fonts, songs, and the rest
+of the strictly one-file-per-archive tables — writes nothing, because a minted
+reference entry now *defaults* to the single child `{0}` (`cp_reference_sync`).
+The failure this closed: a from-scratch cache's fonts decoded byte-exact and
+still would not convert, because `FileListNewFromDecode` takes its count from
+the child list and every minted entry had none.
+
+Scripts needed one more piece: a script whose hook references a *higher-id*
+script compiles its callee's signature on demand from the tree
+(`cs2_compile_from_tree`), because during a tree-only pack the output cache does
+not hold the callee yet. With all three in place, `unpack --assets` followed by
+`pack --assets --gamevals` with no `--base` reproduces **every archive** of
+cache.osrs239 — 116,726 of 116,726, measured by exporting both caches with
+`--binary` and diffing the file lists.
 
 ## Adding an asset
 

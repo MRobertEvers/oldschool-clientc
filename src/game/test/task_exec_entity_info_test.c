@@ -7,15 +7,65 @@
  */
 #include "app.h"
 #include "asyncio.h"
+#include "engine/cache_provider.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
 #include "test_harness.h"
+#include "toridraw_scene.h"
 #include "world.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int g_failures;
+
+struct HeadLoadTrace
+{
+    int npc_ids[8];
+    int npc_count;
+    int model_ids[8];
+    int model_count;
+};
+
+static struct HeadLoadTrace g_head_load_trace;
+
+static struct ToriRS_Task*
+trace_npc_load(
+    struct CacheProvider* provider,
+    int npc_id)
+{
+    (void)provider;
+    if( g_head_load_trace.npc_count < (int)(sizeof(g_head_load_trace.npc_ids) /
+                                             sizeof(g_head_load_trace.npc_ids[0])) )
+        g_head_load_trace.npc_ids[g_head_load_trace.npc_count++] = npc_id;
+    return NULL;
+}
+
+static struct ToriRS_Task*
+trace_model_load(
+    struct CacheProvider* provider,
+    int model_id)
+{
+    (void)provider;
+    if( g_head_load_trace.model_count < (int)(sizeof(g_head_load_trace.model_ids) /
+                                               sizeof(g_head_load_trace.model_ids[0])) )
+        g_head_load_trace.model_ids[g_head_load_trace.model_count++] = model_id;
+    return NULL;
+}
+
+static int
+trace_has_id(
+    int const* ids,
+    int count,
+    int wanted)
+{
+    for( int i = 0; i < count; i++ )
+        if( ids[i] == wanted )
+            return 1;
+    return 0;
+}
 
 static void
 run_task_to_done(struct ToriRS_Task* task)
@@ -111,6 +161,41 @@ test_npc_info_count_zero_despawns_all(void)
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 11, NULL, NULL), "slot 11 gone");
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 12, NULL, NULL), "slot 12 gone");
 
+    RS_EntitySync_Free(&app.esync);
+    World_Free(app.world);
+}
+
+static void
+test_npc_origin_is_root_for_shore_and_aboard_observers(void)
+{
+    struct App app;
+    memset(&app, 0, sizeof(app));
+    app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&app.esync);
+    register_local_player(&app, 100, 7, 4, 4);
+    struct WorldEntity_Player* player = World_PlayerGetByServerPid(app.world, 7);
+    app.npc_update_origin_valid = 1;
+    app.npc_update_origin_x = 52;
+    app.npc_update_origin_z = 51;
+    int x, z, plane;
+    RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
+    TEST_ASSERT(x == 52 && z == 51 && plane == 0, "shore NPC origin follows its wire packet");
+    Wevs_Init(&app.wevs);
+    struct WevConfig cfg = {0};
+    Wevs_Spawn(&app.wevs, 1, WORLDVIEW_ROOT, &cfg, 2, 3072*128, 3160*128, 0, 0, 0);
+    app.aboard_view = 1;
+    player->grid_position.level = 1;
+    player->view_placement.home_view = 1;
+    player->pathing.route_x[0] = 4;
+    player->pathing.route_z[0] = 6;
+    RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
+    TEST_ASSERT(x == 52 && z == 51 && plane == 0,
+                "aboard route4,6/deckplane1 cannot move root NPC origin52,51/plane0");
+    app.aboard_view = 0;
+    app.npc_update_origin_valid = 0;
+    player->grid_position.level = 2;
+    RS_EntityInfo_NpcOrigin(&app, &x, &z, &plane);
+    TEST_ASSERT(x == 4 && z == 6 && plane == 2, "older protocols retain route-head origin fallback");
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
 }
@@ -265,14 +350,183 @@ test_player_info_count_zero_despawns_others(void)
     World_Free(app.world);
 }
 
+/* One shared server wrapper must resolve against each client's own varps. This
+ * is the multiplayer invariant quest NPCs rely on: advancing Alice's quest may
+ * reveal/change the NPC for Alice without changing what Bob sees. */
+static void
+test_multinpc_resolution_is_per_player(void)
+{
+    printf("TEST: multiNpc resolution is per player\n");
+
+    struct CacheProvider provider;
+    struct App alice;
+    struct App bob;
+    struct VarPType varp_type = { 0 };
+    struct VarBitType varbit_type = { .basevar = 0, .startbit = 14, .endbit = 14 };
+    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
+    struct ToriRS_Npctype* first = calloc(1, sizeof(*first));
+    struct ToriRS_Npctype* fallback = calloc(1, sizeof(*fallback));
+    struct ToriRS_Npctype* varbit_shell = calloc(1, sizeof(*varbit_shell));
+    struct ToriRS_Npctype* varbit_zero = calloc(1, sizeof(*varbit_zero));
+    struct ToriRS_Npctype* varbit_one = calloc(1, sizeof(*varbit_one));
+
+    memset(&provider, 0, sizeof(provider));
+    memset(&alice, 0, sizeof(alice));
+    memset(&bob, 0, sizeof(bob));
+    CacheProvider_InitEngineCaches(&provider);
+    VarPManager_Init(&alice.varps);
+    VarPManager_Init(&bob.varps);
+    TEST_ASSERT(VarPManager_SetVarpTypes(&alice.varps, &varp_type, 1), "Alice varps initialized");
+    TEST_ASSERT(VarPManager_SetVarpTypes(&bob.varps, &varp_type, 1), "Bob varps initialized");
+    TEST_ASSERT(
+        VarPManager_SetVarbitTypes(&alice.varps, &varbit_type, 1),
+        "Alice varbits initialized");
+    TEST_ASSERT(
+        VarPManager_SetVarbitTypes(&bob.varps, &varbit_type, 1),
+        "Bob varbits initialized");
+    alice.provider = &provider;
+    bob.provider = &provider;
+
+    shell->transform_varbit = -1;
+    shell->transform_varp = 0;
+    shell->transform_count = 3;
+    shell->transforms = malloc(3 * sizeof(*shell->transforms));
+    shell->transforms[0] = -1;  /* quest stage 0: absent */
+    shell->transforms[1] = 101; /* quest stage 1: first form */
+    shell->transforms[2] = 102; /* out-of-range fallback */
+    CacheProvider_NpctypeAdd(&provider, 100, shell);
+    CacheProvider_NpctypeAdd(&provider, 101, first);
+    CacheProvider_NpctypeAdd(&provider, 102, fallback);
+
+    /* Aggie's real shape: a one-bit varbit packed at bit 14 selects her
+     * one-op or two-op child independently for each player. This covers the
+     * varbit half of the same invariant instead of proving only varp shells. */
+    varbit_shell->transform_varbit = 0;
+    varbit_shell->transform_varp = -1;
+    varbit_shell->transform_count = 2;
+    varbit_shell->transforms = malloc(2 * sizeof(*varbit_shell->transforms));
+    varbit_shell->transforms[0] = 111;
+    varbit_shell->transforms[1] = 112;
+    CacheProvider_NpctypeAdd(&provider, 110, varbit_shell);
+    CacheProvider_NpctypeAdd(&provider, 111, varbit_zero);
+    CacheProvider_NpctypeAdd(&provider, 112, varbit_one);
+
+    alice.varps.var[0] = 1;
+    bob.varps.var[0] = 9;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 100) == 101,
+        "Alice sees the form selected by her quest stage");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 100) == 102,
+        "Bob independently sees his fallback form");
+
+    alice.varps.var[0] = 0;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 100) == -1,
+        "Alice's positional -1 hides only her NPC");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 100) == 102,
+        "Alice's quest change does not alter Bob's NPC");
+
+    alice.varps.var[0] = 0;
+    bob.varps.var[0] = 1 << 14;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 110) == 111,
+        "Alice sees Aggie's default varbit child");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 110) == 112,
+        "Bob independently sees Aggie's set-bit child");
+
+    VarPManager_Free(&alice.varps);
+    VarPManager_Free(&bob.varps);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
+/* IF_SETNPCHEAD names the actor's server type. For a multiNpc actor that is
+ * the shell, which intentionally has no heads of its own; the selected child
+ * owns the chathead model. This test stops at the provider request seam — a
+ * missing fake model makes composition return -1, but the requested id proves
+ * the async loader walked through the shell instead of accepting empty heads. */
+static void
+test_multinpc_interface_head_loads_selected_child(void)
+{
+    printf("TEST: multiNpc interface head loads selected child\n");
+
+    struct App app;
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct VarPType varp_type = { 0 };
+    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
+    struct ToriRS_Npctype* child = calloc(1, sizeof(*child));
+    struct ToriRS_IO* io;
+
+    memset(&app, 0, sizeof(app));
+    memset(&provider, 0, sizeof(provider));
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    vtable.Task_NpcLoad = trace_npc_load;
+    vtable.Task_ModelLoad = trace_model_load;
+    provider.vtable = &vtable;
+    CacheProvider_InitEngineCaches(&provider);
+
+    VarPManager_Init(&app.varps);
+    TEST_ASSERT(
+        VarPManager_SetVarpTypes(&app.varps, &varp_type, 1),
+        "chathead fixture varps initialized");
+    app.provider = &provider;
+    app.exec_runner.queue = ToriRS_TaskQueue_New();
+    io = ToriRS_IO_New();
+    app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
+    UITreeSceneBridge_Init(&app.bridge, app.scene, &provider);
+
+    shell->transform_varbit = -1;
+    shell->transform_varp = 0;
+    shell->transform_count = 2;
+    shell->transforms = malloc(2 * sizeof(*shell->transforms));
+    shell->transforms[0] = 101;
+    shell->transforms[1] = 101;
+    child->transform_varbit = -1;
+    child->transform_varp = -1;
+    child->heads_count = 1;
+    child->heads = malloc(sizeof(*child->heads));
+    child->heads[0] = 777;
+    CacheProvider_NpctypeAdd(&provider, 100, shell);
+    CacheProvider_NpctypeAdd(&provider, 101, child);
+
+    App_SetInterfaceNpcHead(&app, 0x12340056, 100);
+    TEST_ASSERT(
+        ToriRS_TaskQueue_Run(app.exec_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
+        "multiNpc chathead load task completes");
+    TEST_ASSERT(
+        trace_has_id(
+            g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
+            trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
+        "chathead loader requests both the shell and selected child configs");
+    TEST_ASSERT(
+        g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
+        "chathead loader requests the selected child's head model");
+
+    free(app.if_heads);
+    UITreeSceneBridge_Free(&app.bridge);
+    ToriDraw_SceneFree(app.scene);
+    ToriRS_IO_Free(io);
+    ToriRS_TaskQueue_Free(app.exec_runner.queue);
+    VarPManager_Free(&app.varps);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 int
 main(void)
 {
+    test_npc_origin_is_root_for_shore_and_aboard_observers();
     test_npc_info_count_zero_despawns_all();
     test_npc_info_count_shrink_keeps_prefix();
     test_npc_info_unresolvable_entry_keeps_list_positions();
     test_player_info_count_zero_despawns_others();
     test_player_info_unresolvable_entry_keeps_list_positions();
+    test_multinpc_resolution_is_per_player();
+    test_multinpc_interface_head_loads_selected_child();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

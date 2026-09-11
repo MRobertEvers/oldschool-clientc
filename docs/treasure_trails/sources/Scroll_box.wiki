@@ -1,0 +1,95 @@
+{{confuse|Clue box|Scroll case}}
+[[File:Scroll box (beginner) detail.png|150px|thumb|right|A beginner scroll box.]]
+'''Scroll boxes''' are a stackable variant of [[clue scroll]]s, in which opening them will give players a clue scroll of the same tier. However, they '''do not''' share the one hour despawn timer that clue scrolls have, instead possessing the normal despawn timer of three minutes. If a clue scroll is already in the player's inventory or bank, players will receive the message, {{mes|The clue box refuses to open - you already have a clue.}}
+
+Upon completion of [[X Marks the Spot]], scroll boxes are obtained in place of clue scrolls, and are stackable up to a certain limit depending on the number of clue completions; this cap, which includes scrolls and scroll boxes, starts at 2 for each clue tier, and can be increased to a maximum of 5 by opening the following [[scroll case]]s:
+* Minor scroll case - increases the stack limit of scroll boxes by 1 for a specific tier.
+* Major scroll case - increases the stack limit of scroll boxes by 1 for a specific tier (for a total of +2 with the minor case).
+* [[Mimic scroll case]] - rewarded upon defeating [[the Mimic]], and increases the stack limit of scroll boxes by 1 '''for all tiers.'''
+
+Your current scroll box capacity can be checked at a [[Treasure Trail Statistics]] board. 
+
+Players who completed enough clue scrolls to be eligible for a case prior to [[Update:Stackable Clues are here!|the 2 July 2025 update]] that added scroll cases will have the cases in question be automatically opened and added to their [[collection log]]. 
+
+Minor and major scroll cases are rewarded upon reaching the following [[treasure trail]] completion milestones for each tier:
+   
+{| class="wikitable lighttable selectable sortable"
+! colspan="2" |Tier
+!Case Type
+!data-sort-type="number"|Required Clue Completions
+|-
+|{{plinkt|Minor beginner scroll case|txt=Beginner}}
+|Minor Case (+1)
+|50
+|-
+|{{plinkt|Major beginner scroll case|txt=Beginner}}
+|Major Case (+1) (+2 total)
+|100
+|-
+|{{plinkt|Minor easy scroll case|txt=Easy}}
+|Minor Case (+1)
+|100
+|-
+|{{plinkt|Major easy scroll case|txt=Easy}}
+|Major Case (+1) (+2 total)
+|200
+|-
+|{{plinkt|Minor medium scroll case|txt=Medium}}
+|Minor Case (+1)
+|100
+|-
+|{{plinkt|Major medium scroll case|txt=Medium}}
+|Major Case (+1) (+2 total)
+|250
+|-
+|{{plinkt|Minor hard scroll case|txt=Hard}}
+|Minor Case (+1)
+|50
+|-
+|{{plinkt|Major hard scroll case|txt=Hard}}
+|Major Case (+1) (+2 total)
+|150
+|-
+|{{plinkt|Minor elite scroll case|txt=Elite}}
+|Minor Case (+1)
+|50
+|-
+|{{plinkt|Major elite scroll case|txt=Elite}}
+|Major Case (+1) (+2 total)
+|150
+|-
+|{{plinkt|Minor master scroll case|txt=Master}}
+|Minor Case (+1)
+|25
+|-
+|{{plinkt|Major master scroll case|txt=Master}}
+|Major Case (+1) (+2 total)
+|75
+|}
+
+If players reach their current cap and successfully roll for a scroll box, a game message in the chatbox will state {{mes|You have a sneaking suspicion that you would have received a [tier] scroll box.}}
+
+Scroll boxes combine when dropped on the same tile. If a player tries to pick up a stack of scroll boxes with more than their allotted capacity, a message in the chatbox will state {{mes|One of your scroll boxes was destroyed as you have too many of that tier.}} or {{mes|Some of your scroll boxes were destroyed as you have too many of that tier.}} depending on how many scroll boxes were destroyed. This also happens if a player tries to use telegrab to get more scroll boxes.
+
+If a player tries to pick another scroll box whilst at max capacity, a message will state {{mes|You can't take any more of that tier of scroll box.}}
+
+Scroll boxes can also be obtained in [[Deadman Mode]] when a [[stockpiling charm]] is in the player's inventory.
+
+There are six types of scroll box:
+*{{plink|Scroll box (beginner)}}
+*{{plink|Scroll box (easy)}}
+*{{plink|Scroll box (medium)}}
+*{{plink|Scroll box (hard)}}
+*{{plink|Scroll box (elite)}}
+*{{plink|Scroll box (master)}}
+
+==Trivia==
+* For players who are [[clue juggling]], opening a scroll box when you have a clue scroll of the same tier on the ground with some number of completed steps will reset those completed steps to 0. 
+* Scroll boxes were first featured during [[Leagues]]; during the [[Twisted League|Twisted]] and [[Trailblazer League (2020)|Trailblazer Leagues]], players needed [[Treasure Seeker (Twisted League)|Treasure Seeker]] in order to obtain scroll boxes; however, since [[Shattered Relics League|Shattered Relics]], it is a passive given to all players.
+
+{{Treasure Trails}}
+{{Raging Echoes League}}
+{{Trailblazer Reloaded League}}
+{{Shattered Relics League}}
+{{Trailblazer League}}
+{{Twisted League}}

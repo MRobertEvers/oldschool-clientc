@@ -1,0 +1,102 @@
+{{Infobox Location
+|name = Varrock Rooftop Course
+|image = [[File:Varrock Rooftop Course (9).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Varrock]]
+|map = {{Map|x=3220|y=3414|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Misthalin
+}}
+{{Relativelocation
+|location = Agility course
+|north = Varrock Palace
+|west = Barbarian Village
+|south = Champions' Guild
+|east = Digsite
+}}
+The '''Varrock Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Varrock]] that is available to players with an [[Agility]] level of 30 or higher. It is preceded by the [[Al Kharid Rooftop Course]] and followed by the [[Canifis Rooftop Course]].
+
+The Varrock Rooftop Agility course can be started by climbing the Rough Wall on the east side of the [[Varrock General Store|General Store]] and is finished by jumping off the house south of [[Lowe's Archery Emporium|Lowe's Archery shop]]. Players get 270 experience from completing the course, including 144 experience upon completion of the course. The course takes approximately 1 minute and 10 seconds. Using this course, one can reach approximately 14,000 experience per hour. Players will receive an average of 8–11.3 [[mark of grace|marks of grace]] per hour on this course.
+
+It is possible to fail during Cross Clothes Line and Balance Wall and get inflicted with 3–8 and 2–5 damage respectively.
+
+Completing a lap of the Varrock Rooftop agility course is a medium task for the [[Varrock Diary Medium|Varrock Achievement Diary]].
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Varrock Rooftop Course (1).png|200px]]
+|[[Rough wall (Varrock Rooftop Course)|Rough wall]]
+|{{+=|xp|13.5|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (2).png|200px]]
+|[[Clothes line (Varrock Rooftop Course)|Clothes line]]
+|{{+=|xp|23|echo=2}}
+| style="text-align:center;" |Yes
+|-
+|[[File:Varrock Rooftop Course (3).png|200px]]
+|[[Gap (Varrock Rooftop Course)#1|Gap]]
+|{{+=|xp|19|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (4).png|200px]]
+|[[Wall (Varrock Rooftop Course)|Wall]]
+|{{+=|xp|28|echo=2}}
+| style="text-align:center;" |Yes
+|-
+|[[File:Varrock Rooftop Course (5).png|200px]]
+|[[Gap (Varrock Rooftop Course)#2|Gap]]
+|{{+=|xp|10|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (6).png|200px]]
+|[[Gap (Varrock Rooftop Course)#3|Gap]]
+|{{+=|xp|24.5|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (7).png|200px]]
+|[[Gap (Varrock Rooftop Course)#4|Gap]]
+|{{+=|xp|4.5|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (8).png|200px]]
+|[[Ledge (Varrock Rooftop Course)|Ledge]]
+|{{+=|xp|3.5|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Varrock Rooftop Course (9).png|200px]]
+|[[Edge (Varrock Rooftop Course)|Edge]]
+|{{+=|xp|143.7|echo=2}}
+| style="text-align:center;" |No
+|-
+! colspan="2" style="text-align:right;" |Total
+!{{#var:xp}}
+! 2
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = The [[experience]] per hour gained at the course has been increased from 13,000 to 14,000.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Blocked a tile adjacent to the Varrock rooftop agility course.
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Varrock}}

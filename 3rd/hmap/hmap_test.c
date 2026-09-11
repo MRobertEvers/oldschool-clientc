@@ -5,7 +5,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#define TEST_CHECK(condition)                                                                     \
+    do                                                                                            \
+    {                                                                                             \
+        if( !(condition) )                                                                        \
+        {                                                                                         \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #condition, __FILE__, __LINE__);                \
+            abort();                                                                              \
+        }                                                                                         \
+    } while( 0 )
 
 /* -----------------------------
  * User-defined entry structure
@@ -56,7 +67,7 @@ test_basic_insert_find(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf,
@@ -95,7 +106,7 @@ test_update_existing(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(&m, buf, sizeof(buf), sizeof(Entry), sizeof(int), 16, int_hash, int_eq, NULL) ==
         HMAP_OK);
 
@@ -132,7 +143,7 @@ test_remove(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(&m, buf, sizeof(buf), sizeof(Entry), sizeof(int), 16, int_hash, int_eq, NULL) ==
         HMAP_OK);
 
@@ -163,7 +174,7 @@ test_tombstone_reuse(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(&m, buf, sizeof(buf), sizeof(Entry), sizeof(int), 8, int_hash, int_eq, NULL) ==
         HMAP_OK);
 
@@ -177,7 +188,7 @@ test_tombstone_reuse(void)
 
     /* Remove some of them → tombstones */
     int k = 2;
-    assert(hmap_search(&m, &k, HMAP_REMOVE) != NULL);
+    TEST_CHECK(hmap_search(&m, &k, HMAP_REMOVE) != NULL);
 
     /* Insert new key while tombstone exists */
     int newk = 1002;
@@ -200,7 +211,7 @@ test_full_table(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf,
@@ -236,7 +247,7 @@ test_iteration(void)
     uint8_t buf[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(&m, buf, sizeof(buf), sizeof(Entry), sizeof(int), 32, int_hash, int_eq, NULL) ==
         HMAP_OK);
 
@@ -274,7 +285,7 @@ test_resize_grow(void)
     uint8_t buf_small[2048];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf_small,
@@ -298,7 +309,7 @@ test_resize_grow(void)
     uint8_t buf_big[65536];
     void* oldbuf = NULL;
 
-    assert(
+    TEST_CHECK(
         hmap_resize(
             &m,
             buf_big,
@@ -344,7 +355,7 @@ test_resize_shrink(void)
     uint8_t buf_big[65536];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf_big,
@@ -368,7 +379,7 @@ test_resize_shrink(void)
     uint8_t buf_small[4096];
     void* oldbuf = NULL;
 
-    assert(hmap_resize(&m, buf_small, sizeof(buf_small), 32, &oldbuf) == HMAP_OK);
+    TEST_CHECK(hmap_resize(&m, buf_small, sizeof(buf_small), 32, &oldbuf) == HMAP_OK);
 
     /* Old buffer returned */
     assert(oldbuf == buf_big);
@@ -392,7 +403,7 @@ test_resize_preserves_iteration(void)
     uint8_t buf_small[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf_small,
@@ -415,7 +426,7 @@ test_resize_preserves_iteration(void)
     /* Resize up */
     uint8_t buf_big[16384];
     void* oldbuf = NULL;
-    assert(hmap_resize(&m, buf_big, sizeof(buf_big), 64, &oldbuf) == HMAP_OK);
+    TEST_CHECK(hmap_resize(&m, buf_big, sizeof(buf_big), 64, &oldbuf) == HMAP_OK);
 
     /* Iterate and verify contents */
     struct HMapIter* it = hmap_iter_new(&m);
@@ -443,7 +454,7 @@ test_resize_tombstone_cleanup(void)
     uint8_t buf_small[4096];
     struct HMap m;
 
-    assert(
+    TEST_CHECK(
         hmap_init(
             &m,
             buf_small,
@@ -464,13 +475,13 @@ test_resize_tombstone_cleanup(void)
     }
 
     /* Delete a couple — creates tombstones */
-    assert(hmap_search(&m, &(int){ 2 }, HMAP_REMOVE) != NULL);
-    assert(hmap_search(&m, &(int){ 5 }, HMAP_REMOVE) != NULL);
+    TEST_CHECK(hmap_search(&m, &(int){ 2 }, HMAP_REMOVE) != NULL);
+    TEST_CHECK(hmap_search(&m, &(int){ 5 }, HMAP_REMOVE) != NULL);
 
     /* Resize should eliminate tombstones */
     uint8_t buf_big[8192];
     void* oldbuf = NULL;
-    assert(hmap_resize(&m, buf_big, sizeof(buf_big), 32, &oldbuf) == HMAP_OK);
+    TEST_CHECK(hmap_resize(&m, buf_big, sizeof(buf_big), 32, &oldbuf) == HMAP_OK);
 
     /* All remaining entries must remain correct */
     for( int i = 0; i < 8; i++ )

@@ -40,6 +40,9 @@ sset(
 }
 
 static int
+hash_clear_slot(struct LC_Pack* pack, int id);
+
+static int
 pack_grow(struct LC_Pack* pack, int needed)
 {
     assert(pack);
@@ -49,8 +52,8 @@ pack_grow(struct LC_Pack* pack, int needed)
     while( cap < needed )
         cap *= 2;
 
-    /* The three arrays are one table with three columns; growing them apart
-     * would let a comment end up on the wrong id after a realloc failure. */
+    /* The columns are one table; growing them apart would let a comment or
+     * hash field end up on the wrong id after a realloc failure. */
     char** names = realloc(pack->names, (size_t)cap * sizeof(char*));
     if( !names )
         return 0;
@@ -68,6 +71,25 @@ pack_grow(struct LC_Pack* pack, int needed)
         return 0;
     memset(preceding + pack->capacity, 0, (size_t)(cap - pack->capacity) * sizeof(char*));
     pack->preceding = preceding;
+
+    enum LC_PackHashKind* hash_kind =
+        realloc(pack->hash_kind, (size_t)cap * sizeof(enum LC_PackHashKind));
+    if( !hash_kind )
+        return 0;
+    memset(hash_kind + pack->capacity, 0, (size_t)(cap - pack->capacity) * sizeof(*hash_kind));
+    pack->hash_kind = hash_kind;
+
+    char** hashnames = realloc(pack->hashnames, (size_t)cap * sizeof(char*));
+    if( !hashnames )
+        return 0;
+    memset(hashnames + pack->capacity, 0, (size_t)(cap - pack->capacity) * sizeof(char*));
+    pack->hashnames = hashnames;
+
+    int* hashcodes = realloc(pack->hashcodes, (size_t)cap * sizeof(int));
+    if( !hashcodes )
+        return 0;
+    memset(hashcodes + pack->capacity, 0, (size_t)(cap - pack->capacity) * sizeof(int));
+    pack->hashcodes = hashcodes;
 
     pack->capacity = cap;
     return 1;
@@ -120,6 +142,14 @@ lc_pack_remove(struct LC_Pack* pack, int id)
     pack->trailing[id] = NULL;
     free(pack->preceding[id]);
     pack->preceding[id] = NULL;
+    if( pack->hashnames )
+        free(pack->hashnames[id]);
+    if( pack->hashnames )
+        pack->hashnames[id] = NULL;
+    if( pack->hash_kind )
+        pack->hash_kind[id] = LC_PACK_HASH_ABSENT;
+    if( pack->hashcodes )
+        pack->hashcodes[id] = 0;
     /* The engine recomputes max from the file it reads, so dropping the top id
      * has to lower it here too — otherwise the next allocation lands past the
      * end of what gets written and leaves an id no line accounts for. */
@@ -192,6 +222,182 @@ text_free(struct LC_Text* text)
     text->len = text->cap = 0;
 }
 
+/* ---- hash fields -------------------------------------------------------- */
+
+static char*
+find_unquoted(
+    char* s,
+    const char* needle)
+{
+    int in_quote = 0;
+    int escaped = 0;
+    size_t nlen = strlen(needle);
+    for( char* p = s; *p; p++ )
+    {
+        if( escaped )
+        {
+            escaped = 0;
+            continue;
+        }
+        if( in_quote && *p == '\\' )
+        {
+            escaped = 1;
+            continue;
+        }
+        if( *p == '"' )
+        {
+            in_quote = !in_quote;
+            continue;
+        }
+        if( !in_quote && strncmp(p, needle, nlen) == 0 )
+            return p;
+    }
+    return NULL;
+}
+
+/** Decode a `hashname("…")` payload. `\"` and `\\` are the only escapes. */
+static char*
+unquote_hashname(const char* quoted, size_t quoted_len)
+{
+    char* out = malloc(quoted_len + 1);
+    if( !out )
+        return NULL;
+    size_t w = 0;
+    int escaped = 0;
+    for( size_t i = 0; i < quoted_len; i++ )
+    {
+        if( escaped )
+        {
+            out[w++] = quoted[i];
+            escaped = 0;
+            continue;
+        }
+        if( quoted[i] == '\\' )
+        {
+            escaped = 1;
+            continue;
+        }
+        out[w++] = quoted[i];
+    }
+    out[w] = '\0';
+    return out;
+}
+
+static int
+append_quoted_hashname(
+    struct LC_Text* out,
+    const char* name)
+{
+    if( !text_str(out, " hashname(\"") )
+        return 0;
+    for( const char* p = name; *p; p++ )
+    {
+        if( *p == '"' || *p == '\\' )
+        {
+            if( !text_append(out, "\\", 1) )
+                return 0;
+        }
+        if( !text_append(out, p, 1) )
+            return 0;
+    }
+    return text_str(out, "\")");
+}
+
+/**
+ * Peel a trailing `hashname("…")` or `hashcode(N)` off `name`.
+ *
+ * Returns 0 when the trailing field is malformed (both forms, leftover tokens,
+ * a broken quote). `name` is then left as the pack name only.
+ */
+static int
+peel_hash_field(
+    char* name,
+    char** out_hashname,
+    int* out_code,
+    enum LC_PackHashKind* out_kind)
+{
+    *out_hashname = NULL;
+    *out_code = 0;
+    *out_kind = LC_PACK_HASH_ABSENT;
+
+    char* name_tok = find_unquoted(name, "hashname(");
+    char* code_tok = find_unquoted(name, "hashcode(");
+    if( !name_tok && !code_tok )
+        return 1;
+    if( name_tok && code_tok )
+        return 0;
+
+    char* tok = name_tok ? name_tok : code_tok;
+    if( tok != name )
+    {
+        if( tok[-1] != ' ' && tok[-1] != '\t' )
+            return 0;
+        char* cut = tok;
+        while( cut > name && (cut[-1] == ' ' || cut[-1] == '\t') )
+            cut--;
+        *cut = '\0';
+    }
+    else
+        return 0;
+
+    if( name_tok )
+    {
+        if( strncmp(tok, "hashname(\"", 10) != 0 )
+            return 0;
+        char* p = tok + 10;
+        int escaped = 0;
+        char* end_quote = NULL;
+        for( ; *p; p++ )
+        {
+            if( escaped )
+            {
+                escaped = 0;
+                continue;
+            }
+            if( *p == '\\' )
+            {
+                escaped = 1;
+                continue;
+            }
+            if( *p == '"' )
+            {
+                end_quote = p;
+                break;
+            }
+        }
+        if( !end_quote || end_quote[1] != ')' )
+            return 0;
+        char* rest = end_quote + 2;
+        while( *rest == ' ' || *rest == '\t' )
+            rest++;
+        if( *rest )
+            return 0;
+        *out_hashname = unquote_hashname(tok + 10, (size_t)(end_quote - (tok + 10)));
+        if( !*out_hashname )
+            return 0;
+        *out_kind = LC_PACK_HASH_NAME;
+        return 1;
+    }
+
+    if( strncmp(tok, "hashcode(", 9) != 0 )
+        return 0;
+    char* num = tok + 9;
+    char* end = NULL;
+    long code = strtol(num, &end, 0);
+    if( !end || end == num || *end != ')' )
+        return 0;
+    end++;
+    while( *end == ' ' || *end == '\t' )
+        end++;
+    if( *end )
+        return 0;
+    if( code < (long)(-2147483647 - 1) || code > 2147483647L )
+        return 0;
+    *out_code = (int)code;
+    *out_kind = LC_PACK_HASH_CODE;
+    return 1;
+}
+
 /* ---- load ---------------------------------------------------------------- */
 
 /**
@@ -259,7 +465,7 @@ lc_pack_load(
          * packs used one to carry the cache name an alias stands in for
          * (`3254=guard  // cache: guard1`), and that convention is now the only
          * way to record the provenance the directory split used to encode. */
-        char* note = strstr(line, "//");
+        char* note = find_unquoted(line, "//");
         char* raw_note = NULL;
         if( note )
         {
@@ -315,12 +521,53 @@ lc_pack_load(
             continue;
         }
 
+        char* hashname = NULL;
+        int hashcode = 0;
+        enum LC_PackHashKind hash_kind = LC_PACK_HASH_ABSENT;
+        if( !peel_hash_field(name, &hashname, &hashcode, &hash_kind) )
+        {
+            free(hashname);
+            free(raw_note);
+            pack->malformed++;
+            continue;
+        }
+        n = strlen(name);
+        if( n == 0 )
+        {
+            free(hashname);
+            free(raw_note);
+            pack->malformed++;
+            continue;
+        }
+
         if( !lc_pack_set(pack, (int)id, name) )
         {
+            free(hashname);
             free(raw_note);
             ok = 0;
             break;
         }
+        if( hash_kind == LC_PACK_HASH_NAME )
+        {
+            if( !lc_pack_set_hashname(pack, (int)id, hashname) )
+            {
+                free(hashname);
+                free(raw_note);
+                ok = 0;
+                break;
+            }
+        }
+        else if( hash_kind == LC_PACK_HASH_CODE )
+        {
+            if( !lc_pack_set_hashcode(pack, (int)id, hashcode) )
+            {
+                free(hashname);
+                free(raw_note);
+                ok = 0;
+                break;
+            }
+        }
+        free(hashname);
         free(pack->trailing[(int)id]);
         pack->trailing[(int)id] = raw_note;
 
@@ -397,6 +644,99 @@ lc_pack_set_note(
     return 1;
 }
 
+static int
+hash_clear_slot(struct LC_Pack* pack, int id)
+{
+    if( pack->hashnames )
+    {
+        free(pack->hashnames[id]);
+        pack->hashnames[id] = NULL;
+    }
+    if( pack->hashcodes )
+        pack->hashcodes[id] = 0;
+    if( pack->hash_kind )
+        pack->hash_kind[id] = LC_PACK_HASH_ABSENT;
+    return 1;
+}
+
+const char*
+lc_pack_hashname(
+    const struct LC_Pack* pack,
+    int id)
+{
+    assert(pack);
+    if( id < 0 || id >= pack->capacity || !pack->hash_kind )
+        return NULL;
+    if( pack->hash_kind[id] != LC_PACK_HASH_NAME )
+        return NULL;
+    return pack->hashnames ? pack->hashnames[id] : NULL;
+}
+
+int
+lc_pack_hashcode(
+    const struct LC_Pack* pack,
+    int id,
+    int* out)
+{
+    assert(pack && out);
+    if( id < 0 || id >= pack->capacity || !pack->hash_kind )
+        return 0;
+    if( pack->hash_kind[id] != LC_PACK_HASH_CODE )
+        return 0;
+    *out = pack->hashcodes ? pack->hashcodes[id] : 0;
+    return 1;
+}
+
+int
+lc_pack_set_hashname(
+    struct LC_Pack* pack,
+    int id,
+    const char* name)
+{
+    assert(pack && name);
+    if( id < 0 )
+        return 0;
+    if( !pack_grow(pack, id + 1) )
+        return 0;
+    hash_clear_slot(pack, id);
+    if( !sset(&pack->hashnames[id], name) )
+        return 0;
+    pack->hash_kind[id] = LC_PACK_HASH_NAME;
+    return 1;
+}
+
+int
+lc_pack_set_hashcode(
+    struct LC_Pack* pack,
+    int id,
+    int code)
+{
+    assert(pack);
+    if( id < 0 )
+        return 0;
+    if( !pack_grow(pack, id + 1) )
+        return 0;
+    hash_clear_slot(pack, id);
+    pack->hashcodes[id] = code;
+    pack->hash_kind[id] = LC_PACK_HASH_CODE;
+    return 1;
+}
+
+int
+lc_pack_clear_hash(
+    struct LC_Pack* pack,
+    int id)
+{
+    assert(pack);
+    if( id < 0 )
+        return 0;
+    if( !pack_grow(pack, id + 1) )
+        return 0;
+    hash_clear_slot(pack, id);
+    pack->hash_kind[id] = LC_PACK_HASH_NONE;
+    return 1;
+}
+
 /* ---- save --------------------------------------------------------------- */
 
 int
@@ -430,13 +770,16 @@ lc_pack_synthetic_id(
     return (int)id;
 }
 
-/** Does the id carry prose someone wrote? Filler lines are kept for this. */
+/** Does the id carry prose or a hash field? Filler lines are kept for this. */
 static int
 has_comment(const struct LC_Pack* pack, int id)
 {
     if( pack->trailing && pack->trailing[id] )
         return 1;
     if( pack->preceding && pack->preceding[id] )
+        return 1;
+    if( pack->hash_kind &&
+        (pack->hash_kind[id] == LC_PACK_HASH_NAME || pack->hash_kind[id] == LC_PACK_HASH_CODE) )
         return 1;
     return 0;
 }
@@ -487,6 +830,19 @@ pack_render(
         snprintf(head, sizeof(head), "%d=", id);
         if( !text_str(out, head) || !text_str(out, pack->names[id]) )
             return 0;
+        if( pack->hash_kind && pack->hash_kind[id] == LC_PACK_HASH_NAME && pack->hashnames &&
+            pack->hashnames[id] )
+        {
+            if( !append_quoted_hashname(out, pack->hashnames[id]) )
+                return 0;
+        }
+        else if( pack->hash_kind && pack->hash_kind[id] == LC_PACK_HASH_CODE )
+        {
+            char code[32];
+            snprintf(code, sizeof(code), " hashcode(%d)", pack->hashcodes ? pack->hashcodes[id] : 0);
+            if( !text_str(out, code) )
+                return 0;
+        }
         if( pack->trailing[id] && !text_str(out, pack->trailing[id]) )
             return 0;
         if( !text_str(out, "\n") )
@@ -532,6 +888,14 @@ pack_merged_snapshot(
             out->trailing[id] = NULL;
             free(out->preceding[id]);
             out->preceding[id] = NULL;
+            if( out->hashnames )
+                free(out->hashnames[id]);
+            if( out->hashnames )
+                out->hashnames[id] = NULL;
+            if( out->hash_kind )
+                out->hash_kind[id] = LC_PACK_HASH_ABSENT;
+            if( out->hashcodes )
+                out->hashcodes[id] = 0;
         }
     }
 
@@ -550,6 +914,20 @@ pack_merged_snapshot(
             return 0;
         if( pack->preceding[id] && !sset(&out->preceding[id], pack->preceding[id]) )
             return 0;
+        if( pack->hash_kind && pack->hash_kind[id] != LC_PACK_HASH_ABSENT )
+        {
+            if( !pack_grow(out, id + 1) )
+                return 0;
+            hash_clear_slot(out, id);
+            out->hash_kind[id] = pack->hash_kind[id];
+            if( pack->hash_kind[id] == LC_PACK_HASH_NAME )
+            {
+                if( !sset(&out->hashnames[id], pack->hashnames ? pack->hashnames[id] : NULL) )
+                    return 0;
+            }
+            else if( pack->hash_kind[id] == LC_PACK_HASH_CODE )
+                out->hashcodes[id] = pack->hashcodes ? pack->hashcodes[id] : 0;
+        }
     }
     if( pack->preamble && !sset(&out->preamble, pack->preamble) )
         return 0;
@@ -748,10 +1126,15 @@ lc_pack_free(struct LC_Pack* pack)
             free(pack->trailing[id]);
         if( pack->preceding )
             free(pack->preceding[id]);
+        if( pack->hashnames )
+            free(pack->hashnames[id]);
     }
     free(pack->names);
     free(pack->trailing);
     free(pack->preceding);
+    free(pack->hash_kind);
+    free(pack->hashnames);
+    free(pack->hashcodes);
     free(pack->preamble);
     free(pack->trailer);
     free(pack->tombstones);

@@ -37,6 +37,8 @@
 #define TORIRS_OSRSKEY_BACKSPACE 85
 #define TORIRS_OSRSKEY_ALT 86
 #define TORIRS_OSRSKEY_DELETE 101
+#define TORIRS_OSRSKEY_LEFT 96
+#define TORIRS_OSRSKEY_RIGHT 97
 
 /** Number of distinct OSRS key codes; sizes held/pressed state arrays. */
 #define TORIRS_OSRSKEY_COUNT 256

@@ -1,0 +1,636 @@
+{{External|rs=Ardougne achievements}}
+{{Infobox Achievement Diary
+|name = Ardougne Diary
+|image = [[File:Ardougne Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Ardougne]], [[Port Khazard]] and [[Yanille]]
+|members = Yes
+|reward = [[Ardougne cloak|Cloak]]
+|taskmasters = [[Two-pints]]
+|leagueRegion = Kandarin
+}}
+{{Map|name=Ardougne Diary|x=2574|y=3323|r=5|width=250|height=250|caption=Two-pints's location|align=left|mtype=square|group=1}}
+The '''Ardougne Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in and near [[Ardougne]], such as [[Yanille]] and [[Port Khazard]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Two-pints]] in the [[Flying Horse Inn]], in [[East Ardougne]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Thieving = 5
+|Total = 36
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Biohazard"
+|[[Biohazard]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|}
+| style="vertical-align: top" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Strength = 38
+|Agility = 39
+|Smithing = 1
+|SmithingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Ranged = 25
+|Thieving = 38
+|Crafting = 49
+|CraftingNotes = <ref name="SandMed">[[File:Ultimate ironman chat badge.png]] [[Ironman Mode#Ultimate|Ultimate Ironmen]] only need 36 [[Crafting]] and do not have to complete [[The Hand in the Sand]].</ref>
+|Firemaking = 50
+|Magic = 51
+|Fletching = 1
+|FletchingNotes = <ref name="IronMed"/>
+|Woodcutting = 36
+|Farming = 31
+|Construction = 10
+|Quest = 20
+|Total = 391
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="The Hand in the Sand"
+|[[The Hand in the Sand]] <ref name="SandMed"/>
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="Tower of Life"
+|[[Tower of Life]]
+|- data-rowid="Underground Pass"
+|[[Underground Pass]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[Sea Slug]]
+|-
+|Partial completion of [[Watchtower]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 52
+|Strength = 50
+|Agility = 56
+|Smithing = 68
+|Herblore = 45
+|Fishing = 53
+|Ranged = 60
+|Thieving = 72
+|Cooking = 53
+|Prayer = 42
+|Crafting = 50
+|CraftingNotes = <ref>[[File:Ironman chat badge.png]] To obtain a [[skills necklace]], [[ironmen]] need either 72 Crafting and 68 Magic (both boostable), or luck from [[Reward casket (elite)|elite clues]].</ref>
+|Firemaking = 50
+|Magic = 66
+|Fletching = 5
+|FletchingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Woodcutting = 50
+|Runecraft = 65
+|Farming = 70
+|Construction = 50
+|Hunter = 59
+|Quest = 107
+|Total = 1029
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="The Hand in the Sand"
+|[[The Hand in the Sand]] <ref name="SandHard">[[File:Ultimate ironman chat badge.png]] [[Ironman Mode#Ultimate|Ultimate Ironmen]] do not have to complete [[The Hand in the Sand]].</ref>
+|- data-rowid="Legends' Quest"
+|[[Legends' Quest]]
+|- data-rowid="Monkey Madness I"
+|[[Monkey Madness I]]
+|- data-rowid="Mourning's End Part II"
+|[[Mourning's End Part II]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="Tower of Life"
+|[[Tower of Life]]
+|- data-rowid="Watchtower"
+|[[Watchtower]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[Sea Slug]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 52
+|Strength = 50
+|Agility = 90
+|Smithing = 91
+|Herblore = 45
+|Fishing = 81
+|FishingNotes = {{boostable|n}}
+|Ranged = 60
+|Thieving = 82
+|Cooking = 91
+|Prayer = 42
+|Crafting = 50
+|Firemaking = 50
+|Magic = 94
+|Fletching = 69
+|Woodcutting = 50
+|Runecraft = 65
+|Farming = 85
+|Construction = 50
+|Hunter = 59
+|Quest = 107
+|Total = 1269
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Enlightened Journey"
+|[[Enlightened Journey]]
+|- data-rowid="The Hand in the Sand"
+|[[The Hand in the Sand]] <ref name="SandHard">[[File:Ultimate ironman chat badge.png]] [[Ironman Mode#Ultimate|Ultimate Ironmen]] do not have to complete [[The Hand in the Sand]].</ref>
+|- data-rowid="Haunted Mine"
+|[[Haunted Mine]]
+|- data-rowid="Legends' Quest"
+|[[Legends' Quest]]
+|- data-rowid="Monkey Madness I"
+|[[Monkey Madness I]]
+|- data-rowid="Mourning's End Part II"
+|[[Mourning's End Part II]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="Tower of Life"
+|[[Tower of Life]]
+|- data-rowid="Watchtower"
+|[[Watchtower]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Started [[Sea Slug]]
+|-
+|Reach 800,000 [[Nightmare Zone]] points (or 400,000 with the [[Combat_Achievements/Hard|hard tier]] of the [[Combat Achievements]])
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="mw-collapsible mw-collapsed"
+! style="text-align:left;" | Task locations
+|-
+|
+{{Map|mtype=pin|zoom=0|width=400|height=400|align=right
+|x:2683,y:3326,title:[[Wizard Cromperty]],desc:1. Have [[Wizard Cromperty]] teleport you to the [[Rune Essence mine]]
+|x:2667,y:3310,title:[[Ardougne Baker's Stall.|Baker's Stall]],desc:2. Steal a [[cake]] from the [[Ardougne Baker's Stall.|Ardougne market stalls]].
+|x:2656,y:3301,title:[[Silk merchant]],desc:3. Sell [[Silk]] to [[Silk merchant|Silk trader]]{{sic}} in [[Ardougne]] for 60 coins each.
+|x:2618,y:3309,title:[[Altar]],desc:4. Use the altar in [[East Ardougne]]'s [[Ardougne church|church]].
+|x:2676,y:3170,title:[[Fishing Trawler]],desc:5. Go out fishing on the [[Fishing Trawler]]
+|x:2516,y:3356,title:[[Combat Training Camp]],desc:6. Enter the [[Combat Training Camp]] north of [[West Ardougne|W. Ardougne]].
+|x:2678,y:3153,title:[[Tindel Marchant]],desc:7. Have [[Tindel Marchant]] identify a [[Rusty sword|Rusted Sword]]{{sic}} for you.
+|x:2561,y:3311,title:[[Lever (Ardougne)|Ardougne lever]],desc:8. Use the [[Ardougne teleport lever|Ardougne Lever]] to teleport to the [[Wilderness]].
+|x:2567,y:3083,title:[[Aleck's Hunter Emporium.|Aleck's Hunter Emporium]],desc:9. View [[Aleck's Hunter Emporium.|Aleck's Hunter Emporium]] in [[Yanille]].
+|x:2621,y:3292,title:[[Probita]],desc:10. Check what [[pet]]s you have Insured with [[Probita]] in [[Ardougne]].
+}}
+|}
+
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Ardougne" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Have [[Wizard Cromperty]] teleport you to the [[Rune Essence mine]].
+''Note: You can right-click him to teleport.
+|
+*{{SCP|Quest}} Completion of [[Rune Mysteries]]
+|-
+|2. Steal a [[cake]] from the [[Ardougne Baker's Stall.|Ardougne market stalls]].
+|
+*{{SCP|Thieving|5|link=y}}
+|-
+|3. Sell [[Silk]] to [[Silk merchant|Silk trader]]{{sic}} in [[Ardougne]] for 60 coins each.
+''Note: You must first offer to sell your silk for 120 coins, then counter his bid with 60 coins. He'll refuse to speak to you if you've just stolen from [[Silk stall|his silk stall]], and his behaviour only resets after you've spent at least ten consecutive minutes outside of [[Ardougne]] without logging off.''
+|
+*[[Silk]]
+|-
+|4. Use the altar in [[East Ardougne]]'s [[Ardougne church|church]].
+''Note: Requires you to have less than full [[Prayer points]].''
+|{{NA|None}}
+|-
+|5. Go out fishing on the [[Fishing Trawler]]
+''Note: You only have to start this minigame, completing it is optional.
+|{{NA|None}}
+|-
+|6. Enter the [[Combat Training Camp]] north of [[West Ardougne|W. Ardougne]].
+|
+*{{SCP|Quest}} Completion of [[Biohazard]]
+|-
+|7. Have [[Tindel Marchant]] identify a [[Rusty sword|Rusted Sword]]{{sic}} for you.
+''Note: There is a 1/100 chance the sword turns out to be nothing, in which case you'll have to bring a new one.
+|
+*[[Rusty sword]] and 100 [[coins]]
+|-
+|8. Use the [[Ardougne teleport lever|Ardougne Lever]] to teleport to the [[Wilderness]].
+''Note: You can pull the [[Lever (Deserted Keep)|lever]] there to return.
+|{{NA|None}}
+|-
+|9. View [[Aleck's Hunter Emporium.|Aleck's Hunter Emporium]] in [[Yanille]].
+|{{NA|None}}
+|-
+|10. Check what [[pet]]s you have Insured with [[Probita]] in [[Ardougne]].
+''Note: You can right-click her to check.
+|{{NA|None}}
+|}
+
+===Rewards===
+*[[Ardougne cloak 1]]:
+**Unlimited teleports to the [[Ardougne Monastery]]
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 [[experience]] in any skill of at least level 30
+*Earn twice as many [[death rune]]s from trading in [[Cat|cats]] to [[Civilian|civilians]] in [[West Ardougne]]
+*Drops from [[Jubster]]s and [[Frogeel]]s will be [[noted]] in the [[Creature Creation]] activity
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Ardougne" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Enter the [[Unicorn]] pen in [[Ardougne zoo]] using [[Fairy ring]]s.
+|
+*{{SCP|Quest}} Started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|bis}}.
+|-
+|2. Grapple over [[Yanille]]'s south wall.
+|
+*{{SCP|Agility|39|link=y}}, {{SCP|Strength|38|link=y}} and {{SCP|Ranged|21|link=y}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].}} and any [[Crossbow (weapon)|crossbow]]
+|-
+|3. Harvest some [[Strawberry|strawberries]] from the [[Ardougne farm|Ardougne farming patch]].
+|
+*{{SCP|Farming|31|link=y}}
+*3 [[strawberry seed]]s, [[spade]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Basket of apples]] recommended to pay the [[Kragen|nearby farmer]] to protect the crop
+|-
+|4. Cast the [[Ardougne Teleport]] spell.
+|
+*{{SCP|Quest}} Completion of [[Plague City]]
+*{{SCP|Magic|51|link=y}}
+*Means to cast [[Ardougne Teleport]] ({{RuneReq|Water=2|Law=2}})
+|-
+|5. Travel to [[Castle Wars|Castlewars]]{{sic}} by [[Balloon transport system|Hot Air Balloon]].
+|
+*{{SCP|Quest}} Completion of [[Enlightened Journey]]
+*{{SCP|Firemaking|50|link=y}}
+*[[Yew log]]
+*If the [[Balloon_transport_system#Castle_Wars|route]] has not been unlocked yet, 11 total [[yew logs]] are required to unlock it before flying ''again'' to [[Castle Wars]] to complete this task. Upon unlocking the route, you may use 1 normal [[Logs|log]] to depart to [[Taverley]] before returning to Castle Wars for the task completion.
+|-
+|6. Claim [[buckets of sand]] from [[Bert]] in [[Yanille]].
+''Note: [[Ultimate Ironman|Ultimate Ironmen]] must instead fill a bucket with sand from Bert's [[sand pit]].
+|
+*{{SCP|Quest}} Completion of [[The Hand in the Sand]] (unless playing as [[Ultimate Ironman]])
+* [[Bucket]]
+|-
+|7. Catch any fish on the [[Fishing Platform]].
+|
+*{{SCP|Quest}} Started [[Sea Slug]]
+*A [[small fishing net]]
+|-
+|8. Pickpocket the [[master farmer]] north of [[Ardougne]].
+|
+*{{SCP|Thieving|38|link=y}}
+|-
+|9. Collect some [[cave nightshade|Nightshade]] from the [[Skavid Caves]].
+''Note: It can be found in the northernmost cave.''
+|
+*{{SCP|Quest}} Partial completion of [[Watchtower]]
+*Any [[light source]] and the [[Skavid map]]
+|-
+|10. Kill a [[swordchick]] in the [[Tower of Life (building)|Tower of Life]].
+|
+*{{SCP|Quest}} Completion of [[Tower of Life]]
+*[[Raw chicken]] and [[raw swordfish]]
+*[[Weaponry]]
+|-
+|11. Equip [[Iban's staff (u)|Iban's upgraded staff]] or upgrade an [[Iban's staff|Iban staff]].
+''Note: You can upgrade the staff without equipping it.''
+|
+*{{SCP|Quest}} Completion of [[Underground Pass]]
+*[[Iban's upgraded staff]], or 200,000 [[coins]] and [[Iban's staff]] to have the [[Dark Mage]] in [[West Ardougne]] upgrade it
+|-
+|12. Visit the Island East of the [[Necromancer Tower|Necromancer's tower]].
+|
+*{{SCP|Quest}} Started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|air}}
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Ardougne cloak 2]]:
+**Three daily teleports to the [[farming patch]] at the [[Ardougne farm]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 [[experience]] in any skill of at least level 40
+*Drops from [[Unicow]]s, [[Newtroost]]s, and [[Spidine]]s will be [[noted]] in the [[Creature Creation]] activity
+*[[Wizard Cromperty]] offers you 100 [[noted]] [[pure essence]] for free every day
+*Ability to change the [[ring of life]] teleport location to [[Ardougne]]
+*Chance on receiving additional [[runes]] at the [[Ourania Altar]] (chance [[Ourania_Altar#Ardougne_diary|varies]] per rune)
+*10% increased chance of successfully [[Thieving#Pickpocketing|pickpocketing]] within [[Ardougne]]
+*Hold up to 56 [[coin pouch]]es at a time, up from 28
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Ardougne" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Recharge some [[Jewellery]] at the [[Totem Pole (Legends' Guild|Totem]] in the [[Legends' Guild|Legends Guild]].
+|
+*{{SCP|Quest}} Completion of [[Legends' Quest]]
+*Less than fully charged [[skills necklace]] or [[combat bracelet]]
+|-
+|2. Enter the [[Wizards' Guild|Magic Guild]].
+|
+*{{SCP|Magic|66|link=y}}
+|-
+|3. Steal from a [[Chest (Ardougne Castle)|chest]] in [[Ardougne Castle]].
+|
+*{{SCP|Thieving|72|link=y}}
+*[[Lockpick]] recommended
+|-
+|4. Have a [[Monkey minder|zookeeper]] put you in [[Ardougne Zoo]]'s monkey cage.
+|
+*{{SCP|Quest}} Partial completion of the [[Monkey Madness I]] quest
+* [[Karamjan monkey greegree]]
+|-
+|5. Teleport to the [[Watchtower (building)|Watchtower]].
+|
+*{{SCP|Quest}} Completion of [[Watchtower]]
+*{{SCP|Magic|58|link=y}}
+*Means to cast the [[Watchtower teleport]] ({{RuneReq|Earth=2|Law=2}})
+|-
+|6. Catch a [[Red salamander (Hunter)|Red Salamander]].
+|
+*{{SCP|Hunter|59|link=y}}
+*[[Rope]] and [[small fishing net]]
+|-
+|7. Check the health of a [[Palm tree]] near [[Tree Gnome Village (location)|tree gnome village]].
+''Note: This is the [[farming patch]] next to [[Gileth]].
+|
+*{{SCP|Farming|68|link=y}}
+*[[Palm sapling]], [[spade]] and a [[rake]]
+*15 [[Papaya fruit]] recommended to pay the [[Gileth|gardener]]
+|-
+|8. Pick some [[Poison Ivy berries]] from the patch south of [[Ardougne]].
+''Note: This patch is located next to the [[Ardougne Monastery]].
+|
+*{{SCP|Farming|70|link=y}}
+*[[Poison ivy seed]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+''Note: Poison ivy cannot get diseased while growing.''
+|-
+|9. Smith a [[Mithril platebody]] near [[Ardougne]].
+''Note: You'll have to use the [[Port Khazard]], [[Yanille]], or [[West Ardougne]] [[anvil]] for this.''
+|
+*{{SCP|Smithing|68|link=y}}
+*5 [[mithril bar]]s and a [[hammer]]
+|-
+|10. Enter your [[Player-owned house|POH]] from [[Yanille]].
+|
+*{{SCP|Construction|50|link=y}}{{Boostable|no}}
+*25,000 [[coins]] for an [[estate agent]] to move your house to [[Yanille]]
+''Note: In Deadman Mode, the task is instead "Ask the Estate Agent to move your house to Yanille." This does not cost anything as your house will not be moved.''
+|-
+|11. Smith a [[Dragon sq shield]] in [[West Ardougne]].
+|
+*{{SCP|Quest}} Partial completion of [[Plague City]]
+*{{SCP|Smithing|60|link=y}}
+*[[Shield left half]], [[shield right half]] and a [[hammer]]
+|-
+|12. Craft some [[Death rune]]s from Essence.
+''Note: Entering the [[Death Altar]] from the [[Mourner Headquarters]] is not recommended after the quest. It follows a lengthy route that requires the [[crystal trinket]] and a [[death talisman]]/[[Death tiara|tiara]] or [[catalytic talisman]]/[[Catalytic tiara|tiara]], and (if [[Song of the Elves]] has not been completed) [[mourner gear]] and the [[new key]]. It's even possible to lock yourself out of this entrance with the light puzzle, which may require you to enter it via the [[Abyss]] or through the [[Underground Pass (dungeon)|Underground Pass]] anyway to change the rotation of the mirrors again.
+|
+*{{SCP|Quest}} Completion of [[Mourning's End Part II]]
+*{{SCP|Runecraft|65|link=y}}
+*[[Pure essence|Pure]] or [[daeyalt essence]]
+**''Note: Crafting runes using [[Guardian essence]] will '''NOT''' complete this achievement''
+*Access to the [[Death Altar]] via the [[Abyss]]
+|}
+
+===Rewards===
+*[[Ardougne cloak 3]]:
+**Five daily teleports to the [[farming patch]] at the [[Ardougne farm]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 [[experience]] in any skill of at least level 50
+*[[Wizard Cromperty]] offers you 150 [[noted]] [[pure essence]] for free every day
+*[[Watchtower Teleport]] can now be used to teleport to [[Yanille]] instead
+*10% increased chance of successfully [[Thieving#Pickpocketing|pickpocketing]] anywhere around [[Gielinor]]
+*Hold up to 84 [[coin pouch]]es at a time, up from 56
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Ardougne" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Manta ray]] in the [[Fishing Trawler]] and cook it in [[Port Khazard]].
+''Note: Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Fishing|81|link=y}}{{Boostable|no}} and {{SCP|Cooking|91|link=y}}{{Boostable|yes}}
+*[[Raw manta ray]], multiple recommended in case of [[Burnt manta ray|burning]] one
+|-
+|2. Picklock the door to the basement of [[Yanille Agility Dungeon]].
+|
+*{{SCP|Thieving|82|link=y}} {{Boostable|yes}}
+*[[Lockpick]]
+|-
+|3. Pickpocket a [[Hero]].
+|
+*{{SCP|Thieving|80|link=y}} {{Boostable|yes}}
+|-
+|4. Make a [[rune crossbow]] yourself from scratch within [[Witchaven]] or [[Yanille]].
+
+''Note: You must use the [[spinning wheel]] in [[Witchaven]] to make the [[crossbow string]] and the [[anvil]] in [[Yanille]] to make the [[runite limbs]]. Fletching the [[yew stock]] and completing the [[rune crossbow]] can be done in either settlement. Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Crafting|10|link=y}}, {{SCP|Smithing|91|link=y}}{{Boostable|yes}} and {{SCP|Fletching|69|link=y}}
+*[[Yew logs]], [[runite bar]], [[hammer]], [[knife]], and [[sinew]] or a [[tree root]]
+|-
+|5. Imbue a [[Salve amulet]] at [[Nightmare Zone]], or equip a Salve amulet that was [[Salve amulet(i)|imbued]] there.
+''Note: You cannot use a [[Scroll of imbuing]] from [[Emir's Arena]] or use [[Zeal Tokens]] from [[Soul Wars]].''{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1356917400210448389|date=3 February 2021|archiveurl=https://reldo.runescape.wiki/i/100999|archivedate=5 February 2021|quote=Yes. Seems to be the case for everything that can be imbued in the two different places - rings, amulets, etc. I suspect that was to stop people getting the imbue in one place, then trying to refund it in the other place.}} ''In Deadman Mode, the task is "Attempt to equip an imbued Salve amulet at the Nightmare Zone plinth." NOTE: Whilst the text reads imbued, you must wear a Salve (ei) not Salve (i)''
+|
+*{{SCP|Quest}} Completion of the [[Haunted Mine]] 
+*Access to the [[Nightmare Zone]]
+*[[Salve amulet(i)]] or [[Salve amulet(ei)]], or 800,000 [[Nightmare_Zone#Upgrades|Nightmare Zone points]] points to imbue the [[Salve amulet|normal one]] (reduced to 400,000 points with the [[Combat_Achievements/Hard|hard tier]] of the {{SCP|combatachievement}} [[Combat Achievements]] completed)
+|-
+|6. Pick some [[Torstol]] from the [[Herb patch|patch]] north of [[Ardougne]].
+|
+*{{SCP|Farming|85|link=y}}
+*[[Torstol seed]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Ultracompost]] recommended
+|-
+|7. Complete a lap of [[Ardougne Rooftop Course|Ardougne's rooftop agility course]].
+|
+*{{SCP|Agility|90|link=y}} {{Boostable|yes}}
+|-
+|8. Cast [[Ice Barrage]] on another player within [[Castle Wars]].
+''Note: You have to successfully hit the player, so multiple casts are recommended. In Deadman Mode, the task is "Visit the Castle Wars lobby with at least 94 Magic after completing Desert Treasure I."
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+*{{SCP|Magic|94|link=y}} {{Boostable|yes}}
+*Means to cast [[Ice Barrage]] ({{RuneReq|Death=4|Blood=2|Water=6}} or a [[Blighted ancient ice sack]] for every cast)
+|}
+
+===Rewards===
+*[[Ardougne cloak 4]]:
+**Unlimited teleports to the [[farming patch]] at the [[Ardougne farm]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 [[experience]] in any skill of at least level 70
+*[[Bert]] automatically delivers 84 [[buckets of sand]] to your bank each day you log in, unless asked to stop. ([[Ironman_Mode#Ultimate|Ultimate Ironmen]] are ineligible)
+*[[Wizard Cromperty]] offers you 250 [[noted]] [[pure essence]] for free every day
+*50% more [[fish]] from [[Fishing Trawler]]
+*25% more [[marks of grace]] from the [[Ardougne Rooftop Course]]
+*Hold up to 140 [[coin pouch]]es at a time, up from 84
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = The northernmost red salamander spot at the Ourania Altar now allows you to complete the Hard Ardougne Achievement Diary task.
+}}
+{{Subject changes
+|date = 8 February 2023
+|update = Poll 78 Updates & More
+|poll = New Skill: Community Consultation and Poll 78
+|change = [[Coin pouch]] limit has been increased to 56, 84, and 140 after completing the Medium, Hard, and Elite diaries.
+}}
+{{Subject changes
+|date = 2 February 2023
+|update = Wilderness Boss Rework Tweaks & More
+|change = The task that calls for an [[Salve amulet(ei)|imbued salve amulet]] is now clearer about where the amulet must be imbued.
+}}
+{{Subject changes
+|date = 27 July 2022
+|update = New Client Update: Clue Scroll Helper
+|change = On the [[Deadman]] world, the task for casting Ice Barrage in Castle Wars can now be completed by entering the Castle Wars lobby with the relevant quest and skill requirements satisfied.
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they only can be completed with essence.
+}}
+{{Subject changes
+|date = 13 October 2016
+|update = The Ourania Altar
+|poll = The Ourania Altar
+|change = Completing the medium Ardougne achievement diary now grants additional runes when crafting essence at the Ourania Altar, with no additional experience.
+}}
+{{Subject changes
+|date = 11 August 2016
+|update = Elder Chaos Druid Hood & Junk
+|poll = The Ourania Altar
+|change = Ironmen were allowed to access the Fishing Trawler minigame, so the Ironman specific tasks were removed:
+*Easy task: Fish some raw trout by the Combat Training Camp. 
+*Elite task: Cook a raw shark in West Ardougne
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Typo fixed in Ardougne Diary's journal.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = Fixed misspelling of "receive" in Ardougne, Karamja, Morytania and Wilderness Diaries.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|change = The Ardougne elite diary rewards now give increased Marks of Grace on the Ardougne rooftop course.
+}}
+{{Subject changes
+|date = 21 May 2015
+|update = World Switcher & RotG (i)
+|change = Completing all Ardougne elite tasks now prompts the correct message box.
+}}
+{{Subject changes
+|date = 7 May 2015
+|update = Slayer Partners & Teleports
+|change = Collecting the nightshade in the southern skavid cave now completes the Ardougne medium task.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = It is no longer possible to skip a step of the 'Make a rune crossbow yourself from scratch' achievement diary task.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|change = Removed some incorrect text from a task in the Ardougne Diary.
+}}
+{{Subject changes
+|date = 26 March 2015
+|update = System Update (26 March 2015)
+|change = Changed the sand delivery [[Ardougne Medium]] task for [[Ultimate Ironmen]] to "Fill a [[bucket of sand|bucket with sand]] using [[Bert]]'s [[sand pit]]. "
+}}
+{{Subject changes
+|date = 6 March 2015
+|update = System Update (6 March 2015)
+|change = 
+*The medium task of "Upgrade an [[Iban staff]]" has been changed to "Equip an [[Iban staff (u)|upgraded Iban staff]]".
+*The elite task of "Imbue a salve amulet at [[Nightmare Zone]]" has been changed to "Equip a [[salve amulet (ei)]]".
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Prior to [[11 August]] [[2016]], the easy Fishing Trawler task was replaced with "Fish some raw trout by the Combat Training Camp." for [[Ironman]] accounts, as they were not allowed to participate in Fishing Trawler at the time of the diary's release.
+* As part of the rewards for completing the [[#Easy|easy tasks]], [[Two-pints]] will claim that your success rate of stealing from [[stall]]s in [[Ardougne]] is increased by 10%. However, there are no odds for stealing from stalls, as you'll only fail if seen by a nearby NPC.
+
+==References==
+{{Reflist}}
+
+{{Achievement diary}}

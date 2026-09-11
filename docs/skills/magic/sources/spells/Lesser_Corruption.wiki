@@ -1,0 +1,46 @@
+{{Infobox Spell
+|name = Lesser Corruption
+|image = [[File:Lesser Corruption.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 64
+|spellbook = Arceuus
+|type = Combat
+|exp = 75
+|cost = {{RuneReq|Death=1|Soul=2}}
+|speed = 
+|cooldown = 50 ticks
+|quest = [[A Kingdom Divided]]
+|description = Imbues your attacks with a lesser corruption
+|anim = [[File:Lesser Corruption.gif|180px]]
+|sound = [[File:Lesser Corruption.ogg]]
+}}
+[[File:Lesser Corruption icon (mobile).png|left]]
+'''Lesser Corruption''' is a spell within the [[Arceuus spellbook]] that requires level 64 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+When cast, the player's next [[successful hit]] has a 50% chance of inflicting [[Corruption (status)|corruption]] onto the target. Once corrupted, an increasing number of [[Prayer points]] will be drained from the target every 10 ticks (6s) three times in a row. The target loses 1 Prayer point on the first activation, 2 points on the second, and 3 points on the third, for a total of 6 Prayer points over the course of 30 ticks (18s).  
+
+If the casting player is under the effect of [[Mark of Darkness]] when casting lesser corruption on a target, the spell has a 100% chance of inflicting corruption, if the target can be corrupted. Additionally, the target will lose Prayer points every 5 ticks instead, leading to a Prayer drain of 6 points over the span of 15 ticks (9s).
+
+Players cannot corrupt a player that is already corrupted, although no immunity period is received after corruption wears off on a target. Likewise, corruption cannot be inflicted on targets protected by the [[Ward of Arceuus]] spell. That said, if a player with corruption spells active attacks an opposing player with Ward of Arceuus active, the attacker's corruption spells will remain active until the target's Ward expires, after which the next successful attack post-expiration will roll the chance for corruption.
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 1
+|Rune2 = soul
+|Rune2num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = Awakened DT2 Bosses & Poll 80
+|change = The chance of inflicting corruption on a target was increased from 33% to 50%.
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}

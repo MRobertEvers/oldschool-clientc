@@ -1,0 +1,140 @@
+Socket recv error: connection closed
+Socket recv error: connection closed
+torirs_perf: enabled (ring=2048 window=1000 budget=20ms cpu_clock=GetThreadTimes)
+Socket recv error: connection closed
+
+Socket recv error: connection closed
+Socket recv error: connection closed
+Socket recv error: connection closed
+Socket recv error: connection closed
+Socket recv error: connection closed
+
+=== torirs_perf report ===
+frames=1800 ring=1800 over_20ms=1771 (98.4%) eff_fps=28.7
+frame_ns mean=34797805 p50=34005998 p95=36922849 max=1091035592  (budget=20000000)
+main_thread_cpu_ns mean=34314236 p50=31250000 p95=46875000 max=796875000  (clock=GetThreadTimes distribution=coarse_direct raw_total=61765625000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async            554631     237460     256457  518360853
+logic            988532     414578     470172  923015355
+cs2              651627      81854     129626  921827216
+layout             3380       3073       3353     301994
+interact         573926     572139     619911    3413562
+emit             389201     410108     424077    3264102
+paint            471635     475480     499504    3348749
+build            478698     482743     506489    3356013
+render         30018667   30182607   32979331  162013608
+pick_finish           0          0          0          0
+present         1161518    1129194    1198477   20404269
+server                0          0          0          0
+platform_poll      25882      19556      30171    3645156
+command_drain      31558       5866      19555   22780549
+app_run         2859965    1956952    2039924  925687483
+frame_post        11745      11733      12292      24863
+input_prep        45206      38553      51124    3672255
+surface_sync       7032       6146       7264      84368
+display        31661092   31831979   34647420  163812161
+window_sync      125413     121803     131022    2933334
+pace             288961       3000       4000   19182000
+period         35100684   34042000   36953000 1091119000
+cs2_settle         1258          0          0    2264534
+ui_icon           59196          0          0  106553766
+tick_packets     594257      31009      69003  904905511
+cs2_settle_layout          1          0          0       2794
+present_fill       3224       3073       3353      10895
+present_blit    1134183    1112432    1181156    5359061
+cs2_host_op           0          0          0          0
+cs2_settle_followups          1          0          0       3353
+cs2_script            0          0          0          0
+task_queue_run     861814     100850     131300  728960236
+cs2_task_start          0          0          0          0
+cs2_script_in          0          0          0          0
+task_io          237430     118452     127669  170491501
+r_clear          565675     569067     609854    3507150
+r_model        22817119   22992857   25620010   44862145
+r_sprite        2312659    2321244    2417061    5839852
+r_font           389427     386921     414853    3795180
+r_rect            11174      11174      11454     101969
+r_other          121214      90515      96661   53374434
+r_project       3494492    3509677    3623083    7543684
+r_sort          3091663    3099847    3196216    8807536
+r_raster        7319553    7358481    7531681   29314343
+residual     -113665888  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                          58827        32.68
+uitree_find_id_probes                   75702        42.06
+uitree_find_id_linear                      81         0.04
+uitree_id_rebuild                           5         0.00
+uitree_walk_emit                       374073       207.82
+uitree_walk_hit                        386024       214.46
+uitree_walk_hover                      384224       213.46
+uitree_emit_skip                        57352        31.86
+uitree_layout_resolve                      36         0.02
+uitree_layout_skip                          4         0.00
+uitree_layout_nodes                     66592        37.00
+uitree_layout_node_skip                 43509        24.17
+uitree_layout_depth_recompute              30         0.02
+uitree_ensure_layout                     3459         1.92
+uitree_apply_content                      172         0.10
+uitree_components                     3508566      1949.20
+uitree_capacity                       3867684      2148.71
+uitree_free_list                      3017728      1676.52
+uitree_node_bytes                  1562544336    868080.19
+cache_model_hit                          5793         3.22
+cache_model_miss                          661         0.37
+cache_sprite_hit                         1892         1.05
+model_inst_hit                              6         0.00
+model_inst_miss                             5         0.00
+painter_pops                          1262707       701.50
+painter_gate_rejects                    49755        27.64
+painter_pushes                        1262707       701.50
+painter_push_dedup                    1922710      1068.17
+painter_commands                      1636446       909.14
+painter_tiles_remaining_set            983008       546.12
+scene_elements                       31634465     17574.70
+scene_anim_list                        196368       109.09
+cache_model_size                       621563       345.31
+cache_sprite_size                      403104       223.95
+iface_groups_resident                      30         0.02
+uitree_hidden                              88         0.05
+uitree_freed                            51968        28.87
+bridge_sprite_map                        6837         3.80
+bridge_model_map                          600         0.33
+bridge_obj_icon_map                        29         0.02
+uitree_anim_scan                         6164         3.42
+uitree_anim_scan_nodes                  18710        10.39
+uitree_anim_model_nodes                 18710        10.39
+logic_ticks                              3081         1.71
+proto_packets                             494         0.27
+ui_icon_raster                              1         0.00
+ui_model_build                             20         0.01
+npc_model_cache_hit                         6         0.00
+npc_model_cache_miss                        5         0.00
+present_blit_1to1                        1800         1.00
+present_blit_pixels                 692631000    384795.00
+emit_list_same                             84         0.05
+emit_list_diff                           1686         0.94
+emit_desc_diff                           1908         1.06
+emit_dirty_bumps                        12163         6.76
+emit_dirty_unreached                     3373         1.87
+emit_dirty_mark                          4869         2.71
+emit_dirty_topo                         17455         9.70
+emit_gen_quiet                             84         0.05
+task_steps                               9437         5.24
+task_resumes                             8166         4.54
+task_ends                                4105         2.28
+gate_tree_quiet                            85         0.05
+gate_hover_quiet                         1769         0.98
+emit_retained                              84         0.05
+r_cmds                                1993322      1107.40
+r_cmds_model                          1638214       910.12
+r_cmds_sprite                          253935       141.07
+r_cmds_font                             54824        30.46
+r_cmds_rect                              3552         1.97
+r_model_culled                         537472       298.60
+r_model_drawn                         1042398       579.11
+r_model_sort_empty                     254592       141.44
+r_model_faces                        12027177      6681.77
+=== end torirs_perf ===
+

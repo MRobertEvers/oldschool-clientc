@@ -1,0 +1,425 @@
+{{External|rs}}
+{{HasStrategy|page=Treasure Trails/Full guide/Medium}}
+{{Infobox Item
+|name = Clue scroll (medium)
+|image = [[File:Clue scroll (medium).png]]
+|release = [[5 May]] [[2004]]
+|update = Bigger Banks & Treasure Trails
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = *"A set of instructions to be followed"
+*"A clue!"
+*"A piece of the world map,but where?"
+*"Perhaps someone at the observatory can teach me to navigate?"
+*"It points to great treasure!"
+*"A clue suggested by Tach!"
+*"A clue suggested by epic niceXD!"
+*"A clue suggested by 1LetterShor!"
+*"A clue suggested by Afropunk!"
+*"A clue suggested by Versierd!"
+*"A clue written by My Saviour!"
+|value = 20
+|weight = 0.020
+|id = N/A
+}}
+[[File:Clue scroll (medium) detail.png|left|150px]]
+A '''clue scroll (medium)''' is a valuable random drop from a large variety of mid-levelled monsters. Clue scrolls are the start of a [[Treasure Trail]] - a treasure hunt that sends players hunting all around [[Gielinor]]. At the end of the hunt players receive a reward of items randomly selected from a specific list, possibly including very rare and very valuable items. For a guide on how to complete a clue scroll, see: [[Treasure Trails Guide]]. Medium clue scrolls are mostly easy to obtain and complete, and offer average rewards in return. The rewards can range from [[mithril armour]] to [[ranger boots]].
+
+Medium clue scrolls can be between 3 and 5 steps long.
+
+Medium clue scrolls offer coordinate clues along with more complex puzzles than easy clues, and occasionally a monster ranging from a [[chicken]] to a [[Market Guard]] may be fought. However, there are no clue steps that bring you to the [[Wilderness]].
+
+Completion of medium clues will give a [[casket (medium)]] containing the final reward for the trail. After completing 400 medium clues, the player will be awarded a [[clueless scroll]].
+
+Completion of [[Medium Combat Achievements]] gives a 5% increased chance to receive a medium clue scroll from all sources, excluding implings.
+
+A medium clue scroll can be given to [[Watson]] along with an easy, hard and elite clue scrolls in order to receive a [[clue scroll (master)|master clue scroll]].
+
+For players wishing to quickly obtain Medium clue scrolls, one of the best non-combat methods is thieving [[Chest (Aldarin Villas)|Aldarin Villa chests]]. While the clue drop rate from this chest is 1/90, the chest can be opened about 400 times per hour, yielding an average obtaining rate of one medium clue every 14 minutes or so, as well as ~80,000 Thieving experience per hour.
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one medium clue scroll can be held, kept in Death's Office, or stored in a bank at one time; attempting to open a [[scroll box (medium)]] while holding a medium clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Types of clues==
+''Please note that it is possible to receive the same clue more than once.''
+*[[Treasure Trails/Guide/Anagrams/Medium|Anagrams]]
+*[[Treasure Trails/Guide/Challenge scrolls|Challenge scrolls]]
+*[[Treasure Trails/Guide/Cryptic clues/Medium|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Medium|Emote clues]]
+*[[Treasure Trails/Guide/Coordinates/Medium|Coordinates]]
+*[[Treasure Trails/Guide/Maps/Medium|Maps]]
+*[[Treasure Trails/Guide/Ciphers/Medium|Cipher]]
+*[[Cecilia|Music]]
+
+==Requirements==
+<onlyinclude>
+
+===Skill requirements===
+Certain clues will require items that need a certain skill requirement in order to wear, wield or access. The table below shows the '''highest''' skill requirement, in order to complete every medium clue. Quest skill requirements are not noted in this table.
+
+{| class="wikitable sortable lighttable"
+|-
+! Skill level
+! Details
+|-
+| {{SCP|Agility|35|sort=y}} {{Boostable|yes}}
+| Required to enter the [[Barbarian Outpost#The course|Barbarian Agility Arena]].
+|-
+| {{SCP|Attack|30|sort=y}} {{Boostable|no}}
+| Required to wield [[adamant weapon]]ry.
+|-
+| {{SCP|Defence|40|sort=y}} {{Boostable|no}}
+| Required to wear [[Green d'hide body|green]] or [[blue d'hide body]].
+|-
+| {{SCP|Farming|45|sort=y}} {{Boostable|yes}}
+| Required to enter the [[Farming Guild]].
+|-
+| {{SCP|Magic|40|sort=y}} {{Boostable|no}}
+| Required to wear [[mystic robes]].
+|-
+| {{SCP|Ranged|50|sort=y}} {{Boostable|no}}
+| Required to wear [[blue dragonhide armour]].
+|-
+| {{SCP|Strength|30|sort=y}} {{Boostable|no}}
+| Required to wield [[adamant warhammer]].
+|-
+| {{SCP|Sailing|45|sort=y}} {{Boostable|no}} <br> {{SCP|Construction|48}} {{Boostable|no}} <br> {{SCP|Slayer|51}} {{Boostable|no}} <br> {{SCP|Woodcutting|40}} {{Boostable|no}} <br> {{SCP|Crafting|34}} {{Boostable|no}} <br> {{SCP|Hunter|45}} {{Boostable|no}}
+| Required to reach [[The Summer Shore]].
+|-
+|}
+
+===Additional requirements for ironmen===
+Players playing in the [[ironman mode]] may find it more difficult to obtain certain items required for emote clues. Possible challenges are listed below.
+
+{| class="wikitable sortable lighttable"
+|-
+! Skill level
+! Details
+|-
+| {{SCP|Crafting|45|sort=y}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Hunter|74}} {{Boostable|yes}}
+| To obtain [[snakeskin boots]].
+|-
+| {{SCP|Crafting|71|sort=y}} {{Boostable|yes}} <br/>'''OR'''<br/> The ability to kill [[brutal blue dragon]]s.
+| To obtain [[blue d'hide body]].
+|-
+| {{SCP|Slayer|87|sort=y}} {{Boostable|no}} <br/>'''OR'''<br/> {{SCP|Magic|66}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Hunter|83}} {{Boostable|yes}} <br/>'''OR'''<br/> The ability to kill [[Scorpia]], [[Vet'ion]], [[Callisto]], or [[Corporeal Beast]].
+| To obtain [[mystic robe bottom]]s.
+|-
+| {{SCP|Magic|66}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Hunter|65}} {{Boostable|yes}}
+| To obtain [[mystic gloves]].
+|-
+| {{SCP|Slayer|52|sort=y}} {{Boostable|yes}}
+| To obtain [[mithril boots]].
+|-
+|{{SCP|Crafting|51|sort=y}} {{Boostable|yes}} <br/>'''OR'''<br/> The ability to kill [[bull shark]]s.
+|To obtain [[snakeskin chaps]].
+|}
+
+Note that a clue step requiring [[adamant boots]] is blocked for ironmen.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1121328142336110592|date=25 April 2019|archiveurl=https://reldo.runescape.wiki/i/100826|archivedate=30 May 2020|quote=Interestingly, yes, that one is blocked for Iron players. The code does not say why.|name=noaddyboots}}
+
+===Quest requirements===
+Some clues require access to areas which may require quests. Some only require to start the quest in order to access the area.
+{| class="wikitable sortable lighttable"
+|-
+! Quest
+! Details
+|-
+| [[Biohazard]]
+| Gives access to the [[Combat Training Camp]].
+|-
+| [[Bone Voyage]]
+| Gives access to [[Fossil Island]].
+|-
+| [[Children of the Sun]]
+| Gives access to [[Varlamore]].
+|-
+| [[The Corsair Curse]]
+| (Completion of quest not necessary) Gives access to [[Corsair Cove]].
+|-
+| [[Creature of Fenkenstrain]]
+| (Completion of quest not necessary) Gives access to [[Mausoleum]].
+|-
+| [[Dragon Slayer I]]
+| Gives access to [[green d'hide body]] and [[Crandor]].
+|-
+| [[The Fremennik Trials]]
+| Gives access to [[Miscellania]].
+|-
+| [[Horror from the Deep]]
+| (Completion of quest not necessary) Gives access to the [[Lighthouse]].
+|-
+| [[Jungle Potion]]
+| Gives access to [[Gabooty]] in [[Tai Bwo Wannai]].
+|-
+| [[Lost City]]
+| Gives access to the song [[Faerie]].
+|-
+| [[Mountain Daughter]]
+| (Completion of quest not necessary) Gives access to the song [[Cave of Beasts]].
+|-
+| [[Nature Spirit]]
+| (Completion of quest not necessary) Gives access to [[Mort Myre Swamp]].
+|-
+| [[Priest in Peril]]
+| Gives access to [[Morytania]].
+|-
+| [[Ratcatchers]]
+| (Completion of quest not necessary, must complete part 1 "Jimmy Dazzler" to access Ardougne rat pit.) Gives access to the song [[Catch Me If You Can]].
+|-
+|'''Ironman:''' [[The Lost Tribe]]
+|Gives access to [[Nardok's Bone Weapons]] to buy a [[bone dagger]].
+|-
+| [[Sea Slug]]
+| (Completion of quest not necessary) Gives access to [[Fishing Platform]].
+|-
+| [[The Tourist Trap]]
+| (Completion of quest not necessary) Gives access to the [[Desert Mining Camp]].
+|-
+| [[Troubled Tortugans]]
+| (Completion of quest not necessary) Gives access to [[The Great Conch]].
+|-
+| [[Waterfall Quest]]
+| (Completion of quest not necessary) Gives access to the [[Baxtorian Falls]].
+|}
+
+===Music requirements===
+{| class="wikitable sortable lighttable"
+! Music Track
+! Unlock location
+! Notes
+|-
+| [[Catch Me If You Can]]
+| [[Ardougne]] [[Rat Pits]]
+| Requires partial completion of [[Ratcatchers]].
+|-
+| [[Cave of Beasts]]
+| [[The Kendal|The Kendal's]] cave
+| Requires partial completion [up to boss fight] of [[Mountain Daughter]].
+|-
+| [[Devils May Care]]
+| [[Smoke Devil Dungeon]]
+| If you quickly enter and then exit the dungeon right away, then a [[facemask]] or [[slayer helmet]] is not necessary.
+|-
+| [[Faerie]]
+| [[Zanaris]]
+| Requires completion of [[Lost City]].
+|-
+| [[Forgotten]]
+| [[Ruins of Uzer]]
+| {{NA}}
+|-
+| [[Karamja Jam]]
+| [[Brimhaven Dungeon]]
+| Access to the dungeon requires a fee from either [[Saniboch]] or [[Banisoch]].
+|}
+
+=== Item requirements ===
+'Minimum level requirements' indicates the level required to equip all items on the list in order to complete their respective clue steps.
+
+Any quantities below indicate how many of each item is required to fill all available medium [[STASH]] units. The STASH units require 2 [[Oak plank|oak planks]] and 10 [[Nails]] to build.
+{| class="wikitable lighttable individual" style="width:50%; text-align:center;"
+|-
+! colspan="4" |Minimum level requirements
+|-
+|{{SCP|Attack|30|link=yes}}
+|{{SCP|Strength|30|link=yes}}
+|{{SCP|Ranged|50|link=yes}}
+|{{SCP|Magic|40|link=yes}}
+|-
+| colspan="4" |{{SCP|Defence|40|link=yes}}
+|-
+! colspan="4" |Items required
+|-
+|{{plink|Adamant boots}}{{efn|Not required for [[Ironman Mode]] players.{{NamedRef|noaddyboots}}|name=noaddyboots}}
+|{{plink|Adamant dagger}}{{efn|name=noaddyboots}}
+|{{plink|Adamant full helm}}
+|{{plink|Adamant halberd}}
+|-
+|{{plink|Adamant med helm}}
+|{{plink|Adamant platebody}}
+|{{plink|Adamant platelegs}}
+|{{plink|Adamant plateskirt}}
+|-
+|{{plink|Adamant sq shield}}
+|{{plink|Adamant sword}}
+|{{plink|Adamant warhammer}}
+|{{plink|Amulet of power}}
+|-
+|{{plink|Blue boots}}
+|{{plink|Blue d'hide body}}
+|{{plink|Blue d'hide vambraces}}{{efn|name=noaddyboots}}
+|{{plink|Blue wizard hat}}
+|-
+|{{plink|Blue wizard robe}}
+|{{plink|Bone dagger}}
+|{{plink|Bronze full helm}}
+|{{plink|Bronze sq shield}}
+|-
+|2 × {{plink|Brown apron}}
+|{{plink|Pointed bruise blue snelm}}
+|{{plink|Diamond ring}}
+|{{plink|Green d'hide body}}
+|-
+|5 × {{plink|Green d'hide chaps}}
+|{{plink|Green hat}}
+|{{plink|Green robe top}}
+|{{plink|Hardleather body}}
+|-
+|{{plink|Iron 2h sword}}
+|{{plink|Iron med helm}}
+|{{plink|Iron pickaxe}}
+|{{plink|Leather boots}}
+|-
+|{{plink|Leather gloves}}
+|3 × {{plink|Maple longbow}}
+|{{plink|Maple shortbow}}
+|{{plink|Mithril chainbody}}
+|-
+|{{plink|Mithril full helm}}
+|{{plink|Mithril med helm}}
+|{{plink|Mithril boots}}
+|{{plink|Mithril platebody}}
+|-
+|{{plink|Mithril platelegs}}
+|{{plink|Mithril plateskirt}}
+|{{plink|Mithril scimitar}}
+|{{plink|Mystic gloves}}
+|-
+|{{plink|Mystic robe bottom}}
+|{{plink|Purple gloves}}
+|{{plink|Ring of dueling}}
+|{{plink|Ring of forging}}
+|-
+|{{plink|Ring of life}}
+|3 × {{plink|Ruby amulet}}
+|{{plink|Sapphire amulet}}
+|{{plink|Silver sickle}}
+|-
+|{{plink|Snakeskin boots}}
+|{{plink|Snakeskin chaps}}
+|2 × {{plink|Staff of air}}
+|2 × {{plink|Steel kiteshield}}
+|-
+|{{plink|Steel longsword}}
+|{{plink|Steel platebody}}
+|{{plink|Steel platelegs}}
+|{{plink|Steel sq shield}}
+|-
+|2 × {{plink|Team cape|pic=Team-1 cape}}
+|}
+{{Notelist}}</onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (medium)}}
+
+<!--NOTE: The value that excludes ranger boots is INACCURATE. Ask Cook about PMF -->
+The average loot roll of a medium clue is worth {{Coins|floor({{MediumClueValue}})}}. If [[ranger boots]] are excluded, the expected value of each loot roll is worth {{Coins|floor({{MediumClueValue}} - {{#expr: 1/11 * 1/103 * {{GEP|Ranger boots}} }})}}.
+
+On average, medium clues are worth {{Coins|floor(4 * {{MediumClueValue}})}}, or {{Coins|floor(4 * ( {{MediumClueValue}} - {{#expr: 1/11 * 1/103 * {{GEP|Ranger boots}} }}))}} when the [[ranger boots]] are excluded.
+
+{{Clue scroll (medium)/Rewards}}
+
+==Item sources==
+Skilling sources are not listed here; see [[clue bottle]], [[clue geode]], and [[clue nest]] for drop rate calculators.
+
+{{Drop sources|Clue scroll (medium)}}
+
+===Shop locations===
+{{Store locations list|Clue scroll (medium)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes 
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = Clue Scrolls dropped by a player now last one hour on the ground rather than two minutes. This does not change existing behaviour for Clue Scrolls dropped by NPCs or other entities. Additionally, you are now told if you would have gotten a clue but didn't because you already have one.
+}}
+{{Subject changes 
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = The medium clue answer regarding the number of gravestones in Lumbridge now includes the Jarvis gravestone for those who let him die during the Halloween event.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The item's value was increased from 1 to 20.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = Medium clue scrolls have been added to earth, essence, and eclectic impling drop tables.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Increased the zone check for an emote clue at the Observatory.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|poll = Old School Content Poll 33
+|change = You will now be able to have up to one clue scroll of each tier and will be able to complete clue scrolls of different tiers simultaneously.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Clue scroll stages no longer increase when bouncing different clue scrolls.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|change = The drop rate of medium clue scrolls from [[guards]] in [[Falador]] is now increased by 20% if you have completed the [[Falador Medium Diary]].
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Teletabs, Clues and Poll 17
+|poll = Old School feature poll 16
+|change = The item was renamed from "Clue scroll" to "Clue scroll (medium)".
+}}
+{{Subject changes
+|date = 14 March 2005
+|update = Magic and Wilderness Updates
+|change = A medium level clue which sent you into the Wilderness was changed to send you elsewhere.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Clue scroll (v1) detail.png|center|300x150px]]
+|[[File:Clue scroll (medium) detail.png|center|300x150px]]
+|-
+|[[File:Clue scroll v1.png|center]]
+|[[File:Clue scroll (medium).png|center]]
+|-
+|5 May 2004 –<br/>11 April 2019
+|11 April 2019 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

@@ -1,6 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include "entity_pathing.h"
 #include "world_entity.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -19,6 +20,9 @@ struct ToriDraw_Scene;
  * next ClearPool(STATIC) and starves the element free list. */
 #define WORLD_MAX_EVENTS 8192
 #define WORLD_SCENERY_PICK_MAX 4096
+/* Bounded on purpose: past this, re-walking the pool is cheaper than
+ * tracking every change, and the overflow flag says to do exactly that. */
+#define WORLD_SCENERY_CHANGED_MAX 256
 #define WORLD_LOC_CHANGE_MAX 256
 
 #define WORLD_MAP_TERRAIN_X 64
@@ -42,6 +46,15 @@ struct World_Event
 {
     enum WorldEventKind kind;
     int element_id;
+    /**
+     * Immutable actor state captured before World_NpcDespawn releases its
+     * pool slot. EntityRemoved is drained later, after that slot may already
+     * have been reused, so an element-id lookup cannot reconstruct a despawn
+     * event. NULL for every non-NPC removal.
+     *
+     * Owned by the event queue and valid until World_EventsClear/World_Free.
+     */
+    struct WorldEntity_NPC* removed_npc;
 };
 
 struct World_SceneryPick
@@ -56,6 +69,75 @@ typedef int (*World_HeightFn)(
     int world_x,
     int world_z,
     int level);
+
+/**
+ * Per-frame world-entity (boat) pseudo-loc registration, SAILING_PLAN C3.
+ *
+ * Called from the dynamic-registration pass with the painter already reset to
+ * static, in the runtime-spawn scenery tier, so a hull painter-sorts against
+ * real locs, actors and projectiles exactly like a loc does. The hook lives on
+ * the World because the Wev table is the App's — world.h does not know wev.h —
+ * and NULL simply means "this build has no world entities".
+ */
+struct World;
+typedef void (*World_WorldEntityRegisterFn)(void* userdata, struct World* world);
+
+/**
+ * Per-frame registration of actors that STAND in `world` but are OWNED by
+ * another one — a player walking a boat's deck (SAILING_PLAN C5.1).
+ *
+ * Called from the dynamic-registration pass in the actor tier, right after
+ * this world's own players and NPCs, with the painter already reset to static.
+ * The deck world holds no entity records of its own: the server reports every
+ * player in root coordinates and the App decides, geometrically, whose deck
+ * they are on. So the hook is how the owner reaches in and says "these
+ * elements belong on your painter this frame".
+ *
+ * NULL means no actor can ever be aboard this world, which is the answer for
+ * every build with no world entities and for a world that is itself a deck
+ * nobody has boarded.
+ */
+typedef void (*World_ForeignActorRegisterFn)(void* userdata, struct World* world);
+
+/**
+ * The other half of the same arrangement: which scene elements in `world`'s
+ * DYNAMIC pool are owned from outside and must survive its rebuild sweep.
+ *
+ * `world_builder_reconcile_dynamic_elements` frees every element in the
+ * builder's dynamic pool that no entity in that world claims. A deck actor's
+ * element is tagged with the deck's pool — so that the mainland's rebuild does
+ * not sweep it — and is claimed by an entity the deck world has never heard
+ * of. Without this hook the deck's first rebuild after someone boards frees a
+ * live player's element out from under the root world.
+ *
+ * Writes at most `max` element ids into `out_element_ids` and returns how many.
+ */
+/**
+ * Map an actor's draw position into the ROOT frame, for cross-frame geometry
+ * (SAILING: facing). An actor ABOARD a world entity carries view-local
+ * coordinates and its element yaw is applied in the DECK frame (the descent
+ * adds the hull's yaw on the way out); anything that computes a direction
+ * between two actors must therefore work in one shared frame and take the
+ * facer's frame yaw back out of the result. Returns 1 and fills the root
+ * fine position + the frame's yaw offset (the hull's angle) when the
+ * placement is aboard a live view; returns 0 (outputs untouched, offset 0)
+ * for a root actor. NULL fn = no world entities exist.
+ */
+struct WorldEntityFacet_ViewPlacement;
+typedef int (*World_ActorRootFrameFn)(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw);
+
+typedef int (*World_ForeignDynamicClaimFn)(
+    void* userdata,
+    struct World* world,
+    int* out_element_ids,
+    int max);
+
+struct ToriRS_FeatureTable;
 
 /*
  * Sequence-config timing source for entity animation stepping. Keeps the
@@ -85,6 +167,27 @@ struct World_SeqSource
      * not yet resident). Lets the world step an entity's attached-graphic frame
      * from the spot's own seq without pulling in cache/config types. */
     int (*spotanim_seq)(void* userdata, int spotanim_id);
+};
+
+/*
+ * Where an entity animation's per-frame sounds go.
+ *
+ * The reference emits these from *inside* the cycle loop that steps the frames
+ * (deob Statics.method5261/method4366 call the listener once per frame crossed,
+ * on the movement track and the action track alike), so a frame carrying a
+ * sound is never passed over -- not when several cycles elapse between two
+ * rendered frames, and not when an action animation is drawn on top of a
+ * looping readyanim. Sampling the frame the renderer happens to see instead is
+ * what silently swallowed half of Xarpus' wing flaps.
+ *
+ * `world_x`/`world_z` are the emitter's draw position in world units
+ * (tiles << 7). A NULL `frame` (the default) means nobody is listening and the
+ * stepping does no extra work.
+ */
+struct World_AnimSoundSink
+{
+    void* userdata;
+    void (*frame)(void* userdata, int seq_id, int frame, int world_x, int world_z);
 };
 
 #define WORLD_MAPFUNC_MAX 1000
@@ -172,6 +275,59 @@ struct World_LocChange
     int end_time;
 };
 
+/**
+ * Every distinct (name, ops) pair the loaded scene shows, owned by the world.
+ *
+ * A flat array with a precomputed hash per entry, scanned linearly. The scene
+ * settles at a few hundred entries against tens of thousands of interns, all
+ * of them at build time, so the scan costs less than the hash table that would
+ * replace it -- and unlike a table it hands back a pointer that stays valid
+ * for the life of the world, which is the whole point.
+ */
+/* How many buckets index the interned scenery infos. Fixed and generous: a
+ * scene interns a few hundred distinct (name, actions) sets, and the table is
+ * one per World. */
+#define WORLD_SCENERY_INFO_BUCKETS 1024
+
+struct World_SceneryInfoTable
+{
+    struct WorldEntity_SceneryInfo** entries;
+    uint32_t* hashes;
+    /*
+     * Entry index by hash bucket, and the chain that walks them.
+     *
+     * The intern used to be a linear scan of every entry already in the table,
+     * once per PLACEMENT: a settled Lumbridge scene interns a few hundred
+     * distinct sets across eight thousand placements, so the scan compared a
+     * few million hashes per rebuild and cost more than the model conversion
+     * it sat next to. Same table, same entries, same dedup -- reached through
+     * a bucket instead of from the front.
+     */
+    int* buckets; /* [WORLD_SCENERY_INFO_BUCKETS], entry index or -1 */
+    int* chain;   /* [capacity], next entry index in the same bucket, or -1 */
+    int count;
+    int capacity;
+
+    /*
+     * loc id -> the info interned for it, for the length of one build.
+     *
+     * The name and the five menu actions are the LOC CONFIG's, so every
+     * placement of a loc interns the identical two hundred bytes. Doing that
+     * per placement meant assembling the probe (a memset, a name copy and five
+     * action copies) and hashing all of it eight thousand times a rebuild, to
+     * arrive at one of a few hundred answers. Asking once per loc leaves the
+     * dedup exactly where it was and skips the arithmetic that led to it.
+     *
+     * Keyed by loc id and CLEARED PER BUILD (World_SceneryInfoMemoClear, from
+     * WorldBuilder_RebuildCenterzoneBegin): a loc config can be reloaded or
+     * morph between rebuilds, and a memo that outlived the build would hand
+     * out the previous config's name.
+     */
+    int* memo_loc_ids;
+    struct WorldEntity_SceneryInfo const** memo_infos;
+    int memo_capacity;
+};
+
 struct World
 {
     int _base_tile_x;
@@ -203,7 +359,24 @@ struct World
 
     struct World_SeqSource seq_source;
 
+    struct World_AnimSoundSink anim_sound_sink;
+
+    /**
+     * The era this world is drawing, from src/features -- read by the mover to
+     * pick between the 2004 per-cycle model and rev-239's frame-paced one
+     * (enum ToriRS_MoverModel).
+     *
+     * NULL means the zero table, i.e. classic, per the features header's
+     * zero-is-classic rule. A host that knows its era says so with
+     * World_SetFeatures; one that does not gets the oldest behaviour rather
+     * than the newest, which is the safe direction for a legacy server.
+     */
+    struct ToriRS_FeatureTable const* features;
+
     struct World_EntityList entities;
+
+    /** Shared loc labels; see World_SceneryInfoIntern. */
+    struct World_SceneryInfoTable scenery_info;
 
     struct World_Event events[WORLD_MAX_EVENTS];
     int event_count;
@@ -211,8 +384,52 @@ struct World
     struct World_SceneryPick scenery_picks[WORLD_SCENERY_PICK_MAX];
     int scenery_pick_count;
 
+    /* Which scenery elements changed, so a pass over the pool can be
+     * MAINTAINED rather than redone.
+     *
+     * A consumer that tests every loc against some list -- the plugin
+     * highlight resolve is the one that exists -- does not need to walk
+     * ~23k entities again because one door opened. It needs to know which
+     * one. Element ids, appended by World_SceneryRegister and
+     * World_SceneryRemove.
+     *
+     * `overflow` is set when the list would have run over, and by a scene
+     * reset, where "what changed" is "all of it". A consumer that sees it
+     * falls back to a full pass, which is always correct and merely slow.
+     *
+     * SINGLE CONSUMER: whoever reads this clears it. A second reader would
+     * find it already drained and silently miss changes. */
+    int scenery_changed[WORLD_SCENERY_CHANGED_MAX];
+    int scenery_changed_count;
+    bool scenery_changed_overflow;
+    /* Declared here so the field block above reads with its writer. */
+
     World_HeightFn height_fn;
     void* height_userdata;
+
+    /** Optional; NULL when nothing sails here. @see World_WorldEntityRegisterFn. */
+    World_WorldEntityRegisterFn world_entity_register_fn;
+    void* world_entity_register_userdata;
+    /** Flat/skipped views retain scenery but register no dynamic population. */
+    bool suppress_dynamic_population;
+
+    /** Optional; NULL when no actor can be aboard. @see World_ForeignActorRegisterFn. */
+    World_ForeignActorRegisterFn foreign_actor_register_fn;
+    void* foreign_actor_register_userdata;
+
+    /** Optional; NULL when no actor can be aboard. @see World_ForeignDynamicClaimFn. */
+    World_ForeignDynamicClaimFn foreign_dynamic_claim_fn;
+    /** Optional; NULL when no actor can be aboard. @see World_ActorRootFrameFn. */
+    World_ActorRootFrameFn actor_root_frame_fn;
+    void* actor_root_frame_userdata;
+    /** Optional; NULL when no actor can be aboard. The local MAP plane
+     *  (reference minusedlevel): a rider's own grid level is a DECK plane,
+     *  and everything this world registers against "the local level" — the
+     *  projectile paint gate above all — means the ROOT plane under the hull.
+     *  @see World_SetLocalPlaneFn. */
+    int (*local_plane_fn)(void* userdata);
+    void* local_plane_userdata;
+    void* foreign_dynamic_claim_userdata;
 
     struct Heightmap* heightmap;
     struct CollisionMap* collision_maps[COLLISION_LEVELS];
@@ -328,6 +545,94 @@ World_TileFlagGet(
     int z,
     int level);
 
+/**
+ * Bridge columns: the three level spaces a loc lives in, and how to travel
+ * between them.
+ *
+ * A bridge deck is authored one plane above the plane it is walked from
+ * (LINK_BELOW on the column's cache level 1). Three different consumers
+ * disagree about which plane that means, and each one is right:
+ *
+ *  - the **cache** level is what the map stream says and what the world keeps —
+ *    scenery pool, collision stamps, heightmap reads. Client-TS ClientBuild
+ *    places locs on the raw level and lets `World.pushDown` sort the drawing.
+ *  - the **paint** level is where the push-down parked that tile
+ *    (WorldBuilder_RebuildCenterzoneEnd): cache 1 -> paint 0, and the underside,
+ *    cache 0, is parked at paint 3.
+ *  - the **wire** level is the plane the server names, which is the plane the
+ *    player walks — LostCity `GameMap.loadLocations` shifts once at read time
+ *    and every zone event, click and `loc_find` uses that.
+ *
+ * Non-bridge columns collapse all three, which is why getting this wrong is
+ * invisible until a bridge deck carries a loc something mutates.
+ */
+int
+World_LocPaintLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int cache_level);
+
+/** The level a terrain mesh authored on `mesh_level` is culled and picked
+ *  against: VIS_BELOW answers 0, a LinkBelow column's upper planes answer one
+ *  lower, everything else answers the mesh level. The same value the world
+ *  builder baked into the painter tile's draw level — reference
+ *  class112.method4161 / Client-TS getVisBelowLevel. */
+int
+World_TerrainDrawLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level);
+
+/** The level a terrain mesh authored on `mesh_level` is WALKED from: the exact
+ *  inverse of World_LocCacheLevel, so a value that came out of a terrain pick
+ *  can be handed to anything that speaks the wire (entity positions, heights,
+ *  the plugin api) without a second shift.
+ *
+ *  Deliberately NOT World_TerrainDrawLevel: VIS_BELOW lowers where a mesh is
+ *  culled and picked, it does not move the floor, so a VIS_BELOW tile is still
+ *  walked from its own plane and answering 0 would drop the player a storey. */
+int
+World_TerrainWalkLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level);
+
+/** `[L0|L1|L2|L3]` land-settings decode of a column, for debug readouts:
+ *  B block, L link-below, R remove-roof, V vis-below, H force-high-detail,
+ *  `-` for none. Always NUL-terminates; truncates rather than overflowing.
+ *  Non-const World for the pair's sake — its twin below reads the terrain
+ *  entity pool, whose lookup is not const-clean. */
+void
+World_TileSettingsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap);
+
+/** The cache levels of a column that carry a terrain mesh, as digits, or "-"
+ *  for none. Separates "no floor" from "floor on an unexpected plane". */
+void
+World_TerrainMeshLevelsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap);
+
+/** Wire (walked) level -> cache level, the trip a zone loc packet has to make
+ *  before it can name the loc the map placed. Mirrors app_world_height's own
+ *  +1 for heights (Client.ts getAvH), including its `level < 3` guard. */
+int
+World_LocCacheLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int wire_level);
+
 /** Ground-stack raise height for a scene tile (0 if none / out of range). */
 int
 World_ObjRaiseGet(
@@ -439,6 +744,76 @@ World_SetHeightFn(
     World_HeightFn fn,
     void* userdata);
 
+/** @see World_WorldEntityRegisterFn. Pass NULL to detach. */
+void
+World_SetWorldEntityRegisterFn(
+    struct World* world,
+    World_WorldEntityRegisterFn fn,
+    void* userdata);
+
+void
+World_SetForeignActorRegisterFn(
+    struct World* world,
+    World_ForeignActorRegisterFn fn,
+    void* userdata);
+
+void
+World_SetForeignDynamicClaimFn(
+    struct World* world,
+    World_ForeignDynamicClaimFn fn,
+    void* userdata);
+
+void
+World_SetActorRootFrameFn(
+    struct World* world,
+    World_ActorRootFrameFn fn,
+    void* userdata);
+
+void
+World_SetLocalPlaneFn(
+    struct World* world,
+    int (*fn)(void* userdata),
+    void* userdata);
+
+/**
+ * Re-publish `world`'s painter dynamics without advancing any simulation
+ * (SAILING_PLAN C5.1).
+ *
+ * A boat deck owns no entities: its actors belong to the world that carries
+ * the boat, and its own cycle would advance nothing. It still needs the
+ * registration half of a cycle every frame, because `painter_reset_to_static`
+ * is what clears the previous frame's actors off its painter. The root world
+ * gets this from World_Cycle; a view gets it from here.
+ */
+void
+World_CycleRegisterDynamics(struct World* world);
+
+/**
+ * Register one actor that another world owns onto `world`'s painter, at
+ * `world`'s own scene-local fine coordinates (SAILING_PLAN C5.1). Meant to be
+ * called only from a World_ForeignActorRegisterFn, which is the point in the
+ * cycle where the tier is right and the painter has been reset.
+ *
+ * The footprint padding, the yaw-oriented forward pad and the one-actor-per-
+ * tile claim are the mover rules a native actor gets, unchanged — a deck is
+ * scenery like any other, so nothing about standing on one should change how
+ * an actor sorts against what is around them.
+ */
+/** Fine-unit pad around a mover's draw position when it claims painter tiles
+ *  (reference addDynamic's 60). */
+#define WORLD_MOVER_PAINTER_PADDING 60
+
+void
+World_RegisterForeignActor(
+    struct World* world,
+    int element_id,
+    int level,
+    int deck_x,
+    int deck_z,
+    int padding,
+    int yaw,
+    int forward_padding);
+
 void
 World_ResetScene(
     struct World* world,
@@ -546,6 +921,62 @@ void
 World_SpotanimDespawn(
     struct World* world,
     int idx);
+
+/* ---- plugin-owned world objects (entity_pluginobj.h) ---- */
+
+/** Takes ownership of an already-created DYNAMIC scene element. `scene_x` /
+ * `scene_z` / `y` are fine coords (128 per tile), like a spotanim's. Spawns
+ * ACTIVE. Returns the pool index. */
+int
+World_PluginObjectSpawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int size_x,
+    int size_z);
+
+/** Emits EntityRemoved for the element, so the app frees it on the next drain. */
+void
+World_PluginObjectDespawn(
+    struct World* world,
+    int idx);
+
+void
+World_PluginObjectSetActive(
+    struct World* world,
+    int idx,
+    bool active);
+
+/** Despawn every one of them. The scene rebuild path: a plugin object is
+ * anchored to an ABSOLUTE tile that only the app knows, so the world side
+ * cannot shift one -- the app re-materialises them against the new origin. */
+void
+World_PluginObjectClear(struct World* world);
+
+/**
+ * The world's shared copy of `probe`'s name and ops, adding it if new.
+ *
+ * `probe` is a scratch block the caller fills; the returned pointer belongs to
+ * the world and outlives the call, but not World_Free. Zero the scratch before
+ * filling it -- entries are compared byte for byte, so trailing garbage past a
+ * short name would split one label into two.
+ */
+/** Drop the per-build loc-id memo. @see World_SceneryInfoTable::memo_loc_ids. */
+void
+World_SceneryInfoMemoClear(struct World* world);
+
+/** A runtime replacement may resolve the same base loc to different menu text. */
+void
+World_SceneryInfoMemoInvalidate(struct World* world, int loc_id);
+
+struct WorldEntity_SceneryInfo const*
+World_SceneryInfoIntern(
+    struct World* world,
+    struct WorldEntity_SceneryInfo const* probe);
 
 int
 World_SceneryRegister(
@@ -744,6 +1175,12 @@ World_SetSeqSource(
     struct World* world,
     struct World_SeqSource const* source);
 
+/* Install (or, with NULL, remove) the frame-sound listener described above. */
+void
+World_SetAnimSoundSink(
+    struct World* world,
+    struct World_AnimSoundSink const* sink);
+
 /* Server-driven primary (transient) animation with reference semantics:
  * same-seq RestartMode RESET zeroes frame/cycle/loop, RESETLOOP zeroes the
  * loop counter; otherwise the new seq applies only when its priority >= the
@@ -895,11 +1332,19 @@ World_NpcAddHitmarkTimed(
     int duration,
     int slot_policy);
 
+/** Record a HEADBAR block. `bar` is the wire block already resolved against
+ *  its healthbar type -- see struct WorldEntity_Headbar. */
 void
-World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width);
+World_PlayerSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar);
 
 void
-World_NpcSetHealthbar(struct World* world, int idx, int fill, int width);
+World_NpcSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar);
 
 void
 World_PlayerClearHealthbar(struct World* world, int idx);
@@ -942,6 +1387,23 @@ World_ObjStackAdd(
     int count,
     char const* name,
     char const actions[5][32]);
+
+/**
+ * OBJ_ADD's ownership half, applied to a stack the add just created.
+ *
+ * Separate from the add because only the zone packet carries it: a hotkey
+ * spawn, a plugin's pile and every pre-ownership revision leave the stack on
+ * World_ObjStackAdd's "the server never said" defaults. The two clocks are
+ * DEADLINES in client-clock units, or -1; see entity_objstack.h.
+ */
+void
+World_ObjStackSetOwnership(
+    struct World* world,
+    int idx,
+    int public_clock,
+    int despawn_clock,
+    int owner,
+    int never_becomes_public);
 
 /** Find a stack by tile + obj id (obj_id -1 = any). Returns pool idx or -1. */
 int
@@ -989,6 +1451,25 @@ World_SceneryFindAt(
     int scene_z,
     int level,
     int loc_shape);
+
+/**
+ * Find a scenery entity by tile and LOC ID, whatever layer it sits on.
+ *
+ * The identity a cache script names: `LOC_FIND` (6803) asks "is loc type N
+ * still on this tile", because the scripted overlays and highlights it puts
+ * there are per loc type. `World_SceneryFindAt` keys on the layer instead,
+ * which is the right key for a zone mutation and the wrong one here -- two
+ * fishing spots on adjacent tiles share a layer and differ only by id.
+ *
+ * Returns NULL when the tile is outside the scene or holds no such loc.
+ */
+struct WorldEntity_Scenery*
+World_SceneryFindByLocId(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id);
 
 /** LOC_DEL: remove the scenery entity + its scene element (event emitted). */
 void
@@ -1067,6 +1548,33 @@ void
 World_Cycle(
     struct World* world,
     int cycles_elapsed);
+
+/**
+ * Move every actor along its route by `cycles` worth of travel, where one
+ * cycle is 20ms of client time -- rev-239 client.method1894/method3611.
+ *
+ * Call once per rendered FRAME with the real elapsed time, fractional:
+ * `(now_ms - last_frame_ms) / 20.0f`. World_Cycle only picks facings and
+ * animations; this is what actually moves anything, and keeping it off the
+ * 20ms grid is what stops a walk quantising into a lurch.
+ */
+/**
+ * Tell the world which era it is drawing (src/features). Not owned; the table
+ * must outlive the world. NULL restores the classic defaults.
+ */
+void
+World_SetFeatures(
+    struct World* world,
+    struct ToriRS_FeatureTable const* features);
+
+/** enum ToriRS_MoverModel for this world; classic when no table is set. */
+int
+World_MoverModel(struct World const* world);
+
+void
+World_MoversAdvance(
+    struct World* world,
+    float cycles);
 
 /* Shared with world_cycle.c */
 void

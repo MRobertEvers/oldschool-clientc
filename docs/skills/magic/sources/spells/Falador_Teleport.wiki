@@ -1,0 +1,41 @@
+{{External|rs|rsc=Falador teleport}}
+{{otheruses|the teleport spell|the teleport tablet|Falador teleport (tablet)}}
+{{Infobox Spell
+|name = Falador Teleport
+|image = [[File:Falador Teleport.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 37
+|spellbook = Normal
+|type = Teleport
+|exp = 48
+|cost = {{RuneReq|Law=1|Water=1|Air=3}}
+|speed = 4 ticks
+|lectern = [[Eagle lectern|Eagle]]
+|description = Teleports you to Falador
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Falador Teleport icon (mobile).png|left|class=pageimage]]
+'''Falador Teleport''' is a [[Magic]] spell that teleports the caster to [[Falador]].
+
+Like most teleports, this spell cannot be used past level 20 [[Wilderness]].
+
+Casting this spell is a requirement for the [[Medium Falador|medium Falador diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 1
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = law
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|2964,3378|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

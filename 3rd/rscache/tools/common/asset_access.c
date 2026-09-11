@@ -217,6 +217,93 @@ tool_dat2_npc_load_checked(
     return npc;
 }
 
+/** One group's npcs, decoded at that group's own revision. Returns 0 if the
+ *  visitor asked to stop. */
+static int
+walk_npc_group(
+    struct Tool_Dat2Cache* c,
+    const struct RSCache_RecordAddress* addr,
+    struct RSCache_Dat2DiskArchive* archive,
+    Tool_Dat2NpcVisitor visit,
+    void* user)
+{
+    struct RSCache local = c->profile;
+    RSCache_ProfileSetGroupRevision(&local, RSCACHE_TYPE_NPC, archive->revision);
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+        return 1;
+
+    int keep_going = 1;
+    for( int i = 0; i < files->file_count && keep_going; i++ )
+    {
+        if( files->file_sizes[i] <= 0 )
+            continue;
+        int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
+        int id = file_global_id(addr, archive->archive_id, file_id);
+        struct RSCache_Dat2ConfigNpc* npc =
+            RSCache_Dat2ConfigNpcNewDecodeProfile(&local, files->files[i], files->file_sizes[i]);
+        if( !npc )
+            continue;
+        keep_going = visit(id, npc, user);
+        RSCache_Dat2ConfigNpcFree(npc);
+    }
+
+    RSCache_FileListFree(files);
+    return keep_going;
+}
+
+int
+tool_dat2_npc_walk_all(
+    struct Tool_Dat2Cache* c,
+    Tool_Dat2NpcVisitor visit,
+    void* user)
+{
+    assert(c);
+    assert(c->disk);
+    assert(visit);
+
+    struct RSCache_RecordAddress addr =
+        RSCache_RecordAddressFor(&c->profile, RSCACHE_TYPE_NPC);
+
+    if( addr.group_shift == 0 )
+    {
+        int table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(c->disk, table, RSCACHE_DAT2_CONFIG_KIND_NPC);
+        if( !archive )
+            return 0;
+        int ok = RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) &&
+                 archive->file_count > 0;
+        if( ok )
+            walk_npc_group(c, &addr, archive, visit, user);
+        RSCache_Dat2DiskArchiveFree(archive);
+        return ok;
+    }
+
+    int table_id = RSCache_Dat2DiskTableId(c->disk, addr.table);
+    struct RSCache_ReferenceTable* table =
+        table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT ? NULL : c->disk->tables[table_id];
+    if( !table )
+        return 0;
+
+    for( int i = 0; i < table->id_count; i++ )
+    {
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(c->disk, table_id, table->ids[i]);
+        if( !archive )
+            continue;
+        int keep_going = 1;
+        if( RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) && archive->file_count > 0 )
+            keep_going = walk_npc_group(c, &addr, archive, visit, user);
+        RSCache_Dat2DiskArchiveFree(archive);
+        if( !keep_going )
+            break;
+    }
+    return 1;
+}
+
 struct RSCache_Dat1ConfigNpc*
 tool_dat1_npc_load(
     struct Tool_Dat1Cache* c,

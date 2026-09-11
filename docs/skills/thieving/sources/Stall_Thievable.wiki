@@ -1,0 +1,286 @@
+{| class="wikitable sortable"
+! colspan=2 | Stall
+!{{SCP|Thieving}}Level
+!Exp.
+!Items
+!Location
+!Respawn Time
+! Max XP/Hr <!--Calculated by `(3600s/Respawn Time) * XP`-->
+!Leagues Region
+|-
+|{{plinkt|Vegetable stall|pic=Cabbage}}
+|2
+|10
+|[[Onion]], [[cabbage]], [[potato]], [[tomato]], or [[garlic]]
+|[[Miscellania]], [[Etceteria]]
+|1.2 seconds
+| 30,000
+|{{leagueRegionIcon|Fremennik}}
+|-
+|{{plinkt|Veg stall (Port Roberts)|pic=Cabbage}}
+|2
+|5
+|[[Onion]], [[cabbage]], [[potato]], [[tomato]], or [[garlic]]
+|[[Port Roberts]]
+|2.4 seconds
+|7,500 <ref name="marketplace-thieving">Theoretical maximum, Port Roberts Market Guards behave uniquely and reduce actual XP/Hr. See [[Port Roberts#Marketplace thieving]] for details and strategies.</ref>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Bakery stall|pic=Bread}}
+|5
+|16
+|[[Cake]], [[chocolate slice]] or [[bread]]
+|[[East Ardougne]], [[Keldagrim]], [[Great Kourend]], [[Civitas illa Fortis]]
+|2.4 seconds (9.6 seconds in [[Keldagrim]])
+| 24,000 (6,000 in [[Keldagrim]])
+|{{leagueRegionIcon|Kandarin,Fremennik,Kourend,Varlamore}}
+|-
+|{{plinkt|Tea stall|pic=Cup of tea}}
+|5
+|16
+|[[Cup of tea]]
+|[[Varrock]], [[Great Kourend]]
+|2.4 seconds
+| 24,000
+|{{leagueRegionIcon|Misthalin,Kourend}}
+|-
+|{{plinkt|Food Stall|txt=Monkey food stall|pic=Banana}}
+|5
+|16
+|[[Banana]]
+|[[Ape Atoll]]
+|3.6 seconds
+| 16,000
+|{{leagueRegionIcon|Kandarin}}
+|-
+|[{{plinkt|Crafting stall|pic=Chisel}}
+|5
+|20
+|[[Chisel]], [[ring mould]], [[necklace mould]], [[amulet mould]], [[bracelet mould]] or [[gold bar]]
+|[[Ape Atoll]], [[Keldagrim]]
+|4.8 seconds
+| 15,000
+|{{leagueRegionIcon|Kandarin,Fremennik}}
+|-
+|{{plinkt|Monkey general stall|pic=Pot}}
+|5
+|25
+|[[Pot]], [[hammer]] or [[tinderbox]]
+|[[Ape Atoll]]
+|4.8 seconds
+| 18,750
+|{{leagueRegionIcon|Kandarin}}
+|-
+|{{plinkt|Counter (Gu'Tanoth)|pic=Rock cake}}
+|15
+|6.4
+|[[Rock cake]]
+|[[Gu'Tanoth]]
+|7.2 seconds
+| 3,200
+|{{leagueRegionIcon|Kandarin}}
+|-
+|[{{plinkt|Silk stall|pic=Silk}}
+|20
+|24
+|[[Silk]]
+|[[East Ardougne]], [[Great Kourend]], [[Prifddinas]], [[Civitas illa Fortis]]
+|4.8 seconds
+| 18,000
+|{{leagueRegionIcon|Kandarin,Kourend,Fremennik,Tirannwn,Varlamore}}
+|-
+|[{{plinkt|Silk stall (Port Roberts)|pic=Silk}}
+|20
+|24
+|[[Silk]]
+|[[Port Roberts]]
+|2.4 seconds
+|36,000<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Wine stall|pic=Jug of wine}}
+|22
+|27
+|[[Jug of water]], [[jug of wine]], [[grapes]], [[jug]], or [[bottle of wine]]
+|[[Draynor Village]]
+|4.8 seconds
+| 20,250
+|{{leagueRegionIcon|Misthalin}}
+|-
+|{{plinkt|Fruit Stall|pic=Cooking apple}}
+|25
+|28.5
+|[[Cooking apple]], [[banana]], [[strawberry]], [[redberries]], [[jangerberries]], [[strange fruit]], [[lime]], [[lemon]], [[pineapple]], [[papaya fruit]], or [[golovanova fruit top]]
+|[[Great Kourend]]
+|2.4 seconds
+| 42,750
+|{{leagueRegionIcon|Kourend}}
+|-
+|{{plinkt|Seed stall|pic=Potato seed 5}}
+|27
+|10
+|Various [[seeds]]
+|[[Draynor Village]]
+|2.4 seconds
+| 15,000
+|{{leagueRegionIcon|Misthalin}}
+|-
+|{{plinkt|Fur stall|pic=Grey wolf fur}}
+|35
+|45
+|[[Fur]] or [[grey wolf fur]]
+|[[East Ardougne]], [[Rellekka]], [[Civitas illa Fortis]]
+|7.2 seconds
+| 22,500
+|{{leagueRegionIcon|Kandarin,Fremennik,Varlamore}}
+|-
+|{{plinkt|Fur stall (Port Roberts)|pic=Grey wolf fur}}
+|35
+|38.5
+|[[Bear fur]] or [[grey wolf fur]]
+|[[Port Roberts]]
+|2.4 seconds
+|57,750<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Fish stall|pic=Raw salmon}}
+|42
+|42
+|[[Raw salmon]], [[raw tuna]] or [[raw lobster]]
+|[[Etceteria]], [[Miscellania]], [[Rellekka]], [[The Warrens]]
+|7.2 seconds
+| 21,000
+|{{leagueRegionIcon|Fremennik,Kourend}}
+|-
+|{{plinkt|Fish stall (Port Roberts)|pic=Raw salmon}}
+|42
+|49
+|[[Raw salmon]], [[raw tuna]], [[raw lobster]], [[raw swordtip squid]], [[raw giant krill]], or [[raw haddock]]
+|[[Port Roberts]]
+|2.4 seconds
+|73,500<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Crossbow stall|pic=Bronze bolts}}
+|49
+|52
+|[[Bronze bolts]] (3), [[bronze limbs]], [[mithril bolts]], [[mithril limbs]] or [[wooden stock]]
+|[[Keldagrim]]
+|4.8 seconds
+|39,000
+|{{leagueRegionIcon|Fremennik}}
+|-
+|{{plinkt|Silver stall|pic=Silver ore}}
+|50
+|205
+|[[Silver ore]], [[silver bar]] or [[tiara]]
+|[[East Ardougne]], [[Keldagrim]], [[Great Kourend]], [[Prifddinas Silver Stall|Prifddinas]]
+|19.2 seconds
+|38,437.50
+|{{leagueRegionIcon|Kandarin,Kourend,Fremennik,Tirannwn}}
+|-
+|{{plinkt|Silver stall (Port Roberts)|pic=Silver ore}}
+|50
+|80
+|[[Silver ore]], [[silver bar]] or [[tiara]]
+|[[Port Roberts]]
+|2.4 seconds
+|120,000<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Spice stall|pic=Spice}}
+|65
+|92
+|[[Spice]]
+|[[East Ardougne]], [[Prifddinas Spice Stall|Prifddinas]], [[Civitas illa Fortis]]
+|6 seconds
+|55,200
+|{{leagueRegionIcon|Kandarin,Tirannwn,Varlamore}}
+|-
+|{{plinkt|Spice stall (Port Roberts)|pic=Spice}}
+|65
+|110
+|[[Spice]]
+|[[Port Roberts]]
+|2.4 seconds
+|165,000<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Magic stall|pic=Air rune}}
+|65
+|90
+|[[Air rune|Air]], [[Earth rune|earth]], [[fire rune|fire]], [[Nature rune|nature]] or [[law rune]]s
+|[[Ape Atoll]]
+|7.2 seconds
+|45,000
+|{{leagueRegionIcon|Kandarin}}
+|-
+|{{plinkt|Scimitar stall|pic=Iron scimitar}}
+|65
+|210
+|[[Iron scimitar]], [[steel scimitar]], [[mithril scimitar]] or [[adamant scimitar]]
+|[[Ape Atoll]]
+|19.2 seconds
+|39,375
+|{{leagueRegionIcon|Kandarin}}
+|-
+|{{plinkt|Gem stall|pic=Sapphire}}
+|75
+|408
+|[[Uncut sapphire]], [[uncut emerald]], [[uncut ruby]], or [[uncut diamond]] 
+|[[East Ardougne]], [[Keldagrim]], [[Great Kourend]], [[Prifddinas Gem Stall|Prifddinas]], [[Civitas illa Fortis]]
+|60 seconds
+|24,480
+|{{leagueRegionIcon|Kandarin,Kourend,Fremennik,Tirannwn,Varlamore}}
+|-
+|{{plinkt|Gem stall (Port Roberts)|pic=Sapphire}}
+|75
+|129.5
+||[[Sapphire|Cut]] or [[uncut sapphire]], [[Emerald|cut]] or [[uncut emerald]], [[Ruby|cut]] or [[uncut ruby]], [[Diamond|cut]] or [[uncut diamond]]
+|[[Port Roberts]]
+|2.4 seconds
+|194,250<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Gem stall (Mor Ul Rek)|pic=Onyx}}
+|75
+|408
+|[[Sapphire|Cut]] or [[uncut sapphire]], [[Emerald|cut]] or [[uncut emerald]], [[Ruby|cut]] or [[uncut ruby]], [[Diamond|cut]] or [[uncut diamond]], [[Dragonstone|cut]] or [[uncut dragonstone]] or, very rarely, [[onyx|cut]] or [[uncut onyx]]
+|[[Mor Ul Rek]]
+|105 seconds
+|13,988.57
+|{{leagueRegionIcon|Karamja}}
+|-
+|{{plinkt|Ore stall (Mor Ul Rek)|pic=Runite ore}}
+|82
+|350
+|[[Coal]] or [[Iron ore|iron]], [[Silver ore|silver]], [[Gold ore|gold]], [[Mithril ore|mithril]], [[Adamant ore|adamant]] or [[runite ore]]
+|[[Mor Ul Rek]]
+|30 seconds
+|42,000
+|{{leagueRegionIcon|Karamja}}
+|-
+|{{plinkt|Ore stall (Port Roberts)|pic=Runite ore}}
+|82
+|191
+|[[Coal]] or [[Iron ore|iron]], [[Silver ore|silver]], [[Gold ore|gold]], [[Mithril ore|mithril]], [[Adamant ore|adamant]] or [[runite ore]]
+|[[Port Roberts]]
+|2.4 seconds
+|286,500<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|-
+|{{plinkt|Cannonball stall|pic=Steel cannonball}}
+|87
+|223
+|[[Bronze cannonball|Bronze]], [[Iron cannonball|iron]], [[Steel cannonball|steel]], [[Mithril cannonball|mithril]], [[Adamant cannonball|adamant]], [[Rune cannonball|rune]], or [[dragon cannonball]]s
+|[[Port Roberts]]
+|2.4 seconds
+|334,500<ref name="marketplace-thieving"/>
+|{{leagueRegionIcon|None}}
+|}
+
+{{Reflist}}
+
+<noinclude>
+[[Category:Thieving]]
+</noinclude>

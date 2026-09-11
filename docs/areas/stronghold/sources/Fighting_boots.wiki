@@ -1,0 +1,67 @@
+{{External|rs}}
+{{Infobox Item
+|name = Fighting boots
+|image = [[File:Fighting boots.png]]
+|release = [[4 July]] [[2006]]
+|update = Security and free-to-play update - the Stronghold of Security
+|members = No
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = Very nice boots from the Stronghold of Security.
+|value = 1
+|weight = 0.010
+|id = 9006
+}}
+[[File:Fighting boots detail.png|120px|left]]
+'''Fighting boots''' are a pair of low level boots with stats identical to [[bronze boots]] (except weighing significantly less), [[fancy boots]] and [[fancier boots]]. They are obtained from the [[Cradle of Life]] on the fourth level of the [[Stronghold of Security]] dungeon provided the player's account has two-factor authentication enabled. They are used by new or [[free-to-play]] players, as the centre of each level rewards a combined total of {{NoCoins|10000}} [[coins]] along with the choice between fancy boots, fighting boots or fancier boots (at the fourth and final level).
+
+If the player dies (including in PvP) and the boots are unprotected, it will be sent to the [[gravestone]]. When lost, they can be reclaimed for free from the [[Cradle of Life]]. Multiple pairs can be claimed and owned at the same time.
+
+They used to be the best melee [[boots]] in free-to-play, but have since been surpassed by all of the [[Castle Wars]] [[decorative boots]], especially the [[decorative boots (gold)]] due to their [[Strength bonus]]. The high requirement of 400 [[castle wars tickets]] causes the fighting boots to still be popular, due to its nonexistent cost.
+
+{{Costume storage|armour case}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -3
+|arange = -1
+|dstab = +1
+|dslash = +2
+|dcrush = +3
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = feet
+|image = [[File:Fighting boots equipped male.png]]
+|altimage = [[File:Fighting boots equipped female.png]]
+}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Fighting boots}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 November 2023
+|update = Forestry Tweaks, Security & More
+|change = 
+* Players may now own an unlimited number of fighting boots.
+* Fighting boots are no longer destroyed, but rather dropped.
+* Players may now own both fighting boots and [[fancy boots]].
+* Players who have a [[Jagex Account]] can now combine fighting boots with fancy boots to obtain [[fancier boots]].
+* Fighting boots can now be stored in the [[armour case space]] of the [[costume room]] in a [[player-owned house]].
+}}
+{{Subject changes footer}}
+
+{{Boots}}
+{{Stronghold of Security}}

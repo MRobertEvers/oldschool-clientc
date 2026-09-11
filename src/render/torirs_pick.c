@@ -1,16 +1,34 @@
 #include "torirs_pick.h"
 
+#include "toridraw_element_id.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
+#include "world/worldview.h"
+#include "world/wev.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Entity picks report the entity's own tile. Players (including local) are
  * pickable so a tile-occupancy winner can expand co-located stackmates into
  * the minimenu (Client-TS addViewportOptions); local rows are skipped later. */
+/*
+ * Which entity is this, and where is it standing?
+ *
+ * This used to try the npc pool, then players, then scenery, then
+ * objstacks, and each of those is a linear walk of a pool's active list
+ * chasing World_EntityPoolNext -- so a frame paid O(hits x scene) to answer
+ * a question the emitter already knew the answer to. The element id now
+ * carries its kind (see toridraw_element_id.h), so this asks one pool.
+ *
+ * An untagged id is kind NONE and still falls through to the old search:
+ * ids reach here from paths that predate the tag (a plugin-placed object,
+ * anything a test builds by hand), and reading NONE as "no entity" would
+ * silently stop those picking.
+ */
 static bool
 pick_classify_element(
     struct World* world,
@@ -20,55 +38,78 @@ pick_classify_element(
     int* out_tile_z,
     int* out_tile_level)
 {
-    struct WorldEntity_NPC* npc = World_NpcGetByElementId(world, element_id, NULL);
-    if( npc )
-    {
-        *out_type = WORLD_PICK_NPC;
-        *out_tile_x = npc->grid_position.x;
-        *out_tile_z = npc->grid_position.z;
-        *out_tile_level = npc->grid_position.level;
-        return true;
-    }
+    enum ToriDraw_ElementKind const kind =
+        ElementId_Kind(ElementId_FromRaw(element_id));
 
-    struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
-    if( player )
+    if( kind == TORIDRAW_ELEMENT_KIND_NPC || kind == TORIDRAW_ELEMENT_KIND_NONE )
     {
-        *out_type = WORLD_PICK_PLAYER;
-        *out_tile_x = player->grid_position.x;
-        *out_tile_z = player->grid_position.z;
-        *out_tile_level = player->grid_position.level;
-        return true;
-    }
-
-    struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
-    if( scenery )
-    {
-        /* LocType.active gate: the reference negates a non-active loc's
-         * typecode, and Model.draw only records hits for `typecode > 0`
-         * (Model.ts:1758) — so walls, gravel and floor decor never produce a
-         * menu row. Without this every unnamed loc surfaced as
-         * "Examine @cya@ Scenery".
-         *
-         * TORIRS_LOC_DEBUG lifts the gate: the locs worth inspecting for a
-         * placement bug are overwhelmingly the inactive ones (a bush on the
-         * wrong square is invisible to a menu that refuses to pick bushes). */
-        if( !scenery->interactive && !WorldEntity_SceneryDebugEnabled() )
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(world, element_id, NULL);
+        if( npc )
+        {
+            *out_type = WORLD_PICK_NPC;
+            *out_tile_x = npc->grid_position.x;
+            *out_tile_z = npc->grid_position.z;
+            *out_tile_level = npc->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_NPC )
             return false;
-        *out_type = WORLD_PICK_SCENERY;
-        *out_tile_x = scenery->grid_position.x;
-        *out_tile_z = scenery->grid_position.z;
-        *out_tile_level = scenery->grid_position.level;
-        return true;
     }
 
-    struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
-    if( stack )
+    if( kind == TORIDRAW_ELEMENT_KIND_PLAYER || kind == TORIDRAW_ELEMENT_KIND_NONE )
     {
-        *out_type = WORLD_PICK_OBJSTACK;
-        *out_tile_x = stack->grid_position.x;
-        *out_tile_z = stack->grid_position.z;
-        *out_tile_level = stack->grid_position.level;
-        return true;
+        struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
+        if( player )
+        {
+            *out_type = WORLD_PICK_PLAYER;
+            *out_tile_x = player->grid_position.x;
+            *out_tile_z = player->grid_position.z;
+            *out_tile_level = player->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_PLAYER )
+            return false;
+    }
+
+    if( kind == TORIDRAW_ELEMENT_KIND_SCENERY || kind == TORIDRAW_ELEMENT_KIND_NONE )
+    {
+        struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
+        if( scenery )
+        {
+            /* LocType.active gate: the reference negates a non-active loc's
+             * typecode, and Model.draw only records hits for `typecode > 0`
+             * (Model.ts:1758) -- so walls, gravel and floor decor never
+             * produce a menu row. Without this every unnamed loc surfaced as
+             * "Examine @cya@Scenery".
+             *
+             * The loc-inspection tools lift the gate, because the locs worth
+             * inspecting for a placement bug are overwhelmingly the inactive
+             * ones -- a wall, a fence or a patch of ground decor on the wrong
+             * square is invisible to a menu that refuses to pick them, and so
+             * is its footprint. See WorldEntity_SceneryPickInactive. */
+            if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
+                return false;
+            *out_type = WORLD_PICK_SCENERY;
+            *out_tile_x = scenery->grid_position.x;
+            *out_tile_z = scenery->grid_position.z;
+            *out_tile_level = scenery->grid_position.level;
+            return true;
+        }
+        if( kind == TORIDRAW_ELEMENT_KIND_SCENERY )
+            return false;
+    }
+
+    if( kind == TORIDRAW_ELEMENT_KIND_OBJSTACK || kind == TORIDRAW_ELEMENT_KIND_NONE )
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
+        if( stack )
+        {
+            *out_type = WORLD_PICK_OBJSTACK;
+            *out_tile_x = stack->grid_position.x;
+            *out_tile_z = stack->grid_position.z;
+            *out_tile_level = stack->grid_position.level;
+            return true;
+        }
     }
 
     return false;
@@ -88,7 +129,8 @@ ToriRS_PickHitsAdd(
     bool is_terrain,
     int tile_x,
     int tile_z,
-    int tile_level)
+    int tile_level,
+    int view_id)
 {
     struct ToriRS_PickHit* hit;
 
@@ -102,6 +144,7 @@ ToriRS_PickHitsAdd(
     hit->tile_x = tile_x;
     hit->tile_z = tile_z;
     hit->tile_level = tile_level;
+    hit->view_id = view_id;
 }
 
 /*
@@ -146,7 +189,7 @@ pick_debug_dump(
         return;
     last_sig = sig;
 
-    fprintf(stderr, "pickset: %d hit(s)\n", pickset->count);
+    TORIRS_LOG("pickset: %d hit(s)\n", pickset->count);
     for( int i = 0; i < pickset->count; i++ )
     {
         struct World_Picked const* p = &pickset->items[i];
@@ -160,9 +203,7 @@ pick_debug_dump(
             if( sc )
                 loc_id = sc->loc_id;
         }
-        fprintf(
-            stderr,
-            "  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
+        TORIRS_LOG("  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
             i,
             p->type <= WORLD_PICK_PLAYER ? kind[p->type] : "?",
             p->element_id,
@@ -171,13 +212,16 @@ pick_debug_dump(
             p->tile_level,
             loc_id >= 0 ? "" : "\n");
         if( loc_id >= 0 )
-            fprintf(stderr, " loc=%d\n", loc_id);
+            TORIRS_LOG(" loc=%d\n", loc_id);
     }
 }
 
 void
-ToriRS_PickHitsClassify(
+ToriRS_PickHitsClassifyViews(
     struct World* world,
+    struct WorldviewRegistry* views,
+    const struct Wevs* wevs,
+    int aboard_view,
     struct ToriRS_PickHits const* hits,
     int player_level,
     struct World_PickSet* out_pickset,
@@ -196,6 +240,29 @@ ToriRS_PickHitsClassify(
     for( int i = 0; i < hits->count; i++ )
     {
         struct ToriRS_PickHit const* hit = &hits->items[i];
+        int mode = 2;
+        if( hit->view_id != 0 && wevs )
+        {
+            if( !Wevs_IsLive(wevs, hit->view_id) ) continue;
+            const struct Wev* wev = Wevs_Get((struct Wevs*)wevs, hit->view_id);
+            if( !wev->render_visible || wev->flattened ) continue;
+            assert(wev->config);
+            mode = hit->view_id == aboard_view ? 1 : wev->config->click_mode;
+            if( mode == 3 )
+            {
+                /* Back-to-front stream: the opaque blocker swallows everything
+                 * beneath it. A nearer surface later in the stream still wins. */
+                World_PickSetReset(out_pickset);
+                memset(out_result, 0, sizeof(*out_result));
+                continue;
+            }
+            if( mode == 0 )
+            {
+                World_PickSetAdd(out_pickset, -2-hit->view_id, WORLD_PICK_WEV,
+                                 -1, -1, -1, hit->view_id);
+                continue;
+            }
+        }
 
         if( hit->is_terrain )
         {
@@ -213,22 +280,129 @@ ToriRS_PickHitsClassify(
              * standing on them (method4161 returns draw level 0 for a tile
              * carrying the link-below flag), so equality would make the ground
              * under your own feet unclickable.
+             *
+             * Hence World_TerrainDrawLevel and not `hit->tile_level`: the hit
+             * carries the MESH level, the plane the floor was authored on, and
+             * on a deck that is one ABOVE the player standing on it. Comparing
+             * it directly discarded every hit on a bridge — which is what made
+             * the whole of the Theatre of Blood's corridors unclickable.
+             *
+             * A WORLD-ENTITY view's tiles are the view's own coordinates —
+             * this world's draw levels say nothing about them, so the guard
+             * does not apply; the view's walkable planes are the server's
+             * (deck collision) problem, exactly as the deob leaves per-view
+             * plane resolution to the menu layer (class108.method3786).
              */
-            if( player_level >= 0 && hit->tile_level > player_level )
+            if( hit->view_id == 0 && player_level >= 0 &&
+                World_TerrainDrawLevel(world, hit->tile_x, hit->tile_z, hit->tile_level) >
+                    player_level )
                 continue;
             /* Hits arrive in render order, back-to-front: the last terrain
-             * hit is nearest. */
-            out_result->hover_tile_valid = true;
-            out_result->hover_tile_x = hit->tile_x;
-            out_result->hover_tile_z = hit->tile_z;
-            out_result->hover_tile_level = hit->tile_level;
+             * hit is nearest. Only root tiles feed the hover latch — a
+             * deck-local coordinate drawn as a root-scene hover box lands in
+             * the wrong ocean. */
+            if( hit->view_id == 0 )
+            {
+                out_result->hover_tile_valid = true;
+                out_result->hover_tile_x = hit->tile_x;
+                out_result->hover_tile_z = hit->tile_z;
+                out_result->hover_tile_level = hit->tile_level;
+            }
+            else
+            {
+                /* The deck's own hover, in its own frame — see the field's
+                 * comment in torirs_pick.h. */
+                out_result->hover_view_valid = true;
+                out_result->hover_view = hit->view_id;
+                out_result->hover_view_x = hit->tile_x;
+                out_result->hover_view_z = hit->tile_z;
+                out_result->hover_view_level = hit->tile_level;
+            }
             World_PickSetAdd(
                 out_pickset,
                 hit->element_id,
                 WORLD_PICK_TERRAIN,
                 hit->tile_x,
                 hit->tile_z,
-                hit->tile_level);
+                hit->tile_level,
+                hit->view_id);
+        }
+        else if( hit->view_id != 0 )
+        {
+            enum World_PickType type;
+            int tile_x;
+            int tile_z;
+            int tile_level;
+
+            /* An actor RIDING the view first: aboard players and npcs are
+             * retagged into the view's dynamic pool but keep their ROOT
+             * entity records, so they classify like any shore actor — a
+             * click on a fellow passenger must offer their own rows (Attack,
+             * Talk-to), not the hull's. No reach-level filter here: an
+             * aboard actor's level is a deck plane, incomparable with the
+             * viewer's root level. */
+            if( pick_classify_element(
+                    world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) &&
+                (type == WORLD_PICK_NPC || type == WORLD_PICK_PLAYER) )
+            {
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, type, tile_x, tile_z, tile_level,
+                    hit->view_id);
+            }
+            else if(
+                views && WorldviewRegistry_IsLive(views, hit->view_id) &&
+                WorldviewRegistry_Get(views, hit->view_id)->world &&
+                pick_classify_element(
+                    WorldviewRegistry_Get(views, hit->view_id)->world, hit->element_id,
+                    &type, &tile_x, &tile_z, &tile_level) &&
+                (type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC ||
+                 type == WORLD_PICK_PLAYER || type == WORLD_PICK_OBJSTACK) )
+            {
+                /* A DECK LOC: it lives in the VIEW world's scenery table, so
+                 * classification runs against that world — same interactive
+                 * gate as the root's. The pick carries deck-local tiles and
+                 * the view id; the menu layer resolves the loc through the
+                 * same view world, and its op dispatch sends view.base+local
+                 * (the wire shape every aboard interaction uses). No reach-
+                 * level filter: a deck plane is incomparable with the
+                 * viewer's root level — reachability is the server's deck
+                 * collision's problem, like every deck walk. */
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, type, tile_x, tile_z,
+                    tile_level, hit->view_id);
+            }
+            else
+            {
+                if( getenv("TORIRS_WORLD_PICK_DEBUG") )
+                {
+                    struct World* vw =
+                        views && WorldviewRegistry_IsLive(views, hit->view_id)
+                            ? WorldviewRegistry_Get(views, hit->view_id)->world
+                            : NULL;
+                    enum World_PickType t = WORLD_PICK_TERRAIN;
+                    int tx = -1, tz = -1, tl = -1;
+                    int classified =
+                        vw && pick_classify_element(vw, hit->element_id, &t, &tx, &tz, &tl);
+
+                    struct WorldEntity_Scenery* sc =
+                        vw ? World_SceneryGetByElementId(vw, hit->element_id) : NULL;
+
+                    fprintf(stderr,
+                            "world_pick: view fallthrough el=0x%x view=%d vw=%p "
+                            "classified=%d type=%d sc=%p interactive=%d loc=%d\n",
+                            (unsigned)hit->element_id, hit->view_id, (void*)vw, classified,
+                            (int)t, (void*)sc, sc ? sc->interactive : -1,
+                            sc ? sc->loc_id : -1);
+                }
+                /* A sub-scene MODEL that classifies as nothing (hull side,
+                 * mast, deck terrain skirt): what a click on it MEANS is "the
+                 * boat" — surface the view id and let the menu layer offer
+                 * the hull's config ops (the deob's menu hash carries the
+                 * world-view id for exactly this). */
+                if( mode != 1 )
+                    World_PickSetAdd(
+                        out_pickset, -2-hit->view_id, WORLD_PICK_WEV, -1, -1, -1, hit->view_id);
+            }
         }
         else
         {
@@ -240,13 +414,45 @@ ToriRS_PickHitsClassify(
                     world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) )
             {
                 /* Scenery/NPCs/obj stacks on a level other than the player's are
-                 * unreachable — never surface them in the minimenu. */
-                if( player_level >= 0 && tile_level != player_level )
+                 * unreachable — never surface them in the minimenu.
+                 *
+                 * A LOC's level is not read raw, for the same reason the
+                 * terrain guard above does not read `hit->tile_level`: the
+                 * scenery pool holds the CACHE level a loc was authored on,
+                 * and on a LinkBelow column the build parks its geometry one
+                 * level down (World_LocPaintLevel — the same shuffle
+                 * world_builder and world_cycle register it into the painter
+                 * with). Every ToB corridor is such a deck, so the Nylocas
+                 * room's barrier was authored at plane 1, drawn at paint level
+                 * 0 in front of a player standing on level 0 — and thrown away
+                 * by a guard comparing 1 against 0. The red gate drew, lit,
+                 * animated, and could not be clicked.
+                 *
+                 * NPCs, players and obj stacks are already positioned on the
+                 * level they are WALKED on (the server shifts them), so only
+                 * scenery takes the conversion — running it on the rest would
+                 * push a bridge-deck npc from level 0 to the underside. */
+                int reach_level = tile_level;
+                if( type == WORLD_PICK_SCENERY )
+                    reach_level = World_LocPaintLevel(world, tile_x, tile_z, tile_level);
+                if( player_level >= 0 && reach_level != player_level )
                     continue;
-                World_PickSetAdd(out_pickset, hit->element_id, type, tile_x, tile_z, tile_level);
+                /* Non-terrain classification resolves through the ROOT world's
+                 * entity tables, so these are root picks by construction —
+                 * view-scene locs/actors do not classify here (yet). */
+                World_PickSetAdd(
+                    out_pickset, hit->element_id, type, tile_x, tile_z, tile_level, 0);
             }
         }
     }
 
     pick_debug_dump(world, out_pickset);
+}
+
+void
+ToriRS_PickHitsClassify(struct World* world, struct WorldviewRegistry* views,
+                       const struct ToriRS_PickHits* hits, int player_level,
+                       struct World_PickSet* picks, struct ToriRS_PickResult* result)
+{
+    ToriRS_PickHitsClassifyViews(world, views, NULL, 0, hits, player_level, picks, result);
 }

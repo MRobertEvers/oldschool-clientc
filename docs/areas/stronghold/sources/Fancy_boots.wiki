@@ -1,0 +1,91 @@
+{{External|rs}}
+{{Infobox Item
+|name = Fancy boots
+|image = [[File:Fancy boots.png]]
+|release = [[4 July]] [[2006]]
+|update = Security and free-to-play update - the Stronghold of Security
+|members = No
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = Very nice boots from the Stronghold of Security.
+|value = 1
+|weight = 0.010
+|id = 9005
+}}
+[[File:Fancy boots detail.png|120px|left]]
+'''Fancy boots''' are a pair of low level boots with stats identical to [[bronze boots]] (except weighing significantly less), [[fighting boots]] and [[fancier boots]]. They are obtained from the [[Cradle of Life]] on the fourth level of the [[Stronghold of Security]] dungeon provided the player's account has two-factor authentication enabled. They are used by new or [[free-to-play]] players, as the centre of each level rewards a combined total of {{NoCoins|10000}} [[coins]] along with the choice between fancy boots, fighting boots or fancier boots (at the fourth and final level).
+
+If the player dies (including in PvP) and the boots are unprotected, it will be sent to the [[gravestone]]. When lost, they can be reclaimed for free from the [[Cradle of Life]]. Multiple pairs can be claimed and owned at the same time.
+
+They used to be the best melee [[boots]] in free-to-play, but have since been surpassed by all of the [[Castle Wars]] [[decorative boots]], especially the [[decorative boots (gold)]] due to their [[Strength bonus]]. The high requirement of 400 [[castle wars tickets]] causes the fancy boots to still be popular, due to its nonexistent cost.
+
+{{Costume storage|armour case}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -3
+|arange = -1
+|dstab = +1
+|dslash = +2
+|dcrush = +3
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = feet
+|image = [[File:Fancy boots equipped male.png]]
+|altimage = [[File:Fancy boots equipped female.png|150px]]
+}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Fancy boots}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 November 2023
+|update = Forestry Tweaks, Security & More
+|change = 
+* Players may now own an unlimited number of fancy boots.
+* Fancy boots are no longer destroyed, but rather dropped.
+* Players may now own both fancy boots and [[fighting boots]].
+* Players who have a [[Jagex Account]] can now combine fancy boots with fighter boots to obtain [[fancier boots]].
+* Fancy boots can now be stored in the [[armour case space]] of the [[costume room]] in a [[player-owned house]].
+}}
+{{Subject changes
+|date = 18 July 2007
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 17 July 2007
+|update = Game Improvements (July 2007)
+|change = The item's model was replaced with that of [[Fighting boots]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Fancy boots detail (historical, v1).png|center|300x150px]]
+|[[File:Fancy boots detail (historical, v2).png|center|300x150px]]
+|[[File:Fancy boots detail.png|center|300x150px]]
+|-
+|[[File:Fancy boots (historical, v1).png|center]]
+|[[File:Fancy boots (historical, v2).png|center]]
+|[[File:Fancy boots.png|center]]
+|-
+|4 July 2006 ⁠–<br/>17 July 2007
+|17 July 2007 ⁠–<br/>18 July 2007
+|18 July 2007 ⁠–<br/>present
+|}
+
+{{Boots}}
+{{Stronghold of Security}}

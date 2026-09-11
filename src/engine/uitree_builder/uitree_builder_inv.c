@@ -43,6 +43,7 @@ uitree_builder_inv_seed(
 
         int ok = InvManager_ApplyFull(invs, container_id, seed->obj_ids, counts, seed->item_count);
         assert(ok);
+        (void)ok; /* assert-only: the OPT=1 lane compiles with -DNDEBUG */
     }
 }
 
@@ -73,11 +74,11 @@ uitree_builder_inv_bind_tree(
             struct UITreeComponent* c = &tree->components[ni];
             if( c->type == UIELEM_BUILTIN_SIDEBAR && c->component_id == op->componentno )
             {
-                c->u.sidebar.inv_source_id = source_id;
+                (void)UITree_SetInventorySourceAt(tree, (int32_t)ni, source_id);
             }
             else if( c->type == UIELEM_RS_INV && c->component_id == op->componentno )
             {
-                c->u.rs_inv.inv_source_id = source_id;
+                (void)UITree_SetInventorySourceAt(tree, (int32_t)ni, source_id);
             }
         }
     }

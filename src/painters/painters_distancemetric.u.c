@@ -292,12 +292,7 @@ painter_paint_distancemetric(
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
-        if( g_trap_x != -1 && g_trap_z != -1 && tile_sx == g_trap_x && tile_sz == g_trap_z )
-        {
-            printf("tile_idx: %d\n", tile_idx);
-
-            // __builtin_debugtrap();
-        }
+        PAINTER_DBG_TRAP_TILE(tile_sx, tile_sz, tile_idx);
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.
         // The issue turned out to be...a nuance of the DoublyLinkedList and Node
@@ -471,6 +466,7 @@ painter_paint_distancemetric(
                           bridge_underpass_tile->sz)) )
                 {
                     push_command_terrain(
+                        painter,
                         buffer,
                         bridge_underpass_tile->sx,
                         bridge_underpass_tile->sz,
@@ -507,9 +503,9 @@ painter_paint_distancemetric(
                         if( set & (1u << ml) )
                         {
                             if( !ground_hidden )
-                                push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                                push_command_terrain(painter, buffer, tile_sx, tile_sz, ml);
                             else if( camera_slevel >= 0 && ml <= camera_slevel )
-                                push_command_terrain_pick_only(buffer, tile_sx, tile_sz, ml);
+                                push_command_terrain_pick_only(painter, buffer, tile_sx, tile_sz, ml);
                         }
                 }
 
@@ -707,20 +703,13 @@ painter_paint_distancemetric(
 
         if( tile_paint->step == PAINT_STEP_LOCS )
         {
-            if( (cheb_opts & CHEB_OPT_SCENERY_INSERTION_SORT) != 0 )
-                scenery_queue_insertion_sort(
-                    scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
-            else
-            {
-                s_scenery_sort_painter = painter;
-                s_scenery_sort_camera_sx = camera_sx;
-                s_scenery_sort_camera_sz = camera_sz;
-                qsort(
-                    scenery_queue,
-                    (size_t)scenery_queue_length,
-                    sizeof(scenery_queue[0]),
-                    scenery_distance_compare);
-            }
+            /* Always the insertion sort. The qsort branch this replaced parked
+             * the painter and camera in file-scope statics for its comparator
+             * (portable qsort has no user-data argument); the orders are
+             * identical, and the statics could not survive a nested paint
+             * running inside an outer one. */
+            scenery_queue_insertion_sort(
+                scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
 
             for( int j = 0; j < scenery_queue_length; j++ )
             {

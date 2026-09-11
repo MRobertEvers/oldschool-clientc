@@ -24,7 +24,7 @@
  *   src/build/rs2012_strip_priorities --apply    # rewrite the .ob3 files
  *
  * Re-pack the cache afterwards: the models are assets, so the change only
- * reaches a client through `make -C src mock230-cache-rs2012`.
+ * reaches a client through `make -C src torirsserver-cache-rs2012`.
  */
 
 #include "datatypes/model.h"

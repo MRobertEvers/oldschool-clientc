@@ -1,0 +1,28 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e L1-dcache-load-misses:u -c 1500 -p 13868 --duration 15 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: L1-dcache-load-misses:u (type 3, config 65536)
+Samples: 112479
+Event count: 168718500
+
+Overhead  Sample  Command            Symbol
+14.21%    15980   com.torirs.client  __memcpy_base
+12.83%    14436   gles2-stage        toridraw_compute_projected_face_order_small_general
+10.75%    12097   com.torirs.client  bucket_paint_world
+7.27%     8175    com.torirs.client  toridraw_compute_projected_face_order_small_general
+6.84%     7691    com.torirs.client  gles2_painter_emit_model
+6.13%     6890    com.torirs.client  World_CycleRegisterPainterDynamics
+4.17%     4695    com.torirs.client  scene_occluders_point_hidden_impl
+3.94%     4434    com.torirs.client  gles2_dispatch
+3.76%     4230    com.torirs.client  ToriRS_FrameNextCommand
+3.15%     3540    gles2-stage        toridraw_projection_prepared_neon32_notex_noyaw_noclip
+3.12%     3510    gles2-stage        ToriDraw_ProjectWithVTable
+1.87%     2101    com.torirs.client  ToriDraw_ProjectWithVTable
+1.77%     1990    com.torirs.client  gles2_painter_push_resident
+1.76%     1978    gles2-stage        GLES2DualCoreStage_ComputeModel
+1.58%     1778    com.torirs.client  dualcore_source_take
+1.56%     1758    com.torirs.client  toridraw_projection_prepared_neon32_notex_noyaw_noclip
+1.49%     1677    com.torirs.client  ToriRS_GLES2DualCore_RenderFrame
+1.23%     1389    gles2-stage        dualcore_worker_main
+0.93%     1046    com.torirs.client  gles2_prefetch_ahead_ids
+0.90%     1009    com.torirs.client  scene_occluders_ground_tile_hidden
+0.69%     773     gles2-stage        sort_face_draw_order_small

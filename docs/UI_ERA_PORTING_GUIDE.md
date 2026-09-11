@@ -73,7 +73,7 @@ port is mechanical — **except** for one place it leaks into a format:
 > bit 10, so a trigger subject must be under 2²¹. `bankmain:deposit_line` is
 > interface 12 and fits; `orbs:runbutton` is `160 << 16` and does not. Those
 > scripts compile **name-addressed** and the engine resolves them through
-> `mock230_scripts_run_if_button_named`. Do not widen the on-disk key — it is
+> `ToriRSServer_ScriptsRunIfButtonNamed`. Do not widen the on-disk key — it is
 > LostCity's format and `test-ss-roundtrip` proves this compiler reproduces it
 > byte for byte.
 
@@ -108,7 +108,7 @@ rev 239+ (IfSetEventsV2, i64)   bits 1-10 are DEPRECATED ops
                                 bits 32-63 are the real ops 1..32
 ```
 
-We speak the rev-230 wire (`manifest_osrs230.ini`) against a rev-239 *cache*, so
+We speak the rev-230 wire (`manifests/manifest_osrs230.ini`) against a rev-239 *cache*, so
 the **v1 layout is the correct one** even though the cache is newer. rsprot's
 `protocol/osrs-230/.../IfSetEventsEncoder.kt` vs `osrs-239/.../IfSetEventsV2Encoder.kt`
 is where to check this, and it is the single easiest thing to get silently wrong:
@@ -220,9 +220,9 @@ Given a LostCity `.rs2` that drives an IF1 interface:
    ```sh
    SDL_VIDEODRIVER=dummy TORIRS_NO_MOCK=1 \
      TORIRS_SIM_CLICK_AT="200,545,128" TORIRS_EXIT_BMP=/tmp/shot.bmp \
-     TORIRS_MAX_FRAMES=300 ./src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+     TORIRS_MAX_FRAMES=300 ./src/torirs --manifest manifests/manifest_osrs230.ini --user testc --pass test
    ```
-   and check `mock230: <- IF_BUTTON1 160:28` came back.
+   and check `torirsserver: <- IF_BUTTON1 160:28` came back.
 
 ---
 
@@ -248,7 +248,7 @@ Not landed, in the order they block things:
    the client's event purge (§2.2) makes mandatory, not cosmetic.
 2. ~~**`runclientscript` with string arguments.**~~ **Landed**, and the entry
    was wrong about what it was waiting on. The sender always took a per-argument
-   type string (`mock230_send_run_clientscript_mixed`); what was fixed at one
+   type string (`ToriRSServer_SendRunClientscriptMixed`); what was fixed at one
    int and two strings was the *opcode*. `runclientscript*`
    (`SS_OP_RUNCLIENTSCRIPTVARARG`, 11003) sends any mix, with the arity decided
    at the call site, and content uses it. `~p_choice*` was never blocked by it

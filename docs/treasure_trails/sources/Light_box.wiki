@@ -1,0 +1,36 @@
+{{Infobox Item
+|name = Light box
+|image = [[File:Light box.png]]
+|release = [[6 July]] [[2016]]
+|update = Treasure Trail Expansion (2016)
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Destroy
+|destroy = Are you sure you want to destroy the puzzle box? You will have to start another.
+|examine = I need to brighten its day.
+|value = 100
+|weight = 0.100
+|id = 20355
+}}
+[[File:Light box detail.png|left|130px]]
+A '''light box''' is a puzzle given to the player when doing [[Clue scroll (master)|master]] [[Treasure Trails]]. The goal of the puzzle is to turn all of the lights on.
+
+[[File:Light box interface.png|thumb|left|The light box's interface.]]
+
+==Guide==
+{{Main|Treasure Trails/Guide/Light boxes}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Killerwatt attack.wav|desc=Pressing buttons}}
+{{SFXLine|file=Killerwatt death.wav|desc=Solving}}
+{{SFXTableBottom}}
+
+==Trivia==
+* The appearance of the light box is very similar to that of the [[seed box]]. The only difference is, unlike an open seed box, the light box has no dividers inside of it.
+
+{{Treasure Trails}}

@@ -1,0 +1,226 @@
+{{External|rs}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Spria
+|image = [[File:Spria.png|130px]]
+|release = [[10 September]] [[2020]]
+|update = A Porcine of Interest
+|members = Yes
+|race = [[Human]]
+|quest = [[A Porcine of Interest]]
+|location = [[Draynor Village]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Female
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = She looks friendly, but still quite dangerous!
+|map = {{Map|name=Spria|x=3091|y=3267|plane=0|mtype=pin}}
+|id = 10432,10433,10434
+|leagueRegion = Misthalin&Asgarnia
+}}
+[[File:Spria chathead.png|left]]
+'''Spria''' is a [[Slayer master]] and daughter of [[Turael]]. She lives in a house in [[Draynor Village]] and assists the player with [[Sarah]]'s bounty during the quest [[A Porcine of Interest]].
+
+After the quest, she acts as a Slayer master, assigning the same tasks as her father Turael, with the addition of being able to assign [[sourhog]]s. She is the only Slayer master who can assign them. However, she cannot change a Slayer task from another master into a less difficult one; she will instruct players to visit Turael to do so. Additionally, players cannot skip Spria's tasks using Turael. Completing a task assigned by her will always reward 0 points.
+
+Blocking a task with Spria costs 40 [[Slayer reward point]]s and the block list is shared with [[Turael]]/[[Aya]].
+
+==Tasks==
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+!Unlock requirement
+!class="unsortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Banshee]]s
+|15-30
+|data-sort-value="1520"|{{SCP|Slayer|15}}, {{SCP|Combat|20}}, completion of [[Priest in Peril]]
+|[[Twisted Banshee]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Bat]]s
+|15-30
+|data-sort-value="5"|{{SCP|Combat|5}}
+|[[Giant bat]], [[Albino bat]], [[Death wing]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Bear]]s
+|10-20
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Grizzly bear cub]], [[Bear cub]], [[Grizzly bear]], [[Reanimated bear]], [[Callisto]], [[Artio]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Bird]]s
+|15-30
+|data-sort-value="0"|None
+|[[Chicken]], [[Mounted terrorbird]], [[Terrorbird]], [[Rooster]], [[Chompy bird]], [[Seagull]], [[Penguin (monster)|Penguin]], [[Duck]], [[Duckling]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Cave bug]]s
+|10-30
+|data-sort-value="700"|{{SCP|Slayer|7}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave crawler]]s
+|15-30
+|data-sort-value="1010"|{{SCP|Slayer|10}}, {{SCP|Combat|10}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave slime]]
+|10-20
+|data-sort-value="1715"|{{SCP|Slayer|17}}, {{SCP|Combat|15}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cow]]s
+|15-30
+|data-sort-value="5"|{{SCP|Combat|5}}
+|[[Brutus]], [[Buffalo]], [[Cow calf]], [[Undead cow]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Crawling Hand]]s
+|15-30
+|data-sort-value="500"|{{SCP|Slayer|5}}, completion of [[Priest in Peril]]
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Dog_(disambiguation)|Dog]]s
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Jackal]], [[Guard dog]], [[Wild dog]], [[Reanimated dog]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Dwarves]]
+|10-25
+|data-sort-value="6"|{{SCP|Combat|6}}
+|[[Black Guard]], [[Chaos Dwarf]], [[Dwarf gang member]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ghost]]s
+|15-30
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Tortured soul]], [[Forgotten Soul]], [[Revenants]], [[Death wing]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Goblin]]s
+|15-30
+|data-sort-value="0"|None
+|[[Cave goblin guard]]s, [[Sergeant Strongstack]], [[Sergeant Steelwill]], [[Sergeant Grimspike]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Icefiend]]s
+|15-20
+|data-sort-value="20"|{{SCP|Combat|20}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Kalphite]]s
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]], [[Kalphite Queen]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Lizard]]s
+|15-30
+|data-sort-value="2200"|{{SCP|Slayer|22}}
+|[[Small Lizard]], [[Desert Lizard]], [[Sulphur Lizard]] ({{SCP|Slayer|44}}), [[Grimy Lizard]] ({{SCP|Slayer|44}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Minotaur]]s
+|10-20
+|data-sort-value="7"|{{SCP|Combat|7}}
+|None
+|{{+=|weight|7|echo=2}}
+|-
+|[[Monkey_(monster)|Monkey]]s
+|15-30
+|data-sort-value="0"|None
+|[[Karamjan Monkey]], [[Monkey Guard]], [[Monkey Archer]], [[Monkey Zombie]], [[Demonic gorilla|Demonic Gorilla]], [[Tortured gorilla|Tortured Gorilla]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Rat]]s
+|15-30
+|data-sort-value="0"|None
+|[[Giant rat]], [[Dungeon rat]], [[Crypt rat]], [[Brine rat]], [[Hell-Rat Behemoth]], [[Giant crypt rat]], [[Scurrius]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Scorpion]]s
+|15-30
+|data-sort-value="7"|{{SCP|Combat|7}}
+|[[King Scorpion]], [[Poison Scorpion]], [[Pit Scorpion]], [[Scorpia]], [[Lobstrosity]], [[Reanimated scorpion]], [[Scorpia's offspring (monster)|Scorpia's offspring]], [[Scorpia's guardian]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Skeleton]]s
+|15-30
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Skeleton mage]], Skeletons in the [[Stronghold of Security]] and [[Ancient Cavern]], [[Vet'ion]], [[Skogre]], [[Skeleton (Shayzien Crypts)|Shayzien Crypts Skeletons]], [[Skeleton fremennik]], [[Calvar'ion]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Sourhog]]s
+|15-25
+|data-sort-value="500"|Completion of [[A Porcine of Interest]]
+|None
+|{{+=|weight|6|echo=2}}
+|-
+|[[Spider]]s
+|15-30
+|data-sort-value="0"|None
+|[[Giant spider]], [[Shadow spider]], [[Giant crypt spider]], [[Sarachnis]], [[Temple Spider]], [[Venenatis]], [[Spindel]], [[Araxxor]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Wolf|Wolves]]
+|15-30
+|data-sort-value="20"|{{SCP|Combat|20}}
+|[[Big Wolf]], [[Desert Wolf]], [[Ice wolf]], [[Jungle wolf]], [[White wolf]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Zombie]]s
+|15-30
+|data-sort-value="10"|{{SCP|Combat|10}}
+|[[Monkey Zombie]], [[Undead chicken]], [[Undead cow]], [[Undead Druid]], [[Undead one]], [[Zombie rat]], [[Zogre]], [[Vorkath]]
+|{{+=|weight|7|echo=2}}
+|-
+!colspan="4" |Total [[task weight]]
+!{{#var:weight}}
+|}
+Note: Spria is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]]. 
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = 
+* Blocking a [[Slayer]] task with Spria now costs 40 [[Slayer reward point]]s.
+* [[Turael]], [[Aya]] and Spria now share a block list.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll =
+|change = Various minimum and maximum quantities of Slayer tasks have been reduced.
+}}
+{{Subject changes
+|date = 15 November 2023
+|update = Leagues IV - Trailblazer Reloaded
+|change = The [[Slayer cape]]'s perk now works with Spria.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* In ''RuneScape 3'', Spria replaces Turael as Burthorpe's Slayer Master during and after [[While Guthix Sleeps]]. As Spria was added prior to the ''Old School RuneScape'' release of While Guthix Sleeps, [[Aya]] is instead the replacement for Turael.
+* She appears to be wearing a [[binding necklace]], [[Antisanta boots]], [[leather chaps]], and modified versions of [[Karil's crossbow]] and [[adamant platebody]].
+* Her quote "Still breathin', eh?" during the quest is a reference to Path of Exile from an Act III NPC named "Hargan".
+
+{{A Porcine of Interest}}
+{{Slayer Master}}
+{{Draynor Village}}

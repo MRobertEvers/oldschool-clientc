@@ -1,0 +1,110 @@
+{{otheruses|nuggets found in the [[Motherlode Mine]]|the item found at the Digsite|Nuggets}}
+{{Infobox Item
+|name = Golden nugget
+|image = [[File:Golden nugget.png]]
+|release = [[24 April]] [[2014]]
+|update = The Motherlode Mine!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = A nugget of gold from the Motherlode Mine.
+|value = 100
+|weight = 0.000
+|id = 12012
+}}
+[[File:Golden nugget detail.png|left|100px]]
+
+'''Golden nuggets''' are obtained in the [[Motherlode Mine]] by searching the [[Sack (Motherlode Mine)|sack]] after cleaning the [[pay-dirt]]. 
+
+They can be traded in for various rewards from [[Prospector Percy's Nugget Shop]].
+
+==Spending nuggets==
+{{Main|Prospector Percy's Nugget Shop}}
+{{StoreTableHead|sellmultiplier=1000|buymultiplier=800|delta=0|currency=Golden nugget|column1=Exp boost|column2=Boost per nugget|hidege=yes|bucket=no}}
+{{StoreLine|name=Prospector helmet#Motherlode Mine|image=Prospector helmet.png|displayname=Prospector helmet|restock=1|stock=100|column1=0.4%|column2=0.010%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector jacket#Motherlode Mine|image=Prospector jacket.png|displayname=Prospector jacket|restock=1|stock=100|column1=0.8%|column2=0.013%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector legs#Motherlode Mine|image=Prospector legs.png|displayname=Prospector legs|restock=1|stock=100|column1=0.6%|column2=0.012%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Prospector boots#Motherlode Mine|image=Prospector boots.png|displayname=Prospector boots|restock=1|stock=100|column1=0.2%|column2=0.007%/{{plinkp|Golden nugget}}|gemw=no}}
+{{StoreLine|name=Coal bag|bucketname=Coal bag#Closed|stock=1|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Gem bag|bucketname=Gem bag#Closed|stock=1|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Soft clay pack|bucketname=Soft clay pack#Golden nuggets|stock=1000|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Bag full of gems|bucketname=Bag full of gems#Golden nuggets|image=Bag full of gems (golden nuggets).png|stock=100|column1=N/A|column2=N/A|gemw=no|restock=1}}
+{{StoreTableBottom}}
+
+The Grand Exchange value of the tradeable rewards can be seen in the table below:
+
+{|class="wikitable align-center-1 align-center-3"
+!colspan=2|Item
+!{{plinkp|Golden nugget}} Cost
+![[GE]] Value
+!GP / {{plinkp|Golden nugget}}
+|-
+|{{plinkt|Bag full of gems#Golden nuggets|pic=Bag full of gems (golden nuggets)|txt=Bag full of gems}}
+|{{plinkp|Golden nugget}} 40
+|{{Coins|{{Average drop value|Bag full of gems|raw=y}}}}
+|{{Coins|{{Average drop value|Bag full of gems|raw=y}}/40}}
+|-
+|{{plinkt|Soft clay pack}}
+|{{plinkp|Golden nugget}} 10
+|{{Coins|{{GEP|Soft clay|100}}}}
+|{{Coins|{{GEP|Soft clay|100}}/10}}
+|}
+
+Additionally, the following Motherlode Mine unlocks can be purchased for a one-time fee by talking to Prospector Percy:
+
+* For 100 golden nuggets, players with a base level of 57 Mining can unlock the upper level of the [[Motherlode Mine]]. 
+* For 50 golden nuggets, players can gain access to a hopper on the upper level of the Motherlode Mine. 
+* For 200 golden nuggets, players can also upgrade the [[Sack (Motherlode Mine)|pay-dirt sack]] to hold 189 pay-dirt instead of 108.
+
+==Probabilities==
+There is a 3.13% chance of pay-dirt yielding a golden nugget. A full sack of 108 pay-dirt has a 96.76% probability to contain at least one golden nugget.
+
+Below are probabilities of obtaining a certain number of golden nuggets per given quantity of cleaned pay-dirt.
+{|class="wikitable"
+! colspan="2" rowspan="2" |Number of pay dirt
+!colspan=7|Number of golden nuggets
+!rowspan=2|Average obtained
+|-
+!|0
+!|1
+!|2
+!|3
+!|4
+!|5
+!|6+
+|-
+!Default sack
+!|108
+|3.2%
+|11.3%
+|19.5%
+|22.2%
+|18.8%
+|12.7%
+|12.4%
+!|3.4
+|-
+!Upgraded sack
+!|189
+|0.2%
+|1.5%
+|4.6%
+|9.2%
+|13.8%
+|16.5%
+|54.3%
+!|5.9
+|}
+The number of golden nuggets received is limited to 3 per batch of pay-dirt deposited into the hopper. While this limit doesn't cause issues during normal gameplay (there is a 0.95% chance of 4 or more golden nuggets when depositing 27 pay-dirt), [[Leagues|seasonal events]] with boosted rates can cause golden nuggets to be deleted. To avoid this, players can deposit half of their pay-dirt at a time by dropping the other half before depositing.
+
+==Trivia==
+* Soft clay packs were once tradeable upon release and could be sold to Prospector Percy for golden nuggets, effectively allowing players to buy golden nuggets using coins. This was not widely known or used until [[achievement diaries]] were released, where the [[prospector kit]] was required for the [[hard Falador Diary]]. It was first accepted by [[Jagex Moderator|Jagex Moderators]] as an "unforeseen feature", but packs were changed to become untradeable in an [[Update:Motherlode Expansion & More|update]] on [[9 April]] [[2015]], returning golden nuggets to their intended untradeable status.
+* Prior to an update in November 2023, the golden nugget yield rate was usually 7/256 (2.73%), although there were some levels (43, 57, 71, 85, 99) where the golden nugget yield was 8/256 (3.13%).
+
+{{Currencies}}
+{{Motherlode Mine}}
+{{Gold}}

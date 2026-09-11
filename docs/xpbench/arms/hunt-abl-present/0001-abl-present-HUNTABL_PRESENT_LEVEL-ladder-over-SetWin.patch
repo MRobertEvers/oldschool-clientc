@@ -1,0 +1,147 @@
+From 976eb1e1bee0d0ddcfa906c3e5ef7b6dcb46d1a3 Mon Sep 17 00:00:00 2001
+From: hunt agent <mreverssci@gmail.com>
+Date: Tue, 25 Aug 2026 02:39:26 -0500
+Subject: [PATCH] abl(present): HUNTABL_PRESENT_LEVEL ladder over
+ SetWindowTextA + BitBlt
+
+Throwaway ablation for the XP frame hunt. Level 1 skips the per-frame
+SetWindowTextA, level 2 also skips formatting the title, level 3 also
+skips the BitBlt/StretchBlt that shows the DIB.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/hunt_present_ablate.h        | 31 +++++++++++++++++++++++++++++++
+ src/main.c                       | 23 +++++++++++++++++++++++
+ src/platform/platform_win32gdi.c |  6 ++++++
+ 3 files changed, 60 insertions(+)
+ create mode 100644 src/hunt_present_ablate.h
+
+diff --git a/src/hunt_present_ablate.h b/src/hunt_present_ablate.h
+new file mode 100644
+index 000000000..1bf32896e
+--- /dev/null
++++ b/src/hunt_present_ablate.h
+@@ -0,0 +1,31 @@
++/*
++ * hunt_present_ablate.h -- THROWAWAY ablation switch for the XP frame hunt.
++ *
++ * NOT SHIPPABLE. This header exists to answer "if the present path were free,
++ * what would the frame be?" -- nothing more. It is a compile-time ladder so
++ * that no runtime branch is added to the frame loop.
++ *
++ * Deliberately NOT named TORIDRAW_ABLATE / TORIDRAW_SPAN_CENSUS /
++ * TORIDRAW_SPAN_TRACE: src/makefile gates the four handrolled asm kernels off
++ * those three substrings appearing in TORIDRAW_PROBE_CFLAGS, and a build that
++ * silently dropped them would be measuring a different renderer.
++ *
++ * Levels are nested -- each contains the one below:
++ *
++ *   0  control: nothing cut.
++ *   1  skip the per-frame SetWindowTextA only. The snprintf that formats the
++ *      title still runs. This is the rung a *shippable* "only call
++ *      SetWindowTextA when the string actually changed" fix would recover.
++ *   2  level 1 + skip formatting the title string at all.
++ *   3  level 2 + skip the BitBlt/StretchBlt that puts the DIB on screen.
++ *      The letterbox FillRects around it are left alone, so this rung is a
++ *      bound on the blit itself and not on all of GDI presentation.
++ */
++#ifndef HUNT_PRESENT_ABLATE_H
++#define HUNT_PRESENT_ABLATE_H
++
++#ifndef HUNTABL_PRESENT_LEVEL
++#define HUNTABL_PRESENT_LEVEL 3
++#endif
++
++#endif /* HUNT_PRESENT_ABLATE_H */
+diff --git a/src/main.c b/src/main.c
+index 5ab7f7233..b47b04bce 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -16,6 +16,7 @@
+ #include "platform/net_transport.h"
+ #include "platform/platform_audio.h"
+ #include "platform/platform_sdl2.h"
++#include "hunt_present_ablate.h"
+ #if !defined(TORIRS_PLATFORM_WEB) || defined(TORIRS_WEB_CACHE_IDB)
+ #include "platform/platform_x_io_js5.h"
+ #include "platform/platform_x_io_js5_cache.h"
+@@ -391,14 +392,29 @@ dump_roots(struct App* app)
+     }
+ }
+ 
++/* HUNT ablation sink: keeps the formatted title observable at level 1 so the
++ * optimiser cannot delete the snprintf along with the SetWindowTextA and
++ * collapse rung 1 into rung 2. Never read. */
++#if HUNTABL_PRESENT_LEVEL == 1
++static volatile char g_huntabl_title_sink;
++#endif
++
+ static void
+ update_window_title(
+     struct PlatformSDL2* sdl,
+     struct App const* app,
+     int interface_id)
+ {
++#if HUNTABL_PRESENT_LEVEL >= 2
++    /* HUNT rung 2+: the whole title update is gone, format included. */
++    (void)sdl;
++    (void)app;
++    (void)interface_id;
++#else
+     char title[160];
+ 
++    assert(app);
++
+     snprintf(
+         title,
+         sizeof(title),
+@@ -406,7 +422,14 @@ update_window_title(
+         interface_id,
+         app->hover_com_id,
+         app->clicked_com_id);
++#if HUNTABL_PRESENT_LEVEL >= 1
++    /* HUNT rung 1: format, but never hand it to the window manager. */
++    (void)sdl;
++    g_huntabl_title_sink = (char)(title[0] ^ title[20]);
++#else
+     PlatformSDL2_SetTitle(sdl, title);
++#endif
++#endif
+ }
+ 
+ /* Headless sim frames must render like the real loop does: the world pickset
+diff --git a/src/platform/platform_win32gdi.c b/src/platform/platform_win32gdi.c
+index acc3de545..5d87b7f72 100644
+--- a/src/platform/platform_win32gdi.c
++++ b/src/platform/platform_win32gdi.c
+@@ -35,6 +35,8 @@
+ #include "input/torirs_keymap.h"
+ #include "perf/torirs_perf.h"
+ 
++#include "hunt_present_ablate.h"
++
+ #include <windows.h>
+ 
+ #include <assert.h>
+@@ -275,7 +277,9 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+     {
+         if( box.right == p->width && box.bottom == p->height )
+         {
++#if HUNTABL_PRESENT_LEVEL < 3
+             BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
++#endif
+             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
+         }
+         else
+@@ -290,9 +294,11 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
+                 SetStretchBltMode(dc, HALFTONE);
+                 SetBrushOrgEx(dc, box.left, box.top, NULL);
+             }
++#if HUNTABL_PRESENT_LEVEL < 3
+             StretchBlt(
+                 dc, box.left, box.top, box.right, box.bottom,
+                 p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
++#endif
+             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_STRETCH, 1);
+         }
+         TORIRS_PERF_COUNT(

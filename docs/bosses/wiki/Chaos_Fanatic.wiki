@@ -1,0 +1,190 @@
+{{HasStrategy}}
+{{Infobox Monster
+|name = Chaos Fanatic
+|image = [[File:Chaos Fanatic.png|180px]]
+|release = [[13 March]] [[2014]]
+|update = Rejuvenating the Wilderness: More risk, more reward
+|members = Yes
+|combat = 202
+|size = 1
+|examine = Someone should get out of the lab once in a while...
+|xpbonus = 12.5
+|max hit = 21 (Magic attack)<br>
+31 (Special attack)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged magic]]
+|attack speed = 2
+|respawn = 15
+|slayxp = 253
+|cat = Bosses
+|assignedby = krystilia,konar,nieve,duradel
+|hitpoints = 225
+|att = 1
+|str = 1
+|def = 220
+|mage = 200
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 75
+|rngbns = -20
+|dstab = 260
+|dslash = 260
+|dcrush = 250
+|dmagic = 280
+|dlight = 80
+|dstandard = 50
+|dheavy = 80
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|id = 6619
+}}
+[[File:Fighting Chaos Fanatic.png|thumb|right|250px|The green magical attack players should avoid.]]
+The '''Chaos Fanatic''' is a relatively simple [[boss]] that resides west of the [[Lava Maze]] in level 42 [[Wilderness]], surrounded by [[miniature chaotic clouds]] that serve as unattackable scenery. His special attack mechanic is similar to that of the [[Crazy archaeologist|crazy]] and [[deranged archaeologist|deranged]] archaeologists.
+
+The Chaos Fanatic is notable for dropping one of the three shards that form the [[malediction ward]] and [[odium ward]], with the [[Crazy archaeologist]] and [[Scorpia]] dropping the other pieces. Killing all three at least  once is a hard [[Wilderness Diary]] task.
+
+He is one of the only monsters to drop the [[ancient staff]], along with [[Mummy|mummies]], [[Calvar'ion]], and the [[thermonuclear smoke devil]].
+
+{{clear|left}}
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Chaos Fanatic
+|location = West of the [[Lava Maze]]
+|levels = 202
+|members = Yes
+|mapID = 0
+|plane = 0
+|x:2979,y:3846
+|mtype = pin
+|leagueRegion = wilderness
+}}
+{{LocTableBottom}}
+
+The fastest way to reach the Chaos Fanatic is by casting [[Ghorrock Teleport]] or using its [[Ghorrock teleport (tablet)|magic tablet]] equivalent. Alternatively, a [[burning amulet]] can teleport players to the entrance of the [[Lava Maze]]; run west from there. Alternatively, players with the hard [[Wilderness Diary]] completed and a [[Obelisk (Construction)|POH obelisk]] can select the level 44 Wilderness teleport.
+
+==Fight overview==
+{{Main|Chaos Fanatic/Strategies}}
+The Chaos Fanatic is located in [[single-way combat]], meaning the player will be safe from player killers while in active combat with the boss.
+
+He is weakest to [[Ranged]] attacks, particularly from [[standard ranged weapons]]. His main attack is a basic red-coloured [[Magic]] projectile with a max hit of 31, from which [[Protect from Magic]] negates all damage. He additionally has two special attacks.
+
+For his first special attack, he will periodically cast an unavoidable green projectile that disarms the player. This special attack can be entirely negated by ensuring that the inventory is full at all times. This can be achieved by only using [[food]] that leaves behind an item, such as the [[summer pie]], along with disabling potion smashing in the [[Settings#Gameplay|gameplay settings]].
+
+For his second special attack, he will periodically cast three slow-moving green projectiles toward the player which explode on impact with the ground. One of them always targets the tile the player is standing on when it's launched, and may be easily avoided by moving a small distance in any direction. Unlike the crazy and deranged archaeologists, this attack is not preceded by a specific voice line, though it is generally easier to avoid due to its slow speed and inaccuracy.
+
+The explosion attack is always followed by a 12-attack cooldown during which he can only launch the standard red attacks, so players are free to look away from the screen for 24 ticks (14.4 seconds) after each explosion. Following the cooldown, and at the beginning of the fight, there is a 10/15 chance for him to launch a standard red attack, 4/15 to launch an explosion, and 1/15 to launch the disarming attack.
+
+== Money making ==
+{{Mmgsection|Killing the Chaos Fanatic}}
+
+==Drops==
+{{DropLogProject|jagex=yes}}
+
+{{Average drop value}} If on a [[Konar quo Maten|Konar]] task, the average kill is instead worth {{Coins|{{Average drop value|brimstone=yes|raw=yes}}}}; or, for [[Krystilia]], {{Coins|{{Average drop value|wildernessslayer=yes|raw=yes}}}} per kill, on average. 
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Odium shard 1|quantity=1|rarity=1/256|raritynotes=<ref group=d name="shard">The drop rate is 1/256 for a specific shard, or 1/128 for any shard.</ref>}}
+{{DropsLine|name=Malediction shard 1|quantity=1|rarity=1/256|raritynotes=<ref group=d name="shard"/>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Battlestaff|quantity=5 (noted)|rarity=5/128}}
+{{DropsLine|name=Splitbark body|quantity=1|rarity=5/128}}
+{{DropsLine|name=Splitbark legs|quantity=1|rarity=5/128}}
+{{DropsLine|name=Zamorak monk top|quantity=1|rarity=4/128|raritynotes=<ref group=d name="robes">Zamorak robe top and bottom are dropped together.</ref>}}
+{{DropsLine|name=Zamorak monk bottom|quantity=1|rarity=4/128|raritynotes=<ref group=d name="robes"/>}}
+{{DropsLine|name=Ancient staff|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Fire rune|quantity=250|rarity=4/128}}
+{{DropsLine|name=Smoke rune|quantity=30|rarity=4/128}}
+{{DropsLine|name=Chaos rune|quantity=175|rarity=4/128}}
+{{DropsLine|name=Blood rune|quantity=50|rarity=4/128}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Monkfish|quantity=3|rarity=8/128}}
+{{DropsLine|name=Shark|quantity=1|rarity=8/128}}
+{{DropsLine|name=Prayer potion(4)|quantity=1|rarity=8/128}}
+{{DropsLine|name=Anchovy pizza|quantity=8 (noted)|rarity=4/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=499-3998|rarity=18/128|gemw=No}}
+{{DropsLine|name=Grimy lantadyme|quantity=4 (noted)|rarity=8/128}}
+{{DropsLine|name=Ring of life|quantity=1|rarity=7/128}}
+{{DropsLine|name=Chaos talisman|quantity=1|rarity=6/128}}
+{{DropsLine|name=Wine of Zamorak|quantity=10 (noted)|rarity=6/128}}
+{{DropsLine|name=Uncut emerald|quantity=6 (noted)|rarity=5/128|raritynotes=<ref name=gems group=d>6 [[uncut emerald]]s are dropped alongside 4 [[uncut sapphire]]s.</ref>}}
+{{DropsLine|name=Uncut sapphire|quantity=4 (noted)|rarity=5/128|raritynotes=<ref name=gems group=d />}}
+{{DropsLine|name=Sinister key|quantity=1|rarity=4/128}}
+{{DropsLine|name=Pure essence|quantity=250 (noted)|rarity=2/128}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Rare and gem drop table===
+{{RareDropTable|4/128|4/128|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/3|gemw=No}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|202}}|raritynotes=<ref group=d>Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Wilderness&Kourend}}
+{{DropsLineClue|type=hard|rarity=1/128|altrarity=1/64|raritynotes=<ref group=d>The hard clue scroll drop rate increases to 1/64 if a [[ring of wealth (i)]] is worn.</ref>}}
+{{DropsLine|name=Pet Chaos Elemental|quantity=1|rarity=1/1000|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Wilderness Slayer tertiary===
+{{WildernessSlayerDropTable|combat=202|hitpoints=225|boss=yes}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Chaos Fanatic}}
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|change = Chaos Fanatic's standard ranged defence has been decreased from 80 to 50.
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+}}
+{{Subject changes
+|date = 2 April 2025
+|update = Poll 83: Castle Wars Update
+|change = The Chaos Fanatic's area-of-effect attack will now only affect the last player who engaged in combat.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The Chaos Fanatic's idle animation is similar to [[Dr Harlow]] before he is sober.
+*The Chaos Fanatic's quote "''I shall call him squidgy and he shall be my squidgy!''" is a reference to the Pixar movie ''{{wp|Finding Nemo}}''.
+*The Chaos Fanatic's quote "''All your wilderness are belong to them!''" is a reference to the phrase "All your base are belong to us," which originated in the 1989 game ''Zero Wing'' and has made it into many games since then.
+*The Chaos Fanatic's quote "''Devilish Oxen Roll!''" is an anagram of "Lord Helix lives on!". This is a reference to a character in the first ''Twitch Plays Pokémon'' which ended on March 1st 2014, two weeks before the Chaos Fanatic was added to the game.
+*The Chaos Fanatic has disciples, as shown by the [[Lesser Fanatic]] wandering near [[Edgeville]].
+
+{{Wilderness bosses}}
+{{Bosses}}
+[[Category:Wilderness]]

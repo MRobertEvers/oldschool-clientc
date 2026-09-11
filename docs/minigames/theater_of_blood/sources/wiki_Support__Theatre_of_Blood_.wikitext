@@ -1,0 +1,31 @@
+{{Otheruses|the pillars in the [[Nylocas]]' room|the pillars near [[Verzik Vitur]]|Supporting Pillar}}
+{{Infobox Scenery
+|version1 = Support
+|version2 = Breaking
+|version3 = Broken
+|name1 = Support
+|name2 = Support
+|name3 = Broken support
+|image1 = [[File:Support (Theatre of Blood).png|120px]]
+|image2 = [[File:Support (Theatre of Blood, Breaking).png|120px]]
+|image3 = [[File:Broken support.png|120px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|location = [[Theatre of Blood]]
+|options = None
+|examine1 = It's holding up something important.
+|examine2 = That's not good.
+|examine3 = It's broken.
+|map = {{Map|x:3291,y:4254|x:3301,y:4254|x:3301,y:4244|x:3291,y:4244|mtype=pin|mapID=-1}}
+|id1 = 32862
+|id2 = 32863
+|id3 = 32864
+}}
+
+Four '''supports''' can be found inside the [[Nylocas]] lair in the [[Theatre of Blood]]. They must be defended by the players against the Nylocas horde.
+
+These pillars have a certain amount of hitpoints, and when their hitpoints reach zero, they collapse. When this happens, rocks fall from the roof on all players in the room, dealing considerable damage to players. When all pillars are destroyed the roof is not supported anymore and all players will die instantly.
+
+[[File:Fighting Nylocas hordes.png|thumb|left|Supports being attacked by the [[Nylocas]].]]

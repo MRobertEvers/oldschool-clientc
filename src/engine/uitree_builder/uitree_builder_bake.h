@@ -8,6 +8,7 @@ struct UITreeBuilder;
 struct UIBuilderManifest;
 struct InvManager;
 struct ToriRS_ComponentPack;
+struct UITreeSceneBridge;
 
 void
 uitree_builder_bake(
@@ -30,11 +31,6 @@ uitree_builder_bake_pack_under_owner(
     struct ToriRS_ComponentPack const* pack,
     int32_t owner_idx,
     int inv_source_id);
-
-/* Standard human idle sequence for the player preview (clientCode 327/328). */
-#ifndef UITREE_BUILDER_PLAYER_IDLE_SEQ
-#define UITREE_BUILDER_PLAYER_IDLE_SEQ 808
-#endif
 
 /**
  * Hide root-sibling interface groups that nothing has mounted.
@@ -64,6 +60,8 @@ uitree_builder_hide_unmounted_spillover(
  * seq 0) does not leave only the head animating.
  */
 void
-uitree_builder_reassert_player_idle_anim(struct UITree* tree);
+uitree_builder_reassert_player_idle_anim(
+    struct UITree* tree,
+    struct UITreeSceneBridge const* bridge);
 
 #endif

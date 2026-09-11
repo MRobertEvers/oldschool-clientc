@@ -58,10 +58,13 @@ test_emit_icons(void)
     tree->components[grid].u.rs_inv.rows = 7;
     tree->components[grid].u.rs_inv.margin_x = 0;
     tree->components[grid].u.rs_inv.margin_y = 0;
-    tree->components[grid].u.rs_inv.inv_slot_offset_x[1] = 5;
-    tree->components[grid].u.rs_inv.inv_slot_offset_y[1] = 3;
-    for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
-        tree->components[grid].u.rs_inv.inv_slot_bg_scene_id[i] = -1;
+    {
+        struct UITreeInvSlots* slots = UITree_InvSlotsMut(&tree->components[grid]);
+        slots->offset_x[1] = 5;
+        slots->offset_y[1] = 3;
+        for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
+            slots->bg_scene_id[i] = -1;
+    }
 
     hs.inv_source_id = 1;
     hs.inv_slots[1].obj_id = 995;
@@ -168,6 +171,66 @@ test_emit_stack_count_zero(void)
         TEST_ASSERT(strstr(txt, "0") != NULL, "count text contains \"0\"");
         TEST_ASSERT(strstr(txt, "1") == NULL, "count text does NOT read \"1\"");
     }
+
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+/*
+ * ...and the one cell that must NOT: a bank placeholder.
+ *
+ * `bankmain_drawitem` (clientscript 278) draws a placeholder with the plain
+ * opcode at a count of zero — `cc_setobject($obj, 0)` — which is byte for byte
+ * what the shop line above does. Same opcode, same count, opposite answer, so
+ * the only thing that can tell them apart is the obj record, and the client
+ * asks the host for it. Without the check every placeholder in the bank wore a
+ * yellow "0".
+ */
+void
+test_emit_stack_count_placeholder(void)
+{
+    printf("TEST: a bank placeholder at count 0 draws no number\n");
+
+    struct UITree* tree = UITree_New(4);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+    /* 14730: bronze sword's placeholder — the pair the server selftest uses. */
+    hs.placeholder_obj_id = 14730;
+
+    struct UITreeNodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_CC_OBJ;
+    spec.component_id = 951;
+    spec.x = 10;
+    spec.y = 10;
+    spec.width = 36;
+    spec.height = 32;
+    int32_t idx = UITree_Push(tree, -1, &spec);
+    tree->components[idx].dynamic = 1;
+
+    TEST_ASSERT(UITree_ApplyObject(tree, 951, /*obj_id=*/14730, /*count=*/0,
+                                   /*scene_id=*/7, /*atlas_index=*/0, /*num_mode=*/0),
+                "ApplyObject(placeholder, count=0) accepted");
+
+    UITree_TestResolve(tree);
+
+    struct UITreeEmitBuffer buf;
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+
+    int text_idx = -1;
+    for( int i = 0; i < buf.count; i++ )
+    {
+        if( buf.cmds[i].kind == UITREE_EMIT_TEXT && buf.cmds[i].component_id == 951 )
+        {
+            text_idx = i;
+            break;
+        }
+    }
+    if( text_idx >= 0 )
+        printf("  placeholder cell drew \"%s\"\n", buf.cmds[text_idx].text_formatted);
+    TEST_ASSERT(text_idx < 0, "no count text over a placeholder cell");
 
     UITree_EmitBufferFree(&buf);
     UITree_Free(tree);

@@ -1,15 +1,22 @@
 #include "uitree_layout.h"
 
+#include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
 #include "ui_if3_layout.h"
+#include "uitree_frame.h"
 
 #include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* Fixed-mode client canvas — the historical default. */
 int UITree_LayoutRootWidth = 765;
 int UITree_LayoutRootHeight = 503;
+
+/* Nothing covers the canvas until a platform says so. */
+int UITree_LayoutSafeBottomInset = 0;
 
 void
 UITree_LayoutSetRootSize(int width, int height)
@@ -21,12 +28,116 @@ UITree_LayoutSetRootSize(int width, int height)
 }
 
 void
+UITree_LayoutSetSafeBottomInset(int inset)
+{
+    /* Stored as reported. UITree_LayoutSafeBottomEdge does the clamping, so a
+     * canvas that shrinks AFTER the platform reported the band is still
+     * answered sanely -- and both readers get the same answer. */
+    UITree_LayoutSafeBottomInset = inset < 0 ? 0 : inset;
+}
+
+/*
+ * Who invalidated the layout, and how often did it cost a walk?
+ *
+ * TORIRS_LAYOUT_BLAME=1 only. The question this answers is not "how many
+ * invalidations happen" -- redundant ones are free, because the second
+ * invalidation of a frame costs nothing. It is "which call site raised
+ * layout_stale from 0, i.e. which one is responsible for the full-tree walk
+ * that follows". So the histogram keys on the 0->1 transition and nothing
+ * else.
+ *
+ * The caller is identified by return address rather than by threading a
+ * __LINE__ through every setter: the interesting invalidators all funnel
+ * through uitree_note_mutation, which does not know which typed setter called
+ * it, and the ones that do not funnel are reached from a dozen places. Build
+ * this at OPT=0 to read it -- with LTO the frame that returns here is often
+ * not the frame you wanted named.
+ */
+/* Past this many distinct seeds in one frame the full sweep is cheaper
+ * than the worklist, and the fallback keeps the worst case at exactly the
+ * old behaviour. */
+#define UITREE_LAYOUT_DIRTY_MAX 256
+
+#define UITREE_LAYOUT_BLAME_SLOTS 512
+
+static struct
+{
+    void* ra;
+    uint32_t count;
+} g_layout_blame[UITREE_LAYOUT_BLAME_SLOTS];
+
+static uint32_t g_layout_blame_total;
+static uint32_t g_layout_blame_lost;
+static int g_layout_blame_on = -1;
+
+static void
+uitree_layout_blame_dump(void)
+{
+    uint32_t i;
+    fprintf(stderr, "layout-blame: %u stale 0->1 transitions", g_layout_blame_total);
+    if( g_layout_blame_lost )
+        fprintf(stderr, ", %u unattributed (table full)", g_layout_blame_lost);
+    fprintf(stderr, "\n");
+    for( i = 0; i < UITREE_LAYOUT_BLAME_SLOTS; i++ )
+    {
+        if( !g_layout_blame[i].count )
+            continue;
+        fprintf(stderr, "layout-blame: %8u  anchor%+lld\n",
+            g_layout_blame[i].count,
+            (long long)((char*)g_layout_blame[i].ra
+                        - (char*)(void*)uitree_layout_blame_dump));
+    }
+}
+
+static void
+uitree_layout_blame(void* ra)
+{
+    uintptr_t h;
+    uint32_t i;
+
+    if( g_layout_blame_on < 0 )
+    {
+        g_layout_blame_on = getenv("TORIRS_LAYOUT_BLAME") ? 1 : 0;
+        if( g_layout_blame_on )
+            atexit(uitree_layout_blame_dump);
+    }
+    if( !g_layout_blame_on )
+        return;
+
+    g_layout_blame_total++;
+    h = (uintptr_t)ra;
+    h = (h >> 4) ^ (h >> 12);
+    for( i = 0; i < 64; i++ )
+    {
+        uint32_t slot = (uint32_t)((h + i) & (UITREE_LAYOUT_BLAME_SLOTS - 1));
+        if( g_layout_blame[slot].ra == ra )
+        {
+            g_layout_blame[slot].count++;
+            return;
+        }
+        if( !g_layout_blame[slot].ra )
+        {
+            g_layout_blame[slot].ra = ra;
+            g_layout_blame[slot].count = 1;
+            return;
+        }
+    }
+    g_layout_blame_lost++;
+}
+
+/* The 0->1 transition is the whole signal; see uitree_layout_blame. */
+#define UITREE_LAYOUT_BLAME_HERE(tree)     do     {         if( !(tree)->layout_stale )             uitree_layout_blame(__builtin_return_address(0));     } while( 0 )
+
+void
 UITree_LayoutInvalidate(struct UITree* tree)
 {
     assert(tree);
 
+    UITREE_LAYOUT_BLAME_HERE(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
+    /* Every box is now unresolved, so there is no useful seed set. */
+    tree->layout_dirty_overflow = 1;
     tree->layout_stale = 1;
     tree->layout_resolved_valid = 0;
 }
@@ -35,8 +146,42 @@ void
 UITree_LayoutInvalidateBoxes(struct UITree* tree)
 {
     assert(tree);
+    UITREE_LAYOUT_BLAME_HERE(tree);
+    /* No node named, so the next resolve cannot know where to start. */
+    tree->layout_dirty_overflow = 1;
     tree->layout_stale = 1;
     tree->layout_resolved_valid = 0;
+}
+
+void
+UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+
+    UITREE_LAYOUT_BLAME_HERE(tree);
+    tree->layout_stale = 1;
+    tree->layout_resolved_valid = 0;
+
+    if( tree->layout_dirty_overflow )
+        return;
+    if( tree->layout_dirty_count == tree->layout_dirty_cap )
+    {
+        uint32_t const cap = tree->layout_dirty_cap ? tree->layout_dirty_cap * 2u : 32u;
+        int32_t* grown;
+        if( cap > UITREE_LAYOUT_DIRTY_MAX )
+        {
+            /* More distinct nodes than the list is worth: the sweep wins. */
+            tree->layout_dirty_overflow = 1;
+            return;
+        }
+        grown = realloc(tree->layout_dirty, (size_t)cap * sizeof(*grown));
+        assert(grown);
+        tree->layout_dirty = grown;
+        tree->layout_dirty_cap = cap;
+    }
+    tree->layout_dirty[tree->layout_dirty_count++] = idx;
 }
 
 void
@@ -73,37 +218,96 @@ axis_from_position_mode(
 
 static void
 resolve_relative(
-    struct UITreeElemPosition* pos,
+    struct UITreeElemPosition const* spec,
+    struct UITreeElemPosition* out,
     int parent_x,
     int parent_y,
     int parent_w,
-    int parent_h)
+    int parent_h,
+    bool exact_size)
 {
     int x = parent_x;
     int y = parent_y;
-    int w = pos->width > 0 ? pos->width : parent_w;
-    int h = pos->height > 0 ? pos->height : parent_h;
+    int w = exact_size || spec->width > 0 ? spec->width : parent_w;
+    int h = exact_size || spec->height > 0 ? spec->height : parent_h;
 
-    if( pos->relative_flags & UITREE_RELATIVE_FLAG_LEFT )
-        x = parent_x + pos->left;
-    else if( pos->relative_flags & UITREE_RELATIVE_FLAG_RIGHT )
-        x = parent_x + parent_w - pos->right - w;
+    if( spec->relative_flags & UITREE_RELATIVE_FLAG_LEFT )
+        x = parent_x + spec->left;
+    else if( spec->relative_flags & UITREE_RELATIVE_FLAG_RIGHT )
+        x = parent_x + parent_w - spec->right - w;
 
-    if( pos->relative_flags & UITREE_RELATIVE_FLAG_TOP )
-        y = parent_y + pos->top;
-    else if( pos->relative_flags & UITREE_RELATIVE_FLAG_BOTTOM )
-        y = parent_y + parent_h - pos->bottom - h;
+    if( spec->relative_flags & UITREE_RELATIVE_FLAG_TOP )
+        y = parent_y + spec->top;
+    else if( spec->relative_flags & UITREE_RELATIVE_FLAG_BOTTOM )
+        y = parent_y + parent_h - spec->bottom - h;
 
-    if( !(pos->relative_flags & (UITREE_RELATIVE_FLAG_LEFT | UITREE_RELATIVE_FLAG_RIGHT)) )
+    if( !(spec->relative_flags & (UITREE_RELATIVE_FLAG_LEFT | UITREE_RELATIVE_FLAG_RIGHT)) )
         x = parent_x + (parent_w - w) / 2;
-    if( !(pos->relative_flags & (UITREE_RELATIVE_FLAG_TOP | UITREE_RELATIVE_FLAG_BOTTOM)) )
+    if( !(spec->relative_flags & (UITREE_RELATIVE_FLAG_TOP | UITREE_RELATIVE_FLAG_BOTTOM)) )
         y = parent_y + (parent_h - h) / 2;
 
-    pos->abs_x = x;
-    pos->abs_y = y;
-    pos->abs_w = w;
-    pos->abs_h = h;
-    pos->layout_resolved = 1;
+    out->abs_x = x;
+    out->abs_y = y;
+    out->abs_w = w;
+    out->abs_h = h;
+    out->layout_resolved = 1;
+}
+
+/*
+ * Slide a resolved box clear of the safe area its profile named, if it named
+ * one. The OS one is the only area this resolves today.
+ *
+ * Only the bottom edge exists to dodge (see UITREE_SAFE_AREA_FLAG_BOTTOM), and
+ * the move is a pure translation: the box keeps its size and gives up exactly
+ * the overlap plus the margin it asked for, so with the keyboard away -- which
+ * is every desktop frame ever drawn -- the shift is zero and the row sits where
+ * its coordinates put it.
+ *
+ * Written onto abs_y and nothing else. The authored y is never touched, so the
+ * keyboard going away is undone by the next resolve rather than by remembering
+ * how far something was displaced -- which is what made the old role-specific
+ * version need a tree-generation stamp to tell an un-lifted rebuild from a
+ * lifted one.
+ *
+ * Canvas coordinates, not the parent's: the band belongs to the WINDOW, and a
+ * panel three parents deep is under the keyboard on exactly the same rows as
+ * one hung off the root.
+ */
+static void
+apply_safe_area(struct UITreeElemPosition* pos)
+{
+    int visible_bottom;
+    int shift;
+
+    assert(pos);
+    if( pos->safe_area_source == UITREE_SAFE_AREA_SOURCE_NONE )
+        return;
+    if( pos->safe_area_source != UITREE_SAFE_AREA_SOURCE_OS )
+    {
+        /* A profile written against a client that cannot resolve the area it
+         * named. Saying so beats placing the row as though it had asked for
+         * nothing, which is indistinguishable from a working layout until
+         * somebody raises a keyboard. */
+        TORIRS_ERR(
+            "layout: safe area source %d is not one this client resolves\n",
+            pos->safe_area_source);
+        return;
+    }
+    if( !(pos->safe_area_flags & UITREE_SAFE_AREA_FLAG_BOTTOM) )
+        return;
+    if( UITree_LayoutSafeBottomInset <= 0 )
+        return;
+
+    visible_bottom = UITree_LayoutSafeBottomEdge();
+    shift = pos->abs_y + pos->abs_h + pos->safe_area_margin - visible_bottom;
+    if( shift <= 0 )
+        return;
+    /* Off the top is not a rescue. A box taller than what the keyboard leaves
+     * cannot fit whatever it does, and the top of it is the half that names
+     * what the player is looking at. */
+    if( shift > pos->abs_y )
+        shift = pos->abs_y;
+    pos->abs_y -= shift;
 }
 
 /*
@@ -166,66 +370,74 @@ layout_compute_node(
 {
     struct UITreeComponent* c = &tree->components[i];
     struct UITreeElemPosition* pos = &c->position;
+    struct UITreeElemPosition override;
+    struct UITreeElemPosition const* spec = pos;
     int const was_resolved = pos->layout_resolved;
     int const old_x = pos->abs_x;
     int const old_y = pos->abs_y;
     int const old_w = pos->abs_w;
     int const old_h = pos->abs_h;
 
-    if( pos->kind == UIPOS_RELATIVE )
+    override = *spec;
+    int const widget_override = UITree_WidgetPositionOverride(tree, (int32_t)i, &override);
+    if( widget_override ) spec = &override;
+
+    if( spec->kind == UIPOS_RELATIVE )
     {
-        resolve_relative(pos, px, py, pw, ph);
+        resolve_relative(spec, pos, px, py, pw, ph, (widget_override & 2) != 0);
+        apply_safe_area(pos);
         return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
                pos->abs_w != old_w || pos->abs_h != old_h;
     }
 
-    int w = pos->width;
-    int h = pos->height;
-    if( pos->width_mode >= 0 || pos->height_mode >= 0 )
+    int w = spec->width;
+    int h = spec->height;
+    if( spec->width_mode >= 0 || spec->height_mode >= 0 )
     {
-        int8_t wm = pos->width_mode >= 0 ? pos->width_mode : 0;
-        int8_t hm = pos->height_mode >= 0 ? pos->height_mode : 0;
+        int8_t wm = spec->width_mode >= 0 ? spec->width_mode : 0;
+        int8_t hm = spec->height_mode >= 0 ? spec->height_mode : 0;
         if( wm == 4 || hm == 4 )
         {
             UITree_If3ComputeSize(
                 wm,
                 hm,
-                pos->width,
-                pos->height,
+                spec->width,
+                spec->height,
                 pw,
                 ph,
-                pos->aspect_w > 0 ? pos->aspect_w : 1,
-                pos->aspect_h > 0 ? pos->aspect_h : 1,
+                spec->aspect_w > 0 ? spec->aspect_w : 1,
+                spec->aspect_h > 0 ? spec->aspect_h : 1,
                 &w,
                 &h);
         }
         else
         {
-            w = dim_from_parent_mode(wm, pos->width, pw);
-            h = dim_from_parent_mode(hm, pos->height, ph);
+            w = dim_from_parent_mode(wm, spec->width, pw);
+            h = dim_from_parent_mode(hm, spec->height, ph);
         }
     }
 
-    if( c->parent < 0 && w == 0 && h == 0 )
+    if( c->parent < 0 && w == 0 && h == 0 && !(widget_override & 2) )
     {
         w = pw;
         h = ph;
     }
 
-    int rx = pos->x;
-    int ry = pos->y;
-    if( pos->x_mode >= 0 || pos->y_mode >= 0 )
+    int rx = spec->x;
+    int ry = spec->y;
+    if( spec->x_mode >= 0 || spec->y_mode >= 0 )
     {
-        int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
-        int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
-        rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
-        ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
+        int8_t ym = spec->y_mode >= 0 ? spec->y_mode : 0;
+        int8_t xm = spec->x_mode >= 0 ? spec->x_mode : 0;
+        rx = axis_from_position_mode(xm, spec->x, 0, pw, w);
+        ry = axis_from_position_mode(ym, spec->y, 0, ph, h);
     }
 
     pos->abs_x = px + rx;
     pos->abs_y = py + ry;
     pos->abs_w = w;
     pos->abs_h = h;
+    apply_safe_area(pos);
     pos->layout_resolved = 1;
     return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y || pos->abs_w != old_w ||
            pos->abs_h != old_h;
@@ -308,10 +520,15 @@ UITree_EnsureLayoutFor(
     }
 }
 
+/* Growth gauges only. Counting the free list means walking it, and a resolve
+ * runs several times per frame inside the CS2 settle loop, so this is gated on
+ * the perf module actually wanting a sample rather than run on every resolve. */
 static void
 uitree_perf_snapshot(struct UITree const* tree)
 {
     int free_len = 0;
+    if( !TorirsPerf_GaugeSampleDue(TORIRS_PERF_GAUGE_SITE_UITREE_LAYOUT) )
+        return;
     for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
         free_len++;
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_COMPONENTS, (int64_t)tree->component_count);
@@ -320,6 +537,142 @@ uitree_perf_snapshot(struct UITree const* tree)
     TORIRS_PERF_COUNT_SET(
         TORIRS_PERF_CTR_UITREE_NODE_BYTES,
         (int64_t)sizeof(struct UITreeComponent) * tree->component_capacity);
+}
+
+/* Depth of `idx` from the root, by walking parents. Only ever called on a
+ * seed, and a UI tree is a dozen deep, so this is cheaper than keeping a
+ * depth array in step with every reparent. */
+static int
+layout_depth_of(struct UITree const* tree, int32_t idx)
+{
+    int d = 0;
+    while( idx >= 0 && (uint32_t)idx < tree->component_count )
+    {
+        idx = tree->components[idx].parent;
+        d++;
+    }
+    return d;
+}
+
+/*
+ * Resolve only what the seeds can reach.
+ *
+ * A node's box depends on its own fields and its parent's box and nothing
+ * else, so a node whose parent was NOT recomputed already holds the value the
+ * sweep would give it -- layout_parent_box reads that box directly. What has
+ * to be visited is therefore each seed, plus the descendants of every node
+ * whose box actually moved.
+ *
+ * Seeds are processed shallowest first so an ancestor seed is recomputed
+ * before a descendant seed reads its box; children are appended as they are
+ * discovered and are always deeper than the node that pushed them, so the
+ * queue stays in a valid order without a sort.
+ *
+ * Returns the number of nodes visited, for the counter the sweep also feeds.
+ */
+static int64_t
+layout_resolve_dirty(
+    struct UITree* tree,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h)
+{
+    uint32_t const n = tree->component_count;
+    uint32_t head = 0;
+    int64_t visited = 0;
+
+    assert(tree);
+    assert(!tree->layout_dirty_overflow);
+
+    /* Insertion sort by depth: the seed list is a handful of entries (a busy
+     * frame produced one), so this beats anything with a better bound. */
+    for( uint32_t i = 1; i < tree->layout_dirty_count; i++ )
+    {
+        int32_t const v = tree->layout_dirty[i];
+        int const dv = layout_depth_of(tree, v);
+        uint32_t j = i;
+        while( j > 0 && layout_depth_of(tree, tree->layout_dirty[j - 1]) > dv )
+        {
+            tree->layout_dirty[j] = tree->layout_dirty[j - 1];
+            j--;
+        }
+        tree->layout_dirty[j] = v;
+    }
+
+    /* The seed list doubles as the work queue: children are appended past
+     * layout_dirty_count.  A node can enter it twice -- once as a seed, once
+     * because its parent moved and pushed it -- and every node has exactly
+     * one parent, so n + seeds is the ceiling and cannot be exceeded.  Which
+     * is what makes the append below an assertion rather than a drop: a
+     * dropped append is a subtree silently left on last frame's box. */
+    {
+        uint32_t const need = n + tree->layout_dirty_count + 1u;
+        if( tree->layout_dirty_cap < need )
+        {
+            int32_t* grown =
+                realloc(tree->layout_dirty, (size_t)need * sizeof(*grown));
+            assert(grown);
+            tree->layout_dirty = grown;
+            tree->layout_dirty_cap = need;
+        }
+    }
+
+    while( head < tree->layout_dirty_count )
+    {
+        int32_t const i = tree->layout_dirty[head++];
+        int px;
+        int py;
+        int pw;
+        int ph;
+        int jit_moved;
+
+        if( i < 0 || (uint32_t)i >= n || tree->components[i].freed )
+            continue;
+
+        /*
+         * A box this walk finds unmoved may still have moved THIS frame.
+         *
+         * UITree_EnsureLayoutFor services a CS2 getter by resolving one
+         * root->node chain, which applies the new box and leaves the node
+         * reading as resolved. It records that in layout_changed[] precisely
+         * because the node's descendants have not read the new box yet -- but
+         * only the full sweep below ever consulted that array, so on the
+         * incremental path layout_compute_node answered "unmoved" (the JIT had
+         * already stored the value), the children were never appended, and the
+         * whole subtree stayed on last frame's box.
+         *
+         * That is a set-then-get script leaving half a gameframe behind: the
+         * CS2 popout strip widens its container, `if_getwidth` on the way past
+         * JIT-resolves it, and the minimap, tab strip and inventory under it
+         * keep their old boxes until something forces a full pass -- which is
+         * why a window resize "fixed" it.
+         *
+         * Consume the mark: the propagation it was asking for happens here.
+         */
+        jit_moved = tree->layout_changed && (uint32_t)i < tree->layout_cap &&
+                    tree->layout_changed[i];
+        if( jit_moved )
+            tree->layout_changed[i] = 0;
+
+        visited++;
+        layout_parent_box(
+            tree, tree->components[i].parent, root_x, root_y, root_w, root_h,
+            &px, &py, &pw, &ph);
+        if( !layout_compute_node(tree, (uint32_t)i, px, py, pw, ph) && !jit_moved )
+            continue;
+
+        /* The box moved, so every descendant reads a different parent box.
+         * Appending only the direct children is enough: each one that moves
+         * in turn appends its own. */
+        for( int32_t c = tree->components[i].first_child; c >= 0 && (uint32_t)c < n;
+             c = tree->components[c].next_sibling )
+        {
+            assert(tree->layout_dirty_count < tree->layout_dirty_cap);
+            tree->layout_dirty[tree->layout_dirty_count++] = c;
+        }
+    }
+    return visited;
 }
 
 void
@@ -346,6 +699,32 @@ UITree_LayoutResolve(
         tree->layout_resolved_root_w == root_w && tree->layout_resolved_root_h == root_h )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_SKIP, 1);
+        return;
+    }
+
+    /* Past the skip check: this call is going to recompute boxes, so any of them
+     * may move. See UITree.layout_resolve_seq — the emit retention gate reads it. */
+    tree->layout_resolve_seq++;
+
+    /* The seeds already say where the change was, so the sweep below is only
+     * needed when something invalidated without naming a node, when a JIT
+     * chain resolve left the per-node flags no longer describing the tree
+     * (layout_force_full), or when the root box moved -- which every box
+     * depends on. */
+    if( !tree->layout_dirty_overflow && !tree->layout_force_full &&
+        tree->layout_resolved_root_valid &&
+        tree->layout_resolved_root_x == root_x &&
+        tree->layout_resolved_root_y == root_y &&
+        tree->layout_resolved_root_w == root_w &&
+        tree->layout_resolved_root_h == root_h )
+    {
+        int64_t const visited =
+            layout_resolve_dirty(tree, root_x, root_y, root_w, root_h);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, visited);
+        tree->layout_dirty_count = 0;
+        tree->layout_stale = 0;
+        tree->layout_resolved_valid = 1;
+        tree->layout_resolved_gen = tree->generation;
         return;
     }
 
@@ -505,6 +884,8 @@ UITree_LayoutResolve(
     /* The marks only describe this pass; children have consumed them by now. */
     memset(changed, 0, n);
     tree->layout_force_full = 0;
+    tree->layout_dirty_count = 0;
+    tree->layout_dirty_overflow = 0;
     tree->layout_stale = 0;
     tree->layout_resolved_valid = 1;
     tree->layout_resolved_gen = tree->generation;

@@ -1,0 +1,66 @@
+{{Infobox Monster
+|name = Spitting Scarab
+|image = [[File:Spitting Scarab.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 89
+|size = 3
+|examine = One of Kephri's false children.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 10
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Ranged]]
+|attack speed = 3
+|hitpoints = 40
+|scaledhp = Yes
+|att = 1
+|str = 80
+|def = 80
+|mage = 100
+|range = 95
+|attbns = 0
+|strbns = 55
+|amagic = 250
+|mbns = 65
+|arange = 350
+|rngbns = 0
+|dstab = 15
+|dslash = 250
+|dcrush = 30
+|dmagic = 250
+|dlight = 125
+|dstandard = 125
+|dheavy = 125
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11725
+}}
+'''Spitting scarabs''' are a monster that is summoned by [[Kephri]] in the [[Tombs of Amascut]]. They use ranged attacks that can inflict [[poison]] starting at 6 damage. Like the [[arcane scarab]], the spitting scarab's attacks can hit through protection prayers.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Kephri's children concept art.png|Concept art of the Spitting Scarab by [[Mod Jerv]], alongside the [[Soldier Scarab|Soldier]] and [[Arcane Scarab]]s.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Scarabs inside Kephri's encounter no longer scale their Defence with Raid Level.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The Spitting Scarab now has a 50% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

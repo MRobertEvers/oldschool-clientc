@@ -105,8 +105,8 @@ for dynamic rows from `ui_chat_minimenu.c`. Both dat1 and dat2 UI configs define
 
 | Config | Layout bounds | Notes |
 |--------|---------------|-------|
-| `rev_245_2_dat1_ui.ini` | `x=17 y=357 w=409 h=96` | Matches Client.ts `addChatOptions` main chatbox; default `./sdl2 --runescape` path |
-| `rev_kronos_ui.ini` | full shell `765×503` | Dat2 resizable UI; optional `componentno` for RS chat overlay |
+| `rs245_2lc_dat1_ui.ini` | `x=17 y=357 w=409 h=96` | Matches Client.ts `addChatOptions` main chatbox; default `./sdl2 --runescape` path |
+| `osrs_kronos_ui.ini` | full shell `765×503` | Dat2 resizable UI; optional `componentno` for RS chat overlay |
 
 Private-strip row hit tests (`addPrivateChatOptions`) still use hardcoded Client.ts
 coordinates in `ui_chat_minimenu.c`; the chat builtin provides INI templates and

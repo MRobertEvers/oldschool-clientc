@@ -316,16 +316,15 @@ check_reftable_roundtrip(
     source.archive_count = max_id;
     source.archives = calloc((size_t)max_id, sizeof(struct RSCache_ReferenceTableArchive));
     for( int i = 0; i < max_id; i++ )
-        source.archives[i].index = -1;
+        RSCache_ReferenceTableSetHasArchive(&source, i, false);
 
     for( int i = 0; i < id_count; i++ )
     {
         struct RSCache_ReferenceTableArchive* archive = &source.archives[ids[i]];
-        archive->index = ids[i];
-        archive->identifier = 0x1000 + ids[i];
+        RSCache_ReferenceTableSetHasArchive(&source, ids[i], true);
+        RSCache_ReferenceTableSetIdentifier(&source, ids[i], 0x1000 + ids[i]);
         archive->crc = (int)(0xABCD0000u + (uint32_t)ids[i]);
-        archive->compressed = 100 + ids[i];
-        archive->uncompressed = 200 + ids[i];
+        RSCache_ReferenceTableSetSizes(&source, ids[i], 100 + ids[i], 200 + ids[i]);
         archive->version = 300 + ids[i];
 
         /* Sparse child ids too. */
@@ -333,14 +332,16 @@ check_reftable_roundtrip(
         archive->children.count = child_count;
         archive->children.files =
             calloc((size_t)child_count, sizeof(struct RSCache_ReferenceTableArchiveFile));
+        archive->children.name_hashes = calloc((size_t)child_count, sizeof(int));
         for( int j = 0; j < child_count; j++ )
         {
             archive->children.files[j].id = j * 7;
-            archive->children.files[j].name_hash = 0x5000 + j;
+            archive->children.name_hashes[j] = 0x5000 + j;
         }
 
-        for( int b = 0; b < 64; b++ )
-            archive->whirlpool[b] = (unsigned char)(ids[i] * 3 + b);
+        unsigned char* digest = RSCache_ReferenceTableWhirlpoolSlot(&source, ids[i]);
+        for( int b = 0; b < RSCACHE_REFTABLE_WHIRLPOOL_BYTES; b++ )
+            digest[b] = (unsigned char)(ids[i] * 3 + b);
     }
 
     uint32_t bound = RSCache_ReferenceTableEncodeBound(&source);
@@ -374,21 +375,35 @@ check_reftable_roundtrip(
             RSCACHE_CHECK_EQ(got->children.count, want->children.count);
 
             if( flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS )
-                RSCACHE_CHECK_EQ(got->identifier, want->identifier);
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableIdentifier(decoded, ids[i]),
+                    RSCache_ReferenceTableIdentifier(&source, ids[i]));
             if( flags & RSCACHE_REFTABLE_FLAG_SIZES )
             {
-                RSCACHE_CHECK_EQ(got->compressed, want->compressed);
-                RSCACHE_CHECK_EQ(got->uncompressed, want->uncompressed);
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableCompressed(decoded, ids[i]),
+                    RSCache_ReferenceTableCompressed(&source, ids[i]));
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableUncompressed(decoded, ids[i]),
+                    RSCache_ReferenceTableUncompressed(&source, ids[i]));
             }
             if( flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
-                RSCACHE_CHECK_BYTES_EQ(got->whirlpool, want->whirlpool, 64);
+                RSCACHE_CHECK_BYTES_EQ(
+                    RSCache_ReferenceTableWhirlpool(decoded, ids[i]),
+                    RSCache_ReferenceTableWhirlpool(&source, ids[i]),
+                    64);
 
             for( int j = 0; j < want->children.count && j < got->children.count; j++ )
             {
-                RSCACHE_CHECK_EQ(got->children.files[j].id, want->children.files[j].id);
+                /* Through the accessor on both sides: a run that came out
+                 * 0,1,2,... decodes with no array at all. */
+                RSCACHE_CHECK_EQ(
+                    RSCache_ReferenceTableChildId(got, j),
+                    RSCache_ReferenceTableChildId(want, j));
                 if( flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS )
                     RSCACHE_CHECK_EQ(
-                        got->children.files[j].name_hash, want->children.files[j].name_hash);
+                        RSCache_ReferenceTableChildNameHash(got, j),
+                        RSCache_ReferenceTableChildNameHash(want, j));
             }
         }
 
@@ -411,7 +426,11 @@ check_reftable_roundtrip(
 
     free(encoded);
     for( int i = 0; i < id_count; i++ )
+    {
         free(source.archives[ids[i]].children.files);
+        free(source.archives[ids[i]].children.name_hashes);
+    }
+    free(source.whirlpools);
     free(source.archives);
     free(source.ids);
 }
@@ -453,8 +472,8 @@ test_reference_table(void)
         table.ids = &one_id;
         table.archive_count = 1;
         struct RSCache_ReferenceTableArchive archive = { 0 };
-        archive.index = 0;
         table.archives = &archive;
+        RSCache_ReferenceTableSetHasArchive(&table, 0, true);
 
         uint8_t buffer[256];
         uint32_t size = RSCache_ReferenceTableEncode(&table, buffer, sizeof(buffer));
@@ -571,10 +590,10 @@ test_disk_writer(void)
         table.archive_count = 10;
         table.archives = calloc(10, sizeof(struct RSCache_ReferenceTableArchive));
         for( int i = 0; i < 10; i++ )
-            table.archives[i].index = -1;
+            RSCache_ReferenceTableSetHasArchive(&table, i, false);
         for( int i = 0; i < 3; i++ )
         {
-            table.archives[ids[i]].index = ids[i];
+            RSCache_ReferenceTableSetHasArchive(&table, ids[i], true);
             table.archives[ids[i]].version = 5;
             table.archives[ids[i]].children.count = 1;
             table.archives[ids[i]].children.files =

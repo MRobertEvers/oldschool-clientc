@@ -1,0 +1,93 @@
+{{Otheruses|the race}}
+[[File:Fighting Nylocas hordes.png|thumb|right|270px|A group of players fighting a horde of nylocas.]]
+The '''nylocas''' are a race of arachnids originating from [[Vampyrium]]. Many of them can be encountered in the [[Theatre of Blood]].
+
+According to [[Arachnids of vampyrium]], the nylocas do not typically grow any larger than an adult human, and often group together in small colonies. While weak individually, they could overwhelm an opponent with numbers. When the [[Zaros|Stranger from Afar]] led the [[vampyre]]s from Vampyrium to [[Gielinor]], [[Verzik Vitur]] brought many of her domesticated nylocas along.
+
+==Variants==
+Three breeds of nylocas existed on Vampyrium: the [[Nylocas Ischyros|Ischyros]], [[Nylocas Hagios|Hagios]] and [[Nylocas Toxobolos|Toxobolos]]. [[Verzik Vitur]], who possessed many of the nylocas that were brought to Gielinor, began an extensive breeding program to make them stronger that resulted in the creation of the [[Nylocas Athanatos|Athanatos]], [[Nylocas Matomenos|Matomenos]], [[Nylocas Vasilias|Vasilias]] and [[Nylocas Prinkipas|Prinkipas]] strains.
+
+===Nylocas Ischyros===
+[[File:Nylocas Ischyros.png|right|90px]]
+The [[Nylocas Ischyros]] are one of the three true nylocas breeds native to Vampyrium. They are grey in colour and are notable for their hard, spine covered abdomens. The size of these nylocas can vary, but they typically do not grow much bigger than an adult [[human]]. The legs of an Ischyros end in sharp claws, which they use against their foes.
+
+===Nylocas Toxobolos===
+[[File:Nylocas Toxobolos.png|right|90px]]
+Another one of the three original breeds native to Vampyrium, the [[Nylocas Toxobolos]] are dark green in colour and can be distinguished by their leaf-shaped claws. The Toxobolos typically attack by launching spines at their targets, but rarely use their claws to attack.
+
+===Nylocas Hagios===
+[[File:Nylocas Hagios.png|right|90px]]
+The last of the true nylocas breeds native to Vampyrium, the [[Nylocas Hagios]] are light blue in colour and are notable for the magic that visibly radiates from their exoskeleton. In size and general behaviour, they are similar to the other two true nylocas. However, the Hagios targets their enemies with magical attacks.
+
+===Nylocas Matomenos===
+[[File:Nylocas Matomenos.png|right|90px]]
+The [[Nylocas Matomenos]] are one of the new variant subspecies bred on Gielinor. They are slightly larger than the true nylocas. Instead of hunting prey, they are scavengers, feasting only on the blood of deceased prey. The scavenged blood is then stored in their abdomen, giving them a blood red colour.
+
+===Nylocas Athanatos===
+[[File:Nylocas Athanatos.png|right|90px]]
+The [[Nylocas Athanatos]] are the second subspecies of nylocas that were bred by Verzik Vitur, which were created through selective inbreeding of the Matomenos breed. The Athanatos are slightly larger than the Matomenos and behave similarly to them. However, the Athanatos have the ability to modify the scavenged blood internally, giving it unique healing properties which is used to support allies. This modified blood gives them their distinct purple colour.
+
+===Nylocas Vasilias===
+[[File:Nylocas Vasilias (melee).png|right|90px]]
+The [[Nylocas Vasilias]] breed is another variant bred through Verzik Vitur's breeding program. Arguably the most dangerous breed, they are much larger than their brethren and have limited shapeshifting abilities, taking on the appearance and abilities of the true nylocas. As the newest variant of nylocas, they are still a rarity compared to other breeds.
+
+===Nylocas Prinkipas===
+[[File:Nylocas Prinkipas (melee).png|right|90px]]
+The [[Nylocas Prinkipas]] are the last of the four new variants of the nylocas. Although considered a unique type of the nylocas, they are much related to the Vasilias. They have limited shapeshifting abilities; while stronger than the common nylocas, they are notably weaker than the Vasilias. As such, the Prinkipas are most likely the precursor to the Nylocas Vasilias in Verzik Vitur's breeding program.
+
+===Nylocas Queen===
+[[File:Nylocas Queen.png|right|90px]]
+The [[Nylocas Queen]] is the "ruler" of the Nylocas. She was created by Verzik Vitur in her attempt to create the "nylocas that would end all nylocas" by crossbreeding one of the original Nylocas with a [[Gielinor|Gielinorian]] [[araxyte]]. The young prototype bit Verzik upon being shown to Ranis and instantly perished. The crossbreeding between the two instead allowed it to infest Verzik as a parasite, and subsequently killed her upon maturing. Like the Nylocas Vasilias/Prinkipas, the queen is able to utilise all three forms of combat, but without the restriction that they normally have. Unlike the other Nylocas, the Queen can communicate in the common tongue, appears to be able to inherit the memories of those it infests, and is capable of taking on their appearance and modifying it to some degree if desired.
+
+==Trivia==
+* According to Mod Ash, the [[Nylocas Hagios]], [[Nylocas Ischyros|Ischyros]], and [[Nylocas Athanatos|Athanatos]] were named from the {{Wp|Trisagion}} prayer, used in the {{Wp|Improperia}} on Good Friday. {{CiteReddit|url=https://www.reddit.com/r/2007scape/comments/1m72il8/comment/n4xu6za/|title=21 Years at Jagex + RuneFest Medley (Deluxe) music video {{!}} AMA|author=[[Mod Ash]]|date=23 July 2025|quote=In ToB, the Nylocas Hagios/Ischyros/Athanatos were named from the Trisagion prayer, used in the Improperia on Good Friday. Because it was around Easter when I was writing that code, and the Greek words stuck in my memory.|archiveurl=https://web.archive.org/web/20251112183410/https://old.reddit.com/r/2007scape/comments/1m72il8/21_years_at_jagex_runefest_medley_deluxe_music/n4xu6za/|archivedate=12 November 2025}}
+* Nylocas is very similar to the Hungarian word "Nyolcas", which translates to "eight" in English. 
+**In addition, each type of Nylocas is named after a Greek word:
+:{|class=wikitable style="text-align:center;"
+|-
+!Type
+!Original word
+!Transliteration
+!Meaning
+|-
+|Athanatos
+|ἀθάνατος
+|athánatos
+|Immortal/Undying
+|-
+|Hagios
+|ἅγιος
+|ágios
+|Holy/Saintlike
+|-
+|Ischyros
+|ἰσχυρός
+|ischyrós
+|Powerful
+|-
+|Matomenos
+|ματωμένος
+|matoménos
+|Bloodied
+|-
+|Prinkipas
+|πρίγκιπας
+|prínkipas
+|Prince
+|-
+|Toxobolos
+|τοξοβόλος
+|toxovólos
+|Archer
+|-
+|Vasilias
+|βασιλιάς
+|vasiliás
+|King
+|}
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+[[Category:Races]]

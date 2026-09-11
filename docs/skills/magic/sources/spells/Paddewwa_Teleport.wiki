@@ -1,0 +1,38 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Paddewwa teleport (tablet)}}
+{{Infobox Spell
+|name = Paddewwa Teleport
+|image = [[File:Paddewwa Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 54
+|spellbook = Ancient
+|type = Teleport
+|exp = 64
+|cost = {{RuneReq|Law=2|Air=1|Fire=1}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Paddewwa Teleport icon (mobile).png|left|class=pageimage]]
+'''Paddewwa Teleport''' is a spell from the [[Ancient Magicks|Ancient spellbook]] that [[teleport]]s the caster to the [[Edgeville Dungeon]]. As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+Teleporting to Paddewwa is a requirement for the [[Hard Varrock Diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = fire
+|Rune2num = 1
+|Rune3 = air
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3097,9881|mapID=12|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

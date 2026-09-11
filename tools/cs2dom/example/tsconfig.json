@@ -1,0 +1,19 @@
+{
+  "//": "For the editor. `cs2dom check` builds the same settings itself, so this file is here to give an open .tsx the same types the compiler uses rather than to be the source of truth.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "jsx": "react",
+    "jsxFactory": "__jsx",
+    "jsxFragmentFactory": "__fragment",
+    "strict": true,
+    "noEmit": true,
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "cs2dom": ["../types/cs2dom.d.ts"]
+    }
+  },
+  "include": ["ui/**/*.ts", "ui/**/*.tsx", "../types/cs2dom.d.ts"]
+}

@@ -1,10 +1,13 @@
 #include "platform/platform_sdl2_renderer_soft3d.h"
 
+#include "graphics/fb_clear.h"
+#include "log/torirs_log.h"
+#include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
-
 #include "toridraw.h"
 #include "toridraw_2d.h"
 #include "toridraw_font.h"
+#include "toridraw_frame_ab.h"
 #include "toridraw_model_sprite.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
@@ -16,16 +19,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
- * working buffers live here rather than on the struct. The outline cache is
- * what stops SpriteNewGraphicOutline from calloc/freeing the same chrome
- * icons every frame (idle flamegraphs put it at ~2.5% of samples). Dense
- * SETOBJECT grids with cc_setoutline(1) prefer a pre-baked bordered icon;
- * this cache covers remaining draw-time outline/shadow chrome.
- */
-static uint32_t* g_soft3d_scratch;
-static size_t g_soft3d_scratch_cap;
+/* Every probe, census, ablation arm and environment knob this renderer has.
+ * Each site below is a single call into it, and a default build takes one
+ * predicted branch per frame or per model for the lot. */
+#include "platform_sdl2_renderer_soft3d_debug.u.c"
 
 struct Soft3DOutlineCacheEntry
 {
@@ -38,8 +35,23 @@ struct Soft3DOutlineCacheEntry
     uint64_t last_used;
 };
 
-static struct Soft3DOutlineCacheEntry g_soft3d_outline_cache[256];
-static uint64_t g_soft3d_outline_clock;
+#define SOFT3D_OUTLINE_CACHE_SLOTS 256
+
+/*
+ * The renderer's frame-crossing working set (declared opaque in the header).
+ * Init resets everything else on the struct every frame; this hangs off it and
+ * lives from New to Free, because the outline cache is only worth anything if
+ * it outlives a frame. Dense SETOBJECT grids with cc_setoutline(1) prefer a
+ * pre-baked bordered icon; this cache covers the remaining draw-time
+ * outline/shadow chrome.
+ */
+struct ToriRS_Soft3DScratch
+{
+    uint32_t* blit;
+    size_t blit_cap;
+    struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
+    uint64_t outline_clock;
+};
 
 /*
  * Emitted scissor -> raster clip rect, intersected with the pixel buffer.
@@ -77,24 +89,28 @@ viewport_from_scissor(
 }
 
 static uint32_t*
-soft3d_scratch(size_t pixels)
+soft3d_scratch(
+    struct ToriRS_Soft3D* soft,
+    size_t pixels)
 {
+    assert(soft);
+    assert(soft->scratch);
+
     if( pixels == 0 )
         return NULL;
-    if( pixels > g_soft3d_scratch_cap )
+    if( pixels > soft->scratch->blit_cap )
     {
-        uint32_t* grown =
-            (uint32_t*)realloc(g_soft3d_scratch, pixels * sizeof(uint32_t));
-        if( !grown )
-            return NULL;
-        g_soft3d_scratch = grown;
-        g_soft3d_scratch_cap = pixels;
+        uint32_t* grown = (uint32_t*)realloc(soft->scratch->blit, pixels * sizeof(uint32_t));
+        assert(grown);
+        soft->scratch->blit = grown;
+        soft->scratch->blit_cap = pixels;
     }
-    return g_soft3d_scratch;
+    return soft->scratch->blit;
 }
 
 static uint32_t*
 soft3d_outline_cache_get(
+    struct ToriRS_Soft3D* soft,
     uint32_t const* src,
     int sw,
     int sh,
@@ -103,6 +119,8 @@ soft3d_outline_cache_get(
     int* out_w,
     int* out_h)
 {
+    struct Soft3DOutlineCacheEntry* cache;
+    uint64_t stamp;
     int i;
     int victim = 0;
     uint64_t victim_used = UINT64_MAX;
@@ -113,27 +131,28 @@ soft3d_outline_cache_get(
     int fw = 0;
     int fh = 0;
 
+    assert(soft);
+    assert(soft->scratch);
     assert(out_w);
     assert(out_h);
-    g_soft3d_outline_clock++;
 
-    for( i = 0; i < (int)(sizeof(g_soft3d_outline_cache) / sizeof(g_soft3d_outline_cache[0]));
-         i++ )
+    cache = soft->scratch->outline_cache;
+    stamp = ++soft->scratch->outline_clock;
+
+    for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
     {
-        if( g_soft3d_outline_cache[i].src == src && g_soft3d_outline_cache[i].sw == sw &&
-            g_soft3d_outline_cache[i].sh == sh &&
-            g_soft3d_outline_cache[i].outline == outline &&
-            g_soft3d_outline_cache[i].graphic_shadow == graphic_shadow &&
-            g_soft3d_outline_cache[i].pixels )
+        if( cache[i].src == src && cache[i].sw == sw && cache[i].sh == sh &&
+            cache[i].outline == outline && cache[i].graphic_shadow == graphic_shadow &&
+            cache[i].pixels )
         {
-            g_soft3d_outline_cache[i].last_used = g_soft3d_outline_clock;
-            *out_w = g_soft3d_outline_cache[i].w;
-            *out_h = g_soft3d_outline_cache[i].h;
-            return g_soft3d_outline_cache[i].pixels;
+            cache[i].last_used = stamp;
+            *out_w = cache[i].w;
+            *out_h = cache[i].h;
+            return cache[i].pixels;
         }
-        if( g_soft3d_outline_cache[i].last_used < victim_used )
+        if( cache[i].last_used < victim_used )
         {
-            victim_used = g_soft3d_outline_cache[i].last_used;
+            victim_used = cache[i].last_used;
             victim = i;
         }
     }
@@ -153,8 +172,8 @@ soft3d_outline_cache_get(
 
     if( graphic_shadow != 0 )
     {
-        uint32_t* shadowed = ToriDraw_SpriteNewGraphicShadow(
-            outlined, ow, oh, graphic_shadow, &fw, &fh);
+        uint32_t* shadowed =
+            ToriDraw_SpriteNewGraphicShadow(outlined, ow, oh, graphic_shadow, &fw, &fh);
         if( final_px && final_px != src )
             free(final_px);
         if( !shadowed )
@@ -168,16 +187,16 @@ soft3d_outline_cache_get(
         return NULL;
     }
 
-    free(g_soft3d_outline_cache[victim].pixels);
-    g_soft3d_outline_cache[victim].src = src;
-    g_soft3d_outline_cache[victim].sw = sw;
-    g_soft3d_outline_cache[victim].sh = sh;
-    g_soft3d_outline_cache[victim].outline = outline;
-    g_soft3d_outline_cache[victim].graphic_shadow = graphic_shadow;
-    g_soft3d_outline_cache[victim].pixels = final_px;
-    g_soft3d_outline_cache[victim].w = ow;
-    g_soft3d_outline_cache[victim].h = oh;
-    g_soft3d_outline_cache[victim].last_used = g_soft3d_outline_clock;
+    free(cache[victim].pixels);
+    cache[victim].src = src;
+    cache[victim].sw = sw;
+    cache[victim].sh = sh;
+    cache[victim].outline = outline;
+    cache[victim].graphic_shadow = graphic_shadow;
+    cache[victim].pixels = final_px;
+    cache[victim].w = ow;
+    cache[victim].h = oh;
+    cache[victim].last_used = stamp;
     *out_w = ow;
     *out_h = oh;
     return final_px;
@@ -185,6 +204,7 @@ soft3d_outline_cache_get(
 
 static uint32_t*
 soft3d_clamp_to_nominal(
+    struct ToriRS_Soft3D* soft,
     uint32_t const* src,
     int src_w,
     int src_h,
@@ -203,9 +223,8 @@ soft3d_clamp_to_nominal(
     assert(src);
 
     n = (size_t)nominal_w * (size_t)nominal_h;
-    dst = soft3d_scratch(n);
-    if( !dst )
-        return NULL;
+    dst = soft3d_scratch(soft, n);
+    assert(dst);
     memset(dst, 0, n * sizeof(uint32_t));
 
     for( y = 0; y < src_h; y++ )
@@ -288,8 +307,8 @@ soft3d_draw_sprite(
     if( !spr || !spr->pixels_argb || spr->width <= 0 || spr->height <= 0 )
         return;
 
-    vp = viewport_from_scissor(
-        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
+    vp =
+        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
 
     /* Chrome rotated by camera yaw (compass, minimap, scrollbar arrows): inverse-map
      * the destination box through the anchor pair instead of growing a pixel buffer.
@@ -302,8 +321,7 @@ soft3d_draw_sprite(
             int mask_count = 0;
             struct ToriDraw_Sprite** mask_sprites =
                 ToriDraw_SceneSpriteGet(soft->scene, cmd->mask_scene_id, &mask_count);
-            if( mask_sprites && cmd->mask_atlas_index >= 0 &&
-                cmd->mask_atlas_index < mask_count )
+            if( mask_sprites && cmd->mask_atlas_index >= 0 && cmd->mask_atlas_index < mask_count )
                 mask_spr = mask_sprites[cmd->mask_atlas_index];
         }
         if( mask_spr && mask_spr->pixels_argb )
@@ -386,15 +404,9 @@ soft3d_draw_sprite(
         }
         if( !cmd->if3 )
         {
+            soft3d_dbg_sprite_census_note(spr, sw * sh);
             ToriDraw2D_BlitArgbAlpha(
-                &vp,
-                cmd->x + ox,
-                cmd->y + oy,
-                spr->pixels_argb,
-                sw,
-                sh,
-                alpha,
-                soft->pixels);
+                &vp, cmd->x + ox, cmd->y + oy, spr->pixels_argb, sw, sh, alpha, soft->pixels);
             return;
         }
         /* if3 scales the *nominal* box, so a crop offset is only skippable when
@@ -405,37 +417,22 @@ soft3d_draw_sprite(
             int draw_w = cmd->w > 0 ? cmd->w : sw;
             int draw_h = cmd->h > 0 ? cmd->h : sh;
             ToriDraw2D_BlitArgbScaledAlpha(
-                &vp,
-                cmd->x,
-                cmd->y,
-                draw_w,
-                draw_h,
-                spr->pixels_argb,
-                sw,
-                sh,
-                alpha,
-                soft->pixels);
+                &vp, cmd->x, cmd->y, draw_w, draw_h, spr->pixels_argb, sw, sh, alpha, soft->pixels);
             return;
         }
     }
 
     /*
      * Outlined/shadowed icons with no further pixel mutation: serve from the
-     * process-lifetime LRU so idle chrome stops calloc/freeing every frame.
+     * renderer-lifetime LRU so idle chrome stops calloc/freeing every frame.
      */
-    if( (cmd->outline > 0 || cmd->graphic_shadow != 0) && cmd->trans <= 0 &&
-        !cmd->flip_h && !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 && !cmd->tiled )
+    if( (cmd->outline > 0 || cmd->graphic_shadow != 0) && cmd->trans <= 0 && !cmd->flip_h &&
+        !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 && !cmd->tiled )
     {
         int cw = 0;
         int ch = 0;
         uint32_t* cached = soft3d_outline_cache_get(
-            spr->pixels_argb,
-            sw,
-            sh,
-            cmd->outline,
-            cmd->graphic_shadow,
-            &cw,
-            &ch);
+            soft, spr->pixels_argb, sw, sh, cmd->outline, cmd->graphic_shadow, &cw, &ch);
         if( cached )
         {
             int cox = ox;
@@ -455,8 +452,7 @@ soft3d_draw_sprite(
             }
             else
             {
-                ToriDraw2D_BlitArgb(
-                    &vp, cmd->x + cox, cmd->y + coy, cached, cw, ch, soft->pixels);
+                ToriDraw2D_BlitArgb(&vp, cmd->x + cox, cmd->y + coy, cached, cw, ch, soft->pixels);
                 return;
             }
         }
@@ -471,6 +467,7 @@ soft3d_draw_sprite(
         int sw2 = 0;
         int sh2 = 0;
         uint32_t* cached = soft3d_outline_cache_get(
+            soft,
             spr->pixels_argb,
             nominal_w,
             nominal_h,
@@ -514,10 +511,10 @@ soft3d_draw_sprite(
         if( ox != 0 || oy != 0 || sw != nominal_w || sh != nominal_h )
         {
             uint32_t* clamped =
-                soft3d_clamp_to_nominal(spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
+                soft3d_clamp_to_nominal(soft, spr_px, sw, sh, ox, oy, nominal_w, nominal_h);
             if( clamped )
             {
-                /* clamp writes into the process scratch — copy out so the
+                /* clamp writes into the renderer scratch — copy out so the
                  * later TransformPixels free stays well-defined. */
                 size_t n = (size_t)nominal_w * (size_t)nominal_h;
                 uint32_t* owned = malloc(n * sizeof(uint32_t));
@@ -562,8 +559,7 @@ soft3d_draw_sprite(
     }
     else
     {
-        ToriDraw_SpriteTransformPixels(
-            &spr_px, &sw, &sh, cmd->flip_h, cmd->flip_v, angle_2d);
+        ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, cmd->flip_h, cmd->flip_v, angle_2d);
 
         if( cmd->tiled )
         {
@@ -614,8 +610,8 @@ soft3d_draw_font(
     if( !font )
         return;
 
-    vp = viewport_from_scissor(
-        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
+    vp =
+        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     if( cmd->baseline )
     {
         /* Baseline text (world overlays like hitsplats): y is the text bottom,
@@ -629,7 +625,7 @@ soft3d_draw_font(
             cmd->text,
             cmd->color,
             cmd->center != 0,
-            cmd->shadowed != 0,
+            cmd->shadowed,
             soft->pixels);
         return;
     }
@@ -645,7 +641,7 @@ soft3d_draw_font(
         cmd->center,
         cmd->y_align,
         cmd->line_height,
-        cmd->shadowed != 0,
+        cmd->shadowed,
         soft->pixels);
 }
 
@@ -662,8 +658,8 @@ soft3d_draw_fill_rect(
 
     assert(soft);
     assert(cmd);
-    vp = viewport_from_scissor(
-        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
+    vp =
+        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     x0 = cmd->x;
     y0 = cmd->y;
     x1 = cmd->x + cmd->w;
@@ -695,6 +691,109 @@ soft3d_draw_clear_rect(
     ToriDraw2D_FillRect(&vp, x0, y0, x1, y1, TORIRS_SOFT3D_BG, soft->pixels);
 }
 
+/* ---- convex polygon ------------------------------------------------------ *
+ *
+ * The shared decomposition (render/torirs_polygon.c) turns the polygon into
+ * horizontal runs; this writes them. Blending is the same alpha the sprite path
+ * uses, because a highlight is a wash over what is already drawn -- an opaque
+ * fill would hide the very model it is marking.
+ */
+
+struct soft3d_span_ctx
+{
+    struct ToriRS_Soft3D* soft;
+    uint32_t argb;
+    int trans;
+};
+
+static void
+soft3d_polygon_span(
+    void* user_data,
+    int x,
+    int y,
+    int count)
+{
+    struct soft3d_span_ctx* ctx = user_data;
+    struct ToriRS_Soft3D* soft = ctx->soft;
+    int* row;
+    int alpha;
+
+    if( y < 0 || y >= soft->height || count <= 0 )
+        return;
+    if( x < 0 )
+    {
+        count += x;
+        x = 0;
+    }
+    if( x + count > soft->width )
+        count = soft->width - x;
+    if( count <= 0 )
+        return;
+
+    row = soft->pixels + (size_t)y * (size_t)soft->stride + (size_t)x;
+    alpha = 255 - (ctx->trans & 0xFF);
+    if( alpha >= 255 )
+    {
+        for( int i = 0; i < count; i++ )
+            row[i] = (int)ctx->argb;
+        return;
+    }
+    if( alpha <= 0 )
+        return;
+
+    {
+        int const sr = (int)((ctx->argb >> 16) & 0xFF);
+        int const sg = (int)((ctx->argb >> 8) & 0xFF);
+        int const sb = (int)(ctx->argb & 0xFF);
+        int const inv = 255 - alpha;
+        for( int i = 0; i < count; i++ )
+        {
+            uint32_t const d = (uint32_t)row[i];
+            int const dr = (int)((d >> 16) & 0xFF);
+            int const dg = (int)((d >> 8) & 0xFF);
+            int const db = (int)(d & 0xFF);
+            row[i] = (int)(0xFF000000u | (uint32_t)(((sr * alpha + dr * inv) / 255) << 16) |
+                           (uint32_t)(((sg * alpha + dg * inv) / 255) << 8) |
+                           (uint32_t)((sb * alpha + db * inv) / 255));
+        }
+    }
+}
+
+static void
+soft3d_polygon_end(struct ToriRS_Soft3D* soft)
+{
+    struct soft3d_span_ctx ctx;
+    int cx;
+    int cy;
+    int cw;
+    int ch;
+
+    assert(soft);
+    if( !soft->polygon_open )
+        return;
+    soft->polygon_open = 0;
+
+    ctx.soft = soft;
+    ctx.argb = (uint32_t)soft->polygon.argb;
+    ctx.trans = soft->polygon.trans;
+
+    cx = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_x : 0;
+    cy = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_y : 0;
+    cw = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_w : soft->width;
+    ch = soft->polygon.scissor_h > 0 ? soft->polygon.scissor_h : soft->height;
+
+    ToriRS_PolygonFillConvex(
+        soft->polygon_x,
+        soft->polygon_y,
+        soft->polygon_count,
+        cx,
+        cy,
+        cw,
+        ch,
+        soft3d_polygon_span,
+        &ctx);
+}
+
 static void
 soft3d_draw_line(
     struct ToriRS_Soft3D* soft,
@@ -709,8 +808,8 @@ soft3d_draw_line(
 
     assert(soft);
     assert(cmd);
-    vp = viewport_from_scissor(
-        soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
+    vp =
+        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
     thickness = cmd->line_width > 0 ? cmd->line_width : 1;
 
     if( cmd->line_direction )
@@ -743,7 +842,7 @@ soft3d_draw_model_widget(
 
     assert(soft);
     assert(cmd);
-    if( cmd->model.kind != TORIDRAWMK_MODEL || !cmd->model.u.model.model )
+    if( !ToriDraw_ModelKindIsFull(cmd->model.kind) || !cmd->model.u.model.model )
         return;
 
     (void)ToriDraw_RenderModelExtentsAtWidget(
@@ -755,7 +854,7 @@ soft3d_draw_model_widget(
         cmd->model_zan,
         cmd->model_x_offset,
         cmd->model_y_offset,
-        0,
+        cmd->model_center_y,
         cmd->model_orthog != 0,
         cmd->model_fixed_zoom != 0,
         (toripixel_t*)soft->pixels,
@@ -776,29 +875,6 @@ soft3d_draw_model_widget(
         &out_h);
 }
 
-/* TORIRS_DRAW_TRACE=<min_vertex_count>, 0/unset = off. Vertex count rather than
- * an element id because element ids change every time the entity respawns and
- * the model that matters here is the largest thing in the scene. */
-/* Edge-triggered: remember the last verdict so the trace can be left on for a
- * whole session and still only speak when something changes. Per-frame logging
- * is what made the first version unusable -- the volume buried the one frame
- * that mattered. */
-static int g_draw_trace_last_cull = -999;
-static int g_draw_trace_last_sorted = -999;
-static int g_draw_trace_drawn_frames = 0;
-
-static int
-draw_trace_min_vertices(void)
-{
-    static int cached = -1;
-    if( cached < 0 )
-    {
-        char const* v = getenv("TORIRS_DRAW_TRACE");
-        cached = (v && *v) ? atoi(v) : 0;
-    }
-    return cached;
-}
-
 static void
 soft3d_draw_model(
     struct ToriRS_Soft3D* soft,
@@ -806,107 +882,132 @@ soft3d_draw_model(
 {
     struct ToriDraw_Position position;
     int cull;
-    int trace_min;
-    int trace_this;
+    const struct ToriDraw_Kernel* kernel;
 
     assert(soft);
     assert(cmd);
     if( !soft->has_3d )
         return;
+    kernel = ToriDraw_FrameAbEnabled() ? &soft->kernel_ab[ToriDraw_FrameAbArm()] : soft->kernel;
     if( cmd->model.kind == TORIDRAWMK_NONE )
+        return;
+
+    /* ABLATION (TORIRS_ABL_NOMODELS): the whole 3D pass, deleted. */
+    if( soft3d_dbg_abl_nomodels() )
         return;
 
     if( cmd->animation && cmd->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             soft->scene, cmd->element_id, cmd->anim_index == 0, cmd->anim_frame);
 
-    /*
-     * TORIRS_DRAW_TRACE=<min_vertex_count>: per-frame, unsampled, why a big
-     * model did or did not rasterize.
-     *
-     * Built for "I can still mouse over and click the Queen but nothing is
-     * drawn". That symptom localises here and nowhere else, because the pick
-     * below runs BEFORE the face sort: a model that projects VISIBLE and then
-     * sorts to zero faces stays fully clickable and paints nothing. The
-     * TORIDRAW_SORT_DEBUG/NDJSON counters answer the same question but are
-     * gated and sampled, so they miss the transition that causes it.
-     *
-     * cull   the projection verdict (0 = TORIDRAW_CULL_VISIBLE).
-     * sorted faces surviving the depth/priority sort; 0 here with cull=0 is
-     *        exactly the invisible-but-clickable state.
-     */
-    trace_min = draw_trace_min_vertices();
-    trace_this = trace_min > 0 && cmd->model.kind == TORIDRAWMK_MODEL &&
-                 cmd->model.u.model.model &&
-                 cmd->model.u.model.model->vertex_count >= trace_min;
-
     position = cmd->position;
-    cull = ToriDraw_RenderModel1Project(
-        cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
-    if( trace_this && cull != g_draw_trace_last_cull )
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
     {
-        struct ToriDraw_Model const* m = cmd->model.u.model.model;
-        struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
-        fprintf(
-            stderr,
-            "draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
-            "radius=%d min_y=%d max_y=%d bias=%d after %d drawn frames\n",
-            cmd->element_id, m->vertex_count, m->face_count, g_draw_trace_last_cull, (int)cull,
-            position.x, position.y, position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0,
-            bc ? bc->max_y : 0, bc ? bc->min_z_depth_any_rotation : -1,
-            g_draw_trace_drawn_frames);
-        g_draw_trace_last_cull = (int)cull;
-        g_draw_trace_drawn_frames = 0;
+        cull = ToriDraw_RenderModel1ProjectWithTable(
+            cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d, kernel);
     }
-    if( trace_this && cull != TORIDRAW_CULL_VISIBLE )
-        g_draw_trace_drawn_frames++;
+    soft3d_dbg_draw_trace_cull(cmd, &position, (int)cull);
     if( cull != TORIDRAW_CULL_VISIBLE )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_CULLED, 1);
         return;
+    }
 
     /* Hittest before the face sort: the scene scratch holds this model's
      * projection only until the next model projects, and a model whose faces
      * all sort away must still pick. */
-    if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 &&
-        (cmd->pick_aabb   ? ToriDraw_ProjectedModelContainsAabb(
-                              soft->scene, soft->pick_mouse_x, soft->pick_mouse_y)
-         : cmd->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
-                                   soft->scene, cmd->model, &soft->view_port_3d,
-                                   soft->pick_mouse_x, soft->pick_mouse_y)
-                             : ToriDraw_ProjectedModelMouseHitTest(
-                                   soft->scene, cmd->model, &soft->view_port_3d,
-                                   soft->pick_mouse_x, soft->pick_mouse_y)) )
-        ToriRS_PickHitsAdd(
-            &soft->pick_hits,
-            cmd->element_id,
-            cmd->pick_terrain,
-            cmd->pick_tile_x,
-            cmd->pick_tile_z,
-            cmd->pick_tile_level);
+    if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 )
+    {
+        bool hit;
+        if( cmd->pick_aabb )
+            hit = ToriDraw_ProjectedModelContainsAabb(
+                soft->scene, soft->pick_mouse_x, soft->pick_mouse_y);
+        else if( cmd->pick_terrain )
+            hit = ToriDraw_ProjectedTileMouseHitTest(
+                soft->scene,
+                cmd->model,
+                &soft->view_port_3d,
+                soft->pick_mouse_x,
+                soft->pick_mouse_y);
+        else
+            hit = ToriDraw_ProjectedModelMouseHitTest(
+                soft->scene,
+                cmd->model,
+                &soft->view_port_3d,
+                soft->pick_mouse_x,
+                soft->pick_mouse_y);
+
+        if( hit )
+            ToriRS_PickHitsAdd(
+                &soft->pick_hits,
+                cmd->element_id,
+                cmd->pick_terrain,
+                cmd->pick_tile_x,
+                cmd->pick_tile_z,
+                cmd->pick_tile_level,
+                cmd->pick_view);
+    }
 
     if( cmd->pick_only )
         return;
+
+    int sorted = 0;
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
     {
-        int const sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
-        /* Only the transitions matter: went-to-zero is the invisible-but-
-         * clickable state, came-back is the recovery. A drifting face count on
-         * a model that keeps drawing is noise. */
-        if( trace_this && ((sorted <= 0) != (g_draw_trace_last_sorted <= 0)) )
-        {
-            fprintf(
-                stderr, "draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
-                cmd->element_id, g_draw_trace_last_sorted, sorted,
-                sorted <= 0 ? "(RASTERIZES NOTHING - invisible but still clickable)"
-                            : "(drawing again)",
-                g_draw_trace_drawn_frames);
-            g_draw_trace_drawn_frames = 0;
-        }
-        g_draw_trace_last_sorted = sorted;
-        g_draw_trace_drawn_frames++;
-        if( sorted <= 0 )
-            return;
+        /* Whether this leaves the batched walk's y-ordered stash behind is the
+         * TABLE's answer, not ours -- and it has to be, because the arm we
+         * hold changes under TORIDRAW_RASTER_SCANLINE and the frame A/B, and
+         * only the branching kernel has a door that reads the stash. */
+        sorted = ToriDraw_RenderModel2SortFacesWithTable(cmd->model, soft->scene, kernel);
     }
-    ToriDraw_RenderModel3Raster(
-        soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);
+    soft3d_dbg_draw_trace_sorted(cmd, sorted);
+    /* Counted after the sort, not before: a model that survives both culls
+     * has already paid its whole per-vertex projection by this point, so
+     * `sorted <= 0` is work spent for no pixels and wants its own name. */
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
+    if( sorted <= 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
+        return;
+    }
+    /* ABLATION (TORIRS_ABL_NORASTER): everything decided, no pixels written. */
+    if( soft3d_dbg_abl_noraster() )
+        return;
+
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
+    {
+        ToriDraw_RenderModel3RasterWithTable(
+            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, kernel);
+    }
+}
+
+struct ToriRS_Soft3D*
+ToriRS_Soft3D_New(void)
+{
+    struct ToriRS_Soft3D* soft = calloc(1, sizeof(*soft));
+
+    assert(soft);
+    soft->scratch = calloc(1, sizeof(*soft->scratch));
+    assert(soft->scratch);
+    return soft;
+}
+
+void
+ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
+{
+    int i;
+
+    if( !soft )
+        return;
+    if( soft->scratch )
+    {
+        for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
+            free(soft->scratch->outline_cache[i].pixels);
+        free(soft->scratch->blit);
+        free(soft->scratch);
+    }
+    free(soft);
 }
 
 void
@@ -917,12 +1018,26 @@ ToriRS_Soft3D_Init(
     int width,
     int height)
 {
+    struct ToriRS_Soft3DScratch* scratch;
+
     assert(soft);
     assert(scene);
     assert(pixels);
     assert(width > 0 && height > 0);
+    /* New's, and the only thing that survives the reset -- an Init that threw
+     * the outline cache away every frame would be the cache never existing. */
+    assert(soft->scratch);
+
+    scratch = soft->scratch;
     memset(soft, 0, sizeof(*soft));
+    soft->scratch = scratch;
     soft->scene = scene;
+    /* Taking it is also checking it: ToriDraw_KernelTake validates the table
+     * against this scene and provisions the scratch its three stages need, so
+     * "I selected the presorting painter and did not get it" is a line on
+     * stderr here rather than a shape in a profile later. */
+    soft->kernel = ToriDraw_KernelTake(scene, ToriDraw_KernelGetStock());
+    soft3d_dbg_frame_ab_kernels_init(soft);
     soft->pixels = pixels;
     soft->width = width;
     soft->height = height;
@@ -956,11 +1071,13 @@ ToriRS_Soft3D_Execute(
         soft->has_3d = true;
         soft->view_port_3d = cmd->u.begin_3d.view_port;
         soft->camera_3d = cmd->u.begin_3d.camera;
+        ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
         if( soft->view_port_3d.stride <= 0 )
             soft->view_port_3d.stride = soft->stride;
         break;
 
     case TORIRSRC_END_3D:
+        ToriDraw_SceneClearProjectionCamera(soft->scene);
         soft->has_3d = false;
         break;
 
@@ -996,6 +1113,29 @@ ToriRS_Soft3D_Execute(
         soft3d_draw_line(soft, &cmd->u.line);
         break;
 
+    case TORIRSRC_POLYGON_BEGIN:
+        soft->polygon = cmd->u.polygon_begin;
+        soft->polygon_count = 0;
+        soft->polygon_open = 1;
+        break;
+
+    case TORIRSRC_POLYGON_POINT:
+        /* Points past the cap are dropped rather than growing the run: the
+         * cap is far above any highlight, so hitting it means something is
+         * wrong upstream, and a dropped tail distorts the shape less than a
+         * wrapped write would destroy memory. */
+        if( soft->polygon_open && soft->polygon_count < TORIRS_POLYGON_MAX_POINTS )
+        {
+            soft->polygon_x[soft->polygon_count] = cmd->u.polygon_point.x;
+            soft->polygon_y[soft->polygon_count] = cmd->u.polygon_point.y;
+            soft->polygon_count++;
+        }
+        break;
+
+    case TORIRSRC_POLYGON_END:
+        soft3d_polygon_end(soft);
+        break;
+
     case TORIRSRC_MODEL_LOAD:
     case TORIRSRC_MODEL_UNLOAD:
     case TORIRSRC_ANIM_LOAD:
@@ -1022,233 +1162,194 @@ ToriRS_Soft3D_Execute(
     }
 }
 
-/*
- * Pixel ownership: which draw command last wrote each pixel of a rect.
- *
- * TORIRS_PIXOWNER=x0,x1,y0,y1[,RRGGBB] snapshots the rect after every command
- * and attributes the pixels that changed to that command. Filtering by a final
- * colour answers the question a screenshot cannot — "what is painting THIS" —
- * naming the loc id or terrain tile rather than leaving the reader to guess
- * from a draw-order dump. Written to TORIRS_PIXOWNER_OUT (default stderr) at
- * frame TORIRS_PIXOWNER_AT (default: the last frame rendered).
- *
- * O(commands x rect), so keep the rect small; it is inert unless armed and the
- * unarmed render loop is untouched.
- */
-struct PixOwnerRec
-{
-    int cmd_index;
-    int kind;      /* enum ToriRS_RenderCommandKind */
-    int element_id;
-    int loc_id;
-    int terrain;   /* 1 = terrain tile */
-    int tile_x, tile_z, tile_level;
-    int world_x, world_y, world_z;
-};
-
-static int g_pixowner_armed = -1;
-static int g_pixowner_rect[4];
-static int g_pixowner_want_colour = -1;
-static long g_pixowner_at = -1;
-static long g_pixowner_frame;
-static uint32_t* g_pixowner_prev;
-static struct PixOwnerRec* g_pixowner_owner; /* one per rect pixel */
-static int g_pixowner_cmd_index;
-static int g_pixowner_active; /* this frame is the one being recorded */
-
+/* True for the command kinds that put pixels in the framebuffer, as opposed to
+ * state transitions and resource loads. Kept beside the dispatcher's switch so
+ * the two cannot drift apart; the NOCHROME ablation is what reads it. */
 static int
-soft3d_pixowner_armed(void)
+soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind)
 {
-    if( g_pixowner_armed < 0 )
+    switch( kind )
     {
-        char const* env = getenv("TORIRS_PIXOWNER");
-        char const* at = getenv("TORIRS_PIXOWNER_AT");
-        char colour[16] = { 0 };
-        g_pixowner_armed = 0;
-        if( env && env[0] )
-        {
-            int got = sscanf(env, "%d,%d,%d,%d,%15s", &g_pixowner_rect[0], &g_pixowner_rect[1],
-                             &g_pixowner_rect[2], &g_pixowner_rect[3], colour);
-            if( got >= 4 )
-            {
-                g_pixowner_armed = 1;
-                if( got >= 5 && colour[0] )
-                    g_pixowner_want_colour = (int)strtol(colour, NULL, 16);
-            }
-        }
-        g_pixowner_at = (at && at[0]) ? strtol(at, NULL, 0) : -1;
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_DRAW_MODEL_WIDGET:
+    case TORIRSRC_SPRITE:
+    case TORIRSRC_FONT:
+    case TORIRSRC_LINE:
+    case TORIRSRC_CLEAR_RECT:
+    case TORIRSRC_FILL_RECT:
+    case TORIRSRC_POLYGON_BEGIN:
+    case TORIRSRC_POLYGON_POINT:
+    case TORIRSRC_POLYGON_END:
+        return 1;
+    default:
+        return 0;
     }
-    return g_pixowner_armed;
 }
 
+/* `ToriRS_Soft3D_Execute` under a per-class timer, so the one opaque `render`
+ * bracket splits into world models, sprites, glyphs and rectangles. The classes
+ * are disjoint and exhaustive.
+ *
+ * This is how `render` was attributed: 85.5% of it is `r_model`, i.e. 64% of
+ * the whole i686 frame, against 4.4% for sprite blitting. It is the gate for
+ * the R1-R4 targets in docs/CS2_OPTIMIZATION_TARGETS.md.
+ *
+ * Two clock reads per command is not free when perf is enabled; `r_cmds` is
+ * the divisor that says how much was added. Read the split as a ratio between
+ * the classes. With perf off this costs one predicted branch per command. */
 static void
-soft3d_pixowner_begin(struct ToriRS_Soft3D* soft)
-{
-    int rect_w = g_pixowner_rect[1] - g_pixowner_rect[0] + 1;
-    int rect_h = g_pixowner_rect[3] - g_pixowner_rect[2] + 1;
-    size_t count;
-
-    g_pixowner_frame++;
-    /* -1 = "the last frame": record every frame and let the final one win. */
-    g_pixowner_active = (g_pixowner_at < 0 || g_pixowner_frame == g_pixowner_at);
-    g_pixowner_cmd_index = 0;
-    if( !g_pixowner_active || rect_w <= 0 || rect_h <= 0 )
-        return;
-    count = (size_t)rect_w * (size_t)rect_h;
-    if( !g_pixowner_prev )
-    {
-        g_pixowner_prev = calloc(count, sizeof(*g_pixowner_prev));
-        g_pixowner_owner = calloc(count, sizeof(*g_pixowner_owner));
-    }
-    if( !g_pixowner_prev || !g_pixowner_owner )
-        return;
-    for( size_t i = 0; i < count; i++ )
-    {
-        g_pixowner_owner[i].cmd_index = -1;
-        g_pixowner_owner[i].element_id = -1;
-        g_pixowner_owner[i].loc_id = -1;
-    }
-    (void)soft;
-}
-
-static void
-soft3d_pixowner_after_command(
+soft3d_execute_measured(
     struct ToriRS_Soft3D* soft,
     struct ToriRS_RenderCommand const* cmd)
 {
-    int x0 = g_pixowner_rect[0], x1 = g_pixowner_rect[1];
-    int y0 = g_pixowner_rect[2], y1 = g_pixowner_rect[3];
-    int rect_w = x1 - x0 + 1;
-    int index = g_pixowner_cmd_index++;
+    assert(soft);
+    assert(cmd);
 
-    if( !g_pixowner_active || !g_pixowner_prev || !g_pixowner_owner )
-        return;
-    if( x1 >= soft->width )
-        x1 = soft->width - 1;
-    if( y1 >= soft->height )
-        y1 = soft->height - 1;
-
-    for( int y = y0; y <= y1; y++ )
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS, 1);
+    switch( cmd->kind )
     {
-        for( int x = x0; x <= x1; x++ )
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_DRAW_MODEL_WIDGET:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_MODEL, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_MODEL)
         {
-            size_t slot = (size_t)(y - y0) * (size_t)rect_w + (size_t)(x - x0);
-            uint32_t now = (uint32_t)soft->pixels[y * soft->stride + x] & 0xFFFFFFu;
-            if( now == g_pixowner_prev[slot] )
-                continue;
-            g_pixowner_prev[slot] = now;
-            g_pixowner_owner[slot].cmd_index = index;
-            g_pixowner_owner[slot].kind = (int)cmd->kind;
-            if( cmd->kind == TORIRSRC_DRAW_MODEL )
-            {
-                g_pixowner_owner[slot].element_id = cmd->u.model.element_id;
-                g_pixowner_owner[slot].terrain = cmd->u.model.pick_terrain ? 1 : 0;
-                g_pixowner_owner[slot].tile_x = cmd->u.model.pick_tile_x;
-                g_pixowner_owner[slot].tile_z = cmd->u.model.pick_tile_z;
-                g_pixowner_owner[slot].tile_level = cmd->u.model.pick_tile_level;
-                g_pixowner_owner[slot].world_x = cmd->u.model.world_position.x;
-                g_pixowner_owner[slot].world_y = cmd->u.model.world_position.y;
-                g_pixowner_owner[slot].world_z = cmd->u.model.world_position.z;
-                /* No loc id here: the renderer has no World to resolve an
-                 * element through. `cmd=` indexes the same stream
-                 * TORIRS_DRAW_ORDER prints, which carries the loc id — that is
-                 * the join, and it keeps this probe free of a world lookup. */
-                g_pixowner_owner[slot].loc_id = -1;
-            }
-            else
-            {
-                g_pixowner_owner[slot].element_id = -1;
-                g_pixowner_owner[slot].loc_id = -1;
-                g_pixowner_owner[slot].terrain = 0;
-            }
+            ToriRS_Soft3D_Execute(soft, cmd);
         }
+        return;
+    case TORIRSRC_SPRITE:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_SPRITE, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SPRITE)
+        {
+            ToriRS_Soft3D_Execute(soft, cmd);
+        }
+        return;
+    case TORIRSRC_FONT:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_FONT, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_FONT)
+        {
+            ToriRS_Soft3D_Execute(soft, cmd);
+        }
+        return;
+    case TORIRSRC_CLEAR_RECT:
+    case TORIRSRC_FILL_RECT:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_RECT, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RECT)
+        {
+            ToriRS_Soft3D_Execute(soft, cmd);
+        }
+        return;
+    default:
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_OTHER)
+        {
+            ToriRS_Soft3D_Execute(soft, cmd);
+        }
+        return;
     }
 }
 
+/*
+ * Clear every frame. A census on the pinned bench found only 503 of 384,795
+ * pixels still holding the clear colour at end of frame, which argued for
+ * clearing once -- but that bench has no skybox, and a skybox that does not
+ * cover every pixel shows whatever the clear would have removed. The bench
+ * could not falsify the premise, so the saving was withdrawn. What stays is
+ * the non-temporal clear below, which makes the clear cheaper without skipping
+ * it.
+ */
+
+#if defined(__APPLE__)
+
 static void
-soft3d_pixowner_end(void)
+soft3d_clear_framebuffer(struct ToriRS_Soft3D* soft)
 {
-    int x0 = g_pixowner_rect[0], x1 = g_pixowner_rect[1];
-    int y0 = g_pixowner_rect[2], y1 = g_pixowner_rect[3];
-    int rect_w = x1 - x0 + 1;
-    int rect_h = y1 - y0 + 1;
-    char const* out_path;
-    FILE* out;
+    uint32_t bg = SOFT3D_DBG_CLEAR_COLOUR;
 
-    if( !g_pixowner_active || !g_pixowner_prev || !g_pixowner_owner )
-        return;
+    assert(soft);
+    assert(soft->pixels);
 
-    /* With no TORIRS_PIXOWNER_AT every frame is recorded and every frame
-     * prints; the file is opened "w" so the last frame is what survives, which
-     * is the usual want. Point _OUT at a file rather than reading stderr. */
-    out_path = getenv("TORIRS_PIXOWNER_OUT");
-    out = (out_path && out_path[0]) ? fopen(out_path, "w") : stderr;
-    if( !out )
-        out = stderr;
+    memset_pattern4(soft->pixels, &bg, (size_t)soft->width * (size_t)soft->height * sizeof(int));
+}
 
-    fprintf(out, "# pixel owners, rect x%d..%d y%d..%d, frame %ld\n", x0, x1, y0, y1,
-            g_pixowner_frame);
-    if( g_pixowner_want_colour >= 0 )
-        fprintf(out, "# filtered to colour %06x\n", (unsigned)g_pixowner_want_colour);
-    fprintf(out, "# colour cmd kind elem loc terrain tile pixels\n");
+#else
+
+/* Ordinary stores, four to the iteration -- the alternative both clears below
+ * are weighed against. TORIDRAW_FB_CLEAR32 is the non-temporal one. */
+static void
+soft3d_clear_run_plain(
+    uint32_t* p,
+    size_t n,
+    uint32_t bg)
+{
+    size_t i = 0;
+
+    assert(p);
+
+    for( ; i + 4 <= n; i += 4 )
     {
-        /* Aggregate: one row per (owner, colour), sorted by pixel count. */
-        struct Agg
-        {
-            uint32_t colour;
-            struct PixOwnerRec rec;
-            int pixels;
-        };
-        struct Agg* agg = calloc((size_t)rect_w * (size_t)rect_h, sizeof(*agg));
-        int agg_count = 0;
-        assert(agg);
-        for( int i = 0; i < rect_w * rect_h; i++ )
-        {
-            uint32_t colour = g_pixowner_prev[i];
-            struct PixOwnerRec* rec = &g_pixowner_owner[i];
-            int found = -1;
-            if( rec->cmd_index < 0 )
-                continue;
-            if( g_pixowner_want_colour >= 0 && colour != (uint32_t)g_pixowner_want_colour )
-                continue;
-            for( int a = 0; a < agg_count && found < 0; a++ )
-                if( agg[a].colour == colour && agg[a].rec.cmd_index == rec->cmd_index )
-                    found = a;
-            if( found < 0 )
-            {
-                found = agg_count++;
-                agg[found].colour = colour;
-                agg[found].rec = *rec;
-            }
-            agg[found].pixels++;
-        }
-        for( int a = 0; a < agg_count; a++ )
-        {
-            int best = a;
-            for( int b = a + 1; b < agg_count; b++ )
-                if( agg[b].pixels > agg[best].pixels )
-                    best = b;
-            if( best != a )
-            {
-                struct Agg tmp = agg[a];
-                agg[a] = agg[best];
-                agg[best] = tmp;
-            }
-            fprintf(out, "%06x cmd=%d kind=%d elem=%d loc=%d %s", (unsigned)agg[a].colour,
-                    agg[a].rec.cmd_index, agg[a].rec.kind, agg[a].rec.element_id,
-                    agg[a].rec.loc_id, agg[a].rec.terrain ? "TERRAIN" : "loc");
-            if( agg[a].rec.terrain )
-                fprintf(out, " tile=%d,%d L%d", agg[a].rec.tile_x, agg[a].rec.tile_z,
-                        agg[a].rec.tile_level);
-            else
-                fprintf(out, " wpos=%d,%d,%d", agg[a].rec.world_x, agg[a].rec.world_y,
-                        agg[a].rec.world_z);
-            fprintf(out, " pixels=%d\n", agg[a].pixels);
-        }
-        free(agg);
+        p[i] = bg;
+        p[i + 1] = bg;
+        p[i + 2] = bg;
+        p[i + 3] = bg;
     }
-    if( out != stderr )
-        fclose(out);
+    for( ; i < n; i++ )
+        p[i] = bg;
+}
+
+/*
+ * 765x503x4 = 1.54 MB written every frame and never read back in this pass --
+ * long, contiguous, aligned, write-only. That is the one shape in this
+ * renderer where a non-temporal store pays: measured on the Pentium 4 target,
+ * 1.296 GB/s normal against 3.060 GB/s non-temporal, so 1.19 ms of clear
+ * against 0.50 ms.
+ *
+ * It is emphatically NOT the shape of a rasterizer span. The same probe
+ * measured the same two sequences at the census's real span length of 7.24
+ * pixels and found the non-temporal version NINE TIMES slower, because a
+ * write-combine buffer evicted before it fills goes out as several
+ * partial-line transactions. The kernels keep their ordinary stores; see
+ * graphics/fb_clear_i686.S.
+ */
+static void
+soft3d_clear_framebuffer(struct ToriRS_Soft3D* soft)
+{
+    uint32_t* p;
+    uint32_t bg = SOFT3D_DBG_CLEAR_COLOUR;
+    size_t n;
+
+    assert(soft);
+    assert(soft->pixels);
+
+    p = (uint32_t*)soft->pixels;
+    n = (size_t)soft->width * (size_t)soft->height;
+
+    if( soft3d_dbg_full_clear_nt() )
+        TORIDRAW_FB_CLEAR32(p, n, bg);
+    else
+        soft3d_clear_run_plain(p, n, bg);
+}
+
+#endif
+
+static void
+soft3d_run_commands(
+    struct ToriRS_Soft3D* soft,
+    struct ToriRS_Frame* frame)
+{
+    struct ToriRS_RenderCommand cmd;
+
+    assert(soft);
+    assert(frame);
+
+    /* A probe that has to watch or edit the stream drives it itself, so this
+     * loop stays the shape it has when nothing is armed: one branch a frame,
+     * none per command. */
+    if( soft3d_dbg_frame_walk_armed() )
+    {
+        soft3d_dbg_frame_walk(soft, frame);
+        return;
+    }
+    while( ToriRS_FrameNextCommand(frame, &cmd) )
+        soft3d_execute_measured(soft, &cmd);
 }
 
 void
@@ -1256,53 +1357,23 @@ ToriRS_Soft3D_RenderFrame(
     struct ToriRS_Soft3D* soft,
     struct ToriRS_Frame* frame)
 {
-    struct ToriRS_RenderCommand cmd;
-    size_t n;
-
     assert(soft);
     assert(frame);
     assert(soft->pixels);
     assert(soft->width > 0 && soft->height > 0);
 
-    n = (size_t)soft->width * (size_t)soft->height;
-#if defined(__APPLE__)
+    soft3d_dbg_frame_ab_begin(soft);
+
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_CLEAR)
     {
-        uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
-        memset_pattern4(soft->pixels, &bg, n * sizeof(int));
+        soft3d_clear_framebuffer(soft);
     }
-#else
-    {
-        uint32_t* p = (uint32_t*)soft->pixels;
-        uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
-        size_t i = 0;
-        for( ; i + 4 <= n; i += 4 )
-        {
-            p[i] = bg;
-            p[i + 1] = bg;
-            p[i + 2] = bg;
-            p[i + 3] = bg;
-        }
-        for( ; i < n; i++ )
-            p[i] = bg;
-    }
-#endif
 
     soft->has_3d = false;
     ToriRS_FrameBegin(frame);
-    if( soft3d_pixowner_armed() )
-    {
-        soft3d_pixowner_begin(soft);
-        while( ToriRS_FrameNextCommand(frame, &cmd) )
-        {
-            ToriRS_Soft3D_Execute(soft, &cmd);
-            soft3d_pixowner_after_command(soft, &cmd);
-        }
-        soft3d_pixowner_end();
-    }
-    else
-    {
-        while( ToriRS_FrameNextCommand(frame, &cmd) )
-            ToriRS_Soft3D_Execute(soft, &cmd);
-    }
+    soft3d_run_commands(soft, frame);
     ToriRS_FrameEnd(frame);
+    SOFT3D_DBG_FB_POISON_SCAN(soft);
+
+    soft3d_dbg_frame_ab_end();
 }

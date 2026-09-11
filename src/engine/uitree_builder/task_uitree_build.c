@@ -129,14 +129,19 @@ Task_UITreeBuild_Run(
         src.inline_ini_path =
             self->builder->inline_ini_path[0] ? self->builder->inline_ini_path : NULL;
         src.root_interface_id = self->builder->root_interface_id;
+        src.layout_group =
+            self->builder->layout_group[0] ? self->builder->layout_group : NULL;
+        src.layout_group_exclude =
+            self->builder->layout_group_exclude[0] ? self->builder->layout_group_exclude : NULL;
         uibuilder_manifest_from_sources(&self->manifest, &src);
     }
 
     /* 2. Load every cache asset the manifest needs. */
     PT_TASK_AWAITSELF(CreateTask_UIBuilderAssetsLoad(self->builder, &self->manifest));
 
-    /* 2b. Client-hardcoded sprites (compass, cross, hitmarks, …) — no INI node
-     * owns these, so they bind to bridge slots instead of tree nodes. */
+    /* 2b. Host static sprite packs (cross fallback, hitmarks, map dots, …).
+     * Configured nodes prefer their own sprite= binding; bridge slots cover
+     * overlays and compatibility profiles with no explicit binding. */
     PT_TASK_AWAITSELF_IF(
         CreateTask_StaticSpritesLoad(self->builder->provider, self->builder->bridge));
 
@@ -214,7 +219,7 @@ Task_UITreeBuild_Run(
 
     /* 6. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */
-    uitree_builder_reassert_player_idle_anim(self->builder->tree);
+    uitree_builder_reassert_player_idle_anim(self->builder->tree, self->builder->bridge);
 
     /* 7. Final layout: the onLoad scripts above resize and reposition nodes. */
     UITree_LayoutResolve(

@@ -1,18 +1,22 @@
 #include "render/torirs_frame.h"
+#include "engine/uitree_anim.h"
 
 #include "painters/painters.h"
+#include "render/torirs_arc.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
+#include "render/torirs_frame_flat.u.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 frame_queue(
@@ -44,6 +48,48 @@ frame_take_queued(
  * stream.  Static models and all of their animation poses must be baked before
  * DRAW; texture loads must also reach a retained VBO after asynchronous cache
  * loading.  Soft3D safely ignores the resource-only commands. */
+/*
+ * Hand an emitter a command it is about to fill.
+ *
+ * `kind` is the only field a reader may consult before the emitter has
+ * chosen an arm, and a reader never looks at an arm other than the one
+ * `kind` names.  So wiping all 128 bytes bought nothing but the appearance
+ * that an unassigned field reads as 0 -- and at 1,621 world DRAW_MODELs a
+ * frame that appearance cost ~207 KB of stores per frame.
+ *
+ * What each emitter does after calling this is deliberately not uniform,
+ * because the emitters are not:
+ *
+ *   - try_emit_world_draw_model assigns every field of the model arm, so it
+ *     needs nothing further.  It is the one that runs 1,621 times a frame,
+ *     and it is the whole reason this exists.
+ *   - the single-arm helpers (fill_rect_cmd, sprite_cmd) zero THEIR ARM,
+ *     40 or 100 bytes rather than the union's 120.  sprite_cmd genuinely
+ *     leaves seventeen optional fields implicit and spelling them out per
+ *     call site would be worse than saying so once.
+ *   - the two switch emitters (frame_translate_scene_event,
+ *     translate_ui_cmd) still zero the union: they pick an arm per case and
+ *     the cases disagree about which fields they set, so dropping it would
+ *     need a per-case audit worth more than they cost.
+ *
+ * The implicit zero is the hazard, so a checked build POISONS the union
+ * here: an emitter that starts leaning on one renders visibly wrong under
+ * OPT=0 instead of correctly here and wrongly in the shipping lane.  A
+ * deliberate behaviour difference between builds -- it exists to make an
+ * untested assumption fail where it is cheap to notice.  It caught two
+ * while this was written: the model arm's pick_terrain/pick_only on the
+ * non-terrain branch, and anim_index.
+ */
+static void
+frame_command_reset(struct ToriRS_RenderCommand* out)
+{
+    assert(out);
+    out->kind = TORIRSRC_NONE;
+#ifndef NDEBUG
+    memset(&out->u, 0xCD, sizeof(out->u));
+#endif
+}
+
 static bool
 frame_translate_scene_event(
     struct ToriDraw_Scene* scene,
@@ -53,7 +99,13 @@ frame_translate_scene_event(
     struct ToriDraw_SceneElement* element;
     assert(ev);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    /* This emitter chooses its arm in a switch below, and the cases do not
+     * agree on which of that arm's fields they set -- so unlike the single-
+     * arm emitters it cannot drop the zero without an audit of every case.
+     * It is off the per-model path, which is where the 128 bytes were being
+     * paid 1,621 times a frame. */
+    frame_command_reset(out);
+    memset(&out->u, 0, sizeof(out->u));
     switch( ev->kind )
     {
     case TORIDRAW_EVENT_MODEL_LOAD:
@@ -154,6 +206,31 @@ frame_translate_scene_event(
         out->u.batch.batch_id = ev->batch_id;
         out->u.batch.clear_all = ev->batch_id == TORIDRAW_SCENE_INVALID_BATCH_ID;
         return true;
+    /*
+     * Sprite unload.
+     *
+     * The scene has emitted this since it was written and nothing here ever
+     * translated it, so TORIRSRC_SPRITE_UNLOAD was a command no producer
+     * produced. The GPU lanes cache an uploaded sprite by element id and
+     * rely on that command to drop it, so a sprite REPLACED over a live id
+     * kept its first upload for the rest of the session.
+     *
+     * The title screen's braziers are what showed it: the fire replaces its
+     * 128x265 column every 35 ms over the same two ids, and D3D9 drew the
+     * very first one -- a single bright row, all the heat there is one step
+     * in -- for as long as the client ran. The software lane reads sprites
+     * straight out of the scene, so it never showed the fault, and every
+     * capture taken through App_Render looked correct while the window did
+     * not.
+     *
+     * Only the id is carried. The scene frees the sprite array immediately
+     * after emitting, and this queue is drained later, so the pointer in the
+     * event is not ours to pass on.
+     */
+    case TORIDRAW_EVENT_SPRITE_UNLOAD:
+        out->kind = TORIRSRC_SPRITE_UNLOAD;
+        out->u.sprite_load.element_id = ev->element_id;
+        return true;
     case TORIDRAW_EVENT_SCENE_RESET:
         out->kind = TORIRSRC_BATCH3D_CLEAR;
         out->u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;
@@ -173,7 +250,10 @@ frame_take_scene_event(
     assert(frame);
     assert(out);
     assert(frame->scene);
-    eq = ToriDraw_SceneEvents(frame->scene);
+    if( frame->scene_events && frame->scene_events_of == frame->scene )
+        eq = frame->scene_events;
+    else
+        eq = ToriDraw_SceneEvents(frame->scene);
     if( !eq )
         return false;
     while( frame->event_index < eq->count )
@@ -192,7 +272,7 @@ frame_emit_begin_2d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_BEGIN_2D;
     frame->pass = TORIRS_FRAME_PASS_2D;
 }
@@ -204,7 +284,7 @@ frame_emit_end_2d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_END_2D;
     frame->pass = TORIRS_FRAME_PASS_NONE;
 }
@@ -216,7 +296,7 @@ frame_emit_end_3d(
 {
     assert(frame);
     assert(out);
-    memset(out, 0, sizeof(*out));
+    frame_command_reset(out);
     out->kind = TORIRSRC_END_3D;
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->in_world = false;
@@ -234,7 +314,27 @@ emit_color_argb(
     else if( trans > 255 )
         trans = 255;
     alpha = 255 - trans;
-    return (alpha << 24) | (color & 0xFFFFFF);
+    return (int)(((uint32_t)alpha << 24) | ((uint32_t)color & 0xFFFFFFu));
+}
+
+/* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
+ * the step count and the step itself so the two cannot disagree about how many
+ * rows there are. */
+static void
+frame_arc_shape(
+    struct UITreeEmitDesc const* desc,
+    struct ToriRS_ArcShape* out)
+{
+    assert(desc);
+    assert(out);
+    out->x = desc->x;
+    out->y = desc->y;
+    out->w = desc->w;
+    out->h = desc->h;
+    out->arc_start = desc->arc_start;
+    out->arc_end = desc->arc_end;
+    out->filled = desc->filled;
+    out->line_width = desc->line_width;
 }
 
 static void
@@ -247,7 +347,11 @@ fill_rect_cmd(
     int argb,
     struct UITreeEmitClip const* clip)
 {
-    memset(out, 0, sizeof(*out));
+    /* One arm, and a reader only ever looks at the arm `kind` names,
+     * so this is exactly as safe as wiping the union and costs 40
+     * bytes instead of 120. */
+    frame_command_reset(out);
+    memset(&out->u.fill_rect, 0, sizeof(out->u.fill_rect));
     out->kind = TORIRSRC_FILL_RECT;
     out->u.fill_rect.x = x;
     out->u.fill_rect.y = y;
@@ -352,7 +456,13 @@ sprite_cmd(
     int src_cx = w / 2;
     int src_cy = h / 2;
 
-    memset(out, 0, sizeof(*out));
+    /* Unlike the emitters around it this one leaves the sprite arm's
+     * optional half -- rotation, mask, flip, outline, tiling -- to the
+     * zero rather than spelling out seventeen fields per call site.  So it
+     * zeroes, but only the arm it is about to write (100 bytes), not the
+     * whole command; and it is chrome, not the per-model path. */
+    frame_command_reset(out);
+    memset(&out->u.sprite, 0, sizeof(out->u.sprite));
     out->kind = TORIRSRC_SPRITE;
     out->u.sprite.scene_id = scene_id;
     out->u.sprite.atlas_index = atlas;
@@ -739,7 +849,13 @@ translate_ui_cmd(
     assert(out);
     assert(frame->scene);
 
-    memset(out, 0, sizeof(*out));
+    /* This emitter chooses its arm in a switch below, and the cases do not
+     * agree on which of that arm's fields they set -- so unlike the single-
+     * arm emitters it cannot drop the zero without an audit of every case.
+     * It is off the per-model path, which is where the 128 bytes were being
+     * paid 1,621 times a frame. */
+    frame_command_reset(out);
+    memset(&out->u, 0, sizeof(out->u));
 
     switch( desc->kind )
     {
@@ -805,6 +921,37 @@ translate_ui_cmd(
         out->u.fill_rect.filled = desc->filled;
         return true;
 
+    case UITREE_EMIT_ARC:
+    {
+        /* One horizontal run per step. Widget type 10 is an annulus sector
+         * (render/torirs_arc.h), and every backend already fills a run, so the
+         * arc never becomes a render command of its own -- the alternative is
+         * the same rasteriser written out four times. */
+        struct ToriRS_ArcShape arc;
+        struct ToriRS_ArcSpan spans[TORIRS_ARC_ROW_SPANS_MAX];
+        int const row = frame->scrollbar_step / TORIRS_ARC_ROW_SPANS_MAX;
+        int const slot = frame->scrollbar_step % TORIRS_ARC_ROW_SPANS_MAX;
+        int found;
+
+        frame_arc_shape(desc, &arc);
+        found = ToriRS_ArcRowSpans(&arc, row, spans);
+        if( slot >= found )
+            return false;
+
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = spans[slot].x;
+        out->u.fill_rect.y = spans[slot].y;
+        out->u.fill_rect.w = spans[slot].w;
+        out->u.fill_rect.h = 1;
+        out->u.fill_rect.argb = emit_color_argb(desc->color, desc->trans);
+        out->u.fill_rect.filled = 1;
+        out->u.fill_rect.scissor_x = desc->clip.x;
+        out->u.fill_rect.scissor_y = desc->clip.y;
+        out->u.fill_rect.scissor_w = desc->clip.w;
+        out->u.fill_rect.scissor_h = desc->clip.h;
+        return true;
+    }
+
     case UITREE_EMIT_LINE:
         out->kind = TORIRSRC_LINE;
         out->u.line.x = desc->x;
@@ -825,8 +972,9 @@ translate_ui_cmd(
         struct ToriDraw_ModelHandle hnd;
         if( desc->model_id < 0 )
             return false;
-        hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
-        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
+        hnd = UITreeAnim_ModelForDraw(frame->scene, desc->model_render_cache,
+            desc->model_id, desc->model_anim_seq, desc->model_anim_frame);
+        if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;
         out->u.model_widget.model = hnd;
@@ -846,6 +994,21 @@ translate_ui_cmd(
         out->u.model_widget.model_y_offset = desc->model_y_offset;
         out->u.model_widget.model_orthog = desc->model_orthog;
         out->u.model_widget.model_fixed_zoom = desc->model_fixed_zoom;
+        /*
+         * An obj on a MODEL widget is composed the way its icon is, and half
+         * the composition is this: the icon rasteriser translates by
+         * `-bounds->min_y / 2` so the model sits centred rather than hanging
+         * off its origin. Widget models pass 0 here because their own record
+         * places them; an obj has no such record, and without the term the
+         * make-menu drew every item high and left of its cell.
+         */
+        if( desc->model_obj_composed )
+        {
+            struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+
+            if( bounds )
+                out->u.model_widget.model_center_y = -bounds->min_y / 2;
+        }
         return true;
     }
 
@@ -952,6 +1115,17 @@ translate_ui_cmd(
                 out->u.sprite.scissor_w = right > left ? right - left : 0;
                 out->u.sprite.scissor_h = bottom > top ? bottom - top : 0;
                 out->u.sprite.if3 = 0;
+                /* A hull icon spins with its yaw, pivoted at its centre. The
+                 * anchors are BOX-LOCAL (the blit subtracts the dst box origin
+                 * itself) — a screen-absolute pivot double-counts the origin
+                 * and maps every pixel outside the source. */
+                sprite_set_rotated(
+                    &out->u.sprite,
+                    dot->rotate,
+                    dot->w / 2,
+                    dot->h / 2,
+                    dot->w / 2,
+                    dot->h / 2);
             }
             else
             {
@@ -1071,9 +1245,38 @@ translate_ui_cmd(
          * viewport, which is also the clip — the reference draws these with
          * Pix2D clipped to the scene viewport. */
         struct UITreeEntityOverlay const* item;
+        int clip_x;
+        int clip_y;
+        int clip_w;
+        int clip_h;
         if( !desc->entity_overlays || frame->scrollbar_step >= desc->entity_overlay_count )
             return false;
         item = &desc->entity_overlays[frame->scrollbar_step];
+
+        /* The world viewport, narrowed by the primitive's own box when it has
+         * one. Intersecting rather than replacing: an item clip is always an
+         * extra cut inside the scene, never a licence to draw outside it. */
+        clip_x = desc->clip.x;
+        clip_y = desc->clip.y;
+        clip_w = desc->clip.w;
+        clip_h = desc->clip.h;
+        if( item->clip_w > 0 && item->clip_h > 0 )
+        {
+            int right = clip_x + clip_w;
+            int bottom = clip_y + clip_h;
+            if( item->clip_x > clip_x )
+                clip_x = item->clip_x;
+            if( item->clip_y > clip_y )
+                clip_y = item->clip_y;
+            if( item->clip_x + item->clip_w < right )
+                right = item->clip_x + item->clip_w;
+            if( item->clip_y + item->clip_h < bottom )
+                bottom = item->clip_y + item->clip_h;
+            clip_w = right - clip_x;
+            clip_h = bottom - clip_y;
+            if( clip_w <= 0 || clip_h <= 0 )
+                return false;
+        }
 
         switch( item->kind )
         {
@@ -1087,11 +1290,19 @@ translate_ui_cmd(
             out->u.sprite.y = item->y;
             out->u.sprite.w = item->w;
             out->u.sprite.h = item->h;
-            out->u.sprite.scissor_x = desc->clip.x;
-            out->u.sprite.scissor_y = desc->clip.y;
-            out->u.sprite.scissor_w = desc->clip.w;
-            out->u.sprite.scissor_h = desc->clip.h;
-            out->u.sprite.if3 = 0;
+            out->u.sprite.trans = item->trans;
+            out->u.sprite.scissor_x = clip_x;
+            out->u.sprite.scissor_y = clip_y;
+            out->u.sprite.scissor_w = clip_w;
+            out->u.sprite.scissor_h = clip_h;
+            /* Native entity art (hitsplats, headicons and health bars) leaves
+             * the destination size at zero and is blitted 1:1. Plugin image
+             * draws carry an explicit destination box; honouring that box
+             * requires the renderers' IF3/scaled sprite path. In particular,
+             * the retained chrome panel doubles both the bitmap's placement
+             * and its destination size at 2x -- a native blit would otherwise
+             * occupy only the upper-left quarter of the scaled well. */
+            out->u.sprite.if3 = (uint8_t)(item->w > 0 && item->h > 0);
             return true;
         case UITREE_ENTITY_OVERLAY_TEXT:
             /* >= 0: dat1 p11 is cache font id 0, and scene font ids are the
@@ -1112,10 +1323,10 @@ translate_ui_cmd(
              * not a widget-box top. Without this the number lands ~1 line
              * height too low and drifts off the hitmark sprite. */
             out->u.font.baseline = 1;
-            out->u.font.scissor_x = desc->clip.x;
-            out->u.font.scissor_y = desc->clip.y;
-            out->u.font.scissor_w = desc->clip.w;
-            out->u.font.scissor_h = desc->clip.h;
+            out->u.font.scissor_x = clip_x;
+            out->u.font.scissor_y = clip_y;
+            out->u.font.scissor_w = clip_w;
+            out->u.font.scissor_h = clip_h;
             return true;
         case UITREE_ENTITY_OVERLAY_LINE:
             out->kind = TORIRSRC_LINE;
@@ -1126,10 +1337,27 @@ translate_ui_cmd(
             out->u.line.argb = item->color;
             out->u.line.line_width = item->line_width > 0 ? item->line_width : 1;
             out->u.line.line_direction = item->line_direction;
-            out->u.line.scissor_x = desc->clip.x;
-            out->u.line.scissor_y = desc->clip.y;
-            out->u.line.scissor_w = desc->clip.w;
-            out->u.line.scissor_h = desc->clip.h;
+            out->u.line.scissor_x = clip_x;
+            out->u.line.scissor_y = clip_y;
+            out->u.line.scissor_w = clip_w;
+            out->u.line.scissor_h = clip_h;
+            return true;
+        case UITREE_ENTITY_OVERLAY_POLY_BEGIN:
+            out->kind = TORIRSRC_POLYGON_BEGIN;
+            out->u.polygon_begin.argb = (int)item->color;
+            out->u.polygon_begin.trans = item->trans;
+            out->u.polygon_begin.scissor_x = clip_x;
+            out->u.polygon_begin.scissor_y = clip_y;
+            out->u.polygon_begin.scissor_w = clip_w;
+            out->u.polygon_begin.scissor_h = clip_h;
+            return true;
+        case UITREE_ENTITY_OVERLAY_POLY_POINT:
+            out->kind = TORIRSRC_POLYGON_POINT;
+            out->u.polygon_point.x = item->x;
+            out->u.polygon_point.y = item->y;
+            return true;
+        case UITREE_ENTITY_OVERLAY_POLY_END:
+            out->kind = TORIRSRC_POLYGON_END;
             return true;
         case UITREE_ENTITY_OVERLAY_RECT:
         default:
@@ -1138,12 +1366,12 @@ translate_ui_cmd(
             out->u.fill_rect.y = item->y;
             out->u.fill_rect.w = item->w;
             out->u.fill_rect.h = item->h;
-            out->u.fill_rect.argb = item->color;
+            out->u.fill_rect.argb = emit_color_argb((int)item->color,item->trans);
             out->u.fill_rect.filled = 1;
-            out->u.fill_rect.scissor_x = desc->clip.x;
-            out->u.fill_rect.scissor_y = desc->clip.y;
-            out->u.fill_rect.scissor_w = desc->clip.w;
-            out->u.fill_rect.scissor_h = desc->clip.h;
+            out->u.fill_rect.scissor_x = clip_x;
+            out->u.fill_rect.scissor_y = clip_y;
+            out->u.fill_rect.scissor_w = clip_w;
+            out->u.fill_rect.scissor_h = clip_h;
             return true;
         }
     }
@@ -1153,18 +1381,18 @@ translate_ui_cmd(
         /* One display-list primitive per multi-step. The prims are already in
          * absolute screen pixels and carry their own scissor box, so this is a
          * straight field copy — no layout, no measurement, no allocation. */
-        struct ToriDbgPrim const* prim;
+        struct ToriRSChromePrim const* prim;
         int font_id;
 
         if( !desc->debug_prims || frame->scrollbar_step >= desc->debug_prim_count )
             return false;
         prim = &desc->debug_prims[frame->scrollbar_step];
 
-        if( prim->kind == TORIDBG_PRIM_TEXT )
+        if( prim->kind == TORIRS_CHROME_PRIM_TEXT )
         {
             if( !prim->text || prim->text[0] == '\0' )
                 return false;
-            if( prim->font_slot < 0 || prim->font_slot >= TORIDBG_FONT_SLOT_COUNT )
+            if( prim->font_slot < 0 || prim->font_slot >= TORIRS_CHROME_FONT_SLOT_COUNT )
                 return false;
             font_id = desc->debug_font_id[prim->font_slot];
             /* >= 0: scene font ids are cache ids, and 0 is a real one. A
@@ -1188,6 +1416,82 @@ translate_ui_cmd(
             return true;
         }
 
+        if( prim->kind == TORIRS_CHROME_PRIM_SPRITE )
+        {
+            int atlas;
+
+            /* A prim carrying its own scene id (a model-view preview) blits
+             * that sprite directly; only slot-addressed prims go through the
+             * baked-skin mapping. */
+            if( prim->sprite_scene_id > 0 )
+            {
+                out->kind = TORIRSRC_SPRITE;
+                out->u.sprite.scene_id = prim->sprite_scene_id;
+                out->u.sprite.atlas_index = 0;
+                out->u.sprite.x = prim->x;
+                out->u.sprite.y = prim->y;
+                out->u.sprite.w = prim->w;
+                out->u.sprite.h = prim->h;
+                out->u.sprite.if3 = prim->w > 0 && prim->h > 0;
+                out->u.sprite.trans = prim->trans;
+                out->u.sprite.scissor_x = prim->clip.x;
+                out->u.sprite.scissor_y = prim->clip.y;
+                out->u.sprite.scissor_w = prim->clip.w;
+                out->u.sprite.scissor_h = prim->clip.h;
+                return true;
+            }
+
+            if( prim->sprite_slot < 0 || prim->sprite_slot >= TORIRS_CHROME_SKIN_SLOT_COUNT )
+                return false;
+            atlas = desc->debug_skin_atlas[prim->sprite_slot];
+            /* No skin uploaded for this slot. The chrome only emits these once
+             * the host set the matching skin_avail bit, so reaching here means
+             * the two disagree -- draw nothing rather than blit slot 0 of some
+             * unrelated scene. */
+            if( desc->debug_skin_scene_id < 0 || atlas < 0 )
+                return false;
+            out->kind = TORIRSRC_SPRITE;
+            out->u.sprite.scene_id = desc->debug_skin_scene_id;
+            out->u.sprite.atlas_index = atlas;
+            out->u.sprite.x = prim->x;
+            out->u.sprite.y = prim->y;
+            /* 0 stays "blit at the sprite's own size" -- tiling emits one prim
+             * per copy and asks for that. A non-zero box is the chrome drawing
+             * a 1x image at a scaled size, or stretching the grip's middle
+             * piece over the run between its caps.
+             *
+             * `if3` is the renderer's flag for "scale the image into w x h"
+             * rather than a statement about where the sprite came from, and
+             * without it the destination box is read and then ignored: a 3x
+             * chrome drew 16px arrows in a 48px bar. Set only when a box was
+             * actually asked for, so native tiling keeps the plain-blit path. */
+            out->u.sprite.w = prim->w;
+            out->u.sprite.h = prim->h;
+            out->u.sprite.if3 = prim->w > 0 && prim->h > 0;
+            out->u.sprite.scissor_x = prim->clip.x;
+            out->u.sprite.scissor_y = prim->clip.y;
+            out->u.sprite.scissor_w = prim->clip.w;
+            out->u.sprite.scissor_h = prim->clip.h;
+            return true;
+        }
+
+        if( prim->kind == TORIRS_CHROME_PRIM_LINE )
+        {
+            out->kind = TORIRSRC_LINE;
+            out->u.line.x = prim->x;
+            out->u.line.y = prim->y;
+            out->u.line.w = prim->w;
+            out->u.line.h = prim->h;
+            out->u.line.argb = emit_color_argb((int)prim->color, prim->trans);
+            out->u.line.line_width = prim->line_width > 0 ? prim->line_width : 1;
+            out->u.line.line_direction = prim->line_direction;
+            out->u.line.scissor_x = prim->clip.x;
+            out->u.line.scissor_y = prim->clip.y;
+            out->u.line.scissor_w = prim->clip.w;
+            out->u.line.scissor_h = prim->clip.h;
+            return true;
+        }
+
         /* RECT. filled == 0 reaches ToriDraw2D_DrawRectOutline, which is what
          * makes a bordered background one primitive instead of four. */
         out->kind = TORIRSRC_FILL_RECT;
@@ -1198,8 +1502,10 @@ translate_ui_cmd(
         /* Prims carry 0xRRGGBB, the same convention the UITree colour fields
          * use; the alpha byte is this layer's to supply. ToriDraw2D_FillRect
          * early-outs on alpha 0, so a raw copy here draws nothing at all. The
-         * overlay is developer chrome and never translucent, hence trans 0. */
-        out->u.fill_rect.argb = emit_color_argb((int)prim->color, 0);
+         * prim's own trans is the reference's 0-opaque..255-invisible sense,
+         * which emit_color_argb already speaks -- the dropdown's row bands are
+         * the cache's `cc_settrans` values unchanged. */
+        out->u.fill_rect.argb = emit_color_argb((int)prim->color, prim->trans);
         out->u.fill_rect.filled = prim->filled;
         out->u.fill_rect.scissor_x = prim->clip.x;
         out->u.fill_rect.scissor_y = prim->clip.y;
@@ -1214,6 +1520,17 @@ translate_ui_cmd(
     }
 
     return false;
+}
+
+/* TORIRS_VP_DEBUG, read once -- this runs once per frame, so the getenv was
+ * cheap, but leaving one live getenv on the frame path invites the next one. */
+static int
+vp_debug_armed(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_VP_DEBUG") ? 1 : 0;
+    return armed;
 }
 
 void
@@ -1273,10 +1590,8 @@ ToriRS_Frame_BuildWorldViewPort(
     }
     /* TORIRS_VP_DEBUG=1: the raster/texture origin is the clip-rect center;
      * it must land on x_center/y_center or textured faces skew. */
-    if( getenv("TORIRS_VP_DEBUG") )
-        fprintf(
-            stderr,
-            "world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
+    if( vp_debug_armed() )
+        TORIRS_LOG("world_vp: desc=(%d,%d %dx%d) clip=(%d,%d %dx%d) canvas=%dx%d "
             "-> w=%d h=%d center=(%d,%d) raster_origin=(%d,%d)\n",
             desc->x, desc->y, desc->w, desc->h,
             desc->clip.x, desc->clip.y, desc->clip.w, desc->clip.h,
@@ -1308,8 +1623,8 @@ build_begin_3d_from_world_emit(
     }
     else
     {
-        out->camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-        out->camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        out->camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        out->camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
         out->camera.near_plane_z = 50;
         out->camera.pitch = 128;
         out->camera.yaw = 0;
@@ -1418,9 +1733,7 @@ emit_loc_debug(
 emit:
     budget--;
 
-    fprintf(
-        stderr,
-        "emit_loc %d el=%d: world=(%d,%d,%d) yaw=%d cam=(%d,%d,%d) rel=(%d,%d,%d) "
+    TORIRS_LOG("emit_loc %d el=%d: world=(%d,%d,%d) yaw=%d cam=(%d,%d,%d) rel=(%d,%d,%d) "
         "tile=(%d,%d) slot=(%d,%d) lvl=%d\n",
         want_loc,
         element_id,
@@ -1450,7 +1763,7 @@ emit:
      * Reported here rather than from the build-time capture because anything
      * that rewrote vertices after the build (animation frames, contour ground)
      * is already applied by now. */
-    if( el->model.kind == TORIDRAWMK_MODEL && el->model.u.model.model )
+    if( ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
     {
         struct ToriDraw_Model const* m = el->model.u.model.model;
         if( m->vertex_count > 0 )
@@ -1464,9 +1777,7 @@ emit:
                 if( m->vertices_z[v] < zmin ) zmin = m->vertices_z[v];
                 if( m->vertices_z[v] > zmax ) zmax = m->vertices_z[v];
             }
-            fprintf(
-                stderr,
-                "          extent x[%d..%d] z[%d..%d] -> world x[%d..%d] z[%d..%d] "
+            TORIRS_LOG("          extent x[%d..%d] z[%d..%d] -> world x[%d..%d] z[%d..%d] "
                 "tiles x[%d..%d] z[%d..%d] (pre-yaw)\n",
                 xmin, xmax, zmin, zmax,
                 el->world_position.x + xmin,
@@ -1561,12 +1872,12 @@ only_loc_init(void)
         g_only_loc[g_only_loc_count++] = (int)v;
         p = (*end == ',') ? end + 1 : end;
     }
-    fprintf(stderr, "only_loc: %d id(s), terrain suppressed\n", g_only_loc_count);
+    TORIRS_LOG("only_loc: %d id(s), terrain suppressed\n", g_only_loc_count);
 }
 
 static bool
 frame_only_loc_allows(
-    struct ToriRS_Frame* frame,
+    struct World* world,
     int cmd_kind,
     int element_id)
 {
@@ -1577,13 +1888,357 @@ frame_only_loc_allows(
         return true;
     if( cmd_kind != PNTR_CMD_ELEMENT )
         return false; /* terrain and pick-only commands */
-    sc = World_SceneryGetByElementId(frame->world, element_id);
+    sc = World_SceneryGetByElementId(world, element_id);
     if( !sc )
         return false;
     for( int i = 0; i < g_only_loc_count; i++ )
         if( sc->loc_id == g_only_loc[i] )
             return true;
     return false;
+}
+
+/* --- SAILING_PLAN C3: the descent stack -------------------------------- */
+
+/**
+ * `TORIRS_WEV_DEBUG=1` — print the composed transform for every view the drain
+ * descends into.
+ *
+ * A hull at the wrong place and a hull that is not drawn at all look identical
+ * from outside; this is where the difference is legible, because the offset it
+ * prints can be read against the camera. It is how the deck was caught floating
+ * 600 units up — the terrain sample had run at the wrong level.
+ *
+ * Read once, not per view: this is on the per-frame drain path.
+ * @see app_wev_debug_enabled
+ */
+static void
+frame_lookahead_reset(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    for( int i = 0; i < TORIRS_FRAME_LOOKAHEAD_RING; i++ )
+        frame->lookahead_index[i] = -1;
+}
+
+/*
+ * TORIRS_FRAME_TERRAIN_ID: 1 (default) takes a terrain command's element id
+ * from the command itself -- the painter stamps it from its own per-tile
+ * table when it emits -- instead of resolving it through the world's terrain
+ * entity pool (index arithmetic, the pool's active bit, the entity record,
+ * its element_id: two to three dependent loads into a ~43K-entry pool per
+ * terrain command, 763 of them a frame). 0 keeps the pool lookup (the
+ * control arm). Debug builds check the two agree. Read once.
+ */
+static int
+frame_terrain_id_from_command(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_TERRAIN_ID");
+
+        cached = (v && v[0] == '0') ? 0 : 1;
+    }
+    return cached;
+}
+
+/*
+ * TORIRS_FRAME_TRIM: 1 (default) applies the per-command trims -- the scene
+ * event queue pointer taken once a frame, one validity walk for the element
+ * instead of IsLive followed by Get, and both cache lines of the 112-byte
+ * element warmed by the data prefetch step. 0 is the control arm. Read once.
+ */
+static int
+frame_trim_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_TRIM");
+
+        cached = (v && v[0] == '0') ? 0 : 1;
+    }
+    return cached;
+}
+
+/*
+ * TORIRS_FRAME_PREFETCH_MODEL: how deep the emit loop's prefetch pipeline
+ * runs. 0 = the element node and data only (the original), 1 = plus the
+ * model struct (the default), 2 = plus the model's vertex and face arrays.
+ *
+ * Measured on the Moto X (Lumbridge, 1,641 commands a frame, CPU ms per
+ * frame, two runs each, arms interleaved): 0 = 14.67 / 14.78, 1 = 14.07 /
+ * 14.50, 2 = 14.41 / 14.88. The model step takes FastCull from 0.81 to 0.29
+ * ms and the projection kernel from 0.76 to 0.70 by having the model's
+ * counts, array pointers and bounds cylinder warm when the renderer
+ * projects the command. The array step warms the kernel further (0.70 ->
+ * 0.50) but its six pointer reads and six PLDs per command cost the emit
+ * loop 0.4 ms -- more than they save -- so it is off. Read once.
+ */
+static int
+frame_prefetch_model_mode(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_PREFETCH_MODEL");
+
+        cached = 1;
+        if( v && (v[0] == '0' || v[0] == '2') )
+            cached = v[0] - '0';
+    }
+    return cached;
+}
+
+/*
+ * The element id painter command `index` names, resolved in the CURRENT view
+ * world -- the caller has checked no view marker lies between here and it --
+ * and remembered in the frame's lookahead ring so the prefetch steps and the
+ * command's own turn share one resolution. -1 for a command that names no
+ * element (a marker, an unknown kind, a dead tile).
+ */
+static int
+frame_lookahead_element_id(
+    struct ToriRS_Frame* frame,
+    int index)
+{
+    int const slot = index & (TORIRS_FRAME_LOOKAHEAD_RING - 1);
+    const struct PaintersElementCommand* cmd;
+    int element_id;
+
+    assert(frame);
+    assert(index >= 0);
+    assert(index < frame->painters->command_count);
+
+    if( frame->lookahead_index[slot] == index )
+        return frame->lookahead_id[slot];
+
+    cmd = &frame->painters->commands[index];
+    if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+    {
+        element_id = painter_command_element_id(cmd);
+        assert(element_id == cmd->_element_id);
+    }
+    else if( cmd->_bf_kind == PNTR_CMD_TERRAIN || cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
+    {
+        if( frame_terrain_id_from_command() )
+        {
+            element_id = cmd->_element_id;
+            assert(
+                element_id == World_TerrainElementAt(
+                                  frame->view_stack[frame->view_depth].world,
+                                  (int)cmd->_terrain._bf_terrain_x,
+                                  (int)cmd->_terrain._bf_terrain_z,
+                                  (int)cmd->_terrain._bf_terrain_y));
+        }
+        else
+            element_id = World_TerrainElementAt(
+                frame->view_stack[frame->view_depth].world,
+                (int)cmd->_terrain._bf_terrain_x,
+                (int)cmd->_terrain._bf_terrain_z,
+                (int)cmd->_terrain._bf_terrain_y);
+    }
+    else
+        element_id = -1;
+
+    frame->lookahead_index[slot] = index;
+    frame->lookahead_id[slot] = element_id;
+    return element_id;
+}
+
+int
+ToriRS_FrameLookaheadElementId(
+    const struct ToriRS_Frame* frame,
+    int distance)
+{
+    int index;
+    int slot;
+
+    assert(frame);
+    assert(distance >= 1);
+    assert(distance <= 3);
+    if( !frame->in_world || !frame->painters )
+        return -1;
+    index = frame->painters_index - 1 + distance;
+    if( index < 0 || index >= frame->painters->command_count )
+        return -1;
+    slot = index & (TORIRS_FRAME_LOOKAHEAD_RING - 1);
+    if( frame->lookahead_index[slot] != index )
+        return -1;
+    return frame->lookahead_id[slot];
+}
+
+bool
+ToriRS_FrameHasWorldPassAhead(const struct ToriRS_Frame* frame)
+{
+    int i;
+
+    assert(frame);
+    if( frame->in_world )
+        return true;
+    /* The emit list is the interface's: a few hundred descs at most, and a
+     * consumer asks once per pass. */
+    for( i = frame->emit_index; i < frame->emit_count; i++ )
+        if( frame->emit_cmds[i].kind == UITREE_EMIT_WORLD )
+            return true;
+    return false;
+}
+
+static int
+frame_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+/**
+ * PNTR_CMD_BEGIN_WORLD: compose this view's transform onto the stack top.
+ *
+ * With the parent already reduced to `root = R(Y) * p + O`, one more level of
+ * `p -> R(y) * (local + recenter) + translate` gives
+ *   Y' = Y + y
+ *   O' = R(Y) * (R(y) * recenter + translate) + O
+ * which is why an element pays one rotate no matter how deeply it nests. The
+ * vertical axis never rotates, so O'.y is a plain sum.
+ */
+static void
+frame_view_push(
+    struct ToriRS_Frame* frame,
+    int view_id)
+{
+    const struct ToriRS_FrameViewXform* xf;
+    int depth;
+    int parent_yaw;
+    int rx;
+    int rz;
+    int cs;
+    int sn;
+    int px;
+    int pz;
+
+    assert(frame);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    /* The painter caps its own descent at PAINTER_MAX_WORLD_VIEWS, which is the
+     * same 16, so a deeper stack than this is a corrupt command stream. */
+    assert(frame->view_depth + 1 < TORIRS_FRAME_MAX_VIEWS);
+
+    depth = frame->view_depth;
+    parent_yaw = frame->view_stack[depth].yaw;
+    xf = &frame->views[view_id];
+
+    frame->view_depth = depth + 1;
+    frame->dbg_view_traced = false;
+    if( !xf->live )
+    {
+        /* The painter descended into a view the App never bound this frame.
+         * Carry the parent's transform through so the stack still balances and
+         * the geometry lands somewhere sane rather than at the origin. */
+        frame->view_stack[depth + 1] = frame->view_stack[depth];
+        frame->view_stack[depth + 1].view_id = view_id;
+        return;
+    }
+
+    /* R(yaw) * recenter */
+    cs = ToriDraw_Cos(xf->yaw);
+    sn = ToriDraw_Sin(xf->yaw);
+    rx = (xf->recenter_x * cs + xf->recenter_z * sn) >> 16;
+    rz = (xf->recenter_z * cs - xf->recenter_x * sn) >> 16;
+    rx += xf->translate_x;
+    rz += xf->translate_z;
+
+    /* R(parent_yaw) * that */
+    cs = ToriDraw_Cos(parent_yaw);
+    sn = ToriDraw_Sin(parent_yaw);
+    px = (rx * cs + rz * sn) >> 16;
+    pz = (rz * cs - rx * sn) >> 16;
+
+    frame->view_stack[depth + 1].world = xf->world ? xf->world : frame->view_stack[depth].world;
+    frame->view_stack[depth + 1].off_x = frame->view_stack[depth].off_x + px;
+    frame->view_stack[depth + 1].off_z = frame->view_stack[depth].off_z + pz;
+    frame->view_stack[depth + 1].off_y = frame->view_stack[depth].off_y +
+        (int)(frame->view_stack[depth].scale_y *
+              (xf->translate_y + xf->flatten_scale * xf->flatten_y_offset));
+    frame->view_stack[depth + 1].scale_y =
+        frame->view_stack[depth].scale_y * xf->flatten_scale;
+    frame->view_stack[depth + 1].flat_hsl = xf->flat_hsl >= 0
+        ? xf->flat_hsl : frame->view_stack[depth].flat_hsl;
+    frame->view_stack[depth + 1].yaw = (parent_yaw + xf->yaw) & 0x7ff;
+    frame->view_stack[depth + 1].view_id = view_id;
+
+    if( frame_wev_debug_enabled() )
+        fprintf(
+            stderr,
+            "wev: XFORM view %d recenter %d,%d translate %d,%d,%d yaw %d -> "
+            "off %d,%d,%d (cam %d,%d,%d)\n",
+            view_id,
+            xf->recenter_x,
+            xf->recenter_z,
+            xf->translate_x,
+            xf->translate_y,
+            xf->translate_z,
+            xf->yaw,
+            frame->view_stack[depth + 1].off_x,
+            frame->view_stack[depth + 1].off_y,
+            frame->view_stack[depth + 1].off_z,
+            frame->cam_x,
+            frame->cam_y,
+            frame->cam_z);
+}
+
+/** PNTR_CMD_END_WORLD. A close at depth 0 is an unbalanced command stream. */
+static void
+frame_view_pop(
+    struct ToriRS_Frame* frame,
+    int view_id)
+{
+    assert(frame);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    assert(frame->view_depth > 0);
+    assert(frame->view_stack[frame->view_depth].view_id == view_id);
+    /* Only the asserts above read it; NDEBUG drops them. */
+    (void)view_id;
+    frame->view_depth--;
+}
+
+/** Deck-local -> root space. Element yaw composes additively with the stack. */
+static struct ToriDraw_Position
+frame_view_apply(
+    const struct ToriRS_Frame* frame,
+    const struct ToriDraw_Position* local)
+{
+    struct ToriDraw_Position out = *local;
+    int depth;
+    int yaw;
+    int cs;
+    int sn;
+
+    assert(frame);
+    assert(local);
+
+    depth = frame->view_depth;
+    if( depth == 0 )
+        return out;
+
+    yaw = frame->view_stack[depth].yaw;
+    cs = ToriDraw_Cos(yaw);
+    sn = ToriDraw_Sin(yaw);
+    out.x = ((local->x * cs + local->z * sn) >> 16) + frame->view_stack[depth].off_x;
+    out.z = ((local->z * cs - local->x * sn) >> 16) + frame->view_stack[depth].off_z;
+    out.y = (int)(local->y * frame->view_stack[depth].scale_y) +
+            frame->view_stack[depth].off_y;
+    out.yaw = ToriDraw_NormalizeAngle(local->yaw + yaw);
+    return out;
 }
 
 static bool
@@ -1614,16 +2269,102 @@ try_emit_world_draw_model(
         int element_id = -1;
         struct ToriDraw_SceneElement* el;
         struct ToriDraw_Position rel;
+        struct ToriDraw_Position abs_pos;
+        struct World* view_world;
 
-        if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
-            element_id = (int)cmd->_entity._bf_entity;
-        else if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
-                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
-            element_id = World_TerrainElementAt(
-                frame->world,
-                (int)cmd->_terrain._bf_terrain_x,
-                (int)cmd->_terrain._bf_terrain_z,
-                (int)cmd->_terrain._bf_terrain_y);
+        /*
+         * Warm the next commands' lines while this one is worked on. Painter
+         * order is depth order, so every element here is a cold line, and
+         * the walk was measured spending its time on exactly that load.
+         *
+         * A four-deep pipeline, one line class per step, each step reading
+         * only what the step before it fetched: the pool NODE at +4, the
+         * element DATA at +3 (read off the node), the MODEL struct at +2
+         * (read off the data), the model's vertex and face ARRAYS at +1
+         * (read off the model). The renderer projects and sorts the command
+         * the moment it is handed over, so +1 is the last chance for the
+         * arrays. Terrain commands resolve their element through the world's
+         * tile pool; that lookup runs once, here, and the ring remembers it.
+         * TORIRS_FRAME_PREFETCH_MODEL=0 keeps only the two element steps
+         * (the A/B control arm); 1 adds the model step.
+         */
+        {
+            int const cur = frame->painters_index - 1;
+            int const count = frame->painters->command_count;
+            int const depth = 2 + frame_prefetch_model_mode();
+            int reach = cur;
+            int i;
+            /* A view marker between here and a command moves the world the
+             * command resolves in: stop the lookahead at the marker.
+             *
+             * The walk starts at `cur` itself, not at cur + 1. The markers are
+             * consumed BELOW this block, so while the current command is one,
+             * the view it opens (or closes) is not on the stack yet: every
+             * command after it would be resolved against the outgoing view's
+             * world and the ring would remember that answer for the command's
+             * own turn. A marker therefore prefetches nothing; the command
+             * after it resolves at its own turn, under its own view. */
+            for( i = cur; i <= cur + depth && i < count; i++ )
+            {
+                uint32_t const kind = frame->painters->commands[i]._bf_kind;
+                if( kind == PNTR_CMD_BEGIN_WORLD || kind == PNTR_CMD_END_WORLD )
+                    break;
+                reach = i;
+            }
+            if( reach >= cur + depth )
+                ToriDraw_SceneElementPrefetchNode(
+                    frame->scene, frame_lookahead_element_id(frame, cur + depth));
+            if( reach >= cur + depth - 1 )
+            {
+                if( frame_trim_enabled() )
+                    ToriDraw_SceneElementPrefetchDataBothLines(
+                        frame->scene, frame_lookahead_element_id(frame, cur + depth - 1));
+                else
+                    ToriDraw_SceneElementPrefetchData(
+                        frame->scene, frame_lookahead_element_id(frame, cur + depth - 1));
+            }
+            if( depth >= 3 && reach >= cur + depth - 2 )
+                ToriDraw_SceneElementPrefetchModel(
+                    frame->scene, frame_lookahead_element_id(frame, cur + depth - 2));
+            if( depth >= 4 && reach >= cur + 1 )
+                ToriDraw_SceneElementPrefetchArrays(
+                    frame->scene, frame_lookahead_element_id(frame, cur + 1));
+        }
+
+        /* The descent markers are bookkeeping, not draws: they move the view
+         * stack and are consumed here, ahead of every filter below, so a
+         * TORIRS_ONLY_LOC or TORIRS_PAINT_LIMIT run cannot desync the stack. */
+        if( cmd->_bf_kind == PNTR_CMD_BEGIN_WORLD )
+        {
+            /* A refused descent is an adjacent empty pair. Consume it without
+             * another context: at the registry bound even that empty push
+             * would require a seventeenth frame. */
+            if( frame->painters_index < frame->painters->command_count )
+            {
+                const struct PaintersElementCommand* next =
+                    &frame->painters->commands[frame->painters_index];
+                if( next->_bf_kind == PNTR_CMD_END_WORLD &&
+                    next->_entity._bf_entity == cmd->_entity._bf_entity )
+                { ++frame->painters_index; continue; }
+            }
+            frame_view_push(frame, (int)cmd->_entity._bf_entity);
+            continue;
+        }
+        if( cmd->_bf_kind == PNTR_CMD_END_WORLD )
+        {
+            frame_view_pop(frame, (int)cmd->_entity._bf_entity);
+            continue;
+        }
+
+        assert(frame->view_depth >= 0);
+        assert(frame->view_depth < TORIRS_FRAME_MAX_VIEWS);
+        view_world = frame->view_stack[frame->view_depth].world;
+        bool flat = frame->view_stack[frame->view_depth].flat_hsl >= 0;
+        if( flat && cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ) continue;
+
+        if( cmd->_bf_kind == PNTR_CMD_ELEMENT || cmd->_bf_kind == PNTR_CMD_TERRAIN ||
+            cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
+            element_id = frame_lookahead_element_id(frame, frame->painters_index - 1);
         else
             continue;
 
@@ -1631,14 +2372,29 @@ try_emit_world_draw_model(
          * painter emitting a command is not the same as geometry reaching the
          * raster — a dead element id or a model-less element drops out here
          * silently, which looks identical to "the painter found nothing". */
-        if( element_id < 0 || !ToriDraw_SceneElementIsLive(frame->scene, element_id) )
+        if( frame_trim_enabled() )
         {
-            if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
-                frame->dbg_drop_not_live++;
-            continue;
+            /* One validity walk: Get answers NULL for a dead id, which is
+             * the same question IsLive asked of the same list a moment
+             * earlier. */
+            el = element_id < 0 ? NULL : ToriDraw_SceneElementGet(frame->scene, element_id);
+            if( !el )
+            {
+                if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                    frame->dbg_drop_not_live++;
+                continue;
+            }
         }
-
-        el = ToriDraw_SceneElementGet(frame->scene, element_id);
+        else
+        {
+            if( element_id < 0 || !ToriDraw_SceneElementIsLive(frame->scene, element_id) )
+            {
+                if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
+                    frame->dbg_drop_not_live++;
+                continue;
+            }
+            el = ToriDraw_SceneElementGet(frame->scene, element_id);
+        }
         if( !el || el->model.kind == TORIDRAWMK_NONE )
         {
             if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
@@ -1646,7 +2402,7 @@ try_emit_world_draw_model(
             continue;
         }
 
-        if( !frame_only_loc_allows(frame, cmd->_bf_kind, element_id) )
+        if( !frame_only_loc_allows(view_world, cmd->_bf_kind, element_id) )
             continue;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
@@ -1654,10 +2410,39 @@ try_emit_world_draw_model(
         else
             frame->dbg_emit_terrain++;
 
-        rel = el->world_position;
+        /* Deck-local -> root space through the composed descent transform, then
+         * camera-relative. At depth 0 the transform is the identity and this is
+         * the plain camera subtract it has always been. */
+        abs_pos = frame_view_apply(frame, &el->world_position);
+        rel = abs_pos;
         rel.x -= frame->cam_x;
         rel.y -= frame->cam_y;
         rel.z -= frame->cam_z;
+
+        /* The first draw inside each descent, in all three spaces. "The
+         * transform looks sane" and "the geometry lands in front of the
+         * camera" are different claims, and only this one answers the second:
+         * a deck-local position that was never deck-local, or a `rel` a
+         * hundred thousand units off, both read as "nothing composited". */
+        if( frame->view_depth > 0 && !frame->dbg_view_traced && frame_wev_debug_enabled() )
+        {
+            frame->dbg_view_traced = true;
+            fprintf(
+                stderr,
+                "wev: DRAW view %d element %d local %d,%d,%d -> abs %d,%d,%d "
+                "-> rel %d,%d,%d\n",
+                frame->view_stack[frame->view_depth].view_id,
+                element_id,
+                el->world_position.x,
+                el->world_position.y,
+                el->world_position.z,
+                abs_pos.x,
+                abs_pos.y,
+                abs_pos.z,
+                rel.x,
+                rel.y,
+                rel.z);
+        }
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);
@@ -1687,20 +2472,19 @@ try_emit_world_draw_model(
                 {
                     struct WorldEntity_Scenery* sc =
                         cmd->_bf_kind == PNTR_CMD_ELEMENT
-                            ? World_SceneryGetByElementId(frame->world, element_id) : NULL;
+                            ? World_SceneryGetByElementId(view_world, element_id) : NULL;
                     /* cmd= is the painters_index of this command — the unit
                      * TORIRS_PAINT_LIMIT caps at, so a cap of cmd+1 draws up
                      * to and including this line. */
                     if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
                         cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
-                        fprintf(stderr, "order %4d cmd=%4d TERRAIN%s tile=%d,%d L%d\n", seq++,
+                        TORIRS_LOG("order %4d cmd=%4d TERRAIN%s tile=%d,%d L%d\n", seq++,
                                 frame->painters_index - 1,
                                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ? "(pick)" : "",
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
                     else if( sc )
-                        fprintf(stderr,
-                                "order %4d cmd=%4d LOC loc=%d slot=%d,%d L%d size=%dx%d\n", seq++,
+                        TORIRS_LOG("order %4d cmd=%4d LOC loc=%d slot=%d,%d L%d size=%dx%d\n", seq++,
                                 frame->painters_index - 1,
                                 sc->loc_id, sc->grid_position.x, sc->grid_position.z,
                                 sc->grid_position.level,
@@ -1712,17 +2496,16 @@ try_emit_world_draw_model(
                          * loc almost always has an npc on the other side of it,
                          * and "loc=-1" cannot answer which npc. */
                         struct WorldEntity_NPC* npc =
-                            World_NpcGetByElementId(frame->world, element_id, NULL);
+                            World_NpcGetByElementId(view_world, element_id, NULL);
                         if( npc )
-                            fprintf(stderr,
-                                    "order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
+                            TORIRS_LOG("order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
                                     "draw=%d,%d\n",
                                     seq++, frame->painters_index - 1, npc->npc_id,
                                     npc->grid_position.x, npc->grid_position.z,
                                     npc->grid_position.level, npc->size,
                                     (int)npc->draw_position.x, (int)npc->draw_position.z);
                         else
-                            fprintf(stderr, "order %4d cmd=%4d ELEM element=%d at=%d,%d,%d\n",
+                            TORIRS_LOG("order %4d cmd=%4d ELEM element=%d at=%d,%d,%d\n",
                                     seq++, frame->painters_index - 1, element_id,
                                     el->world_position.x, el->world_position.y,
                                     el->world_position.z);
@@ -1731,17 +2514,42 @@ try_emit_world_draw_model(
             }
         }
 
-        memset(out, 0, sizeof(*out));
+        /* A GPU frame may freeze each requested pose here. The model is
+         * element-owned and the world update cannot advance until FrameEnd.
+         * The feed release publishes these geometry writes to the worker. */
+        if( (frame->prepare_gpu_poses || flat) && el->animation )
+            ToriDraw_SceneElementApplyAnimationResolved(el,element_id,true,el->anim_frame,true);
+
+        frame_command_reset(out);
         out->kind = TORIRSRC_DRAW_MODEL;
-        out->u.model.model = el->model;
+        out->u.model.model = flat
+            ? frame_flat_model(frame->flat_arena, el->model,
+                               frame->view_stack[frame->view_depth].scale_y,
+                               frame->view_stack[frame->view_depth].flat_hsl)
+            : el->model;
         out->u.model.position = rel;
-        out->u.model.world_position = el->world_position;
+        /* Root space, not deck space: picking and the debug dumps both read
+         * this as "where the thing is in the world". */
+        out->u.model.world_position = abs_pos;
         out->u.model.element_id = element_id;
-        out->u.model.animation = el->animation;
+        out->u.model.animation = flat ? NULL : el->animation;
         out->u.model.anim_frame = el->anim_frame;
-        out->u.model.dynamic = el->dynamic;
-        out->u.model.pickable = true;
+        /* A static deck model moves in root space with its carrier. Retained
+         * GPU vertices baked at the deck's original placement cannot serve
+         * this draw: publish the composed placement through the dynamic lane. */
+        out->u.model.dynamic = el->dynamic || frame->view_depth>0;
+        /* Primary pose track.  Assigned rather than left to a zeroed
+         * command: this is the one field on the 1,621-per-frame path
+         * that used to arrive as 0 by accident rather than on
+         * purpose. */
+        out->u.model.anim_index = 0;
+        out->u.model.pickable = !flat;
         out->u.model.pick_aabb = el->pick_aabb;
+        /* Which view this draw belongs to, off the descent stack: a deck
+         * tile's pick coords are the DECK's own tiles, and the click layer
+         * resolves them against that view's staging base (deob: each scene
+         * records its own hovered tile in its own local coordinates). */
+        out->u.model.pick_view = frame->view_stack[frame->view_depth].view_id;
         if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
             cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
         {
@@ -1753,6 +2561,11 @@ try_emit_world_draw_model(
         }
         else
         {
+            /* Both were reached as zero from the blanket command wipe.
+             * They are the model arm's last two implicit fields, and
+             * this is the branch every non-terrain model takes. */
+            out->u.model.pick_terrain = false;
+            out->u.model.pick_only = false;
             out->u.model.pick_tile_x = -1;
             out->u.model.pick_tile_z = -1;
             out->u.model.pick_tile_level = -1;
@@ -1841,6 +2654,55 @@ ToriRS_FrameSetWorld(
         memset(&frame->world_camera, 0, sizeof(frame->world_camera));
         frame->has_world_camera = false;
     }
+    /* Slot 0 is the root view and is the identity by construction: the descent
+     * stack starts there, so every un-nested element takes the plain camera
+     * subtract it always has. */
+    frame->views[0] = (struct ToriRS_FrameViewXform){
+        .world = world,
+        .flatten_scale = 1.0f,
+        .flat_hsl = -1,
+        .live = true,
+    };
+}
+
+void
+ToriRS_FrameClearViewXforms(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; i++ )
+        memset(&frame->views[i], 0, sizeof(frame->views[i]));
+}
+
+void
+ToriRS_FrameSetViewXform(
+    struct ToriRS_Frame* frame,
+    int view_id,
+    struct World* world,
+    int recenter_x,
+    int recenter_z,
+    int translate_x,
+    int translate_y,
+    int translate_z,
+    int yaw)
+{
+    assert(frame);
+    assert(world);
+    assert(view_id > 0);
+    assert(view_id < TORIRS_FRAME_MAX_VIEWS);
+    frame->views[view_id] = (struct ToriRS_FrameViewXform){
+        .world = world,
+        .recenter_x = recenter_x,
+        .recenter_z = recenter_z,
+        .translate_x = translate_x,
+        .translate_y = translate_y,
+        .translate_z = translate_z,
+        .yaw = yaw & 0x7ff,
+        /* C4 fills these; identity keeps the compose arithmetic uniform. */
+        .flatten_scale = 1.0f,
+        .flatten_y_offset = 0,
+        .flat_hsl = -1,
+        .live = true,
+    };
 }
 
 void
@@ -1849,6 +2711,14 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     assert(frame);
     assert(frame->scene);
     assert(frame->canvas_w > 0 && frame->canvas_h > 0);
+    assert(!frame->flat_arena);
+    for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; ++i )
+        if( frame->views[i].live && frame->views[i].flat_hsl >= 0 )
+        {
+            frame->flat_arena = calloc(1, sizeof(*frame->flat_arena));
+            assert(frame->flat_arena);
+            break;
+        }
     /* TORIRS_PAINT_LIMIT_STEP: advance the cap once per frame (from frame
      * TORIRS_PAINT_LIMIT_STEP_AT on, so a login/cinematic prefix does not
      * consume the sweep), so a TORIRS_BMP_SERIES run flips through the paint
@@ -1861,11 +2731,64 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    frame_lookahead_reset(frame);
+    /* The queue's address is a fact about the scene, not about the command;
+     * take it once here rather than on every FrameNextCommand call. */
+    if( frame_trim_enabled() )
+    {
+        frame->scene_events = ToriDraw_SceneEvents(frame->scene);
+        frame->scene_events_of = frame->scene;
+    }
+    else
+    {
+        frame->scene_events = NULL;
+        frame->scene_events_of = NULL;
+    }
+    /* Depth 0 is the root: identity transform, frame->world for terrain. */
+    frame->view_depth = 0;
+    memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+    frame->view_stack[0].world = frame->world;
+    frame->view_stack[0].scale_y = 1.0f;
+    frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
+    frame->world_only = false;
+    frame->prepare_gpu_poses = false;
+    memset(&frame->queued, 0, sizeof(frame->queued));
+    memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
+}
+
+void
+ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
+{
+    assert(frame);
+    assert(frame->scene);
+    assert(frame->canvas_w > 0 && frame->canvas_h > 0);
+    /* ToriRS_FrameBegin minus the paint-limit step: that is a per-frame
+     * count, and the frame this is a copy of already counted. */
+    frame->pass = TORIRS_FRAME_PASS_NONE;
+    frame->emit_index = 0;
+    frame->painters_index = 0;
+    frame_lookahead_reset(frame);
+    /* No events are taken on a world-only replay; leave no queue to take
+     * them from either. */
+    frame->scene_events = NULL;
+    frame->scene_events_of = NULL;
+    frame->view_depth = 0;
+    memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+    frame->view_stack[0].world = frame->world;
+    frame->view_stack[0].scale_y = 1.0f;
+    frame->view_stack[0].flat_hsl = -1;
+    frame->scrollbar_step = 0;
+    frame->event_index = 0;
+    frame->in_world = false;
+    frame->world_begun = false;
+    frame->has_queued = false;
+    frame->world_only = true;
+    frame->prepare_gpu_poses = false;
     memset(&frame->queued, 0, sizeof(frame->queued));
     memset(&frame->pending_begin_3d, 0, sizeof(frame->pending_begin_3d));
 }
@@ -1883,8 +2806,10 @@ ToriRS_FrameNextCommand(
         return true;
 
     /* Drain ordered scene resource events before any DRAW_MODEL so retained
-     * model/pose buffers and asynchronous textures are ready for the pass. */
-    if( frame_take_scene_event(frame, out) )
+     * model/pose buffers and asynchronous textures are ready for the pass.
+     * A world-only replay leaves them to the frame that draws: they are
+     * loads and unloads of renderer resources, not part of the walk. */
+    if( !frame->world_only && frame_take_scene_event(frame, out) )
         return true;
 
 again:
@@ -1893,7 +2818,7 @@ again:
     {
         if( !frame->world_begun )
         {
-            memset(out, 0, sizeof(*out));
+            frame_command_reset(out);
             out->kind = TORIRSRC_BEGIN_3D;
             out->u.begin_3d = frame->pending_begin_3d;
             frame->pass = TORIRS_FRAME_PASS_3D;
@@ -1936,6 +2861,18 @@ again:
             is_scrollbar = 1;
             sb_steps = 1 + desc->worldmap_tile_count;
         }
+        /* An arc steps its bounding circle a row at a time, with a slot per
+         * run on that row. Rows and slots that hold nothing translate to
+         * nothing and are skipped, which costs an iteration and keeps the step
+         * count a pure function of the desc -- so the driver never has to ask
+         * the arc anything before it starts. */
+        if( desc->kind == UITREE_EMIT_ARC )
+        {
+            struct ToriRS_ArcShape arc;
+            frame_arc_shape(desc, &arc);
+            is_scrollbar = 1;
+            sb_steps = ToriRS_ArcRowCount(&arc) * TORIRS_ARC_ROW_SPANS_MAX;
+        }
         /* Debug overlay: one step per display-list primitive. Stepping the
          * host's array in place is the reason the overlay's whole per-frame
          * cost is a pointer copy — an emit desc per prim would mean copying
@@ -1946,6 +2883,16 @@ again:
             sb_steps = desc->debug_prim_count;
         }
 
+        /* A world-only replay steps over every interface desc untranslated:
+         * the interface is the drawing frame's, and translating it here would
+         * touch font and sprite caches from a second thread. */
+        if( frame->world_only && desc->kind != UITREE_EMIT_WORLD )
+        {
+            frame->emit_index++;
+            frame->scrollbar_step = 0;
+            continue;
+        }
+
         if( desc->kind == UITREE_EMIT_WORLD )
         {
             frame->emit_index++;
@@ -1954,6 +2901,13 @@ again:
             frame->in_world = true;
             frame->world_begun = false;
             frame->painters_index = 0;
+            frame_lookahead_reset(frame);
+            /* The painter walk restarts here, so the descent stack does too. */
+            frame->view_depth = 0;
+            memset(&frame->view_stack[0], 0, sizeof(frame->view_stack[0]));
+            frame->view_stack[0].world = frame->world;
+            frame->view_stack[0].scale_y = 1.0f;
+            frame->view_stack[0].flat_hsl = -1;
 
             if( frame->pass == TORIRS_FRAME_PASS_2D )
             {
@@ -2027,11 +2981,16 @@ void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame)
 {
     assert(frame);
+    assert(!frame->world_only);
+    frame_flat_free(frame->flat_arena);
+    frame->flat_arena = NULL;
+    frame->prepare_gpu_poses = false;
     if( frame->scene )
         ToriDraw_SceneFrameEnd(frame->scene);
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    frame_lookahead_reset(frame);
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;

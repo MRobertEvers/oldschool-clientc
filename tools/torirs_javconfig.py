@@ -84,6 +84,9 @@ def main():
     ap.add_argument("--host", default="127.0.0.1",
                     help="host the CLIENT should connect to (goes into codebase)")
     ap.add_argument("--port", type=int, default=8080, help="port to serve this config on")
+    ap.add_argument("--bind", default="127.0.0.1",
+                    help="address to bind the config server to; 0.0.0.0 when the "
+                         "client is another machine (the Windows XP lane)")
     ap.add_argument("--revision", type=int, default=239)
     ap.add_argument("--world-id", type=int, default=471,
                     help="applet world id; with a nonzero environment the "
@@ -118,9 +121,9 @@ def main():
             print(f"javconfig: {self.address_string()} {fmt % a}", flush=True)
 
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("127.0.0.1", args.port), Handler) as srv:
+    with socketserver.TCPServer((args.bind, args.port), Handler) as srv:
         print(
-            f"javconfig: http://127.0.0.1:{args.port}/jav_config.ws "
+            f"javconfig: http://{args.bind}:{args.port}/jav_config.ws "
             f"-> codebase http://{args.host}/, revision {args.revision}",
             flush=True,
         )

@@ -203,6 +203,37 @@ minimap_push_down_tiles(
         minimap->tiles[minimap_coord_idx(minimap, sx, sz, level)] =
             minimap->tiles[minimap_coord_idx(minimap, sx, sz, level + 1)];
     minimap->tiles[minimap_coord_idx(minimap, sx, sz, minimap->levels - 1)] = tmp;
+
+    /*
+     * A deck that states no floor of its own keeps the underpass colour.
+     *
+     * Not every LinkBelow column carries its deck as terrain. Lumbridge's
+     * bridges do — cache level 1 names a plank overlay flo, that colour lands
+     * on level 0 above, and the shift is the whole story. Port Sarim's piers do
+     * not: their level-1 flo is the 0xFF00FF "hole" (overlay 42, no texture, no
+     * underlay), because the deck is loc geometry — the plank models — and the
+     * gaps between the planks are meant to show the sea. The shift then moves an
+     * EMPTY tile onto the paint level and the water underneath, the only colour
+     * the column ever had, wraps out of sight: every pier bakes as a black hole
+     * in the middle of the harbour.
+     *
+     * The reference does not lose it either. World.pushDown (World.ts:213) hangs
+     * the displaced square off the new one as `linkedSquare`, and the renderer
+     * draws that link's ground under the deck (World.ts:1533) — which is why the
+     * sea is visible through the planks in 3D here too. Keeping the colour is
+     * that same link, applied to the plane the map bakes from; the wall lines the
+     * shift brought down (the pier railings) stay on top of it.
+     */
+    {
+        struct MinimapTile* base = &minimap->tiles[minimap_coord_idx(minimap, sx, sz, 0)];
+        if( base->foreground_rgb == 0 && base->background_rgb == 0 )
+        {
+            base->foreground_rgb = tmp.foreground_rgb;
+            base->background_rgb = tmp.background_rgb;
+            base->shape = tmp.shape;
+            base->rotation = tmp.rotation;
+        }
+    }
 }
 
 static void

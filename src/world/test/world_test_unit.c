@@ -30,7 +30,7 @@ test_lifecycle_coords(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 1);
     struct WorldEntity_Player* p = World_EntityPoolGet(&world->entities.player, pi);
     uint32_t x0 = p->draw_position.x;
-    World_Cycle(world, 10);
+    World_TestCycle(world, 10);
     TEST_ASSERT(p->draw_position.x == x0, "cycle no-op without load_complete");
 
     World_Free(world);
@@ -256,10 +256,10 @@ test_pickset(void)
     World_PickSetReset(&set);
     TEST_ASSERT(set.count == 0, "reset");
 
-    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0);
-    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1);
-    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2);
-    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3);
+    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0, 0);
+    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1, 0);
+    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2, 0);
+    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3, 0);
     TEST_ASSERT(set.count == 4, "pick count");
     TEST_ASSERT(set.items[1].type == WORLD_PICK_SCENERY && set.items[1].tile_x == 1, "scenery pick");
 
@@ -339,8 +339,35 @@ test_player_npc(void)
     World_NpcSetAnimation(world, ni, 9, WORLD_ANIMATION_TYPE_PRIMARY);
     World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_RUN, 6);
     World_NpcPathJump(world, ni, false, 8, 8);
+    npc->server_slot = 77;
+    npc->combat_level = 42;
+    npc->combat.healthbar_type = 3;
+    npc->combat.healthbar_end_fill = 0;
+    snprintf(npc->name, sizeof(npc->name), "%s", "Goblin");
     World_NpcDespawn(world, ni);
     TEST_ASSERT(World_EventsCount(world) == 1, "npc despawn event");
+    ev = World_EventsPeek(world, 0);
+    TEST_ASSERT(!World_EntityPoolIsActive(&world->entities.npc, ni),
+                "npc pool slot is released before the event drain");
+    TEST_ASSERT(ev && ev->removed_npc,
+                "npc despawn event retains a pre-release snapshot");
+    {
+        int const replacement = World_NpcSpawn(world, 21, 999, 1, 9, 10, 1, idle);
+        struct WorldEntity_NPC* live =
+            World_EntityPoolGet(&world->entities.npc, replacement);
+
+        TEST_ASSERT(replacement == ni,
+                    "the released npc slot can be reused before the event drain");
+        TEST_ASSERT(live && live->npc_id == 999,
+                    "the reused pool slot now belongs to the replacement npc");
+    }
+    TEST_ASSERT(ev && ev->removed_npc && ev->removed_npc->npc_id == 1234 &&
+                    ev->removed_npc->server_slot == 77 &&
+                    ev->removed_npc->combat_level == 42 &&
+                    ev->removed_npc->combat.healthbar_type == 3 &&
+                    ev->removed_npc->combat.healthbar_end_fill == 0 &&
+                    strcmp(ev->removed_npc->name, "Goblin") == 0,
+                "the queued snapshot carries the plugin-visible death facts");
     World_EventsClear(world);
 
     World_Free(world);
@@ -391,7 +418,7 @@ test_projectile(void)
     idx = World_ProjectileSpawn(
         world, 31, 0, 128, 128, 256, 256, 100, 0, 0, 3, 0, 0, WORLD_PROJECTILE_TARGET_NONE);
     for( int t = 0; t < 10; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(world->entities.projectile.active_count == 0, "auto despawn t2");
     TEST_ASSERT(World_EventsCount(world) >= 1, "auto despawn event");
 
@@ -428,7 +455,7 @@ test_projectile_target(void)
 
     /* The npc walks off 20 tiles east while the projectile is in flight. */
     World_NpcPathJump(world, ni, true, 70, 50);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == (int)npc->draw_position.x, "dst re-aimed at the npc");
     TEST_ASSERT(proj->dst_z == (int)npc->draw_position.z, "dst_z re-aimed at the npc");
     TEST_ASSERT(proj->vx > 0.0, "velocity points east after the re-aim");
@@ -442,7 +469,7 @@ test_projectile_target(void)
         World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 4); /* east */
         for( int t = 0; t < 20 && World_EntityPoolIsActive(&world->entities.projectile, idx); t++ )
         {
-            World_Cycle(world, 1);
+            World_TestCycle(world, 1);
             if( proj->dst_x != previous_dst_x )
             {
                 tracked_moving_npc = true;
@@ -459,7 +486,7 @@ test_projectile_target(void)
     /* Flying it out lands on the npc, not on the cast-time tile. Check at t2:
      * the following cycle despawns the projectile and invalidates `proj`. */
     while( World_EntityPoolIsActive(&world->entities.projectile, idx) && proj->cycle < proj->t2 )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(proj->cycle == proj->t2, "projectile reached its landing cycle");
     TEST_ASSERT(fabs(proj->x - (double)npc->draw_position.x) < 1.0, "landed on the moved npc");
 
@@ -470,7 +497,7 @@ test_projectile_target(void)
         world, 41, 0, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 100, 40, 0, 40,
         10, 0, /*target=*/-7 - 1);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == (int)player->draw_position.x, "dst re-aimed at the player");
     TEST_ASSERT(proj->dst_z == (int)player->draw_position.z, "dst_z re-aimed at the player");
     World_ProjectileDespawn(world, idx);
@@ -481,7 +508,7 @@ test_projectile_target(void)
         world, 42, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 40, 0, 40,
         10, 0, /*target=*/999 + 1);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == 30 * 128 + 64 && proj->dst_z == 30 * 128 + 64,
                 "unsynced target keeps the cast destination");
     World_ProjectileDespawn(world, idx);
@@ -494,7 +521,7 @@ test_projectile_target(void)
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
     World_NpcPathJump(world, ni, true, 40, 40);
     for( int t = 0; t < 5; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == 50 * 128 + 64 && proj->dst_z == 50 * 128 + 64,
                 "untargeted destination is pinned");
 
@@ -514,10 +541,10 @@ test_spotanim(void)
     /* Nothing announced while it is still counting down its delay: the app
      * holds the element's sequence at frame 0 until the start event, so an
      * event emitted early would run the animation out of sight. */
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(World_EventsCount(world) == 0, "no start event while delayed");
 
-    World_Cycle(world, 2);
+    World_TestCycle(world, 2);
     s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(s && s->active, "spot active");
 
@@ -537,10 +564,10 @@ test_spotanim(void)
 
     /* And not re-announced every cycle it stays active. */
     World_EventsClear(world);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(World_EventsCount(world) == 0, "start event is not repeated");
 
-    World_Cycle(world, 5);
+    World_TestCycle(world, 5);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "spot expired");
     TEST_ASSERT(World_EventsCount(world) >= 1, "spot despawn event");
 
@@ -593,7 +620,7 @@ test_spotanim_immediate_activation(void)
      * entity that becomes active AT SPAWN and one that becomes active on the
      * FIRST subsequent World_Cycle call age identically once real cycles
      * elapse — this only moves when `active` flips, not how fast it ages. */
-    World_Cycle(world, 10);
+    World_TestCycle(world, 10);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "delay<=0 spot expires on schedule");
 
     World_Free(world);
@@ -617,7 +644,7 @@ test_spotanim_catchup_activation(void)
     struct World* stepped = World_TestMakeReady(104);
     int stepped_idx = World_SpotanimSpawn(stepped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
     for( int t = 0; t < 7; t++ )
-        World_Cycle(stepped, 1);
+        World_TestCycle(stepped, 1);
     struct WorldEntity_Spotanim* stepped_s =
         World_EntityPoolGet(&stepped->entities.spotanim, stepped_idx);
     TEST_ASSERT(stepped_s && stepped_s->active, "stepped reference activated");
@@ -626,7 +653,7 @@ test_spotanim_catchup_activation(void)
      * (the multi-cycle App_RunOnce catch-up path). */
     struct World* lumped = World_TestMakeReady(104);
     int lumped_idx = World_SpotanimSpawn(lumped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
-    World_Cycle(lumped, 7);
+    World_TestCycle(lumped, 7);
     struct WorldEntity_Spotanim* lumped_s = World_EntityPoolGet(&lumped->entities.spotanim, lumped_idx);
     TEST_ASSERT(lumped_s && lumped_s->active, "lumped catch-up activated");
 
@@ -657,8 +684,8 @@ test_scenery(void)
 
     struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, 70);
     TEST_ASSERT(sc && sc->loc_id == 900, "get by element");
-    TEST_ASSERT(strcmp(sc->name, "Door") == 0, "name");
-    TEST_ASSERT(strcmp(sc->actions[0].name, "Examine") == 0, "action0");
+    TEST_ASSERT(strcmp(sc->info->name, "Door") == 0, "name");
+    TEST_ASSERT(strcmp(sc->info->actions[0].name, "Examine") == 0, "action0");
     TEST_ASSERT(World_SceneryGetByElementId(world, 999) == NULL, "miss");
 
     World_RegisterSceneryPick(world, 70, 900);
@@ -666,6 +693,77 @@ test_scenery(void)
     TEST_ASSERT(world->scenery_picks[0].scenery_index == idx, "pick index");
     World_ClearSceneryPicks(world);
     TEST_ASSERT(world->scenery_pick_count == 0, "clear picks");
+
+    World_Free(world);
+}
+
+/*
+ * Bridge columns: three level spaces, and both directions between them.
+ *
+ * Every assertion here is about a *direction*, and a direction is the one thing
+ * a reader cannot check by eye — swap the +1 for a -1 in either helper and the
+ * flat world below still agrees, because a column without LINK_BELOW collapses
+ * all three spaces onto one number. So the bridged column is the whole test and
+ * the flat one is only there to say the helpers are inert off a bridge.
+ */
+void
+test_bridge_levels(void)
+{
+    printf("TEST: bridge level mapping\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const bx = 20;
+    int const bz = 30;
+    int const flat_x = 21;
+    int const flat_z = 30;
+
+    /* LINK_BELOW is read at cache level 1 and speaks for the whole column. */
+    world->tile_flags[bx + bz * 64 + 1 * 64 * 64] = 0x02;
+
+    /* Paint: the build's push-down parked cache 1 on paint 0 and pushed the
+     * underside, cache 0, out to paint 3 (WorldBuilder_RebuildCenterzoneEnd). */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 1) == 0, "bridge deck paints at level 0");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 2) == 1, "bridge cache 2 paints at 1");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 3) == 2, "bridge cache 3 paints at 2");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 0) == 3, "bridge underside paints at 3");
+
+    /* Wire: the server names the level the deck is walked from, one below the
+     * level the map authored it on. */
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 0) == 1, "walked level 0 is cache level 1");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 2) == 3, "walked level 2 is cache level 3");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 3) == 3, "the top level has nowhere to climb");
+
+    /* And a zone loc packet for the deck must round-trip to the tile the
+     * painter drew it on — that round trip is the whole point of the pair. */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "a walked-level-0 loc paints back on level 0");
+
+    /* Pick: a terrain hit carries the mesh level, and coming back down is what
+     * lets it be handed to anything that speaks the wire. The deck's mesh is
+     * cache 1 and the player standing on it is level 0 — get this backwards and
+     * app_world_height adds the bridge's +1 to an already-shifted level and
+     * samples cache 2, a whole storey of air above the deck. */
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 1) == 0, "the deck mesh is walked from 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 3) == 2, "bridge mesh 3 is walked from 2");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "walk level -> cache level -> walk level is the identity");
+
+    /* VIS_BELOW draws a mesh from level 0 and walks it from its own plane, so
+     * the walk conversion must not borrow the draw level's answer. */
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0x08;
+    TEST_ASSERT(World_TerrainDrawLevel(world, flat_x, flat_z, 2) == 0, "vis-below draws at 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, 2) == 2, "vis-below is walked at 2");
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0;
+
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+    {
+        TEST_ASSERT(World_LocPaintLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no paint shift");
+        TEST_ASSERT(World_LocCacheLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no wire shift");
+        TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no walk shift");
+    }
 
     World_Free(world);
 }
@@ -693,7 +791,7 @@ test_entity_face(void)
     int square_z = ((world->_base_tile_z + 50) << 1) + 1;
     World_PlayerFaceCoord(world, pi, square_x, square_z);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == 0 && player->facing.square_z == 0,
                 "face square consumed");
     /* The rev-239 gamepack's full conversion constant lands on the same exact
@@ -707,22 +805,22 @@ test_entity_face(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
     World_PlayerBeginModernFacing(world, pi, 0);
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == square_x,
                 "face movement mode 0 waits for route idle");
     World_PlayerBeginModernFacing(world, pi, 1);
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == 0,
                 "face movement mode 1 applies during route");
     World_PlayerBeginModernFacing(world, pi, 0);
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.direct_angle == 512,
                 "direct angle mode 0 waits for route idle");
     World_PlayerBeginModernFacing(world, pi, 1);
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.direct_angle == -1 && player->orientation.yaw == 512,
                 "direct angle mode 1 applies during route");
     World_PlayerPathJump(world, pi, true, 50, 50);
@@ -734,30 +832,30 @@ test_entity_face(void)
     npc->server_slot = 3;
     World_PlayerFaceEntity(world, pi, 3);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.yaw == 1024, "player faces north at the npc");
 
     /* Statics.method6710 applies only the highest-priority eligible facing
      * source. A direct angle must not be overwritten by a still-latched
      * entity, and a location must likewise win over an entity. */
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.yaw == 512,
                 "direct angle wins over an entity target");
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.dst_yaw == 1536,
                 "face location wins over an entity target");
 
     /* And the npc back at the player (player slots are offset by 32768). */
     World_NpcFaceEntity(world, ni, WORLD_FACING_PLAYER_BASE + 7);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 0, "npc faces south back at the player");
 
     World_PlayerPathJump(world, pi, true, 60, 60);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 1536,
                 "npc tracks a player due east at the exact cardinal yaw");
 
@@ -766,7 +864,7 @@ test_entity_face(void)
     npc->orientation.yaw = 500;
     World_NpcFaceCoord(world, ni, square_x, square_z);
     for( int t = 0; t < 8; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 500, "turn_speed 0 never turns");
     TEST_ASSERT(npc->facing.square_x == square_x, "turn_speed 0 leaves the square pending");
 
@@ -789,7 +887,7 @@ test_cycle_movers(void)
     int saw_run_animation = 0;
     for( int t = 0; t < 500 && player->pathing.route_length > 0; t++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( player->animation.secondary.anim_id == (uint16_t)idle.runanim )
             saw_run_animation = 1;
     }
@@ -812,7 +910,7 @@ test_cycle_movers(void)
     World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 1);
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
     for( int t = 0; t < 300 && npc->pathing.route_length > 0; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->pathing.route_length == 0, "npc route cleared");
 
     World_Free(world);
@@ -861,7 +959,7 @@ test_delaymove_gate(void)
     TEST_ASSERT(player->animation.preanim_route_length > 0, "preanim route recorded");
 
     int start_x = (int)player->draw_position.x;
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT((int)player->draw_position.x == start_x, "held still on delaymove");
     TEST_ASSERT(player->animation.anim_delay_move == 1, "anim_delay_move incremented");
     TEST_ASSERT(player->animation.secondary.anim_id == (uint16_t)idle.readyanim,
@@ -869,11 +967,200 @@ test_delaymove_gate(void)
 
     /* Clear the primary so the hold lifts; catch-up should force speed 8. */
     World_PlayerSetPrimaryAnimation(world, pi, -1, 0);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT((int)player->draw_position.x == start_x + 8, "catch-up speed 8");
     TEST_ASSERT(player->animation.anim_delay_move == 0, "anim_delay_move decremented");
 
     World_Free(world);
+}
+
+/*
+ * A walk that never pauses must not fall behind the tiles the server hands out.
+ *
+ * The arithmetic that makes this a real test: a server tick is 30 client
+ * cycles and a walk step covers 4 draw units a cycle, so a tile's 128 units
+ * take 32 cycles -- two more than the tick that queued it. Left alone, an
+ * entity walking without a break loses 8 units a tick, forever, and the
+ * queue behind it grows without bound until the position is far enough from
+ * the next tile to be snapped there. On screen that is the player drifting
+ * back off a target it is chasing and then jumping forward.
+ *
+ * rev-239 method3520/method3611 pay the debt back through the queue depth:
+ * three tiles pending moves at 6 a cycle, four at 8. This asserts the debt
+ * stays bounded -- the queue never runs deeper than the rung that clears it,
+ * and the entity is never more than a tile behind the tile it was last told
+ * to stand on.
+ *
+ * The negative control is a one-line edit: cap the speed at 4 for a non-run
+ * step in World_MoverStepSpeed (the clamp this port carried until 2026-08-18)
+ * and the queue climbs past 4 within a dozen ticks.
+ */
+static void
+walk_keeps_up_for(struct ToriRS_FeatureTable const* features)
+{
+    struct World* world = World_TestMakeReadyEra(104, features);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    int deepest_queue = 0;
+    int worst_lag = 0;
+
+    /* 60 server ticks of walking east, one tile each, 30 client cycles apart --
+     * a player following an NPC that walks and never stops. */
+    for( int tick = 0; tick < 60; tick++ )
+    {
+        int told_x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        told_x = player->pathing.route_x[0];
+        World_TestCycle(world, 30);
+
+        if( player->pathing.route_length > deepest_queue )
+            deepest_queue = player->pathing.route_length;
+        {
+            int lag = told_x * 128 + 64 - (int)player->draw_position.x;
+            if( lag > worst_lag )
+                worst_lag = lag;
+        }
+    }
+
+    /* Measured either side of the fix: the reference settles at queue 2 and
+     * 152 units (1.19 tiles) behind, because the speed-6 rung fires as soon as
+     * a third tile is outstanding and pays the 8-a-tick debt straight back.
+     * With the clamp restored the same run reaches queue 4 and 510 units --
+     * four tiles adrift and still growing. The bounds sit between the two. */
+    TEST_ASSERT(deepest_queue <= 2, "the step queue stays shallow over a long walk");
+    TEST_ASSERT(worst_lag < 192, "the model stays within a tile and a half of where it was sent");
+    TEST_ASSERT(player->pathing.route_x[0] == 70, "the walk ends where the steps ended");
+
+    World_Free(world);
+}
+
+void
+test_walk_keeps_up(void)
+{
+    printf("TEST: an unbroken walk does not fall behind\n");
+    /* Both movers, because the debt and the rungs that repay it are the same
+     * arithmetic on either clock -- the clamp broke the 2004 model exactly as
+     * badly as the rev-239 one, and neither reference has it. */
+    walk_keeps_up_for(ToriRS_Features_LostCity());
+    walk_keeps_up_for(ToriRS_Features_OSRS());
+}
+
+/*
+ * The era flag actually selects a mover.
+ *
+ * Under LostCity the distance is spent inside World_Cycle and
+ * World_MoversAdvance is inert; under OSRS it is the other way round. Asserting
+ * each mover is *dead* on the other era is the half that matters: a flag that
+ * left both live would move every actor at double speed, and a walk at double
+ * speed still looks like a walk until you measure it.
+ */
+/*
+ * What a stopped walker does next -- the "boss is going down but still moving"
+ * shape.
+ *
+ * When the server parks an actor (ToB's Bloat issues `npc_walk(npc_coord)` and
+ * a sleep animation on the same tick) the client does not stop with it: the
+ * animation is applied the tick it arrives, while the route queue still holds
+ * whatever the model had not walked off yet. It glides through the first ticks
+ * of the down.
+ *
+ * That residue is not a defect on its own -- it is the reference's own
+ * equilibrium, and the arithmetic is fixed: 30 cycles at speed 4 covers 120 of
+ * a tile's 128 units, so a walker that never pauses settles a little over a
+ * tile behind and needs that tile back after it stops. What this pins is the
+ * SIZE of it, because the clamp this port used to carry let the debt grow
+ * without bound and turned a one-tile glide into a four-tile one.
+ *
+ * Identical under both movers by construction: the rungs that set the
+ * equilibrium are the same on either clock.
+ */
+void
+test_stop_settles_promptly(void)
+{
+    printf("TEST: a stopped walker settles within a tick or two\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_LostCity(),
+                                                 ToriRS_Features_OSRS() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+        struct WorldEntity_Player* p = World_EntityPoolGet(&world->entities.player, pi);
+        int settle = 0;
+        int told;
+        int lag;
+
+        for( int t = 0; t < 40; t++ )
+        {
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+            World_TestCycle(world, 30);
+        }
+        told = p->pathing.route_x[0];
+        lag = told * 128 + 64 - (int)p->draw_position.x;
+
+        /* Server has stopped issuing steps; count the ticks the model keeps
+         * moving anyway. */
+        for( int t = 0; t < 20; t++ )
+        {
+            int before = (int)p->draw_position.x;
+            World_TestCycle(world, 30);
+            if( (int)p->draw_position.x == before )
+                break;
+            settle++;
+        }
+
+        TEST_ASSERT(lag < 192, "a long walk leaves at most a tile and a half of debt");
+        TEST_ASSERT(settle <= 2, "and it is paid off within two ticks of stopping");
+        World_Free(world);
+    }
+}
+
+void
+test_mover_model_flag(void)
+{
+    printf("TEST: the era flag picks the mover\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int classic_step = 0;
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_LostCity());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "classic: the frame mover moves nothing");
+        World_Cycle(world, 1);
+        classic_step = (int)player->draw_position.x - start_x;
+        TEST_ASSERT(classic_step > 0, "classic: the cycle mover is what walks");
+        World_Free(world);
+    }
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_Cycle(world, 1);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "modern: the cycle mover moves nothing");
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step,
+                    "modern: a whole cycle of frame time covers exactly what a cycle did");
+        /* And a fraction of one covers a fraction of it, which is the whole
+         * point of the era: a frame is not a cycle. */
+        World_MoversAdvance(world, 0.5f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step + classic_step / 2,
+                    "modern: half a cycle of frame time is half a step");
+        World_Free(world);
+    }
 }
 
 /* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved
@@ -990,6 +1277,146 @@ test_obj_raise(void)
 }
 
 /*
+ * An action animation puts the readyanim back on its loop point.
+ *
+ * The readyanim free-runs underneath an action animation -- it has to, its
+ * frame sounds keep playing -- and it is not drawn while the action covers it.
+ * Which frame it resumes on is therefore free, and the animation data says what
+ * it should be: an attack clip is authored as a departure from the ready loop
+ * and back, so its first frame IS the ready loop's first frame. Xarpus proves
+ * it in the rev-239 cache -- seq 8059 frame 0 poses model 35383 identically to
+ * seq 8058 frame 0, and 8058 runs 120 cycles, exactly his four-tick attack
+ * cadence -- and before this rule his spit cut in at ready frame 39 of 52 on
+ * every spit of the fight.
+ *
+ * The walk case is the one that must NOT reset: a walk animation is blended
+ * with the action rather than hidden by it, so restarting it would stutter the
+ * gait mid-stride.
+ */
+void
+test_action_anim_restarts_the_readyanim(void)
+{
+    printf("TEST: an action animation restarts the readyanim under it\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    /* The ready loop, mid-cycle -- where free-running leaves it. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    npc->animation.secondary.loop = 1;
+
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8059, "the action animation lands");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "and does not disturb which sequence the ready track holds");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "but puts it back on its loop point, which is where 8059 starts from");
+
+    /* A walk animation is drawn WITH the action (the walkmerge blend), so the
+     * same call must leave it exactly where it was. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.walkanim;
+    npc->animation.secondary.frame = 7;
+    npc->animation.secondary.cycle = 1;
+    World_NpcSetPrimaryAnimation(world, ni, 8060, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 7 && npc->animation.secondary.cycle == 1,
+                "a walk animation keeps its stride under an action animation");
+
+    /* A DELAYED action leaves the readyanim on screen until the delay expires,
+     * so resetting it now would be a visible jump rather than a hidden one. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    World_NpcSetPrimaryAnimation(world, ni, 8061, 4);
+    TEST_ASSERT(npc->animation.secondary.frame == 39 && npc->animation.secondary.cycle == 2,
+                "a delayed action leaves the visible readyanim alone");
+
+    World_Free(world);
+}
+
+/*
+ * ...and the far end of the same seam: the action animation hands BACK to the
+ * readyanim's loop point when it finishes.
+ *
+ * The two halves have to agree. An attack clip is authored to leave the ready
+ * loop at frame 0 and return to it, so if only the entry is locked the creature
+ * enters the swing seamlessly and jump-cuts out of it. Xarpus is the
+ * measurement: seq 8059 descends out of the spit at ~73 authored units per
+ * frame (its last three frames top out at -1045, -972, -900), seq 8058 frame 0
+ * tops out at -825 and continues that descent, and the free-running readyanim
+ * was instead revealed at frame 26 (-1095) -- 195 units of upward snap, against
+ * the direction he was moving.
+ *
+ * This is the reference's own restart (deob Statics ~40139) minus its NpcType
+ * opcode-130 gate; see the comment on the branch in world_cycle.c for why the
+ * flag is the wrong instrument for the question.
+ */
+static int
+seq_test_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* The action is three frames; the readyanim is long enough that a
+     * free-running track would still be mid-loop when the action ends. */
+    return seq_id == 8059 ? 3 : 52;
+}
+
+static int
+seq_test_frame_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 1;
+}
+
+static int
+seq_test_max_loops(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* One pass, so the action FINISHES rather than looping. */
+    return seq_id == 8059 ? 1 : 99;
+}
+
+void
+test_action_anim_hands_back_to_the_readyanim_loop_point(void)
+{
+    printf("TEST: a finished action animation hands back to the readyanim loop point\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.frame_count = seq_test_frame_count;
+    world->seq_source.frame_duration = seq_test_frame_duration;
+    world->seq_source.max_loops = seq_test_max_loops;
+
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 0,
+                "the entry half put the ready track on its loop point");
+
+    /* Step until the action runs out. The ready track free-runs underneath it
+     * the whole way -- that is what leaves it somewhere arbitrary. */
+    for( int i = 0; i < 8 && npc->animation.primary.anim_id != (uint16_t)-1; i++ )
+        World_Cycle(world, 1);
+
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1,
+                "the action animation finished");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "the ready track is still the one holding the readyanim");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "and it is revealed at the loop point, not where free-running left it");
+
+    World_Free(world);
+}
+
+/*
  * A transmog keeps whatever one-shot is already playing.
  *
  * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk
@@ -1001,6 +1428,73 @@ test_obj_raise(void)
  * visible casualty: content played her only death animation and retyped her to
  * her sleeping form together, and she snapped straight to the sleeping idle.
  */
+/* SAILING: facing across the gunwale computes in the ROOT frame and applies
+ * in the facer's own. The hook stands in for the app's hull transform: view 7
+ * projects the facer to a known root spot and reports the hull's yaw. */
+static int
+test_root_frame_hook(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw)
+{
+    (void)userdata;
+    if( placement->view_id != 7 )
+        return 0;
+    /* Projected: due EAST of tile (20,30)'s centre by 10 tiles. */
+    *io_fine_x = (20 + 10) * 128 + 64;
+    *io_fine_z = 30 * 128 + 64;
+    *out_frame_yaw = 512;
+    return 1;
+}
+
+void
+test_entity_face_across_frames(void)
+{
+    printf("TEST: facing across the hull frame (rider vs shore target)\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int ni = World_NpcSpawn(world, 2, 900, 0, 20, 30, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    int pi = World_PlayerSpawn(world, 1, 0, 4, 4, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    npc->server_slot = 900;
+    player->server_pid = 7;
+    World_SetActorRootFrameFn(world, test_root_frame_hook, NULL);
+
+    /* The rider: deck-local coordinates, homed to view 7 — the hook projects
+     * them due EAST of the npc, so the ROOT facing is due west (dst = self −
+     * target = +east ⇒ yaw 1536, the same constant test_entity_face pins for
+     * east-west), and the DECK-frame yaw the element must carry is that
+     * minus the hull's 512. */
+    player->view_placement.view_id = 7;
+    player->view_placement.home_view = 7;
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    /* Self is EAST of the target, so the ROOT facing is due west — yaw 512
+     * in the atan2(self−target) convention (the east-facing pin above is the
+     * mirror, 1536) — and the DECK-frame yaw is that minus the hull's 512. */
+    TEST_ASSERT(player->orientation.dst_yaw == ((512 - 512) & 0x7ff),
+                "rider's element yaw is the root facing minus the hull yaw");
+
+    /* A root facer with the hook registered is untouched: identity frame. */
+    player->view_placement.view_id = 0;
+    player->view_placement.home_view = 0;
+    World_PlayerPathJump(world, pi, true, 30, 30);
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(player->orientation.dst_yaw == 512,
+                "a root facer keeps the plain root yaw");
+
+    World_Free(world);
+}
+
 void
 test_npc_retype_keeps_animation(void)
 {
@@ -1013,6 +1507,7 @@ test_npc_retype_keeps_animation(void)
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
 
     sleeping.readyanim = 777;
+    TEST_ASSERT(npc->base_npc_id == 1234, "spawn retains the server/base NPC type");
 
     World_NpcSetPrimaryAnimation(world, ni, 16742, 0);
     TEST_ASSERT(npc->animation.primary.anim_id == 16742, "the one-shot is armed");
@@ -1022,6 +1517,9 @@ test_npc_retype_keeps_animation(void)
 
     World_NpcSetType(world, ni, 4321, 5, &sleeping);
     TEST_ASSERT(npc->npc_id == 4321 && npc->size == 5, "the retype still lands");
+    TEST_ASSERT(
+        npc->base_npc_id == 1234,
+        "a client-side child retype does not discard the server multiNpc wrapper");
     TEST_ASSERT(npc->idle_animations.readyanim == 777, "and swaps the idle set");
     TEST_ASSERT(npc->animation.primary.anim_id == 16742,
                 "the running one-shot survives the retype");

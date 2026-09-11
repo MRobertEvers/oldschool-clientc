@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* xrsps client opcodes (ClientPacketId.ts, active set). */
 #define XR_OP_HELLO 200
@@ -33,6 +34,10 @@ struct XrLogin
     char password[64];
     int revision;
     enum xr_login_state state;
+
+    /* The server's rejection byte, kept so the login screen can say which
+     * refusal this was. -1 until one arrives. */
+    int reply_code;
 
     /* Staged outbound frames. The xrsps server decodes exactly ONE packet per
      * WebSocket message, so each packet must reach the transport as its own
@@ -174,6 +179,7 @@ xr_new(struct ToriRS_Network* net, char const* username, char const* password)
     struct XrLogin* h = calloc(1, sizeof(*h));
     assert(h);
     h->net = net;
+    h->reply_code = -1;
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
     snprintf(h->password, sizeof(h->password), "%s", password ? password : "");
     h->revision = net->rev->client_version;
@@ -209,7 +215,8 @@ xr_recv(void* handle, uint8_t const* data, int size)
                 off += hdr + plen;
                 break; /* stop; poll stages the handshake, remainder is GAME */
             }
-            fprintf(stderr, "xrsps login: rejected (errorCode=%d)\n", err_code);
+            TORIRS_ERR("xrsps login: rejected (errorCode=%d)\n", err_code);
+            h->reply_code = err_code;
             h->state = XR_LOGIN_ERR;
             off += hdr + plen;
             break;
@@ -226,6 +233,7 @@ xr_recv(void* handle, uint8_t const* data, int size)
 static int
 xr_send(void* handle, uint8_t* out, int out_size)
 {
+    (void)out_size;
     struct XrLogin* h = handle;
     if( h->frame_idx >= h->frame_count )
         return 0;
@@ -273,10 +281,19 @@ xr_free(void* handle)
     free(handle);
 }
 
+static int
+xr_reply_code(void* handle)
+{
+    struct XrLogin* h = handle;
+    assert(h);
+    return h->reply_code;
+}
+
 struct NetLoginVTable const g_xr_login_vtable = {
     .new_ = xr_new,
     .recv = xr_recv,
     .send = xr_send,
     .poll = xr_poll,
+    .reply_code = xr_reply_code,
     .free_ = xr_free,
 };

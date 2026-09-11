@@ -3,7 +3,7 @@
 How wall flags are set and checked across the named reference servers, why
 walking through a wall one way but not the reverse means an **orphan
 complementary bit**, and the locked decision for this tree's modern server
-(`mock230` + shared `collision_map.c`).
+(`ToriRSServer` + shared `collision_map.c`).
 
 Cross-links: [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) (reach / LoS —
 separate from walk walls), [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md),
@@ -181,7 +181,7 @@ Repo: `~/Documents/git_repos/xrsps-typescript`
 Scene writers:
 
 - Client build: [`world_collision.u.c`](../src/engine/world_builder/world_collision.u.c)
-- Server: [`mock230_scene.c`](../src/net/mock/mock230_scene.c) `apply_loc_collision`
+- Server: [`torirs_server_scene.c`](../src/torirsserver/torirs_server_scene.c) `apply_loc_collision`
 
 Reference Client-TS place-time shift (`ClientBuild.ts`): when
 `mapl[1][x][z] & LinkBelow`, collision goes to `collisions[level - 1]` (null if
@@ -209,7 +209,7 @@ wall's bits and nothing put them back. Measured across every map square in
 loc ids being content-declared doors (`1535`, the Lumbridge courtyard door,
 among them).
 
-Two rules, both in [`mock230_scene.c`](../src/net/mock/mock230_scene.c):
+Two rules, both in [`torirs_server_scene.c`](../src/torirsserver/torirs_server_scene.c):
 
 1. **Collision is a function of the loc set, not a running total.**
    `restamp_after_removal` re-applies the map square's terrain and every other
@@ -217,16 +217,16 @@ Two rules, both in [`mock230_scene.c`](../src/net/mock/mock230_scene.c):
    over-stamping is free.
 2. **`loc_add` does not consume what is already on the tile.** The reference's
    `World.addLoc` / `Zone.addLoc` never look at an existing loc, and
-   `Zone.removeLoc` puts a static one back on the list. `mock230_scene_add_loc`
-   leaves the map square's loc standing; `mock230_scene_find_loc_exact` answers
+   `Zone.removeLoc` puts a static one back on the list. `ToriRSServer_SceneAddLoc`
+   leaves the map square's loc standing; `ToriRSServer_SceneFindLocExact` answers
    the added loc first so a following `loc_change` / `loc_del` addresses it; and
-   `mock230_world_loc_set` takes an explicit `MOCK230_LOC_SET_ADD` /
+   `ToriRSServer_WorldLocSet` takes an explicit `TORIRSSERVER_LOC_SET_ADD` /
    `_CHANGE` because the two are different mutations that had been collapsed
    into "replace whatever is on this tile".
 
 A delete that uncovers the square's own loc sends `LOC_ADD_CHANGE` for it rather
 than `LOC_DEL`, which is also what retires the ZoneMap record. `over_base` on
-`struct Mock230ZoneLoc` is what makes a scene rebuild replay the add as an add.
+`struct ToriRSServerZoneLoc` is what makes a scene rebuild replay the add as an add.
 
 **The doorway rule is not a rule about doors.** Nothing refuses a diagonal
 because a door is there; the walls flanking the gap refuse it, through the
@@ -261,9 +261,9 @@ require bits on both sides and refuse both directions.
 - [`src/world/test/world_test_route.c`](../src/world/test/world_test_route.c) —
   dual-stamp blocks both ways; one-sided orphan produces one-way walk;
   approach models stay source-only for size-1 rect.
-- [`src/net/mock/test/embed_test.c`](../src/net/mock/test/embed_test.c) —
+- [`src/torirsserver/test/embed_test.c`](../src/torirsserver/test/embed_test.c) —
   live-map door / fence both-directions refusal.
-- [`src/net/mock/test/collision_doors_test.c`](../src/net/mock/test/collision_doors_test.c)
+- [`src/torirsserver/test/collision_doors_test.c`](../src/torirsserver/test/collision_doors_test.c)
   — `make -C src test-collision-doors`. Builds real scenes from the cache and
   asserts: no orphan complementary bit anywhere in the scene; **no diagonal step
   cuts a corner** (a diagonal is legal only when both L-shaped two-step routes

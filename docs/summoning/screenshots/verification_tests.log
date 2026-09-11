@@ -13,8 +13,8 @@ cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matth
 ./build/scene_profile_test
 toridraw scene profile tests: PASS
 cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz -I/Users/matthewevers/Documents/git_repos/3draster/3rd/xteas -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsprot/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsprot/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsprot  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -o build/mock239_interface_setters_test \
-		net/mock/test/mock239_interface_setters_test.c \
-		net/mock/mock239_interface_setters.c /Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf/rsareabuf.c
+		torirsserver/test/mock239_interface_setters_test.c \
+		torirsserver/mock239_interface_setters.c /Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf/rsareabuf.c
 ./build/mock239_interface_setters_test
 ok: IF_SETROTATESPEED
 ok: IF_SETANGLE

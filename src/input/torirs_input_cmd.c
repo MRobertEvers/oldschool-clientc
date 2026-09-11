@@ -82,6 +82,9 @@ ToriRS_Input_ApplyCmd(
     case TORIRS_CMD_INPUT_CLEAR_KEYS:
         LibToriRS_Input_ClearKeys(input);
         return 1;
+    case TORIRS_CMD_INPUT_MOUSE_LEAVE:
+        LibToriRS_Input_PushMouseLeave(input);
+        return 1;
     default:
         return 0;
     }

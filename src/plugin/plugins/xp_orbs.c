@@ -1,0 +1,1973 @@
+#include "plugin/torirs_plugin_api.h"
+
+#include <assert.h>
+#include <math.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/*
+ * XP drop orbs: a globe per skill you just gained experience in, showing how
+ * far through the level that gain took you.
+ *
+ * A port of RuneLite's "XP Globes" (runelite-client .../plugins/xpglobes),
+ * whose own config calls them orbs -- `Orb size`, `Orb duration`,
+ * `alignOrbsVertically`. One appears when a skill's xp goes up, carries that
+ * skill's icon inside a ring filled to its progress towards the next level,
+ * and fades out after a few seconds. Hovering one darkens it, prints the
+ * percentage across the middle and opens a tooltip with the numbers behind it.
+ *
+ * ## Why this is a plugin and not part of the client
+ *
+ * For the same reason the minimap orbs are: the picture does not exist in any
+ * cache. The NUMBERS do -- UPDATE_STAT carries an xp per skill on every
+ * revision this client speaks -- and no gameframe from 2004 to today draws
+ * them like this, because this is a RuneLite idea rather than a Jagex one.
+ * A plugin is what a client-owned readout is.
+ *
+ * ## The art is the plugin's
+ *
+ * Two files in `script/plugins/assets/xp-drop-orbs/`, both cut once at
+ * authoring time:
+ *
+ *   skills.png  the 25 skill icons in one strip, 25x25 each, indexed BY SKILL
+ *               ID -- so `skills.png` cell 3 is hitpoints because hitpoints is
+ *               skill 3, and nothing has to map one to the other. Cut from the
+ *               rev-239 sprites table (197..222 and 228 for sailing) and from
+ *               the summoning lane's cache for 229, the wolf head, which the
+ *               base cache leaves empty.
+ *   text.png    a glyph atlas of the cache's own p11 face, in two colour rows
+ *               -- white for values, orange for the labels beside them --
+ *               with the reference's drop shadow already on them.
+ *   text.ini    where each glyph is in that atlas.
+ *
+ * Both are files rather than cache ids for the reason NXT_CLIENT_PLUGINS
+ * states: an id is a property of ONE revision, and this has to draw the same
+ * orb on a 2004 cache, on a cache that failed to open, and on a client started
+ * with no cache at all.
+ *
+ * ## Why it composes pixels instead of drawing shapes
+ *
+ * A globe is a disc, an annulus and a sector of an annulus. The draw verbs are
+ * a rect, a line, a hull and a blit, because those are the primitives the
+ * CLIENT needs -- and the two honest ways to get a circle out of them are to
+ * teach four rasterisers a new primitive, or to approximate one out of a few
+ * hundred one-pixel rects and spend the frame's entire draw budget on a single
+ * orb.
+ *
+ * So it takes the third way: api->image_pixels reads the art this plugin
+ * ships, the plugin rasterises the globe -- disc, rings, arc, icon, caption,
+ * anti-aliased -- into an ARGB buffer, and api->image_compose publishes it as
+ * an image. One blit per globe, one for the tooltip, and the shapes are as
+ * good as the arithmetic rather than as good as the primitive.
+ *
+ * That also means the recompose is CACHED: the buffer is rebuilt only when
+ * something in it changed (see orb_key), which for an idle globe is never.
+ *
+ * ## The numbers
+ *
+ * api->stat_xp answers the three a progress ring asks for -- the xp, and the
+ * thresholds either side of the level it is inside -- out of the client's own
+ * table, so this plugin carries no copy of the xp curve. What it does carry is
+ * a per-skill TRACKER (struct XpTrack), because "xp per hour", "actions left"
+ * and "time to goal" are not properties of a stat, they are properties of a
+ * session: they need the xp this skill had when the session's first gain
+ * landed and how many gains there have been since. That is exactly what
+ * RuneLite's XpTrackerPlugin is, and it is a dozen lines when the only
+ * consumer is this.
+ *
+ * A gain is noticed by POLLING, because the client has no "a stat changed"
+ * event and a poll cannot miss a gain the way a subscription to the wrong
+ * packet could.
+ *
+ * It polls in on_logic_tick and not in on_server_tick, and that is the whole
+ * difference between this working on one lane and on all of them.
+ * on_server_tick is raised from PKT_NAME_SERVER_TICK_END, and only osrs230,
+ * osrs239 and the rsprot bridge carry that packet: the 2004-era protocols --
+ * lc245_2, lc254, lc289, xrsps233 -- have no tick fence on the wire at all, so
+ * on those worlds the event simply never fires and a plugin waiting for it sits
+ * there doing nothing while the player gains xp. on_logic_tick is the client's
+ * own 20ms cycle and is raised on every lane.
+ *
+ * Nothing is given up by moving. on_server_tick's promise is a COHERENT
+ * snapshot -- every packet of the tick applied, so a reader does not see a
+ * half-updated world -- and a per-skill xp counter has no such invariant to
+ * violate: UPDATE_STAT carries one skill, and two skills advancing one 20ms
+ * cycle apart rather than together is not a difference anybody can see. What
+ * it costs is 25 integer compares every 20ms instead of every 600ms.
+ */
+
+/* -------------------------------------------------------------- the shape */
+
+/** Globes on screen at once, as the reference's MAXIMUM_SHOWN_GLOBES. */
+#define ORB_MAX_SHOWN 5
+/** Gap between two globes, as the reference's MINIMUM_STEP. */
+#define ORB_STEP 10
+/** The full ring behind the progress arc, as PROGRESS_BACKGROUND_SIZE. */
+#define ORB_RING_WIDTH 5
+/** The icon's share of the disc, as GLOBE_ICON_RATIO. */
+#define ORB_ICON_RATIO_NUM 65
+#define ORB_ICON_RATIO_DEN 100
+/** The wash over a hovered globe, as DARK_OVERLAY_COLOR. */
+#define ORB_HOVER_ARGB 0xB4000000u
+/** The tooltip's width, as TOOLTIP_RECT_SIZE_X. */
+#define ORB_TIP_W 150
+/** Its inset and its plate, as ComponentConstants STANDARD_BORDER and
+ *  STANDARD_BACKGROUND_COLOR. */
+#define ORB_TIP_BORDER 4
+#define ORB_TIP_ARGB 0x9C463D32u
+
+/** The largest orb the config will accept, and so the compose buffer's side:
+ *  the orb plus the ring that straddles its edge. */
+#define ORB_SIZE_MAX 96
+#define ORB_BUF_MAX (ORB_SIZE_MAX + 2 * ORB_RING_WIDTH + 8)
+
+/** One scratch buffer serves every compose, because image_compose copies the
+ *  pixels before it returns. Wide enough for the tooltip, tall enough for the
+ *  largest globe or the longest tooltip. */
+#define ORB_SCRATCH_W 256
+#define ORB_SCRATCH_H 192
+
+/** Samples per pixel per axis when a shape's edge is resolved. 4x4 is finer
+ *  than the eye separates on a 40px disc and costs nothing at this size. */
+#define ORB_AA 4
+
+_Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_W, "a globe has to fit the scratch");
+_Static_assert(ORB_BUF_MAX <= ORB_SCRATCH_H, "a globe has to fit the scratch");
+
+/* ------------------------------------------------------------- skill colour */
+
+/**
+ * The arc's colour per skill, as RuneLite's own SkillColor enum states it,
+ * indexed by skill id.
+ *
+ * Restated rather than derived, because it is not derivable: it is a palette
+ * somebody chose, and the whole value of matching it is that a player who
+ * knows RuneLite reads the same colour for the same skill without looking at
+ * the icon.
+ *
+ * Summoning is the one entry that is NOT the reference's, because the
+ * reference has no summoning: SkillColor stops at sailing. This is a violet
+ * chosen to sit clear of every neighbour in the table -- agility's navy,
+ * defence's blue and thieving's plum are the near ones -- and it is stated
+ * here rather than sampled from the wolf head so that it stays put if the icon
+ * is ever re-cut.
+ */
+static uint32_t const ORB_SKILL_RGB[] = {
+    0x9B2007u, /* attack       155,  32,   7 */
+    0x6277BEu, /* defence       98, 119, 190 */
+    0x04955Au, /* strength       4, 149,  90 */
+    0x837E7Eu, /* hitpoints    131, 126, 126 */
+    0x6D9017u, /* ranged       109, 144,  23 */
+    0x9F9323u, /* prayer       159, 147,  35 */
+    0x3250C1u, /* magic         50,  80, 193 */
+    0x702386u, /* cooking      112,  35, 134 */
+    0x348C25u, /* woodcutting   52, 140,  37 */
+    0x038D7Du, /* fletching      3, 141, 125 */
+    0x6A84A4u, /* fishing      106, 132, 164 */
+    0xBD7819u, /* firemaking   189, 120,  25 */
+    0x976E4Du, /* crafting     151, 110,  77 */
+    0x6C6B52u, /* smithing     108, 107,  82 */
+    0x5D8FA7u, /* mining        93, 143, 167 */
+    0x078509u, /* herblore       7, 133,   9 */
+    0x3A3C89u, /* agility       58,  60, 137 */
+    0x6C3457u, /* thieving     108,  52,  87 */
+    0x646464u, /* slayer       100, 100, 100 */
+    0x65983Fu, /* farming      101, 152,  63 */
+    0xAA8D1Au, /* runecraft    170, 141,  26 */
+    0x5C5941u, /* hunter        92,  89,  65 */
+    0x82745Fu, /* construction 130, 116,  95 */
+    0x0BA59Du, /* sailing       11, 165, 157 */
+    0xA860D6u, /* summoning    168,  96, 214 -- this plugin's own */
+};
+#define ORB_SKILL_RGB_COUNT ((int)(sizeof(ORB_SKILL_RGB) / sizeof(ORB_SKILL_RGB[0])))
+
+/* ------------------------------------------------------------ the glyph atlas */
+
+/**
+ * One glyph in text.png, as text.ini states it.
+ *
+ * Same file format tools/fontbake_atlas.py writes for the minimap orbs' digit
+ * strip, read here for the whole printable set rather than for ten digits, and
+ * with the two colour ROWS used as colours rather than as a meter ramp. See
+ * that tool for why an atlas is a plugin's font at all: api->draw_text draws
+ * in the client's hitsplat face, which is a chunky combat face and not what a
+ * caption is set in.
+ */
+struct OrbGlyph
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int off_x;
+    int off_y;
+    int advance;
+};
+
+/** Indexed by `ch - 32`, so the printable ASCII range and nothing else. */
+#define ORB_GLYPH_FIRST 32
+#define ORB_GLYPH_COUNT 96
+/** Colour rows in the atlas and how far apart they are. Row 0 is white and
+ *  row 1 orange, in the order the bake was asked for them. */
+/** The line box, which is what a caption's height is measured in. */
+
+#define ORB_TEXT_WHITE 0
+#define ORB_TEXT_LABEL 1
+
+/* ---------------------------------------------------------------- the state */
+
+/** A skill's session tracker: what RuneLite's XpTrackerPlugin holds, for the
+ *  three tooltip lines that are about a session rather than about a stat. */
+struct XpTrack
+{
+    /** The xp this skill had when its first gain of the session landed, or -1
+     *  for a skill that has not gained any. */
+    int start_xp;
+    uint64_t start_ms;
+    /** Gains seen since. RuneLite calls one an ACTION, and it is the only
+     *  meaning of the word available here: the client cannot see that three
+     *  logs came off one tree. */
+    int actions;
+};
+
+/** One globe on screen. */
+struct XpGlobe
+{
+    int skill;
+    int xp;
+    int level;
+    /** When it appeared, or was last touched by a hover. */
+    uint64_t at_ms;
+    /** What the composed image was built from, so an unchanged globe is not
+     *  rasterised again. @see orb_key. */
+    uint64_t key;
+    /** Its image handle, or -1. One per SLOT rather than per skill: a slot's
+     *  picture is replaced in place, and there are at most five of them. */
+    int image;
+};
+
+
+/**
+ * One "+N" floating up into its orb.
+ *
+ * A drop is a GAIN, not a state, which is why these are a table of their own
+ * rather than a field on the globe: two gains 200ms apart are two labels in
+ * the air at once, and a globe holding "the last amount" could only ever show
+ * the second one.
+ *
+ * The table is small and shared across every globe, and a new gain with no
+ * free slot takes the oldest -- the same rule the globes themselves use, and
+ * for the same reason: at the point where six labels are in flight, the one
+ * that has been readable longest is the one nobody is still reading.
+ */
+struct XpDrop
+{
+    /** -1 for a free slot. */
+    int skill;
+    int amount;
+    uint64_t at_ms;
+    /** The composed "+N", or -1 before it has been rasterised. */
+    int image;
+    /** What that image says, so a slot reused for a different amount
+     *  recomposes and one reused for the same amount does not. */
+    int image_amount;
+    uint32_t image_rgb;
+};
+
+#define ORB_DROP_MAX 8
+
+/** Per skill: the xp this plugin last saw, or -1 for one it has never seen.
+ *  -1 is what makes the login burst -- every skill arriving at once -- seed
+ *  the table instead of putting a globe on screen for all 25. */
+
+/**
+ * How often the tooltip's numbers are allowed to move.
+ *
+ * Two of its lines are RATES -- xp per hour, and the time to goal derived from
+ * it -- and a rate recomputed every frame is a number that never stops
+ * twitching. It is not wrong at any instant; it is unreadable at every one,
+ * because the eye cannot hold a value that changes sixty times a second, and
+ * the last two digits of "XP per hour" carry no information anybody wants.
+ *
+ * Five seconds is slow enough to read and short enough that a rate which has
+ * genuinely changed is not stale for long. It gates the RECOMPOSE only: the
+ * panel is still blitted every frame, so it follows the pointer without lag.
+ */
+#define ORB_TIP_REFRESH_MS 5000
+
+/** The composed tooltip, and what it is a picture of. @see orb_draw_tooltip. */
+struct XpOrbState
+{
+    struct OrbGlyph glyph[ORB_GLYPH_COUNT];
+    int glyph_ready;
+    int glyph_rows;
+    int glyph_row_h;
+    int glyph_line_h;
+    struct XpGlobe globe[ORB_MAX_SHOWN];
+    int globe_count;
+    struct XpDrop drop[ORB_DROP_MAX];
+    int* seen_xp;
+    struct XpTrack* track;
+    int skill_count;
+    int img_skills;
+    int img_text;
+    uint32_t* skills_px;
+    int skills_w;
+    int skills_h;
+    uint32_t* text_px;
+    int text_w;
+    int text_h;
+    uint32_t scratch[ORB_SCRATCH_W * ORB_SCRATCH_H];
+    int tip_image;
+    int tip_h;
+    int tip_skill;
+    int tip_xp;
+    uint64_t tip_ms;
+    /* The live viewport the controls hang in, and the owned controls: one
+     * image per globe slot, per drop slot, and the tooltip. */
+    struct ToriRS_WidgetRef viewport;
+    struct ToriRS_WidgetRef globe_control[ORB_MAX_SHOWN];
+    struct ToriRS_WidgetRef drop_control[ORB_DROP_MAX];
+    struct ToriRS_WidgetRef tip_control;
+    int globe_image_set[ORB_MAX_SHOWN];
+    int globe_x[ORB_MAX_SHOWN];
+    int globe_y[ORB_MAX_SHOWN];
+};
+
+#define g_glyph (state->glyph)
+#define g_glyph_ready (state->glyph_ready)
+#define g_glyph_rows (state->glyph_rows)
+#define g_glyph_row_h (state->glyph_row_h)
+#define g_glyph_line_h (state->glyph_line_h)
+#define g_globe (state->globe)
+#define g_globe_count (state->globe_count)
+#define g_drop (state->drop)
+#define g_seen_xp (state->seen_xp)
+#define g_track (state->track)
+#define g_skill_count (state->skill_count)
+#define g_img_skills (state->img_skills)
+#define g_img_text (state->img_text)
+#define g_skills_px (state->skills_px)
+#define g_skills_w (state->skills_w)
+#define g_skills_h (state->skills_h)
+#define g_text_px (state->text_px)
+#define g_text_w (state->text_w)
+#define g_text_h (state->text_h)
+#define g_scratch (state->scratch)
+#define g_tip_image (state->tip_image)
+#define g_tip_h (state->tip_h)
+#define g_tip_skill (state->tip_skill)
+#define g_tip_xp (state->tip_xp)
+#define g_tip_ms (state->tip_ms)
+
+static bool
+orb_cfg_bool(struct ToriRS_Api* api, char const* key)
+{
+    bool value = false;
+    (void)api->config.get_bool(api, key, &value);
+    return value;
+}
+
+static int
+orb_cfg_int(struct ToriRS_Api* api, char const* key)
+{
+    int value = 0;
+    (void)api->config.get_int(api, key, &value);
+    return value;
+}
+
+static uint32_t
+orb_cfg_color(struct ToriRS_Api* api, char const* key)
+{
+    uint32_t value = 0;
+    (void)api->config.get_color(api, key, &value);
+    return value;
+}
+
+/** The one verb a globe offers, and the reference's own: it flips the column
+ *  between across and down. */
+#define ORB_TAG_FLIP 1u
+
+/* ---------------------------------------------------------------- pixel work */
+
+static int
+orb_clampi(int v, int lo, int hi)
+{
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+/**
+ * `src` over `dst`, both non-premultiplied ARGB.
+ *
+ * Straight Porter-Duff over rather than a copy, because everything in a globe
+ * is drawn on top of something: the ring straddles the disc's edge, the icon
+ * sits on the disc, the hover wash sits on both.
+ */
+static uint32_t
+orb_over(uint32_t dst, uint32_t src)
+{
+    uint32_t const sa = src >> 24;
+    uint32_t da;
+    uint32_t out_a;
+
+    if( sa == 0 )
+        return dst;
+    if( sa == 255 )
+        return src;
+
+    da = dst >> 24;
+    out_a = sa + da * (255 - sa) / 255;
+    if( out_a == 0 )
+        return 0;
+
+    {
+        uint32_t out = out_a << 24;
+        for( int shift = 16; shift >= 0; shift -= 8 )
+        {
+            uint32_t const s = (src >> shift) & 0xFF;
+            uint32_t const d = (dst >> shift) & 0xFF;
+            uint32_t const c = (s * sa + d * da * (255 - sa) / 255) / out_a;
+            out |= (c > 255 ? 255 : c) << shift;
+        }
+        return out;
+    }
+}
+
+/** `rgb` at `coverage`/255 of `alpha`, as an ARGB to blend with. */
+static uint32_t
+orb_shade(uint32_t argb, int coverage)
+{
+    uint32_t const a = (argb >> 24) * (uint32_t)orb_clampi(coverage, 0, 255) / 255;
+    return (a << 24) | (argb & 0x00FFFFFFu);
+}
+
+/* ------------------------------------------------------------ the primitives */
+
+/**
+ * How much of the pixel at (px, py) is inside the annulus sector.
+ *
+ * Resolved by sampling rather than by an edge equation, because the shape is
+ * an intersection of three conditions -- outside the inner radius, inside the
+ * outer one, and within the swept angle -- and a coverage that is right at
+ * every one of their meetings is far more code than ORB_AA samples.
+ *
+ * `r_in`/`r_out` are in 1/256ths of a pixel so a stroke of an odd width still
+ * straddles its path. `sweep` is in 1/1024ths of a turn measured CLOCKWISE
+ * FROM STRAIGHT UP, which is where the reference starts its arc (`Arc2D` at 90
+ * degrees, extending negative), and `sweep >= 1024` is the whole ring.
+ */
+static int
+orb_ring_coverage(
+    int px,
+    int py,
+    int cx256,
+    int cy256,
+    int r_in,
+    int r_out,
+    int sweep)
+{
+    int hits = 0;
+
+    for( int sy = 0; sy < ORB_AA; sy++ )
+    {
+        for( int sx = 0; sx < ORB_AA; sx++ )
+        {
+            /* The sample's centre, in the same 1/256ths the radii are in. */
+            int const x = px * 256 + (2 * sx + 1) * 256 / (2 * ORB_AA) - cx256;
+            int const y = py * 256 + (2 * sy + 1) * 256 / (2 * ORB_AA) - cy256;
+            double const d = sqrt((double)x * (double)x + (double)y * (double)y);
+
+            if( d < r_in || d > r_out )
+                continue;
+            if( sweep < 1024 )
+            {
+                /* atan2(x, -y) is the angle clockwise from up, in (-pi, pi];
+                 * folded to [0, 2pi) it is the arc's own parameter. */
+                double a = atan2((double)x, (double)-y);
+                if( a < 0.0 )
+                    a += 2.0 * 3.14159265358979323846;
+                if( a * 1024.0 / (2.0 * 3.14159265358979323846) > (double)sweep )
+                    continue;
+            }
+            hits++;
+        }
+    }
+    return hits * 255 / (ORB_AA * ORB_AA);
+}
+
+/** A filled ring/disc/arc into `buf`, `w`x`h`, in `argb`. @see
+ *  orb_ring_coverage for the units. */
+static void
+orb_draw_ring(
+    uint32_t* buf,
+    int w,
+    int h,
+    int cx256,
+    int cy256,
+    int r_in,
+    int r_out,
+    int sweep,
+    uint32_t argb)
+{
+    int const y0 = orb_clampi((cy256 - r_out) / 256 - 1, 0, h);
+    int const y1 = orb_clampi((cy256 + r_out) / 256 + 2, 0, h);
+    int const x0 = orb_clampi((cx256 - r_out) / 256 - 1, 0, w);
+    int const x1 = orb_clampi((cx256 + r_out) / 256 + 2, 0, w);
+
+    assert(buf);
+    if( r_out <= 0 || sweep <= 0 )
+        return;
+
+    for( int y = y0; y < y1; y++ )
+    {
+        for( int x = x0; x < x1; x++ )
+        {
+            int const cover = orb_ring_coverage(x, y, cx256, cy256, r_in, r_out, sweep);
+            if( cover <= 0 )
+                continue;
+            buf[y * w + x] = orb_over(buf[y * w + x], orb_shade(argb, cover));
+        }
+    }
+}
+
+/**
+ * `src_w`x`src_h` pixels scaled into a `dst_w`x`dst_h` box at (dx, dy).
+ *
+ * Box-filtered, and over PREMULTIPLIED alpha: a cut-out scaled with its colour
+ * unweighted drags the colour of its transparent pixels into the edge, which
+ * on a black-outlined icon is a black halo. Every icon here is a cut-out.
+ */
+static void
+orb_blit_scaled(
+    uint32_t* buf,
+    int w,
+    int h,
+    int dx,
+    int dy,
+    int dst_w,
+    int dst_h,
+    uint32_t const* src,
+    int src_stride,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h,
+    uint32_t tint)
+{
+    assert(buf);
+    assert(src);
+    if( dst_w <= 0 || dst_h <= 0 || src_w <= 0 || src_h <= 0 )
+        return;
+
+    for( int y = 0; y < dst_h; y++ )
+    {
+        int const ty = dy + y;
+        if( ty < 0 || ty >= h )
+            continue;
+        for( int x = 0; x < dst_w; x++ )
+        {
+            int const tx = dx + x;
+            /* The source box this destination pixel covers, at least one
+             * source pixel wide so an upscale still samples something. */
+            int const u0 = x * src_w / dst_w;
+            int const v0 = y * src_h / dst_h;
+            int u_end = (x + 1) * src_w / dst_w;
+            int v_end = (y + 1) * src_h / dst_h;
+            uint32_t a = 0;
+            uint32_t r = 0;
+            uint32_t g = 0;
+            uint32_t b = 0;
+            int n = 0;
+
+            if( tx < 0 || tx >= w )
+                continue;
+            if( u_end <= u0 )
+                u_end = u0 + 1;
+            if( v_end <= v0 )
+                v_end = v0 + 1;
+
+            for( int v = v0; v < v_end && v < src_h; v++ )
+            {
+                for( int u = u0; u < u_end && u < src_w; u++ )
+                {
+                    uint32_t const p = src[(src_y + v) * src_stride + src_x + u];
+                    uint32_t const pa = p >> 24;
+                    a += pa;
+                    r += ((p >> 16) & 0xFF) * pa;
+                    g += ((p >> 8) & 0xFF) * pa;
+                    b += (p & 0xFF) * pa;
+                    n++;
+                }
+            }
+            if( n == 0 || a == 0 )
+                continue;
+            {
+                uint32_t cr = r / a;
+                uint32_t cg = g / a;
+                uint32_t cb = b / a;
+                uint32_t px;
+
+                /* Multiplied, not replaced: white ink becomes the tint and the
+                 * black drop shadow stays black, which is the whole reason one
+                 * baked row can serve every skill's colour. */
+                if( tint )
+                {
+                    cr = cr * ((tint >> 16) & 0xFF) / 255;
+                    cg = cg * ((tint >> 8) & 0xFF) / 255;
+                    cb = cb * (tint & 0xFF) / 255;
+                }
+                px = ((a / (uint32_t)n) << 24) | (cr << 16) | (cg << 8) | cb;
+                buf[ty * w + tx] = orb_over(buf[ty * w + tx], px);
+            }
+        }
+    }
+}
+
+/* -------------------------------------------------------------------- text */
+
+/**
+ * Read text.ini into g_glyph.
+ *
+ * Parsed here rather than through a config key because it is not a SETTING: it
+ * is the other half of the atlas, generated beside it, and a user editing it
+ * could only ever break the pairing.
+ *
+ * A glyph line is one whose SECOND byte is '=', which is what lets the space
+ * glyph -- a line beginning with a space -- be read by the same rule as every
+ * other, and keeps it apart from the header keys (`ascent=`, `steps=`) and
+ * from the comment lines, whose second byte is never that.
+ */
+static int
+orb_load_glyphs(struct ToriRS_Api* api, struct XpOrbState* state)
+{
+    char const* at;
+    size_t size = 0;
+
+    if( g_glyph_ready )
+        return 1;
+    if( api->assets.request(api, "text.ini") != TORIRS_ASSET_READY )
+        return 0;
+    if( !api->assets.bytes(api, "text.ini", (void const**)&at, &size) )
+        return 0;
+    if( !at || size <= 0 )
+        return 0;
+
+    for( char const* end = at + size; at < end; )
+    {
+        /* The asset is a byte range, not a C string -- PlatformX_IO hands back
+         * exactly the bytes it read, with no terminator -- so every line is
+         * copied out before it is parsed. atoi/sscanf run to a NUL, and on the
+         * last line of the file that NUL is past the end of the allocation. */
+        char line[128];
+        char const* start = at;
+        char const* stop = start;
+        size_t len;
+
+        while( stop < end && *stop != '\n' )
+            stop++;
+        at = stop < end ? stop + 1 : end;
+        if( stop > start && stop[-1] == '\r' )
+            stop--;
+
+        len = (size_t)(stop - start);
+        if( len >= sizeof(line) )
+            len = sizeof(line) - 1;
+        memcpy(line, start, len);
+        line[len] = '\0';
+
+        if( len > 6 && strncmp(line, "steps=", 6) == 0 )
+        {
+            g_glyph_rows = atoi(line + 6);
+            continue;
+        }
+        if( len > 11 && strncmp(line, "row_height=", 11) == 0 )
+        {
+            g_glyph_row_h = atoi(line + 11);
+            continue;
+        }
+        if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
+        {
+            g_glyph_line_h = atoi(line + 12);
+            continue;
+        }
+        if( len < 3 || line[1] != '=' )
+            continue;
+        {
+            int const index = (unsigned char)line[0] - ORB_GLYPH_FIRST;
+            struct OrbGlyph* g;
+
+            if( index < 0 || index >= ORB_GLYPH_COUNT )
+                continue;
+            g = &g_glyph[index];
+            if( sscanf(
+                    line + 2, "%d %d %d %d %d %d %d", &g->x, &g->y, &g->w, &g->h,
+                    &g->off_x, &g->off_y, &g->advance) == 7 )
+                g_glyph_ready = 1;
+        }
+    }
+    return g_glyph_ready;
+}
+
+/** How wide `text` is in the atlas face. */
+static int
+orb_text_width(struct XpOrbState const* state, char const* text)
+{
+    int width = 0;
+
+    assert(text);
+    for( char const* p = text; *p; p++ )
+    {
+        int const index = (unsigned char)*p - ORB_GLYPH_FIRST;
+        if( index >= 0 && index < ORB_GLYPH_COUNT )
+            width += g_glyph[index].advance;
+    }
+    return width;
+}
+
+/**
+ * `text` into `buf`, with `x` as the pen and `top` as the line box's top.
+ *
+ * `tint` is 0 to draw the row as it was baked, or an 0xRRGGBB the ink is
+ * multiplied by. The multiply works because of how the atlas is built: every
+ * glyph pixel is either the row's colour or the black drop shadow, so scaling
+ * a WHITE row by a colour gives that colour and leaves the shadow black. It is
+ * what lets one baked row serve twenty-five skill colours -- baking a row per
+ * skill would be twenty-five copies of the same glyph pack.
+ */
+static void
+orb_text(
+    struct XpOrbState const* state,
+    uint32_t* buf,
+    int w,
+    int h,
+    int x,
+    int top,
+    char const* text,
+    int row,
+    uint32_t tint)
+{
+    int pen = x;
+
+    assert(buf);
+    assert(text);
+    if( !g_glyph_ready || !g_text_px )
+        return;
+    if( row < 0 || row >= g_glyph_rows )
+        row = 0;
+
+    for( char const* p = text; *p; p++ )
+    {
+        int const index = (unsigned char)*p - ORB_GLYPH_FIRST;
+        struct OrbGlyph const* g;
+
+        if( index < 0 || index >= ORB_GLYPH_COUNT )
+            continue;
+        g = &g_glyph[index];
+        if( g->w > 0 && g->h > 0 )
+            orb_blit_scaled(
+                buf, w, h, pen + g->off_x, top + g->off_y, g->w, g->h, g_text_px,
+                g_text_w, g->x, g->y + row * g_glyph_row_h, g->w, g->h, tint);
+        pen += g->advance;
+    }
+}
+
+/** `value` with thousands separators, as the reference's DecimalFormat. */
+static void
+orb_commas(char* out, int out_size, int value)
+{
+    char plain[16];
+    int len;
+    int at = 0;
+
+    assert(out);
+    snprintf(plain, sizeof(plain), "%d", value < 0 ? -value : value);
+    len = (int)strlen(plain);
+    if( value < 0 && at + 1 < out_size )
+        out[at++] = '-';
+    for( int i = 0; i < len; i++ )
+    {
+        if( i > 0 && (len - i) % 3 == 0 && at + 1 < out_size )
+            out[at++] = ',';
+        if( at + 1 < out_size )
+            out[at++] = plain[i];
+    }
+    out[at < out_size ? at : out_size - 1] = '\0';
+}
+
+/** `seconds` as H:MM:SS, or MM:SS under an hour. */
+static void
+orb_duration(char* out, int out_size, int seconds)
+{
+    assert(out);
+    if( seconds < 0 )
+        seconds = 0;
+    if( seconds >= 100 * 3600 )
+    {
+        snprintf(out, out_size, "99:59:59");
+        return;
+    }
+    if( seconds >= 3600 )
+        snprintf(
+            out, out_size, "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60,
+            seconds % 60);
+    else
+        snprintf(out, out_size, "%d:%02d", seconds / 60, seconds % 60);
+}
+
+/* ------------------------------------------------------------------ levels */
+
+/**
+ * The level `xp` is worth past the client's own table, i.e. a VIRTUAL level.
+ *
+ * The client's table stops at 99, which is where its stats stop, so this is
+ * the one number the api cannot answer and the plugin has to work out. It is
+ * the same series the client builds its table from -- `points += level + 300 *
+ * 2^(level/7)`, quartered -- carried past 99 to the 200m ceiling, which is the
+ * definition of a virtual level rather than a second opinion about a real one.
+ */
+static int
+orb_virtual_level(int xp)
+{
+    double points = 0.0;
+    int level;
+
+    for( level = 1; level < 126; level++ )
+    {
+        points += floor((double)level + 300.0 * pow(2.0, (double)level / 7.0));
+        if( (int)(points / 4.0) > xp )
+            break;
+    }
+    return level;
+}
+
+/* ------------------------------------------------------------------ config */
+
+static uint32_t
+orb_cfg_argb(struct ToriRS_Api* api, char const* key, int alpha)
+{
+    uint32_t const rgb = orb_cfg_color(api, key) & 0x00FFFFFFu;
+    return ((uint32_t)orb_clampi(alpha, 0, 255) << 24) | rgb;
+}
+
+/**
+ * The colour this skill's ring is drawn in, as 0xRRGGBB.
+ *
+ * Shared by the ring and by the "+N" that floats into it, because they are one
+ * statement -- "this gain was magic" -- said twice on the screen. Two copies of
+ * the rule would let a custom arc colour recolour one of them and not the
+ * other.
+ */
+static uint32_t
+orb_skill_rgb(struct ToriRS_Api* api, int skill)
+{
+    if( orb_cfg_bool(api, "custom_arc_color") )
+        return orb_cfg_color(api, "arc_color") & 0x00FFFFFFu;
+    if( skill >= 0 && skill < ORB_SKILL_RGB_COUNT )
+        return ORB_SKILL_RGB[skill];
+    return 0xFFFFFFu;
+}
+
+static int
+orb_size(struct ToriRS_Api* api)
+{
+    return orb_clampi(orb_cfg_int(api, "orb_size"), 16, ORB_SIZE_MAX);
+}
+
+static int
+orb_arc_width(struct ToriRS_Api* api)
+{
+    return orb_clampi(orb_cfg_int(api, "arc_width"), 1, 12);
+}
+
+/** The ring straddles the disc's edge, so the buffer is wider than the orb by
+ *  half of the widest of the two rings, top and bottom. The reference's own
+ *  progressArcOffset. */
+static int
+orb_arc_offset(struct ToriRS_Api* api)
+{
+    int const widest =
+        ORB_RING_WIDTH > orb_arc_width(api) ? ORB_RING_WIDTH : orb_arc_width(api);
+    return (widest + 1) / 2;
+}
+
+/* -------------------------------------------------------------- the globes */
+
+/** Drop globe `slot`, keeping the rest in order. */
+static void
+orb_remove(struct XpOrbState* state, int slot)
+{
+    assert(slot >= 0);
+    assert(slot < g_globe_count);
+
+    /* The IMAGE stays with the slot rather than travelling with the globe:
+     * handles are per-slot ("globe0".."globe4") and a slot that inherits
+     * another globe's picture simply recomposes on its next frame, because its
+     * key no longer matches. */
+    for( int i = slot; i + 1 < g_globe_count; i++ )
+    {
+        int const image = g_globe[i].image;
+        g_globe[i] = g_globe[i + 1];
+        g_globe[i].image = image;
+        g_globe[i].key = 0;
+    }
+    g_globe_count--;
+    g_globe[g_globe_count].skill = -1;
+    g_globe[g_globe_count].key = 0;
+}
+
+/**
+ * Put `skill` on screen, or refresh the globe it already has.
+ *
+ * Ordered BY SKILL, as the reference orders them, so the row does not reshuffle
+ * every time a different skill ticks -- and when there are too many, the OLDEST
+ * goes, not the leftmost.
+ */
+static void
+orb_add(struct XpOrbState* state, int skill, int xp, int level, uint64_t now)
+{
+    int at;
+
+    for( int i = 0; i < g_globe_count; i++ )
+    {
+        if( g_globe[i].skill != skill )
+            continue;
+        g_globe[i].xp = xp;
+        g_globe[i].level = level;
+        g_globe[i].at_ms = now;
+        return;
+    }
+
+    if( g_globe_count >= ORB_MAX_SHOWN )
+    {
+        int oldest = 0;
+        for( int i = 1; i < g_globe_count; i++ )
+            if( g_globe[i].at_ms < g_globe[oldest].at_ms )
+                oldest = i;
+        orb_remove(state, oldest);
+    }
+
+    for( at = 0; at < g_globe_count && g_globe[at].skill < skill; at++ )
+        ;
+    for( int i = g_globe_count; i > at; i-- )
+    {
+        int const image = g_globe[i].image;
+        g_globe[i] = g_globe[i - 1];
+        g_globe[i].image = image;
+        g_globe[i].key = 0;
+    }
+    {
+        int const image = g_globe[at].image;
+        memset(&g_globe[at], 0, sizeof(g_globe[at]));
+        g_globe[at].skill = skill;
+        g_globe[at].xp = xp;
+        g_globe[at].level = level;
+        g_globe[at].at_ms = now;
+        g_globe[at].image = image;
+        g_globe[at].key = 0;
+    }
+    g_globe_count++;
+}
+
+/**
+ * Put a "+N" in the air for `skill`.
+ *
+ * The image handle stays with the SLOT rather than travelling with the drop --
+ * a slot reused for a different amount recomposes on its next frame because
+ * `image_amount` no longer matches, and one reused for the same amount does
+ * not have to.
+ */
+static void
+orb_drop_add(struct XpOrbState* state, int skill, int amount, uint64_t now)
+{
+    int at = -1;
+
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        if( g_drop[i].skill < 0 )
+        {
+            at = i;
+            break;
+        }
+        if( at < 0 || g_drop[i].at_ms < g_drop[at].at_ms )
+            at = i;
+    }
+    assert(at >= 0);
+    g_drop[at].skill = skill;
+    g_drop[at].amount = amount;
+    g_drop[at].at_ms = now;
+}
+
+/** Forget every globe and every session number. What a logout is. */
+static void
+orb_reset(struct XpOrbState* state)
+{
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+    {
+        g_globe[i].skill = -1;
+        g_globe[i].key = 0;
+    }
+    g_globe_count = 0;
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        g_drop[i].skill = -1;
+    for( int i = 0; i < g_skill_count; i++ )
+    {
+        g_seen_xp[i] = -1;
+        g_track[i].start_xp = -1;
+        g_track[i].start_ms = 0;
+        g_track[i].actions = 0;
+    }
+}
+
+/** How many skills this client has, discovered once from api->skill_name. */
+static void
+orb_size_tables(struct ToriRS_Api* api, struct XpOrbState* state)
+{
+    int count = 0;
+    struct ToriRS_SkillSnapshot skill;
+
+    if( g_seen_xp )
+        return;
+    memset(&skill, 0, sizeof(skill));
+    skill.struct_size = sizeof(skill);
+    while( api->game && api->game->skill(api, count, &skill) )
+        count++;
+    /* Before the server has stated a single stat there is no table to size:
+     * a plugin started on the title screen asks again next cycle rather than
+     * freezing an empty table for the life of the instance. */
+    if( count == 0 )
+        return;
+
+    g_skill_count = count;
+    g_seen_xp = malloc((size_t)count * sizeof(*g_seen_xp));
+    assert(g_seen_xp);
+    g_track = malloc((size_t)count * sizeof(*g_track));
+    assert(g_track);
+    orb_reset(state);
+}
+
+/* --------------------------------------------------------------- the poll */
+
+static void
+orb_tick(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_TickEvent const* event)
+{
+    struct XpOrbState* state = plugin_state;
+    (void)event;
+
+    struct ToriRS_PlayerSnapshot me;
+    uint64_t const now = api->core.frame_ms(api);
+    int const hide_maxed = orb_cfg_bool(api, "hide_maxed");
+    int const virtual_level = orb_cfg_bool(api, "show_virtual_level");
+
+    orb_size_tables(api, state);
+    if( !g_seen_xp )
+        return;
+
+    /*
+     * Logged out is a reset, and it is the honest stand-in for the
+     * reference's LOGGING_IN and HOPPING. The client has no login event in the
+     * plugin bus, but it does have "is there a local player", and every way of
+     * arriving at a different account's stat table passes through not having
+     * one. Without this, hopping shows a globe for every skill whose xp
+     * differs between the two characters.
+     */
+    if( !api->world.local_player(api, &me) )
+    {
+        if( g_globe_count > 0 || (g_skill_count > 0 && g_seen_xp[0] >= 0) )
+            orb_reset(state);
+        return;
+    }
+
+    for( int skill = 0; skill < g_skill_count; skill++ )
+    {
+        struct ToriRS_SkillSnapshot skill_state;
+        int xp;
+        int level;
+
+        memset(&skill_state, 0, sizeof(skill_state));
+        skill_state.struct_size = sizeof(skill_state);
+        if( !api->game || !api->game->skill(api, skill, &skill_state) )
+            continue;
+        xp = skill_state.xp;
+        level = skill_state.base_level;
+
+        /* The first sight of a skill SEEDS. Every stat arrives at once on
+         * login, and 25 globes is not what a player did. */
+        if( g_seen_xp[skill] < 0 )
+        {
+            g_seen_xp[skill] = xp;
+            continue;
+        }
+        if( xp <= g_seen_xp[skill] )
+        {
+            /* A drop means a different character's table -- the reset above
+             * missed it, or the server corrected one. Re-seed rather than
+             * report a negative gain. */
+            g_seen_xp[skill] = xp;
+            continue;
+        }
+
+        if( g_track[skill].start_xp < 0 )
+        {
+            g_track[skill].start_xp = g_seen_xp[skill];
+            g_track[skill].start_ms = now;
+        }
+        g_track[skill].actions++;
+        api->core.log(api, "XP_ORBS_GAIN skill=%d xp=%d gained=%d", skill, xp, xp - g_seen_xp[skill]);
+        /* The AMOUNT, before the seen value moves -- it is the difference
+         * between the two, and there is nowhere else to read it from. */
+        if( orb_cfg_bool(api, "show_xp_drops") )
+            orb_drop_add(state, skill, xp - g_seen_xp[skill], now);
+        g_seen_xp[skill] = xp;
+
+        if( level >= 99 )
+        {
+            if( hide_maxed )
+                continue;
+            if( virtual_level )
+                level = orb_virtual_level(xp);
+        }
+        orb_add(state, skill, xp, level, now);
+    }
+}
+
+/* ------------------------------------------------------------- composition */
+
+/**
+ * Everything a composed globe's picture depends on, in one number.
+ *
+ * The compose is the expensive half of this plugin -- a few thousand
+ * anti-aliased samples -- and for a globe sitting still nothing in it changes
+ * from one frame to the next. Hashing the inputs is what turns "rasterise five
+ * discs sixty times a second" into "rasterise one when its xp moves".
+ *
+ * Everything the rasteriser READS has to be in here. A colour left out is a
+ * config change that does nothing until the next xp drop.
+ */
+static uint64_t
+orb_key(
+    struct ToriRS_Api* api,
+    struct XpGlobe const* globe,
+    int progress,
+    int hovered)
+{
+    uint64_t key = 1469598103934665603u;
+    uint32_t const parts[] = {
+        (uint32_t)globe->skill,
+        (uint32_t)progress,
+        (uint32_t)hovered,
+        (uint32_t)orb_size(api),
+        (uint32_t)orb_arc_width(api),
+        (uint32_t)orb_cfg_bool(api, "custom_arc_color"),
+        orb_cfg_color(api, "arc_color"),
+        orb_cfg_color(api, "outline_color"),
+        orb_cfg_color(api, "background_color"),
+        (uint32_t)orb_cfg_int(api, "background_alpha"),
+    };
+
+    for( size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); i++ )
+    {
+        key ^= parts[i];
+        key *= 1099511628211u;
+    }
+    return key;
+}
+
+/**
+ * One globe, rasterised into g_scratch and published.
+ *
+ * The reference's own build order, which is why the pieces line up without a
+ * hand-tuned offset anywhere: the background disc, the icon on it, the hover
+ * wash and its caption over that, then the full ring and the progress arc over
+ * everything -- the arc last because it straddles the disc's edge and has to
+ * sit on top of it rather than under.
+ *
+ * @return the image handle, or -1 when it could not be published.
+ */
+static int
+orb_compose(
+    struct ToriRS_Api* api,
+    struct XpOrbState* state,
+    struct XpGlobe const* globe,
+    int slot,
+    int progress,
+    int hovered)
+{
+    char name[TORIRS_PLUGIN_ASSET_NAME_MAX];
+    int const size = orb_size(api);
+    int const arc_w = orb_arc_width(api);
+    int const offset = orb_arc_offset(api);
+    int const side = size + 2 * offset;
+    /* The disc's centre and its path radius, in 1/256ths: the circle the
+     * reference draws is inscribed in a `size` box at (offset, offset). */
+    int const cx = (offset * 2 + size) * 128;
+    int const cy = cx;
+    int const radius = size * 128;
+    uint32_t const bg = orb_cfg_argb(
+        api, "background_color", orb_cfg_int(api, "background_alpha"));
+    uint32_t const outline = orb_cfg_argb(api, "outline_color", 255);
+    uint32_t arc;
+
+    assert(globe);
+    assert(side <= ORB_SCRATCH_W);
+    assert(side <= ORB_SCRATCH_H);
+
+    arc = 0xFF000000u | orb_skill_rgb(api, globe->skill);
+
+    memset(g_scratch, 0, (size_t)side * (size_t)side * sizeof(uint32_t));
+
+    /* 1. the disc. */
+    orb_draw_ring(g_scratch, side, side, cx, cy, 0, radius, 1024, bg);
+
+    /* 2. the skill icon, at the reference's ratio of the disc inside the arc. */
+    if( g_skills_px && globe->skill >= 0 )
+    {
+        int const cell = g_skills_h;
+        int const icon = (size - arc_w) * ORB_ICON_RATIO_NUM / ORB_ICON_RATIO_DEN;
+        if( icon > 0 && (globe->skill + 1) * cell <= g_skills_w )
+            orb_blit_scaled(
+                g_scratch, side, side, offset + (size - icon) / 2,
+                offset + (size - icon) / 2, icon, icon, g_skills_px, g_skills_w,
+                globe->skill * cell, 0, cell, cell, 0);
+    }
+
+    /* 3. hovered: the wash, and the percentage the reference prints on it. */
+    if( hovered )
+    {
+        orb_draw_ring(g_scratch, side, side, cx, cy, 0, radius, 1024, ORB_HOVER_ARGB);
+        if( progress < 1000 )
+        {
+            char label[8];
+            snprintf(label, sizeof(label), "%d%%", progress / 10);
+            orb_text(
+                state,
+                g_scratch,
+                side,
+                side,
+                (side - orb_text_width(state, label)) / 2,
+                (side - g_glyph_line_h) / 2,
+                label,
+                ORB_TEXT_WHITE,
+                0);
+        }
+    }
+
+    /* 4. the full ring, then the progress arc over it. */
+    orb_draw_ring(
+        g_scratch, side, side, cx, cy, radius - ORB_RING_WIDTH * 128,
+        radius + ORB_RING_WIDTH * 128, 1024, outline);
+    if( progress > 0 )
+        orb_draw_ring(
+            g_scratch, side, side, cx, cy, radius - arc_w * 128, radius + arc_w * 128,
+            progress * 1024 / 1000, arc);
+
+    snprintf(name, sizeof(name), "globe%d.png", slot);
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        enum ToriRS_AssetState const result =
+            api->assets.image_compose(api, name, side, side, g_scratch, &image);
+        return result == TORIRS_ASSET_READY ? image.value : 0;
+    }
+}
+
+/* ------------------------------------------------------------- the tooltip */
+
+/** One tooltip row: a label on the left in orange, a value on the right in
+ *  white -- the reference's LineComponent, which is the whole panel. */
+struct OrbTipRow
+{
+    char left[32];
+    char right[32];
+    int left_row;
+};
+
+/**
+ * The tooltip for `globe`, composed and blitted at (x, y).
+ *
+ * Composed rather than drawn as rects and glyph blits for the reason the globe
+ * is: eight lines of two strings is well over a hundred draw items, and the
+ * whole panel is one blit this way.
+ */
+/**
+ * The tooltip beside the pointer, as an owned image control in the viewport.
+ * Its picture is rebuilt on a change or on the clock; its position follows
+ * the pointer every frame. `viewport_x/y` convert canvas to viewport-local.
+ */
+static void
+orb_place_tooltip(
+    struct ToriRS_Api* api,
+    struct XpOrbState* state,
+    struct XpGlobe const* globe,
+    int goal_xp,
+    int canvas_w,
+    int canvas_h,
+    int mouse_x,
+    int mouse_y,
+    int viewport_x,
+    int viewport_y)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    struct OrbTipRow row[8];
+    int rows = 0;
+    int height;
+    int x;
+    int y;
+    uint64_t const now = api->core.frame_ms(api);
+
+    assert(globe);
+
+    /*
+     * Rebuilt on a CHANGE or on the clock, whichever comes first.
+     *
+     * The clock alone would be wrong: moving the pointer to a different orb,
+     * or gaining xp while reading one, has to be answered at once or the panel
+     * is describing something other than what it is pointing at. What the
+     * clock is for is the two lines that move on their own.
+     */
+    if( g_tip_image != 0 && g_tip_skill == globe->skill && g_tip_xp == globe->xp &&
+        now - g_tip_ms < ORB_TIP_REFRESH_MS )
+    {
+        height = g_tip_h;
+        goto place;
+    }
+
+    {
+        struct ToriRS_SkillSnapshot skill;
+        memset(&skill, 0, sizeof(skill));
+        skill.struct_size = sizeof(skill);
+        (void)(api->game && api->game->skill(api, globe->skill, &skill));
+        snprintf(row[rows].left, sizeof(row[rows].left), "%s", skill.name[0] ? skill.name : "?");
+        snprintf(row[rows].right, sizeof(row[rows].right), "%d", globe->level);
+        row[rows].left_row = ORB_TEXT_WHITE;
+        rows++;
+    }
+    snprintf(row[rows].left, sizeof(row[rows].left), "Current XP:");
+    orb_commas(row[rows].right, sizeof(row[rows].right), globe->xp);
+    row[rows].left_row = ORB_TEXT_LABEL;
+    rows++;
+
+    if( goal_xp > globe->xp )
+    {
+        struct XpTrack const* track = &g_track[globe->skill];
+        int const xp_left = goal_xp - globe->xp;
+        int const gained = track->start_xp >= 0 ? globe->xp - track->start_xp : 0;
+        uint64_t const elapsed =
+            track->start_xp >= 0 ? api->core.frame_ms(api) - track->start_ms : 0;
+        /* Per hour, from the session's first gain. Under a second of elapsed
+         * time the rate is noise, so it is not offered rather than offered as
+         * a number in the millions. */
+        int const per_hour = elapsed >= 1000 && gained > 0
+                                 ? (int)((uint64_t)gained * 3600000u / elapsed)
+                                 : 0;
+
+        if( orb_cfg_bool(api, "show_actions_left") && track->actions > 0 &&
+            gained > 0 )
+        {
+            int const per_action = gained / track->actions;
+            if( per_action > 0 )
+            {
+                snprintf(row[rows].left, sizeof(row[rows].left), "Actions left:");
+                orb_commas(
+                    row[rows].right,
+                    sizeof(row[rows].right),
+                    (xp_left + per_action - 1) / per_action);
+                row[rows].left_row = ORB_TEXT_LABEL;
+                rows++;
+            }
+        }
+        if( orb_cfg_bool(api, "show_xp_left") )
+        {
+            snprintf(row[rows].left, sizeof(row[rows].left), "XP left:");
+            orb_commas(row[rows].right, sizeof(row[rows].right), xp_left);
+            row[rows].left_row = ORB_TEXT_LABEL;
+            rows++;
+        }
+        if( orb_cfg_bool(api, "show_xp_hour") && per_hour > 0 )
+        {
+            snprintf(row[rows].left, sizeof(row[rows].left), "XP per hour:");
+            orb_commas(row[rows].right, sizeof(row[rows].right), per_hour);
+            row[rows].left_row = ORB_TEXT_LABEL;
+            rows++;
+        }
+        if( orb_cfg_bool(api, "show_time_to_goal") && per_hour > 0 )
+        {
+            snprintf(row[rows].left, sizeof(row[rows].left), "Time left:");
+            orb_duration(
+                row[rows].right,
+                sizeof(row[rows].right),
+                (int)((int64_t)xp_left * 3600 / per_hour));
+            row[rows].left_row = ORB_TEXT_LABEL;
+            rows++;
+        }
+    }
+
+    height = ORB_TIP_BORDER * 2 + rows * g_glyph_line_h;
+    assert(ORB_TIP_W <= ORB_SCRATCH_W);
+    if( height > ORB_SCRATCH_H )
+        return;
+
+    /* The whole panel is the plate, so it is written rather than cleared and
+     * then covered. */
+    for( int i = 0; i < ORB_TIP_W * height; i++ )
+        g_scratch[i] = ORB_TIP_ARGB;
+    for( int i = 0; i < rows; i++ )
+    {
+        int const top = ORB_TIP_BORDER + i * g_glyph_line_h;
+        orb_text(
+            state,
+            g_scratch, ORB_TIP_W, height, ORB_TIP_BORDER, top, row[i].left,
+            row[i].left_row, 0);
+        orb_text(
+            state,
+            g_scratch,
+            ORB_TIP_W,
+            height,
+            ORB_TIP_W - ORB_TIP_BORDER - orb_text_width(state, row[i].right),
+            top,
+            row[i].right,
+            ORB_TEXT_WHITE,
+            0);
+    }
+
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        if( api->assets.image_compose(
+                api, "tooltip.png", ORB_TIP_W, height, g_scratch, &image) !=
+            TORIRS_ASSET_READY )
+            return;
+        g_tip_image = image.value;
+    }
+    g_tip_h = height;
+    g_tip_skill = globe->skill;
+    g_tip_xp = globe->xp;
+    g_tip_ms = now;
+
+place:
+    /* Every frame, whatever the gate above decided: the panel follows the
+     * pointer, and only its CONTENTS are on a clock. */
+    x = mouse_x + 10;
+    y = mouse_y + 20;
+    if( x + ORB_TIP_W > canvas_w )
+        x = canvas_w - ORB_TIP_W;
+    if( y + height > canvas_h )
+        y = mouse_y - height - 5;
+    x = orb_clampi(x, 0, canvas_w);
+    y = orb_clampi(y, 0, canvas_h);
+    if( !state->tip_control.opaque[2] &&
+        ui->create_image(ui->context, state->viewport, "tooltip", &state->tip_control) != TORIRS_CONTRACT_OK )
+        return;
+    (void)ui->set_image(ui->context, state->tip_control, (struct ToriRS_ImageRef){ g_tip_image }, ORB_TIP_W, height);
+    (void)ui->set_position(ui->context, state->tip_control, x - viewport_x, y - viewport_y);
+    (void)ui->revalidate(ui->context, state->tip_control);
+}
+
+/* ---------------------------------------------------------------- the draw */
+
+/** Ask for the art, and read back the pixels once they land. */
+static void
+orb_load_art(struct ToriRS_Api* api, struct XpOrbState* state)
+{
+    if( g_img_skills == 0 )
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        (void)api->assets.image(api, "skills.png", &image);
+        g_img_skills = image.value;
+    }
+    if( g_img_text == 0 )
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        (void)api->assets.image(api, "text.png", &image);
+        g_img_text = image.value;
+    }
+    (void)orb_load_glyphs(api, state);
+
+    if( !g_skills_px && g_img_skills != 0 &&
+        api->assets.image_size(
+            api, (struct ToriRS_ImageRef){ g_img_skills }, &g_skills_w, &g_skills_h) )
+    {
+        size_t const pixels = (size_t)g_skills_w * (size_t)g_skills_h;
+        size_t copied = 0;
+        g_skills_px = malloc(pixels * sizeof(uint32_t));
+        assert(g_skills_px);
+        if( !api->assets.image_pixels(
+                api,
+                (struct ToriRS_ImageRef){ g_img_skills },
+                g_skills_px,
+                pixels,
+                &copied) || copied != pixels )
+        {
+            free(g_skills_px);
+            g_skills_px = NULL;
+        }
+    }
+    if( !g_text_px && g_img_text != 0 &&
+        api->assets.image_size(
+            api, (struct ToriRS_ImageRef){ g_img_text }, &g_text_w, &g_text_h) )
+    {
+        size_t const pixels = (size_t)g_text_w * (size_t)g_text_h;
+        size_t copied = 0;
+        g_text_px = malloc(pixels * sizeof(uint32_t));
+        assert(g_text_px);
+        if( !api->assets.image_pixels(
+                api,
+                (struct ToriRS_ImageRef){ g_img_text },
+                g_text_px,
+                pixels,
+                &copied) || copied != pixels )
+        {
+            free(g_text_px);
+            g_text_px = NULL;
+        }
+    }
+}
+
+static void
+orb_remove_control(struct ToriRS_Api* api, struct ToriRS_WidgetRef* control)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    if( control->opaque[2] )
+        (void)ui->remove(ui->context, *control);
+    *control = (struct ToriRS_WidgetRef){ 0 };
+}
+
+/**
+ * Every "+N" in the air, at its point along the climb, as an owned image
+ * control that moves each frame and fades over the tail of the climb. A drop
+ * whose skill has no globe on screen goes with it.
+ */
+static void
+orb_place_drops(
+    struct ToriRS_Api* api,
+    struct XpOrbState* state,
+    uint64_t now,
+    int origin_x,
+    int origin_y,
+    int size,
+    int vertical,
+    int gap)
+{
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    int const duration = orb_clampi(orb_cfg_int(api, "drop_duration"), 100, 10000);
+    bool const enabled = orb_cfg_bool(api, "show_xp_drops") && g_glyph_ready;
+
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        struct XpDrop* drop = &g_drop[i];
+        int slot = -1;
+        int elapsed;
+        uint32_t rgb;
+
+        if( !enabled || drop->skill < 0 || (elapsed = (int)(now - drop->at_ms)) >= duration )
+        {
+            if( enabled && drop->skill >= 0 )
+                drop->skill = -1;
+            orb_remove_control(api, &state->drop_control[i]);
+            continue;
+        }
+        for( int g = 0; g < g_globe_count; g++ )
+            if( g_globe[g].skill == drop->skill )
+                slot = g;
+        if( slot < 0 )
+        {
+            drop->skill = -1;
+            orb_remove_control(api, &state->drop_control[i]);
+            continue;
+        }
+
+        rgb = orb_skill_rgb(api, drop->skill);
+        if( drop->image == 0 || drop->image_amount != drop->amount || drop->image_rgb != rgb )
+        {
+            char label[24];
+            char amount[20];
+            char name[TORIRS_PLUGIN_ASSET_NAME_MAX];
+            int w;
+            int const h = g_glyph_line_h + 2;
+
+            orb_commas(amount, sizeof(amount), drop->amount);
+            snprintf(label, sizeof(label), "+%s", amount);
+            /* The rasterise STRIDE is the published width: a label laid out at
+             * one stride and published at another is the buffer reinterpreted. */
+            w = orb_text_width(state, label) + 1;
+            if( w <= 0 || w > ORB_SCRATCH_W || h > ORB_SCRATCH_H )
+                continue;
+            memset(g_scratch, 0, (size_t)w * (size_t)h * sizeof(uint32_t));
+            orb_text(state, g_scratch, w, h, 0, 0, label, ORB_TEXT_WHITE, rgb);
+            snprintf(name, sizeof(name), "drop%d.png", i);
+            {
+                struct ToriRS_ImageRef image = { 0 };
+                if( api->assets.image_compose(api, name, w, h, g_scratch, &image) == TORIRS_ASSET_READY )
+                    drop->image = image.value;
+            }
+            drop->image_amount = drop->amount;
+            drop->image_rgb = rgb;
+        }
+        if( drop->image == 0 )
+            continue;
+
+        {
+            int label_w = 0;
+            int label_h = 0;
+            int const disc_x = origin_x + (vertical ? 0 : slot * (size + gap));
+            int const disc_y = origin_y + (vertical ? slot * (size + gap) : 0);
+            int const drop_y = orb_clampi(orb_cfg_int(api, "drop_offset_y"), -128, 128);
+            int start_y, end_y, x, y, trans;
+            char key[16];
+
+            (void)api->assets.image_size(api, (struct ToriRS_ImageRef){ drop->image }, &label_w, &label_h);
+            /* The climb: from just under the disc up to its rim, both ends
+             * shifted together by drop_offset_y (see the note in the git
+             * history of the draw-callback version). */
+            start_y = disc_y + size + drop_y;
+            end_y = disc_y + size - label_h + drop_y;
+            x = disc_x + (size - label_w) / 2;
+            y = start_y + (end_y - start_y) * elapsed / duration;
+            trans = elapsed * 3 < duration * 2 ? 0 : 255 * (elapsed * 3 - duration * 2) / duration;
+            snprintf(key, sizeof(key), "drop%d", i);
+            if( !state->drop_control[i].opaque[2] &&
+                ui->create_image(ui->context, state->viewport, key, &state->drop_control[i]) != TORIRS_CONTRACT_OK )
+                continue;
+            (void)ui->set_image(ui->context, state->drop_control[i], (struct ToriRS_ImageRef){ drop->image }, label_w, label_h);
+            (void)ui->set_position(ui->context, state->drop_control[i], x, y);
+            (void)ui->set_opacity(ui->context, state->drop_control[i], 255 - orb_clampi(trans, 0, 255));
+            (void)ui->revalidate(ui->context, state->drop_control[i]);
+        }
+    }
+}
+
+static void orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event);
+
+/**
+ * Each frame: expire, place and repaint the globes as owned image controls
+ * in the live viewport. Positions are viewport-local; hover is read from the
+ * pointer against each control's drawn canvas box.
+ *
+ * The column sits at the top centre of the viewport plus the two offsets.
+ * The former placement service (safe area minus other plugins' reservations)
+ * is not consulted: the controls are native children and follow the viewport.
+ */
+static void
+orb_frame(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_FrameEvent const* event)
+{
+    struct XpOrbState* state = plugin_state;
+    struct ToriRS_WidgetApi* ui = &api->widgets;
+    uint64_t const now = api->core.frame_ms(api);
+    int const vertical = orb_cfg_bool(api, "vertical");
+    int const size = orb_size(api);
+    int const offset = orb_arc_offset(api);
+    int const side = size + 2 * offset;
+    int const duration_ms = orb_clampi(orb_cfg_int(api, "orb_duration"), 1, 600) * 1000;
+    int mouse_x = -1;
+    int mouse_y = -1;
+    int origin_x;
+    int origin_y;
+    int hovered_slot = -1;
+    int hovered_goal = 0;
+    int gap = ORB_STEP;
+    struct ToriRS_WidgetBounds viewport_local = { 0 };
+    struct ToriRS_WidgetBounds viewport_canvas = { 0 };
+    (void)event;
+
+    if( !state->viewport.opaque[2] )
+        return;
+    orb_size_tables(api, state);
+    orb_load_art(api, state);
+
+    for( int i = g_globe_count - 1; i >= 0; i-- )
+        if( now - g_globe[i].at_ms > (uint64_t)duration_ms )
+            orb_remove(state, i);
+    /* Slots past the count have no globe: their controls go. */
+    for( int i = g_globe_count; i < ORB_MAX_SHOWN; i++ )
+    {
+        orb_remove_control(api, &state->globe_control[i]);
+        state->globe_image_set[i] = 0;
+    }
+    if( g_globe_count > 0 && !g_skills_px )
+        api->core.log(api, "XP_ORBS_ART_PENDING skills=%d text=%d", g_img_skills, g_img_text);
+    if( g_globe_count == 0 || !g_skills_px )
+    {
+        orb_remove_control(api, &state->tip_control);
+        for( int i = 0; i < ORB_DROP_MAX; i++ )
+            orb_remove_control(api, &state->drop_control[i]);
+        return;
+    }
+    if( ui->position(ui->context, state->viewport, &viewport_local) != TORIRS_CONTRACT_OK ||
+        ui->bounds(ui->context, state->viewport, &viewport_canvas) != TORIRS_CONTRACT_OK ||
+        viewport_local.width <= 0 )
+        return;
+
+    if( !api->input.pointer(api, &mouse_x, &mouse_y) )
+        mouse_x = -1;
+
+    {
+        int run = g_globe_count * size + (g_globe_count - 1) * gap;
+        if( run > viewport_local.width && g_globe_count > 1 )
+        {
+            gap = 0;
+            run = g_globe_count * size;
+        }
+        origin_x = (vertical ? (viewport_local.width - size) / 2 : (viewport_local.width - run) / 2) + orb_cfg_int(api, "offset_x");
+        origin_y = offset + orb_cfg_int(api, "offset_y");
+    }
+
+    orb_place_drops(api, state, now, origin_x, origin_y, size, vertical, gap);
+
+    for( int i = 0; i < g_globe_count; i++ )
+    {
+        struct XpGlobe* globe = &g_globe[i];
+        int const x = origin_x + (vertical ? 0 : i * (size + gap));
+        int const y = origin_y + (vertical ? i * (size + gap) : 0);
+        struct ToriRS_SkillSnapshot skill;
+        int level_xp = 0;
+        int next_xp = 0;
+        int progress;
+        int hovered = 0;
+        uint64_t key;
+        char name[16];
+
+        memset(&skill, 0, sizeof(skill));
+        skill.struct_size = sizeof(skill);
+        if( api->game && api->game->skill(api, globe->skill, &skill) )
+        {
+            level_xp = skill.level_xp;
+            next_xp = skill.next_level_xp;
+        }
+        progress = next_xp > level_xp
+            ? orb_clampi((int)((int64_t)(globe->xp - level_xp) * 1000 / (next_xp - level_xp)), 0, 1000)
+            : 1000;
+
+        if( mouse_x >= 0 )
+        {
+            int const dx = mouse_x - (viewport_canvas.x + x + size / 2);
+            int const dy = mouse_y - (viewport_canvas.y + y + size / 2);
+            hovered = dx * dx + dy * dy <= (size / 2) * (size / 2);
+        }
+        if( hovered )
+        {
+            globe->at_ms = now;
+            hovered_slot = i;
+            hovered_goal = next_xp > level_xp ? next_xp : 0;
+        }
+
+        key = orb_key(api, globe, progress, hovered);
+        if( globe->image == 0 || key != globe->key )
+        {
+            globe->image = orb_compose(api, state, globe, i, progress, hovered);
+            globe->key = globe->image != 0 ? key : 0;
+            state->globe_image_set[i] = 0;
+        }
+        if( globe->image == 0 )
+            continue;
+
+        snprintf(name, sizeof(name), "globe%d", i);
+        if( !state->globe_control[i].opaque[2] )
+        {
+            if( ui->create_image(ui->context, state->viewport, name, &state->globe_control[i]) != TORIRS_CONTRACT_OK )
+                continue;
+            state->globe_image_set[i] = 0;
+            state->globe_x[i] = state->globe_y[i] = -1;
+            (void)ui->set_on_op(ui->context, state->globe_control[i], "Flip", orb_operation, state);
+        }
+        if( !state->globe_image_set[i] )
+        {
+            (void)ui->set_image(ui->context, state->globe_control[i], (struct ToriRS_ImageRef){ globe->image }, side, side);
+            state->globe_image_set[i] = 1;
+        }
+        if( state->globe_x[i] != x - offset || state->globe_y[i] != y - offset )
+        {
+            (void)ui->set_position(ui->context, state->globe_control[i], x - offset, y - offset);
+            (void)ui->revalidate(ui->context, state->globe_control[i]);
+            state->globe_x[i] = x - offset;
+            state->globe_y[i] = y - offset;
+            api->core.log(api, "XP_ORBS_GLOBE slot=%d skill=%d x=%d y=%d side=%d",
+                i, globe->skill, viewport_canvas.x + x - offset, viewport_canvas.y + y - offset, side);
+        }
+    }
+
+    if( hovered_slot >= 0 && orb_cfg_bool(api, "enable_tooltips") && g_glyph_ready )
+        orb_place_tooltip(api, state, &g_globe[hovered_slot], hovered_goal,
+            viewport_canvas.x + viewport_canvas.width, viewport_canvas.y + viewport_canvas.height,
+            mouse_x, mouse_y, viewport_canvas.x, viewport_canvas.y);
+    else
+        orb_remove_control(api, &state->tip_control);
+}
+
+/** Flip: the operation on every globe control. Row becomes column and back. */
+static void
+orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct XpOrbState* state = user;
+    (void)event;
+    (void)state;
+    (void)api->config.set(api, "vertical", orb_cfg_bool(api, "vertical") ? "0" : "1");
+    api->core.log(api, "XP_ORBS_FLIP vertical=%d", orb_cfg_bool(api, "vertical"));
+}
+
+/* --------------------------------------------------------------- lifecycle */
+
+/* The viewport is the controls' parent: unbinding takes every control with
+ * it, and a new binding starts from none. */
+static void
+orb_viewport(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct XpOrbState* state = user;
+    state->viewport = event->type == TORIRS_WIDGET_BOUND ? event->widget : (struct ToriRS_WidgetRef){ 0 };
+    api->core.log(api, "XP_ORBS_VIEWPORT bound=%d", event->type == TORIRS_WIDGET_BOUND);
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+    {
+        state->globe_control[i] = (struct ToriRS_WidgetRef){ 0 };
+        state->globe_image_set[i] = 0;
+    }
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        state->drop_control[i] = (struct ToriRS_WidgetRef){ 0 };
+    state->tip_control = (struct ToriRS_WidgetRef){ 0 };
+    if( state->viewport.opaque[2] )
+        orb_frame(api, state, NULL);
+}
+
+static void
+orb_start(struct ToriRS_Api* api, void* plugin_state)
+{
+    struct XpOrbState* state = plugin_state;
+
+    memset(state, 0, sizeof(*state));
+    state->glyph_rows = 1;
+    state->glyph_line_h = 12;
+    state->tip_skill = -1;
+    state->tip_xp = -1;
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+        state->globe[i].skill = -1;
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        state->drop[i].skill = -1;
+    orb_size_tables(api, state);
+    orb_reset(state);
+    orb_load_art(api, state);
+    (void)api->widgets.watch(api->widgets.context, "viewport", orb_viewport, state);
+}
+
+static void
+orb_stop(struct ToriRS_Api* api, void* plugin_state)
+{
+    struct XpOrbState* state = plugin_state;
+
+    if( g_img_skills )
+        api->assets.image_release(api, (struct ToriRS_ImageRef){ g_img_skills });
+    if( g_img_text )
+        api->assets.image_release(api, (struct ToriRS_ImageRef){ g_img_text });
+    if( g_tip_image )
+        api->assets.image_release(api, (struct ToriRS_ImageRef){ g_tip_image });
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+        if( g_globe[i].image )
+            api->assets.image_release(
+                api, (struct ToriRS_ImageRef){ g_globe[i].image });
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        if( g_drop[i].image )
+            api->assets.image_release(
+                api, (struct ToriRS_ImageRef){ g_drop[i].image });
+    api->assets.release(api, "text.ini");
+    free(g_skills_px);
+    free(g_text_px);
+    free(g_seen_xp);
+    free(g_track);
+    memset(state, 0, sizeof(*state));
+}
+
+static void
+orb_asset(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_AssetEvent const* event)
+{
+    (void)event;
+    orb_load_art(api, plugin_state);
+}
+
+static void
+orb_config_changed(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    char const* key)
+{
+    struct XpOrbState* state = plugin_state;
+    (void)key;
+    for( int i = 0; i < ORB_MAX_SHOWN; i++ )
+    {
+        g_globe[i].key = 0;
+        state->globe_image_set[i] = 0;
+        state->globe_x[i] = state->globe_y[i] = -1;
+    }
+    g_tip_skill = -1;
+    g_tip_xp = -1;
+    g_tip_ms = 0;
+    if( state->viewport.opaque[2] )
+        orb_frame(api, state, NULL);
+}
+
+/*
+ * The reference's own config, key for key, with two additions it does not need
+ * and this does.
+ *
+ * `background_alpha` is one: RuneLite's colour pickers carry an alpha channel
+ * and this client's carry "#RRGGBB", so the transparency of the disc -- 127 in
+ * the reference, and the whole reason a globe does not black out the scene
+ * behind it -- has to be a key of its own.
+ *
+ * The offsets are the other. The reference's overlays are dragged; this
+ * client's plugin surface has no drag, so where the column sits is stated
+ * rather than pointed at. Zero is the reference's own TOP_CENTER.
+ */
+static struct ToriRS_ConfigItem const ORB_CONFIG[] = {
+    { "enable_tooltips",   TORIRS_CONFIG_BOOL,  "Enable tooltips",              "1", 0, 0, NULL, 0 },
+    { "show_xp_left",      TORIRS_CONFIG_BOOL,  "Show XP left",                 "1", 0, 0, NULL, 0 },
+    { "show_actions_left", TORIRS_CONFIG_BOOL,  "Show actions left",            "1", 0, 0, NULL, 0 },
+    { "show_xp_hour",      TORIRS_CONFIG_BOOL,  "Show XP/hr",                   "1", 0, 0, NULL, 0 },
+    { "show_time_to_goal", TORIRS_CONFIG_BOOL,  "Show time til goal",           "1", 0, 0, NULL, 0 },
+    { "hide_maxed",        TORIRS_CONFIG_BOOL,  "Hide maxed skills",            "0", 0, 0, NULL, 0 },
+    { "show_virtual_level", TORIRS_CONFIG_BOOL, "Show virtual level",           "0", 0, 0, NULL, 0 },
+    { "custom_arc_color",  TORIRS_CONFIG_BOOL,  "Enable custom arc colour",     "0", 0, 0, NULL, 0 },
+    { "arc_color",         TORIRS_CONFIG_COLOR, "Progress arc colour",          "#FFC800", 0, 0, NULL, 0 },
+    { "outline_color",     TORIRS_CONFIG_COLOR, "Progress orb outline colour",  "#000000", 0, 0, NULL, 0 },
+    { "background_color",  TORIRS_CONFIG_COLOR, "Progress orb background colour", "#808080", 0, 0, NULL, 0 },
+    { "background_alpha",  TORIRS_CONFIG_INT,   "Orb background opacity",       "127", 0, 255, NULL, 0 },
+    { "arc_width",         TORIRS_CONFIG_INT,   "Progress arc width",           "2", 1, 12, NULL, 0 },
+    { "orb_size",          TORIRS_CONFIG_INT,   "Size of orbs",                 "40", 16, ORB_SIZE_MAX, NULL, 0 },
+    { "orb_duration",      TORIRS_CONFIG_INT,   "Duration of orbs (seconds)",   "10", 1, 600, NULL, 0 },
+    { "show_xp_drops",     TORIRS_CONFIG_BOOL,  "Float the XP gained into the orb", "1", 0, 0, NULL, 0 },
+    { "drop_duration",     TORIRS_CONFIG_INT,   "XP drop float time (ms)",      "1200", 100, 10000, NULL, 0 },
+    { "drop_offset_y",     TORIRS_CONFIG_INT,   "XP drop height (px, + is lower)", "20", -128, 128, NULL, 0 },
+    { "vertical",          TORIRS_CONFIG_BOOL,  "Vertical orbs",                "0", 0, 0, NULL, 0 },
+    { "offset_x",          TORIRS_CONFIG_INT,   "Offset from top centre, across", "0", -2048, 2048, NULL, 0 },
+    { "offset_y",          TORIRS_CONFIG_INT,   "Offset from top centre, down", "0", -2048, 2048, NULL, 0 },
+    { NULL,                TORIRS_CONFIG_BOOL,  NULL,                           NULL, 0, 0, NULL, 0 },
+};
+
+static struct ToriRS_ConfigSchema const ORB_SCHEMA = {
+    .struct_size = sizeof(struct ToriRS_ConfigSchema),
+    .items = ORB_CONFIG,
+};
+
+struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
+    .struct_size = sizeof(struct ToriRS_PluginDef),
+    .id = "xp-drop-orbs",
+    .title = "XP Drop Orbs",
+    .version = "2.0.0",
+    .state_size = sizeof(struct XpOrbState),
+    .config = &ORB_SCHEMA,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = orb_start,
+        .on_stop = orb_stop,
+        .on_logic_tick = orb_tick,
+        .on_frame_start = orb_frame,
+        .on_config_changed = orb_config_changed,
+        .on_asset = orb_asset,
+    },
+};

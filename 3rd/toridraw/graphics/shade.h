@@ -2,37 +2,19 @@
 #define SHADE_H
 
 #include "dash_restrict.h"
+#include "pixel_format.h"
 
 #include <assert.h>
 #include <stdint.h>
 
 /**
- * This is a cute way to alpha blend two rgb colors.
+ * shade_blend(base, shade) -- scale every colour channel of `base` by a 0..255
+ * shade, in whatever format this build's framebuffer holds.
  *
- * Since alpha is 0-0xFF, then (alpha * 0xFF) < 0x10000 i.e. (0 to 0xFFFF, 0xFF^2),
- * so we can multiply the r,b components (0xFF00FF) and the result of the multiplcation
- * for r,b will be 0xRRRRBBBB, so we can shift and mask.
- *
- * @param alpha
- * @param base
- * @param other
- * @return int
+ * As with alpha_blend, the unqualified name is the neutral spelling bound by
+ * graphics/pixel_format.h; the implementations there are named for the format
+ * each one writes (toripixel_xrgb8888_shade_blend,
+ * toripixel_rgb565_shade_blend, ...).
  */
-static inline int
-shade_blend(
-    uint32_t base,
-    uint32_t shade)
-{
-    uint32_t rb = base & 0x00ff00ff;
-    uint32_t g = base & 0x0000ff00;
-
-    rb *= shade;
-    g *= shade;
-
-    rb &= 0xFF00FF00;
-    g &= 0x00FF0000;
-
-    return (rb | g) >> 8;
-}
 
 #endif

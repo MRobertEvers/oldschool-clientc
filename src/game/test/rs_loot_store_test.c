@@ -233,6 +233,16 @@ test_aux_lists(void)
     TEST_ASSERT(LootStore_AuxCount(&store, 3) == 1, "kind 3");
     TEST_ASSERT(LootStore_AuxCount(&store, 4) == 1, "kind 4");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "kinds 3+4 total");
+    uint64_t filter_revision=LootStore_AuxRevision(&store,3);
+    uint64_t highlight_revision=LootStore_AuxRevision(&store,4);
+    TEST_ASSERT(filter_revision && highlight_revision,"native aux edits publish a revision");
+    LootStore_AuxUpsert(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)==filter_revision,"duplicate aux insertion does not invalidate views");
+    LootStore_AuxRemove(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)!=filter_revision && LootStore_AuxRevision(&store,4)==highlight_revision,
+        "aux removal invalidates only its own list");
+    LootStore_AuxClear(&store,4);
+    TEST_ASSERT(LootStore_AuxRevision(&store,4)!=highlight_revision,"aux clear invalidates dependent native views");
 
     /* out of range kind */
     TEST_ASSERT(LootStore_AuxCount(&store, -1) == 0, "negative kind");
@@ -352,13 +362,19 @@ test_reset_all(void)
 
     struct LootStore store;
     LootStore_Init(&store);
+    uint64_t revision = LootStore_Revision(&store);
+    TEST_ASSERT(revision != 0, "revision starts nonzero");
 
     LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "a drop advances revision");
+    revision = LootStore_Revision(&store);
     LootStore_AuxUpsert(&store, 1, "SrcName", 0);
     LootStore_ItemIgnoreAdd(&store, "Bones");
     LootStore_SourceIgnoreAdd(&store, "Goblin");
 
     LootStore_ResetAll(&store);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "reset cannot resurrect an old revision");
+    revision = LootStore_Revision(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "sources cleared");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "aux cleared");
@@ -367,6 +383,7 @@ test_reset_all(void)
 
     /* Usable after reset */
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "post-reset mutation advances revision");
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "usable after reset");
     TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "kill after reset");
 

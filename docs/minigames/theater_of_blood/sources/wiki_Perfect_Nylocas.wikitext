@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Nylocas
+|image = [[File:Fighting Nylocas Vasilias.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Nylocas Vasilias without anyone in the team attacking any Nylocas with the wrong attack style, without letting a pillar collapse and without getting hit by any of the Nylocas Vasilias attacks whilst off prayer.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 246
+|leagueRegion = Morytania
+}}
+'''Perfect Nylocas''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill the [[Nylocas Vasilias]] without anyone in the team attacking any Nylocas with the wrong attack style, without letting a [[Support (Theatre of Blood)|pillar]] collapse and without getting hit by any of the Nylocas Vasilias attacks whilst off prayer.
+
+== Strategy ==
+Using [[barrage spells]] or [[Black chinchompa|chinchompas]] is not recommended, so players will have to ensure they kill nylos quick enough that pillar health will not be a concern. Highlighting each nylo before you attack can help avoid accidental misclicks or a nylocas changing styles.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

@@ -1,0 +1,71 @@
+{{External|rs}}
+{{otheruses|the spell}}
+{{Infobox Spell
+|name = Dream
+|image = [[File:Dream.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 79
+|spellbook = Lunar
+|type = Combat
+|exp = 82
+|cost = {{RuneReq|Cosmic=1|Body=5|Astral=2}}
+|speed = 
+|quest = [[Dream Mentor]]
+|description = Take a rest and restore Hitpoints 3 times faster
+|anim = [[File:Dream.gif|180px]]
+|sound = No
+}}
+[[File:Dream icon (mobile).png|left]]
+'''Dream''' is a [[Lunar spell]] that causes the caster to fall asleep, during which time [[hitpoints]] will regenerate three times faster than normal, healing 1 hitpoint every 20 seconds, or 3 hitpoints per minute. Players must complete [[Dream Mentor]] to cast it.
+
+The dream effect will remain indefinitely, ending only once the caster reaches full health, at which point it can't be re-cast until losing health. However, the dream will be interrupted if the caster does anything except chat or change [[armour]]. Poison damage '''will''' interrupt the dream.
+
+Dream's healing effect will add to other regenerative effects, with both effects going off the base healing rate of 1 hitpoint per minute. As Dream runs on a separate timer from the player's main hitpoints regeneration,{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1044158332502716416|date=24 September 2018|archiveurl=https://reldo.runescape.wiki/i/109723|archivedate=28 May 2020|quote=It sort of uses its own timer, separate from the main one.}} the two regeneration timers may not restore hitpoints at exactly the same time. The following table shows how much Dream will heal each minute when combined with other regenerative effects:
+
+{| class="wikitable align-right-2"
+|+Combination with other methods
+!Effect
+!Heals
+|-
+|{{Plink|Dream}}
+|3
+|-
+|{{Plink|Dream}}
+|rowspan=2|5
+|-
+|{{Plink|Regen bracelet}}
+|-
+|{{Plink|Dream}}
+|rowspan=2|5
+|-
+|{{Plink|Rapid Heal}} or<br/>{{Plink|Hitpoints cape}}
+|-
+|{{Plink|Dream}}
+|rowspan=3|7
+|-
+|{{Plink|Regen bracelet}}
+|-
+|{{Plink|Rapid Heal}} or<br/>{{Plink|Hitpoints cape}}
+|}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Cosmic
+|Rune1num = 1
+|Rune2 = Astral
+|Rune2num = 2
+|Rune3 = Body
+|Rune3num = 5
+}}
+
+==Trivia==
+*Trying to cast Dream within the [[Nightmare Zone]] yields the message "''You cannot perform Inception here. Dreaming within this dream will inevitably activate your Kick (i.e. Waking up from the dream).''" This is a reference to the 2010 film ''{{wp|Inception}}''.
+*When players have the [[jar of dreams]] in their inventory while casting the spell, the screen will slowly turn black, and [[The Nightmare]]'s face will show up, together with the sound of the [[Armadyl crossbow]]'s special attack.
+
+==References==
+{{Reflist}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

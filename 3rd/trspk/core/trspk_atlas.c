@@ -22,10 +22,17 @@ tile_fill(
     tile->y       = tile_y;
     tile->w       = tile_w;
     tile->h       = tile_h;
-    tile->u_start = (float)tile_x / (float)atlas_w;
-    tile->v_start = (float)tile_y / (float)atlas_h;
-    tile->u_end   = (float)(tile_x + tile_w) / (float)atlas_w;
-    tile->v_end   = (float)(tile_y + tile_h) / (float)atlas_h;
+    /* One reciprocal per axis instead of two divides. The four DIVSS this
+     * replaces do not pipeline on the Pentium 4 target, and the pair of
+     * edges on each axis share a divisor. */
+    {
+        const float inv_w = 1.0f / (float)atlas_w;
+        const float inv_h = 1.0f / (float)atlas_h;
+        tile->u_start = (float)tile_x * inv_w;
+        tile->v_start = (float)tile_y * inv_h;
+        tile->u_end   = (float)(tile_x + tile_w) * inv_w;
+        tile->v_end   = (float)(tile_y + tile_h) * inv_h;
+    }
 }
 
 static void

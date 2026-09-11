@@ -17,13 +17,13 @@ existing modal path.
 |---|---|---|
 | compiler | `if_openmain_side(farming_tools, …)` compiled to **loc 7516** — `farming_tools` is interface 125, varp 615 *and* loc 7516, and `SSC_SymbolsFind` with no kind returns the lowest-numbered one. The server sent a well-formed mount for an interface that does not exist | a `base_hint = SSC_SYM_INTERFACE` on the `IF_OPEN*` family in `parse_command`, the same mechanism already there for stat names. IF_OPENSUB's *component* first argument is unaffected — the hinted lookup misses and the unhinted one finds it. **Latent for every colliding interface name, not just this one** |
 | client | `RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX` was **128** and the rev-230 gameframe alone uses **131** (measured), so the *next* panel to mount got NULL and its `if_setonvartransmit` was dropped silently — the store drew correctly and then never updated | all three hook tables **128 → 512**, and overflow now prints once |
-| server | `mock230_save_player`/`mock230_load_player` had **zero callers** | load at the top of `mock230_world_login` (before the burst and before `[login,_]`, so `%newplayer_seeded` still works); save at the top of `mock230_world_remove_player`, while the player is still whole; `mock230_embed_stop` now logs its clients out instead of freeing their sessions where they stand |
+| server | `ToriRSServer_SavePlayer`/`ToriRSServer_LoadPlayer` had **zero callers** | load at the top of `ToriRSServer_WorldLogin` (before the burst and before `[login,_]`, so `%newplayer_seeded` still works); save at the top of `ToriRSServer_WorldRemovePlayer`, while the player is still whole; `ToriRSServer_EmbedStop` now logs its clients out instead of freeing their sessions where they stand |
 | server | a loaded varp is not a *changed* varp — state restored perfectly and the client was never told | login burst step 4b sends every declared-`transmit` varp with a non-zero value directly. Non-zero is the right filter because the client starts every session zeroed |
-| server | `oc_desc` (**4204**) declared-and-uncovered because the examine text was decoded and discarded | `mock230_objinfo` now keeps `RSCache_Dat2ConfigObj.examine` (config opcode 3); notes inherit the item's line the way they already inherit its name. Op 10 is "Examine" on nearly every panel in the game and had no server-side answer at all |
+| server | `oc_desc` (**4204**) declared-and-uncovered because the examine text was decoded and discarded | `ToriRSServer_ObjInfo` now keeps `RSCache_Dat2ConfigObj.examine` (config opcode 3); notes inherit the item's line the way they already inherit its name. Op 10 is "Examine" on nearly every panel in the game and had no server-side answer at all |
 | content | everything | `interface_farming/` — `farming_tools.constant` (101), `.varp` (81), `.npc` (18), `.spawn` (21), `farming_tools.rs2` (706), `farming_tools_ops.rs2` (393). No existing content file touched |
 
-Permanent check: `mock230 --selftest` section **"the tool leprechaun's store"**
-(`mock230_world.c:7462`) — a real `OPNPC3`, then six op/mode combinations on
+Permanent check: `ToriRSServer --selftest` section **"the tool leprechaun's store"**
+(`torirs_server_world.c:7462`) — a real `OPNPC3`, then six op/mode combinations on
 one component, the varbit *split* (five rakes must pack as `rake=1
 extrarakes=2`, 300 buckets as `12/1/1`), Remove-All returning five rakes in
 five slots, a full store refusing, and a save/load round trip. Five mutations,
@@ -67,7 +67,7 @@ wrong.
   `P_COUNTDIALOG`) but cannot be *reached* in this client for the same reason.
 - **The twelve capacities and the watering-can charge table are transcribed
   into content and marked as such.** The server still cannot read a cache
-  enum: `mock230_content.c` walks `.enum` under `server/scripts` only, so
+  enum: `torirs_server_content.c` walks `.enum` under `server/scripts` only, so
   `configs/all.enum`'s 6,024 rank-0 enums are absent (stage 1 found the same
   thing). This is the one place in the feature where the server and the client
   hold the same number twice.
@@ -123,9 +123,9 @@ wrong.
 >    name (`farming_tools` is interface 125, varp 615 **and** loc 7516);
 >    `RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX` was 128 and the gameframe alone uses
 >    131, so the store's repaint listener was silently dropped;
->    `mock230_save_player`/`mock230_load_player` had no callers and, once given
+>    `ToriRSServer_SavePlayer`/`ToriRSServer_LoadPlayer` had no callers and, once given
 >    some, still did not transmit what they loaded; and `oc_desc` (4204) was
->    declared-and-uncovered because `mock230_objinfo` decoded the examine text
+>    declared-and-uncovered because `ToriRSServer_ObjInfo` decoded the examine text
 >    and threw it away.
 >
 > 6. **§2.2's "the caller is missing entirely from this corpus"** is a
@@ -134,7 +134,7 @@ wrong.
 >    unbuilt and the rest of §2 stands.
 >
 > 7. Line drift, for anyone following a citation: §1.4's
->    `mock230_scripts.c:1505-1526` for `container_for` is **2088** today, and it
+>    `torirs_server_scripts.c:1505-1526` for `container_for` is **2088** today, and it
 >    still has the same three cases. §1.2's varbit count and the op-slot
 >    ceiling are both covered above.
 
@@ -154,7 +154,7 @@ wrong.
 
 ## 0. Status at a glance
 
-| interface | id | mechanism | mock230 status |
+| interface | id | mechanism | ToriRSServer status |
 |---|---|---|---|
 | `farming_tools` | 125 | Tool Leprechaun storage — 12 tool/compost slots, counts packed into varbits, not a container | zero |
 | `farming_tools_side` | 126 | mirrors what's carried in the player's own backpack | container mechanism already landed; no farming-specific wiring |
@@ -210,12 +210,12 @@ bank-adjacent storage widget, not a shop.
 Wires `if_setoninvtransmit{inv}` — the identical auto-repaint idiom bank's
 own side panel uses. This container (`inv`, id 93, the backpack) is one of
 the three cases `container_for()` already implements
-(`src/net/mock/mock230_scripts.c:1505-1526`) — **zero new engine work**
+(`src/torirsserver/torirs_server_scripts.c:1505-1526`) — **zero new engine work**
 needed for the side panel.
 
 ### 1.5 Server obligations
 
-| what | mock230 status |
+| what | ToriRSServer status |
 |---|---|
 | ~14 storage-count varps/varbits | **not declared** — same small, isolated fix-shape as `%qp` |
 | Store/withdraw transaction handler | **not implemented** — op text is dynamically set but no click handler body exists in this corpus, same gap class as shop's buy-op |
@@ -278,7 +278,7 @@ window onto.
 
 ### 2.4 Server obligations
 
-| state | delivery | mock230 status |
+| state | delivery | ToriRSServer status |
 |---|---|---|
 | 107-row static location register | client cache, already generic | **landed** (cache content) |
 | Per-player, per-patch dynamic state (planted crop, growth clock, flags) × 107 | unknown wire shape — corpus gap on the caller | **partial** — mid-era sim patches paint via `~farming_view_refresh` → `farming_view_setpanel` (1119); Geomancy opener still deferred; unowned patches stay Loading… |
@@ -287,9 +287,9 @@ window onto.
 
 ---
 
-## 3. Landed vs. gap in mock230
+## 3. Landed vs. gap in ToriRSServer
 
-`grep -rniE "farming|\bpatch\b" src/net/mock/ src/game/` — exactly two
+`grep -rniE "farming|\bpatch\b" src/torirsserver/ src/game/` — exactly two
 hits, both confirmed false positives (an unrelated code comment about
 network routing using "patch" as an ordinary word). **Zero implementation
 of anything farming-related, and — checked specifically as its own

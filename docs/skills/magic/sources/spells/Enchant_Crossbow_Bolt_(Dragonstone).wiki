@@ -1,0 +1,33 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow bolt (Dragonstone)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 68
+|spellbook = Normal
+|type = Utility
+|exp = 78
+|cost = {{RuneReq|Cosmic=1|Earth=15|Soul=1}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on dragonstone-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Dragonstone bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Dragonstone)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 68 to cast. It imbues 10 [[dragonstone bolts]] each cast and turns them into [[dragonstone bolts (e)]] or 10 [[dragonstone dragon bolts]] into 10 [[dragonstone dragon bolts (e)]]. 
+
+The enchantment gives the effect ''Dragon's Breath''. These bolts have a small chance of striking your opponent with effect similar to dragon's breath, being able to hit excessively high amounts of damage. The effect is severely reduced if it's used against [[dragons]], fiery creatures, or a player wielding an [[anti-dragon shield]] or a [[dragonfire shield]]. This makes it a popular bolt to use in [[PvP]], as it can cause massive amounts of damage toward players and make fights quick, but are also expensive to buy.
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 15
+|Rune2 = soul
+|Rune2num = 1
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Standard spellbook}}

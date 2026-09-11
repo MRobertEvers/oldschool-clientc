@@ -1,0 +1,391 @@
+{{External|rs=Chest (The Barrows Brothers)}}
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Opened
+|name = Chest
+|image1 = [[File:Chest (Barrows).png|280px]]
+|image2 = [[File:Chest (Barrows, open).png|280px]]
+|release = [[9 May]] [[2005]]
+|update = Barrows
+|members = Yes
+|quest = No
+|location = [[Barrows]] crypt
+|options1 = Open
+|options2 = Search, Close
+|examine = A large stone chest.
+|map = {{Map|name=Chest (Barrows)|x=3552|y=9695|mapID=10021|r=3|mtype=square}}
+|id1 = 20723
+|id2 = 20724
+|leagueRegion = Morytania
+}}
+This '''chest''' is located at the centre of the tunnels beneath the crypts of the [[Barrows brothers]]. It serves as the rewards chest for the [[Barrows]] activity.
+
+{{ToC|limit=2}} {{clear|left}}
+
+==Looting the chest==
+{{Listen
+|title = [[Grave Robber (Barrows)|Grave Robber]]
+|align = right
+|filename = Grave Robber (Barrows).ogg
+|desc = The jingle that plays upon opening the chest.}}
+Upon opening the chest, the Barrows brother whose crypt the player entered will appear and start attacking the player, if he did not already appear while travelling through the tunnels. It is not required to kill the Barrows brother in order to loot the chest. However, the chance of getting Barrows equipment from the chest increases as more brothers are killed, and players will not be able to receive equipment belonging to brothers they did not kill. Furthermore, it is '''required''' that you kill at least one enemy of any kind in order to be eligible for any possible loot from the chest.
+
+If the player's inventory is full upon looting the chest, excess items will be dropped to the ground.
+
+During the [[His Faithful Servants]] miniquest, players will also receive a [[strange icon]]. If the player's inventory is full, or gets filled by other items received as reward, when they would be due to receive an icon, the icon will not be received and the player will need to complete another run.
+
+==Rewards==
+{{DropLogProject|kills=128000|type=openings}}
+
+''Note that the loot chances below are accurate for a Barrows run with all 6 brothers slain and with full potential (1012 points). To accurately calculate your specific situation, please make use of the [[Calculator:Barrows|Barrows calculator]].''
+
+===Pre-roll===
+The chance to receive one or more items is about ''1/15'' per chest.
+====Ahrim's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Ahrim's hood|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Ahrim's robetop|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Ahrim's robeskirt|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Ahrim's staff|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+====Dharok's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Dharok's helm|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Dharok's platebody|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Dharok's platelegs|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Dharok's greataxe|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+====Guthan's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Guthan's helm|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Guthan's platebody|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Guthan's chainskirt|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Guthan's warspear|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+====Karil's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Karil's coif|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Karil's leathertop|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Karil's leatherskirt|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Karil's crossbow|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+====Torag's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Torag's helm|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Torag's platebody|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Torag's platelegs|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Torag's hammers|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+====Verac's====
+{{DropsTableHead}}
+{{DropsLineReward|name=Verac's helm|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Verac's brassard|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Verac's plateskirt|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsLineReward|name=Verac's flail|quantity=1|rarity=1/2448|rolls=7}}
+{{DropsTableBottom}}
+
+===Main table===
+''Players who completed the [[hard Morytania Diary]] will receive 50% more runes. The base amount without the diary completed is listed below.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Coins|quantity=2-774|rarity=379/1012|rolls=7|raritynotes={{refn|group=d|Requires 1 reward potential to roll.}}}}
+{{DropsLineReward|name=Mind rune|quantity=253-336|rarity=125/1012|raritynotes={{refn|group=d|Requires 381 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Chaos rune|quantity=112-139|rarity=125/1012|raritynotes={{refn|group=d|Requires 506 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Death rune|quantity=70-83|rarity=125/1012|raritynotes={{refn|group=d|Requires 631 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Blood rune|quantity=37-43|rarity=125/1012|raritynotes={{refn|group=d|Requires 756 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Bolt rack|quantity=35-40|rarity=125/1012|raritynotes={{refn|group=d|Requires 881 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Loop half of key|quantity=1|rarity=3/1012|raritynotes={{refn|group=d|name=key|Requires 1,006 reward potential to roll.}}|rolls=7}}
+{{DropsLineReward|name=Tooth half of key|quantity=1|rarity=3/1012|raritynotes={{refn|group=d|name=key}}|rolls=7}}
+{{DropsLineReward|name=Dragon med helm|quantity=1|rarity=1/1012|raritynotes={{refn|group=d|Requires 1,012 reward potential to roll.}}|rolls=7}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/200|altrarity=1/29|altraritydash=yes|raritynotes={{refn|group=d|1/200 chance for each roll at the drop table; scales up to 1/29 with all six brothers slain.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1615383765500428290|date=17 January 2023|archiveurl=https://archive.ph/FwlKI|archivedate=17 January 2023|quote=7 individual rolls. If it succeeded on one, it would skip the clue roll on subsequent trips through their loot table. And yes, the denominator would be 190 each time if the CA effect were active.}}}}|reward=yes|noteoverride=The elite clue scroll drop rate increases to 1/190–1/27.57 with the completion of the [[Combat Achievements/Elite|elite combat achievements]].}}
+{{DropsTableBottom}}
+
+==Reward mechanics==
+{| class="wikitable" style="text-align:right;" align="right"
+|+Chance of a Barrows equipment piece, per roll
+! rowspan="2" |Brothers<br/>killed
+! colspan="2" |Chance
+|-
+!Frac
+!%
+|-
+|1
+|1/392
+|0.255%
+|-
+|2
+|1/334
+|0.299%
+|-
+|3
+|1/276
+|0.362%
+|-
+|4
+|1/218
+|0.458%
+|-
+|5
+|1/160
+|0.625%
+|-
+|6
+|1/102
+|0.980%
+|}
+
+===Number of rolls===
+*There is initially one roll at the drop table.
+*Each additional brother killed grants an additional roll at the drop table, to a maximum of seven total rolls.
+
+===Chance of uniques===
+*Each brother killed has his associated items added to the possible rewards.
+*First, the [[Barrows equipment]] is rolled against. The chance of getting a Barrows item is shown in fig.1. Or, in tabular format to the right.
+*If the Barrows item chance is successfully hit, one of the available Barrows items is chosen at random - each part has equal chance, but once chosen it will not be chosen again on future rolls.
+
+<math>\begin{align}
+P(N) &= \frac{1}{450 - 58 \times N} && (fig. 1)
+\end{align}</math>
+
+Where P is the drop chance and N is the number of [[Barrows brothers|brothers]] killed.
+
+===Chance of other items===
+*If the Barrows item chance is not met, an additional measure called ''reward potential'' is calculated as shown below.
+**In short, reward potential is the sum of all the [[combat level]]s of the monsters killed, capped at 1000 — including the brothers (all six have a combat sum of 656). The number of brothers killed times two is then added, giving a total maximum reward potential of 1012.
+*A roll is performed for a value between 1 and your reward potential (each inclusive). The result then determines what item is awarded, and in what quantity.
+
+Let <math>C_n</math> be the combat level of the <math>n</math><sup>th</sup> monster killed. Then, the reward potential <math>R</math> is
+
+::<math>\begin{align} R &= S + 2N \end{align}</math>
+
+where
+
+::<math>S \equiv \min \left[ \sum_n C_n , 1000 \right]</math>
+
+and
+
+::<math>N \equiv \text{number of brothers killed.}</math>
+
+===Notes===
+*The chance of receiving at least one piece of Barrows equipment is approximately 1/15.01{{efn|<math>\frac{7655031554227}{114868566764928}</math> precisely}} if you kill all six brothers. This chance is unaffected by the rewards potential that is built by killing other monsters in the crypt. The chance of receiving a specific piece of equipment is approximately 1/350.14.{{efn|<math>\frac{1504645995025870049809}{526841398983178397417472}</math> precisely}}
+*As it is possible to receive more than one piece of Barrows equipment per chest, the average number of Barrows pieces per chest is 7/102 (~1/14.57).
+*In order to receive a piece of Barrows equipment, the corresponding brother must be killed before the chest is looted. Thus, if you wanted a piece of [[Guthan's equipment]], you would have to kill Guthan before you are eligible to obtain his equipment. Therefore, it is impossible to acquire Barrows equipment if no brothers are slain, although coins, runes, or bolt racks may still be awarded.
+*For every brother killed, you get an extra roll for rewards; so if all six brothers are killed, it is possible to obtain up to seven pieces of Barrows equipment.
+*It is possible to get multiple items from the same brother, but it is not possible to receive multiple copies of the same item.
+*Killing all of the brothers is '''not''' required to receive loot; however, not killing all brothers decreases your chance of receiving a Barrows item.
+*When hunting for your last few uniques, killing all 6 of the barrows brothers compared to just one increases your chance to receive a specific piece of loot around x2.24 times. Therefore, if your run times to kill all of the brothers are x2.24 longer than to kill a singular brother, you should consider only killing a specific brother to increase loot chances.
+
+[[File:Barrows loot mechanics.png|thumb|410px|Barrows drop mechanics{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/705428283509366785|date=3 March 2016|archiveurl=https://archive.is/sB4lx|archivedate=2 September 2017|quote=You guys wanted info on Barrows loot, here it is... Full size: [http://i.imgur.com/oZSMkAX.png] Explained the best I can!}}]]
+
+{| class="wikitable" style="text-align:right;"
+! rowspan="2" |Item
+! rowspan="2" |RP required<br/>to unlock
+! rowspan="2" |RP required for<br/>maximum quantity
+! colspan="2" |Chance at max RP per roll
+|-
+!Frac
+!%
+|-
+| style="text-align:left;" |{{plink|Coins}}
+|1
+|380
+|380/1012
+|37.5%
+|-
+| style="text-align:left;" |{{plink|Mind rune}}
+|381
+|505
+|125/1012
+|12.4%
+|-
+| style="text-align:left;" |{{plink|Chaos rune}}
+|506
+|630
+|125/1012
+|12.4%
+|-
+| style="text-align:left;" |{{plink|Death rune}}
+|631
+|755
+|125/1012
+|12.4%
+|-
+| style="text-align:left;" |{{plink|Blood rune}}
+|756
+|880
+|125/1012
+|12.4%
+|-
+| style="text-align:left;" |{{plink|Bolt rack}}
+|881
+|1005
+|125/1012
+|12.4%
+|-
+| style="text-align:left;" |{{plinkp|Tooth half of key}}{{plink|Loop half of key|txt=Key half}}
+|1006
+| style="text-align:center;" |''N/A (always 1)''
+|6/1012
+|0.6%
+|-
+| style="text-align:left;" |{{plink|Dragon med helm}}
+|1012
+| style="text-align:center;" |''N/A (always 1)''
+|1/1012
+|0.1%
+|}
+
+===Calculations===
+Below are various values expressing your chances of getting the certain item(s) and the expected number of items given <math>n</math> chests opened. These numbers assume you kill all 6 brothers each time. For the explicit formulas in terms of <math>n</math> chests see [[Talk:Chest_(Barrows)#Calculations]]
+
+{| class="wikitable" style="text-align:right;"
+! | Chests opened
+! | Expected number<br/>of items{{efn|Including duplicates.}}
+! | Probability of getting<br/>at least 1 unique
+! | Probability of getting<br/>at least 1 specific unique
+! | Probability of completing<br />any set
+! | Probability of completing<br/>a specific set
+! | Probability of getting<br/>at least 1 of each unique
+! | Expected number<br/>of uniques seen at least once
+|-
+| 1 
+| 0.07 
+| 6.66%
+| 0.29%
+| ~0%{{efn|<math>\frac{5}{27385533648}</math>, or less than 1 in 5 billion}}
+| ~0%{{efn|<math>\frac{5}{164313201888}</math>, or less than 1 in 32 billion}}
+| 0%
+| 0.07
+|-
+| 10
+| 0.69
+| 49.83%
+| 2.82%
+| ~0%
+| ~0%
+| ~0%
+| 0.68
+|-
+| 25
+| 1.72
+| 82.17%
+| 6.91%
+|0.01%
+| 0.002%
+| ~0%
+| 1.66
+|-
+|50
+|3.43
+|96.82%
+|13.34%
+|0.19%
+|0.03%
+|~0%
+|3.20
+|-
+|75
+|5.15
+|99.43%
+|19.33%
+|0.83%
+|0.14%
+|~0%
+|4.64
+|-
+|100
+|6.86
+|99.90%
+|24.90%
+|2.27%
+|0.38%
+|~0%
+|5.68
+|-
+|250
+|17.16
+|~100%
+|51.08%
+|34.58%
+|6.82%
+|~0%
+|12.27
+|-
+|500
+|34.31
+|~100%
+|76.07%
+|91.41%
+|33.55%
+|0.14%
+|18.27
+|-
+|750
+|51.47
+|~100%
+|88.29%
+|99.64%
+|60.85%
+|5.07%
+|21.20
+|-
+|1000
+|68.63
+|~100%
+|94.27%
+|99.99%
+|79.05%
+|24.39%
+|22.63
+|-
+|2000
+|137.26
+|~100%
+|99.67%
+|~100%
+|98.70%
+|92.47%
+|23.92
+|}
+Notably, the expected number of chests for completing:
+
+* One of any set is 313.36{{efn|See the talk page for the exact fraction}} chests.
+* A specific set is 728.09{{efn|<math>\frac{19565634106934319881088}{26872673753645175995}</math>}} chests.
+* All 6 sets is 1319.26{{efn|See the talk page for the exact fraction}} chests.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = The message stating that you have received more runes from the Barrows as result of the hard tier of the Morytania achievement diary will now only appear once per opening of the chest.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now receive 50% more [[runes]] from the Barrows chest if you have completed the [[Morytania Hard Diary]].
+}}
+{{Subject changes
+|date = 4 September 2014
+|update = Player Owned House Menageries
+|change = The Barrows chest will no longer give more than one elite clue at a time.
+}}
+{{Subject changes footer}}
+
+==Notes==
+{{notelist}}
+
+==References==
+{{Reflist}}
+
+{{Barrows}}
+{{Chests}}

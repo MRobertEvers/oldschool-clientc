@@ -1653,7 +1653,7 @@ main(int argc, char** argv)
 
     /* screen = world * scale / z, so the distance that makes `extent` fill
      * 90% of a half-tile is extent * scale / (0.45 * tile). */
-    distance = (int)((double)extent * (double)TORIDRAW_PROJ_SCALE_DEFAULT /
+    distance = (int)((double)extent * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT /
                      (0.45 * (double)tile * zoom));
     if( distance < 100 )
         distance = 100;
@@ -1738,7 +1738,7 @@ main(int argc, char** argv)
                         : (model->bounds_cylinder
                                ? model->bounds_cylinder->min_z_depth_any_rotation
                                : 512);
-            dist = (int)((double)reach * (double)TORIDRAW_PROJ_SCALE_DEFAULT /
+            dist = (int)((double)reach * (double)TORIDRAW_PROJECTION_SCALE_DEFAULT /
                          (0.45 * (double)tile * req_zoom));
             if( dist < 100 )
                 dist = 100;
@@ -1756,8 +1756,8 @@ main(int argc, char** argv)
                     .clip_bottom = tile,
                 };
                 struct ToriDraw_Camera camera = {
-                    .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-                    .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+                    .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+                    .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
                     .near_plane_z = near_plane,
                     .pitch = 0,
                     .yaw = 0,
@@ -1842,8 +1842,8 @@ main(int argc, char** argv)
             .clip_bottom = tile,
         };
         struct ToriDraw_Camera camera = {
-            .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-            .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+            .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+            .projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT,
             .near_plane_z = near_plane,
             .pitch = 0,
             .yaw = 0,

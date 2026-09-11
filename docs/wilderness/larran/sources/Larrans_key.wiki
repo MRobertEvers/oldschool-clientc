@@ -1,0 +1,72 @@
+{{Infobox Item
+|name = Larran's key
+|image = [[File:Larran's key 1.png]] [[File:Larran's key 2.png]] [[File:Larran's key 3.png]] [[File:Larran's key 4.png]] [[File:Larran's key 5.png]]
+|release = [[20 June]] [[2019]]
+|update = Wilderness Updates and DMM Summer Finals
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Opens Larran's chests in the Wilderness.
+|value = 90
+|weight = 0.000
+|exchange = Yes
+|id = 23490
+}}
+[[File:Larran's key detail.png|left|150px]]
+'''Larran's key''' is a key obtained from killing monsters while on a [[Slayer task]] given by [[Krystilia]]. It is used to open [[Larran]]'s [[Larran's small chest|small]] and [[Larran's big chest|big chests]].
+
+The exact odds of receiving a key scales with the monster's [[Combat level]]. For levels 1-80, the probability follows a curve between 1/1972 at level 1 to 1/100 at level 80.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1152237123778555904|date=19 July 2019|archiveurl=https://reldo.runescape.wiki/i/102151|archivedate=19 July 2019|quote=NPC combat levels 1-80: 1 in (100 + floor((3 / 10) x (80 - level) x (80 - level))).}} For levels 81 or higher, the odds are between 1/99 and 1/50, scaling linearly and capping at level 350, as reflected in the equation below.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1152237123778555904|date=19 July 2019|archiveurl=https://reldo.runescape.wiki/i/102151|archivedate=19 July 2019|quote=NPC combat levels 81-350+: 1 in (50 + number scaled linearly between 99 at level 81 and 50 at level 350)}}
+
+If it concerns a [[Slayer monsters|Slayer monster]] (meaning it requires a certain Slayer level to kill), the drop chance is increased by 20%.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1152237123778555904|date=19 July 2019|archiveurl=https://reldo.runescape.wiki/i/102151|archivedate=19 July 2019|quote=If the NPC's Slayer req >= 2, multiply chance by 25%.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1702377755403264342|date=14 September 2023|archiveurl=https://archive.ph/UwET0{{^|https://archive.ph/Ytbb0}}{{^|https://archive.ph/BXPOJ}}|archivedate=15 September 2023|quote=It's 20% for the Slayer req rather than 25%. (...)}} In addition, any monster killed within the [[Wilderness Slayer Cave]] has a further 15% increased chance to drop a key.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1326275335969796096|date=11 November 2020|archiveurl=https://reldo.runescape.wiki/i/107022|archivedate=10 November 2020|quote=15%}} [[Superior slayer monster]]s that spawn as part of Krystilia's tasks will always drop a key on death.
+
+The probability <math>P</math> of obtaining a key when killing a monster with combat level <math>L</math> is given by: 
+<math>P = \begin{cases} \frac{1}{\left \lfloor \frac{3}{10} \times (80 - L)^2 \right\rfloor + 100} &\text{if } L\in (0,80] \\  \frac{1}{\left \lfloor-\frac{5}{27} \times L \right\rfloor + 115} &\text{if } L \in (80, 350] \\ \frac{1}{50} & L\in (350,\infty) \end{cases}</math>
+
+Larran's keys are <b>always</b> dropped on player death, even if there are fewer than 3 [[Items Kept on Death|items kept on death]]. If killed by another player, keys are lost to the killer. If killed in PvM, the keys always go to your [[gravestone]].
+
+{{Chart data|Chart data/larrans key drop rate|width=600px|height=300px}}
+
+==Money making==
+{{Mmgsection|Opening larran's big chests}}
+
+==Item sources==
+{{Drop sources|Larran's key}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 April 2023
+|update = Desert Treasure II Rewards Beta
+|change = Larran's keys are now tradeable and sellable on the [[Grand Exchange]]. This was an unpolled change to combat scamming.{{CiteNews|quote=We're not polling this one since its primary intent is to combat scamming ...|author=Jagex|url=https://secure.runescape.com/m=news/poll-79-point-based-combat-achievements--more?oldschool=1|title=Poll 79: Point-based Combat Achievements & more!|newsdate=23 March 2023}}
+}}
+{{Subject changes
+|date = 21 October 2020
+|update = Halloween 2020
+|change = * All the creatures in the [[Wilderness Slayer Cave]] will have a boosted chance to drop Larran's Keys.
+* The keys can now be dropped instead of destroyed. The Destroy option text was "You'll have to fight more creatures to find more keys."
+}}
+{{Subject changes
+|date = 27 June 2019
+|update = Changes to Teleblock and Extra Clan Wars Options
+|poll = 
+|change = Larran's keys will now always be lost on death, and are also destroyed slowly if dropped manually, similar to [[bank key]]s.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Larran's key 1 detail.png|One Larran's key
+Larran's key 2 detail.png|Two Larran's keys
+Larran's key 3 detail.png|Three Larran's keys
+Larran's key 4 detail.png|Four Larran's keys
+Larran's key detail.png|Five Larran's keys
+</gallery>
+
+==References==
+{{Reflist}}
+
+{{Keys}}

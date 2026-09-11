@@ -1,0 +1,60 @@
+{{Otheruses|the spell found in the [[Arceuus spellbook]]|the spell found in the [[standard spellbook]]|Ape Atoll Teleport (standard)|the teleport tablet|Ape atoll teleport (tablet)}}
+{{Infobox Spell
+|name = Ape Atoll Teleport
+|image = [[File:Ape Atoll Teleport (Arceuus).png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 90
+|spellbook = Arceuus
+|type = Teleport
+|exp = 100
+|cost = {{RuneReq|Law=2|Soul=2|Blood=2}}
+|speed = 4 ticks
+|description = Teleports you to the dungeon under the Ape Atoll temple
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Ape Atoll Teleport (Arceuus) icon (mobile).png|left|class=pageimage]]
+'''Ape Atoll Teleport''' teleports the caster to the inside entrance of the [[Ape Atoll Dungeon]], a safe location.
+
+Completion of the [[Monkey Madness I]] [[quest]] is required to cast this spell. Neither the post-quest 10th squad training from [[Daero]] nor [[Recipe for Disaster/Freeing King Awowogei|Freeing King Awowogei]] [[Recipe for Disaster]] subquest need to be completed.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 2
+|Rune2 = Soul
+|Rune2num = 2
+|Rune3 = Blood
+|Rune3num = 2
+}}
+==Destination==
+{{Map|2769,2703|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 19 May 2016
+|update = Sand Crabs & Soul Bearers
+|change = The destination of the Ape Atoll Arceuus teleport has been moved to the cave on the south of the island, rather than under the [[Temple of Marimbo]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Ape Atoll Teleport (Arceuus) v1.png|center]]
+|[[File:Ape Atoll Teleport (Arceuus).png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

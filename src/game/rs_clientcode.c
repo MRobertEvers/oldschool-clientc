@@ -6,13 +6,12 @@
 #include "rs_idk_design.h"
 #include "rs_social.h"
 #include "ui/uitree.h"
-#include "ui/uitree_layout.h"
 
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Set a node's text in place (ownership matches UITree_ApplyText: heap copy).
  * Compares first so a per-tick pass does not churn allocations or force
@@ -32,24 +31,19 @@ set_node_text(
     if( strcmp(current, text) == 0 )
         return 0;
 
-    {
-        char* copy = strdup(text);
-        assert(copy);
-        free((void*)c->u.rs_text.text);
-        c->u.rs_text.text = copy;
-    }
-    UITree_MarkNodeDirty(tree, idx);
-    return 1;
+    return UITree_SetTextAt(tree, idx, text) ? 1 : 0;
 }
 
 static int
 set_button_type(
-    struct UITreeComponent* c,
+    struct UITree* tree,
+    int32_t idx,
     int button_type)
 {
+    struct UITreeComponent* c = &tree->components[idx];
     if( c->behavior.button_type == button_type )
         return 0;
-    c->behavior.button_type = button_type;
+    (void)UITree_SetButtonTypeAt(tree, idx, button_type);
     return 1;
 }
 
@@ -58,20 +52,20 @@ set_button_type(
 static int
 set_list_scroll_height(
     struct UITree* tree,
-    struct UITreeComponent* c,
+    int32_t idx,
     int count)
 {
+    struct UITreeComponent const* c = &tree->components[idx];
     int scroll_height = count * 15 + 20;
     int box_h = c->position.height;
     if( scroll_height <= box_h )
         scroll_height = box_h + 1;
     if( c->type != UIELEM_RS_LAYER || c->u.rs_layer.scroll_height == scroll_height )
         return 0;
-    c->u.rs_layer.scroll_height = scroll_height;
-    /* A layer's scroll extent is the box its children lay out against, so this
-     * is a layout input like any position field (see UITree::layout_stale). */
-    UITree_LayoutInvalidate(tree);
-    return 1;
+    return UITree_SetScrollSizeAt(
+               tree, idx, c->u.rs_layer.scroll_width, scroll_height)
+               ? 1
+               : 0;
 }
 
 static int
@@ -88,14 +82,14 @@ friends_row_tick(
     if( client_code == RS_CC_FRIENDS_START && social->server_status == RS_SOCIAL_SERVER_LOADING )
     {
         changed |= set_node_text(tree, idx, "Loading friend list");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
     if( client_code == RS_CC_FRIENDS_START &&
         social->server_status == RS_SOCIAL_SERVER_CONNECTING )
     {
         changed |= set_node_text(tree, idx, "Connecting to friendserver");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
 
@@ -105,12 +99,12 @@ friends_row_tick(
         if( row >= count )
         {
             changed |= set_node_text(tree, idx, "");
-            changed |= set_button_type(c, 0);
+            changed |= set_button_type(tree, idx, 0);
         }
         else
         {
             changed |= set_node_text(tree, idx, social->friend_name[row]);
-            changed |= set_button_type(c, 1);
+            changed |= set_button_type(tree, idx, 1);
         }
     }
     return changed;
@@ -132,7 +126,7 @@ friends_world_row_tick(
     if( row >= count )
     {
         changed |= set_node_text(tree, idx, "");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
         return changed;
     }
 
@@ -147,7 +141,7 @@ friends_world_row_tick(
             snprintf(text, sizeof(text), "@yel@World-%d", world);
         changed |= set_node_text(tree, idx, text);
     }
-    changed |= set_button_type(c, 1);
+    changed |= set_button_type(tree, idx, 1);
     return changed;
 }
 
@@ -165,12 +159,12 @@ ignores_row_tick(
     if( row >= social->ignore_count )
     {
         changed |= set_node_text(tree, idx, "");
-        changed |= set_button_type(c, 0);
+        changed |= set_button_type(tree, idx, 0);
     }
     else
     {
         changed |= set_node_text(tree, idx, social->ignore_name[row]);
-        changed |= set_button_type(c, 1);
+        changed |= set_button_type(tree, idx, 1);
     }
     return changed;
 }
@@ -229,9 +223,7 @@ design_preview_rebuild(struct App* app)
     design->redraw = 0;
     design->load_requested_count = 0;
     if( getenv("TORIRS_ANIM_DEBUG") )
-        fprintf(
-            stderr,
-            "design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
+        TORIRS_LOG("design_preview: rebuilt gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] "
             "colours=[%d,%d,%d,%d,%d]\n",
             design->gender,
             design->parts[0], design->parts[1], design->parts[2], design->parts[3],
@@ -272,14 +264,165 @@ design_gender_button_tick(
     if( design->button_scene_id[0] < 0 || design->button_scene_id[1] < 0 )
         return 0;
 
+    /* Reference: the SELECTED gender's button wears graphic2 (button2), the
+     * other one the plain graphic — `if (idkDesignGender) com.graphic =
+     * idkDesignButton2` on the male button, mirrored on the female one. */
     want = ((client_code == RS_CC_SWITCH_TO_MALE) == (design->gender == 0))
-               ? design->button_scene_id[0]
-               : design->button_scene_id[1];
+               ? design->button_scene_id[1]
+               : design->button_scene_id[0];
     if( c->u.rs_graphic.scene_id == want )
         return 0;
-    c->u.rs_graphic.scene_id = want;
-    UITree_MarkNodeDirty(tree, idx);
+    (void)UITree_SetGraphicAt(tree, idx, want, c->u.rs_graphic.atlas_index);
     return 1;
+}
+
+/*
+ * Welcome screen (reference clientComponent, CC_LAST_LOGIN_INFO onwards). The
+ * five rows below are the whole of what the client does with LAST_LOGIN_INFO,
+ * and every one of them is a plain read of App::welcome -- the packet exec
+ * stores, and nothing else in the client consults it.
+ *
+ * `last_ip == 0` means the server did not send one (and, at login, that no
+ * LAST_LOGIN_INFO has arrived yet); the reference blanks the row rather than
+ * printing an address of 0.0.0.0.
+ */
+static int
+welcome_last_login_tick(
+    struct App* app,
+    struct UITree* tree,
+    int32_t idx)
+{
+    char text[128];
+    char when[32];
+    uint32_t ip;
+
+    assert(app);
+    assert(tree);
+    if( app->welcome.last_ip == 0 )
+        return set_node_text(tree, idx, "");
+
+    if( app->welcome.days_since_login == 0 )
+        snprintf(when, sizeof(when), "earlier today");
+    else if( app->welcome.days_since_login == 1 )
+        snprintf(when, sizeof(when), "yesterday");
+    else
+        snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_login);
+
+    ip = (uint32_t)app->welcome.last_ip;
+    /* A loopback address is not information -- it is every account on a local
+     * server -- so the reference drops the "from:" clause for it rather than
+     * printing 127.0.0.1 to everyone. */
+    if( ip == 0x7f000001u )
+        snprintf(text, sizeof(text), "You last logged in %s.", when);
+    else
+        snprintf(
+            text,
+            sizeof(text),
+            "You last logged in %s from: %u.%u.%u.%u",
+            when,
+            (ip >> 24) & 0xff,
+            (ip >> 16) & 0xff,
+            (ip >> 8) & 0xff,
+            ip & 0xff);
+    return set_node_text(tree, idx, text);
+}
+
+/* Reference recolours this row as well as retexting it: zero unread is yellow,
+ * anything waiting is green. */
+static int
+welcome_unread_tick(
+    struct App* app,
+    struct UITree* tree,
+    struct UITreeComponent* c,
+    int32_t idx)
+{
+    char text[64];
+    int colour;
+    int changed = 0;
+
+    assert(app);
+    assert(tree);
+    assert(c);
+    if( app->welcome.unread_messages == 1 )
+    {
+        snprintf(text, sizeof(text), "1 unread message");
+        colour = RS_CC_WELCOME_COLOUR_GREEN;
+    }
+    else if( app->welcome.unread_messages > 1 )
+    {
+        snprintf(text, sizeof(text), "%d unread messages", app->welcome.unread_messages);
+        colour = RS_CC_WELCOME_COLOUR_GREEN;
+    }
+    else
+    {
+        snprintf(text, sizeof(text), "0 unread messages");
+        colour = RS_CC_WELCOME_COLOUR_YELLOW;
+    }
+
+    changed |= set_node_text(tree, idx, text);
+    if( c->type == UIELEM_RS_TEXT && c->u.rs_text.color != colour )
+    {
+        (void)UITree_SetColourAt(tree, idx, colour);
+        changed = 1;
+    }
+    return changed;
+}
+
+/*
+ * The three recovery-question lines, which are one paragraph split across three
+ * components -- so each row's text depends on which of the three paragraphs is
+ * being told, not just on its own index. days_since_recovery carries two
+ * non-day sentinels for that: 200 = never set, 201 = nothing to say (and then
+ * member_warning may want the three rows for its own paragraph instead).
+ */
+static int
+welcome_recovery_tick(
+    struct App* app,
+    struct UITree* tree,
+    int32_t idx,
+    int client_code)
+{
+    int const row = client_code - RS_CC_RECOVERY1;
+    static char const* const k_members[3] = {
+        "@yel@This is a non-members world: @whi@Since you are a member we",
+        "@whi@recommend you use a members world instead. You may use",
+        "@whi@this world but member benefits are unavailable whilst here.",
+    };
+    static char const* const k_never_set[3] = {
+        "You have not yet set any password recovery questions.",
+        "We strongly recommend you do so now to secure your account.",
+        "Do this from the 'account management' area on our front webpage",
+    };
+    char text[128];
+
+    assert(app);
+    assert(tree);
+    /* The caller keys on the 652..654 range, so a row outside 0..2 means that
+     * range and this arithmetic have drifted apart -- and the two array reads
+     * below would be the first thing to notice, silently. */
+    assert(row >= 0 && row < 3);
+    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_SILENT )
+        return set_node_text(tree, idx, app->welcome.member_warning == 1 ? k_members[row] : "");
+    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_NEVER_SET )
+        return set_node_text(tree, idx, k_never_set[row]);
+
+    if( row == 0 )
+    {
+        char when[32];
+        if( app->welcome.days_since_recovery == 0 )
+            snprintf(when, sizeof(when), "Earlier today");
+        else if( app->welcome.days_since_recovery == 1 )
+            snprintf(when, sizeof(when), "Yesterday");
+        else
+            snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_recovery);
+        snprintf(text, sizeof(text), "%s you changed your recovery questions", when);
+        return set_node_text(tree, idx, text);
+    }
+    if( row == 1 )
+        return set_node_text(
+            tree, idx, "If you do not remember making this change then cancel it immediately");
+    return set_node_text(
+        tree, idx, "Do this from the 'account management' area on our front webpage");
 }
 
 int
@@ -318,21 +461,27 @@ RS_ClientCode_Tick(
         else if( cc == RS_CC_FRIENDS_SIZE )
             changed |= set_list_scroll_height(
                 tree,
-                c,
+                (int32_t)i,
                 social->server_status == RS_SOCIAL_SERVER_CONNECTED ? social->friend_count : 0);
         else if( cc >= RS_CC_IGNORES_START && cc <= RS_CC_IGNORES_END )
             changed |= ignores_row_tick(tree, (int32_t)i, social, cc);
         else if( cc == RS_CC_IGNORES_SIZE )
-            changed |= set_list_scroll_height(tree, c, social->ignore_count);
+            changed |= set_list_scroll_height(tree, (int32_t)i, social->ignore_count);
         else if( cc == RS_CC_DESIGN_PREVIEW && c->type == UIELEM_RS_MODEL )
         {
             /* Reference: modelXAn=150, modelYAn=sin(loop/40)*256 wrapped. */
             int yan = ((int)(sin((double)loop_cycle / 40.0) * 256.0)) & 0x7ff;
-            c->u.rs_model.xan = 150;
-            if( c->u.rs_model.yan != yan )
+            if( c->u.rs_model.xan != 150 || c->u.rs_model.yan != yan )
             {
-                c->u.rs_model.yan = yan;
-                UITree_MarkNodeDirty(tree, (int32_t)i);
+                (void)UITree_SetModelPoseAt(
+                    tree,
+                    (int32_t)i,
+                    c->u.rs_model.x_offset,
+                    c->u.rs_model.y_offset,
+                    150,
+                    yan,
+                    c->u.rs_model.zan,
+                    0);
                 changed = 1;
             }
             if( app->idk_design.redraw && design_preview_rebuild(app) )
@@ -344,10 +493,11 @@ RS_ClientCode_Tick(
         else if( cc == RS_CC_SWITCH_TO_MALE || cc == RS_CC_SWITCH_TO_FEMALE )
             changed |= design_gender_button_tick(app, tree, (int32_t)i, cc);
         else if( cc == RS_CC_LAST_LOGIN_INFO || cc == RS_CC_LAST_LOGIN_INFO2 )
-            changed |= set_node_text(
-                tree, (int32_t)i, "You last logged in @yel@earlier today@whi@.");
+            changed |= welcome_last_login_tick(app, tree, (int32_t)i);
         else if( cc == RS_CC_UNREAD_MESSAGES )
-            changed |= set_node_text(tree, (int32_t)i, "0 unread messages");
+            changed |= welcome_unread_tick(app, tree, c, (int32_t)i);
+        else if( cc >= RS_CC_RECOVERY1 && cc <= RS_CC_RECOVERY3 )
+            changed |= welcome_recovery_tick(app, tree, (int32_t)i, cc);
     }
 
     return changed;
@@ -367,8 +517,18 @@ RS_ClientCode_Button(
     switch( cc )
     {
     case RS_CC_LOGOUT:
-        /* Reference sets logoutTimer=250 and notifies the server. */
-        fprintf(stderr, "clientcode: logout requested\n");
+        /*
+         * "Click here to logout".
+         *
+         * The reference arms logoutTimer=250 and waits for the server's own
+         * LOGOUT packet to end the session. That wait only works against a
+         * server whose content answers the button; this one is asked either
+         * way, and the client ends the session itself once the request is on
+         * the wire -- which is what the deferral is for. Returning 1 is what
+         * sends it: the caller notifies the server with IF_BUTTON after this
+         * returns, and the logout is performed a tick later, behind it.
+         */
+        app->logout_requested = 1;
         return 1;
     case RS_CC_ACCEPT_DESIGN:
         /* Reference sends IDK_SAVEDESIGN and returns true, so the plain

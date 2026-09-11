@@ -1,0 +1,159 @@
+{{Infobox Spell
+|name = Sinister Offering
+|image = [[File:Sinister Offering.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 92
+|spellbook = Arceuus
+|type = Utility
+|exp = 180
+|cost = {{RuneReq|Blood=1|Wrath=1}}
+|speed = 
+|cooldown = 9 ticks
+|quest = [[A Kingdom Divided]]
+|description = Converts bones into prayer points and experience
+|anim = [[File:Sinister Offering.gif|180px]]
+|sound = [[File:Sinister Offering.ogg]]
+}}
+[[File:Sinister Offering icon (mobile).png|left]]
+'''Sinister Offering''' is a spell within the [[Arceuus spellbook]] that requires level 92 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. When cast, the spell instantly offers up to three bones in the player's inventory, granting 300% the normal experience for burying them. Players must have level 70 [[Prayer]] in order to offer [[superior dragon bones]] via the spell, attempting to do so without 70 Prayer gives the message {{mes|You require a Prayer level of 70 to do that.}}. Players may only cast offering spells once every 5.4 seconds.
+
+The spell also restores one prayer point for each set of bones converted; for [[Ourg bones|ourg]], [[Dagannoth bones|dagannoth]], [[hydra bones|hydra]], and [[superior dragon bones]], two prayer points are restored instead.
+
+The spell can be cast without runes at the [[Fountain of Rune]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = blood
+|Rune1num = 1
+|Rune2 = wrath
+|Rune2num = 1
+}}
+
+==Prayer experience==
+{{#vardefine:CastPerHour|600}}
+{| class="wikitable sortable align-center-1"
+! rowspan="2" |{{SCP|Prayer}}
+! rowspan="2" |Bones
+! rowspan="2" |XP
+! rowspan="2" |Spell XP<ref>Assumes three bones per cast</ref>
+!Purchased Bones
+!Spell Only (Excluding Bone Cost)
+! rowspan="2" |XP/Hr<sup><ref>Assuming 600 casts per hour, gaining {{SCP|Magic}} 108,000 per hour.</ref></sup>
+|-
+!GP/XP
+!GP/XP
+|-
+|{{plinkt|Bones}}
+|13.5||40.5||{{Coins|-(({{GEP|Bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/40.5}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/40.5}}
+|{{formatnum:{{#expr:13.5*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Monkey bones}}
+|15||45||{{Coins|-(({{GEP|Monkey bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/45}}|| {{Coins|-(+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/45}}
+|{{formatnum:{{#expr:15*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Bat bones}}
+|15.9||47.7||{{Coins|-(({{GEP|Bat bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/47.7}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/47.7}}
+|{{formatnum:{{#expr:15.9*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Big bones}}
+|45||135||{{Coins|-(({{GEP|Big bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/135}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/135}}
+|{{formatnum:{{#expr:45*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Jogre bones}}
+|45||135||{{Coins|-(({{GEP|Jogre bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/135}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/135}}
+|{{formatnum:{{#expr:45*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Wyrmling bones}}
+|63||189||{{Coins|-(({{GEP|Wyrmling bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/189}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/189}}
+|{{formatnum:{{#expr:63*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Zogre bones}}
+|67.5||202.5||{{Coins|-(({{GEP|Zogre bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/202.5}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/202.5}}
+|{{formatnum:{{#expr:67.5*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Shaikahan bones}}
+|75||225||{{Coins|-(({{GEP|Shaikahan bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/225}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/225}}
+|{{formatnum:{{#expr:75*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Babydragon bones}}
+|90||270||{{Coins|-(({{GEP|Babydragon bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/270}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/270}}
+|{{formatnum:{{#expr:90*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Wyrm bones}}
+|150||450||{{Coins|-(({{GEP|Wyrm bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/450}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/450}}
+|{{formatnum:{{#expr:150*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Strykewyrm bones}}
+|180||540||{{Coins|-(({{GEP|Strykewyrm bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/540}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/540}}
+|{{formatnum:{{#expr:180*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Dragon bones}}
+|216||648||{{Coins|-(({{GEP|Dragon bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/648}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/648}}
+|{{formatnum:{{#expr:216*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Wyvern bones}}
+|216||648||{{Coins|-(({{GEP|Wyvern bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/648}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/648}}
+|{{formatnum:{{#expr:216*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Drake bones}}
+|240||720||{{Coins|-(({{GEP|Drake bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/720}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/720}}
+|{{formatnum:{{#expr:240*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Fayrg bones}}
+|252||756||{{Coins|-(({{GEP|Fayrg bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/756}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/756}}
+|{{formatnum:{{#expr:252*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Lava dragon bones}}
+|255||765||{{Coins|-(({{GEP|Lava dragon bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/765}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/765}}
+|{{formatnum:{{#expr:255*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Raurg bones}}
+|288||864||{{Coins|-(({{GEP|Raurg bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/864}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/864}}
+|{{formatnum:{{#expr:288*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Frost dragon bones}}
+|300||900||{{Coins|-(({{GEP|Frost dragon bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/900}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/900}}
+|{{formatnum:{{#expr:300*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Hydra bones}}
+|330||990||{{Coins|-(({{GEP|Hydra bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/990}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/990}}
+|{{formatnum:{{#expr:330*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Dagannoth bones}}
+|375||1125||{{Coins|-(({{GEP|Dagannoth bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/1125}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/1125}}
+|{{formatnum:{{#expr:375*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Ourg bones}}
+|420||1260||{{Coins|-(({{GEP|Ourg bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/1260}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/1260}}
+|{{formatnum:{{#expr:420*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Superior dragon bones}}
+|450||1350||{{Coins|-(({{GEP|Superior dragon bones}}*3)+{{GEP|Blood rune}}+{{GEP|Wrath rune}})/1350}}|| {{Coins|-({{GEP|Blood rune}}+{{GEP|Wrath rune}})/1350}}
+|{{formatnum:{{#expr:450*{{#var:CastPerHour}}*3}}}}
+|}
+<references/>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 November 2023
+|update = Leagues IV - Trailblazer Reloaded
+|change = The spell no longer consumes [[long bone|long]] and [[curved bone]]s.
+}}
+{{Subject changes
+|date = 4 August 2021
+|update = New Client Features: Milestone 2
+|poll =
+|change = The spell can now be performed without interrupting the player's actions.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll =
+|change = Offering spells are now cast instantly, and have a cooldown of 9 game ticks (5.4 seconds).
+}}
+{{Subject changes footer}}
+{{Arceuus spellbook}}
+{{Utility spells}}

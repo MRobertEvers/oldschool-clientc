@@ -1,0 +1,66 @@
+{{Gone}}
+This list contains historical documentation of [[Theatre of Blood]] records. Only records from [[Jagex]]'s official [https://www.runescape.com/oldschool/TOB/records Theatre of Blood records] page prior to its decommissioning are listed here.
+
+==Completions and deaths==
+{|class=wikitable style="text-align:center;"
+!Record
+!Record value
+!Team
+|-
+|World First Completion
+|37:24
+|''B0aty, Woox, Cloud Badass, Zulu, H ard''
+|-
+|Fastest Completion Time
+|16:57
+|''Golpar seed, Oblv Crabs, Dream Realm, Kitten, Oblv Catreus''
+|-
+|Most Completions by an Individual
+|2,493
+|''N/A''
+|-
+|Total Theatre Completions
+|255,106
+|''N/A''
+|-
+|Total Deaths in the Theatre
+|1,904,447
+|''N/A''
+|-
+|Total [[Ironman mode#Hardcore|HCIM]] Deaths in the Theatre
+|5
+|''N/A''
+|}
+
+==Fastest boss kill times==
+{|class=wikitable style="text-align:center;"
+!Record
+!Record value
+!Team
+|-
+|Fastest [[The Maiden of Sugadinti|Maiden]] Completion
+|1:32
+|''Oblv De0, BoringName, Dumpster, Bogi153, Hoodler''
+|-
+|Fastest [[Pestilent Bloat]] Completion
+|1:14
+|''lost a tick, BoringName, Aurosallia, Hoodler, Dumpster''
+|-
+|Fastest [[Nylocas]] Completion
+|3:51
+|''Oblv Rusty, Catreus, Dream Realm, Legit Cursed, Golpar seed''
+|-
+|Fastest [[Sotetseg]] Completion
+|1:41
+|''Arkeela, Miqup, TRACTORBOB, TRACTOR KING, TURBOTRACTOR''
+|-
+|Fastest [[Xarpus]] Completion
+|2:58
+|''Oblv De0, BoringName, Aurosallia, Dumpster, Oblv Spices''
+|-
+|Fastest [[Verzik Vitur|Lady Verzik]] Completion
+|4:20
+|''Oblv Catreus, Oblv Gitz, Oblv Tamam, Oblv Classix, Oblv Karl''
+|}
+
+{{Theatre of Blood}}

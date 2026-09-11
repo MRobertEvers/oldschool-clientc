@@ -1,0 +1,159 @@
+{
+  "name": "runescript",
+  "displayName": "RuneScript",
+  "description": "Syntax highlighting and intellisense for RuneScript (.rs2, .cs2) and the content tree's declaration files",
+  "version": "0.1.0",
+  "publisher": "toridraw",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "workspaceContains:**/*.rs2",
+    "workspaceContains:**/*.cs2"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "runescript",
+        "aliases": [
+          "RuneScript",
+          "ServerScript",
+          "ClientScript"
+        ],
+        "extensions": [
+          ".rs2",
+          ".cs2"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "runeconfig",
+        "aliases": [
+          "RuneScript config"
+        ],
+        "extensions": [
+          ".npc",
+          ".obj",
+          ".loc",
+          ".inv",
+          ".enum",
+          ".struct",
+          ".param",
+          ".seq",
+          ".spotanim",
+          ".varp",
+          ".varc",
+          ".varbit",
+          ".dbtable",
+          ".dbrow",
+          ".dbi",
+          ".if",
+          ".constant",
+          ".alloc",
+          ".pack",
+          ".compack",
+          ".spawn",
+          ".mesanim",
+          ".idk",
+          ".flo",
+          ".flu",
+          ".hitsplat",
+          ".healthbar",
+          ".mapelement",
+          ".overlay",
+          ".underlay"
+        ],
+        "configuration": "./language-configuration-config.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "runescript",
+        "scopeName": "source.runescript",
+        "path": "./syntaxes/runescript.tmLanguage.json"
+      },
+      {
+        "language": "runeconfig",
+        "scopeName": "source.runeconfig",
+        "path": "./syntaxes/runeconfig.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "RuneScript",
+      "properties": {
+        "runescript.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the runescript-lsp binary. Empty means look in the workspace's usual build directories."
+        },
+        "runescript.contentRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra directories to index, for a content tree kept outside the open folder. Absolute paths, or paths relative to the first workspace folder."
+        },
+        "runescript.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Log LSP traffic to the RuneScript output channel."
+        },
+        "runescript.diagnostics.unknownSymbols": {
+          "type": "boolean",
+          "default": true,
+          "description": "Report a ~proc, @label, ^constant, %var or command that the indexed workspace does not declare."
+        },
+        "runescript.diagnostics.unknownLocals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Report a $local the script never declares."
+        },
+        "runescript.diagnostics.unknownNames": {
+          "type": "boolean",
+          "default": false,
+          "description": "Report a bare name that resolves to nothing. Off by default: a tree indexed without its cache packs would light up end to end."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "runescript.restartServer",
+        "title": "RuneScript: Restart Language Server"
+      },
+      {
+        "command": "runescript.showOutput",
+        "title": "RuneScript: Show Language Server Output"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "runescript",
+        "scopes": {
+          "property": [
+            "variable.other.enummember.runescript"
+          ],
+          "enumMember": [
+            "constant.other.runescript"
+          ],
+          "type.readonly": [
+            "entity.name.type.runescript"
+          ],
+          "function.defaultLibrary": [
+            "support.function.runescript"
+          ]
+        }
+      }
+    ]
+  }
+}

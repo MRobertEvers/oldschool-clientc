@@ -6,12 +6,13 @@
 /*
  * Boot manifest — one INI file collapsing the whole per-generation boot
  * parameterization (cache identity/dir, protocol rev, transport, host:port,
- * login RSA/CRCs/version, revconfig includes, ui logic). See manifest_rs254.ini
- * / manifest_xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
+ * login RSA/CRCs/version, revconfig includes, ui logic). See manifests/manifest_rs254lc.ini
+ * / manifests/manifest_osrs233xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
  *
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
+ *                 source=disk|ondemand
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws|embed  host=<h>  port=<n>
  *                 scripts=<embedded-server compiled script directory>
@@ -34,14 +35,30 @@
  *                host/port/revision inherit the finalized [net:boot] endpoint
  *                and [cache:boot] revision. fallback_port defaults to 443 only
  *                when the resolved primary is 43594; 0 explicitly disables it.
+ *   [editor:boot] content_dir=<path>  repo_root=<path>
+ *                server=embed|tcp  host=<h>  port=<n>  client=<n>
+ *                panel=inprocess|tab
+ *                Turn on the world map editor. The editor is a client of the
+ *                ToriRSMapEd server: `server=embed` (default) hosts it in
+ *                this process over `content_dir`, `server=tcp` dials a
+ *                torirsmaped daemon — the editor's counterpart of [net:boot]
+ *                choosing the game server. Stating `content_dir` (or
+ *                server=tcp) is what enables it; `repo_root` additionally
+ *                allows baking, which only ever runs when the user asks for it.
+ *
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
  *                 computes a click's route, and which approach model decides
- *                 "close enough to interact". Optional — absent, the era is
- *                 derived from the cache epoch/revision, which is right for
- *                 every cache-only boot. State it when the *server* diverges
- *                 from what the cache implies (xrsps paths server-side over a
- *                 rev-233 cache, so it needs era=server_routed).
+ *                 "close enough to interact". Optional, and usually absent:
+ *                 the revision profile states this now, as `[features]` in its
+ *                 RevConfig (see src/revconfig/revconfig_profile.h), and a
+ *                 profile is shared by every world that boots it. What belongs
+ *                 HERE is only what is true of one WORLD — above all a *server*
+ *                 that diverges from what the cache implies (xrsps paths
+ *                 server-side over a rev-233 cache, so it needs
+ *                 era=server_routed), or a lane whose mover is not its
+ *                 lineage's. This block overrides the profile, which in turn
+ *                 overrides ToriRS_Features_ForCache.
  *                 ground_click_nearest=ring3|box10_rect|none
  *                 Per-item override of the era's unreachable-ground-click
  *                 fallback (enum ToriRS_NearestModel): `ring3` is Client-TS's
@@ -50,7 +67,7 @@
  *                 `none` no fallback at all. Absent keeps the era's. Only the
  *                 client's own routing reads this — under a server-authoritative
  *                 era the server answers the click, so set the same model there
- *                 (mock230: MOCK230_GROUND_CLICK_NEAREST).
+ *                 (torirsserver: TORIRSSERVER_GROUND_CLICK_NEAREST).
  *                 painter_draw_distance=<25..90>
  *                 Painter radius in tiles. Client-TS is fixed at 25. Modern
  *                 OSRS class112.method3959 accepts 25 through 90 inclusive;
@@ -111,7 +128,8 @@
  *                 camera_forward/back/left/right/up/down, camera_unlock,
  *                 world_reload, paint_toggle/more/less/more_100/less_100,
  *                 spawn_player/npc/obj/projectile/spotanim, entity_spotanim,
- *                 damage_test, and debug_overlay. `a=` is retained verbatim
+ *                 damage_test, debug_overlay, loc_editor_toggle and
+ *                 hover_footprint. `a=` is retained verbatim
  *                 and uses target-specific comma-separated named arguments.
  *                 Spawn targets accept `id=<n>` (npc/obj),
  *                 `id=<n>,height=<n>,delay=<n>` (spotanim/entity_spotanim),
@@ -145,6 +163,40 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * and browser builds. */
 #define BOOTMANIFEST_CLIENT_ARG_MAX 64
 #define BOOTMANIFEST_CLIENT_ARG_CAP 512
+/* Content lanes named by `[content:lanes]`. Matches SSC_LANE_MAX, the number
+ * sscompile will accept in one build. */
+#define BOOTMANIFEST_LANE_MAX 32
+#define BOOTMANIFEST_LANE_CAP 128
+/** Which ToriRSMapEd deployment `[editor:boot] server=` names. */
+enum BootManifestEditorServer
+{
+    /**
+     * ToriRSMapEd runs inside this process; the wire is a pair of in-memory
+     * queues. The default, and the only deployment that needs nothing
+     * outside this binary — the analogue of `[net:boot] transport=embed`.
+     */
+    BOOTMANIFEST_EDITOR_SERVER_EMBED = 0,
+    /** The torirsmaped daemon, reached over TCP (`host=`/`port=`). */
+    BOOTMANIFEST_EDITOR_SERVER_TCP
+};
+
+/** Where `[editor:boot] panel=` puts the command panel. */
+enum BootManifestEditorPanel
+{
+    /**
+     * Rows in the renderer's own window, drawn by ToriRSChrome. The default,
+     * and the only binding that needs nothing outside this process.
+     */
+    BOOTMANIFEST_EDITOR_PANEL_INPROCESS = 0,
+    /**
+     * Web only: a second browser tab running panel.html, talking to the canvas
+     * tab over torirs_channel.js. Rejected on a native boot rather than
+     * silently ignored -- a native binary has no tab to open, and a manifest
+     * that asks for one is stating an intent this build cannot honour.
+     */
+    BOOTMANIFEST_EDITOR_PANEL_TAB
+};
+
 #define BOOTMANIFEST_DEBUG_ACTION_MAX 64
 #define BOOTMANIFEST_DEBUG_HOTKEY_MAX 64
 #define BOOTMANIFEST_DEBUG_NAME_CAP 64
@@ -193,7 +245,20 @@ struct BootManifest
     uint32_t cache_quirks;
     int cache_quirks_set; /* 1 when quirks= was present */
     int cache_kind;      /* enum AppCacheKind derived from epoch; -1 = unset */
+    /* [io:boot] -- the file server that answers GET /boot/<path> for anything
+     * not on this disk: the plugin manifest, the plugin scripts, and each
+     * shipped plugin asset as a plugin asks for it. Empty host = no fallback,
+     * which is a client that must find everything locally. */
+    char io_host[256];
+    int io_port;
     char cache_dir[512]; /* resolved against manifest dir */
+    /* Whether [cache] dir= appeared at all. Distinguishes "stream every boot,
+     * write nothing down" (dir= stated empty) from silence, which defaults to
+     * <home>/torirs_cache/<game>/<world>. */
+    int cache_dir_stated;
+    /* [cache:boot] source — 0 = disk (the default), 1 = ondemand: read the
+     * cache off the LostCity server named by [net:boot] instead. */
+    int cache_on_demand;
     /* Map square to spawn on, "x,z". Both -1 = unset (client default 50,50).
      * Needed because the default is not universally loadable: a keyed cache
      * ships XTEA keys only for the squares it was dumped with, and cache.643
@@ -224,6 +289,90 @@ struct BootManifest
     /* Compiled script pack for the embedded mock server. Relative paths are
      * resolved against the manifest directory; "" keeps the server default. */
     char server_scripts[512];
+
+    /* [editor:boot] content_dir — the revision content root the map editor
+     * edits, the directory holding `maps/`. "" = no editor this boot.
+     *
+     * Stating a directory is what enables the editor: it edits the `.jm2`/
+     * `.jl2` text sources rather than the baked cache, so a content root is not
+     * one of its options, it is the thing it operates on. */
+    char editor_content_dir[512];
+    /* [editor:boot] repo_root — where a bake runs from. "" disables baking,
+     * which is the right default for a look-only session. Baking is never a
+     * side effect of saving; it happens only when the user asks. */
+    char editor_repo_root[512];
+
+    /**
+     * Which ToriRSMapEd the editor session talks to (`[editor:boot] server=`).
+     *
+     * The editor's counterpart of `[net:boot]` choosing the game server: the
+     * client is one binary, and the manifest decides which server a boot
+     * connects to. `embed` (the default) hosts ToriRSMapEd in-process over
+     * `content_dir`; `tcp` dials a torirsmaped daemon at `host`/`port`, and
+     * the DAEMON's content tree is then the one being edited — `content_dir`
+     * here only enables the editor and labels the session.
+     */
+    enum BootManifestEditorServer editor_server;
+    /** Set when `server=` named something unknown; the load fails on it. */
+    int editor_server_error;
+    /* [editor:boot] host/port — where the torirsmaped daemon listens.
+     * "" / 0 = localhost / TORIRSMAPED_DEFAULT_PORT. Only server=tcp reads
+     * them. */
+    char editor_server_host[128];
+    int editor_server_port;
+    /* [editor:boot] client — the Client (session group) to join, 0 = new.
+     * How a second PROCESS joins a running session: the first prints its id
+     * at boot, this states it. Meaningful for server=tcp only. */
+    int editor_client_id;
+
+    /**
+     * Where the command panel is drawn (`[editor:boot] panel=`).
+     *
+     * A boot-time choice rather than a runtime toggle because the panel's
+     * binding decides what gets constructed: the in-process panel is rows in
+     * the renderer's own ToriRSChrome, and the tab panel is a second browser
+     * context that has to be opened before it can be talked to.
+     */
+    enum BootManifestEditorPanel editor_panel;
+
+    /**
+     * `[chrome] executor=` -- enum ToriRSChromeExecKind for the plugin window.
+     *
+     * Only `web` (the Emscripten page DOM) and `browser` (the embedded local
+     * web engine) are public choices. `chrome_executor_set == 0` asks the
+     * factory for whichever of those the build carries, with BUFFER reserved
+     * as its internal safe fallback. TORIRS_CHROME_EXECUTOR overrides the
+     * manifest, the way TORIRS_CHROME_THEME overrides the theme beside it.
+     */
+    int chrome_executor;
+    /**
+     * The key was present.
+     *
+     * Distinct from the value because unset means "pick the web executor this
+     * build supports", while a present key requests its named web backend.
+     */
+    int chrome_executor_set;
+    /** Set when the key named something that is not an executor at all. */
+    int chrome_executor_error;
+    /** Set when `panel=` named something unknown; the load fails on it. */
+    int editor_panel_error;
+
+    /* [content:lanes] — which gated content lanes `server_scripts` above was
+     * compiled from, one `lane=` per line.
+     *
+     * Build-time information in a boot file, deliberately: the manifest is what
+     * a launcher is handed, and "this profile is the Summoning one" was
+     * previously encoded only in the SPELLING of the output directory
+     * (`build_summoning`), which run-live.sh pattern-matched to pick a make
+     * target. A new lane could not be launched at all without teaching the
+     * launcher a new suffix. Naming the lanes here says the same thing where a
+     * reader can see it, and lets one generic compile serve every profile.
+     *
+     * A manifest that names none compiles the tree's default lanes, which is
+     * what every profile that is not a lane development profile wants. */
+    char lanes[BOOTMANIFEST_LANE_MAX][BOOTMANIFEST_LANE_CAP];
+    int lane_count;
+    int lanes_error; /* lane-count overflow */
     /* "::" commands (';'-separated) to send once right after login; "" = none.
      * TORIRS_NET_CHEAT still overrides. */
     char cheat[256];
@@ -237,14 +386,21 @@ struct BootManifest
     int js5_revision;          /* 0 = unset/inherit */
     int js5_revision_set;
 
-    /* [features:boot] — client-behaviour era name; "" = derive from the cache
-     * identity (ToriRS_Features_ForCache). */
+    /* [features:boot] — client-behaviour era name; "" = fall through to the
+     * revconfig profile's `[features] era`, and then to the cache identity
+     * (ToriRS_Features_ForCache). */
     char features_era[32];
     /* [features:boot] ground_click_nearest — enum ToriRS_NearestModel, or -1
      * for "not stated, keep the era's". Defaulted in BootManifest_Init. */
     int features_ground_click_nearest;
     /* [features:boot] painter_draw_distance, or 0 for "not stated". */
     int features_painter_draw_distance;
+    /* [features:boot] mover — enum ToriRS_MoverModel, or -1 for "not stated,
+     * keep the era's". The key exists because ToriRS_Features_ForCache has no
+     * era table for the RS2 lanes and drops them all on lostcity, whose mover
+     * is the 2004 one; a lane that is not reproducing the 2004 client says so
+     * here. Defaulted in BootManifest_Init. */
+    int features_mover_model;
     /* [features:boot] ground_click_unbounded / ground_click_offmap — the two
      * permissive ground-click extensions (features.h), 0/1, or -1 for "not
      * stated". Every era table leaves both off, so these keys are how a boot
@@ -290,27 +446,42 @@ struct BootManifest
      * display preference, and the client has nowhere else to keep one (there is
      * no settings save, and the cache's own dropdown script is unbound). */
     int window_mode;
+    /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
+     *  the chrome follows the display's pixel density. */
+    int chrome_scale;
+    /** `[ui:boot] chrome_checkbox=`: which of the interfaces' two booleans the
+     *  chrome's checkboxes wear. 0 = unset, 1 = `tick` (the settings page's
+     *  tick/cross), 2 = `box` (the bordered well). One past
+     *  enum ToriRSChromeCheckStyle so unset is distinguishable from the
+     *  default; BootManifest_Apply subtracts the one. */
+    int chrome_checkbox;
+    /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset, 1 =
+     *  on, -1 = explicitly off. Unset keeps the platform default, which is ON
+     *  everywhere but the web lane -- so this key exists to DECLINE HighDPI on
+     *  a machine whose renderer cannot afford 4x the pixels, not to ask for it.
+     *  TORIRS_HIDPI overrides. */
+    int hidpi;
+    /** `[ui:boot] plugins=`: load the plugin layer at all. 0 = unset (load
+     *  it), 1 = on, -1 = explicitly off. TORIRS_PLUGINS overrides.
+     *
+     *  Off is for a world that has to hold still. A plugin is client code with
+     *  its own opinion about the gameframe -- gameframe-layout relays the whole
+     *  frame out from its own saved layout -- so a benchmark that carries one
+     *  is timing that opinion as if it were the renderer's cost. It does not
+     *  hold still either: the base frame and the plugin's layout each mount, so
+     *  the chrome is torn down and rebuilt on a cycle and the client visibly
+     *  flickers between the two. */
+    int plugins;
+    /* `clienttype = N` -- what the CLIENTTYPE clientscript opcode answers;
+     * 0 = unset (the revconfig profile's value, else the platform default).
+     * `on_mobile = 0|1` -- what ON_MOBILE answers; tri-state like plugins
+     * (1 yes, -1 no, 0 unset). A profile's `[override:ui:boot]` reaches both. */
+    int clienttype;
+    int on_mobile;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
      * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
     int window_w;
     int window_h;
-
-    /*
-     * [ui:chatbox] — where the chat lines live, for revisions whose chatbox is
-     * widgets rather than a surface the client paints (see rs_chat_widgets.h).
-     *
-     * Declared rather than derived. The alternative was recognising the chatbox
-     * by shape — "a scrolling layer with a few hundred identical text children"
-     * — which would be a heuristic sitting between the player and every message
-     * the server sends. `interface = 0` means this revision has no widget
-     * chatbox, which is the correct answer for every dat1 tree.
-     */
-    int chatbox_interface;
-    int chatbox_messages;   /* scrolling layer child */
-    int chatbox_first_line; /* first line component child */
-    int chatbox_line_count;
-    int chatbox_input;       /* typed-input line child; -1 = none */
-    int chatbox_line_height; /* 0 = the 14px the components declare */
 
     /* [ui:gameframe] — component slot -> interface id, in file order. */
     struct BootManifestGameframeMount gameframe[BOOTMANIFEST_GAMEFRAME_MAX];
@@ -333,6 +504,19 @@ struct BootManifest
  * required [cache:boot] identity key (a stderr line names the problem). */
 int
 BootManifest_LoadFile(struct BootManifest* bm, char const* path);
+
+/**
+ * @brief Does this cache location name an IndexedDB database, not a directory?
+ *
+ * `[cache:boot] dir=` holds a cache LOCATION, and on the web that is a
+ * database name (`idb:<name>`) because there is no filesystem to hold a
+ * directory. Callers that would join, create or open the value as a path must
+ * ask this first; the answer is the same on every platform, so a native tool
+ * reading a web manifest recognises the value rather than turning it into a
+ * relative directory.
+ */
+int
+BootManifest_CacheLocationIsIdb(char const* value);
 
 /* Copy the manifest's set fields into cfg. Only fields the manifest actually
  * provided are written, so calling this before CLI flag parsing lets explicit

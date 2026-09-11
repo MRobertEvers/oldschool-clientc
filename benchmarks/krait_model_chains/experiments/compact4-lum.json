@@ -1,0 +1,203 @@
+{
+  "corpus": "benchmarks/krait_model_chains/lumbridge.chain.gz",
+  "corpus_sha256": "23d5d6b81ed9d6b59eaeb8447f0e7f69d667510eab58a7483b3080ede3c6104e",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "3021ec07a6045b9254414d251b2d4e67bab99dbdd3ca9fb3e7adff754aec3372",
+  "mode": "chain-ab",
+  "env": [],
+  "events": {
+    "cpu-cycles": {
+      "median": 2379.339,
+      "mad": 4.558999999999969,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 31812,
+          "count": 75662084,
+          "per_call": 2378.413,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "calls": 31812,
+          "count": 75728908,
+          "per_call": 2380.514,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "calls": 31812,
+          "count": 75633761,
+          "per_call": 2377.523,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "calls": 31812,
+          "count": 75923820,
+          "per_call": 2386.641,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "calls": 31812,
+          "count": 76004250,
+          "per_call": 2389.169,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "calls": 31812,
+          "count": 75430168,
+          "per_call": 2371.123,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "calls": 31812,
+          "count": 75721003,
+          "per_call": 2380.265,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "calls": 31812,
+          "count": 75639824,
+          "per_call": 2377.714,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "calls": 31812,
+          "count": 75996024,
+          "per_call": 2388.911,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "calls": 31812,
+          "count": 75659179,
+          "per_call": 2378.322,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "calls": 31812,
+          "count": 75453122,
+          "per_call": 2371.845,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "calls": 31812,
+          "count": 76081910,
+          "per_call": 2391.61,
+          "arm": 0
+        }
+      ],
+      "arms": {
+        "0": 2387.776,
+        "1": 2377.9225
+      }
+    },
+    "instructions": {
+      "median": 959.0184999999999,
+      "mad": 3.242500000000007,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 31812,
+          "count": 30611441,
+          "per_call": 962.261,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "calls": 31812,
+          "count": 30405138,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "calls": 31812,
+          "count": 30405138,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "calls": 31812,
+          "count": 30611442,
+          "per_call": 962.261,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "calls": 31812,
+          "count": 30611441,
+          "per_call": 962.261,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "calls": 31812,
+          "count": 30405143,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "calls": 31812,
+          "count": 30405139,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "calls": 31812,
+          "count": 30611442,
+          "per_call": 962.261,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "calls": 31812,
+          "count": 30611442,
+          "per_call": 962.261,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "calls": 31812,
+          "count": 30405137,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "calls": 31812,
+          "count": 30405137,
+          "per_call": 955.776,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "calls": 31812,
+          "count": 30611441,
+          "per_call": 962.261,
+          "arm": 0
+        }
+      ],
+      "arms": {
+        "0": 962.261,
+        "1": 955.776
+      }
+    }
+  },
+  "placement": "placement: requested cpu0, effective cpu0=1 cpu1=1",
+  "workload": "verified: 10604 chains, 4 passes, 2527 distinct posed assets, 2380 visible, 38481 faces, 0 clipped, 28 pick hits, 1284 prioritized, 136 animated snapshots, 0 dynamic"
+}

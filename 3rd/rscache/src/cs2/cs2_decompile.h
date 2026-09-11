@@ -119,4 +119,24 @@ RSCache_CS2_Decompile(
     char* error,
     int error_capacity);
 
+/**
+ * Decompile one script to a JSON syntax tree (cs2_gen_json.h).
+ *
+ * The same pipeline and the same structured tree as `RSCache_CS2_Decompile`,
+ * serialized for a consumer that lowers the script into another language
+ * rather than printing it. A script that fails here fails there too, and for
+ * the same reason.
+ *
+ * `options->lossless` is ignored: the metadata it controls is a comment
+ * appended to source text, and it exists to make *that text* recompile
+ * byte-exactly. A syntax tree is not a recompilation input.
+ */
+char*
+RSCache_CS2_DecompileJson(
+    int script_id,
+    const struct RSCache_CS2_DecompileOptions* options,
+    char** out_name,
+    char* error,
+    int error_capacity);
+
 #endif

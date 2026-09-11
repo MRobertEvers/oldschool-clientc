@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2ParamLoad
 {
@@ -40,8 +41,7 @@ Task_Dat2ParamLoad_Run(
 
     if( !task->group )
     {
-        fprintf(
-            stderr, "Failed to decode dat2 param config group for param %d\n", task->param_id);
+        TORIRS_ERR("Failed to decode dat2 param config group for param %d\n", task->param_id);
         PT_EXIT(&task->pt);
     }
 
@@ -64,7 +64,7 @@ Task_Dat2ParamLoad_Run(
     if( !torirs )
     {
         RSCache_Dat2ConfigParamFreeInplace(&entry);
-        fprintf(stderr, "Failed to convert dat2 param %d\n", task->param_id);
+        TORIRS_ERR("Failed to convert dat2 param %d\n", task->param_id);
         PT_EXIT(&task->pt);
     }
 

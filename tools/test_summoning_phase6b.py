@@ -16,7 +16,7 @@ CONTENT = REPO / "OSRS-Content/osrs239-content"
 CLIENT = REPO / "src/torirs"
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
-MANIFEST = REPO / "manifest_osrs239.ini"
+MANIFEST = REPO / "manifests/manifest_osrs239.ini"
 OUT = REPO / "build/summoning-phase6b"
 # The actual BOB panel's backpack coordinate selects the starter leather gloves
 # after the fixed-side panel became live. Keep the save assertion tied to the
@@ -30,8 +30,8 @@ def run(saves: Path, clicks: str, frames: int, cheat: str = "") -> str:
     for key in ("TORIRS_NET_CHEAT", "TORIRS_SIM_CLICK_AT", "TORIRS_MAX_FRAMES"):
         env.pop(key, None)
     env.update({
-        "MOCK230_SAVES": str(saves), "MOCK230_SCRIPTS": str(SCRIPTS),
-        "MOCK230_CACHE": str(CACHE), "SDL_VIDEODRIVER": "dummy",
+        "TORIRSSERVER_SAVES": str(saves), "TORIRSSERVER_SCRIPTS": str(SCRIPTS),
+        "TORIRSSERVER_CACHE": str(CACHE), "SDL_VIDEODRIVER": "dummy",
         "TORIRS_SIM_CLICK_AT": clicks, "TORIRS_MAX_FRAMES": str(frames),
         "TORIRS_NET_DEBUG": "1", "TORIRS_CLICK_DEBUG": "1",
         "TORIRS_MINIMENU_DEBUG": "1",

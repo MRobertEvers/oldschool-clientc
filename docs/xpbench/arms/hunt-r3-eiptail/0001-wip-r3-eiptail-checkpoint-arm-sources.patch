@@ -1,0 +1,386 @@
+From 56a6809d083327fd160fc509d4b8afc017ee0f17 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:46 -0500
+Subject: [PATCH] wip(r3-eiptail): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-eiptail.
+
+files: 3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c src/engine/world_builder/world_scenery.u.c src/platform/platform_sdl2_renderer_soft3d.c src/world/world_cycle.c src/world/world_entity.h
+---
+ .../triangles/toridraw_triangle_gouraud.u.c   | 107 ++++++++++----
+ src/engine/world_builder/world_scenery.u.c    |   5 +
+ src/platform/platform_sdl2_renderer_soft3d.c  |  15 +-
+ src/world/world_cycle.c                       | 134 ++++++++++++------
+ src/world/world_entity.h                      |  20 +++
+ 5 files changed, 208 insertions(+), 73 deletions(-)
+
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..7516fcd7e 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -20,8 +20,18 @@
+ #include "graphics/raster/face_census.h"
+ // clang-format on
+ 
+-static inline void
+-ToriDraw_TriangleGouraud(
++/*
++ * The rare half of the gouraud dispatcher: the scanline family and the
++ * alpha-blended kernel. Kept out of line on purpose so the hot half below can
++ * be forced inline without dragging four extra call sequences into every
++ * caller. Measured on the Pentium 4 target: the merged dispatcher was compiled
++ * as a single out-of-line body whose entire job was to reload its fourteen
++ * incoming arguments and store them straight back out for the asm kernel --
++ * 905 EIP samples, 1.098 ms of a 64.5 ms frame, over 15,270 gouraud triangles,
++ * i.e. ~201 cycles per triangle of pure argument marshalling and zero pixels.
++ */
++static void __attribute__((noinline))
++ToriDraw_TriangleGouraudRare(
+     toripixel_t* RESTRICT pixel_buffer,
+     int stride,
+     int screen_width,
+@@ -37,13 +47,6 @@ ToriDraw_TriangleGouraud(
+     int color_c,
+     int alpha)
+ {
+-    TORIDRAW_FACE_CENSUS_RECORD(
+-        TORIDRAW_FACE_CENSUS_GOURAUD,
+-        x1, y1,
+-        x2, y2,
+-        x3, y3,
+-        screen_width * screen_height);
+-
+     if( TORIDRAW_SCANLINE_SELECTED() )
+     {
+         if( alpha == 0xFF )
+@@ -84,9 +87,56 @@ ToriDraw_TriangleGouraud(
+         return;
+     }
+ 
+-    if( alpha == 0xFF )
++    raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
++        pixel_buffer,
++        stride,
++        screen_width,
++        screen_height,
++        x1,
++        x2,
++        x3,
++        y1,
++        y2,
++        y3,
++        color_a,
++        color_b,
++        color_c,
++        alpha);
++}
++
++/*
++ * Hot half. always_inline so the caller builds the asm kernel's frame once
++ * instead of storing eleven arguments, having a thunk reload fourteen and
++ * re-store thirteen. TORIDRAW_SCANLINE_SELECTED() is a plain read of a global
++ * int with no side effects, so testing it after `alpha` is order-safe and the
++ * four (scanline, alpha) cases select exactly the same kernel as before.
++ */
++static inline __attribute__((always_inline)) void
++ToriDraw_TriangleGouraud(
++    toripixel_t* RESTRICT pixel_buffer,
++    int stride,
++    int screen_width,
++    int screen_height,
++    int x1,
++    int x2,
++    int x3,
++    int y1,
++    int y2,
++    int y3,
++    int color_a,
++    int color_b,
++    int color_c,
++    int alpha)
++{
++    TORIDRAW_FACE_CENSUS_RECORD(
++        TORIDRAW_FACE_CENSUS_GOURAUD,
++        x1, y1,
++        x2, y2,
++        x3, y3,
++        screen_width * screen_height);
++
++    if( alpha == 0xFF && !TORIDRAW_SCANLINE_SELECTED() )
+     {
+-        // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
+         TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
+             pixel_buffer,
+             stride,
+@@ -101,25 +151,24 @@ ToriDraw_TriangleGouraud(
+             color_a,
+             color_b,
+             color_c);
++        return;
+     }
+-    else
+-    {
+-        raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
+-            pixel_buffer,
+-            stride,
+-            screen_width,
+-            screen_height,
+-            x1,
+-            x2,
+-            x3,
+-            y1,
+-            y2,
+-            y3,
+-            color_a,
+-            color_b,
+-            color_c,
+-            alpha);
+-    }
++
++    ToriDraw_TriangleGouraudRare(
++        pixel_buffer,
++        stride,
++        screen_width,
++        screen_height,
++        x1,
++        x2,
++        x3,
++        y1,
++        y2,
++        y3,
++        color_a,
++        color_b,
++        color_c,
++        alpha);
+ }
+ 
+ static inline void
+diff --git a/src/engine/world_builder/world_scenery.u.c b/src/engine/world_builder/world_scenery.u.c
+index e58e6d3bd..236ea2270 100644
+--- a/src/engine/world_builder/world_scenery.u.c
++++ b/src/engine/world_builder/world_scenery.u.c
+@@ -1102,7 +1102,12 @@ scenery_load_model(
+                  * build-time static registration below, which
+                  * painter_reset_to_static truncates. */
+                 if( builder->scenery_runtime_spawn )
++                {
+                     sc->runtime_spawn = 1;
++                    /* Latch for world_cycle's skip; see world_entity.h. This
++                     * is the only place the bit is ever set. */
++                    world->entities.scenery_runtime_spawn_seen = 1;
++                }
+                 scenery_debug_record(
+                     builder, sc, map_tile, config_loc, model, element_id, pool_idx, size_x,
+                     size_z);
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..90eb42c47 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -1607,7 +1607,20 @@ ToriRS_Soft3D_RenderFrame(
+ #else
+         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
+ #endif
+-        if( ToriDraw_FrameAbArm() )
++        /*
++         * The non-temporal clear is the DEFAULT arm now, not the A/B arm.
++         * Before this it was linked but unreachable without TORIDRAW_FRAME_AB
++         * in the environment, and the EIP profile proved it: 1002 of the 1021
++         * samples inside ToriRS_Soft3D_RenderFrame -- 1.216 ms of a 64.5 ms
++         * frame -- sat on ONE 16-byte bin holding the
++         * `movups %xmm0,(%ebx,%edx,1)` of the else-branch below, while the
++         * `call toridraw_fb_clear32_nt_asm` carried zero. 96,199 iterations in
++         * 3.405 Mcycles is 35.4 cycles per 16-byte store, 1.27 GB/s:
++         * read-for-ownership on 1.5 MB that is entirely overwritten. The A/B
++         * arm now selects the old loop so the pair stays measurable with
++         * TORIDRAW_FRAME_AB=1, sign reversed.
++         */
++        if( !ToriDraw_FrameAbArm() )
+         {
+             TORIDRAW_FB_CLEAR32(p, n, bg);
+         }
+diff --git a/src/world/world_cycle.c b/src/world/world_cycle.c
+index 264877537..c562862ec 100644
+--- a/src/world/world_cycle.c
++++ b/src/world/world_cycle.c
+@@ -1517,6 +1517,33 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
+     }
+ }
+ 
++#ifndef NDEBUG
++/**
++ * @brief True when no live scenery entry carries the runtime_spawn bit.
++ *
++ * The verifier for the skip in World_CycleRegisterPainterDynamics. It lives
++ * inside assert() at the call site because OPT=1 defines NDEBUG, so the
++ * checked build pays the walk the fast build no longer does and a latch that
++ * ever went stale-clear stops the program where it happened.
++ */
++static int
++world_scenery_runtime_spawn_absent(struct World_EntityPool* pool)
++{
++    assert(pool);
++
++    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
++         si = World_EntityPoolNext(pool, si) )
++    {
++        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
++        if( !sc )
++            continue;
++        if( sc->runtime_spawn )
++            return 0;
++    }
++    return 1;
++}
++#endif
++
+ /* Dynamic entities re-register with the painter every cycle on top of the
+  * static terrain/scenery set; without this pass they never produce
+  * PNTR_CMD_ELEMENT commands and never draw (v1 world_cycle).
+@@ -1542,50 +1569,71 @@ World_CycleRegisterPainterDynamics(struct World* world)
+      * must be re-registered every cycle. Registered before the dynamics below so
+      * they draw with the scenery (behind players/NPCs), matching a normal loc. */
+     pool = &world->entities.scenery;
+-    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
+-         si = World_EntityPoolNext(pool, si) )
++    /*
++     * Almost every scene has no runtime-spawned loc at all, and finding that
++     * out used to cost a full walk of the scenery pool every cycle: measured
++     * on the moving Lumbridge bench, 8,635 iterations per cycle and ZERO
++     * hits, each iteration an imul for the pool stride plus a load of one int
++     * at +0x11c of a >500-byte struct -- 8,635 strided misses over ~4.7 MB
++     * against a 1 MB L2. That single load carried 623 of the profile's EIP
++     * samples, 0.756 ms of a 64.5 ms frame, which is 245 cycles an iteration
++     * to learn nothing.
++     *
++     * The latch is set at the one place the bit is ever set (world_scenery.u.c)
++     * and never cleared, so this skip can only ever be taken when the walk
++     * would have found nothing.
++     */
++    if( world->entities.scenery_runtime_spawn_seen )
+     {
+-        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
+-        if( !sc || !sc->runtime_spawn || sc->element_id < 0 )
+-            continue;
+-        int grid_x = sc->grid_position.x;
+-        int grid_z = sc->grid_position.z;
+-        int paint_level;
+-        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+-            grid_z >= world->_scene_size )
+-            continue;
+-        /* The scenery pool holds cache levels; the painter wants the level the
+-         * build's bridge push-down parked that tile on, which is the one the
+-         * static locs beside this one ended up in. */
+-        paint_level = World_LocPaintLevel(world, grid_x, grid_z, sc->grid_position.level);
+-        /* Wall locs re-register with their recorded wallside so the painter
+-         * orders them like a built wall (drawn on the correct side of the
+-         * tile); the removal path released the tile slot and reset_to_static
+-         * frees dynamic wall slots each frame, so the exclusive-slot claim is
+-         * safe. Everything else draws as normal scenery. */
+-        if( sc->painter_wall_ab >= 0 )
+-            painter_add_wall(
+-                world->painter, grid_x, grid_z, paint_level, sc->element_id,
+-                sc->painter_wall_ab, sc->painter_wall_side);
+-        /* Ground decor (shape 22) belongs in the tile's exclusive decor slot,
+-         * not in its scenery chain. The slot is emitted in the tile's BASE
+-         * step, ahead of every scenery element whose footprint covers the
+-         * tile — which is the whole difference for a puddle spawned under a
+-         * 5x5 boss: as scenery it sorted against him and won on any tile
+-         * nearer the camera than his anchor. */
+-        else if( sc->painter_ground_decor )
+-            painter_add_ground_decor_dynamic(
+-                world->painter, grid_x, grid_z, paint_level, sc->element_id);
+-        else
+-            painter_add_normal_scenery(
+-                world->painter,
+-                grid_x,
+-                grid_z,
+-                paint_level,
+-                sc->element_id,
+-                sc->size_x > 0 ? sc->size_x : 1,
+-                sc->size_z > 0 ? sc->size_z : 1,
+-                (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
++        for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
++             si = World_EntityPoolNext(pool, si) )
++        {
++            struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
++            if( !sc || !sc->runtime_spawn || sc->element_id < 0 )
++                continue;
++            int grid_x = sc->grid_position.x;
++            int grid_z = sc->grid_position.z;
++            int paint_level;
++            if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
++                grid_z >= world->_scene_size )
++                continue;
++            /* The scenery pool holds cache levels; the painter wants the level the
++             * build's bridge push-down parked that tile on, which is the one the
++             * static locs beside this one ended up in. */
++            paint_level = World_LocPaintLevel(world, grid_x, grid_z, sc->grid_position.level);
++            /* Wall locs re-register with their recorded wallside so the painter
++             * orders them like a built wall (drawn on the correct side of the
++             * tile); the removal path released the tile slot and reset_to_static
++             * frees dynamic wall slots each frame, so the exclusive-slot claim is
++             * safe. Everything else draws as normal scenery. */
++            if( sc->painter_wall_ab >= 0 )
++                painter_add_wall(
++                    world->painter, grid_x, grid_z, paint_level, sc->element_id,
++                    sc->painter_wall_ab, sc->painter_wall_side);
++            /* Ground decor (shape 22) belongs in the tile's exclusive decor slot,
++             * not in its scenery chain. The slot is emitted in the tile's BASE
++             * step, ahead of every scenery element whose footprint covers the
++             * tile — which is the whole difference for a puddle spawned under a
++             * 5x5 boss: as scenery it sorted against him and won on any tile
++             * nearer the camera than his anchor. */
++            else if( sc->painter_ground_decor )
++                painter_add_ground_decor_dynamic(
++                    world->painter, grid_x, grid_z, paint_level, sc->element_id);
++            else
++                painter_add_normal_scenery(
++                    world->painter,
++                    grid_x,
++                    grid_z,
++                    paint_level,
++                    sc->element_id,
++                    sc->size_x > 0 ? sc->size_x : 1,
++                    sc->size_z > 0 ? sc->size_z : 1,
++                    (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
++        }
++    }
++    else
++    {
++        assert(world_scenery_runtime_spawn_absent(pool));
+     }
+ 
+     /* Ground items render below entities (reference tile.groundObject draws in
+diff --git a/src/world/world_entity.h b/src/world/world_entity.h
+index 1cfa832a9..392d68ea1 100644
+--- a/src/world/world_entity.h
++++ b/src/world/world_entity.h
+@@ -21,6 +21,26 @@ struct World_EntityList
+     struct World_EntityPool spotanim;
+     struct World_EntityPool obj_stack;
+     struct World_EntityPool plugin_object;
++
++    /*
++     * Set the first time any scenery entry is flagged runtime_spawn, and
++     * never cleared.
++     *
++     * world_cycle re-registers runtime-spawned locs with the painter every
++     * cycle, and the only way to find them was to walk the whole scenery
++     * pool. Measured on the moving Lumbridge bench that walk is 8,635
++     * iterations per cycle with ZERO hits -- every entry loads one int at
++     * +0x11c out of a >500-byte struct, so it is 8,635 strided misses across
++     * ~4.7 MB against a 1 MB L2, and it cost 623 of the run's EIP samples,
++     * 0.756 ms of a 64.5 ms frame, on that single load.
++     *
++     * A latch rather than a live count: it is monotonic, so a removal path
++     * that forgets to decrement cannot drop a registration -- the worst a
++     * stale 1 can do is pay for the scan that used to be unconditional. A
++     * count would have to be right on every removal path, and being wrong
++     * there means a spawned door stops drawing.
++     */
++    int scenery_runtime_spawn_seen;
+ };
+ 
+ void

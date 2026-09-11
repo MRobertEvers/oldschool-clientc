@@ -1,0 +1,228 @@
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+![[Slayer Rewards#Extend|Extended amt.]]
+!class="wikitable sortable"|Unlock requirement
+!class="wikitable unsortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Banshee]]s
+|30-50
+| {{NA}}
+|data-sort-value="1520"|{{SCP|Slayer|15}}, {{SCP|Combat|20}}, completion of [[Priest in Peril]]
+|[[Twisted Banshee]] 
+|{{+=|weight|8|echo=2}}
+|-
+|[[Bat]]s
+|30-50
+| {{NA}}
+|data-sort-value="5"|{{SCP|Combat|5}}
+|[[Giant bat]], [[Albino bat]], [[Death wing]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Bear]]s
+|30-50
+| {{NA}}
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Grizzly bear cub]], [[Bear cub]], [[Grizzly bear]], [[Callisto]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Catablepon]]
+|20-30
+| {{NA}}
+|data-sort-value="35"|{{SCP|Combat|35}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave bug]]s
+|10-20
+| {{NA}}
+|data-sort-value="700"|{{SCP|Slayer|7}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave crawler]]s
+|30-50
+| {{NA}}
+|data-sort-value="1010"|{{SCP|Slayer|10}}, {{SCP|Combat|10}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cave slime]]
+|10-20
+| {{NA}}
+|data-sort-value="1715"|{{SCP|Slayer|17}}, {{SCP|Combat|15}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Cockatrice]]
+|30-50
+|{{NA}}
+|data-sort-value="2525"|{{SCP|Slayer|25}}, {{SCP|Combat|25}}, {{SCP|Defence|20}}
+|[[Moonlight Cockatrice]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Crabs|Crabs]]
+|30-50
+|{{NA}}
+|{{SCP|Slayer|1}}
+|[[Ammonite crab]]s, [[Frost crab]]s, [[Rock crab]]s, [[Sand crab]]s, [[Swamp crab]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Crawling Hand]]s
+|30-50
+| {{NA}}
+|data-sort-value="500"|{{SCP|Slayer|5}}, completion of [[Priest in Peril]]
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Dogs|Dogs]]
+|30-50
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Jackal]], [[Guard dog]], [[Wild dog]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Flesh Crawler]]s
+|15-25
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|None
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ghost]]s
+|30-50
+| {{NA}}
+|data-sort-value="13"|{{SCP|Combat|13}}
+|[[Tortured soul]], [[Forgotten Soul]], [[Revenants]], [[Death wing]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ghoul]]s
+|10-20
+| {{NA}}
+|data-sort-value="25"|{{SCP|Combat|25}}, completion of [[Priest in Peril]]
+|None
+|{{+=|weight|7|echo=2}}
+|-
+|[[Hill Giant]]s
+|30-50
+| {{NA}}
+|data-sort-value="25"|{{SCP|Combat|25}}
+|[[Obor]], [[Cyclops]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Hobgoblin]]s
+|30-50
+| {{NA}}
+|data-sort-value="20"|{{SCP|Combat|20}}
+|None
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ice warrior]]s
+|40-50
+| {{NA}}
+|data-sort-value="45"|{{SCP|Combat|45}}
+| [[Icelord]]s
+|{{+=|weight|7|echo=2}}
+|-
+|[[Kalphite]]
+|30-50
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]], [[Kalphite Queen]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Killerwatt]]s
+|30-50
+| {{NA}}
+|data-sort-value="3750"|{{SCP|Slayer|37}}, {{SCP|Combat|50}}, completion of [[Ernest the Chicken]]
+|None
+|{{+=|weight|6|echo=2}}
+|-
+|[[Lizard]]s
+|30-50
+| {{NA}}
+|data-sort-value="2200"|{{SCP|Slayer|22}}
+|[[Small Lizard]], [[Desert Lizard]], [[Sulphur Lizard]] ({{SCP|Slayer|44}}), [[Grimy Lizard]]({{SCP|Slayer|44}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Mogre]]s
+|30-50
+| {{NA}}
+|data-sort-value="3230"|{{SCP|Slayer|32}}, {{SCP|Combat|30}}, completion of [[Skippy and the Mogres]]
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Pyrefiend]]s
+|30-50
+| {{NA}}
+|data-sort-value="3025"|{{SCP|Slayer|30}}, {{SCP|Combat|25}}
+|[[Pyrelord|Pyrelords]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Rockslug]]s
+|30-50
+| {{NA}}
+|data-sort-value="2020"|{{SCP|Slayer|20}}, {{SCP|Combat|20}}
+|None
+|{{+=|weight|8|echo=2}}
+|-
+|[[Scorpion]]s
+|30-50
+| {{NA}}
+|data-sort-value="7"|{{SCP|Combat|7}}
+|[[King Scorpion]], [[Poison Scorpion]], [[Pit Scorpion]], [[Scorpia]], [[Scorpia's offspring (monster)|Scorpia's offspring]], [[Scorpia's guardian]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Shade (disambiguation)|Shade]]s
+|30-70
+| {{NA}}
+|data-sort-value="30"|{{SCP|Combat|30}}
+|[[Loar Shade|Loar]], [[Phrin Shade|Phrin]], [[Riyl shade|Riyl]], [[Asyn shade|Asyn]], [[Fiyr shade|Fiyr]], and [[Urium Shade|Urium Shades]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Skeleton]]s
+|30-50
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Skeleton mage]], Skeletons in the [[Stronghold of Security]] and [[Ancient Cavern]], [[Vet'ion]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Vampyre]]s
+|10-20
+|200-250
+|data-sort-value="35"|{{SCP|Combat|35}}, completion of [[Priest in Peril]]
+|[[Feral Vampyre]], [[Vampyre Juvinate]], [[Vyrewatch]], [[Vyrewatch Sentinel]], [[Venator]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Wall beast]]s
+|10-20
+| {{NA}}
+|data-sort-value="3530"|{{SCP|Slayer|35}}, {{SCP|Combat|30}}, {{SCP|Defence|5}}
+|None
+|{{+=|weight|7|echo=2}}
+|-
+|[[Wolf|Wolves]]
+|30-50
+| {{NA}}
+|data-sort-value="20"|{{SCP|Combat|20}}
+|[[Big Wolf]], [[Desert Wolf]], [[Ice wolf]], [[Jungle wolf]], [[White wolf]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Zombie]]s
+|30-50
+| {{NA}}
+|data-sort-value="10"|{{SCP|Combat|10}}
+|[[Monkey Zombie]], [[Undead chicken]], [[Undead cow]], [[Undead one]], [[Vorkath]], [[Undead Druid]]
+|{{+=|weight|7|echo=2}}
+|-
+! colspan="5" |Total [[task weight]]
+!{{#var:weight}}
+|}
+[[Category:Slayer]]
+[[Category:Slayer task]]
+[[Category:Slayer Masters]]

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <xteas.h>
 
+#include "rscache_log.h"
 #define NON_OSRS_PACKED_ARCHIVE_FORMAT 5
 
 static uint32_t
@@ -278,7 +279,7 @@ RSCache_ArchiveDecryptDecompress(
         break;
     }
     default:
-        printf("Unknown compression method: %d\n", compression);
+        RSCACHE_LOG("Unknown compression method: %d\n", compression);
         assert("Unknown compression method" && 0);
         return false;
     }
@@ -423,6 +424,23 @@ RSCache_ArchiveDecompressDat(
             expect = RSCache_CompressionGzipUncompressedSize(
                 (uint8_t*)archive->data, archive->data_size);
 
+        /*
+         * The footer is a CLAIM, and the LostCity server's is false: its
+         * packer stamps every on-demand container with ISIZE = 16 MiB
+         * (0x01000000) whatever the payload -- a 107-byte model archive that
+         * inflates to 175 bytes carries it too. Trusting it meant a 16 MiB
+         * malloc per archive, and the shrink below only hides that where the
+         * allocator commits lazily. On wasm the heap grows to fit the malloc
+         * and never shrinks, so the browser boot climbed past a gigabyte on
+         * ~20 tiny models before the title screen.
+         *
+         * Deflate cannot expand a stream beyond 1032:1, so any footer claiming
+         * more than that of this container is not a size, and the growing
+         * scratch below (64 KiB, doubling) is the right allocation for it.
+         */
+        if( expect > 0 && (uint64_t)expect > (uint64_t)archive->data_size * 1032u )
+            expect = 0;
+
         uint32_t capacity = expect > 0 ? expect : 65536u;
         uint8_t* out = NULL;
         uint32_t uncompressed_length = 0;
@@ -440,12 +458,30 @@ RSCache_ArchiveDecompressDat(
                 RSCACHE_GZIP_NO_FOOTER);
             if( uncompressed_length > 0 )
                 break;
-            if( expect > 0 || capacity >= (1u << 26) )
+            if( capacity >= (1u << 26) )
             {
                 free(out);
                 return false;
             }
             capacity *= 2;
+        }
+
+        /* `capacity` was an ESTIMATE -- the gzip ISIZE footer, which is only
+         * meaningful when the payload really is gzip. The archive keeps `out`
+         * for as long as the caller holds it, so an estimate that overshot is
+         * not a transient cost: it is retained slack, sitting in the heap at
+         * whatever the footer happened to say. On the LostCity on-demand path
+         * that was one live 16 MB block against archives of a few KB, and it
+         * was the single largest site in the boot profile.
+         *
+         * Shrinking is the whole fix. It cannot move the data (realloc only
+         * shrinks in place or copies down), and the caller reads data_size,
+         * never capacity, so nothing above here can tell the difference. */
+        if( uncompressed_length < capacity )
+        {
+            uint8_t* shrunk = realloc(out, uncompressed_length ? uncompressed_length : 1);
+            assert(shrunk);
+            out = shrunk;
         }
 
         free(archive->data);

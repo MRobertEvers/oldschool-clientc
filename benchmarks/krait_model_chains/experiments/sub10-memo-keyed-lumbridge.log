@@ -1,0 +1,19 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/sub10_model_chain: unused DT entry: type 0x6ffffef5 arg 0x550
+WARNING: linker: /data/local/tmp/sub10_model_chain: unused DT entry: type 0x6ffffffe arg 0x510
+WARNING: linker: /data/local/tmp/sub10_model_chain: unused DT entry: type 0x6fffffff arg 0x2
+placement: requested cpu0, effective cpu0=1 cpu1=1
+verified: 10604 chains, 4 passes, 2527 distinct posed assets, 2380 visible, 38481 faces, 0 clipped, 28 pick hits, 1284 prioritized, 136 animated snapshots, 0 dynamic
+memo verified: 10972 hits / 15750 eligible lookups
+pmu,cpu-cycles,memo-ab,1,10604,24847501,2343.220,arm=0
+pmu,cpu-cycles,memo-ab,2,10604,22909516,2160.460,arm=1
+pmu,cpu-cycles,memo-ab,3,10604,22905046,2160.038,arm=1
+pmu,cpu-cycles,memo-ab,4,10604,24959540,2353.785,arm=0
+pmu,cpu-cycles,memo-ab,5,10604,24868613,2345.211,arm=0
+pmu,cpu-cycles,memo-ab,6,10604,22866635,2156.416,arm=1
+pmu,cpu-cycles,memo-ab,7,10604,23243896,2191.993,arm=1
+pmu,cpu-cycles,memo-ab,8,10604,24856244,2344.044,arm=0
+pmu,cpu-cycles,memo-ab,9,10604,22043585,2078.799,arm=0
+pmu,cpu-cycles,memo-ab,10,10604,21972120,2072.060,arm=1
+pmu,cpu-cycles,memo-ab,11,10604,22284635,2101.531,arm=1
+pmu,cpu-cycles,memo-ab,12,10604,24406079,2301.592,arm=0

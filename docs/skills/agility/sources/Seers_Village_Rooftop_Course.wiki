@@ -1,0 +1,132 @@
+{{Infobox Location
+|name = Seers' Village Rooftop Course
+|image = [[File:Seers' Village Rooftop Course (5).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Seers' Village]]
+|map = {{Map|2729:3489|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Kandarin
+}}
+{{Relativelocation
+|location = Agility course
+|north = Sinclair Mansion
+|west = McGrubor's Wood
+|south = Sorcerer's Tower
+|east = Camelot
+}}
+The '''Seers' Village Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Seers' Village]] that is available to players with an [[Agility]] level of 60. It is preceded by the [[Falador Rooftop Course]] and followed by the [[Pollnivneach Rooftop Course]]. 
+
+The Seers' Village Rooftop Agility Course can be started by climbing up the wall near the entrance of [[Seers' Village bank]] and is finished by jumping off the roof of the [[Seers' Village church|church]], by the [[Yew tree|Yew trees]]. Players gain 570 experience in total per completed lap of the course. The course can be a destination for an [[Clue scroll (elite)|elite clue scroll]] step, where players are required to search a crate on top one of the buildings that is part of the Agility course. 
+
+If this course is started at level 60, it would take 814 complete laps to reach level 70.
+
+== Mechanics ==
+There are two locations where the player may fail; Jump Gap 1 and Tightrope Walk. These obstacles will stop failing at 79 Agility. Players who are constantly failing obstacles can take advantage of the [[altar]] in the church at the end of the course by having the [[Rapid Heal]] [[prayer]] active at all times.
+
+A perfect lap takes 73 ticks, or 43.8 seconds (~37 seconds with Seers bank teleport), meaning that at maximum efficiency, the maximum amount of experience gained is '''46,600 per hour (~81 laps per hour)''', or 56,000 per hour (~97 laps per hour) with Seers bank teleport. This means that training from 60 to 70 will require 10–11 hours of relatively concentrated training. Assuming that parts of the course will fail, an average of around 75 seconds per lap (without the Seers Bank teleport) between the levels of 60 to 65 is to be expected. In the latter half, the failure rate decreases significantly and thus decreases the average lap time to about 55 seconds. From 60 to 65, 309 laps at the given rate takes approximately '''6.5 hours'''. From 65 to 70, 508 laps at the given rate takes approximately '''8 hours'''. This raises the total expected time for completing 60 to 70 to '''14.5 hours'''.<ref>This is from the writer's own experience concentrating on the Seers' Village Rooftop Course.</ref> 
+
+{| class="wikitable"
+|+Course Breakdown
+!Image
+!Obstacle
+! style="text-align:center;" |Experience
+! style="text-align:center;" |Chance to fail
+|-
+|[[File:Seers' Village Rooftop Course (1).png|200x200px]]
+|[[Wall (Seers' Village Rooftop Course)|Wall]]
+| style="text-align:center;" |{{+=|xp|45|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Seers' Village Rooftop Course (2).png|200x200px]]
+|[[Gap (Seers' Village Rooftop Course)#1|Gap]]
+| style="text-align:center;" |{{+=|xp|20|echo=2}}
+| style="text-align:center;" |Yes (until 79)
+|-
+|[[File:Seers' Village Rooftop Course (3).png|200x200px]]
+|[[Tightrope (Seers' Village Rooftop Course)|Tightrope]]
+| style="text-align:center;" |{{+=|xp|20|echo=2}}
+| style="text-align:center;" |Yes (until 79)
+|-
+|[[File:Seers' Village Rooftop Course (4).png|200x200px]]
+|[[Gap (Seers' Village Rooftop Course)#2|Gap]]
+| style="text-align:center;" |{{+=|xp|35|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Seers' Village Rooftop Course (5).png|200x200px]]
+|[[Gap (Seers' Village Rooftop Course)#3|Gap]]
+| style="text-align:center;" |{{+=|xp|15|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Seers' Village Rooftop Course (6).png|200x200px]]
+|[[Edge (Seers' Village Rooftop Course)|Edge]]
+| style="text-align:center;" |{{+=|xp|435|echo=2}}
+| style="text-align:center;" |No
+|-
+!
+! style="text-align:center;" |Total
+!{{#var:xp}}
+!2
+|}
+
+==Marks of grace==
+With completion of the first three tiers of the [[Kandarin Diary]], players have a chance to reroll for a [[mark of grace]] spawn on failed spawn attempts:
+
+*5% for Easy
+*10% for Medium
+*15% for Hard
+
+Completing the [[hard Kandarin Diary]] for the [[Camelot Teleport]] in front of Seers' bank will cut a significant amount of time going back to the start, and in addition to increasing the experience gained per hour will result in more marks obtained.
+
+{| class="wikitable"
+|+Marks per hour (no failures)
+!Diary
+!Marks
+|-
+|None
+|13.8
+|-
+|Easy
+|14.4
+|-
+|Medium
+|15.0
+|-
+|Hard
+|16.6
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = The additional chance of finding marks of grace on the Seers' village agility course is now working correctly.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now receive more [[marks of grace]] from the Seers' Village rooftop agility for the completion of [[Kandarin Diary|Kandarin Diaries]]:
+
+*5% more for the [[Kandarin easy diary|easy diary]].
+*10% more for the [[Kandarin Medium|medium diary]].
+*15% more for the [[Kandarin Hard Diary|hard diary]].
+}}
+{{Subject changes
+|date = 12 December 2013
+|update = First Slayer Batch
+|change = The Marks of Grace in Seers' Village now spawn a bit further from the obstacles so you're less likely to miss them when clicking.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Part of the course is accessible during the [[One Small Favour]] quest, where the player has to repair a weathervane on the top of a building. 
+
+==References==
+{{reflist}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Seers' Village}}

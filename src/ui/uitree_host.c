@@ -1,9 +1,13 @@
 #include "uitree_host.h"
 
+#include "uitree_minimenu.h"
 #include "uitree_scroll.h"
 
 #include <assert.h>
 #include <string.h>
+
+_Static_assert(UITREE_HOST_INPUT_DOMAIN_COUNT > 0, "host input stamp needs a domain");
+_Static_assert(UITREE_HOST_INPUT_DOMAIN_COUNT < 32, "host input mask is uint32_t");
 
 void
 UITree_HostInit(struct UITreeHost* host)
@@ -12,10 +16,224 @@ UITree_HostInit(struct UITreeHost* host)
     memset(host, 0, sizeof(*host));
 }
 
+UITreeHostInputMask
+UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
+{
+    UITreeHostInputMask const client = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE);
+    UITreeHostInputMask const camera = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CAMERA);
+    UITreeHostInputMask const pointer = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_POINTER);
+    UITreeHostInputMask const inventory = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY);
+    UITreeHostInputMask const assets = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS);
+    UITreeHostInputMask const world = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_WORLD);
+    UITreeHostInputMask const animation = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ANIMATION);
+    UITreeHostInputMask const overlays = UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS);
+
+    switch( kind )
+    {
+    /* Commands mutate the host but contribute no value to the current emit.
+     * Their authoritative implementations must bump the affected input epoch. */
+    case UITREE_HOST_APPLY_BUTTON_CLICK:
+    case UITREE_HOST_SET_SELECTED_TAB:
+    case UITREE_HOST_SET_INV_SOURCE_SLOT:
+    case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
+    case UITREE_HOST_BEGIN_OVERLAYS:
+    case UITREE_HOST_TITLE_ACTION:
+        return 0;
+
+    /* CS1 can read both ordinary client variables and inventory counts. */
+    case UITREE_HOST_IS_ACTIVE:
+    case UITREE_HOST_EVAL_TEXT_PLACEHOLDER:
+        return client | inventory;
+
+    case UITREE_HOST_GET_SELECTED_TAB:
+    case UITREE_HOST_GET_TAB_ENABLED:
+    case UITREE_HOST_GET_CHAT_FILTER_MODE:
+    case UITREE_HOST_GET_CHAT_STATE:
+    case UITREE_HOST_GET_IF_EVENTS:
+        return client;
+
+    case UITREE_HOST_GET_CAMERA_YAW:
+        return camera;
+
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+    case UITREE_HOST_GET_CROSS_POSITION:
+    /* The touch marker answers where the last press landed and which frame of
+     * its 400 ms life is showing -- the cross's two inputs exactly. Its
+     * ARTWORK is an asset, but that is the separate _SCENE request; this one
+     * is live state and must not be retained across a frame. */
+    case UITREE_HOST_GET_INKWELL:
+        return pointer | animation;
+
+    case UITREE_HOST_GET_MINIMENU_VISIBLE:
+    case UITREE_HOST_GET_MINIMENU_STATE:
+    case UITREE_HOST_GET_HOVERTEXT_STATE:
+        return pointer | client;
+
+    case UITREE_HOST_MEASURE_TEXT:
+    case UITREE_HOST_SCENE_SPRITE_HAS:
+    case UITREE_HOST_SCENE_FONT_HAS:
+    case UITREE_HOST_SCENE_MODEL_HAS:
+    case UITREE_HOST_GET_SCROLLBAR_SCENE:
+    case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
+    case UITREE_HOST_GET_INV_COUNT_FONT:
+    case UITREE_HOST_GET_OBJ_NAME:
+    case UITREE_HOST_GET_OBJ_ICON_PLAIN:
+    case UITREE_HOST_GET_OBJ_ICON_BORDERED:
+    /* The inkwell's generated atlas, uploaded once and holding every style and
+     * colour -- an asset like any baked pack, however it was drawn. */
+    case UITREE_HOST_GET_INKWELL_SCENE:
+        return assets;
+
+    case UITREE_HOST_GET_INV_SOURCE_SLOT:
+    case UITREE_HOST_GET_INV_SELECTION:
+        return inventory;
+
+    case UITREE_HOST_GET_INV_DRAG:
+        return pointer | inventory;
+
+    case UITREE_HOST_GET_INV_SELECT_ICON:
+        return inventory | assets;
+
+    case UITREE_HOST_GET_MINIMAP_STATE:
+        return camera | world | assets;
+
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+        return client | world;
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return world;
+
+    case UITREE_HOST_GET_MULTIWAY:
+        return world;
+
+    case UITREE_HOST_GET_REBOOT_TIMER:
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
+        return client | animation;
+
+    /* Which screen is up, what is typed and what the server replied are all
+     * client state; the caret's blink is the clock, which is why the field
+     * line also reads animation. Without that bit the gate retains a frame
+     * whose caret should have flipped and the cursor freezes. */
+    case UITREE_HOST_GET_TITLE_SCREEN:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_GET_TITLE_TOGGLE:
+        return client;
+
+    case UITREE_HOST_GET_TITLE_FIELD:
+        return client | animation;
+
+    case UITREE_HOST_GET_TITLE_FLAMES:
+        return animation | assets;
+
+    case UITREE_HOST_GET_MINIMAP_DOTS:
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
+        return camera | world | overlays;
+
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        return overlays;
+
+    case UITREE_HOST_GET_WORLDMAP_TILES:
+    case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
+        return camera | world | assets | overlays;
+
+    case UITREE_HOST_GET_DEBUG_OVERLAY:
+        return overlays | assets;
+
+    case UITREE_HOST_REQUEST_COUNT:
+        break;
+    }
+
+    /* A new request which has not been classified must make retention more
+     * conservative, never make a stale list look reusable. */
+    return UITREE_HOST_INPUT_ALL;
+}
+
+void
+UITree_HostInputsChanged(struct UITreeHost* host, UITreeHostInputMask changed)
+{
+    assert(host);
+
+    changed &= UITREE_HOST_INPUT_ALL;
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+    {
+        uint64_t* epoch;
+
+        if( !(changed & UITREE_HOST_INPUT_BIT(domain)) )
+            continue;
+        epoch = &host->input_epoch[domain];
+        (*epoch)++;
+        /* Keep zero as the initial value. Skipping it also makes a debugger's
+         * all-zero stamp unambiguously mean "never changed". */
+        if( *epoch == 0 )
+            (*epoch)++;
+    }
+}
+
+bool
+UITree_HostPublishInputSignature(
+    struct UITreeHost* host,
+    enum UITreeHostInputDomain domain,
+    uint64_t signature)
+{
+    UITreeHostInputMask bit;
+
+    assert(host);
+    if( domain < 0 || domain >= UITREE_HOST_INPUT_DOMAIN_COUNT )
+        return false;
+    bit = UITREE_HOST_INPUT_BIT(domain);
+    if( (host->input_signature_valid & bit) && host->input_signature[domain] == signature )
+        return false;
+
+    host->input_signature[domain] = signature;
+    host->input_signature_valid |= bit;
+    UITree_HostInputsChanged(host, bit);
+    return true;
+}
+
+void
+UITree_HostInputStampCapture(
+    struct UITreeHost const* host,
+    UITreeHostInputMask dependencies,
+    struct UITreeHostInputStamp* out)
+{
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->source = host;
+    out->dependencies = dependencies & UITREE_HOST_INPUT_ALL;
+    if( !host )
+        return;
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        if( out->dependencies & UITREE_HOST_INPUT_BIT(domain) )
+            out->epoch[domain] = host->input_epoch[domain];
+}
+
+bool
+UITree_HostInputStampIsCurrent(
+    struct UITreeHostInputStamp const* stamp,
+    struct UITreeHost const* host)
+{
+    assert(stamp);
+
+    if( stamp->source != host )
+        return false;
+    if( !host )
+        return true;
+    for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
+        if( (stamp->dependencies & UITREE_HOST_INPUT_BIT(domain)) &&
+            stamp->epoch[domain] != host->input_epoch[domain] )
+            return false;
+    return true;
+}
+
 int
 UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
 {
     assert(req);
+
+    if( host && host->observed_input_mask )
+        *host->observed_input_mask |= UITree_HostRequestInputMask(req->kind);
 
     if( host && host->request )
         return host->request(host->user, req);
@@ -26,6 +244,11 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_CROSS_ACTIVE:
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
     case UITREE_HOST_GET_CROSS_POSITION:
+    /* No session, so no touch has landed and there is no atlas to point at --
+     * 0 from the state request is "no marker running this frame", which is
+     * exactly what the emit reads it as. */
+    case UITREE_HOST_GET_INKWELL:
+    case UITREE_HOST_GET_INKWELL_SCENE:
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
     case UITREE_HOST_GET_MINIMENU_STATE:
     case UITREE_HOST_GET_HOVERTEXT_STATE:
@@ -39,8 +262,26 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_INV_SELECTION:
     case UITREE_HOST_GET_OBJ_ICON_PLAIN:
     case UITREE_HOST_GET_OBJ_ICON_BORDERED:
+    /* Hostless answers, all three "no": the server has taken nothing away, the
+     * player is not in a multi-combat zone, and no update is pending. Each is
+     * the state a tree with no session is genuinely in, not a placeholder. */
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+    case UITREE_HOST_GET_MULTIWAY:
+    case UITREE_HOST_GET_REBOOT_TIMER:
+    /* A tree with no session is not on the title screen, has nothing typed,
+     * no reply to show and no bar running -- all four are the honest answer
+     * rather than a placeholder, and each makes its widget draw nothing. */
+    case UITREE_HOST_GET_TITLE_FIELD:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_GET_TITLE_FLAMES:
+    case UITREE_HOST_GET_TITLE_TOGGLE:
+    case UITREE_HOST_TITLE_ACTION:
     case UITREE_HOST_GET_MINIMAP_DOTS:
+    case UITREE_HOST_BEGIN_OVERLAYS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
     case UITREE_HOST_GET_WORLDMAP_TILES:
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
     case UITREE_HOST_GET_DEBUG_OVERLAY:
@@ -54,6 +295,9 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_SELECTED_TAB:
     case UITREE_HOST_GET_CAMERA_YAW:
     case UITREE_HOST_GET_TAB_ENABLED:
+    /* 0 = "not hidden", which is the right answer for a tree with no host:
+     * nothing is flashing, so nothing is blinked out. */
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_GET_CHAT_STATE:
@@ -63,9 +307,116 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
     case UITREE_HOST_GET_MINIMAP_STATE:
     case UITREE_HOST_GET_INV_COUNT_FONT:
+    /* -1 is "not on the title screen", which 0 could not say: 0 is a real
+     * screen (the front menu). */
+    case UITREE_HOST_GET_TITLE_SCREEN:
         return -1;
+    case UITREE_HOST_REQUEST_COUNT:
+        return 0;
     }
     return 0;
+}
+
+/*
+ * Does the minimenu node have anything to draw: the popup, or the afterimage
+ * of the row it just dispatched? Both gates below ask this. The INPUT gate
+ * (uitree_input.c) asks the VISIBLE request alone on purpose -- a fading row
+ * must not make the node interactive, the way the cross node once was for the
+ * 400 ms of its marker.
+ */
+static bool
+uitree_host_minimenu_drawn(struct UITreeHost const* host)
+{
+    struct UIMinimenu const* menu = NULL;
+    struct UITreeHostRequest visible = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
+    struct UITreeHostRequest state = {
+        .kind = UITREE_HOST_GET_MINIMENU_STATE,
+        .u.get_minimenu_state.out = &menu,
+    };
+
+    assert(host);
+    if( UITree_Host(host, &visible) != 0 )
+        return true;
+    if( !UITree_Host(host, &state) || !menu )
+        return false;
+    return UIMinimenu_AfterimageActive(menu);
+}
+
+struct NativeAvailability { bool paint, input; };
+
+/* One native state interpretation feeds paint and input. Structural
+ * containers are available even when they draw no pixels. */
+static struct NativeAvailability
+component_native_availability(struct UITreeComponent const* component, struct UITreeHost const* host)
+{
+    struct NativeAvailability result = { true, true };
+    struct UITreeHostRequest req = { 0 };
+    if( !host ) return result;
+    switch( component->type )
+    {
+    case UIELEM_BUILTIN_REDSTONE_TAB:
+        req.kind = UITREE_HOST_GET_SELECTED_TAB;
+        result.paint = UITree_Host(host, &req) == component->u.redstone_tab.tabno;
+        break; /* An unlit tab is still a native tab-selection control. */
+    case UIELEM_BUILTIN_SIDEBAR:
+        req.kind = UITREE_HOST_GET_SELECTED_TAB;
+        result.paint = result.input = UITree_Host(host, &req) == component->u.sidebar.tabno;
+        break;
+    case UIELEM_BUILTIN_CROSS:
+        req.kind = UITREE_HOST_GET_CROSS_ACTIVE;
+        result.paint = result.input = UITree_Host(host, &req) != 0;
+        break;
+    case UIELEM_BUILTIN_MINIMENU:
+        req.kind = UITREE_HOST_GET_MINIMENU_VISIBLE;
+        result.input = UITree_Host(host, &req) != 0;
+        result.paint = uitree_host_minimenu_drawn(host);
+        break;
+    case UIELEM_BUILTIN_MINIMAP:
+        req.kind = UITREE_HOST_GET_MINIMAP_HIDDEN;
+        result.paint = !UITree_Host(host, &req);
+        /* Keep the controller reservation. App applies native WALK permission
+         * so disabled modes consume the point without clicking through. */
+        break;
+    case UIELEM_BUILTIN_COMPASS:
+        req.kind = UITREE_HOST_GET_COMPASS_HIDDEN;
+        result.paint = result.input = !UITree_Host(host, &req);
+        break;
+    default: break;
+    }
+    return result;
+}
+
+static bool
+node_native_available(struct UITree const* tree, struct UITreeHost const* host,
+                      int32_t node, int hovered, bool input)
+{
+    int guard = 0;
+    int32_t const self = node;
+    if( !tree || node < 0 || (uint32_t)node >= tree->component_count ) return false;
+    while( node >= 0 && (uint32_t)node < tree->component_count && guard++ < (int)tree->component_count )
+    {
+        struct UITreeComponent const* c = &tree->components[node];
+        if( c->freed || c->screen_hidden || (c->projection_hidden || c->widget_hidden) ||
+            !UITree_ComponentVisibleById(c, hovered) ) return false;
+        struct NativeAvailability availability = component_native_availability(c, host);
+        if( input && node == self ) { if( !availability.input ) return false; }
+        else if( !availability.paint || (input && !availability.input) ) return false;
+        node = c->parent;
+    }
+    return node < 0;
+}
+
+bool
+UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const* host,
+                         int32_t node, int hovered_component_id)
+{
+    return node_native_available(tree, host, node, hovered_component_id, false);
+}
+
+bool
+UITree_NodeNativeInputPresent(struct UITree const* tree, struct UITreeHost const* host, int32_t node)
+{
+    return node_native_available(tree, host, node, -1, true);
 }
 
 bool
@@ -75,52 +426,17 @@ UITree_ComponentVisibleHost(
     struct UITreeHost const* host)
 {
     assert(component);
-
-    if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.redstone_tab.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_SIDEBAR )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.sidebar.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_CROSS )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
-        return UITree_Host(host, &req) != 0;
-    }
-
-    if( component->type == UIELEM_BUILTIN_MINIMENU )
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
-        return UITree_Host(host, &req) != 0;
-    }
-
-    return UITree_ComponentVisibleByHoverIds(component, hover_ids);
+    return UITree_ComponentVisibleByHoverIds(component, hover_ids) &&
+           component_native_availability(component, host).paint;
 }
 
 bool
-UITree_ComponentHitTestVisibleHost(
-    struct UITreeComponent const* component,
-    int hovered_component_id,
-    struct UITreeHost const* host)
+UITree_ComponentHitTestVisibleHost(struct UITreeComponent const* component,
+                                  int hovered_component_id, struct UITreeHost const* host)
 {
     assert(component);
-    (void)host;
-
-    if( component->type == UIELEM_BUILTIN_TAB_ICONS ||
-        component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-        return true;
-
-    return UITree_ComponentVisibleById(component, hovered_component_id);
+    return UITree_ComponentVisibleById(component, hovered_component_id) &&
+           component_native_availability(component, host).input;
 }
 
 bool
@@ -135,52 +451,18 @@ UITree_ComponentIsActiveHost(
         .kind = UITREE_HOST_IS_ACTIVE,
         .u.is_active.component = component,
     };
+
     return UITree_Host(host, &req) != 0;
 }
 
 bool
-UITree_ComponentShouldEmit(
-    struct UITreeComponent const* component,
-    struct UITreeHost const* host)
+UITree_ComponentShouldEmit(struct UITreeComponent const* component, struct UITreeHost const* host)
 {
-    assert(component);
-    assert(host);
-
-    if( component->type == UIELEM_BUILTIN_REDSTONE_TAB )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
-        return UITree_Host(host, &req) == component->u.redstone_tab.tabno;
-    }
-
-    if( component->type == UIELEM_BUILTIN_TAB_ICONS )
-        return true;
-
-    if( component->type == UIELEM_BUILTIN_SIDEBAR )
-        return false;
-
-    if( component->type == UIELEM_BUILTIN_CHAT )
-        return false;
-
-    if( component->type == UIELEM_BUILTIN_CROSS )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
-        return UITree_Host(host, &req) != 0;
-    }
-
-    if( component->type == UIELEM_BUILTIN_MINIMENU )
-    {
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MINIMENU_VISIBLE };
-        return UITree_Host(host, &req) != 0;
-    }
-
+    assert(component && host);
+    if( !component_native_availability(component, host).paint ) return false;
+    if( component->type == UIELEM_BUILTIN_SIDEBAR || component->type == UIELEM_BUILTIN_CHAT ) return false;
     if( component->type == UIELEM_RS_LAYER )
-    {
-        if( UITree_ScrollLayerNeedsVertical(component) ||
-            UITree_ScrollLayerNeedsHorizontal(component) )
-            return true;
-        return false;
-    }
-
+        return UITree_ScrollLayerNeedsVertical(component) || UITree_ScrollLayerNeedsHorizontal(component);
     return true;
 }
 

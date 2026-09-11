@@ -30,6 +30,7 @@
 #include "rev/revpacket.h"
 #include "rev/rsprot_bridge.h"
 #include "rsprot_exec.h"
+#include "game/rs_minimap_state.h"
 
 #include "packets/if_closesub.h"
 #include "packets/if_opensub.h"
@@ -543,6 +544,27 @@ GENERIC_CASE(PKT_NAME_IF_CLEARINV, rsprot_if_clearinv_out, MsgIfClearInv, "IF_CL
                  MsgServerTickEnd, "SERVER_TICK_END");
 }
 
+static void test_minimap_native_state_route(void)
+{
+    struct GameProtoRevTable const* revision = GameProtoRev_OSRS239();
+    unsigned const permissions[] = { 7, 3, 2, 5, 1, 0 };
+    g_case = "MINIMAP_TOGGLE native state route";
+    for( int state = 0; state < 6; state++ )
+    {
+        uint8_t payload[] = { (uint8_t)state };
+        struct RevPacket packet = { 0 };
+        int kind = revision->packetin_code(43);
+        int decoded = rsprot_bridge_parse(revision, kind, payload, sizeof(payload), &packet);
+        printf("NATIVE_WIRE minimap opcode=43 canonical=%d decoded=%d state=%d permissions=%u\n",
+               kind, decoded, decoded == 1 ? packet._minimap_toggle.state : -1,
+               RS_MinimapPermissions(packet._minimap_toggle.state));
+        CHECK(kind == PKT_NAME_MINIMAP_TOGGLE);
+        CHECK(decoded == 1 && packet._minimap_toggle.state == state);
+        CHECK(RS_MinimapPermissions(state) == permissions[state]);
+    }
+    CHECK(RS_MinimapPermissions(255) == 0);
+}
+
 int
 main(void)
 {
@@ -550,6 +572,7 @@ main(void)
 
     setvbuf(stdout, NULL, _IONBF, 0);
     test_projectile_target_index();
+    test_minimap_native_state_route();
 
     /* Several seeds: one fill can miss a sign bit or a zero that a
      * transposition would otherwise survive. */

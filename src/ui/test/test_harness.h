@@ -18,6 +18,9 @@
 
 extern int g_failures;
 
+void test_roles(void);
+void test_chrome_shell(void);
+
 #define TEST_ASSERT(cond, msg)                                                                     \
     do                                                                                             \
     {                                                                                              \
@@ -42,7 +45,32 @@ struct TestHostState
     int camera_yaw;
     /** When set, GET_DEBUG_OVERLAY hands back its display list. NULL = the
      * normal case, no overlay, and the pass emits nothing. */
-    struct ToriDbgUI const* debug_overlay;
+    struct ToriRSChrome const* debug_overlay;
+    /** When set, GET_ENTITY_OVERLAYS hands back this list and reports the
+     * world rect below as the scene clip. NULL = no entity overlays, and the
+     * builtin emits nothing. */
+    struct UITreeEntityOverlay const* entity_overlays;
+    int entity_overlay_count;
+    struct UITreeEntityOverlay const* canvas_overlays;
+    int canvas_overlay_count;
+    int request_count[UITREE_HOST_REQUEST_COUNT];
+    int entity_overlay_clip_x;
+    int entity_overlay_clip_y;
+    int entity_overlay_clip_w;
+    int entity_overlay_clip_h;
+    /** When >= 0, GET_OBJ_NAME answers for that obj id and reports it as a bank
+     *  placeholder — the one fact that suppresses an item cell's count text. */
+    int placeholder_obj_id;
+    /* Server-driven viewport state: MINIMAP_TOGGLE, SET_MULTIWAY and the
+     * UPDATE_REBOOT_TIMER line. All three default off, which is what a client
+     * with no session is actually in. */
+    int minimap_hidden;
+    int compass_hidden;
+    /** Scene id GET_MINIMAP_STATE answers with; 0 leaves it at "no baked map",
+     *  which the emit treats the same as any other not-ready asset. */
+    int minimap_scene_id;
+    int multiway;
+    char const* reboot_timer_text;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -56,6 +84,8 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     if( !st )
         return 0;
     assert(req);
+    if( req->kind >= 0 && req->kind < UITREE_HOST_REQUEST_COUNT )
+        st->request_count[req->kind]++;
 
     switch( req->kind )
     {
@@ -83,18 +113,74 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_DEBUG_OVERLAY:
     {
         int count = 0;
-        struct ToriDbgPrim const* prims;
+        struct ToriRSChromePrim const* prims;
         if( !st->debug_overlay || !req->u.get_debug_overlay.out_prims )
             return 0;
-        prims = ToriDbgUI_Prims(st->debug_overlay, &count);
+        prims = ToriRSChrome_Prims(st->debug_overlay, &count);
         *req->u.get_debug_overlay.out_prims = prims;
         return count;
     }
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
+        if( !st->entity_overlays || !req->u.get_entity_overlays.out_items )
+            return 0;
+        *req->u.get_entity_overlays.out_items = st->entity_overlays;
+        *req->u.get_entity_overlays.out_clip_x = st->entity_overlay_clip_x;
+        *req->u.get_entity_overlays.out_clip_y = st->entity_overlay_clip_y;
+        *req->u.get_entity_overlays.out_clip_w = st->entity_overlay_clip_w;
+        *req->u.get_entity_overlays.out_clip_h = st->entity_overlay_clip_h;
+        return st->entity_overlay_count;
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        if( !st->canvas_overlays || !req->u.get_entity_overlays.out_items )
+            return 0;
+        *req->u.get_entity_overlays.out_items = st->canvas_overlays;
+        return st->canvas_overlay_count;
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+        return st->minimap_hidden;
+    case UITREE_HOST_GET_COMPASS_HIDDEN:
+        return st->compass_hidden;
+    case UITREE_HOST_GET_MINIMAP_STATE:
+        if( st->minimap_scene_id <= 0 )
+            return -1;
+        if( req->u.get_minimap_state.out_src_anchor_x )
+            *req->u.get_minimap_state.out_src_anchor_x = 0;
+        if( req->u.get_minimap_state.out_src_anchor_y )
+            *req->u.get_minimap_state.out_src_anchor_y = 0;
+        return st->minimap_scene_id;
+    case UITREE_HOST_GET_MULTIWAY:
+        return st->multiway;
+    case UITREE_HOST_GET_REBOOT_TIMER:
+        if( !st->reboot_timer_text || !req->u.get_reboot_timer.out_text )
+            return 0;
+        *req->u.get_reboot_timer.out_text = st->reboot_timer_text;
+        return 1;
+    /* A harness tree is not on the title screen: -1 is the honest answer, and
+     * it is what makes every title widget draw nothing here. */
+    case UITREE_HOST_GET_TITLE_SCREEN:
+        return -1;
+    case UITREE_HOST_GET_TITLE_FIELD:
+    case UITREE_HOST_GET_TITLE_MESSAGE:
+    case UITREE_HOST_GET_TITLE_PROGRESS:
+    case UITREE_HOST_TITLE_ACTION:
+        return 0;
     case UITREE_HOST_IS_ACTIVE:
         return 0;
     case UITREE_HOST_SET_SELECTED_TAB:
         st->selected_tab = req->u.set_selected_tab.tabno;
         return 0;
+    case UITREE_HOST_GET_OBJ_NAME:
+        /* Only the placeholder fixture answers; every other test leaves
+         * placeholder_obj_id at 0 from the memset and gets the unknown-obj
+         * answer this host gave before. */
+        if( st->placeholder_obj_id <= 0 ||
+            req->u.get_obj_name.obj_id != st->placeholder_obj_id )
+            return 0;
+        if( req->u.get_obj_name.out && req->u.get_obj_name.cap > 0 )
+            req->u.get_obj_name.out[0] = '\0';
+        if( req->u.get_obj_name.out_stackable )
+            *req->u.get_obj_name.out_stackable = 0;
+        if( req->u.get_obj_name.out_placeholder )
+            *req->u.get_obj_name.out_placeholder = 1;
+        return 1;
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
     {
         int slot = req->u.get_inv_source_slot.slot;
@@ -155,11 +241,18 @@ UITree_TestResolve(struct UITree* tree)
 }
 
 /* Unit tests */
+void test_scripted_entity_overlay(void);
+void test_scripted_entity_overlay_clipped(void);
+void test_scripted_overlay_arc(void);
 void test_dirty_marking(void);
+void test_widget_anchor_depth(void);
+void test_widget_skin(void);
+void test_frame_provide(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);
 void test_hover_input(void);
 void test_click_event_coords(void);
+void test_pointer_owner_blocks_tree(void);
 void test_layout_build(void);
 void test_mutate_emit(void);
 void test_apply_object_silhouette(void);
@@ -169,22 +262,37 @@ void test_drag_scrollbar_inplace_emit(void);
 void test_drag_scrollbar_137_geometry(void);
 void test_drag_cc_dragpickup_seeds(void);
 void test_press_repeat_and_release(void);
+void test_frame_hidden_cancels_active_input(void);
 void test_scroll_hit(void);
 void test_wheel_stops_at_interface(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
 void test_emit_stack_count_zero(void);
+void test_emit_stack_count_placeholder(void);
 void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);
+void test_input_field(void);
+void test_same_frame_press_release_clicks(void);
+void test_touch_swipe_scrolls_layer(void);
+void test_feedback_overlay_never_takes_a_click(void);
 void test_id_index(void);
 void test_child_subid(void);
 void test_menu_submenus(void);
 void test_component_params(void);
+void test_inkwell_spec_copy(void);
 void test_open_close_steady(void);
+void test_mounted_component_inherits_container_hidden(void);
 void test_clear_hooks_preserves_sibling_on_op(void);
-void test_chatmodal_reclaim_no_shadow_text(void);
+void test_click_hook_inherits_nearest_parent(void);
+void test_mount_slot_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
+void test_chrome_exec(void);
+void test_chrome_panel_draw(void);
+void test_entity_overlay_draw_order(void);
+void test_server_driven_viewport_widgets(void);
+void test_frame_replacement(void);
+void test_frame_authored_metadata(void);
 
 #endif

@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* One slot, one item, no overlap: each of these tasks issues a single request
  * and parks on it. */
@@ -51,7 +52,7 @@ Task_PrefsLoad_Run(
     ToriRS_IO_QueueFileRead(io, PREFS_IO_SLOT, task->path);
     PT_YIELD(&task->pt);
 
-    item = &io->io_slots[PREFS_IO_SLOT];
+    item = ToriRS_IO_TaskSlot(io, PREFS_IO_SLOT);
     if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         RS_Prefs_Decode(task->prefs, IOITEM_DATA(item), IOITEM_DATA_SIZE(item));
     /* No file is a first launch, not an error, so nothing is reported here.
@@ -115,13 +116,9 @@ Task_PrefsSave_Run(
     ToriRS_IO_QueueFileWrite(io, PREFS_IO_SLOT, task->path, task->data, task->size);
     PT_YIELD(&task->pt);
 
-    task->item = &io->io_slots[PREFS_IO_SLOT];
+    task->item = ToriRS_IO_TaskSlot(io, PREFS_IO_SLOT);
     if( IOITEM_ERROR_CODE(task->item) != 0 )
-        fprintf(stderr, "prefs: could not write %s\n", task->path);
-    /* Hand the borrowed payload back before releasing the slot: ClearItem frees
-     * whatever `data` points at, and this buffer is the task's. */
-    task->item->data = NULL;
-    task->item->data_size = 0;
+        TORIRS_LOG("prefs: could not write %s\n", task->path);
     ToriRS_IO_ClearItem(task->item);
 
     PT_END(&task->pt);
@@ -160,7 +157,7 @@ CreateTask_PrefsSave(
     snprintf(task->path, sizeof(task->path), "%s", path);
     /* Encoded now, while the caller's snapshot is the one it asked to save. */
     if( !RS_Prefs_Encode(prefs, &task->data, &task->size) )
-        fprintf(stderr, "prefs: could not encode settings for %s\n", path);
+        TORIRS_LOG("prefs: could not encode settings for %s\n", path);
     PT_INIT(&task->pt);
     return &task->task;
 }

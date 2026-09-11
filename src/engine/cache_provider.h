@@ -33,12 +33,22 @@ struct CacheProvider
      *  as long as a session runs. */
     uint64_t derived_clock;
 
+    /** Monotonic version of provider assets which can change a UITree host
+     *  answer before the asset has been published through UITreeSceneBridge.
+     *  This deliberately covers only models, sprites, fonts and objtypes: a
+     *  broader cache-wide counter would make unrelated config/network traffic
+     *  defeat retained UI emission. */
+    uint64_t ui_asset_revision;
+
     struct HMap* model_cache;
     struct HMap* sprite_cache;
     struct HMap* font_cache;
     struct HMap* enum_cache;
     struct HMap* struct_cache;
     struct HMap* param_cache;
+    /** Inventory type capacity by inv id. Entries are scalar values rather
+     *  than pointers so a cached zero can represent an absent config record. */
+    struct HMap* invtype_cache;
     struct HMap* componentpack_cache;
     struct HMap* clientscript_cache;
     struct HMap* objtype_cache;
@@ -98,7 +108,29 @@ struct CacheProvider
      * decoding as the wrong branch.
      */
     struct RSCache profile;
+
+    /**
+     * Where a loader puts the loads it fans out, or NULL.
+     *
+     * The parallel asset queue (App's `runner`). A task that needs several
+     * independent records -- an interface's sprites and fonts, an npc's body
+     * parts, a region's models -- queues one loader per record here and joins
+     * on the set (ToriRS_TaskQueue_AddJoined / PT_TASK_JOIN), so the runner
+     * has every read on the wire at once instead of one per round trip.
+     *
+     * NULL on a provider whose owner runs a single serial queue -- the offline
+     * tools and the unit harnesses -- and every loader that fans out falls back
+     * to awaiting its records one at a time. A legitimate configuration, not a
+     * missing one: those harnesses have no second queue to give.
+     */
+    struct ToriRS_TaskQueue* asset_queue;
 };
+
+/** Name the queue loaders fan their siblings out on. See `asset_queue`. */
+void
+CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue);
 
 /** Record which cache this provider reads. Call once, before any load task runs. */
 void
@@ -136,6 +168,10 @@ struct CacheProviderSpriteSource
     char const* format;         /* "pix8" | "pix32" */
     char const* data_filename;  /* "sideicons.dat" */
     char const* index_filename; /* "index.dat" */
+    /** revconfig `archive=`: "title" reads the title-and-fonts jagfile, which
+     *  is where the login screen's art lives. NULL/anything else means the
+     *  media jagfile, where every other dat1 sprite is. */
+    char const* archive;
     int atlas_index;
     int atlas_count; /* <= 0: single frame at atlas_index */
     int crop_x;
@@ -157,6 +193,28 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ClientScriptLoad)(
         struct CacheProvider* provider,
         int script_id);
+    /**
+     * Load the clientscript index's reference table, so the trigger lookup
+     * below can answer. NULL on providers with no such table (dat1 has no
+     * named clientscript groups and so no client triggers at all).
+     */
+    struct ToriRS_Task* (*Task_ClientScriptTableLoad)(
+        struct CacheProvider* provider);
+    /**
+     * The clientscript whose GROUP NAME hashes to `name_hash`, or -1.
+     *
+     * The cache addresses trigger scripts by name, not by id: a script bound to
+     * "npc 3317 spawned" lives in the group NAMED "849187" -- the decimal
+     * string of `3317 * 256 + 35`. See game/rs_client_trigger.h for the three
+     * hash forms and what they mean.
+     *
+     * -1 also covers "the table is not loaded yet", which is why the caller
+     * must not treat it as "this cache has no such script": a trigger that
+     * fired during boot is one the App re-fires once the table arrives.
+     */
+    int (*ClientScriptIdByNameHash)(
+        struct CacheProvider* provider,
+        int name_hash);
     struct ToriRS_Task* (*Task_ObjLoad)(
         struct CacheProvider* provider,
         int obj_id);
@@ -232,6 +290,16 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SpriteLoadByName)(
         struct CacheProvider* provider,
         char const* archive_name);
+    /**
+     * Resolve + load a graphic-defaults sprite by SLOT, out of the defaults
+     * table, the way the client does. NULL for a cache format that has no such
+     * table -- dat1 among them -- in which case the slot stays unbound, exactly
+     * as an era-absent archive does on the name path.
+     */
+    struct ToriRS_Task* (*Task_DefaultsSpriteLoad)(
+        struct CacheProvider* provider,
+        int slot,
+        char const* name);
     /** Dat1: load a named media-jagfile sprite; id assigned + name-mapped. NULL for dat2. */
     struct ToriRS_Task* (*Task_SpriteLoadFromSource)(
         struct CacheProvider* provider,
@@ -253,6 +321,11 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ParamLoad)(
         struct CacheProvider* provider,
         int param_id);
+    /** Load one inventory type's capacity. Missing records are cached as zero
+     *  so a script does not yield and re-read config group 5 forever. */
+    struct ToriRS_Task* (*Task_InvtypeLoad)(
+        struct CacheProvider* provider,
+        int inv_id);
     /** Decode DBROW config (kind 38) for a row id into dbrow_cache. */
     struct ToriRS_Task* (*Task_DbRowLoad)(
         struct CacheProvider* provider,
@@ -308,6 +381,10 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider);
 void
 CacheProvider_FreeEngineCaches(struct CacheProvider* provider);
 
+/** Version of provider-resident assets observable by UITree host requests. */
+uint64_t
+CacheProvider_UIAssetRevision(struct CacheProvider const* provider);
+
 void
 CacheProvider_ModelAdd(
     struct CacheProvider* provider,
@@ -328,11 +405,12 @@ void
 CacheProvider_ModelsCleanup(struct CacheProvider* provider);
 
 /*
- * Drop the least recently used models and sprites, keeping a working set.
+ * Drop the least recently used models, sprites and map squares (terrain and
+ * scenery), keeping a working set of each.
  *
- * Both caches are derived and nothing retains what it gets out of them — every
- * reader converts into its own object — so an eviction costs a reload and
- * nothing else. What is *not* safe is evicting at an arbitrary moment: a world
+ * All of these caches are derived and nothing retains what it gets out of them
+ * — every reader converts into its own object, and a square is only read while
+ * the builder meshes it — so an eviction costs a reload and nothing else. What is *not* safe is evicting at an arbitrary moment: a world
  * build preloads its models and then consumes them synchronously, so this must
  * be called between builds rather than from the insert path. Task_WorldLoad
  * calls it before it starts preloading, which is where Client-TS clears its
@@ -370,6 +448,18 @@ CacheProvider_SpriteHas(
  * indistinguishable from the lookup's own "unknown".
  */
 #define CACHE_PROVIDER_SPRITE_ABSENT (-2)
+
+/*
+ * Ids for sprites the CLIENT builds rather than decodes.
+ *
+ * A dat2 sprite is keyed by its own archive id, so anything synthesised has to
+ * live outside that range or it silently takes some real archive's slot -- the
+ * title panel is assembled from a BINARY-table image, whose id 0 is a
+ * perfectly ordinary sprite archive id as well.
+ */
+#define CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE 0x40010000
+/** The composited title backdrop. @see engine/title_panel.h. */
+#define CACHE_PROVIDER_SPRITE_TITLE_PANEL (CACHE_PROVIDER_SPRITE_SYNTHETIC_BASE + 0)
 
 void
 CacheProvider_SpriteNameMapPut(
@@ -460,6 +550,30 @@ CacheProvider_ParamHas(
 
 void
 CacheProvider_ParamsCleanup(struct CacheProvider* provider);
+
+/** Cache one inventory type capacity. A size of zero is a cached answer. */
+void
+CacheProvider_InvtypeAdd(
+    struct CacheProvider* provider,
+    int inv_id,
+    int size);
+
+/**
+ * Look up an inventory type capacity.
+ *
+ * Returns true when the id has been cached and writes its capacity to
+ * `out_size`. The presence return is deliberately separate from the value:
+ * zero is the cached default for an absent inventory type, while false means
+ * the provider has not attempted to load this id yet.
+ */
+bool
+CacheProvider_InvtypeGet(
+    struct CacheProvider* provider,
+    int inv_id,
+    int* out_size);
+
+void
+CacheProvider_InvtypesCleanup(struct CacheProvider* provider);
 
 void
 CacheProvider_DbRowAdd(
@@ -808,6 +922,48 @@ CacheProvider_LocationHas(
 void
 CacheProvider_LocationsCleanup(struct CacheProvider* provider);
 
+/* ---- catalog enumeration -------------------------------------------------
+ *
+ * What is ALREADY DECODED, not what the cache contains.
+ *
+ * There is deliberately no "list every loc in the cache" here. Config records
+ * load one at a time through the task system, and a sweep that pulled all of
+ * them to build a list would decode tens of thousands of records in a frame --
+ * the same trap the entity viewer hit walking npcs by id. What a map editor
+ * actually wants is the set in front of it: after a world load the location
+ * cache holds every loc in the loaded squares, which is exactly the palette
+ * you place more of.
+ *
+ * A record reaches these by being loaded for some other reason. To put a
+ * specific absent id in the list, load it first (the *Load task) and it
+ * appears.
+ */
+
+enum CacheProvider_CatalogKind
+{
+    CACHEPROVIDER_CATALOG_LOC = 0,
+    CACHEPROVIDER_CATALOG_NPC,
+    CACHEPROVIDER_CATALOG_OBJ
+};
+
+/** Called once per loaded record. `name` is never NULL, but may be empty. */
+typedef void (*CacheProvider_CatalogVisitFn)(void* user, int id, char const* name);
+
+/**
+ * Visit every loaded record of `kind`, in unspecified order.
+ *
+ * @return how many were visited. The entry layout stays private to the
+ *         provider -- callers get ids and names, not the records, because a
+ *         catalog needs nothing else and handing out the pointers would make
+ *         cache trimming a use-after-free.
+ */
+int
+CacheProvider_VisitLoaded(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    CacheProvider_CatalogVisitFn visit,
+    void* user);
+
 void
 CacheProvider_FlotypeAdd(
     struct CacheProvider* provider,
@@ -906,6 +1062,25 @@ CreateTask_ClientScriptLoad(
     if( !provider->vtable->Task_ClientScriptLoad )
         return NULL;
     return provider->vtable->Task_ClientScriptLoad(provider, script_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_ClientScriptTableLoad(struct CacheProvider* provider)
+{
+    if( !provider->vtable->Task_ClientScriptTableLoad )
+        return NULL;
+    return provider->vtable->Task_ClientScriptTableLoad(provider);
+}
+
+/** See the vtable slot. -1 for "no such script" AND for "not loaded yet". */
+static inline int
+CacheProvider_ClientScriptIdByNameHash(
+    struct CacheProvider* provider,
+    int name_hash)
+{
+    if( !provider->vtable->ClientScriptIdByNameHash )
+        return -1;
+    return provider->vtable->ClientScriptIdByNameHash(provider, name_hash);
 }
 
 static inline struct ToriRS_Task*
@@ -1078,6 +1253,19 @@ CreateTask_SpriteLoadByName(
 }
 
 static inline struct ToriRS_Task*
+CreateTask_DefaultsSpriteLoad(
+    struct CacheProvider* provider,
+    int slot,
+    char const* name)
+{
+    assert(provider);
+    assert(name);
+    if( !provider->vtable || !provider->vtable->Task_DefaultsSpriteLoad )
+        return NULL;
+    return provider->vtable->Task_DefaultsSpriteLoad(provider, slot, name);
+}
+
+static inline struct ToriRS_Task*
 CreateTask_SpriteLoadFromSource(
     struct CacheProvider* provider,
     struct CacheProviderSpriteSource const* source)
@@ -1138,6 +1326,16 @@ CreateTask_ParamLoad(
     if( !provider->vtable->Task_ParamLoad )
         return NULL;
     return provider->vtable->Task_ParamLoad(provider, param_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_InvtypeLoad(
+    struct CacheProvider* provider,
+    int inv_id)
+{
+    if( !provider->vtable->Task_InvtypeLoad )
+        return NULL;
+    return provider->vtable->Task_InvtypeLoad(provider, inv_id);
 }
 
 static inline struct ToriRS_Task*

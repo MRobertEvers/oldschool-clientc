@@ -1,0 +1,51 @@
+{{External|rs=Charge (spell)|rsc}}
+{{Otheruses|the spell|the process by which equipment reaches zero charges|Degradation}}
+{{Infobox Spell
+|name = Charge
+|image = [[File:Charge.png]]
+|release = [[22 September]] [[2003]]
+|update = Mage Arena
+|members = Yes
+|level = 80
+|spellbook = Normal
+|type = Combat
+|exp = 180
+|cost = {{RuneReq|Fire=3|Blood=3|Air=3}}
+|speed = 
+|cooldown = 100 ticks
+|description = Temporarily increases the power of the three arena spells when wearing Mage Arena capes
+|anim = [[File:Charge.gif]]
+|sound = [[File:Charge.ogg]]
+}}
+[[File:Charge icon (mobile).png|left]]
+'''Charge''' is a [[spell]] used to empower the [[god spells]] from the [[Mage Arena]]. Unlike the god spells themselves, which require level 60 [[Magic]] to cast, charge requires level 80 Magic. When cast, the player becomes imbued with magical power, and for the next seven minutes (700 [[game tick]]s) god spells will deal up to 30 damage per cast, instead of the usual 20. The respective [[god cape]] must be worn for the charge effect to work. Unequipping and reequipping the god cape still provides the bonus as long as the seven minute timer has not elapsed.
+
+Charge can only be cast once every 60 seconds, preventing players from gaining Magic experience at an incredible rate. On activation "You feel charged with magic power" appears in the chat box and when the spell expires, "Your magical charge fades away" appears.
+
+Because the god spells only require level 60 Magic to cast, players can use a [[Magic#Temporary boosts|temporary boost]] once to cast Charge before level 80 Magic, and then be able to use the god spells in a prolonged fight.
+
+Note: A [[Staves#God Staves|god staff]] must be claimed from the [[Chamber guardian]] before this spell can be cast, even if the player intends to use a [[Staff of the Dead]], [[Staff of light]], [[Staff of balance]], or [[Void mace]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 3
+|Rune2 = blood
+|Rune2num = 3
+|Rune3 = air
+|Rune3num = 3
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 November 2013
+|update = Fairy rings & PvP Banking
+|poll = Content Poll 13: Slayer & Christmas
+|change = The messages from the Charge spell now appear in red to make them easier to see.
+}}
+{{Subject changes footer}}
+
+{{Mage Arena}}
+{{Mage Arena I}}
+{{Standard spellbook}}

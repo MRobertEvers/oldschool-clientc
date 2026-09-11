@@ -1,0 +1,56 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Ice Barrage
+|image = [[File:Ice Barrage.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 94
+|spellbook = Ancient
+|type = Combat
+|exp = 52
+|element = Ice
+|damage = 30
+|cost = {{RuneReq|Death=4|Blood=2|Water=6}}
+|speed = 5 ticks
+|description = A multi-target strong ice attack
+|anim = [[File:Ice Barrage.gif|300px]]
+|sound = [[File:Ice Barrage.ogg]]
+}}
+[[File:Ice Barrage icon (mobile).png|left]]
+'''Ice Barrage''' is the highest tier [[Ice spell]] from the [[Ancient Magicks]] spellbook, available at level 94 [[Magic]]. It is capable of hitting up to 30 damage (without any [[magic damage]] boosts) per cast.
+
+Ice Barrage can [[freeze]] targets, causing them to become unable to move for {{ticks|32}}, or {{ticks|35}} with the [[Ancient sceptre]]. It is also able to target up to nine targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]].
+
+As with all [[Ancient Magicks]] spells the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+The spell's accuracy rolls for each opponent individually against their magic defence, unlike [[chinchompas]]. However, when targeting an [[Slayer task|assigned]] [[Slayer]] monster (for example, [[Tstanon Karlak]] while on a greater demon task) any secondary targets hit will also be subject to the damage bonus from a worn [[black mask (i)]]/[[slayer helmet (i)]], even if they weren't the player's assigned monster. This means that it is better to target one's assigned monster than a non-assigned monster, if given the choice. This also applies to [[nechryael]] and their [[death spawn]].
+
+Players often use this spell on multiple enemies (in a [[multicombat area]]) to train Magic because the spell has the potential to yield high amounts of [[experience]] per hour. It is also often used in [[player killing]] and in minigames such as the [[Castle Wars]] [[minigame]] due to the spell's effectiveness. It also gives more [[Hitpoints]] experience than [[red chinchompa]]s.
+
+Players can cast this spell with a Magic level of 90 with the use of a [[Magic potion]], a Magic level of 88 with an [[ancient brew]], 85 with the use of an [[imbued heart]], a [[forgotten brew]], or a [[Castlewars brew]], or 82 with the use of a [[saturated heart]]. Using a Castlewars brew to cast the spell will satisfy the [[Ardougne Diary]] elite task requirement for casting the spell within Castle Wars. Casting this spell on a creature in the desert is also a requirement for the [[elite Desert Diary]].
+
+Ice Barrage, like all Ice spells, gains a 10% accuracy bonus against unfrozen targets while wielding the [[Ice ancient sceptre]].
+==Damage==
+===Calculator===
+{{Magic damage calculator|Ice Barrage|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = water
+|Rune3num = 6
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted ancient ice sack}}
+
+|}
+{{Ancient Magicks}}
+{{Combat spells}}

@@ -2,7 +2,8 @@
 #define SRC_TASK_RUNNER_H
 
 #include "asyncio.h"
-#include "platform/platform_x_io.h"
+#include "perf/torirs_perf.h"
+#include "platform/platform_io.h"
 
 #include <assert.h>
 
@@ -11,7 +12,7 @@
  * async work done goes through one of these two calls instead of hand-rolling
  * a Run/Process loop.
  *
- * Native: PlatformX_IO_Process satisfies IO synchronously, so each Step makes
+ * Native: Platform_IO_Process satisfies IO synchronously, so each Step makes
  * forward progress and Drain terminates within the call.
  * WASM (future shell): Process only initiates fetches; Step returns PENDING
  * and the browser loop resumes us next frame — Drain must not be used there.
@@ -21,10 +22,38 @@ struct TaskRunner
 {
     struct ToriRS_TaskQueue* queue;
     struct ToriRS_IO* io;
-    struct PlatformX_IO* px;
+    Platform_IO* px;
     /* A CS2 task has joined this queue and the tree/display list must not be
      * published until its whole host follow-up fixed point has settled. */
     int frame_settle_pending;
+    /*
+     * May this queue's tasks overlap?
+     *
+     * Off by default, and deliberately: strict FIFO is what a queue carrying
+     * PACKETS needs -- the server chose the order of VARP, PLAYER_INFO, VARP
+     * and the client must apply it, even when the middle one parks on a model
+     * load (game/test/task_order_test.c pins exactly this).
+     *
+     * On for a queue carrying ASSET LOADS, where nothing downstream cares
+     * which of a region's models lands first. That is where the cost was: one
+     * network round trip per read, in a line, for the couple of thousand
+     * groups a login streams.
+     */
+    int parallel;
+    /*
+     * Did the last pass advance anything?
+     *
+     * The frame loop's question, not the queue's. With several reads in flight
+     * a pass almost always leaves something outstanding, so "is anything
+     * pending" stopped being a useful reason to end the frame -- it capped the
+     * client at one batch per frame while answers were arriving in under a
+     * millisecond. What actually means "nothing more can happen here" is a
+     * pass that ran nothing AND has reads outstanding.
+     */
+    int progressed;
+    /* What the head task asked to be drawn, valid only while the last Step
+     * returned TASK_RUNNER_RENDER. */
+    struct ToriRS_RenderRequest render;
 };
 
 enum TaskRunnerStat
@@ -36,36 +65,185 @@ enum TaskRunnerStat
      * frame" — every caller tests against IDLE — but unlike PENDING it must
      * end the settle loop rather than extend it. */
     TASK_RUNNER_BLOCKED,
+    /* The head task asked for a frame before it is resumed, and said what
+     * should be on it (runner->render). Work remains, so like PENDING every
+     * caller keeps the frame alive -- but the settle loop must STOP, since
+     * the whole point is that this frame reaches the screen. */
+    TASK_RUNNER_RENDER,
 };
 
-/** One scheduler pass: run the queue until it yields for IO, then hand the IO
- * list to the platform. */
+/*
+ * One scheduler pass: run every task that can make progress, then hand the
+ * queued reads to the platform.
+ *
+ * ## Why this walks the queue instead of stepping its head
+ *
+ * It used to do two things that together made every cache read serial: it
+ * returned as soon as ANY read was outstanding, and the queue it called ran
+ * only its head. So the client held exactly one platform request at a time and
+ * a boot spent one network round trip per group, in a strict line -- measured
+ * on the browser lane at one in flight across two thousand requests, for a
+ * post-login load of ~2500 groups.
+ *
+ * Neither layer underneath ever required that. The IO queue holds 32 items,
+ * the desktop executor answers a whole list per call, and the browser one
+ * dispatches every item without awaiting. Only the runner was single-file.
+ *
+ * So a pass now walks the queue and, for each task, asks the platform whether
+ * THAT task's read has landed (Platform_IO_SlotPending). One still waiting is
+ * skipped -- resuming it would run it over an empty slot -- and the rest are
+ * stepped, each in its own IO slot. What comes out the far end is a list of
+ * reads the executor issues together.
+ *
+ * Order is unchanged in the only sense a task can observe: the walk is
+ * head-first, and a task is only ever passed over while it is parked on
+ * something this pass cannot deliver. A task that awaits another
+ * (PT_TASK_AWAITSELF) runs its child inline, on the parent's own slot, so a
+ * chain stays a chain.
+ *
+ * RENDER ends the pass: the whole point of the request is that this frame
+ * reaches the screen, and stepping other tasks past it would publish their
+ * work on it too.
+ */
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
-    int stat;
+    struct ToriRS_Task* task;
+    struct ToriRS_Task* next;
+    struct ToriRS_Task* render_task = NULL;
+    int ran = 0;
+    int waiting_io = 0;
+    int blocked = 0;
 
     assert(runner && runner->queue && runner->io && runner->px);
-    /* A read the platform has not answered yet: the head task is parked right
-     * after its PT_YIELD and running it would resume it over an empty slot.
-     * Always false on a synchronous backend, so native behaviour is unchanged. */
-    if( PlatformX_IO_Pending(runner->px, runner->io) )
-        return TASK_RUNNER_PENDING;
-    stat = ToriRS_TaskQueue_Run(runner->queue, runner->io);
-    if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
+
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_QUEUE_RUN)
     {
-        /* A blocked yield requests nothing, but an earlier task in this same
-         * pass may have left items queued; draining them here keeps the IO
-         * list's lifetime identical on both exits. */
-        PlatformX_IO_Process(runner->px, runner->io);
+        for( task = runner->queue->head; task && !render_task; task = next )
+        {
+            int slot;
+            int stat;
+
+            next = task->next;
+
+            if( task->io_slot >= 0 )
+            {
+                int pending = 0;
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+                {
+                    pending =
+                        Platform_IO_SlotPending(runner->px, runner->io, task->io_slot);
+                }
+                /* Its answer is still on the wire. Nothing this pass can do
+                 * for it, and running it would resume it over an empty slot. */
+                if( pending )
+                {
+                    waiting_io = 1;
+                    /* Ordered: the head owes an answer, and nothing behind it
+                     * may overtake it. */
+                    if( !runner->parallel )
+                        break;
+                    continue;
+                }
+            }
+            else
+            {
+                task->io_slot = ToriRS_IO_SlotAlloc(runner->io);
+                /* Every slot is already owned by a task with a read out. That
+                 * is the concurrency ceiling doing its job, not an error: the
+                 * rest of the queue waits for one of them to be answered. */
+                if( task->io_slot < 0 )
+                {
+                    waiting_io = 1;
+                    break;
+                }
+            }
+
+            /* Remembered because RunTask may free the task, and the slot has
+             * to be given back either way. */
+            slot = task->io_slot;
+            runner->io->slot_base = slot;
+            stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+            runner->io->slot_base = 0;
+
+            /*
+             * Re-read the successor of a task that is still here: a task that
+             * fans loads out appends them behind itself (ToriRS_TaskQueue_AddJoined),
+             * and they belong to THIS pass -- their reads are the ones meant
+             * to go out together. With the successor taken before the run, a
+             * fan-out at the tail saw NULL and its siblings waited a whole
+             * pass, which on the frame loop is a whole frame per stage. A task
+             * that ended has been freed, so the successor taken before stands.
+             */
+            if( stat != TORIRS_ASYNCIO_STAT_DONE )
+                next = task->next;
+
+            if( stat == TORIRS_ASYNCIO_STAT_DONE )
+            {
+                /* A task that ends with a read still queued is a task that
+                 * asked for something and walked away; the item would sit in
+                 * the slot forever and the slot would never come back. */
+                if( runner->io->io_slots[slot].kind != TORIRS_IOK_NONE )
+                    ToriRS_IO_ClearItem(&runner->io->io_slots[slot]);
+                ToriRS_IO_SlotRelease(runner->io, slot);
+                ran = 1;
+                continue;
+            }
+
+            /*
+             * A slot is held only while a read is actually outstanding. A task
+             * parked on anything else -- another queue's state, a frame, a
+             * plain cooperative yield -- gives it back, which is what keeps a
+             * queue full of parked tasks from owning the whole table.
+             */
+            if( runner->io->io_slots[slot].kind == TORIRS_IOK_NONE )
+            {
+                ToriRS_IO_SlotRelease(runner->io, slot);
+                task->io_slot = -1;
+            }
+
+            if( stat == TORIRS_ASYNCIO_STAT_RENDER )
+            {
+                render_task = task;
+                break;
+            }
+            if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
+                blocked = 1;
+            else
+                ran = 1;
+
+            /* Strict FIFO: the head yielded, so nothing behind it may run --
+             * see TaskRunner::parallel. A task that ENDED is different, and
+             * the loop continues past it either way. */
+            if( !runner->parallel )
+                break;
+        }
+    }
+
+    /* Every read this pass produced, handed over together -- which is the
+     * whole point of the walk above. */
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+    {
+        Platform_IO_Process(runner->px, runner->io);
+    }
+
+    runner->progressed = ran;
+
+    if( render_task )
+    {
+        runner->render = render_task->render;
+        return TASK_RUNNER_RENDER;
+    }
+    if( runner->queue->head == NULL )
+        return TASK_RUNNER_IDLE;
+    if( ran || waiting_io )
+        return TASK_RUNNER_PENDING;
+    /* Nothing ran, nothing is on the wire: everything left is waiting on
+     * another queue, and only the frame loop can move that. */
+    if( blocked )
         return TASK_RUNNER_BLOCKED;
-    }
-    if( stat == TORIRS_ASYNCIO_STAT_YIELD )
-    {
-        PlatformX_IO_Process(runner->px, runner->io);
-        return TASK_RUNNER_PENDING;
-    }
-    return TASK_RUNNER_IDLE;
+    return TASK_RUNNER_PENDING;
 }
 
 /** Blocking drain — native and tests only.
@@ -77,9 +255,17 @@ TaskRunner_Step(struct TaskRunner* runner)
 static inline void
 TaskRunner_Drain(struct TaskRunner* runner)
 {
-    while( TaskRunner_Step(runner) == TASK_RUNNER_PENDING )
+    enum TaskRunnerStat stat;
+
+    /* A render request is honoured as a plain yield here: a blocking drain
+     * has no frame loop to hand the screen to, and stopping for one would
+     * leave the queue half-run. The task still gets stepped again, which is
+     * all it actually needs; only the picture is lost, and in a drain there
+     * is nobody to show it to. */
+    do
     {
-    }
+        stat = TaskRunner_Step(runner);
+    } while( stat == TASK_RUNNER_PENDING || stat == TASK_RUNNER_RENDER );
 }
 
 /** Settle every task that can make progress before a frame is published.
@@ -103,9 +289,21 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
 
     do
     {
+        int pending = 0;
         stat = TaskRunner_Step(runner);
-    } while( stat == TASK_RUNNER_PENDING &&
-             !PlatformX_IO_Pending(runner->px, runner->io) );
+        /* RENDER ends the loop for the opposite reason to BLOCKED: not
+         * because nothing more can be done, but because the task asked for
+         * this frame to be seen. Settling past it would draw the finished
+         * state and the request would have achieved nothing. */
+        if( stat != TASK_RUNNER_PENDING )
+            break;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            pending = Platform_IO_Pending(runner->px, runner->io);
+        }
+        if( pending )
+            break;
+    } while( 1 );
 
     return stat;
 }

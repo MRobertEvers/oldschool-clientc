@@ -1,0 +1,164 @@
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Opened
+|name = Brimstone chest
+|image1 = [[File:Brimstone chest.png|280px]]
+|image2 = [[File:Brimstone chest (opened).png|280px]]
+|release = [[7 February]] [[2019]]
+|update = X Marks The Spot
+|members = Yes
+|quest = No
+|location = [[Mount Karuulm]]
+|options1 = Unlock, Check
+|options2 = None
+|examine1 = It looks as though only a special key would unlock this chest.
+|examine2 = You unlocked this chest with a special key.
+|map = {{Map|name=Brimstone chest|x=1309|y=3785|plane=0|r=3|mtype=square}}
+|id1 = 34660
+|id2 = 34661
+|leagueRegion = Kourend
+}}
+The '''Brimstone chest''' is located adjacent to [[Konar quo Maten]] on [[Mount Karuulm]]. This chest is locked and can only be opened by using a [[brimstone key]], which players can acquire from slaying monsters assigned by Konar.
+
+The likelihood of obtaining the key is 1/100 for level 100 monsters and 1/50 for level 350 monsters, scaling linearly and capping at 350 as shown in formula 2.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1083781544135847936|date=16 January 2019|archiveurl=https://reldo.runescape.wiki/i/106148|archivedate=26 May 2020|quote=It follows a curve up until level 100 then scales linearly between those 2 values upto level 350 combat. Creatures over this{{sic}} will cap at 1/50. [https://pbs.twimg.com/media/DwpdLK2W0AEynZy.jpg]}} For lower level monsters, it follows a curve as shown in formula 1.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1083783815141707781|date=16 January 2019|archiveurl=https://reldo.runescape.wiki/i/97247|archivedate=29 April 2020|quote=0.2*(CBLEVEL - 100)^2 + 100}}
+
+<math>\begin{align}
+P(L) &= \frac{1}{100 + \lfloor (100 - L)^2/5 \rfloor} & L \in (0, 100) && (1) \\
+P(L) &= \frac{1}{120 - \lfloor L/5 \rfloor} & L \in [100, 350] && (2)
+\end{align}</math>
+
+<math>
+\text{Where P is the probability of a drop and L is the monster's combat level.}
+</math>
+
+==Loot==
+{{DropLogProject|kills=787160|type=openings}} <!-- Per Cook, using this number for both Larran's chests and brimstone chests -->
+
+The contents of the brimstone chest generally consist of generic loot designed to increase player profits. There is also a rare chance of obtaining a [[broken dragon hasta]], which can be repaired for free by simply showing it to [[Otto Godblessed]]. Additionally, there's a slim chance of acquiring pieces of the dusk [[mystic robes|mystic robe set]], featuring a colour scheme similar to that of [[Mount Karuulm]].
+
+On average, a player would need to open the Brimstone Chest approximately 2,284 times to acquire at least one of each [[Mystic_robes#Dusk|dusk mystic]] piece and at least one [[broken dragon hasta]] to fulfil the respective [[collection log]] slots.
+
+{{Average drop value|killname=opening}}{{CiteNews|url=https://secure.runescape.com/m=news/revised-post-kebos-poll-blog?oldschool=1|title=Revised Post Kebos Poll Blog|newsdate=21 January 2019|quote=}} 
+
+Fish add {{Coins|{{Slayer chest fish value|chest=brimstone|level=1}}}} to the average value at level 1 [[Fishing]], and {{Coins|{{Slayer chest fish value|chest=brimstone|level=99}}}} at level 99.
+
+===Pre-roll===
+''There is a 1/100 chance to receive a unique item.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Broken dragon hasta|quantity=1|rarity=1/200}}
+{{DropsLineReward|name=Mystic hat (dusk)|quantity=1|rarity=1/1000}}
+{{DropsLineReward|name=Mystic robe top (dusk)|quantity=1|rarity=1/1000}}
+{{DropsLineReward|name=Mystic robe bottom (dusk)|quantity=1|rarity=1/1000}}
+{{DropsLineReward|name=Mystic gloves (dusk)|quantity=1|rarity=1/1000}}
+{{DropsLineReward|name=Mystic boots (dusk)|quantity=1|rarity=1/1000}}
+{{DropsTableBottom}}
+
+===Main table===
+{{DropsTableHead}}
+{{DropsLineReward|name=Uncut diamond|quantity=25-35 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Uncut ruby|quantity=25-35 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Coal|quantity=300-500 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Coins|quantity=50000-150000|rarity=5/60|gemw=No}}
+{{DropsLineReward|name=Gold ore|quantity=100-200 (noted)|rarity=4/60}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=50-200|rarity=4/60}}
+{{DropsLineReward|name=Iron ore|quantity=350-500 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune full helm|quantity=2-4 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune platebody|quantity=1-2 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune platelegs|quantity=1-2 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Runite ore|quantity=10-15 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Steel bar|quantity=300-500 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Magic logs|quantity=120-160 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Dragon dart tip|quantity=40-160|rarity=2/60}}
+{{DropsLineReward|name=Palm tree seed|quantity=2-4|rarity=1/60}}
+{{DropsLineReward|name=Magic seed|quantity=2-3|rarity=1/60}}
+{{DropsLineReward|name=Celastrus seed|quantity=2-4|rarity=1/60}}
+{{DropsLineReward|name=Dragonfruit tree seed|quantity=2-4|rarity=1/60}}
+{{DropsLineReward|name=Redwood tree seed|quantity=1|rarity=1/60}}
+{{DropsLineReward|name=Torstol seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Snapdragon seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Ranarr seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Pure essence|quantity=3000-6000 (noted)|rarity=1/60}}
+{{DropsTableBottom}}
+
+===Fish drop table===
+There is a 1/20 chance to receive raw fish, with the specific type of raw fish obtained being dependent on the player's [[Fishing]] level.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Raw tuna|quantity=100-350 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw lobster|quantity=100-350 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw swordfish|quantity=100-300 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw monkfish|quantity=100-300 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw shark|quantity=80-250 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Shark lure|quantity=160-500|quantitynotes=<ref group=d>Only drops in multiples of two (160, 162, ..., 498, 500). The average quantity is 330.</ref>|rarity=Varies}}
+{{DropsLineReward|name=Raw sea turtle|quantity=80-200 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw manta ray|quantity=80-160 (noted)|rarity=Varies}}
+{{DropsTableBottom}}
+
+Upon hitting the fish drop table, sequential rolls are made until one succeeds, starting with raw manta rays and ending with raw lobsters in case all rolls fail. Succeeding on a shark, sea turtle, or manta ray roll has a chance to instead reward raw sharks or shark lures.
+
+The following chart shows the chance ''per fish roll'' to receive a particular type of fish. Divide the values in the chart by 20 to calculate the chance ''per chest opening''.
+{{Slayer chest fish chart|Brimstone chest fish chance}}
+
+{| class="wikitable align-center-3"
+!colspan=2 | Fish
+!Minimum<br>{{SCP|Fishing}} level
+|-
+|{{plinkt|Raw tuna}}||1
+|-
+|{{plinkt|Raw lobster}}||1
+|-
+|{{plinkt|Raw swordfish}}||1
+|-
+|{{plinkt|Raw monkfish}}||1
+|-
+|{{plinkt|Raw shark}}||17
+|-
+|{{plinkt|Shark lure}}||17
+|-
+|{{plinkt|Raw sea turtle}}||17
+|-
+|{{plinkt|Raw manta ray}}||33
+|}
+
+== Comparison ==
+{| class="wikitable sortable"
+! Chest
+! colspan=2| Key
+! Average loot value
+|-
+| [[Brimstone chest]]
+| {{plinkt|Brimstone key}}
+| {{Coins|{{Average drop value|raw=yes}}}}
+|-
+| [[Larran's big chest]]
+| {{plinkt|Larran's key}} 
+| {{Coins|{{Average drop value|mob=Larran's big chest|raw=total only}}}} 
+|-
+| [[Larran's small chest]]
+| {{plinkt|Larran's key}} 
+| {{Coins|{{Average drop value|mob=Larran's small chest|raw=total only|exclude=Fish}}}} 
+|-
+|}
+==Changes==
+:''For changes in the drop table contents, see [[Konar quo Maten#Changes|here]].''
+{{Subject changes header}}
+{{Subject changes
+|date = 14 March 2019
+|update = Updated Quest Panel, Sandstone Grinder and QoL
+|poll = Quality of Life - Miscellaneous 2019
+|change = The brimstone chest now tracks the amount of times the player has opened it.
+}}
+{{Subject changes
+|date = 21 February 2019
+|update = 6th Birthday and QoL
+|change = Loot obtained from the chest is now broadcasted in the chatbox to players within the vicinity.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Several items can be seen inside the brimstone chest while it is open, including piles of coins, stacks of [[bank note]]s, and vials of [[Saradomin brew]]. This is a reference to the loot players can receive from the chest, although Saradomin brews were removed from Konar's drop table shortly after release.
+
+==References==
+{{Reflist}}
+
+{{Chests}}

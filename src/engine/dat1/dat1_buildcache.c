@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 struct MapEntry_CacheModel
 {
@@ -379,7 +380,7 @@ dat1_buildcache_get_sound_bank(struct Dat1BuildCache* dat1_buildcache)
         dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx]);
     if( !dat1_buildcache->sound_bank )
     {
-        fprintf(stderr, "dat1 sound: sounds.dat did not decode\n");
+        TORIRS_LOG("dat1 sound: sounds.dat did not decode\n");
         return NULL;
     }
     /* The stream is self-terminating, so a short read means a mis-framed record
@@ -387,9 +388,7 @@ dat1_buildcache_get_sound_bank(struct Dat1BuildCache* dat1_buildcache)
      * would still play, just the wrong ones. */
     if( dat1_buildcache->sound_bank->_consumed !=
         dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx] )
-        fprintf(
-            stderr,
-            "dat1 sound: sounds.dat consumed %d of %d bytes\n",
+        TORIRS_LOG("dat1 sound: sounds.dat consumed %d of %d bytes\n",
             dat1_buildcache->sound_bank->_consumed,
             dat1_buildcache->sounds_jagfile->file_sizes[sounds_idx]);
     return dat1_buildcache->sound_bank;

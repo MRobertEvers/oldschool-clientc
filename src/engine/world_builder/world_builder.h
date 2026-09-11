@@ -65,6 +65,17 @@ struct WorldBuilder
      *  scenery_load_model call it applies to; that call consumes and clears it,
      *  so a helper that bakes its rotation never has to reset it. */
     int scenery_deferred_angle;
+
+    /**
+     * Scene element pools this builder owns (toridraw_scene.h): the STATIC
+     * half holds its terrain and scenery, the DYNAMIC half its world's
+     * entities. Every world view shares one ToriDraw_Scene, so the pools are
+     * what keep a boat's rebuild from freeing the mainland's elements — and
+     * the mainland's rebuild from sweeping the boat's. WorldBuilder_New binds
+     * the root pair; WorldBuilder_SetSceneView moves a builder onto a view's.
+     */
+    int static_pool;
+    int dynamic_pool;
 };
 
 /**
@@ -116,6 +127,34 @@ WorldBuilder_New(
 
 void
 WorldBuilder_Free(struct WorldBuilder* builder);
+
+/**
+ * Bind this builder's scene elements to world view `view_id` (worldview.h) —
+ * SAILING_PLAN C2. Every view builds into the ONE shared ToriDraw_Scene, so
+ * the element pools are what separate them: after this call the builder
+ * allocates its terrain/scenery in the view's static pool, frees only that
+ * pool on a rebuild, and sweeps only the view's dynamic pool for orphaned
+ * entity elements. WorldBuilder_New leaves a builder on WORLDVIEW_ROOT's pair
+ * (the historic STATIC/DYNAMIC), which is why nothing single-world changes.
+ *
+ * Call it before the first rebuild: elements already placed keep the pool they
+ * were allocated in, and the old pool's clear would no longer reach them.
+ */
+void
+WorldBuilder_SetSceneView(
+    struct WorldBuilder* builder,
+    int view_id);
+
+/*
+ * TORIRS_REBUILD_TIMING=1 -- the rebuild's own wall clock, shared with the
+ * load task that wraps it (task_world_load.c) so one env var times both the
+ * asset span and the synchronous rebuild it ends in.
+ */
+int
+WorldBuilder_TimingOn(void);
+
+double
+WorldBuilder_TimingNowMs(void);
 
 void
 WorldBuilder_RebuildCenterzone(
@@ -227,7 +266,7 @@ WorldBuilder_RebuildInstanceZoneScenery(
  *     r=0  (dx, dz)        r=1  (dz, 7-dx)
  *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
  *
- * This is `mock230_mapinstance_rotate_to_src`'s twin, and the two must agree or
+ * This is `ToriRSServer_MapInstanceRotateToSrc`'s twin, and the two must agree or
  * the server's collision and the client's geometry describe mirrored rooms.
  */
 static inline void

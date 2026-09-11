@@ -1,0 +1,14 @@
+diff --git a/src/world/world_cycle.c b/src/world/world_cycle.c
+index a53646db2..bfe4550cf 100644
+--- a/src/world/world_cycle.c
++++ b/src/world/world_cycle.c
+@@ -1583,8 +1583,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
+             fprintf(
+                 stderr,
+                 "r4_dynstat: scenery walk=%d entries runtime_spawn=%d elem=%d B "
+-                "span=%d KB | obj_stack=%d projectile=%d spotanim=%d
+-",
++                "span=%d KB | obj_stack=%d projectile=%d spotanim=%d\n",
+                 n,
+                 spawns,
+                 (int)sizeof(struct WorldEntity_Scenery),

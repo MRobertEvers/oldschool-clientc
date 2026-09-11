@@ -1,0 +1,57 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Ice Blitz
+|image = [[File:Ice Blitz.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 82
+|spellbook = Ancient
+|type = Combat
+|exp = 46
+|element = Ice
+|damage = 26
+|cost = {{RuneReq|Death=2|Blood=2|Water=3}}
+|speed = 5 ticks
+|description = A single target strong ice attack
+|anim = [[File:Ice Blitz.gif|250px]]
+|sound = [[File:Ice Blitz.ogg]]
+}}
+[[File:Ice Blitz icon (mobile).png|left]]
+'''Ice Blitz''' requires a [[Magic]] level of 82. It is capable of hitting up to 26 damage (without any [[magic damage]] boosts) per cast.
+
+Ice Blitz can freeze targets, rendering them unable to move for {{ticks|24}}, or {{ticks|26}} with the [[Ancient sceptre]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+Ice Blitz is commonly utilised by [[player killers]] who intend on "[[rushing]]" another player. These type of player-killers often cast Ice Blitz, and continue on to attack their target for three hits using a [[granite maul]] (1 regular hit and 2 [[special attack]] hits). As the spell has a delay of a few seconds before hitting the player, this allows rushers to potentially land four high-damaging, near-simultaneous hits on their target.
+
+Ice Blitz, like all Ice spells, gains a 10% accuracy bonus against unfrozen targets while wielding the [[Ice ancient sceptre]].
+
+Ice Blitz has the same accuracy as [[Ice Barrage]] against one target.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/651058586991362048|date=5 October 2015|archiveurl=https://reldo.runescape.wiki/i/100043|archivedate=29 May 2020|quote=Nope.}}
+==Damage==
+===Calculator===
+{{Magic damage calculator|Ice Blitz|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 2
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = water
+|Rune3num = 3
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted ancient ice sack}}
+
+|}
+
+==References==
+{{Reflist}}
+{{Ancient Magicks}}
+{{Combat spells}}

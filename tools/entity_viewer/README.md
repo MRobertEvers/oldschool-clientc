@@ -1,8 +1,10 @@
-# entity_viewer — which animations apply to an npc, and what they look like
+# entity_viewer — what a cache's entities look like, and what animates them
 
-Three things: a catalog of npc→animation matches, a browser viewer that plays
-them, and a command-line harness that measures a weapon swing against the
-graphic attached to it.
+Three things: a browser viewer that draws any npc, item, loc or dressed player
+out of whichever cache is open — working out which animations apply to it and
+playing them — an offline catalog that adds the content team's names and the
+guesses those make possible, and a command-line harness that measures a weapon
+swing against the graphic attached to it.
 
 ```sh
 make -C tools/entity_viewer                     # ev_catalog + ev_server + ev_swing
@@ -11,7 +13,8 @@ make -C tools/entity_viewer wasm                # web/ev_wasm.js + .wasm (needs 
 tools/entity_viewer/run.sh                      # checks freshness, then serves
 # -> http://127.0.0.1:8099/
 
-# The catalog is optional and takes about five minutes; it adds rig matching.
+# The catalog is optional and takes about five minutes; it adds the gameval
+# names and the name-similarity guesses. Rig matching no longer needs it.
 mkdir -p out/osrs239_anims
 tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
     --names OSRS-Content/osrs239-content --out out/osrs239_anims
@@ -21,12 +24,152 @@ tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
 the equipment and graphic pickers need, and it points at the content tree so an
 exported asset that has since been *edited* is drawn as the game draws it rather
 than as the cache still holds it. Without it the npc half works exactly as
-before.
+before, and the obj and loc pickers fall back to the cache's own names.
+
+## Four subjects, because four things are different questions
+
+The **NPC**, **Obj**, **Loc** and **Player** buttons pick what the left column
+lists. They exist separately because an npc is the only one of the four that is
+"one config with one model list on it":
+
+| | what one id names | what the picker adds |
+|---|---|---|
+| npc | one model list | the animations that share its rig |
+| obj | **five** meshes — the inventory/ground model, the male and female wear models, and two chatheads | which of them the record actually names |
+| loc | one mesh **per shape** — a wall, its corner, its diagonal — chosen in the game by the map square | the shapes this record carries |
+| player | identity kits plus the wear models of what is equipped | a merged attached graphic |
+
+So obj and loc both carry a **part** beside the id, shown as chips under the
+mode buttons, and the part is as much the subject as the id is:
+`#obj=4151&variant=1` and `#loc=1560&shape=9` are different models, not
+different views of one.
+
+Asking a loc for a shape it does not carry draws **nothing**, on purpose. The
+tempting alternative — fall back to another shape — produces a picture that
+looks like a correct answer to a question it did not answer.
+
+### What the build does to them
+
+Both follow the client, step for step, in the order the client uses:
+
+- **obj** — `bridge_rasterize_obj_icon`'s order: resize (opcodes 110–112), then
+  recolour, then scene lighting at the record's own ambient/contrast. The resize
+  is the *icon* build's; the world-drop path (`app_world_spawn_obj_stack`)
+  passes 128/128 and ignores those opcodes, so the same model is a scale apart
+  on the ground and in the inventory. A worn variant lights at 0/0 instead,
+  which is what the player build lights the whole assembled body at.
+- **loc** — `world_scenery.u.c`'s `apply_transforms`: recolour (pairs with both
+  endpoints ≤ 50 are *texture* swaps, not colours), retexture, mirror, resize,
+  offset, then scene lighting. The placed rotation is absent because nothing
+  here is placed on a tile; `mirrored` is *not*, because at orientation 0 the
+  scene builder applies it too and a mirrored loc built without it is handed the
+  wrong way round and looks fine.
+
+Two known disagreements with this client, both stated rather than reproduced:
+an obj's **retexture** pairs are applied here and dropped by `ToriRS_Objtype`,
+and a **sharelight** loc is lit per-loc here because the whole-scene normal
+merge needs neighbours a single model does not have — the same fallback the
+scene builder makes for a runtime loc spawn.
+
+An RS2-era loc goes out as an **HD model** for the same reason an RS2-era npc
+does: its faces are mostly cube- and cylinder-mapped, and the classic raster
+skips every face it cannot plane-map. 40 of 54 sampled rs727 locs take that
+path.
+
+A loc's animation list is seeded from the one sequence its record names, where
+an npc seeds from a handful — so the panel lists everything built on *that*
+sequence's rig, and a loc that names one plays it on selection. An obj has no
+animation at all and the panel says so rather than showing an empty list.
+
+```sh
+make -C tools/entity_viewer ev_objloc_probe
+tools/entity_viewer/ev_objloc_probe cache.osrs239 osrs239
+```
+
+The probe checks the things that fail *silently*: the absent shape must build
+nothing, the mirror must come out as the source model with z negated **and the
+face winding swapped**, and a variant must produce a different mesh from its
+neighbour where the record says the ids differ. It also samples both tables —
+sampling, because `ev_loc_load` decodes the archive a record lives in and every
+loc in an OldSchool cache lives in one archive of sixty thousand files, which is
+the same trap that made the npc pass take 537 seconds. What it samples is
+printed.
+
+## The animation lists come from the open cache, in the background
+
+Switching caches starts a **rig walk** over the newly opened one: every sequence
+swept to its framemap, framemaps that decode to the identical rig unified, then
+every npc read for the sequences it seeds from. That is where the animation
+lists come from now, for every cache, whether or not anyone ever built a catalog
+for it.
+
+It replaced an arrangement that was wrong in a way nothing on screen said: rig
+matching came only from the `--catalog` CSVs, which describe the ONE cache the
+server booted with. Switching away dropped them and nothing took their place, so
+**every npc in the new cache listed no animations at all** — and rs634 and
+rs727, which have no catalog anywhere, were in that state permanently. An empty
+list is indistinguishable from "this npc has none" by looking at it.
+
+The walk takes 1.5 s on rs634, 5 s on rs643, 9 s on rs727 and 10 s on osrs239,
+so it runs on a worker thread with its own cache handle while the server keeps
+answering. It publishes **twice**, because the two halves are worth very
+different waits:
+
+| Lands | What it enables |
+|---|---|
+| the sequence sweep, ~1–10 s | one npc's animation list — its own rigs come from its own record, which is a single decode |
+| the npc pass behind it | the `rig/maybe` badges on every row of the npc list |
+
+The page polls `GET /api/rigs.json` and refreshes each panel as its half
+arrives; while a walk is running the panels say so rather than showing an empty
+list. A second switch abandons the first walk — the worker finds out at its next
+progress callback, and a result can only be published while it is still the
+current generation, so a slow walk over the cache you just left can never land
+on top of the one you are looking at.
+
+Nothing is cached to disk. Unlike the index, the walk is seconds rather than
+tenths, and it is a background job nobody waits on, so a staleness fingerprint
+would be more machinery than the thing it saves.
+
+```sh
+make -C tools/entity_viewer ev_rig_probe
+tools/entity_viewer/ev_rig_probe cache.void634 void634 cache.rs727_preeoc rs727
+```
+
+The probe checks the symptom as a number (how many npcs reach a rig at all, and
+that the precomputed badge count equals the list the server emits), that one npc
+resolves from the sequence half alone, and — with a second cache given — that
+switching mid-walk publishes the second cache's answer and not the first's.
+
+### It is not the same walk ev_catalog does
+
+The catalog also decodes every npc's **models**, to answer `animaya_skinned` and
+`strict_covers`. That is its five minutes, and it buys two columns. The viewer
+answers `animaya_skinned` for the one npc being looked at instead, where it
+costs a few milliseconds.
+
+The other difference is that a full sweep must not call `tool_dat2_npc_load` per
+id: a single load decodes the whole group archive the id lives in and throws the
+rest away, so a sweep re-decodes each group once per record it contains. That is
+256 records per group on an OldSchool cache — it made the npc pass over
+cache.osrs239 take **537 seconds**, against 72 ms through
+`tool_dat2_npc_walk_all`, which decodes each group once.
+
+Where the live walk and an older catalog disagree, it is nearly always rig
+canonicalisation: 267 osrs239 npcs match more sequences now than
+`out/osrs239_anims` says, because CSVs written before rigs were unified kept
+byte-identical framemaps under separate ids. The Skeletal Wyvern's rig 817 and
+the natural-history display case's 1470 are the same rig.
 
 ## Caches
 
 The **Caches** panel lists every cache the viewer knows about and switches
-between them; each is reopened and re-indexed on the spot. The registry persists
+between them; each is reopened and re-indexed on the spot. It is collapsed by
+default and its summary names the active cache, so the question it answers most
+often needs no click — and it shares a bounded scroller with the model-file
+panel, because between them they used to push the subject list off the bottom of
+the window. The mode buttons, the part chips, the search box and the count sit
+outside that scroller and are on screen at every scroll position. The registry persists
 in `web/.ev_caches`, and `--cache-root DIR` (which `run.sh` points at the repo
 root) is scanned one level deep at startup so the repo's `cache.*` directories
 are there to click without typing a path.
@@ -39,11 +182,15 @@ the wrong profile does not fail loudly: it decodes records at the wrong field
 widths and produces plausible nonsense. So the field is editable, and the value
 is what the entry is stored with.
 
-Searching npcs, sequences and models runs against a per-cache **index** built
-directly from the cache in about a tenth of a second, not against the catalog.
+Searching npcs, objs, locs, sequences and models runs against a per-cache
+**index** built directly from the cache in about a tenth of a second, not
+against the catalog.
 That is the whole reason adding a cache is instant: requiring a catalog first
-would make it a five-minute wait. Without a catalog the npc list and the model
-still work; what is missing is the rig matching.
+would make it a five-minute wait. Without a catalog the npc, obj and loc lists, the models and the
+animations all still work — the names come from the cache records themselves and
+the animations from the rig walk above.
+What is missing is the gameval names and the name-similarity guesses, which are
+content rather than cache and have nowhere else to come from.
 
 ### The index is cached in the cache
 
@@ -297,9 +444,10 @@ boxes to fill in:
 http://127.0.0.1:8099/#player&wear=22325&seq=8056&fx=1231&delay=16&height=100&orient=3&pitch=512&paused&cycle=44
 ```
 
-Recognised: `player`, `wear=` (comma-separated obj ids), `npc=`, `seq=`, `fx=`
-(spotanim id), `delay=`, `height=`, `orient=` (0–3 quarter turns, overriding the
-spotanim record), `pitch=`, `yaw=`, `zoom=`, `cycle=`, `paused`. It is also how
+Recognised: `player`, `wear=` (comma-separated obj ids), `npc=`, `obj=`,
+`variant=`, `loc=`, `shape=`, `seq=`, `fx=` (spotanim id), `delay=`, `height=`,
+`orient=` (0–3 quarter turns, overriding the spotanim record), `pitch=`, `yaw=`,
+`zoom=`, `cycle=`, `paused`. It is also how
 the page gets tested at all — a headless browser can open it already configured.
 
 ## ev_swing — the same thing, measured
@@ -322,6 +470,29 @@ tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
     --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_west_red.model \
     --orient 3 --out /tmp/scythe
 ```
+
+`--tile <dx> <dz>` switches it from a player-attached graphic (`spotanim_pl`) to
+a **tile** one (`spotanim_map`), which is what the scythe of vitur actually
+plays. A tile graphic is world-fixed and never enters the player's model, so it
+is reproduced inside the merge the only way one thing can hold still while
+another turns: the graphic is pre-turned by the inverse of `--yaw` and offset by
+the tile, and the renderer's own turn by that yaw puts it back where the world
+says it stands. The inverse turn goes in **before** the lighting bake, next to
+`--orient`, because RS lighting is per face from the geometry's orientation.
+
+`--csv <file>` writes one row per client cycle — the blade and the lit graphic,
+in the player's local space *and* rotated into world space by `--yaw`, so several
+facings concatenate into one sheet. `--facing <name>` labels that sheet's first
+column.
+
+The measured points are marked on the top-down sheet at **every** facing now.
+They used to be drawn only at yaw 0 and dropped elsewhere, which left the three
+sheets that most needed a check — does the arc still lie along the swing when the
+player is turned? — with nothing on them to check against.
+
+`tools/scythe_animation.sh` drives all of this: eight facings, sheets, CSVs and a
+falsifiable snap check, into `docs/scythe_animation/`. See that directory's
+README, which is also the worked example for the whole harness.
 
 Defaults are the scythe of vitur's, as `scythe_of_vitur.rs2` ships them. What it
 reports:
@@ -352,14 +523,16 @@ For a **spritesheet** rather than a diagnosis: `--rows 0` gives one cell per
 client cycle with no sampling (the default caps at four rows and samples, which
 is right for a quick look and wrong for a record of the animation),
 `--no-markers` leaves the crosses off, and `--yaw` picks the facing — 0 south,
-512 west, 1024 north, 1536 east, `world_cycle.c`'s own numbers. The measurements
-are taken in the player's local space and do not change with the facing; only the
-pictures do. Markers are dropped, and said to be dropped, at any yaw but 0, since
-the projection that places them is solved for yaw 0 only.
+512 west, 1024 north, 1536 east, `world_cycle.c`'s own numbers. For an *attached*
+graphic the measurements are taken in the player's local space and do not change
+with the facing; only the pictures do. With `--tile` they do change, because a
+tile graphic really is somewhere different relative to a player who has turned.
 
-`docs/scythe_of_vitur_charged/` is a worked example: the scythe's swing from each
-of the four facings, plus the top-down comparison that shows which of the
-graphic's four compass copies is the right one.
+`docs/scythe_animation/` is the worked example: the scythe's swing from eight
+facings, before and after, with the per-cycle sheets and the check that the
+diagonals snap where they should. `docs/scythe_of_vitur_charged/` is the earlier
+pass over the same weapon, kept because its measurements of the *attached* case
+still describe `pvm_dragon_halberd.rs2`.
 
 ## Two kinds of rig
 
@@ -388,9 +561,11 @@ the viewer greys out a skeletal row an npc cannot play.
 **Rigging matches — concrete.** An animation frame addresses bones by index into
 a *framemap* (the rig). A sequence built against one rig, applied to a model
 skinned for another, moves the wrong vertices — so sharing a rig is the hard
-precondition for an animation applying at all. `ev_catalog` walks from an npc's
-own idle/walk/turn/run/crawl sequences (and its BasType on RS2) to the framemaps
-those use, then collects every other sequence built on the same framemaps.
+precondition for an animation applying at all. The walk goes from an npc's own
+idle/walk/turn/run/crawl sequences (and its BasType on RS2) to the framemaps
+those use, then collects every other sequence built on the same framemaps. Both
+`ev_catalog` and the server's own background walk do this; the viewer reads the
+latter, so the lists follow whichever cache is open (see above).
 
 This is a *possibility* set, and its selectivity depends entirely on the rig.
 Framemap 0 is the shared human rig with 3,905 sequences on it, so every human
@@ -436,8 +611,13 @@ An npc's rigging matches are `npc_rigs ⋈ framemap_seqs` on framemap id.
   │ ev.js│                     │           │        │                 │
   └──────┼─────────────────────┘           └────────┼─────────────────┘
          │  GET /api/npc/<id>.model  (ev_wire bytes)│
+         │  GET /api/obj/<id>.model?variant=         │
+         │  GET /api/loc/<id>.model?shape=           │
          │  GET /api/seq/<id>.anim   (ev_wire bytes)│
          │  GET /api/npc/<id>.json   (its two lists)│
+         │  GET /api/obj/<id>.json   (its variants) │
+         │  GET /api/loc/<id>.json   (shapes + rig) │
+         │  GET /api/rigs.json       (walk progress)│
          └──────────────────────────────────────────┘
 ```
 
@@ -449,7 +629,9 @@ bug there can only ever be a rendering bug.
 
 `ev_wire.c` is compiled into both, so the format they speak has one definition.
 
-Both lists are searchable. The npc box matches display name, gameval or id; the
+Every subject list is searchable. The npc, obj and loc boxes match display name,
+gameval or id — for locs the gameval is the one that matters, because a cache
+name of "Door" describes several hundred of them; the
 animation box matches gameval name, a full sequence id, or the words `skeletal`
 / `classic`. The animation one is not a nicety — a human-rigged npc lists 3,905
 sequences, and typing `death` is the difference between that and the 46 worth

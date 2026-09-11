@@ -2,6 +2,7 @@
 #define RS_LOOT_STORE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
  * Client-native loot tracker store.
@@ -75,6 +76,7 @@ struct LootStore
     int source_ignored_cap;
 
     struct LootAuxList aux[LOOT_AUX_KIND_MAX];
+    uint64_t aux_revision[LOOT_AUX_KIND_MAX];
 
     int* query_ids;
     int query_count;
@@ -83,6 +85,8 @@ struct LootStore
     /* Monotonic ids for debug/seed paths that call AddKillLoot without a
      * server event_id (App_LootNotifyKill). */
     int next_event_id;
+    /** Changes only when the retained source/row view changes; never zero. */
+    uint64_t revision;
 };
 
 void
@@ -221,6 +225,7 @@ LootStore_AuxClear(
 
 int
 LootStore_AuxCountTotal(const struct LootStore* store);
+uint64_t LootStore_AuxRevision(const struct LootStore* store,int kind);
 
 /* --- Item ignore (7616/7617/7621) + 1-based 7619/7620 -------------------- */
 
@@ -307,5 +312,8 @@ void
 LootStore_RemoveById(
     struct LootStore* store,
     int source_id);
+
+uint64_t
+LootStore_Revision(const struct LootStore* store);
 
 #endif /* RS_LOOT_STORE_H */

@@ -1,0 +1,48 @@
+{{Infobox Monster
+|version1 = Magic
+|version2 = Ranged
+|name = Husk
+|image1 = [[File:Husk (magic).png|250px]]
+|image2 = [[File:Husk (ranged).png|250px]]
+|release = [[6 February]] [[2020]]
+|update = The Nightmare of Ashihama
+|members = Yes
+|combat = 48
+|size = 1
+|examine = Was it human once?
+|xpbonus = 0
+|max hit = 14
+|aggressive = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Ranged]]
+|attack speed = 4
+|hitpoints = 20
+|att = 1
+|str = 1
+|def = 20
+|mage = 80
+|range = 80
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 20
+|dslash = 20
+|dcrush = 20
+|dmagic = 80
+|dlight = 80
+|dstandard = 80
+|dheavy = 80
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = yes
+|freezeresistance = 100 
+|id1 = 9454
+|id2 = 9455
+}}
+'''Husks''' are summoned during the fight with [[The Nightmare]]. They have low health and use rather inaccurate attacks; the skinny husk uses magic attacks, while the bulky husk uses [[ranged]] attacks. 
+
+{{The Nightmare}}

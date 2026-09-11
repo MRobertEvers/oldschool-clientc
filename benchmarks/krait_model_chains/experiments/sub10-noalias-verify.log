@@ -1,0 +1,5 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6ffffef5 arg 0x468
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6ffffffe arg 0x428
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6fffffff arg 0x2
+verified: 128 real model bakes, 50375 ordered faces, 0 textured, both arms

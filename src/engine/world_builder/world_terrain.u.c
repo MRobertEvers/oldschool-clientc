@@ -40,6 +40,10 @@ world_apply_shade(
     int zmin,
     int zmax)
 {
+    (void)xboundmax;
+    (void)xboundmin;
+    (void)zboundmax;
+    (void)zboundmin;
     assert(builder->shademap);
 
     assert(xboundmin <= xmin);
@@ -236,9 +240,18 @@ world_terrain_apply_tile(
 
                 /* TORIRS_TILEDATA=x,z: the raw floor record at one column, every
                  * level. Answers "does this tile state any floor of its own"
-                 * without guessing from what did or did not get drawn. */
+                 * without guessing from what did or did not get drawn.
+                 * Probed once per process: this sits inside the per-tile loop,
+                 * where a getenv+sscanf pair per tile was hot enough to show in
+                 * a whole-rebuild profile. */
                 {
-                    const char* env = getenv("TORIRS_TILEDATA");
+                    static const char* env;
+                    static int env_probed;
+                    if( !env_probed )
+                    {
+                        env_probed = 1;
+                        env = getenv("TORIRS_TILEDATA");
+                    }
                     int qx = -1, qz = -1;
                     if( env && sscanf(env, "%d,%d", &qx, &qz) == 2 && offset_x == qx && offset_z == qz )
                         fprintf(stderr,
@@ -595,8 +608,17 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     minimap_foreground_rgb = 0;
                 }
 
+                /* Reference bakes the underlay's minimap colour at a FIXED
+                 * lightness -- colourTable[getUCol(hsl, 96)] -- not the blend's
+                 * own. The overlay branch above already scales by 96; the
+                 * underlay was the one taking the raw blended hsl, which is
+                 * 128/96 too bright. Same in the official deob (rl4.method10634,
+                 * getUCol) as in Client-TS's ClientBuild.
+                 * (The reference also jitters hue/lightness per build --
+                 * t1RandColour -- which averages to this; not ported.) */
                 if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
-                    minimap_background_rgb = ToriDraw_Hsl16ToRgb((uint16_t)underlay_hsl);
+                    minimap_background_rgb = ToriDraw_Hsl16ToRgb(
+                        (uint16_t)terrain_adjust_lightness((int)underlay_hsl, 96));
 
                 /* Every level, not just 0: the bake picks the player's level
                  * and composites the VisBelow layer above it (reference
@@ -641,7 +663,11 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                     .u.model.model = td,
                 };
 
-                int element_id = ToriDraw_SceneElementAdd(builder->scene);
+                /* The builder's own static pool (WorldBuilder_SetSceneView),
+                 * so a boat deck's terrain is freed with the boat. */
+                int element_id = ElementId_Raw(ElementId_Make(
+                    TORIDRAW_ELEMENT_KIND_TERRAIN,
+                    ToriDraw_SceneElementAddPool(builder->scene, builder->static_pool)));
                 if( element_id < 0 )
                 {
                     ToriDraw_ModelFree(td);

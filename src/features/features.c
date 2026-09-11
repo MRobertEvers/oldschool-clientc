@@ -21,6 +21,9 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .era = TORIRS_FEATURE_ERA_LOSTCITY,
     .name = "lostcity",
     .pathing_mode = TORIRS_PATHING_CLIENT_BFS,
+    /* The era's own client moves actors once per 20ms cycle and nowhere else;
+     * a frame-paced mover would be smoother than the thing being reproduced. */
+    .mover_model = TORIRS_MOVER_CYCLE_INTEGER,
     .approach_model = TORIRS_APPROACH_LEGACY_SHAPE,
     .npc_approach_uses_size = 0,
     .under_target_routes_out = 0,
@@ -34,11 +37,16 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 0,
     .route_window_tiles = 0,
+    /* No Controls panel, so no Attack dropdowns: every Attack row is emitted
+     * and only the attack pass reads the combat-level difference. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_CLASSIC,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_CLASSIC,
     .painter_draw_distance = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
     .effects_monophonic = 1,
+    /* Agility feeds the restore only; drain is weight alone. */
+    .run_energy_model = TORIRS_RUN_ENERGY_CLASSIC,
     /* No resizable mode, so no such setting. */
     .varbit_interface_resizing = 0,
 };
@@ -73,6 +81,9 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .era = TORIRS_FEATURE_ERA_OSRS,
     .name = "osrs",
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
+    /* class105.method3611 per rendered frame; method3520 keeps only the
+     * per-cycle facing/sequence half. See the enum. */
+    .mover_model = TORIRS_MOVER_FRAME_DELTA,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
     .under_target_routes_out = 1,
@@ -84,6 +95,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .ground_click_clamp_tiles = 70,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* Two dropdowns on `settings_side`, read from varp clientcode 18/22. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_SETTINGS,
     /* IF3 moved the held-item target flag one bit up. */
     .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     /* Project default for OSRS; the official preference's valid range is
@@ -93,6 +106,18 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .player_head_light_ambient = 0,
     /* The modern client mixes effects; only the 2004 one is monophonic. */
     .effects_monophonic = 0,
+    /*
+     * The 8 Jan 2025 rework, which post-dates rev 230 itself.
+     *
+     * Stated deliberately, and it is the one slot in this table that is a
+     * statement about the *content* rather than the gamepack: every Agility
+     * number this tree is built against comes from the current wiki (see
+     * docs/AGILITY_COMPLETION_PLAN.md), and the graceful / stamina / ring of
+     * endurance multipliers all modify this pair. A rev-230-exact boot that
+     * wants the pre-rework arithmetic asks for it with
+     * TORIRSSERVER_RUN_ENERGY=classic rather than by editing this line.
+     */
+    .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
     /* `settings_interface_resizing` (gameval name, archive 14). Absent from
      * rev 230's varbit table, where the seed is a no-op. */
     .varbit_interface_resizing = 17772,
@@ -109,6 +134,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .era = TORIRS_FEATURE_ERA_SERVER_ROUTED,
     .name = "server_routed",
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
+    /* Any post-2004 client this tree speaks draws on the frame clock. */
+    .mover_model = TORIRS_MOVER_FRAME_DELTA,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
     /* Same router and same exclusive rectangle as osrs, so the same answer. */
@@ -125,6 +152,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* Same modern client generation as osrs, so the same two dropdowns. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_SETTINGS,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     .painter_draw_distance = 0,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
@@ -132,6 +161,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 128,
     .effects_monophonic = 0,
+    /* Same modern server generation as osrs. */
+    .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
     .varbit_interface_resizing = 17772,
 };
 
@@ -168,6 +199,38 @@ ToriRS_Features_ByName(char const* name)
     return NULL;
 }
 
+/* Same rule as the nearest models below: a mover model cannot be added without
+ * a name to state it by, because the manifest key and TORIRS_MOVER_MODEL are
+ * how a lane with no era table of its own asks for one. */
+static struct
+{
+    char const* name;
+    int model;
+} const k_mover_models[] = {
+    { "cycle", TORIRS_MOVER_CYCLE_INTEGER },
+    { "frame", TORIRS_MOVER_FRAME_DELTA },
+};
+
+int
+ToriRS_Features_MoverModelByName(char const* name)
+{
+    if( !name || !name[0] )
+        return -1;
+    for( size_t i = 0; i < sizeof(k_mover_models) / sizeof(k_mover_models[0]); i++ )
+        if( strcmp(name, k_mover_models[i].name) == 0 )
+            return k_mover_models[i].model;
+    return -1;
+}
+
+char const*
+ToriRS_Features_MoverModelName(int model)
+{
+    for( size_t i = 0; i < sizeof(k_mover_models) / sizeof(k_mover_models[0]); i++ )
+        if( k_mover_models[i].model == model )
+            return k_mover_models[i].name;
+    return "?";
+}
+
 /* Kept next to the enum's only other definition so a new model cannot be added
  * without a name to state it by. */
 static struct
@@ -192,6 +255,42 @@ ToriRS_Features_NearestModelByName(char const* name)
             return k_nearest_models[i].model;
     }
     return -1;
+}
+
+/* Same rule as the nearest models: the enum's names live beside it, so a new
+ * model cannot be added without a way to state it. */
+static struct
+{
+    char const* name;
+    int model;
+} const k_run_energy_models[] = {
+    { "classic", TORIRS_RUN_ENERGY_CLASSIC },
+    { "osrs2025", TORIRS_RUN_ENERGY_OSRS_2025 },
+};
+
+int
+ToriRS_Features_RunEnergyModelByName(char const* name)
+{
+    assert(name);
+    if( !name[0] )
+        return -1;
+    for( size_t i = 0; i < sizeof(k_run_energy_models) / sizeof(k_run_energy_models[0]); i++ )
+    {
+        if( strcmp(name, k_run_energy_models[i].name) == 0 )
+            return k_run_energy_models[i].model;
+    }
+    return -1;
+}
+
+char const*
+ToriRS_Features_RunEnergyModelName(int model)
+{
+    for( size_t i = 0; i < sizeof(k_run_energy_models) / sizeof(k_run_energy_models[0]); i++ )
+    {
+        if( k_run_energy_models[i].model == model )
+            return k_run_energy_models[i].name;
+    }
+    return "?";
 }
 
 int

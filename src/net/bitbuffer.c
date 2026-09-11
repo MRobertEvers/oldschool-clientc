@@ -13,6 +13,7 @@ Net_BitBufferInit(
     buf->size_bytes = size_bytes;
     buf->byte_position = 0;
     buf->bit_offset = 0;
+    buf->overrun = 0;
 }
 
 unsigned int
@@ -29,7 +30,23 @@ Net_BitBufferGbits(
     assert(buf->size_bytes > 0 && buf->data != NULL);
 
     int bit_pos = buf->byte_position * 8 + buf->bit_offset;
-    assert(bit_pos + count <= buf->size_bytes * 8);
+    /*
+     * A guard, not an assert. How far the cursor walks is decided by the packet
+     * -- NPC_INFO reads an 8-bit count and then loops that many times -- so a
+     * short or malformed packet runs it off the end, which is a runtime state
+     * and not a caller bug. The shipping lane compiles -DNDEBUG, so an assert
+     * here is no bounds check at all and the reads below walk past the packet
+     * buffer.
+     *
+     * Refuse the read rather than clamping it: every decode loop is bounded by
+     * its own counter, so returning zeroes terminates them normally, and
+     * `overrun` tells the caller the result is junk.
+     */
+    if( bit_pos + count > buf->size_bytes * 8 )
+    {
+        buf->overrun = 1;
+        return 0;
+    }
     int byte_pos = bit_pos >> 3;
     int remaining = 8 - (bit_pos & 7);
     unsigned int value = 0;

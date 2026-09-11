@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Launch RuneLite with the INSTRUMENTED osrs239 client against mock230/JS5.
+# Launch RuneLite with the INSTRUMENTED osrs239 client against ToriRSServer/JS5.
 #
 #   tools/perf/run_java_client.sh [csv-path]
 #
 # Prerequisites, both already documented in the runelite checkout's README:
-#   src/build/mock230 43594 --rev osrs239        (with MOCK230_JS5_* set)
+#   src/build/torirsserver 43594 --rev osrs239        (with TORIRSSERVER_JS5_* set)
 #   tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239
 #
 # JAV_CONFIG overrides where the client fetches its config, so a caller that

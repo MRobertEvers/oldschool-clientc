@@ -1,0 +1,77 @@
+{
+  "authority": {
+    "overview": "https://oldschool.runescape.wiki/w/The_Gauntlet",
+    "hunllef": "https://oldschool.runescape.wiki/w/Crystalline_Hunllef",
+    "corrupted_hunllef": "https://oldschool.runescape.wiki/w/Corrupted_Hunllef",
+    "rewards": "https://oldschool.runescape.wiki/w/Reward_Chest_%28The_Gauntlet%29",
+    "combat_achievements": "https://oldschool.runescape.wiki/w/Crystalline_Warrior"
+  },
+  "room_library": {
+    "normal_map": "m29_88.jl2",
+    "corrupted_map": "m30_88.jl2",
+    "normal_unlit_door_ids": [36101, 36102],
+    "corrupted_unlit_door_ids": [35998, 35999],
+    "archetypes": {"0": "NESW", "1": "ESW", "2": "SW"}
+  },
+  "recipe_contract_fragments": [
+    "~gauntlet_take_shards(200)", "~gauntlet_take_shards(50)",
+    "~gauntlet_take_shards(10)", "inv_add(inv, $t1, 1);",
+    "inv_add(inv, $t2, 1);", "inv_add(inv, $t3, 1);",
+    "~gauntlet_add_points(2);", "~gauntlet_add_points(5);",
+    "~gauntlet_add_points(10);", "stat_advance(herblore, 100);",
+    "stat_advance(cooking, 150);",
+    "stat_advance(crafting, multiply($shards, 5));",
+    "stat_advance(smithing, multiply($shards, 5));"
+  ],
+  "npc_roster": [
+    "crystal_rat", "crystal_spider", "crystal_bat", "crystal_unicorn",
+    "crystal_scorpion", "crystal_wolf", "crystal_bear", "crystal_dragon",
+    "crystal_dark_beast", "crystal_rat_hm", "crystal_spider_hm",
+    "crystal_bat_hm", "crystal_unicorn_hm", "crystal_scorpion_hm",
+    "crystal_wolf_hm", "crystal_bear_hm", "crystal_dragon_hm",
+    "crystal_dark_beast_hm"
+  ],
+  "drop_contract_fragments": [
+    "random(24)", "random(21)", "random(18)",
+    "~gauntlet_drop_shards(20, 30)", "~gauntlet_drop_shards(80, 100)",
+    "~gauntlet_drop_shards(50, 60)", "~gauntlet_drop_frame;",
+    "~gauntlet_drop_component(1)", "~gauntlet_drop_component(2)",
+    "~gauntlet_drop_component(3)"
+  ],
+  "junk_rewards": ["flier_prif", "acne_potion", "rotten_tomato"],
+  "incomplete_reward_fragments": [
+    "adamant_dagger, 1", "adamant_full_helm, 1",
+    "cert_adamant_mace, add(2, random(2))", "adamant_pickaxe, 1",
+    "adamant_platebody, 1", "adamant_platelegs, 1",
+    "adamant_plateskirt, 1", "adamant_scimitar, 1",
+    "cert_maple_longbow, add(7, random(7))",
+    "cert_maple_shortbow, add(8, random(4))", "mithril_full_helm, 1",
+    "cert_mithril_mace, add(2, random(4))", "mithril_platebody, 1",
+    "mithril_platelegs, 1", "mithril_plateskirt, 1",
+    "airrune, add(200, random(101))", "bodyrune, add(250, random(101))",
+    "earthrune, add(200, random(101))", "firerune, add(200, random(101))",
+    "mindrune, add(300, random(101))", "waterrune, add(200, random(101))",
+    "cert_cake, add(10, random(11))", "cert_cod, add(75, random(51))",
+    "cert_trout, add(50, random(51))",
+    "cert_eye_of_newt, add(300, random(201))",
+    "cert_silver_bar, add(15, random(16))",
+    "cert_uncut_sapphire, add(1, random(3))"
+  ],
+  "main_reward_objects": [
+    "cert_battlestaff", "cert_rune_full_helm", "cert_rune_chainbody",
+    "cert_rune_platebody", "cert_rune_platelegs", "cert_rune_plateskirt",
+    "cert_rune_halberd", "cert_rune_pickaxe", "cert_dragon_halberd",
+    "cosmicrune", "naturerune", "lawrune", "chaosrune", "deathrune",
+    "bloodrune", "mithril_arrow", "adamant_arrow", "rune_arrow",
+    "dragon_arrow", "cert_uncut_sapphire", "cert_uncut_emerald",
+    "cert_uncut_ruby", "cert_uncut_diamond", "coins"
+  ],
+  "tertiary_rewards": [
+    "trail_elite_emote_exp1", "crystal_seed_old", "prif_armour_seed",
+    "prif_weapon_seed_enhanced", "gauntletpet", "gauntlet_crystalline_cape"
+  ],
+  "combat_achievement_ids": [
+    98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
+    109, 110, 111, 112, 113, 114, 115, 116, 117, 118
+  ]
+}

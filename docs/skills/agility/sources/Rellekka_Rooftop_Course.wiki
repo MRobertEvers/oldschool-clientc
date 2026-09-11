@@ -1,0 +1,98 @@
+{{Infobox Location
+|name = Rellekka Rooftop Course
+|image = [[File:Rellekka Rooftop Course (4).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Rellekka]]
+|map = {{Map|2625:3677|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Fremennik
+}}
+{{Relativelocation
+|location = Agility course
+|north = 
+|west = Lighthouse
+|south = Seers' Village
+|east = Fremennik Slayer Dungeon
+}}
+The '''Rellekka Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Rellekka]] that is available to players with an [[Agility]] level of 80 or higher. It is preceded by the [[Pollnivneach Rooftop Course]] and followed by the [[Ardougne Rooftop Course]]. 
+
+At level 85 Agility, players stop failing at the first tightrope.
+
+A full lap of this Agility course can be done in 51.0 seconds (85 [[tick]]s), allowing a maximum rate of 55,052.4 experience per hour assuming perfect laps. This rate is increased to a maximum rate of 64,941.2 experience per hour with the completion of the [[hard Fremennik Diary]]. The rate can be increased even further, albeit very slightly (roughly 600 xp/hr), through use of the teleport on [[Fremennik sea boots 4]].
+
+Using this course alone, levelling up from level 80 to 90 would require 4,308 laps, meaning roughly 61 hours of training at the maximum hourly rate.
+
+[[Mark of grace|Marks of grace]] spawn on the Rellekka course at a rate of roughly 1 mark every 3.5 to 4.5 minutes. At maximum efficiency, one can expect 13–15.5 marks per hour.
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Rellekka Rooftop Course (1).png|200px]]
+|[[Rough wall (Rellekka Rooftop Course)|Rough wall]]
+|{{+=|xp|20|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Rellekka Rooftop Course (2).png|200px]]
+|[[Gap (Rellekka Rooftop Course)#1|Gap]]
+|{{+=|xp|30|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Rellekka Rooftop Course (3).png|200px]]
+|[[Tightrope (Rellekka Rooftop Course)#1|Tightrope]]
+|{{+=|xp|40|echo=2}}
+| style="text-align:center;" |Yes (until 85)
+|-
+|[[File:Rellekka Rooftop Course (4).png|200px]]
+|[[Gap (Rellekka Rooftop Course)#2|Gap]]
+|{{+=|xp|85|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Rellekka Rooftop Course (5).png|200px]]
+|[[Gap (Rellekka Rooftop Course)#3|Gap]]
+|{{+=|xp|25|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Rellekka Rooftop Course (6).png|200px]]
+|[[Tightrope (Rellekka Rooftop Course)#2|Tightrope]]
+|{{+=|xp|105|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Rellekka Rooftop Course (7).png|200px]]
+|[[Pile of fish (Rellekka Rooftop Course)|Pile of fish]]
+|475 (without diary)
+{{+=|xp|615|echo=2}} (with diary)
+| style="text-align:center;" |No
+|-
+! colspan="2" style="text-align:right;" |Total
+!780 (without diary)
+{{#var:xp}} (with diary)
+!1
+|}
+
+==Treasure Trails==
+*{{SherlockChallenge|Completing a lap of the Rellekka Rooftop Course whilst wearing the full [[graceful outfit]]|master}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* The spawn rates of [[marks of Grace]] during the course has been increased.
+* Completion of the Fremennik Hard Diary now increases the rate of Marks of Grace.
+* Players can no longer fail the [[Gap (Rellekka Rooftop Course)|gap]] to  [[Peer the Seer]]'s house.
+* [[Experience]] per hour on the course has been increased from 55,000 to 65,000 with the completion of the [[hard Fremennik Diary]].
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Rellekka}}

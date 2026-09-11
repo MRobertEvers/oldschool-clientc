@@ -7,11 +7,19 @@
 
 #include <assert.h>
 #include <rscache.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define CACHE_PROVIDER_MODEL_CAPACITY 8192
-#define CACHE_PROVIDER_SPRITE_CAPACITY 4096
+/*
+ * Initial map sizes, not ceilings: cache_provider_hmap_prepare_insert doubles
+ * the buffer past 75% load, so a map that outgrows its number costs one rehash
+ * and nothing else. Each is the next power of two above twice what a booted
+ * osrs239 session actually holds, measured rather than guessed -- the old
+ * uniform 4096s were paying 1.5 MB to hold 5.6k entries.
+ */
+#define CACHE_PROVIDER_MODEL_CAPACITY 4096
+#define CACHE_PROVIDER_SPRITE_CAPACITY 2048
 /*
  * How much of each derived cache survives a trim (see
  * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
@@ -31,33 +39,62 @@
  */
 #define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
 #define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
-#define CACHE_PROVIDER_FONT_CAPACITY 256
-#define CACHE_PROVIDER_ENUM_CAPACITY 2048
-#define CACHE_PROVIDER_STRUCT_CAPACITY 2048
-#define CACHE_PROVIDER_PARAM_CAPACITY 2048
-#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
-#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
-#define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 1024
-#define CACHE_PROVIDER_SOUND_CAPACITY 1024
+/*
+ * Map squares (terrain + scenery) are trimmed at the same seam. A square is
+ * ~200 KB of terrain plus its loc list, and a rebuild touches at most a 4x4
+ * of them (a 104-tile scene straddling square borders), so 32 holds the
+ * current scene, the previous one, and an entity-viewer view's squares
+ * beside them. Squares were never evicted before this: every square walked
+ * past stayed resident until shutdown.
+ */
+#define CACHE_PROVIDER_MAP_SQUARE_KEEP ((size_t)32)
+#define CACHE_PROVIDER_FONT_CAPACITY 16
+#define CACHE_PROVIDER_ENUM_CAPACITY 256
+#define CACHE_PROVIDER_STRUCT_CAPACITY 128
+#define CACHE_PROVIDER_PARAM_CAPACITY 128
+#define CACHE_PROVIDER_INVTYPE_CAPACITY 16
+#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 64
+#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 2048
+#define CACHE_PROVIDER_OBJTYPE_CAPACITY 512
+#define CACHE_PROVIDER_NPCTYPE_CAPACITY 64
+#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 16
+#define CACHE_PROVIDER_SOUND_CAPACITY 16
 #define CACHE_PROVIDER_IDK_CAPACITY 512
-#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
-#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
+#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 32
+#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 32
 #define CACHE_PROVIDER_LOCATION_CAPACITY 4096
-#define CACHE_PROVIDER_FLOTYPE_CAPACITY 512
-#define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
-#define CACHE_PROVIDER_TEXTURE_CAPACITY 512
-#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
-#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
-#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
+#define CACHE_PROVIDER_FLOTYPE_CAPACITY 128
+#define CACHE_PROVIDER_UNDERLAY_CAPACITY 64
+#define CACHE_PROVIDER_TEXTURE_CAPACITY 128
+#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 32
+#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 64
+#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 64
 #define CACHE_PROVIDER_DBROW_CAPACITY 2048
 /* The renderer releases each region once baked, so only the in-flight ones sit
  * here — a map surface never has hundreds resident. */
-#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
-#define CACHE_PROVIDER_DBINDEX_CAPACITY 256
-/* One record per table; cache.osrs239 has 247 of them. */
-#define CACHE_PROVIDER_DBTABLE_CAPACITY 256
+#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 16
+#define CACHE_PROVIDER_DBINDEX_CAPACITY 16
+/* One record per table -- cache.osrs239 has 247 -- but they load on demand and a
+ * session touches a couple. The map doubles itself past 75% load, so this is a
+ * starting size, not a ceiling. */
+#define CACHE_PROVIDER_DBTABLE_CAPACITY 16
+
+static void
+cache_provider_ui_assets_changed(struct CacheProvider* provider)
+{
+    assert(provider);
+    provider->ui_asset_revision++;
+    /* Zero is the never-mutated value and is useful in zeroed fixtures. */
+    if( provider->ui_asset_revision == 0 )
+        provider->ui_asset_revision++;
+}
+
+uint64_t
+CacheProvider_UIAssetRevision(struct CacheProvider const* provider)
+{
+    assert(provider);
+    return provider->ui_asset_revision;
+}
 
 /*
  * `last_used` is the LRU clock for the two caches that grow without bound over
@@ -115,6 +152,12 @@ struct MapEntry_ProviderParamType
 {
     int id;
     struct ToriRS_ParamType* param;
+};
+
+struct MapEntry_ProviderInvtype
+{
+    int id;
+    int size;
 };
 
 struct MapEntry_ProviderSound
@@ -181,12 +224,14 @@ struct MapEntry_ProviderMapTerrain
 {
     int id;
     struct ToriRS_MapTerrain* terrain;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderMapScenery
 {
     int id;
     struct ToriRS_MapLocs* locs;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderLocation
@@ -321,6 +366,9 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
+    provider->derived_clock = 0;
+    provider->ui_asset_revision = 0;
+
     /* Unset until the boot path calls CacheProvider_SetProfile. Decoding through
      * CacheProvider_Profile before that asserts. */
     provider->profile = RSCache_ProfileZero();
@@ -337,6 +385,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
     provider->clientscript_cache = cache_provider_hmap_new(
@@ -386,12 +436,17 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
+    /* TEMP census: occupancy vs capacity for every provider map, so the
+     * CACHE_PROVIDER_*_CAPACITY constants can be set from what a session
+     * actually holds instead of from a guess. Runs before the cleanups, which
+     * empty the maps and rebuild them at the compiled capacity. */
     CacheProvider_ModelsCleanup(provider);
     CacheProvider_SpritesCleanup(provider);
     CacheProvider_FontsCleanup(provider);
     CacheProvider_EnumsCleanup(provider);
     CacheProvider_StructsCleanup(provider);
     CacheProvider_ParamsCleanup(provider);
+    CacheProvider_InvtypesCleanup(provider);
     CacheProvider_ComponentPacksCleanup(provider);
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
@@ -425,6 +480,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->struct_cache = NULL;
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = NULL;
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = NULL;
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
@@ -484,6 +541,7 @@ CacheProvider_ModelAdd(
     entry->id = model_id;
     entry->model = model;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Model*
@@ -611,6 +669,8 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
             ToriRS_ModelFree(entry->model);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
     free(doomed);
 }
 
@@ -653,6 +713,90 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
             ToriRS_SpriteFree(entry->sprite);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
+    free(doomed);
+}
+
+static void
+cache_provider_trim_map_terrain(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapTerrain* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_terrain_cache || (size_t)provider->map_terrain_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_terrain_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapTerrain, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_terrain_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_terrain_cache);
+    while( (entry = (struct MapEntry_ProviderMapTerrain*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapTerrain*)hmap_search(
+            provider->map_terrain_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->terrain )
+            ToriRS_MapTerrainFree(entry->terrain);
+    }
+    free(doomed);
+}
+
+static void
+cache_provider_trim_map_scenery(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapScenery* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_scenery_cache || (size_t)provider->map_scenery_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_scenery_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapScenery, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_scenery_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_scenery_cache);
+    while( (entry = (struct MapEntry_ProviderMapScenery*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapScenery*)hmap_search(
+            provider->map_scenery_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->locs )
+            ToriRS_MapLocsFree(entry->locs);
+    }
     free(doomed);
 }
 
@@ -662,6 +806,8 @@ CacheProvider_TrimDerivedCaches(struct CacheProvider* provider)
     assert(provider);
     cache_provider_trim_models(provider, CACHE_PROVIDER_MODEL_KEEP);
     cache_provider_trim_sprites(provider, CACHE_PROVIDER_SPRITE_KEEP);
+    cache_provider_trim_map_terrain(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
+    cache_provider_trim_map_scenery(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
 }
 
 void
@@ -669,10 +815,12 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderModel* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->model_cache )
         return;
+    changed = provider->model_cache->size > 0;
 
     iter = hmap_iter_new(provider->model_cache);
     while( (entry = (struct MapEntry_ProviderModel*)hmap_iter_next(iter)) )
@@ -685,6 +833,8 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->model_cache);
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -706,6 +856,7 @@ CacheProvider_SpriteAdd(
     entry->id = sprite_id;
     entry->sprite = sprite;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Sprite*
@@ -803,10 +954,12 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderSprite* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->sprite_cache )
         return;
+    changed = provider->sprite_cache->size > 0;
 
     iter = hmap_iter_new(provider->sprite_cache);
     while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
@@ -819,6 +972,8 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->sprite_cache);
     provider->sprite_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -839,6 +994,7 @@ CacheProvider_FontAdd(
 
     entry->id = font_id;
     entry->font = font;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Font*
@@ -869,10 +1025,12 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderFont* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->font_cache )
         return;
+    changed = provider->font_cache->size > 0;
 
     iter = hmap_iter_new(provider->font_cache);
     while( (entry = (struct MapEntry_ProviderFont*)hmap_iter_next(iter)) )
@@ -885,6 +1043,8 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->font_cache);
     provider->font_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -1085,6 +1245,62 @@ CacheProvider_ParamsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+}
+
+void
+CacheProvider_InvtypeAdd(
+    struct CacheProvider* provider,
+    int inv_id,
+    int size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(provider->invtype_cache);
+    assert(inv_id >= 0);
+    assert(size >= 0);
+
+    cache_provider_hmap_prepare_insert(&provider->invtype_cache);
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_INSERT);
+    assert(entry && "Inventory type must be inserted into hmap");
+
+    entry->id = inv_id;
+    entry->size = size;
+}
+
+bool
+CacheProvider_InvtypeGet(
+    struct CacheProvider* provider,
+    int inv_id,
+    int* out_size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(out_size);
+    *out_size = 0;
+    if( !provider->invtype_cache || inv_id < 0 )
+        return false;
+
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_FIND);
+    if( !entry )
+        return false;
+    *out_size = entry->size;
+    return true;
+}
+
+void
+CacheProvider_InvtypesCleanup(struct CacheProvider* provider)
+{
+    assert(provider);
+    if( !provider->invtype_cache )
+        return;
+
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
 }
 
 void
@@ -1701,6 +1917,7 @@ CacheProvider_ObjtypeAdd(
             }
         }
     }
+    cache_provider_ui_assets_changed(provider);
 }
 
 /*
@@ -1726,6 +1943,7 @@ CacheProvider_ObjtypeGet(
 {
     struct MapEntry_ProviderObjtype* entry;
     struct ToriRS_Objtype* objtype;
+    bool changed = false;
 
     assert(provider);
 
@@ -1742,7 +1960,11 @@ CacheProvider_ObjtypeGet(
      * resident; a non-empty name marks the copy as already done. */
     if( objtype && objtype->cert_template > 0 )
     {
-        objtype->stackable = 1;
+        if( !objtype->stackable )
+        {
+            objtype->stackable = 1;
+            changed = true;
+        }
         if( objtype_name_is_unset(objtype->name) && objtype->cert_link > 0 )
         {
             struct MapEntry_ProviderObjtype* link_entry =
@@ -1766,6 +1988,7 @@ CacheProvider_ObjtypeGet(
                         : "a";
                 snprintf(objtype->desc, sizeof(objtype->desc),
                          "Swap this note at any bank for %s %s.", article, link_name);
+                changed = true;
             }
         }
     }
@@ -1793,8 +2016,11 @@ CacheProvider_ObjtypeGet(
         {
             memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
             memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+            changed = true;
         }
     }
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
     return objtype;
 }
 
@@ -1811,10 +2037,12 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderObjtype* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->objtype_cache )
         return;
+    changed = provider->objtype_cache->size > 0;
 
     iter = hmap_iter_new(provider->objtype_cache);
     while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
@@ -1837,6 +2065,8 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
             sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
     }
     provider->objtypes_all_loaded = false;
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 int
@@ -2229,6 +2459,7 @@ CacheProvider_MapTerrainAdd(
 
     entry->id = map_id;
     entry->terrain = terrain;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapTerrain*
@@ -2244,6 +2475,7 @@ CacheProvider_MapTerrainGet(
         provider->map_terrain_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->terrain;
 }
 
@@ -2296,6 +2528,7 @@ CacheProvider_MapSceneryAdd(
 
     entry->id = map_id;
     entry->locs = locs;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapLocs*
@@ -2311,6 +2544,7 @@ CacheProvider_MapSceneryGet(
         provider->map_scenery_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->locs;
 }
 
@@ -2363,6 +2597,66 @@ CacheProvider_LocationAdd(
 
     entry->id = loc_id;
     entry->location = location;
+}
+
+int
+CacheProvider_VisitLoaded(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    CacheProvider_CatalogVisitFn visit,
+    void* user)
+{
+    struct HMapIter* iter;
+    void* raw;
+    int count = 0;
+
+    assert(provider);
+    assert(visit);
+
+    switch( kind )
+    {
+    case CACHEPROVIDER_CATALOG_LOC:
+        iter = hmap_iter_new(provider->location_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderLocation const* e = raw;
+            if( !e->location )
+                continue;
+            visit(user, e->id, e->location->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_NPC:
+        iter = hmap_iter_new(provider->npctype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderNpctype const* e = raw;
+            if( !e->npctype )
+                continue;
+            visit(user, e->id, e->npctype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_OBJ:
+        iter = hmap_iter_new(provider->objtype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderObjtype const* e = raw;
+            if( !e->objtype )
+                continue;
+            visit(user, e->id, e->objtype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+    }
+
+    assert(0 && "unknown catalog kind");
+    return 0;
 }
 
 struct ToriRS_Location*
@@ -2580,6 +2874,16 @@ CacheProvider_TextureGet(
     if( !entry )
         return NULL;
     return entry->texture;
+}
+
+void
+CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue)
+{
+    assert(provider);
+    assert(queue);
+    provider->asset_queue = queue;
 }
 
 bool

@@ -1,0 +1,65 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating monkeys|Basic reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Monkey
+|image = [[File:Reanimate Monkey.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 7
+|spellbook = Arceuus
+|type = Utility
+|exp = 14
+|cost = {{RuneReq|Body=3|Nature=1}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Monkey icon (mobile).png|left]]
+'''Reanimate Monkey''' was a [[reanimation spell]] which required a Magic level of 7 and an [[ensouled monkey head]] to cast. This spell would summon a [[reanimated monkey]] with five [[Hitpoints]].
+
+Upon killing the reanimated monkey players would gain 182 [[Prayer]] experience and 0.5% [[Arceuus]] [[favour]].
+
+The spell could be cast anywhere across [[Gielinor]], but '''only if''' the ensouled head was obtained as a drop from the respective monster, and the player were to cast it within an 31x31 area where that head was dropped by a monster. This worked indefinitely, even if the ensouled head was picked up, so long as it was not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. 
+
+If the player had put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell would only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = body
+|Rune1num = 3
+|Rune2 = nature
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Monkey v1.png|center]]
+|[[File:Reanimate Monkey.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

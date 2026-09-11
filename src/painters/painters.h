@@ -1,7 +1,9 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
-#include "graphics/projection.h"
+#include "debug/painters_debug.h"
+#include "impl/projection/projection.scalar_reference.h"
+#include "toridraw_element_id.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -248,11 +250,19 @@ enum PaintersSceneryFlags
      * see docs/painter_bucket_vs_world3d.md "Loc stacking").
      */
     PNTR_SCENERY_STACK_BASE = 1 << 1,
+    /**
+     * Pseudo-loc standing in for a nested world view (a boat). `entity` is the
+     * *view id*, not a scene element: the painter never emits a model command
+     * for it. When the drain reaches it, it emits PNTR_CMD_BEGIN_WORLD, descends
+     * into that view's own painter, and emits PNTR_CMD_END_WORLD on the way out.
+     * @see painter_add_world_entity, painter_set_world_entity_view.
+     */
+    PNTR_SCENERY_WORLDENTITY = 1 << 2,
 };
 
 struct NormalScenery
 {
-    uint16_t entity;
+    uint32_t entity;
     /*
      * Tile footprint, 1..PAINTER_SCENERY_MAX_SIZE.
      *
@@ -276,7 +286,7 @@ struct NormalScenery
 
 struct GroundObject
 {
-    uint16_t entity;
+    uint32_t entity;
 };
 
 enum WallSide
@@ -293,7 +303,7 @@ enum WallSide
 
 struct Wall
 {
-    uint16_t entity;
+    uint32_t entity;
 
     uint8_t side;
 };
@@ -301,6 +311,12 @@ struct Wall
 struct GroundDecor
 {
     int entity;
+    /** Slot occupant this element displaced, or -1. Only a *dynamic* add
+     *  (painter_add_ground_decor_dynamic) ever displaces anything: a baked
+     *  static decor keeps the tile until painter_reset_to_static hands it
+     *  back, which is what this field is for. Static adds leave it -1 and it
+     *  is never read for them. */
+    int prev_slot;
 };
 
 enum ThroughWallFlags
@@ -313,7 +329,7 @@ enum ThroughWallFlags
 
 struct WallDecor
 {
-    uint16_t entity;
+    uint32_t entity;
 
     // For throughwall, this specifies which side is the "outside".
     // enum WallSide side;
@@ -366,6 +382,10 @@ enum PaintersCommandKind
     PNTR_CMD_TERRAIN,
     /** Occluded terrain: hit-tested for picking but not rasterized. */
     PNTR_CMD_TERRAIN_PICK_ONLY,
+    /** Descend into nested world view `_bf_entity` (0..PAINTER_MAX_WORLD_VIEWS-1). */
+    PNTR_CMD_BEGIN_WORLD,
+    /** Leave the nested world view `_bf_entity`; pairs with PNTR_CMD_BEGIN_WORLD. */
+    PNTR_CMD_END_WORLD,
 };
 
 // Want to pack into 64 bits.
@@ -395,7 +415,13 @@ struct PaintersElementCommand
         struct
         {
             uint32_t _bf_kind : 4;
+            /* The scene index and the element KIND, side by side rather
+             * than as one tagged id: a tagged id is 32 bits wide (the kind
+             * sits at bit 28) and would not fit beside _bf_kind here. The
+             * word was using 20 of its 32 bits, so the kind is free.
+             * painter_command_element_id() puts the two back together. */
             uint32_t _bf_entity : 16;
+            uint32_t _bf_entity_kind : 4;
         } _entity;
 
         struct
@@ -406,6 +432,42 @@ struct PaintersElementCommand
             uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
+    /**
+     * The scene element the command draws, resolved by the painter at emit
+     * time: the tagged id for PNTR_CMD_ELEMENT, the tile's mesh element for
+     * the two terrain kinds (from the painter's terrain_element table), -1
+     * for the markers and for a terrain tile with no mesh. Saves the frame a
+     * 2-3 dependent-load walk through the world's terrain entity pool per
+     * terrain command (TORIRS_FRAME_TERRAIN_ID).
+     */
+    int32_t _element_id;
+};
+
+/** The tagged element id a PNTR_CMD_ELEMENT command names. */
+static inline int
+painter_command_element_id(struct PaintersElementCommand const* cmd)
+{
+    return ElementId_Raw(ElementId_Make(
+        (enum ToriDraw_ElementKind)cmd->_entity._bf_entity_kind,
+        (int)cmd->_entity._bf_entity));
+}
+
+/** Registry bound of nested world views, matching WORLDVIEW_MAX and the
+ *  reference class61 table of 16. Also the descent depth cap. */
+#define PAINTER_MAX_WORLD_VIEWS 16
+
+/**
+ * One nested world view as the parent painter sees it: which painter to descend
+ * into, and where the camera sits once transformed into that view's tile space.
+ * Rebuilt every frame alongside the pseudo-locs.
+ */
+struct PainterWorldEntityView
+{
+    struct Painter* painter;
+    int camera_sx;
+    int camera_sz;
+    int camera_slevel;
+    int active;
 };
 
 struct Painter;
@@ -499,9 +561,9 @@ struct PaintersCullSpanParams
     int screen_height;
     /** Mirror of ToriDraw_Camera's projection knobs, and they must be the SAME
      *  values the frame is drawn with — see the note at the focal computation
-     *  in painters_cullspan.u.c. proj_mode selects; see graphics/projection.h. */
-    int proj_mode;
-    int proj_scale;
+     *  in painters_cullspan.u.c. projection_mode selects; see graphics/projection.h. */
+    int projection_mode;
+    int projection_scale;
     int fov_rpi2048;
     int dz_min;
     int dz_max;
@@ -525,7 +587,7 @@ painters_cullspan_build(
  * project and sin_fn are required; both receive the same user pointer.
  *
  * camera_cot16 is the resolved projection multiplier the bake assumes (see
- * toridraw_proj_cot16). It used to be a bare 512 buried in the frustum test,
+ * toridraw_projection_cot16). It used to be a bare 512 buried in the frustum test,
  * which silently baked a scale-512 frustum no matter what the camera projected
  * with; pass what the frame will actually use. The bake is conservative
  * (padding + dilation), so it tolerates being slightly wide but not narrow. */
@@ -747,6 +809,55 @@ painter_add_normal_scenery_ex(
 void
 painter_mark_static_count(struct Painter* painter);
 
+/**
+ * The element id each terrain mesh draws with, kept beside the tiles so the
+ * paint walk can put it on the command. World_TerrainSet writes it; a scene
+ * reset clears it.
+ */
+void
+painter_set_terrain_element(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int element_id);
+
+int
+painter_terrain_element_at(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel);
+
+void
+painter_clear_terrain_elements(struct Painter* painter);
+
+/**
+ * The per-cycle dynamic pass, bracketed. Between the two, painter_add_normal_scenery(_ex),
+ * painter_add_world_entity, painter_add_wall and painter_add_ground_decor_dynamic are
+ * RECORDED rather than applied (they return -1). Commit compares the record
+ * with the previous cycle's: identical, and the static set untouched since,
+ * means the tiles already hold exactly what a rebuild would produce, so the
+ * tear-down (painter_reset_to_static) and the re-add are both skipped --
+ * all-or-nothing, so insertion-order ties are preserved. Otherwise it resets
+ * and replays the record in order. Returns 1 when it rebuilt, 0 when it
+ * skipped.
+ *
+ * TORIRS_PAINTER_DYN_SKIP=0 turns the journal off: begin is then
+ * painter_reset_to_static and the adds apply immediately, as they always did.
+ */
+void
+painter_dynamics_begin(struct Painter* painter);
+
+int
+painter_dynamics_commit(struct Painter* painter);
+
+/** Test hook: 1/0 forces the journal on/off for this painter, -1 follows the env knob. */
+void
+painter_set_dynamics_skip(
+    struct Painter* painter,
+    int enabled);
+
 /** Toggle suppression of the single-slot wall / wall_decor / ground_decor
  *  registrations. Set around a runtime loc spawn (WorldBuilder_ApplyLocChange)
  *  so reusing the build path doesn't assert on / clobber the baked static tile
@@ -832,6 +943,30 @@ painter_add_ground_decor(
     int slevel,
     int entity);
 
+/** Ground decor for a loc spawned at RUNTIME (a zone LOC_ADD_CHANGE), which
+ *  world_cycle re-registers every frame after painter_reset_to_static has
+ *  truncated the previous frame's copy.
+ *
+ *  Two differences from painter_add_ground_decor, both from that lifetime: it
+ *  claims an occupied tile slot instead of asserting on one (a spawn can land
+ *  on a tile that baked its own floor decor), and it records what it displaced
+ *  so the reset can put it back.
+ *
+ *  Registering these as ordinary scenery -- which is what the per-frame pass
+ *  did before this existed -- is not just a category error. Ground decor is
+ *  emitted in a tile's BASE step, which is ahead of every scenery element whose
+ *  footprint covers that tile; scenery is emitted after the base step and is
+ *  ordered against the other scenery on the tile. So a puddle spawned under a
+ *  big NPC drew *over* the NPC whenever its own tile sorted nearer than the
+ *  NPC's anchor (Xarpus' acid). As decor it is underneath by construction. */
+int
+painter_add_ground_decor_dynamic(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
 #define GROUND_OBJECT_BOTTOM 0
 #define GROUND_OBJECT_MIDDLE 1
 #define GROUND_OBJECT_TOP 2
@@ -899,6 +1034,64 @@ painter_paint4_1(
     int camera_sz,
     int camera_slevel);
 
+/**
+ * Bind view `view_id`'s painter and its view-space camera onto `painter`, so
+ * the bucket drain can descend into it when it reaches that view's pseudo-loc.
+ * Cleared wholesale by painter_clear_world_entity_views; both are per-frame.
+ */
+void
+painter_set_world_entity_view(
+    struct Painter* painter,
+    int view_id,
+    struct Painter* view_painter,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
+
+void
+painter_clear_world_entity_views(struct Painter* painter);
+
+/**
+ * Register the per-frame pseudo-loc that carries nested view `view_id` in this
+ * painter's draw order. Transient exactly like every other dynamic: the next
+ * painter_reset_to_static drops it.
+ *
+ * `sx`/`sz` are the MIN corner of the footprint and `size_x`/`size_z` its tile
+ * extent — not the entity's centre. The footprint is the axis-aligned bound of
+ * the hull ROTATED by its current heading, so it changes shape as the boat
+ * turns and the caller must recompute it every frame (@see Wev_FootprintTiles).
+ * A fixed 1x1 under-covers: the drain wakes only the tiles inside this
+ * rectangle and sorts neighbouring locs against its extent, so a long hull
+ * pinned to one tile lets scenery beside it sort in front.
+ */
+int
+painter_add_world_entity(
+    struct Painter* painter,
+    int level,
+    int sx,
+    int sz,
+    int view_id,
+    int model_height,
+    int size_x,
+    int size_z);
+
+/*
+ * The paint walk's census, always on: walks this frame, walks whose inputs
+ * (camera tile and level, cull span, draw distance, level mask) were the
+ * previous walk's -- what a cached walk would hit -- tiles popped, commands
+ * emitted and how many of those were entities rather than static scenery.
+ * A renderer that prints frame statistics reads and clears it.
+ */
+struct TorirsPaintCensus
+{
+    int walks;
+    int same_inputs;
+    int pops;
+    int commands;
+    int entity_commands;
+};
+extern struct TorirsPaintCensus g_torirs_paint_census;
+
 int
 painter_paint_bucket(
     struct Painter* painter, //
@@ -925,19 +1118,5 @@ painter_paint_world3d(
     int camera_sx,
     int camera_sz,
     int camera_slevel);
-
-/**
- * Draw-order telemetry (TORIRS_WEDGELOG=<path>). Records the eye and viewport the
- * caller is about to paint with so the log header can be compared against the
- * instrumented official client's `#path` line. No-op unless the env var is set;
- * never reads or writes painter/render state.
- */
-void
-painter_wedgelog_set_eye(
-    int eye_x,
-    int eye_y,
-    int eye_z,
-    int viewport_w,
-    int viewport_h);
 
 #endif

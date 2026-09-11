@@ -1,0 +1,218 @@
+From 3e076183ad582148884d36769eef87a66077c729 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 01:54:28 -0500
+Subject: [PATCH] perf(occluders): lower the wall/floor merge-area gates 8/4 ->
+ 4/2
+
+The occluder system was never near its 500-per-level cap (active set mean
+28.4, max 39) and is MORE effective at eye level than overhead (74.7% of
+point queries hidden, vs 51.2%). It was starved at build time instead:
+OCCLUDER_WALL_MIN_TILE_AREA 8 rejected 5702 of 6435 marked wall tile-levels
+in the 4-chunk Lumbridge scene, leaving 19 wall occluders for 128x128 tiles.
+
+Measured over 300 frames of the moving bench camera, 8/4 -> 4/2:
+  gouraud pixels   129,570,278 -> 114,962,080  (-11.3%)
+  texture pixels   112,018,137 -> 103,210,928  (-7.9%)
+  r_model_faces      5,521,967 ->   4,498,188  (-18.5%)
+  r_model_drawn        372,680 ->     280,562  (-24.7%)
+  painter_commands     718,847 ->     658,589  (-8.4%)
+cost: occluder visits 85,090 -> 168,957 per frame.
+
+Pixel error against a TORIRS_OCCLUDERS=0 ground truth over 12 frames of the
+camera loop: 0.2204% before, 0.2106% after -- the tighter runs sample ground
+height at fewer corners, so the shorter planes are slightly MORE faithful.
+
+Also adds an OCC_TUNE=1 probe build (compiled out by default) that makes both
+gates env-tunable and histograms every candidate merge run.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/engine/world_builder/occluder_buildmap.c | 124 ++++++++++++++++++-
+ src/painters/scene_occluders.h               |   4 +-
+ 2 files changed, 123 insertions(+), 5 deletions(-)
+
+diff --git a/src/engine/world_builder/occluder_buildmap.c b/src/engine/world_builder/occluder_buildmap.c
+index d5038193d..1c9b922a8 100644
+--- a/src/engine/world_builder/occluder_buildmap.c
++++ b/src/engine/world_builder/occluder_buildmap.c
+@@ -9,6 +9,84 @@
+ 
+ #define OCCLUDER_TILE_SIZE 128
+ 
++#if defined(OCC_TUNE) && OCC_TUNE
++#include <stdio.h>
++/* Probe build only: the two merge-area gates become runtime-tunable so the
++ * sweep does not cost a build each, and every candidate run is counted. */
++static int
++occ_tune_int(const char* name, int fallback)
++{
++    const char* v = getenv(name);
++    int out;
++    if( !v || !v[0] )
++        return fallback;
++    if( sscanf(v, "%d", &out) != 1 )
++        return fallback;
++    return out;
++}
++static int g_occ_wall_min = -1;
++static int g_occ_floor_min = -1;
++#define OCC_WALL_MIN_AREA                                                           (g_occ_wall_min >= 0 ? g_occ_wall_min                                                                : (g_occ_wall_min = occ_tune_int(                                                      "OCC_WALL_MIN_AREA", OCCLUDER_WALL_MIN_TILE_AREA)))
++#define OCC_FLOOR_MIN_AREA                                                          (g_occ_floor_min >= 0 ? g_occ_floor_min                                                               : (g_occ_floor_min = occ_tune_int(                                                     "OCC_FLOOR_MIN_AREA", OCCLUDER_FLOOR_MIN_TILE_AREA)))
++/* area histogram of every candidate run, accepted or not */
++static long g_occ_run_area[3][64];
++static long g_occ_run_reject[3][64];
++static void
++occ_tune_record(int kind, int area, int accepted)
++{
++    int b = area;
++    if( b > 63 )
++        b = 63;
++    if( b < 0 )
++        b = 0;
++    if( accepted )
++        g_occ_run_area[kind][b]++;
++    else
++        g_occ_run_reject[kind][b]++;
++}
++void
++occ_tune_dump(void)
++{
++    const char* path = getenv("OCC_TUNE_FILE");
++    FILE* f = path && path[0] ? fopen(path, "w") : stderr;
++    const char* names[3] = { "wallX", "wallZ", "floor" };
++    int k;
++    int i;
++    if( !f )
++        f = stderr;
++    fprintf(f, "occluder merge-run census (wall_min=%d floor_min=%d)\n",
++            OCC_WALL_MIN_AREA, OCC_FLOOR_MIN_AREA);
++    for( k = 0; k < 3; k++ )
++    {
++        long acc = 0;
++        long rej = 0;
++        long acc_area = 0;
++        long rej_area = 0;
++        for( i = 0; i < 64; i++ )
++        {
++            acc += g_occ_run_area[k][i];
++            rej += g_occ_run_reject[k][i];
++            acc_area += g_occ_run_area[k][i] * i;
++            rej_area += g_occ_run_reject[k][i] * i;
++        }
++        fprintf(f, "%s: accepted %ld runs (%ld tile-levels), rejected %ld runs (%ld tile-levels)\n",
++                names[k], acc, acc_area, rej, rej_area);
++        fprintf(f, "  area: ");
++        for( i = 0; i < 64; i++ )
++            if( g_occ_run_area[k][i] || g_occ_run_reject[k][i] )
++                fprintf(f, "%d:%ld/%ld ", i, g_occ_run_area[k][i], g_occ_run_reject[k][i]);
++        fprintf(f, "\n");
++    }
++    fflush(f);
++    if( path && path[0] )
++        fclose(f);
++}
++#else
++#define OCC_WALL_MIN_AREA OCCLUDER_WALL_MIN_TILE_AREA
++#define OCC_FLOOR_MIN_AREA OCCLUDER_FLOOR_MIN_TILE_AREA
++#define occ_tune_record(kind, area, accepted) ((void)0)
++#endif
++
+ static inline int
+ occluder_buildmap_idx(
+     const struct OccluderBuildmap* map,
+@@ -187,6 +265,17 @@ occluder_buildmap_build_occluders(
+     wall1 = 0x2;
+     floor = 0x4;
+ 
++#if defined(OCC_TUNE) && OCC_TUNE
++    {
++        static int armed;
++        if( !armed )
++        {
++            armed = 1;
++            atexit(occ_tune_dump);
++        }
++    }
++#endif
++
+     for( top_level = 0; top_level < map->levels; top_level++ )
+     {
+         if( top_level > 0 )
+@@ -264,7 +353,8 @@ occluder_buildmap_build_occluders(
+                         }
+ 
+                         area = (max_level + 1 - min_level) * (max_tz + 1 - min_tile_z);
+-                        if( area >= OCCLUDER_WALL_MIN_TILE_AREA )
++                        occ_tune_record(0, area, area >= OCC_WALL_MIN_AREA);
++                        if( area >= OCC_WALL_MIN_AREA )
+                         {
+                             int min_y =
+                                 occluder_ground_y(
+@@ -351,7 +441,8 @@ occluder_buildmap_build_occluders(
+                         }
+ 
+                         area = (max_level + 1 - min_level) * (max_tx + 1 - min_tile_x);
+-                        if( area >= OCCLUDER_WALL_MIN_TILE_AREA )
++                        occ_tune_record(1, area, area >= OCC_WALL_MIN_AREA);
++                        if( area >= OCC_WALL_MIN_AREA )
+                         {
+                             int min_y =
+                                 occluder_ground_y(
+@@ -436,8 +527,13 @@ occluder_buildmap_build_occluders(
+                             max_tx++;
+                         }
+ 
++                        occ_tune_record(
++                            2,
++                            (max_tx + 1 - min_tile_x) * (max_tz + 1 - min_tile_z),
++                            (max_tx + 1 - min_tile_x) * (max_tz + 1 - min_tile_z) >=
++                                OCC_FLOOR_MIN_AREA);
+                         if( (max_tx + 1 - min_tile_x) * (max_tz + 1 - min_tile_z) >=
+-                            OCCLUDER_FLOOR_MIN_TILE_AREA )
++                            OCC_FLOOR_MIN_AREA )
+                         {
+                             int y = occluder_ground_y(
+                                 heightmap, min_tile_x, min_tile_z, level);
+@@ -463,4 +559,26 @@ occluder_buildmap_build_occluders(
+             }
+         }
+     }
++
++#if defined(OCC_TUNE) && OCC_TUNE
++    {
++        int l;
++        for( l = 0; l < out->levels; l++ )
++        {
++            int w = 0;
++            int fl = 0;
++            int i;
++            for( i = 0; i < out->level_occluder_count[l]; i++ )
++                if( out->level_occluders[l][i].plane == OCCLUDER_PLANE_CONSTANT_Y )
++                    fl++;
++                else
++                    w++;
++            fprintf(stderr, "occ_build: level %d -> %d occluders (%d wall, %d floor)%s\n",
++                    l, out->level_occluder_count[l], w, fl,
++                    out->level_occluder_count[l] >= OCCLUDER_MAX_PER_LEVEL
++                        ? "  *** AT CAP ***"
++                        : "");
++        }
++    }
++#endif
+ }
+diff --git a/src/painters/scene_occluders.h b/src/painters/scene_occluders.h
+index eefcf315d..37ef619bb 100644
+--- a/src/painters/scene_occluders.h
++++ b/src/painters/scene_occluders.h
+@@ -42,9 +42,9 @@ enum OccluderHides
+ };
+ 
+ /** Wall merge must cover at least this many (levels × tiles). */
+-#define OCCLUDER_WALL_MIN_TILE_AREA 8
++#define OCCLUDER_WALL_MIN_TILE_AREA 4
+ /** Floor merge must cover at least this many tiles. */
+-#define OCCLUDER_FLOOR_MIN_TILE_AREA 4
++#define OCCLUDER_FLOOR_MIN_TILE_AREA 2
+ /** Wall planes extend this many scene units below the top-level ground. */
+ #define OCCLUDER_WALL_HEIGHT 240
+ /** Occluders closer than this to the eye are skipped (degenerate projection). */

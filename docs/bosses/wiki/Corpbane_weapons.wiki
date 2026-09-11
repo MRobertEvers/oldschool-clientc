@@ -1,0 +1,61 @@
+'''Corpbane{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1696803121450663990|date=30 August 2023|archiveurl=https://reldo.runescape.wiki/i/105060|archivedate=30 August 2023|quote=They're both classified as spears internally. The Corp actually uses a separate parameter called "corpbane" that's applied to individual spears/halberds that have been enabled against it.}} weapons''' are [[melee]] [[weapons]] that deal full damage against the [[Corporeal Beast]] when using the [[stab]] attack style. This page contains a complete list of Corpbane weapons distinguished by their [[Weapons/Categories|weapon category]].
+
+Note: The [[Weapon_poison_(disambiguation)|poisoned]] variants of these weapons are also Corpbane, though the Corporeal Beast is immune to both [[poison]] and [[venom]].
+
+==List of weapons==
+===Spears===
+
+{{Infotable Bonuses
+|Bronze spear#(unp)
+|Iron spear#(unp)
+|Steel spear#(unp)
+|Black spear#(unp)
+|Mithril spear#(unp)
+|Adamant spear#(unp)
+|Rune spear#(unp)
+|Dragon spear#(unp)
+|Bone spear
+|Gilded spear
+|Leaf-bladed spear
+|Guthan's warspear#Undamaged
+|Zamorakian spear
+|Sunspear
+|Vesta's spear (Deadman Mode)
+|sort=astab|nototals=yes|attackspeed=yes}}
+{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1697195201024946493|date=31 August 2023|archiveurl=https://reldo.runescape.wiki/i/107910|archivedate=31 August 2023|quote=Bone spear only.}}
+
+===Polearms===
+
+{{Infotable Bonuses
+|Bronze halberd
+|Iron halberd
+|Steel halberd
+|Black halberd
+|White halberd
+|Mithril halberd
+|Adamant halberd
+|Rune halberd
+|Dragon halberd
+|Crystal halberd#Active
+|Noxious halberd
+|sort=astab|nototals=yes|attackspeed=yes}}
+
+===Other Corpbane weapons===
+
+{{Infotable Bonuses
+|Osmumten's fang
+|Thunder khopesh
+|King's barrage
+|sort=astab|nototals=yes|attackspeed=yes}}
+
+==See also==
+* [[Corporeal Beast]]
+* [[Dragonbane weapons]]
+* [[Demonbane weapons]]
+* [[Leaf-bladed weapons]]
+* [[Silver weaponry]]
+
+==References==
+{{Reflist}}
+
+[[Category:Weapon types]]

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Dat1 sequences.
@@ -57,7 +58,7 @@ seq_register_result(
     {
         anim = calloc(1, sizeof(*anim));
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "dat1 seq_load: seq=%d unavailable\n", self->seq_id);
+            TORIRS_LOG("dat1 seq_load: seq=%d unavailable\n", self->seq_id);
     }
     if( anim )
         ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
@@ -78,9 +79,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
     if( !seq_list || self->seq_id < 0 || self->seq_id >= seq_list->seqs_count )
     {
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "dat1 seq_load: seq=%d no list (list=%p count=%d)\n",
+            TORIRS_LOG("dat1 seq_load: seq=%d no list (list=%p count=%d)\n",
                 self->seq_id,
                 (void*)seq_list,
                 seq_list ? seq_list->seqs_count : -1);
@@ -92,9 +91,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
     if( frame_count <= 0 || !seq->frames )
     {
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "dat1 seq_load: seq=%d empty (frame_count=%d frames=%p)\n",
+            TORIRS_LOG("dat1 seq_load: seq=%d empty (frame_count=%d frames=%p)\n",
                 self->seq_id,
                 frame_count,
                 (void*)seq->frames);
@@ -112,9 +109,7 @@ seq_build_animation(struct Task_Dat1SequenceLoad* self)
         if( !frame )
         {
             if( getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(
-                    stderr,
-                    "dat1 seq_load: seq=%d frame %d/%d id=%d not in any archive\n",
+                TORIRS_LOG("dat1 seq_load: seq=%d frame %d/%d id=%d not in any archive\n",
                     self->seq_id,
                     i,
                     frame_count,
@@ -213,7 +208,7 @@ Task_Dat1SequenceLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 config jagfile for seq %d\n", self->seq_id);
+            TORIRS_ERR("Failed to decode dat1 config jagfile for seq %d\n", self->seq_id);
             seq_register_result(self, NULL);
             PT_EXIT(&self->pt);
         }
@@ -234,8 +229,7 @@ Task_Dat1SequenceLoad_Run(
             RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_VERSION_LIST);
         if( !versionlist_jagfile )
         {
-            fprintf(
-                stderr, "Failed to decode dat1 version list for seq %d\n", self->seq_id);
+            TORIRS_ERR("Failed to decode dat1 version list for seq %d\n", self->seq_id);
             seq_register_result(self, NULL);
             PT_EXIT(&self->pt);
         }
@@ -259,9 +253,7 @@ Task_Dat1SequenceLoad_Run(
             struct RSCache_Dat1AnimBaseFrames* abf = RSCache_IO_Dat1AnimBaseFramesDecode(io, 0);
             if( !abf )
             {
-                fprintf(
-                    stderr,
-                    "Failed to load dat1 anim archive %d for seq %d\n",
+                TORIRS_ERR("Failed to load dat1 anim archive %d for seq %d\n",
                     self->pending_archive_id,
                     self->seq_id);
                 seq_register_result(self, NULL);

@@ -1,0 +1,184 @@
+{{Has quick guide}}
+{{Infobox Quest
+|name = A Night at the Theatre
+|number = 149
+|image = [[File:A Night at the Theatre.png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|series = None
+|developer = [[Mod Ed]]
+}}
+'''A Night at the Theatre''' is a stand-alone [[quest]] in which the player assists the [[Mysterious Stranger]] in obtaining information about [[Verzik Vitur]] and the [[Theatre of Blood]], culminating in completing a run of the Theatre.
+
+While the Theatre is normally quite difficult, the quest offers the option of being able to play in Entry Mode, which is considerably reduced in difficulty and is intended to have the player learn the mechanics of the raid.
+
+==Details==
+{{Quest details
+|start = Talk to the [[Mysterious Stranger]] inside [[Ver Sinhaza]], south-east of [[Meiyerditch]].
+|startmap = 3673,3224
+|difficulty = Master
+|description = The Mysterious Stranger lurks outside of the mighty Theatre of Blood, the centrepiece of Ver Sinhaza. This shadowy figure has a new request for you – to humiliate a vampyre noble by the name of Lady Verzik Vitur. Take on the challenges that lie within the Theatre to reach her and bring a blush to her bloodless face!
+|length = Medium
+|requirements = 
+*Completion of the following quests:
+**[[A Taste of Hope]]
+***[[Darkness of Hallowvale]]
+****[[In Aid of the Myreque]]
+*****[[In Search of the Myreque]]
+******[[Nature Spirit]]
+*******[[Priest in Peril]]
+*******[[The Restless Ghost]]
+|items =*[[Ivandis flail]] or [[Blisterwood flail]]
+*[[Saw]] ([[crystal saw]] also works)
+*[[Ghostspeak amulet]] ([[Morytania legs 2]] or better also work)
+*Any [[axe]] besides the [[blessed axe]]
+|recommended =
+*{{SCP|Combat|95|link=yes}}
+*[[Stamina potion|Stamina]] or [[Energy Potion]]s
+*[[Drakan's medallion]]
+*[[Anti-venom]] or 2 doses of [[antipoison]] to cure venom.
+**Additional [[antipoison]] when fighting the [[Hespori (A Night at the Theatre)|hespori]].
+*Access to [[fairy rings]] for quick access to the [[Nature Grotto]].
+*[[Druid pouch]] to protect food whilst in [[Mort Myre Swamp]], or have lit the [[Fire of Dehumidification]]
+*High-end combat equipment with the ability to poison or venom, and high healing food. Bringing all combat styles is highly recommended.
+|kills =*[[Vyrewatch]] (Level 105)
+*Several venomous [[araxyte]] (Levels 96 and 146) (can be avoided)
+*[[Hespori (A Night at the Theatre)|Hespori]] (Level 302)
+*All [[Theatre of Blood]] bosses (optional, if a kill count has been acquired before starting the quest):
+**[[The Maiden of Sugadinti]] and [[Nylocas Matomenos]]
+**[[Pestilent Bloat]]
+**[[Nylocas Toxobolos]], [[Nylocas Hagios]], [[Nylocas Ischyros]] and [[Nylocas Vasilias]]
+**[[Sotetseg]]
+**[[Xarpus]]
+**[[Verzik Vitur]], [[Nylocas Athanatos]] and Nylocas Matamenos
+|leagueRegion = <poem>
+{{LeagueRegion|Morytania}} — location requirement
+</poem>
+}}
+
+==Walkthrough==
+===Behind The Scenes===
+{{Needed|Combat gear, some food, [[Ivandis flail]] or [[Blisterwood flail]], [[Saw]], one dose of [[anti-venom]] or two doses of [[antipoison]], [[Drakan's medallion]]}}
+Talk to the [[Mysterious Stranger]] by the entrance to [[Ver Sinhaza]]. He will tell players about the information he has gathered about [[Verzik Vitur]] through mercenaries who've survived the [[Theatre of Blood]]; specifically, her unique abilities, which are unheard of among [[vampyre]]s, and the method in which she acquired them.
+
+One of the observations the Mysterious Stranger has is from a mercenary who claimed a set of purple spiders eggs fell out of Verzik, and discovered the eggs were of a variant of [[nylocas]], a species of arachnid from the vampyre's homeworld of [[Vampyrium]], that has not been documented before.
+
+[[File:A Night at the Theatre - Ranis' coffin.png|thumb|left|Desecrating Ranis' grave.]]
+In order to find out more information about them, you are asked to retrieve the corpse of [[Ranis Drakan]], who you killed during the events of [[A Taste of Hope]], so that the Stranger can relive his memories and attempt to find useful information.
+
+[[File:A Night at the Theatre - first memory.png|thumb|right|Ranis and Verzik talk about [[The Maiden of Sugadinti]].]]
+Ranis Drakan is buried in a crypt beneath Ver Sinhaza, whose entrance can be found just north of the Stranger; bring a [[saw]] and an [[Ivandis flail]] or [[blisterwood flail]], as you'll need to kill a [[vyrewatch]]. Head down these stairs, and kill a vyrewatch to obtain a [[crypt key]], which is used to open the gate to Ranis' coffin. Search the coffin to cut off [[Ranis' head]], and return to the Stranger to hand him the head. The Stranger and you will then view one of Ranis' memories, where he gifts Verzik some spider eggs from a nest of [[araxyte]]s, another unique species of arachnids, north of [[Darkmeyer]], to assist her in her nylocas breeding program.
+
+After viewing the memory, the Stranger will ask you to investigate the [[Morytania Spider Cave|spider cave]] and recover some of their eggs. Head north-west of [[Slepe]] to the cave entrance found there, and enter the nest. Walk north towards the end of the nest to find a corpse just behind a large [[Egg Sac (A Night at the Theatre)|egg sac]], and search it for a [[sticky note]]. When read, the note mentions [[Daer Krand]] will have some [[sulphuric acid]] that would be able to burn through the egg sac.
+
+Daer Krand can be found within the [[Sisterhood Sanctuary]], a large subterranean complex beneath [[Slepe]]. The entrance to the Sanctuary can be found in the building next to the church. Once players climb down the stairs, walk east towards the main area of the Sanctuary, and make your way upstairs in the Sanctuary's eastern wing, just north of [[The Nightmare]]'s arena. Talk to him about [[sulphuric acid]], and you'll inform him that his assistant has died trying to obtain some spider eggs. In exchange for bringing him news regarding his assistant, he will give you a vial of sulphuric acid.
+
+[[File:A Night at the Theatre - Egg Sac.png|thumb|The chamber housing the egg sac]]
+Head back to the spider cave and use the [[sulphuric acid]] on the egg sac to obtain some [[strange spider eggs]]. You will be attacked by multiple level 96 and 146 [[araxyte]]s, which can inflict [[venom]] starting at 8 damage. They cannot be killed without a [[Slayer]] level of 92 or higher, though they do not need to be fought and can be simply ignored with [[Protect from Melee]]. Simply teleport to [[Ver Sinhaza]] using [[Drakan's medallion]], and cure your venom afterwards. Talk to the [[Mysterious Stranger]] to view more of Ranis' memories. In these memories, you will see the results of the [[araxyte]] eggs Verzik was gifted, where she uses them to breed two new variants of [[nylocas]]. Needing regenerative abilities to be bred onto the nylocas, Ranis advises Verzik to try using the bark of a [[hespori]], a rare carnivorous plant bred by [[Queen Efaritay]], who used them as living weapons against the vampyres in defence of [[Hallowvale]] during the [[God Wars]].
+
+<gallery captionalign="center" widths="200">
+File:A Night at the Theatre - second memory.png|Verzik shows Ranis a Nylocas Athanatos, a result of her Nylocas breeding program.
+File:A Night at the Theatre - third memory.png|Verzik shows Ranis a Nylocas Vasilias, also a result of her breeding program.
+</gallery>
+
+===Get Into The Grove===
+{{Needed|[[Ghostspeak amulet]], any [[axe]], items (armour, food, antipoison) to kill a level 302 [[Hespori (A Night at the Theatre)|Hespori]], [[druid pouch]] recommended to protect food from [[ghast]]s}}
+To find out more about the role of the hespori in the creation of the [[Theatre of Blood|Theatre]]'s monsters, you will need to acquire some bark from the plant. You will recall [[Filliman Tarlock#Spirit|Filliman Tarlock]], now a Nature Spirit, who might be able to help you find one. Contact the Nature Spirit [[Filliman Tarlock#Spirit|Filliman Tarlock]] in his [[Nature Grotto|grotto]] ([[fairy ring]] code {{Fairycode|BIP}}).
+
+Make your way to the [[Nature Grotto]] within [[Mort Myre Swamp]], and ask Filliman about the hespori. He explains that they are very rare, and that you can find one "to the north-east, on a small island in the swamp". Exit the Grotto and head east to an island across the swamp just west of [[Castle Drakan]]. Cross the stepping stone on the island's west side and attempt to chop the [[Hespori (A Night at the Theatre)|hespori]]. The fight is similar to the one against the [[hespori]] that players grow in the [[Farming Guild]]. Two slight differences are that the [[Flower (A Night at the Theatre)|flowers]] in this fight do not always die in one hit, and that this version of the boss is not weak to fire. Should players die during the fight, their items will be placed in a [[gravestone]] just outside the instance, like a normal death.
+
+[[File:A Night at the Theatre - fighting hespori.png|thumb|280px|A player shortly after their promise not to damage the rare hespori.]]
+After killing the hespori, chop it to obtain a [[hespori bark]], and return to the [[Mysterious Stranger]] to view more of Ranis' memories, where Verzik shows Ranis the final result of her breeding program: the [[Nylocas Queen]]. Though small, it proceeds to bite her but surprisingly dies immediately afterwards, much to her disappointment.
+
+Though the Stranger concludes that the Nylocas Queen's bite was responsible for Verzik's new abilities, and that he has the necessary assets to work on weapons and techniques to use against her, you believe that there are some missing information that could clarify her transition. With no more memories from Ranis that prove useful, the Stranger is forced to enter the Theatre of Blood, and asks you to help him reach Verzik so he can make contact with her to gain her memories.
+
+<gallery captionalign="center" widths="200">
+A Night at the Theatre - fourth memory.png|Verzik talks to Ranis about "the nylocas to end all nylocas".
+A Night at the Theatre - final memory.png|Verzik shows Ranis the Queen Nylocas.
+</gallery>
+
+===The Curtain Opens=== 
+[[File:Fighting Verzik Vitur.png|thumb|A group of players fighting Verzik Vitur, a powerful [[vampyre]] noble.]]
+At this point in the quest, you must complete the [[Theatre of Blood]] raid to assist the Mysterious Stranger. If you have already completed the Theatre of Blood (any mode) at least once, you will be given the option to skip this part of the quest.
+
+Though the normal raid is considered fairly difficult for the average player, you can complete the Theatre's Entry Mode, where the bosses have drastically reduced stats and less punishing mechanics. For a guide on how to complete the Theatre of Blood in Entry Mode, [[Theatre of Blood/Entry Mode|see here]].
+
+You will have to defeat 6 bosses to progress:
+# [[The Maiden of Sugadinti]]
+# [[Pestilent Bloat]]
+# [[Nylocas Vasilias]]
+# [[Sotetseg]]
+# [[Xarpus]]
+# [[Verzik Vitur]]
+
+Like in the normal Theatre, the bosses must all be defeated in one session; leaving the raid means it must be started over. If played in entry mode, the bosses have significantly reduced stats, and players are given unlimited attempts to defeat the bosses. After defeating a boss, your health and prayer are replenished.
+
+:'''Tip''': After dying to any of the bosses, you will be given three additional [[bandages (Theatre of Blood)|bandages]]. As you have unlimited tries, you may choose to die repeatedly on purpose to stack additional bandages, allowing you to take on every fight with a full inventory of them. You may then enter the Theatre with only your combat equipment and stack up on healing using this method, as bandages act as a [[shark]], prayer, stamina, super combat and ranging potion in one item.
+
+After defeating [[Verzik Vitur|Verzik]], she will transform into a bat and flee, but not before the Mysterious Stranger touches her and attempts to gain access to her memories. After receiving your rewards from completing the Theatre of Blood in the treasure vault, return to the Stranger at the Theatre's entrance via the [[Teleport crystal (Theatre of Blood)|teleport crystal]].
+
+===The Curtain Closes===
+Talk to the [[Mysterious Stranger]] once more, and you'll both view a memory not from Verzik, but from [[Vulcan Orvoros]], who was Verzik's doctor and wrote [[Verzik vitur - patient record|a record on her illness]] after the bite from the Nylocas Queen. It is revealed that after the nylocas bite, a [[Nylocas Queen]] had been growing inside of her, eventually emerging from her body and killing her. The horrified Doctor Orvoros, who witnessed the queen's birth, was killed shortly after.
+
+The Stranger concludes the Verzik Vitur you fought in the Theatre was not actually Verzik, but the Nylocas Queen, who plans to overthrow the vampyres and rule Morytania in their stead. The Stranger will then explain his associates are all made up, and he has been on a mission for his master. Deeming you trustworthy, he will put you in contact with this master, who will explain that you've gathered all the information they need to combat the nylocas threat. He will then instruct the Stranger to reward you for the work you have done.
+
+<gallery captionalign="center" widths="200">
+A Night at the Theatre - doctor's memory.png|Verzik, now obese after the nylocas bite.
+A Night at the Theatre - the Nylocas Queen.png|The Nylocas Queen emerges from Verzik's body.
+A Night at the Theatre - the stranger.png|The player speaks to the Mysterious Master, [[Sugadinti]].
+</gallery>
+
+'''Congratulations, quest complete!'''
+
+==Rewards==
+{{Quest rewards
+|name = A Night at the Theatre
+|image = [[File:A Night at the Theatre reward scroll.png|centre]]
+|qp = 2
+|rewards =
+* Four [[Antique lamp (A Night at the Theatre)|antique lamps]], each offering 20,000 experience in {{SCP|Attack}} [[Attack]], {{SCP|Strength}} [[Strength]], {{SCP|Defence}} [[Defence]], {{SCP|Ranged}} [[Ranged]], {{SCP|Magic}} [[Magic]], or {{SCP|Hitpoints}} [[Hitpoints]] at level 50 or above.
+** If players completed the quest before 28 July 2021 and have already used the original two antique lamps that were rewarded, they will only receive two additional antique lamp upon re-completing the quest.
+}}
+
+==Required for completing==
+Completion of A Night at the Theatre is required for the following:
+* [[The Blood Moon Rises]]
+
+==Transcript==
+{{Hastranscript|quest}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 August 2024
+|update = Araxxor
+|poll = Araxyte Slayer Boss
+|change = Araxytes featured in the quest had their combat stats increased, and now require 92 [[Slayer]] in order to be harmed.
+}}
+{{Subject changes
+|date = 1 March 2023
+|update = Theatre of Blood: Entry Mode Improvements
+|poll = New Skill: Community Consultation and Poll 78
+|change = Several changes to Entry Mode which made it (and therefore this quest) easier to complete, including unlimited retries, the removal of the 100,000 GP death fee, reduced boss HP scaling for larger parties, and parties gaining some supplies in the form of extra bandages after a wipe.
+}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|poll = Future Quests & Combat Achievement Rewards
+|change = 4 experience lamps are given after completing this quest instead of 3.
+}}
+{{Subject changes
+|date = 28 July 2021
+|update = A Night At The Theatre Rework
+|poll = 
+|change = The quest was completely reworked due to player feedback; originally, the quest consisted only of completing the Theatre of Blood and was automatically completed to any player who had completed a raid before the quest release. With this update, any completions of the quest were reset and all players have to complete the reworked quest. In addition, three antique lamps are now rewarded instead of two.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* After seeing the creation of [[Nylocas Vasilias]], if the [[player]] has grown a [[Hespori]] before this quest, the player's character will mention to the [[Mysterious Stranger]] that they have grown one.
+
+{{A Night at the Theatre}}
+{{DEFAULTSORT|Night at the Theatre, A}}
+[[Category:Jagex controversies]]

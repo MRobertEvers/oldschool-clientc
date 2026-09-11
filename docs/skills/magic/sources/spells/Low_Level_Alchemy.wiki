@@ -1,0 +1,105 @@
+{{External|rs|rsc=Low level alchemy}}
+{{Has calculator|RuneScape:Grand Exchange Market Watch/Alchemy#Low Level Alchemy profit}}
+{{Infobox Spell
+|name = Low Level Alchemy
+|image = [[File:Low Level Alchemy.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 21
+|spellbook = Normal
+|type = Utility
+|exp = 31
+|cost = {{RuneReq|Nature=1|Fire=3}}
+|speed = 3 ticks (5 ticks in the Alchemist's Playground)
+|description = Converts an item into gold
+|anim = [[File:Low Level Alchemy.gif]]
+|sound = [[File:Low Level Alchemy.ogg]]
+}}
+[[File:Low Level Alchemy icon (mobile).png|left]]
+'''Low Level Alchemy''' (also known as '''low alch''' or '''LA''') is a [[Utility spells|utility spell]] available in the standard spellbook. It requires level 21 [[Magic]] to cast, and grants 31 Magic [[experience]] per cast.
+
+Casting Low Level Alchemy on an item in the player's inventory will convert that item into a number of [[coins]] equal to 40% of the item's [[value]] (not the item's [[Grand Exchange]] price).
+
+Players with level 55 Magic are generally recommended to use [[High Level Alchemy]] instead, as it provides more coins and experience per cast than Low Level Alchemy. However, there are situations where Low Level Alchemy can be more effective ([[Low Level Alchemy#Comparison with High Level Alchemy|see below]]).
+
+While in the [[Alchemist's Playground]] of [[Mage Training Arena]], Low Level Alchemy requires 5 game ticks to cast, rather than the usual three.
+
+Casting Low Level Alchemy at the [[Fountain of Rune]] is a requirement for the [[easy Wilderness Diary]].
+
+==Cost==
+The [[Explorer's ring 1]] can be used to cast Low Level Alchemy up to 30 times per day without requiring any runes; however, no experience is granted.
+
+It is possible to cast this spell at the Fountain of Rune, requiring no runes, resulting in greater profit, however no experience is granted. Like most activities in the [[Wilderness]], this is attempted at one's own risk.
+
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 3
+|Rune2 = nature
+|Rune2num = 1
+}}
+
+== Comparison with High Level Alchemy ==
+Available at level 55 Magic, High Level Alchemy has a similar rune cost to Low Level Alchemy but provides 50% more coins and over twice as much Magic experience per cast. However, High Level Alchemy requires five game ticks to cast (up to 1,200 casts per hour) compared to Low Level Alchemy's three game ticks (up to 2,000 casts per hour).
+
+Players wishing to train Magic via alchemy should use High Level Alchemy once they have access to it, since the increased experience per cast outweighs the slower casting speed. Similarly, players who just want to convert some of their items into gold (such as excess [[Rune equipment|Rune armour]] drops from [[Monster|monsters]]) should use High Level Alchemy due to its increased coin yield per item.
+
+Players wishing to quickly convert a large amount of items into coins may want to consider using Low Level Alchemy, as it can convert more items into gold per hour than High Level Alchemy, although the gold obtained per item is lower. However, Low Level Alchemy also uses more [[Nature rune|Nature runes]] per hour than High Level Alchemy, so players should consider the cost of Nature runes when deciding which spell to use.
+
+==Animation override==
+[[File:Low Level Alchemy (Trailblazer Reloaded League).gif|thumb|''Leagues IV - Trailblazer reloaded'' Low Level Alchemy animation]]
+An [[animation override]] is available for Low Level Alchemy, unlockable via the [[Trailblazer reloaded alchemy scroll]]. Players can apply and revert the animation override at any time via the "Animation" menu option on the spell's icon.
+
+==Alchemy-restricted zones==
+{{Main|High Level Alchemy#Alchemy-restricted zones}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Low Level Alchemy.ogg|desc=Casting the spell}}
+{{SFXLine|file=Low Level Alchemy (Trailblazer Reloaded League).wav|desc=Casting the spell with the ''Leagues IV - Trailblazer reloaded'' animation override}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = An optional extra warning can be enabled for alching untradeable items. Right-click the alchemy spells in the spellbook if you wish to enable this.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = It is now possible to use the alchemy spells whilst in most instances.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = Warnings when trying to use alchemy spells on valuable items will now appear based on the Grand Exchange value of items rather than the alchemy value.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You can now cast Low Level Alchemy 30 times per day (no rune cost, no experience) with the [[Explorer's ring 1]].
+}}
+{{Subject changes
+|date = 16 May 2013
+|update = Patch Notes (16 May 2013)
+|change = The alchemy spells will no longer try to run on sliding puzzle pieces.
+}}
+{{Subject changes
+|date = 11 April 2013
+|update = Patch Notes (11 April 2013)
+|change = For the benefit of players with certain medical conditions, we have toned down the flashing effects in the Killerwatts' realm and for alchemy animations.
+}}
+{{Subject changes
+|date = 11 April 2013
+|update = Patch Notes (11 April 2013)
+|poll = Old School feature poll 2 – April 2013
+|change = If you cast a second alchemy spell before your last one finishes, it's now queued up.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

@@ -1,0 +1,4 @@
+[     200ms] [LOG] CSRF: public CSRF token loaded from META: kPlfmm24eB/bFoFk6sRm8j5qSITiFwXJFa7Np6YlXUG4qR2WNib6n/3009++wI+q0IvApqOCHffJwy0dSjK79A== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     200ms] [LOG] CSRF: public CSRF token present: kPlfmm24eB/bFoFk6sRm8j5qSITiFwXJFa7Np6YlXUG4qR2WNib6n/3009++wI+q0IvApqOCHffJwy0dSjK79A== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     477ms] [LOG] CSRF: public CSRF token present: kPlfmm24eB/bFoFk6sRm8j5qSITiFwXJFa7Np6YlXUG4qR2WNib6n/3009++wI+q0IvApqOCHffJwy0dSjK79A== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     478ms] [LOG] POST https://www.artstation.com/api/v2/views_tracking/entity_views.json, PUBLIC-CSRF-TOKEN: kPlfmm24eB/bFoFk6sRm8j5qSITiFwXJFa7Np6YlXUG4qR2WNib6n/3009++wI+q0IvApqOCHffJwy0dSjK79A== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0

@@ -1,0 +1,103 @@
+{{External|rs|rsc=Enchant lvl-1 amulet}}
+{{otheruses|the spell|the magic tablet|Enchant sapphire or opal}}
+{{Infobox Spell
+|name = Lvl-1 Enchant
+|image = [[File:Lvl-1 Enchant.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 7
+|spellbook = Normal
+|type = Utility
+|exp = 17.5
+|cost = {{RuneReq|Cosmic=1|Water=1}}
+|speed = 3 ticks (7 on autocast)
+|lectern = [[Oak lectern|Oak]]
+|description = For use on sapphire and opal jewellery
+|anim = [[File:Lvl-1 Enchant.gif]]
+|sound = [[File:Lvl-1 Enchant.ogg]]
+}}
+[[File:Lvl-1 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-1 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 7 [[Magic]] to cast and granting 17.5 [[experience]]. The spell enchants [[sapphire]] and [[opal]] items, primarily [[jewellery]].
+
+This spell can be transferred to a [[Enchant sapphire or opal|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting the same experience as casting the spell.
+
+==List of items==
+[[Free-to-play]] players can only use the spell to enchant the [[sapphire amulet]].
+
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs assuming an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Sapphire ring}} 
+|{{Coins|{{GEP|Sapphire ring}}}}
+|{{plinkt|Ring of recoil}}
+|{{Coins|{{GEP|Ring of recoil}}}}
+|{{coins|{{GEP|Ring of recoil}} - ({{GEP|Sapphire ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Sapphire bracelet}}
+|{{Coins|{{GEP|Sapphire bracelet}}}}
+|{{plinkt|Bracelet of clay}} 
+|{{Coins|{{GEP|Bracelet of clay}}}}
+|{{coins|{{GEP|Bracelet of clay}} - ({{GEP|Sapphire bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Sapphire necklace}}
+|{{Coins|{{GEP|Sapphire necklace}}}}
+|{{plinkt|Games necklace}}
+|{{Coins|{{GEP|Games necklace(8)}}}}
+|{{coins|{{GEP|Games necklace(8)}} - ({{GEP|Sapphire necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Sapphire amulet}}
+|{{Coins|{{GEP|Sapphire amulet}}}}
+|{{plinkt|Amulet of magic}}
+|{{Coins|{{GEP|Amulet of magic}}}}
+|{{coins|{{GEP|Amulet of magic}} - ({{GEP|Sapphire amulet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Silvthrill rod}}
+|{{NA}}
+|{{plinkt|Silvthrill rod#Enchanted|pic=Silvthrill rod|txt=Silvthrill rod (e)}}
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Opal ring}} 
+|{{Coins|{{GEP|Opal ring}}}}
+|{{plinkt|Ring of pursuit}}
+|{{Coins|{{GEP|Ring of pursuit}}}}
+|{{coins|{{GEP|Ring of pursuit}} - ({{GEP|Opal ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Opal bracelet}} 
+|{{Coins|{{GEP|Opal bracelet}}}}
+|{{plinkt|Expeditious bracelet}}
+|{{Coins|{{GEP|Expeditious bracelet}}}}
+|{{coins|{{GEP|Expeditious bracelet}} - ({{GEP|Opal bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Opal necklace}} 
+|{{Coins|{{GEP|Opal necklace}}}}
+|{{plinkt|Dodgy necklace}}
+|{{Coins|{{GEP|Dodgy necklace}}}}
+|{{coins|{{GEP|Dodgy necklace}} - ({{GEP|Opal necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Opal amulet}} 
+|{{Coins|{{GEP|Opal amulet}}}}
+|{{plinkt|Amulet of bounty}}
+|{{Coins|{{GEP|Amulet of bounty}}}}
+|{{coins|{{GEP|Amulet of bounty}} - ({{GEP|Opal amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Spell costs==
+{{Spell cost table
+|Rune1 = cosmic
+|Rune1num = 1
+|Rune2 = water
+|Rune2num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}

@@ -1,0 +1,68 @@
+{{External|rs}}
+'''Animated armour''' can be created and fought in the [[Warriors' Guild]] by using a [[full helm]], [[platebody]], and [[platelegs]] of the same type of metal on one of the [[magical animator]]s.
+
+When brought to life, the armour shouts "I'm ALIVE!" and attacks the player that created it. When at low [[Hitpoints]], the armour may try to run away so it is advised to have run turned on during the fight; the armour will no longer fight back in this state. Upon killing the armour, the player will receive a certain number of [[warrior guild token]]s depending on the armour type.
+
+If using bronze, iron, or steel, some armour pieces will have a chance to "break" during combat, and the player will only receive some pieces back. With black armour and higher, this mechanic is no longer applicable and the player will receive 100% of the pieces back.
+
+The magical animators or the fences around them can be used as [[safespot]]s.
+
+{|class="wikitable sortable"
+!class="unsortable"|Image
+!Name
+!Combat lv
+!Hitpoints
+!Max hit
+!Tokens
+|-
+|[[File:Animated Bronze Armour.png|90px|center]]
+|[[Animated Bronze Armour]]
+|11
+|10
+|2
+|5
+|-
+|[[File:Animated Iron Armour.png|90px|center]]
+|[[Animated Iron Armour]]
+|23
+|20
+|3
+|10
+|-
+|[[File:Animated Steel Armour.png|90px|center]]
+|[[Animated Steel Armour]]
+|46
+|40
+|5
+|15
+|-
+|[[File:Animated Black Armour.png|90px|center]]
+|[[Animated Black Armour]]
+|69
+|60
+|7
+|20
+|-
+|[[File:Animated Mithril Armour.png|90px|center]]
+|[[Animated Mithril Armour]]
+|92
+|80
+|10
+|25
+|-
+|[[File:Animated Adamant Armour.png|90px|center]]
+|[[Animated Adamant Armour]]
+|113
+|99
+|12
+|30
+|-
+|[[File:Animated Rune Armour.png|90px|center]]
+|[[Animated Rune Armour]]
+|138
+|120
+|14
+|40
+|}
+
+{{Warriors' Guild}}

@@ -1,0 +1,53 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Smoke Blitz
+|image = [[File:Smoke Blitz.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 74
+|spellbook = Ancient
+|type = Combat
+|exp = 42
+|element = Smoke
+|damage = 23
+|cost = {{RuneReq|Blood=2|Air=2|Death=2|Fire=2}}
+|speed = 5 ticks
+|description = A single target strong smoke attack
+|anim = [[File:Smoke Blitz.gif|300px]]
+|sound = [[File:Smoke Blitz.ogg]]
+}}
+[[File:Smoke Blitz icon (mobile).png|left]]
+'''Smoke Blitz''' is the second highest level [[smoke spell]] in the [[Ancient Magicks]] spell book, and it requires a [[Magic]] level of 74. It is capable of hitting up to 23 damage (without any [[magic damage]] boosts) per cast.
+
+Smoke Blitz is capable of [[poison]]ing a target at a 1/8 chance on hit, having a [[poison severity]] of 20 (where poison starts at 4 damage every 30 [[Tick|ticks]] or 18 seconds); this can be increased to 22 with an [[ancient sceptre]]. Increasing the total poison damage to 60 (first two hits does 5 damage), instead of 50.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Smoke Blitz|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 2
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = fire
+|Rune3num = 2
+|Rune4 = air
+|Rune4num = 2
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 September 2013
+|update = Patch Notes (12 September 2013)
+|change = The smoke spells on the Ancient Magicks spellbook no longer try to poison creatures that are immune to poison.
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

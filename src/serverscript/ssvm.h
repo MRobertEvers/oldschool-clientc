@@ -82,6 +82,8 @@ enum SSVM_Exec
     SSVM_NPC_SUSPENDED = 5,
     /** Parked on the world queue. */
     SSVM_WORLD_SUSPENDED = 6,
+    /** Waiting for a player-name dialog reply. */
+    SSVM_NAMEDIALOG = 7,
 };
 
 /** Active-entity slots. Index with SSVM_PRIMARY / SSVM_SECONDARY. */
@@ -227,6 +229,8 @@ struct SSVM_State
 
     /** last_int / the value a queue or countdialog resumed with. */
     int32_t last_int;
+    /** last_string / the copied value a namedialog resumed with. */
+    const char* last_string;
 
     struct SSVM_StrPool pool;
 
@@ -375,7 +379,7 @@ SSVM_Random(
 
 /*
  * Profiling counters, read by the embedded server's tick breakdown
- * (mock230_world.c). `g_ssvm_ops` is always live; the per-opcode pair only fills
+ * (torirs_server_world.c). `g_ssvm_ops` is always live; the per-opcode pair only fills
  * in under TORIRS_SSVM_OPS=1. Both are reset by the reader, not by the VM --
  * the VM has no notion of a tick.
  *

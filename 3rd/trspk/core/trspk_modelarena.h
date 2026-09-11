@@ -24,6 +24,10 @@ struct TRSPK_ModelSlot
     int pose_id;
     uint32_t flags;
     uint32_t next_free;
+    /** Next slot in this slot's (element_id, pose_id) bucket. The lookup
+     *  index chains through the slots themselves, so it costs one word per
+     *  slot and never allocates per entry. */
+    uint32_t lookup_next;
 };
 
 struct TRSPK_ModelArena
@@ -32,6 +36,14 @@ struct TRSPK_ModelArena
     uint32_t slot_count;
     uint32_t slot_capacity;
     uint32_t free_head;
+
+    /* (element_id, pose_id) -> slot. trspk_modelarena_find used to walk
+     * every slot, and it is called once per model bake, so a frame that
+     * rebakes N models walked N^2 slots. Bucket heads, chained through
+     * slot->lookup_next; bucket_count is a power of two and 0 means the
+     * index is not built yet (an empty arena). */
+    uint32_t* lookup_buckets;
+    uint32_t lookup_bucket_count;
 
     uint32_t write_cursor;
     uint32_t page_size;

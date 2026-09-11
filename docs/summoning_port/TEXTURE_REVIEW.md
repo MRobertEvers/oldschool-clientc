@@ -52,7 +52,7 @@ for manifest in docs/summoning_port/*_530.ini; do
   case "$(basename "$manifest")" in corpus_cohort_530.ini|roster_assets_530.ini) continue;; esac
   3rd/rscache/tools/cachepack/cachepack import --manifest "$manifest" --apply --textures-only
 done
-make -C src mock230-cache-summoning
+make -C src torirsserver-cache-summoning
 ```
 
 The two skipped manifests write **review-only** lanes and must not be re-run: `corpus_cohort`
@@ -106,7 +106,7 @@ for manifest in docs/summoning_port/*_cohort_530.ini \
   3rd/rscache/tools/cachepack/cachepack import \
     --manifest "$manifest" --apply --textures-only
 done
-make -C src mock230-cache-summoning
+make -C src torirsserver-cache-summoning
 ```
 
 The importer requires exactly 680 rows, and refuses a textured model whose source material is

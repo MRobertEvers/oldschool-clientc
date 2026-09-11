@@ -48,22 +48,22 @@
 // clang-format off
 #include "graphics/shared_tables.c"
 
-#include "graphics/projection.u.c"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.textrans.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texopaque.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.textrans.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.textrans.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texalpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texalpha.modulate.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texopaque.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texopaque.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texopaque.facealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.textrans.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.textrans.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.textrans.facealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texalpha.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texalpha.facealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texalpha.nofacealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texalpha.facealpha.modulate.painter.branching.lerp8_v3.scalar.u.c"
 // clang-format on
 
 #define W 200
@@ -332,7 +332,9 @@ test_identities(int* plain_buf, int* got)
 
             struct ToriDraw_TexSampler s;
             ToriDraw_TexSamplerInit(&s, cases[c].variant_tex, TEX_W);
-            /* Neutral throughout: opaque face, identity tint, repeat both. */
+            /* Neutral throughout: opaque face, identity tint, and the init's
+             * default addressing — which is the plain kernels' own, so the
+             * comparison below is against a kernel that samples identically. */
 
             buf_fill(got, BG);
             cases[c].variant(got + GUARD, TEXGEOM(t, tv), &s);
@@ -482,13 +484,48 @@ test_alpha_algebra(int* plain_buf, int* got)
 }
 
 /*
- * Modulate is a per-channel multiply applied AFTER the shade, so the expected
- * value is derived from the plain kernel's own output channel by channel.
+ * Is every channel of `got` within this tint's fused-vs-unfused bound of
+ * `expect`? One truncation instead of two can only differ by what the dropped
+ * low bits are worth once the tint has scaled them: ceil(tint/256).
+ */
+static bool
+channels_within(int got, int expect, const int tint[3])
+{
+    int const shift[3] = { 16, 8, 0 };
+
+    for( int c = 0; c < 3; c++ )
+    {
+        int const g = (got >> shift[c]) & 0xFF;
+        int const e = (expect >> shift[c]) & 0xFF;
+        int const bound = (tint[c] + 255) / 256;
+        int const diff = g > e ? g - e : e - g;
+
+        if( diff > bound )
+            return false;
+    }
+    return true;
+}
+
+/*
+ * Modulate is a per-channel multiply applied AFTER the shade -- but FUSED with
+ * it, in one truncation: tex_sampler_shade_tint computes
+ * (texel * shade * tint) >> 16, not ((texel * shade) >> 8) * tint >> 8. The
+ * kernels do this deliberately (see TS2_SHADE_AND_MODULATE): shading down to
+ * eight bits and multiplying back up rounds twice, and the doubled rounding
+ * streaks a smooth gradient.
+ *
+ * So the expectation cannot be the plain kernel's already-truncated output
+ * tinted a second time -- that IS the double rounding the kernels avoid. What
+ * the two forms do guarantee against each other is a bound: the first >>8
+ * discards at most 255/256 of a unit, which the tint then scales, so the two
+ * differ by at most ceil(tint/256) per channel. That is exact, not a
+ * tolerance picked to make the test pass, and it collapses to bit-exact at a
+ * neutral tint -- which the identity block above pins separately.
  */
 static void
 test_modulate_algebra(int* plain_buf, int* got)
 {
-    printf("modulate algebra: per-channel (plain * tint) >> 8\n");
+    printf("modulate algebra: fused (texel * shade * tint) >> 16\n");
 
     static unsigned char covered[H * W];
     static const int tints[][3] = {
@@ -524,10 +561,14 @@ test_modulate_algebra(int* plain_buf, int* got)
             {
                 int expect;
                 if( !covered[p] )
-                    expect = BG;
-                else
-                    expect = tex_sampler_tint(&s, RGB(plain_buf[GUARD + p]));
-                if( RGB(got[GUARD + p]) != RGB(expect) )
+                {
+                    /* Off the triangle nothing is written at all: exact. */
+                    if( RGB(got[GUARD + p]) != RGB(BG) )
+                        bad_total++;
+                    continue;
+                }
+                expect = tex_sampler_tint(&s, RGB(plain_buf[GUARD + p]));
+                if( !channels_within(RGB(got[GUARD + p]), RGB(expect), tints[ti]) )
                     bad_total++;
             }
         }
@@ -540,7 +581,7 @@ test_modulate_algebra(int* plain_buf, int* got)
     }
     else
     {
-        printf("  ok   5 tints x %d triangles\n", TRI_COUNT);
+        printf("  ok   5 tints x %d triangles, within the fused bound\n", TRI_COUNT);
     }
 }
 
@@ -723,6 +764,11 @@ test_clamp_end_to_end(int* buf_repeat, int* buf_clamp)
     struct ToriDraw_TexSampler rep, cla;
     ToriDraw_TexSamplerInit(&rep, edge_tex, TEX_W);
     ToriDraw_TexSamplerInit(&cla, edge_tex, TEX_W);
+    /* Both modes are set explicitly on both samplers. Leaning on the init's
+     * defaults here would silently turn this into a one-axis check the day a
+     * default moves, which is exactly what it is here to detect. */
+    rep.clamp_s = 0;
+    rep.clamp_t = 0;
     cla.clamp_s = 1;
     cla.clamp_t = 1;
 
@@ -763,6 +809,78 @@ test_clamp_end_to_end(int* buf_repeat, int* buf_clamp)
     }
 }
 
+/*
+ * The same question asked of u ALONE.
+ *
+ * test_clamp_end_to_end above passes on a renderer that ignores clamp_s
+ * entirely, because v wrapping is enough to make the two images differ. It did:
+ * every span clamped u whatever the sampler said, so a repeating material
+ * sampled one column for every coordinate past the texture edge and smeared it
+ * along the whole span. On the rs643 TzTok-Jad, whose mapped faces are 97.7%
+ * outside 0..1, that was the model's horizontal streaking.
+ *
+ * A texture that varies along u and is constant along v removes v from the
+ * answer: any difference at all is u addressing, and no difference means u is
+ * being addressed one way in both modes.
+ */
+static void
+test_clamp_u_axis(int* buf_repeat, int* buf_clamp)
+{
+    printf("clamp_s alone changes what a span off the edge samples\n");
+
+    static int u_tex[TEX_LEN];
+    for( int v = 0; v < TEX_W; v++ )
+        for( int u = 0; u < TEX_W; u++ )
+            u_tex[u + v * TEX_W] =
+                (int)(0xFF000000u | (unsigned)(0x00010101 * (u + 1)));
+
+    static const struct Tri t = { "interior", { 40, 150, 90 }, { 20, 35, 120 } };
+    const struct TexVerts* tv = &g_texverts;
+
+    struct ToriDraw_TexSampler rep, cla;
+    ToriDraw_TexSamplerInit(&rep, u_tex, TEX_W);
+    ToriDraw_TexSamplerInit(&cla, u_tex, TEX_W);
+    /* v identical on both, so only s can move a pixel. */
+    rep.clamp_s = 0;
+    rep.clamp_t = 0;
+    cla.clamp_s = 1;
+    cla.clamp_t = 0;
+
+    buf_fill(buf_repeat, BG);
+    buf_fill(buf_clamp, BG);
+    raster_texplane_persp_texalpha_branching_lerp8_v3(
+        buf_repeat + GUARD, TEXGEOM(&t, tv), &rep);
+    raster_texplane_persp_texalpha_branching_lerp8_v3(
+        buf_clamp + GUARD, TEXGEOM(&t, tv), &cla);
+
+    if( !guard_intact(buf_repeat, "clamp_s (repeat pass)", t.name) )
+        return;
+    if( !guard_intact(buf_clamp, "clamp_s (clamp pass)", t.name) )
+        return;
+
+    long differ = 0, covered = 0;
+    for( int p = 0; p < H * W; p++ )
+    {
+        if( RGB(buf_repeat[GUARD + p]) == BG && RGB(buf_clamp[GUARD + p]) == BG )
+            continue;
+        covered++;
+        if( RGB(buf_repeat[GUARD + p]) != RGB(buf_clamp[GUARD + p]) )
+            differ++;
+    }
+
+    if( differ == 0 )
+    {
+        printf("  FAIL clamp_s: u is addressed identically in both modes over %ld px"
+               " - clamp_s does nothing\n", covered);
+        g_fail++;
+    }
+    else
+    {
+        printf("  ok   %ld of %ld covered px differ on u addressing alone\n",
+               differ, covered);
+    }
+}
+
 int
 main(void)
 {
@@ -770,7 +888,7 @@ main(void)
     static int got[BUF_LEN];
     static int aux[BUF_LEN];
 
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
     ToriDraw_InitTanTable();
@@ -783,6 +901,7 @@ main(void)
     test_zero_coverage_is_untouched(got);
     test_sampler_contracts();
     test_clamp_end_to_end(got, aux);
+    test_clamp_u_axis(got, aux);
 
     if( g_fail )
     {

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * The world map lives in three archives of table 19: "details" holds one file
@@ -47,14 +48,16 @@ task_dat2_worldmap_resolve_archive_id(
     name_hash = RSCache_ArchiveNameHashDat2((char*)name);
     for( int i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].identifier == name_hash )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
     /* OSRS 238+: details/compositemap/compositetexture may be unnamed; fall
      * back to archive id. */
     if( unnamed_fallback_id >= 0 && unnamed_fallback_id < table->archive_count &&
-        table->archives[unnamed_fallback_id].index >= 0 )
-        return table->archives[unnamed_fallback_id].index;
+        RSCache_ReferenceTableHasArchive(table, unnamed_fallback_id) )
+        return RSCache_ReferenceTableHasArchive(table, unnamed_fallback_id)
+                   ? unnamed_fallback_id
+                   : -1;
     return -1;
 }
 
@@ -76,7 +79,7 @@ task_dat2_worldmap_decode(
         RSCache_FileListNewFromDecode(details->data, details->data_size, details->file_count);
     if( !details_files || details_files->file_count <= 0 || !details->file_ids )
     {
-        fprintf(stderr, "worldmap: failed to split the details archive\n");
+        TORIRS_ERR("worldmap: failed to split the details archive\n");
         RSCache_FileListFree(details_files);
         return NULL;
     }
@@ -97,7 +100,7 @@ task_dat2_worldmap_decode(
         if( !RSCache_WorldMapAreaDecodeInplace(
                 &entries[count], file_id, details_files->files[i], details_files->file_sizes[i]) )
         {
-            fprintf(stderr, "worldmap: failed to decode area %d\n", file_id);
+            TORIRS_ERR("worldmap: failed to decode area %d\n", file_id);
             RSCache_WorldMapAreaFreeInplace(&entries[count]);
             continue;
         }
@@ -166,7 +169,7 @@ task_dat2_worldmap_attach_compositetextures(
             continue;
         if( !PngDecode_Rgb(files->files[i], files->file_sizes[i], &width, &height, &rgb) )
         {
-            fprintf(stderr, "worldmap: compositetexture %d: PNG decode failed\n", file_id);
+            TORIRS_ERR("worldmap: compositetexture %d: PNG decode failed\n", file_id);
             continue;
         }
         assert(width > 0 && height > 0 && rgb);
@@ -205,7 +208,7 @@ Task_Dat2WorldMapLoad_Run(
     if( !RSCache_IO_ProfileHasDat2Table(
             CacheProvider_Profile(&task->bc->base), RSCACHE_DAT2_TABLE_WORLDMAP) )
     {
-        fprintf(stderr, "worldmap: this cache's branch has no world map table\n");
+        TORIRS_LOG("worldmap: this cache's branch has no world map table\n");
         PT_EXIT(&task->pt);
     }
 
@@ -217,7 +220,7 @@ Task_Dat2WorldMapLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "worldmap: no reference table (cache has no world map)\n");
+            TORIRS_LOG("worldmap: no reference table (cache has no world map)\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP, table);
@@ -229,7 +232,7 @@ Task_Dat2WorldMapLoad_Run(
     details_archive_id = task_dat2_worldmap_resolve_archive_id(table, "details", 0);
     if( details_archive_id < 0 )
     {
-        fprintf(stderr, "worldmap: no \"details\" archive in the world map table\n");
+        TORIRS_LOG("worldmap: no \"details\" archive in the world map table\n");
         PT_EXIT(&task->pt);
     }
     task->composite_archive_id = task_dat2_worldmap_resolve_archive_id(table, "compositemap", 1);
@@ -242,7 +245,7 @@ Task_Dat2WorldMapLoad_Run(
     task->details = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
     if( !task->details )
     {
-        fprintf(stderr, "worldmap: failed to load the \"details\" archive\n");
+        TORIRS_ERR("worldmap: failed to load the \"details\" archive\n");
         PT_EXIT(&task->pt);
     }
 
@@ -278,7 +281,7 @@ Task_Dat2WorldMapLoad_Run(
 
     if( !areas )
     {
-        fprintf(stderr, "worldmap: no areas decoded\n");
+        TORIRS_LOG("worldmap: no areas decoded\n");
         PT_EXIT(&task->pt);
     }
 

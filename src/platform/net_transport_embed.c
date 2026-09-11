@@ -2,12 +2,12 @@
  * The server, in this process.
  *
  * A third NetTransport beside TCP and WebSocket, and the only one with no wire
- * under it: instead of a socket it drives `mock230_embed_*`, moving bytes
+ * under it: instead of a socket it drives `ToriRSServer_Embed_*`, moving bytes
  * between the net subsystem's outbound ring and the server's inbound queue.
  *
- *      client PopOut   --->  mock230_embed_write
- *                            mock230_embed_pump      (and one 600 ms tick)
- *      NET_RECV        <---  mock230_embed_read
+ *      client PopOut   --->  ToriRSServer_EmbedWrite
+ *                            ToriRSServer_EmbedPump      (and one 600 ms tick)
+ *      NET_RECV        <---  ToriRSServer_EmbedRead
  *
  * Nothing above this file changes. `ToriRS_Network` never touched a descriptor
  * to begin with — bytes arrive through HandleCmd(NET_RECV) and leave through
@@ -30,15 +30,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log/torirs_log.h"
 #ifdef TORIRS_EMBED_SERVER
 
 /* Inside the guard: a build without the embedded server pulls in neither the
  * server's headers nor the SDL clock. */
-#include "net/mock/mock230_embed.h"
-#include "net/mock/mock230.h"
-#include "net/mock/mock230_zone.h"
+#include "torirsserver/torirs_server_embed.h"
+#include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_zone.h"
 #include "perf/torirs_perf.h"
-#include "platform_sdl2.h"
+#include "platform_window.h"
 
 /* The server's own tick. Matched to the real one rather than to the frame rate:
  * a client rendering at 144 Hz must not run the world 144 times a second. */
@@ -47,13 +48,15 @@
 struct NetTransportEmbed
 {
     struct NetTransport base;
-    struct Mock230Embed* embed;
-    /* The client's protocol name, forwarded to mock230_embed_start so the
+    struct ToriRSServerEmbed* embed;
+    /* The client's protocol name, forwarded to ToriRSServer_EmbedStart so the
      * in-process server's wire always matches the client's. Points into the
      * static revision table, so no copy is needed. */
     char const* rev_name;
     int last_status;
     long next_tick_ms;
+    int test_clock;
+    unsigned long long test_now;
 };
 
 static void
@@ -95,10 +98,10 @@ embed_poll(
              */
             if( !self->embed )
             {
-                self->embed = mock230_embed_start(self->rev_name);
+                self->embed = ToriRSServer_EmbedStart(self->rev_name);
                 if( !self->embed )
                 {
-                    fprintf(stderr, "net: embedded server failed to start\n");
+                    TORIRS_ERR("net: embedded server failed to start\n");
                     emit_status(self, bus, TORIRS_NET_STATUS_FAILED);
                     return;
                 }
@@ -109,7 +112,7 @@ embed_poll(
         else if( header.type == TORIRS_NET_OUT_SEND_DATA && self->embed )
         {
             /* One client: this host is the game itself, playing alone. */
-            mock230_embed_write(self->embed, 0, payload, header.length);
+            ToriRSServer_EmbedWrite(self->embed, 0, payload, header.length);
         }
         else if( header.type == TORIRS_NET_OUT_DISCONNECT && self->embed )
         {
@@ -120,7 +123,7 @@ embed_poll(
              * which is what makes a reconnect over this transport equivalent
              * to one over a socket.
              */
-            mock230_embed_stop(self->embed);
+            ToriRSServer_EmbedStop(self->embed);
             self->embed = NULL;
             self->next_tick_ms = 0;
             emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
@@ -131,7 +134,7 @@ embed_poll(
         return;
 
     /* 2. let the server act, and tick it on its own schedule */
-    now = (long)PlatformSDL2_Ticks64();
+    now = self->test_clock ? (long)self->test_now : (long)PlatformWindow_Ticks64();
     run_tick = self->next_tick_ms == 0 || now >= self->next_tick_ms;
     if( run_tick )
     {
@@ -147,16 +150,16 @@ embed_poll(
         int alive = 1;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SERVER)
         {
-            alive = mock230_embed_pump(self->embed, run_tick);
+            alive = ToriRSServer_EmbedPump(self->embed, run_tick);
             /* Growth gauges: sample after the pump so a tick's zone/npc work is
              * reflected this frame. Cheap (two ints + one field). */
             {
-                struct Mock230Server* srv = mock230_embed_world(self->embed);
+                struct ToriRSServer* srv = ToriRSServer_EmbedWorld(self->embed);
                 int zone_count = 0;
                 int zone_cap = 0;
                 if( srv )
                 {
-                    mock230_zone_map_stats(srv, &zone_count, &zone_cap);
+                    ToriRSServer_ZoneMapStats(srv, &zone_count, &zone_cap);
                     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_ZONE_MAP_COUNT, zone_count);
                     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_ZONE_MAP_CAPACITY, zone_cap);
                     TORIRS_PERF_COUNT_SET(
@@ -174,7 +177,7 @@ embed_poll(
     /*
      * 3. server -> client, in bus-sized pieces.
      *
-     * Room first: mock230_embed_read consumes what it returns, so a read whose
+     * Room first: ToriRSServer_EmbedRead consumes what it returns, so a read whose
      * bytes the bus then refuses is a hole in the byte stream rather than a
      * delay. Requiring space for a whole `inbound` (plus one header per chunk
      * it could be split into) before reading keeps the remainder queued in the
@@ -183,7 +186,7 @@ embed_poll(
     while( CmdBus_FreeBytes(bus) >=
                sizeof(inbound) + (sizeof(inbound) / TORIRS_CMD_MAX_PAYLOAD + 1) *
                                      sizeof(struct ToriRS_CmdHeader) &&
-           (got = mock230_embed_read(self->embed, 0, inbound, (int)sizeof(inbound))) > 0 )
+           (got = ToriRSServer_EmbedRead(self->embed, 0, inbound, (int)sizeof(inbound))) > 0 )
     {
         int off = 0;
 
@@ -205,7 +208,7 @@ embed_free(struct NetTransport* transport)
     struct NetTransportEmbed* self = (struct NetTransportEmbed*)transport;
 
     if( self->embed )
-        mock230_embed_stop(self->embed);
+        ToriRSServer_EmbedStop(self->embed);
     free(self);
 }
 
@@ -213,6 +216,16 @@ static struct NetTransportVTable const k_embed_vtable = {
     .poll = embed_poll,
     .free_ = embed_free,
 };
+
+struct ToriRSServerEmbed*
+NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
+{
+    if( !t || t->vtable != &k_embed_vtable ) return NULL;
+    struct NetTransportEmbed* self = (struct NetTransportEmbed*)t;
+    self->test_clock = 1;
+    self->test_now = now;
+    return self->embed;
+}
 
 struct NetTransport*
 NetTransport_NewEmbed(int default_port, char const* rev_name)
@@ -250,9 +263,15 @@ NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
     (void)default_port;
     (void)rev_name;
-    fprintf(stderr,
-            "net: this build has no embedded server — rebuild with "
+    TORIRS_LOG("net: this build has no embedded server — rebuild with "
             "`make -C src torirs EMBED_SERVER=1`\n");
+    return NULL;
+}
+
+struct ToriRSServerEmbed*
+NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
+{
+    (void)t; (void)now;
     return NULL;
 }
 

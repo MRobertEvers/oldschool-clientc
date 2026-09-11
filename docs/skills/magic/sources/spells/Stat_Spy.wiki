@@ -1,0 +1,38 @@
+{{External|rs}}
+{{Otheruses|the spell used to view the stats of players|the spell used to view the stats of monsters|Monster Examine}}
+{{Infobox Spell
+|name = Stat Spy
+|image = [[File:Stat Spy.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 75
+|spellbook = Lunar
+|type = Combat
+|exp = 76
+|cost = {{RuneReq|Astral=2|Cosmic=2|Body=5}}
+|speed = 
+|quest = [[Dream Mentor]]
+|description = Cast on another player to see their skill levels
+|anim = [[File:Stat Spy.gif|200px]]
+|sound = [[File:Stat Spy.ogg]]
+}}
+[[File:Stat Spy icon (mobile).png|left]]
+'''Stat Spy''' is a [[Lunar spells|lunar spell]] which requires the completion of [[Lunar Diplomacy]] and [[Dream Mentor]] to cast. The spell may be cast at level 75 [[Magic]] and requires two [[Astral rune|astral]], two [[Cosmic rune|cosmic]], and five [[body rune]]s. The spell may be cast on other players to discover stats, including current [[Hitpoints]], all skills, and boosted stats.
+
+The target of the spell receives a message that their stats are being spied upon along with the name of the caster.
+
+[[File:Stat Spy view.png|thumb|left|The interface Stat Spy opens.]]
+
+==Cost==
+{{Spell cost table
+|Rune1 = Body
+|Rune1num = 5
+|Rune2 = Cosmic
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

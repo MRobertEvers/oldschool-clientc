@@ -1,0 +1,1026 @@
+From 94e156b446cb0eedeeaf2a9c818fd4ca22f5b10d Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:01 -0500
+Subject: [PATCH] wip(r3-mcount): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-mcount.
+
+files: 3rd/toridraw/graphics/raster/model_census.c 3rd/toridraw/graphics/raster/model_census.h 3rd/toridraw/toridraw_raster.u.c 3rd/toridraw/toridraw_render.u.c 3rd/toridraw/toridraw_types.h 3rd/toridraw/toridraw_unity.c src/platform/platform_sdl2_renderer_soft3d.c
+---
+ 3rd/toridraw/graphics/raster/model_census.c  | 247 +++++++++++++++++++
+ 3rd/toridraw/graphics/raster/model_census.h  | 129 ++++++++++
+ 3rd/toridraw/toridraw_raster.u.c             | 154 ++++++++++++
+ 3rd/toridraw/toridraw_render.u.c             |  47 +++-
+ 3rd/toridraw/toridraw_types.h                |  14 ++
+ 3rd/toridraw/toridraw_unity.c                |   1 +
+ src/platform/platform_sdl2_renderer_soft3d.c | 226 +++++++++++++++++
+ 7 files changed, 813 insertions(+), 5 deletions(-)
+ create mode 100644 3rd/toridraw/graphics/raster/model_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/model_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/model_census.c b/3rd/toridraw/graphics/raster/model_census.c
+new file mode 100644
+index 000000000..98f594b44
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/model_census.c
+@@ -0,0 +1,247 @@
++#include "model_census.h"
++
++#if defined(TORIDRAW_MODEL_CENSUS) && TORIDRAW_MODEL_CENSUS
++
++#include <assert.h>
++#include <string.h>
++
++struct ToriDraw_ModelCensus g_toridraw_model_census;
++
++void
++toridraw_model_census_register(void)
++{
++    if( g_toridraw_model_census.registered )
++        return;
++    g_toridraw_model_census.registered = 1;
++    atexit(ToriDraw_ModelCensusDump);
++}
++
++double
++toridraw_model_census_clipped_area(
++    double x0, double y0, double x1, double y1, double x2, double y2,
++    double w, double h)
++{
++    /* Sutherland-Hodgman against four half planes; a triangle clipped by four
++     * lines has at most 7 vertices. */
++    double px[16];
++    double py[16];
++    double qx[16];
++    double qy[16];
++    int n = 3;
++    int edge;
++    double area;
++
++    px[0] = x0;
++    py[0] = y0;
++    px[1] = x1;
++    py[1] = y1;
++    px[2] = x2;
++    py[2] = y2;
++
++    for( edge = 0; edge < 4; edge++ )
++    {
++        int m = 0;
++        int i;
++        for( i = 0; i < n; i++ )
++        {
++            double ax = px[i];
++            double ay = py[i];
++            double bx = px[(i + 1) % n];
++            double by = py[(i + 1) % n];
++            double da;
++            double db;
++
++            switch( edge )
++            {
++            case 0:
++                da = ax;
++                db = bx;
++                break; /* x >= 0 */
++            case 1:
++                da = w - ax;
++                db = w - bx;
++                break; /* x <= w */
++            case 2:
++                da = ay;
++                db = by;
++                break; /* y >= 0 */
++            default:
++                da = h - ay;
++                db = h - by;
++                break; /* y <= h */
++            }
++
++            if( da >= 0.0 )
++            {
++                qx[m] = ax;
++                qy[m] = ay;
++                m++;
++            }
++            if( (da >= 0.0) != (db >= 0.0) )
++            {
++                double t = da / (da - db);
++                qx[m] = ax + t * (bx - ax);
++                qy[m] = ay + t * (by - ay);
++                m++;
++            }
++        }
++        n = m;
++        if( n == 0 )
++            return 0.0;
++        assert(n <= 16);
++        memcpy(px, qx, (size_t)n * sizeof(double));
++        memcpy(py, qy, (size_t)n * sizeof(double));
++    }
++
++    area = 0.0;
++    {
++        int i;
++        for( i = 0; i < n; i++ )
++        {
++            int j = (i + 1) % n;
++            area += px[i] * py[j] - px[j] * py[i];
++        }
++    }
++    if( area < 0.0 )
++        area = -area;
++    return area * 0.5;
++}
++
++static void
++dump_table(
++    FILE* f,
++    char const* title,
++    double const* models,
++    double const* faces,
++    double const* vertices,
++    double const* covered,
++    double frames)
++{
++    int i;
++    double tm = 0.0;
++    double tf = 0.0;
++    double tv = 0.0;
++    double tc = 0.0;
++    double cm = 0.0;
++    double cf = 0.0;
++    double cv = 0.0;
++    double cc = 0.0;
++
++    for( i = 0; i < TORIDRAW_MODEL_CENSUS_BUCKETS; i++ )
++    {
++        tm += models[i];
++        tf += faces[i];
++        tv += vertices[i];
++        tc += covered[i];
++    }
++    if( tm <= 0.0 )
++        return;
++
++    fprintf(f, "\n%s\n", title);
++    fprintf(
++        f,
++        "  %-14s %10s %7s %10s %7s %12s %7s %12s\n",
++        "area <",
++        "models/f",
++        "cum%",
++        "faces/f",
++        "cum%",
++        "verts/f",
++        "cum%",
++        "px/f cum%");
++    for( i = 0; i < TORIDRAW_MODEL_CENSUS_BUCKETS; i++ )
++    {
++        char label[32];
++        if( i == 0 )
++            snprintf(label, sizeof(label), "0");
++        else
++            snprintf(label, sizeof(label), "%.0f", (double)(1u << (i - 1)) * 2.0);
++        cm += models[i];
++        cf += faces[i];
++        cv += vertices[i];
++        cc += covered[i];
++        if( models[i] <= 0.0 )
++            continue;
++        fprintf(
++            f,
++            "  %-14s %10.1f %6.2f%% %10.1f %6.2f%% %12.1f %6.2f%% %11.3f%%\n",
++            label,
++            models[i] / frames,
++            100.0 * cm / tm,
++            faces[i] / frames,
++            100.0 * cf / tf,
++            vertices[i] / frames,
++            100.0 * cv / tv,
++            100.0 * cc / tc);
++    }
++    fprintf(
++        f,
++        "  TOTAL          %10.1f          %10.1f          %12.1f     %11.1f px/f\n",
++        tm / frames,
++        tf / frames,
++        tv / frames,
++        tc / frames);
++}
++
++void
++ToriDraw_ModelCensusDump(void)
++{
++    struct ToriDraw_ModelCensus* c = &g_toridraw_model_census;
++    FILE* f = stderr;
++    char const* path = getenv("TORIDRAW_MODEL_CENSUS_FILE");
++    double frames = c->frames > 0.0 ? c->frames : 1.0;
++
++    if( path && *path )
++    {
++        FILE* out = fopen(path, "w");
++        if( out )
++            f = out;
++    }
++
++    fprintf(f, "=== TORIDRAW MODEL CENSUS (%.0f frames) ===\n", frames);
++    fprintf(f, "per frame:\n");
++    fprintf(f, "  ToriDraw_Project calls        %10.1f\n", c->project_calls / frames);
++    fprintf(f, "    cull: scratch capacity      %10.1f\n", c->cull_capacity / frames);
++    fprintf(f, "    cull: fast near plane       %10.1f\n", c->cull_fast_near / frames);
++    fprintf(f, "    cull: fast far plane        %10.1f\n", c->cull_fast_far / frames);
++    fprintf(f, "    cull: fast x extent         %10.1f\n", c->cull_fast_x / frames);
++    fprintf(f, "    cull: fast y extent         %10.1f\n", c->cull_fast_y / frames);
++    fprintf(f, "    cull: fast error            %10.1f\n", c->cull_fast_error / frames);
++    fprintf(f, "  Aabb8point calls              %10.1f\n", c->aabb8_calls / frames);
++    fprintf(f, "    cull: 8-point AABB          %10.1f\n", c->cull_aabb8 / frames);
++    fprintf(f, "  projected VISIBLE             %10.1f\n", c->project_visible / frames);
++    fprintf(f, "  raster dispatches             %10.1f\n", c->raster_calls / frames);
++    fprintf(f, "    with zero ordered faces     %10.1f\n", c->raster_zero_faces / frames);
++    fprintf(f, "  PICK-ONLY commands            %10.1f\n", c->pickonly_models / frames);
++    fprintf(f, "    their vertices projected    %10.1f\n", c->pickonly_verts / frames);
++    fprintf(f, "    their model faces           %10.1f\n", c->pickonly_faces / frames);
++    fprintf(f, "  vertex-box wholly offscreen   %10.1f models\n",
++            c->vertbox_outside_models / frames);
++    fprintf(f, "    their ordered faces         %10.1f\n", c->vertbox_outside_faces / frames);
++    fprintf(f, "    their vertices              %10.1f\n", c->vertbox_outside_verts / frames);
++    fprintf(f, "  ordered-face box offscreen    %10.1f models\n",
++            c->orderbox_outside_models / frames);
++    fprintf(f, "    their ordered faces         %10.1f\n", c->orderbox_outside_faces / frames);
++    fprintf(f, "  ordered faces                 %10.1f\n", c->ordered_faces / frames);
++    fprintf(f, "    degenerate (zero raw area)  %10.1f  (%.2f%%)\n",
++            c->ordered_faces_degenerate / frames,
++            100.0 * c->ordered_faces_degenerate / (c->ordered_faces > 0 ? c->ordered_faces : 1.0));
++    fprintf(f, "    clipped away entirely       %10.1f  (%.2f%%)\n",
++            c->ordered_faces_offscreen / frames,
++            100.0 * c->ordered_faces_offscreen / (c->ordered_faces > 0 ? c->ordered_faces : 1.0));
++
++    dump_table(
++        f,
++        "BY EXACT COVERED SCREEN AREA (viewport-clipped triangle area, sum over dispatched faces)",
++        c->models, c->faces, c->vertices, c->covered, frames);
++    dump_table(
++        f,
++        "BY SCREEN-AABB AREA (what a size threshold can actually test)",
++        c->abmodels, c->abfaces, c->abvertices, c->abcovered, frames);
++
++    fflush(f);
++    if( f != stderr )
++        fclose(f);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/model_census.h b/3rd/toridraw/graphics/raster/model_census.h
+new file mode 100644
+index 000000000..1bd26add8
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/model_census.h
+@@ -0,0 +1,129 @@
++#ifndef TORIDRAW_RASTER_MODEL_CENSUS_H
++#define TORIDRAW_RASTER_MODEL_CENSUS_H
++
++/**
++ * Where do the 1,326 drawn models per frame go, and how big are they?
++ *
++ * Every model pays a fixed toll -- a fast cull, an eight-point screen AABB, a
++ * full vertex projection, a bucket sort and a raster dispatch -- before a
++ * single pixel is decided. If most of those models cover a handful of pixels
++ * the toll is the frame, not the fill. This counts, per frame:
++ *
++ *   - the cull funnel, split by which test rejected the model, so the work
++ *     performed BEFORE the earliest possible reject is visible;
++ *   - for every model that reaches the rasterizer, the EXACT viewport-clipped
++ *     screen area of the triangles it actually dispatches (Sutherland-Hodgman
++ *     against the four viewport edges, then shoelace), bucketed by size;
++ *   - alongside it the model's screen-AABB area, because a size threshold can
++ *     only test the AABB -- the covered area is what the threshold would cost.
++ *
++ * Compile-time gated, dumped at exit. A census build is never timed, so the
++ * clipper here is written for clarity, not speed.
++ */
++
++#if defined(TORIDRAW_MODEL_CENSUS) && TORIDRAW_MODEL_CENSUS
++
++#include <stdio.h>
++#include <stdlib.h>
++
++enum
++{
++    /* bucket i holds area in [2^(i-1), 2^i); bucket 0 is exactly zero. */
++    TORIDRAW_MODEL_CENSUS_BUCKETS = 22
++};
++
++struct ToriDraw_ModelCensus
++{
++    double project_calls;
++    double cull_capacity;
++    double cull_fast_near;
++    double cull_fast_far;
++    double cull_fast_x;
++    double cull_fast_y;
++    double cull_fast_error;
++    double aabb8_calls;
++    double cull_aabb8;
++    double project_visible;
++
++    double raster_calls;
++    double raster_zero_faces;
++    /* Models whose TRUE projected-vertex screen AABB is wholly outside the
++     * viewport -- i.e. the 8-point cylinder box passed, but nothing the model
++     * actually contains can reach a pixel. Exact and conservative: no triangle
++     * can cross an edge that all three of its vertices are on the far side of. */
++    double vertbox_outside_models;
++    double vertbox_outside_faces;
++    double vertbox_outside_verts;
++    /* Same test applied only to the ORDERED (front-facing, sorted) faces. */
++    double orderbox_outside_models;
++    double orderbox_outside_faces;
++    /* Ordered faces by why they cover nothing. */
++    double ordered_faces;
++    double ordered_faces_degenerate;   /* zero area before clipping */
++    double ordered_faces_offscreen;    /* nonzero area, clipped to nothing */
++    /* Pick-only commands: full projection, never rasterized. */
++    double pickonly_models;
++    double pickonly_verts;
++    double pickonly_faces;
++
++    /* Indexed by covered-area bucket. */
++    double models[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double faces[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double vertices[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double covered[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double aabb_area[TORIDRAW_MODEL_CENSUS_BUCKETS];
++
++    /* Indexed by screen-AABB-area bucket: what a real threshold would test. */
++    double abmodels[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double abfaces[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double abvertices[TORIDRAW_MODEL_CENSUS_BUCKETS];
++    double abcovered[TORIDRAW_MODEL_CENSUS_BUCKETS];
++
++    double frames;
++    int registered;
++};
++
++extern struct ToriDraw_ModelCensus g_toridraw_model_census;
++
++void
++ToriDraw_ModelCensusDump(void);
++
++void
++toridraw_model_census_register(void);
++
++static inline int
++toridraw_model_census_bucket(double area)
++{
++    int b = 1;
++    double edge = 1.0;
++    if( area <= 0.0 )
++        return 0;
++    while( b < TORIDRAW_MODEL_CENSUS_BUCKETS - 1 && area >= edge * 2.0 )
++    {
++        b++;
++        edge *= 2.0;
++    }
++    return b;
++}
++
++/** Area of the triangle clipped to [0,w) x [0,h), exact, no 64-bit math kept
++ *  live -- doubles, because this is a census. */
++double
++toridraw_model_census_clipped_area(
++    double x0, double y0, double x1, double y1, double x2, double y2,
++    double w, double h);
++
++#define TORIDRAW_MODEL_CENSUS_COUNT(field)                                                \
++    do                                                                                    \
++    {                                                                                     \
++        toridraw_model_census_register();                                                 \
++        g_toridraw_model_census.field += 1.0;                                             \
++    } while( 0 )
++
++#else
++
++#define TORIDRAW_MODEL_CENSUS_COUNT(field) ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..2f18c85b6 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -6,6 +6,7 @@
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+ #include "graphics/winding.h"
++#include "graphics/raster/model_census.h"
+ 
+ #include <assert.h>
+ #include <stdbool.h>
+@@ -1372,6 +1373,159 @@ ToriDraw_RasterWithFaceIndices(
+         }
+     }
+ 
++#if defined(TORIDRAW_MODEL_CENSUS) && TORIDRAW_MODEL_CENSUS
++    {
++        struct ToriDraw_ModelCensus* mc = &g_toridraw_model_census;
++        double covered = 0.0;
++        double aabb_w;
++        double aabb_h;
++        double aabb;
++        int b;
++        int ab;
++        int lo;
++        int hi;
++
++        toridraw_model_census_register();
++        mc->raster_calls += 1.0;
++        if( scene->tmp_face_order_count <= 0 )
++            mc->raster_zero_faces += 1.0;
++
++        int vminx = 1 << 28;
++        int vmaxx = -(1 << 28);
++        int vminy = 1 << 28;
++        int vmaxy = -(1 << 28);
++        int ominx = 1 << 28;
++        int omaxx = -(1 << 28);
++        int ominy = 1 << 28;
++        int omaxy = -(1 << 28);
++        int nc = 0;
++
++        for( int v = 0; v < ctx.num_vertices; v++ )
++        {
++            int vx;
++            int vy;
++            if( ctx.near_clipped && ctx.vertex_x[v] == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
++            {
++                nc = 1;
++                continue;
++            }
++            vx = ctx.vertex_x[v] + ctx.offset_x;
++            vy = ctx.vertex_y[v] + ctx.offset_y;
++            if( vx < vminx )
++                vminx = vx;
++            if( vx > vmaxx )
++                vmaxx = vx;
++            if( vy < vminy )
++                vminy = vy;
++            if( vy > vmaxy )
++                vmaxy = vy;
++        }
++
++        for( int i = 0; i < scene->tmp_face_order_count; i++ )
++        {
++            int face = scene->tmp_face_order[i];
++            int a = ctx.face_indices_a[face];
++            int bb = ctx.face_indices_b[face];
++            int cc = ctx.face_indices_c[face];
++            double raw;
++            double ax;
++            double ay;
++            double bx;
++            double by;
++            double cx2;
++            double cy2;
++            mc->ordered_faces += 1.0;
++            if( ctx.near_clipped &&
++                (ctx.vertex_x[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++                 ctx.vertex_x[bb] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++                 ctx.vertex_x[cc] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
++                continue;
++            ax = (double)(ctx.vertex_x[a] + ctx.offset_x);
++            ay = (double)(ctx.vertex_y[a] + ctx.offset_y);
++            bx = (double)(ctx.vertex_x[bb] + ctx.offset_x);
++            by = (double)(ctx.vertex_y[bb] + ctx.offset_y);
++            cx2 = (double)(ctx.vertex_x[cc] + ctx.offset_x);
++            cy2 = (double)(ctx.vertex_y[cc] + ctx.offset_y);
++            {
++                int lo;
++                lo = (int)ax;
++                if( lo < ominx ) ominx = lo;
++                if( lo > omaxx ) omaxx = lo;
++                lo = (int)bx;
++                if( lo < ominx ) ominx = lo;
++                if( lo > omaxx ) omaxx = lo;
++                lo = (int)cx2;
++                if( lo < ominx ) ominx = lo;
++                if( lo > omaxx ) omaxx = lo;
++                lo = (int)ay;
++                if( lo < ominy ) ominy = lo;
++                if( lo > omaxy ) omaxy = lo;
++                lo = (int)by;
++                if( lo < ominy ) ominy = lo;
++                if( lo > omaxy ) omaxy = lo;
++                lo = (int)cy2;
++                if( lo < ominy ) ominy = lo;
++                if( lo > omaxy ) omaxy = lo;
++            }
++            raw = (bx - ax) * (cy2 - ay) - (cx2 - ax) * (by - ay);
++            if( raw < 0.0 )
++                raw = -raw;
++            {
++                double clipped = toridraw_model_census_clipped_area(
++                    ax, ay, bx, by, cx2, cy2,
++                    (double)ctx.screen_width, (double)ctx.screen_height);
++                covered += clipped;
++                if( clipped <= 0.0 )
++                {
++                    if( raw <= 0.0 )
++                        mc->ordered_faces_degenerate += 1.0;
++                    else
++                        mc->ordered_faces_offscreen += 1.0;
++                }
++            }
++        }
++
++        if( !nc && vmaxx >= vminx &&
++            (vmaxx < 0 || vminx >= ctx.screen_width || vmaxy < 0 ||
++             vminy >= ctx.screen_height) )
++        {
++            mc->vertbox_outside_models += 1.0;
++            mc->vertbox_outside_faces += (double)scene->tmp_face_order_count;
++            mc->vertbox_outside_verts += (double)ctx.num_vertices;
++        }
++        if( !nc && scene->tmp_face_order_count > 0 && omaxx >= ominx &&
++            (omaxx < 0 || ominx >= ctx.screen_width || omaxy < 0 ||
++             ominy >= ctx.screen_height) )
++        {
++            mc->orderbox_outside_models += 1.0;
++            mc->orderbox_outside_faces += (double)scene->tmp_face_order_count;
++        }
++
++        lo = scene->aabb.min_screen_x < 0 ? 0 : scene->aabb.min_screen_x;
++        hi = scene->aabb.max_screen_x > view_port->width ? view_port->width
++                                                         : scene->aabb.max_screen_x;
++        aabb_w = hi > lo ? (double)(hi - lo) : 0.0;
++        lo = scene->aabb.min_screen_y < 0 ? 0 : scene->aabb.min_screen_y;
++        hi = scene->aabb.max_screen_y > view_port->height ? view_port->height
++                                                          : scene->aabb.max_screen_y;
++        aabb_h = hi > lo ? (double)(hi - lo) : 0.0;
++        aabb = aabb_w * aabb_h;
++
++        b = toridraw_model_census_bucket(covered);
++        mc->models[b] += 1.0;
++        mc->faces[b] += (double)scene->tmp_face_order_count;
++        mc->vertices[b] += (double)ctx.num_vertices;
++        mc->covered[b] += covered;
++        mc->aabb_area[b] += aabb;
++
++        ab = toridraw_model_census_bucket(aabb);
++        mc->abmodels[ab] += 1.0;
++        mc->abfaces[ab] += (double)scene->tmp_face_order_count;
++        mc->abvertices[ab] += (double)ctx.num_vertices;
++        mc->abcovered[ab] += covered;
++    }
++#endif
++
+     if( ctx.raster_debug )
+         toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
+ }
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..02471e623 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -3,6 +3,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/projection.h"
+ #include "graphics/winding.h"
++#include "graphics/raster/model_census.h"
+ #include "toridraw_math.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+@@ -796,19 +797,28 @@ ToriDraw_FastCull(
+ 
+     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
+     if( !bc )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_fast_error);
+         return TORIDRAW_CULL_ERROR;
++    }
+ 
+     int model_edge_radius = bc->radius;
+ 
+     int mid_z = projected_vertex->z;
+     int max_z = model_edge_radius + mid_z;
+     if( max_z < near_plane_z )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_fast_near);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     /* worldRender culls midZ>=3500; objRender / inventory icons do not.
+      * Icon cameras already use near_plane_z=1 (world uses 50). */
+     if( near_plane_z >= 50 && mid_z > TORIDRAW_CYLINDER_FAR_PLANE_Z )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_fast_far);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     int mid_x = projected_vertex->x;
+     int mid_y = projected_vertex->y;
+@@ -847,7 +857,10 @@ ToriDraw_FastCull(
+     int screen_edge_width = view_port->width >> 1;
+ 
+     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_fast_x);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     int model_center_to_top_edge = bc->center_to_top_edge;
+ 
+@@ -877,7 +890,10 @@ ToriDraw_FastCull(
+     }
+     int screen_edge_height = view_port->height >> 1;
+     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_fast_y);
+         return TORIDRAW_CULL_FAST;
++    }
+ 
+     aabb->min_screen_x = screen_x_min_unoffset + view_port->x_center;
+     aabb->min_screen_y = screen_y_min_unoffset + view_port->y_center;
+@@ -2671,6 +2687,8 @@ ToriDraw_Project(
+ {
+     struct ProjectedVertex center_projection;
+ 
++    TORIDRAW_MODEL_CENSUS_COUNT(project_calls);
++
+     /* Refined below once the model's camera-space centre is known. Set here so
+      * an early cull cannot leave a stale plane behind for the next caller. */
+     scene->projection_near_plane_z = camera->near_plane_z;
+@@ -2717,6 +2735,7 @@ ToriDraw_Project(
+                 scene->max_vertices,
+                 model_face_count(hnd),
+                 scene->max_faces);
++        TORIDRAW_MODEL_CENSUS_COUNT(cull_capacity);
+         return TORIDRAW_CULL_ERROR;
+     }
+ 
+@@ -2758,11 +2777,6 @@ ToriDraw_Project(
+ 
+     scene->projected_vertex = center_projection;
+ 
+-    ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
+-
+-    cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+-    if( cull != TORIDRAW_CULL_VISIBLE )
+-        return cull;
+ 
+     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+@@ -2852,6 +2866,29 @@ ToriDraw_Project(
+ 
+     scene->near_clipped = may_clip;
+ 
++    /*
++     * The 8-point cylinder AABB, and the cull it feeds.
++     *
++     * Sits below the near-clip decision so `may_clip` can override the
++     * caller's skip request: a caller that means to substitute its own screen
++     * box after projection cannot build one for a near-clipped model, because
++     * that family parks TORIDRAW_SCREEN_X_NEAR_CLIPPED in screen x. Those
++     * models keep the exact box and the exact cull.
++     */
++    if( !scene->skip_model_aabb || may_clip )
++    {
++        TORIDRAW_MODEL_CENSUS_COUNT(aabb8_calls);
++        ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
++
++        cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
++        if( cull != TORIDRAW_CULL_VISIBLE )
++        {
++            TORIDRAW_MODEL_CENSUS_COUNT(cull_aabb8);
++            return cull;
++        }
++    }
++    TORIDRAW_MODEL_CENSUS_COUNT(project_visible);
++
+     if( toridraw_proj_is_parallel(camera->proj_mode) )
+     {
+         /*
+diff --git a/3rd/toridraw/toridraw_types.h b/3rd/toridraw/toridraw_types.h
+index 375b5bbea..72813ffee 100644
+--- a/3rd/toridraw/toridraw_types.h
++++ b/3rd/toridraw/toridraw_types.h
+@@ -602,6 +602,20 @@ struct ToriDraw_Scene
+     struct ToriDraw_AABB aabb;
+     struct ToriDraw_AABB cylinder_fast_aabb;
+ 
++    /*
++     * Set by the caller immediately before ToriDraw_Project when it already
++     * knows nothing will read `aabb` for this model -- i.e. no pick test will
++     * run against it. Project then skips ToriDraw_CalculateCylinderAabb8point
++     * and the AABB cull it feeds, and `aabb` keeps whatever the previous model
++     * left there. Defaults to false (the scene is calloc'd), so a caller that
++     * has never heard of it gets today's behaviour.
++     *
++     * Skipping the cull is safe in the "draws more" direction only: the 8-point
++     * box bounds the model, so a model the cull would have rejected covers zero
++     * pixels and merely costs a projection.
++     */
++    bool skip_model_aabb;
++
+     /*
+      * Whether the model ToriDraw_Project last projected could reach behind the
+      * near plane, and so whether screen_vertices_x may hold
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..4ef06f882 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -30,5 +30,6 @@
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
++#include "graphics/raster/model_census.c"
+ #include "graphics/shared_tables.c"
+ #include "osrs/palette.c"
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..cf7b2e137 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -5,6 +5,7 @@
+ 
+ #include "graphics/fb_clear.h"
+ #include "toridraw.h"
++#include "graphics/raster/model_census.h"
+ #include "toridraw_2d.h"
+ #include "toridraw_frame_ab.h"
+ #include "toridraw_font.h"
+@@ -899,12 +900,196 @@ draw_trace_min_vertices(void)
+     return cached;
+ }
+ 
++/*
++ * r3-mcount route: switches over the per-model setup cost. Read once, from the
++ * environment, so one binary carries the whole ladder.
++ *
++ *   TORIRS_MC_OFFBOX=1     after projection, before the face sort, reject a
++ *                          model whose projected vertices all lie beyond one
++ *                          viewport edge. Provably zero-coverage: a triangle is
++ *                          the convex hull of its three vertices, so if every
++ *                          vertex has x >= width no point of any face has
++ *                          x < width. Rendering is unchanged.
++ *   TORIRS_MC_VAABB=1      stop building the 8-point cylinder AABB and use the
++ *                          projected-vertex box in its place. That box is only
++ *                          ever read by the model AABB cull -- which OFFBOX
++ *                          then subsumes, more tightly -- and by the coarse
++ *                          pick bound. CHANGES THE PICK BOUND (it becomes the
++ *                          exact projected extent instead of the projected
++ *                          cylinder); rendering is unchanged. Needs OFFBOX.
++ *   TORIRS_MC_TINY=<area>  OUTPUT-CHANGING. Skip a model whose viewport-clipped
++ *                          projected-vertex box covers fewer than <area>
++ *                          pixels. 0 disables.
++ */
++static int g_mc_offbox = -1;
++static int g_mc_vaabb = 0;
++static int g_mc_tiny = 0;
++
++static void
++soft3d_mc_flags_init(void)
++{
++    char const* e;
++
++    if( g_mc_offbox >= 0 )
++        return;
++
++    e = getenv("TORIRS_MC_OFFBOX");
++    g_mc_offbox = (e && e[0] && e[0] != '0') ? 1 : 0;
++
++    e = getenv("TORIRS_MC_VAABB");
++    g_mc_vaabb = (e && e[0] && e[0] != '0') ? 1 : 0;
++
++    e = getenv("TORIRS_MC_TINY");
++    g_mc_tiny = (e && e[0]) ? atoi(e) : 0;
++    if( g_mc_tiny < 0 )
++        g_mc_tiny = 0;
++}
++
++struct Soft3DProjBox
++{
++    int minx;
++    int maxx;
++    int miny;
++    int maxy;
++    int screen_w;
++    int screen_h;
++};
++
++/*
++ * Fills `box` with the projected screen extent of the model ToriDraw_Project
++ * just finished, in the viewport-CENTRED space the raster works in: the
++ * triangle dispatchers add ctx->offset_x = screen_width>>1 before touching a
++ * pixel, so these are the coordinates before that shift.
++ *
++ * Returns false for a near-clipped model. That family parks
++ * TORIDRAW_SCREEN_X_NEAR_CLIPPED in screen x and leaves screen y undivided, so
++ * the sweep would be reading sentinels; scene->near_clipped is exactly the flag
++ * ToriDraw_Project records for it.
++ */
++static bool
++soft3d_projected_box(
++    struct ToriRS_Soft3D* soft,
++    struct ToriRS_RenderCommand_Model const* cmd,
++    struct Soft3DProjBox* box)
++{
++    struct ToriDraw_Scene* scene;
++    struct ToriDraw_ViewPort const* vp;
++    int const* xs;
++    int const* ys;
++    int n;
++    int i;
++    int minx;
++    int maxx;
++    int miny;
++    int maxy;
++    int clip_left;
++    int clip_top;
++    int clip_right;
++    int clip_bottom;
++
++    assert(soft);
++    assert(cmd);
++    assert(box);
++    scene = soft->scene;
++    assert(scene);
++
++    if( scene->near_clipped )
++        return false;
++
++    n = ToriDraw_ModelGetVertexCount(cmd->model);
++    if( n <= 0 )
++        return false;
++
++    xs = scene->screen_vertices_x;
++    ys = scene->screen_vertices_y;
++    assert(xs);
++    assert(ys);
++
++    minx = maxx = xs[0];
++    miny = maxy = ys[0];
++    for( i = 1; i < n; i++ )
++    {
++        int const x = xs[i];
++        int const y = ys[i];
++        if( x < minx )
++            minx = x;
++        else if( x > maxx )
++            maxx = x;
++        if( y < miny )
++            miny = y;
++        else if( y > maxy )
++            maxy = y;
++    }
++
++    /* Same screen extent ToriDrawModelRasterContext derives, so "off screen"
++     * here means the same thing it means to the rasterizer. */
++    vp = &soft->view_port_3d;
++    clip_left = vp->clip_left < 0 ? 0 : vp->clip_left;
++    clip_top = vp->clip_top < 0 ? 0 : vp->clip_top;
++    clip_right = vp->clip_right > 0 ? vp->clip_right : vp->width;
++    clip_bottom = vp->clip_bottom > 0 ? vp->clip_bottom : vp->height;
++    if( clip_right < clip_left )
++        clip_right = clip_left;
++    if( clip_bottom < clip_top )
++        clip_bottom = clip_top;
++
++    box->minx = minx;
++    box->maxx = maxx;
++    box->miny = miny;
++    box->maxy = maxy;
++    box->screen_w = clip_right - clip_left;
++    box->screen_h = clip_bottom - clip_top;
++    return true;
++}
++
++/* True when the box cannot paint a pixel, or -- only when tiny_area > 0 --
++ * when its viewport-clipped area is under tiny_area. */
++static bool
++soft3d_box_reject(struct Soft3DProjBox const* box, int tiny_area)
++{
++    int ox;
++    int oy;
++    int minx;
++    int maxx;
++    int miny;
++    int maxy;
++
++    assert(box);
++    ox = box->screen_w >> 1;
++    oy = box->screen_h >> 1;
++    minx = box->minx + ox;
++    maxx = box->maxx + ox;
++    miny = box->miny + oy;
++    maxy = box->maxy + oy;
++
++    if( maxx < 0 || minx >= box->screen_w || maxy < 0 || miny >= box->screen_h )
++        return true;
++
++    if( tiny_area > 0 )
++    {
++        int const lox = minx < 0 ? 0 : minx;
++        int const hix = maxx > box->screen_w ? box->screen_w : maxx;
++        int const loy = miny < 0 ? 0 : miny;
++        int const hiy = maxy > box->screen_h ? box->screen_h : maxy;
++        int const bw = hix - lox;
++        int const bh = hiy - loy;
++        if( bw <= 0 || bh <= 0 )
++            return true;
++        if( bw * bh < tiny_area )
++            return true;
++    }
++
++    return false;
++}
++
+ static void
+ soft3d_draw_model(
+     struct ToriRS_Soft3D* soft,
+     struct ToriRS_RenderCommand_Model const* cmd)
+ {
+     struct ToriDraw_Position position;
++    struct Soft3DProjBox box;
++    bool have_box;
+     int cull;
+     int trace_min;
+     int trace_this;
+@@ -941,6 +1126,7 @@ soft3d_draw_model(
+                  cmd->model.u.model.model->vertex_count >= trace_min;
+ 
+     position = cmd->position;
++    soft->scene->skip_model_aabb = g_mc_vaabb ? true : false;
+     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
+     {
+         cull = ToriDraw_RenderModel1Project(
+@@ -969,6 +1155,24 @@ soft3d_draw_model(
+         return;
+     }
+ 
++    /* One min/max sweep of the projection scratch, feeding both the pick bound
++     * (VAABB) and the reject below (OFFBOX/TINY). Before the pick, because the
++     * pick bound has to be in place by then. */
++    have_box = false;
++    if( g_mc_vaabb || g_mc_offbox || g_mc_tiny > 0 )
++        have_box = soft3d_projected_box(soft, cmd, &box);
++
++    if( g_mc_vaabb && have_box )
++    {
++        /* x_center, not clip_left + screen_w/2: that is the origin
++         * ToriDraw_FastCull offsets its own box by, and the pick point arrives
++         * in the same canvas-absolute space. */
++        soft->scene->aabb.min_screen_x = box.minx + soft->view_port_3d.x_center;
++        soft->scene->aabb.max_screen_x = box.maxx + soft->view_port_3d.x_center;
++        soft->scene->aabb.min_screen_y = box.miny + soft->view_port_3d.y_center;
++        soft->scene->aabb.max_screen_y = box.maxy + soft->view_port_3d.y_center;
++    }
++
+     /* Hittest before the face sort: the scene scratch holds this model's
+      * projection only until the next model projects, and a model whose faces
+      * all sort away must still pick. */
+@@ -990,7 +1194,23 @@ soft3d_draw_model(
+             cmd->pick_tile_level);
+ 
+     if( cmd->pick_only )
++    {
++#if defined(TORIDRAW_MODEL_CENSUS) && TORIDRAW_MODEL_CENSUS
++        toridraw_model_census_register();
++        g_toridraw_model_census.pickonly_models += 1.0;
++        g_toridraw_model_census.pickonly_verts +=
++            (double)ToriDraw_ModelGetVertexCount(cmd->model);
++        g_toridraw_model_census.pickonly_faces +=
++            (double)ToriDraw_ModelGetFaceCount(cmd->model);
++#endif
+         return;
++    }
++
++    /* After the pick, so the pick verdict is unaffected by whatever this
++     * decides. */
++    if( (g_mc_offbox || g_mc_tiny > 0) && have_box && soft3d_box_reject(&box, g_mc_tiny) )
++        return;
++
+     {
+         int sorted = 0;
+         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
+@@ -1048,6 +1268,7 @@ ToriRS_Soft3D_Init(
+     soft->width = width;
+     soft->height = height;
+     soft->stride = width;
++    soft3d_mc_flags_init();
+ }
+ 
+ void
+@@ -1564,6 +1785,11 @@ ToriRS_Soft3D_RenderFrame(
+ 
+     n = (size_t)soft->width * (size_t)soft->height;
+ 
++#if defined(TORIDRAW_MODEL_CENSUS) && TORIDRAW_MODEL_CENSUS
++    toridraw_model_census_register();
++    g_toridraw_model_census.frames += 1.0;
++#endif
++
+     /*
+      * The A/B brackets the clear AND the rasterization that follows it,
+      * because the two are coupled through the cache. Arm selection is read

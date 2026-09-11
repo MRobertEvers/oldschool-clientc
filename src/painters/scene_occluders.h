@@ -14,6 +14,8 @@
 
 #include "painters.h"
 #include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -84,6 +86,28 @@ struct SceneOccluder
     int32_t spread_max_z;
 };
 
+/**
+ * One active occluder, in the form the point test actually reads it.
+ *
+ * `key` is the occluder's plane coordinate with the gate's sign folded in:
+ * negated for the three modes whose gate is `q - plane` rather than
+ * `plane - q`, so every run gates on `key - q > 0` and every run sorts
+ * descending. Axis A is the one the original tested first and is the one
+ * that rejects 88.7% of everything that gets past the gate.
+ */
+struct SceneOccluderPacked
+{
+    int32_t key;
+    int32_t lo_a;
+    int32_t hi_a;
+    int32_t spread_lo_a;
+    int32_t spread_hi_a;
+    int32_t lo_b;
+    int32_t hi_b;
+    int32_t spread_lo_b;
+    int32_t spread_hi_b;
+};
+
 struct SceneOccluders
 {
     int width;
@@ -105,6 +129,13 @@ struct SceneOccluders
      */
     int run_start[6];
     int run_end[6];
+
+    /**
+     * active[] rewritten for the point test: same order, same runs, but
+     * each run sorted by `key` descending and every field the test reads
+     * copied in. Built once per frame by occluder_partition_active.
+     */
+    struct SceneOccluderPacked packed[OCCLUDER_MAX_PER_LEVEL];
 
     /** Copy of ground heights at build time (scene units). Indexed like
      * heightmap: x + z * width + level * width * height. Size is
@@ -198,8 +229,147 @@ scene_occluders_select_for_camera(
  * Is the world-space point (x,y,z) behind any active occluder?
  * Hot path — early-outs on active_count == 0.
  */
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+/**
+ * Two numbers decide what to do about the occlusion cull, and the sampling
+ * profile can supply neither: how often the point predicate runs, and how many
+ * occluders it walks when it does. Both are functions of the scene and the
+ * camera alone, so they are counted here rather than on the target box.
+ */
+struct SceneOccluderCensus
+{
+    unsigned long long point_calls;
+    unsigned long long point_hits;
+    /** active_count summed over calls -- the loop-iteration bill, since a
+     *  call that returns false visits every active occluder. */
+    unsigned long long point_active_sum;
+    /** Loop iterations actually executed. Before the sorted rewrite this
+     *  equalled point_active_sum by construction; the gap between them
+     *  now IS the saving. */
+    unsigned long long point_visits;
+    /** Visits that got past the `d > 0` sign gate, i.e. paid the four
+     *  imuls. The gap up to point_active_sum is what a run sorted by
+     *  plane coordinate could break out of instead of walking. */
+    unsigned long long point_dpos;
+    /** Of those, how many the FIRST range axis alone rejected. */
+    unsigned long long point_axis_a_reject;
+    unsigned long long tile_calls;
+    unsigned long long tile_cached;
+    unsigned long long wall_calls;
+    unsigned long long frames;
+    unsigned long long active_sum;
+    unsigned int active_max;
+};
+extern struct SceneOccluderCensus g_scene_occluder_census;
+void scene_occluders_census_arm(void);
+#endif
+
+/**
+ * One run of the point test: is (ca, cb) inside the shadow of any occluder
+ * whose plane the point is on the far side of?
+ *
+ * The run is sorted by key descending, so `key - q <= 0` for one entry means
+ * it holds for every entry after it and the walk is over. The four bounds
+ * are produced one at a time because the first one usually settles it.
+ */
 static inline bool
-scene_occluders_point_hidden(
+occluder_run_hidden(
+    const struct SceneOccluderPacked* p,
+    int i,
+    int n,
+    int q,
+    int ca,
+    int cb)
+{
+    for( ; i < n; i++ )
+    {
+        int d = p[i].key - q;
+        int bound;
+
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+        g_scene_occluder_census.point_visits++;
+#endif
+        if( d <= 0 )
+            return false;
+
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+        g_scene_occluder_census.point_dpos++;
+#endif
+        bound = p[i].lo_a + ((p[i].spread_lo_a * d) >> 8);
+        if( ca < bound )
+        {
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+            g_scene_occluder_census.point_axis_a_reject++;
+#endif
+            continue;
+        }
+        bound = p[i].hi_a + ((p[i].spread_hi_a * d) >> 8);
+        if( ca > bound )
+        {
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+            g_scene_occluder_census.point_axis_a_reject++;
+#endif
+            continue;
+        }
+        bound = p[i].lo_b + ((p[i].spread_lo_b * d) >> 8);
+        if( cb < bound )
+            continue;
+        bound = p[i].hi_b + ((p[i].spread_hi_b * d) >> 8);
+        if( cb <= bound )
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Is the world-space point (x,y,z) behind any active occluder?
+ *
+ * The negated q for EAST/NORTH/BELOW is the sign the packed key already
+ * carries; see struct SceneOccluderPacked.
+ */
+static inline bool
+scene_occluders_point_hidden_impl(
+    const struct SceneOccluders* occ,
+    int x,
+    int y,
+    int z)
+{
+    const struct SceneOccluderPacked* p = occ->packed;
+    const int* rs = occ->run_start;
+    const int* re = occ->run_end;
+
+    assert(occ);
+    if( occ->active_count == 0 )
+        return false;
+
+    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_WEST_OF_PLANE],
+                            re[OCCLUDER_HIDES_WEST_OF_PLANE], x, z, y) )
+        return true;
+    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_EAST_OF_PLANE],
+                            re[OCCLUDER_HIDES_EAST_OF_PLANE], -x, z, y) )
+        return true;
+    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_SOUTH_OF_PLANE],
+                            re[OCCLUDER_HIDES_SOUTH_OF_PLANE], z, x, y) )
+        return true;
+    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_NORTH_OF_PLANE],
+                            re[OCCLUDER_HIDES_NORTH_OF_PLANE], -z, x, y) )
+        return true;
+    if( occluder_run_hidden(p, rs[OCCLUDER_HIDES_BELOW_PLANE],
+                            re[OCCLUDER_HIDES_BELOW_PLANE], -y, x, z) )
+        return true;
+    return false;
+}
+
+#if (defined(TORIDRAW_OCC_VERIFY) && TORIDRAW_OCC_VERIFY) \
+ || (defined(TORIDRAW_OCC_REF) && TORIDRAW_OCC_REF)
+/**
+ * The predicate as it stood before the packed rewrite, walking active[] in
+ * whatever order the counting sort left it. Kept so the rewrite can be
+ * checked against it rather than argued about: a disagreement here is a
+ * building that stops being drawn.
+ */
+static inline bool
+scene_occluders_point_hidden_ref(
     const struct SceneOccluders* occ,
     int x,
     int y,
@@ -212,7 +382,6 @@ scene_occluders_point_hidden(
     if( occ->active_count == 0 )
         return false;
 
-    /* OCCLUDER_HIDES_WEST_OF_PLANE: camera is east; hide points west of plane. */
     for( i = occ->run_start[OCCLUDER_HIDES_WEST_OF_PLANE],
          n = occ->run_end[OCCLUDER_HIDES_WEST_OF_PLANE];
          i < n;
@@ -230,7 +399,6 @@ scene_occluders_point_hidden(
                 return true;
         }
     }
-
     for( i = occ->run_start[OCCLUDER_HIDES_EAST_OF_PLANE],
          n = occ->run_end[OCCLUDER_HIDES_EAST_OF_PLANE];
          i < n;
@@ -248,7 +416,6 @@ scene_occluders_point_hidden(
                 return true;
         }
     }
-
     for( i = occ->run_start[OCCLUDER_HIDES_SOUTH_OF_PLANE],
          n = occ->run_end[OCCLUDER_HIDES_SOUTH_OF_PLANE];
          i < n;
@@ -266,7 +433,6 @@ scene_occluders_point_hidden(
                 return true;
         }
     }
-
     for( i = occ->run_start[OCCLUDER_HIDES_NORTH_OF_PLANE],
          n = occ->run_end[OCCLUDER_HIDES_NORTH_OF_PLANE];
          i < n;
@@ -284,7 +450,6 @@ scene_occluders_point_hidden(
                 return true;
         }
     }
-
     for( i = occ->run_start[OCCLUDER_HIDES_BELOW_PLANE],
          n = occ->run_end[OCCLUDER_HIDES_BELOW_PLANE];
          i < n;
@@ -302,9 +467,70 @@ scene_occluders_point_hidden(
                 return true;
         }
     }
-
     return false;
 }
+#endif
+
+#if defined(TORIDRAW_OCC_REF) && TORIDRAW_OCC_REF
+/* A/B arm: run the pre-rewrite predicate, so the only difference between the
+ * two timed binaries is which of the two walks the active set. */
+#define scene_occluders_point_hidden_impl scene_occluders_point_hidden_ref
+#endif
+
+#if defined(TORIDRAW_OCC_CENSUS) && TORIDRAW_OCC_CENSUS
+/** Counting wrapper; see struct SceneOccluderCensus. */
+static inline bool
+scene_occluders_point_hidden_counted(
+    const struct SceneOccluders* occ,
+    int x,
+    int y,
+    int z)
+{
+    bool hit;
+    g_scene_occluder_census.point_calls++;
+    g_scene_occluder_census.point_active_sum += (unsigned)occ->active_count;
+    hit = scene_occluders_point_hidden_impl(occ, x, y, z);
+    if( hit )
+        g_scene_occluder_census.point_hits++;
+    return hit;
+}
+#else
+#define scene_occluders_point_hidden_counted scene_occluders_point_hidden_impl
+#endif
+
+#if defined(TORIDRAW_OCC_VERIFY) && TORIDRAW_OCC_VERIFY
+/**
+ * Run the packed predicate and the pre-rewrite one on every query and stop
+ * the program at the first disagreement.
+ *
+ * Not an assert: the lane this needs to run in defines NDEBUG, and a check
+ * that disappears under the build it is checking is not a check. Occlusion
+ * mistakes present as scenery that quietly stops being drawn, which is the
+ * kind of bug that survives a play-test, so this one aborts.
+ */
+static inline bool
+scene_occluders_point_hidden(
+    const struct SceneOccluders* occ,
+    int x,
+    int y,
+    int z)
+{
+    bool fast = scene_occluders_point_hidden_counted(occ, x, y, z);
+    bool ref = scene_occluders_point_hidden_ref(occ, x, y, z);
+    if( fast != ref )
+    {
+        fprintf(stderr,
+                "occluder verify: point (%d,%d,%d) fast=%d ref=%d, "
+                "active=%d\n",
+                x, y, z, (int)fast, (int)ref, occ->active_count);
+        fflush(stderr);
+        abort();
+    }
+    return fast;
+}
+#else
+#define scene_occluders_point_hidden scene_occluders_point_hidden_counted
+#endif
 
 /** All four ground corners of tile (x,z) at `level` are hidden. Cached. */
 bool

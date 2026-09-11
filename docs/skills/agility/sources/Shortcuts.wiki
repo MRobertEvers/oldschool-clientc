@@ -1,0 +1,1515 @@
+{{External|rs}}
+'''Shortcuts''' can be found all around [[Gielinor]]. By climbing cliff sides, crossing rivers and squeezing through crevices, it is possible to reach a destination more directly than by the alternative route. Nearly all shortcuts require the proper [[Agility]] level. There are no guaranteed rewards for using shortcuts, except that they will save you time, but they will sometimes give small amounts of Agility experience. All shortcuts, Asgarnian Ice Dungeon [[Tunnel (Asgarnian Ice Dungeon, level 60)|tunnel]], and crandor south [[Rocks (Crandor)|rocks]], are [[P2P]], and some require [[Ranged]] and [[Strength]] levels. Two-way shortcuts are identified with a twisting green arrow icon ([[File:Agility shortcut icon.png]]) on the [[minimap]], with one-way shortcuts using an inverted arrow icon ([[File:Agility shortcut (One way) icon.png]]).
+
+Agility '''Areas''' are locations that are locked behind an obstacle with an Agility requirement. There is no standard way to access these locations, although some such as the [[God Wars Dungeon]] have an alternative entrance using a different skill.
+
+==List of shortcuts==
+This is a list of all Agility shortcuts.
+<onlyinclude>{{clear}}
+{| class="wikitable sortable align-center-1 align-center-2 align-center-6 sticky-header"
+!Level(s)
+!Icon
+!Shortcut
+! class="unsortable" |Location
+! class="unsortable" |Notes
+!XP
+|-
+|{{SCP|Agility|1}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Lumbridge Swamp Caves)|Stepping stones]]
+|[[Lumbridge Swamp Caves]] stepping stones
+|Stepping stones in the central Lumbridge Swamp Caves. This shortcut provides varying experience for success and failure.
+|3 (1 on failure)
+|-
+|{{SCP|Agility|5}}
+|[[File:Agility shortcut climb.png]]
+|[[Crumbling wall (Falador)|Crumbling wall]]
+|[[Falador]] [[Agility]] Shortcut
+|Right next to the [[Falador west bank]]. Provides easy access to the areas south of [[Taverley]].
+|0.5
+|-
+|{{SCP|Agility|5}}
+|{{NA}}
+|[[Climbing rocks (Yanille)|Climbing rocks]]
+|[[Yanille]]
+|Not labelled on the map. North-west of [[Frenita's Cookery Shop]] in [[Yanille]]. One-way out of Yanille.
+|25
+|-
+|{{SCP|Agility|8}}<br />{{SCP|Strength|19}}<br />{{SCP|Ranged|37}}<br />(grapple)
+
+{{SCP|Agility|48}}<br />(barehanded)
+|[[File:Agility shortcut balance.png]]
+|[[Broken Raft]]
+|([[Mith grapple]]) Over the [[River Lum]] to [[Al Kharid]]. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|South of [[Lumbridge]]. Provides slightly quicker route between [[Lumbridge Swamp]] and [[Al Kharid]]. Goes both ways.
+|{{NA}}
+|-
+|{{SCP|Agility|10}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Corsair Cove)|Rocks]]
+|[[Corsair Cove]] shortcut
+|Allows access to the rest of [[Feldip Hills]].
+|1
+|-
+|{{SCP|Agility|11}}<br /> {{SCP|Strength|37}}<br /> {{SCP|Ranged|19}}<br />(grapple)
+
+{{SCP|Agility|52}}<br />(barehanded)
+|[[File:Agility shortcut climb.png]]
+|[[Rough wall (Falador)|Rough wall]]
+|([[Mith grapple]]) Scale [[Falador]] wall. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|Allows you to climb the wall north-east of [[Falador Park]]. Faster access from [[Falador east bank]] to the north entrance of the [[Dwarven Mine]] and [[Barbarian Village]].
+|{{NA}}
+|-
+|{{SCP|Agility|12}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stones (Western Brimhaven Dungeon)|Stepping stones]]
+|Stepping stones in [[Brimhaven Dungeon]]
+|A quick shortcut deeper into the [[Brimhaven Dungeon|dungeon]]. Just west of the entrance.<br/>Taking this shortcut toward the entrance does not have an [[Agility]] requirement.
+|7.5
+|-
+|{{SCP|Agility|13}}
+|[[File:Agility shortcut jump.png]]
+|[[Fence (Varrock)|Fence]]
+|[[Varrock]] south fence jump
+|Provides a shortcut to and from South [[Varrock]].
+|0
+|-
+|{{SCP|Agility|14}}
+|[[File:Agility shortcut balance.png]]
+|[[Tight-gap (Goblin Village)|Tight-gap]]
+|Scale [[Goblin Village]] wall
+|Provides a shortcut to and from [[Burthorpe]] and the [[Chaos Temple (Asgarnia)|Chaos Temple]]: located north of [[Falador]], north-west of [[Goblin Village]]. (Requires completion of [[Falador Diary#Easy|Easy Falador Diary]] to use).
+|0
+|-
+|{{SCP|Agility|15}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Corsair Cove Dungeon)|Pillar jump]]
+|[[Corsair Cove Dungeon]] shortcut
+|Provides access to the [[Corsair Cove Resource Area]]. Requires completion of [[Dragon Slayer I]] to climb.
+|2
+|-
+|{{SCP|Agility|15}}
+|[[File:Agility shortcut climb.png]]
+|[[Rock slide (Cairn Isle)|Rock slide]]
+|[[Cairn Isle]] rock slide climb
+|Allows access to [[Cairn Isle]] from [[Karamja]] Island and completion of an easy task in the [[Karamja Diary|Karamja Achievement Diary]].
+|0
+|-
+|{{SCP|Agility|16}}
+|[[File:Agility shortcut contortion.png]]
+|[[Underwall tunnel (Yanille)|Underwall tunnel]]
+|[[Yanille]] [[Agility]] shortcut
+|Near the [[Watchtower (building)|Watchtower]]. Gives easy access to the west parts of [[Yanille]] from the [[teleport]] point.
+|0
+|-
+|{{SCP|Agility|17}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crack (Southern Catacombs of Kourend)|Crack]]
+|[[Catacombs of Kourend]] southern crack
+|Allows quicker access between the [[cyclops]] and [[ankou]] areas of [[Catacombs of Kourend]].
+|0
+|-
+|{{SCP|Agility|18}}
+|[[File:Agility shortcut jump.png]]
+|[[Broken window (Slayer Tower)|Broken window]]
+|[[Slayer Tower]] Banshee shortcut
+|Allows quicker access between [[Slayer Tower]]'s entrance and [[banshee]] room.
+|3
+|-
+|{{SCP|Agility|20}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (Coal Trucks)|Log balance]]
+|[[Coal Trucks]] log balance
+|Near the [[Coal Trucks]] west of [[Seers' Village]]. Provides easier access between the [[List of mines|mining spot]] and the pickup location near Seers' Village.
+|8.5
+|-
+|{{SCP|Agility|21}}
+|[[File:Agility shortcut contortion.png]]
+|[[Underwall tunnel (Grand Exchange)|Underwall tunnel]]
+|[[Grand Exchange]] [[Agility]] shortcut
+|North-west corner of the [[Grand Exchange]]. Gives easier access to the Grand Exchange, [[Edgeville]], a [[Fairy ring]], and the [[Canoe]] transport system.
+|0
+|-
+|{{SCP|Agility|22}}
+|[[File:Agility shortcut contortion.png]]
+|[[Pipe (Brimhaven Dungeon Entrance)|Pipe]]
+|Pipe contortion in [[Brimhaven Dungeon]]
+|Provides easier access to the [[Moss giant]]s. Just west of the entrance.<br/>Taking this shortcut away from the Moss giants does not have an [[Agility]] requirement.
+|8.5
+|-
+|{{SCP|Agility|23}}<br/>{{SCP|Strength|28}}<br/>{{SCP|Ranged|24}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Observatory)|Rocks]]
+|([[Mith grapple]]) Scale the [[Observatory]] cliff
+|Outside the [[Observatory]], requiring completion of the [[Observatory Quest]]. Provides far quicker route to the inside of the [[Observatory]]. Unlike most grapple shortcuts, players need only bring a crossbow and grapple for the first trip.
+|{{NA}}
+|-
+|{{SCP|Agility|24}}
+|[[File:Agility shortcut climb.png]]
+|[[Broken wall (Nemus Retreat)|Broken wall]]
+|South of [[Nemus Retreat]] bank
+|Allows quicker access to the [[Vale Totems]] from the bank.
+|6
+|-
+|{{SCP|Agility|25}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Eagles' Peak)|Rocks]]
+|[[Eagles' Peak (mountain)|Eagles' Peak]] [[Agility]] shortcut
+|Shortcut from [[Eagles' Peak (mountain)|Eagles' Peak]] to the area west of it.
+|1
+|-
+|{{SCP|Agility|25}}
+|[[File:Agility shortcut jump.png]]
+|[[Fence (Burgh de Rott)|Fence]]
+|Between [[Burgh de Rott]] and the [[Abandoned Mine]]
+|Requires partial completion of [[In Aid of the Myreque]]
+|0
+|-
+|{{SCP|Agility|26}}
+|[[File:Agility shortcut contortion.png]]
+|[[Underwall tunnel (Falador)|Underwall tunnel]]
+|[[Falador]] [[Agility]] shortcut
+|South-west corner of [[Falador]]. Provides easier travel between the [[Falador west bank]] and [[Rimmington]], as well as the [[Crafting Guild]].
+|0
+|-
+|{{SCP|Agility|28}}
+|[[File:Agility shortcut balance.png]]
+|[[Stones (Catacombs of Kourend)|Stones]]
+|North-west corner of the [[Catacombs of Kourend]]
+|Allows quicker access between [[brutal red dragon]]s and [[steel dragon]]s. Each pillar has to be individually clicked to jump across.
+|2
+|-
+|{{SCP|Agility|29}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Mount Karuulm)#Lower|Rocks]]
+|Lower [[Mount Karuulm]] cliffside climb
+|Allows slightly quicker access to the volcano's summit.
+|0
+|-
+|{{SCP|Agility|30}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Corsair Cove Resource Area)|Rocks]]
+|Rocks in the [[Corsair Cove Resource Area]]
+|Allows access to the rest of [[Feldip Hills]]. Requires completion of [[Dragon Slayer I]] to climb.
+|2
+|-
+|{{SCP|Agility|30}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stones (Karamja)|Stepping stones]]
+|Stepping stones near the waterfall east of [[Shilo Village (location)|Shilo Village]]
+|Allows alternative access to the eastern island of Karamja, including the [[Shipyard (Karamja)|Karamja Shipyard]], without requiring the log crossing further north.
+|3 or 1 (if failed)
+|-
+|{{SCP|Agility|31}}
+|[[File:Agility shortcut balance.png]]
+|[[Stepping stone (Champions' Guild)|Stepping stone]]
+|[[Draynor Manor]] stones to [[Champions' Guild]]
+|Near [[Draynor Manor]]. Allows you to cross the [[River Lum]] between the Manor and [[Varrock]]. There's a chance of taking a few points of damage when using this shortcut.
+|3 or 1 (if failed)
+|-
+|{{SCP|Agility|32}}<br />{{SCP|Strength|35}}<br />{{SCP|Ranged|35}}<br />(grapple)
+
+{{SCP|Agility|68}}<br />(barehanded)
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Catherby)|Rocks]]
+|([[Mith grapple]]) Scale [[Catherby]] cliffside. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|Useful for crossing from East [[Catherby]] to [[Taverley]], particularly during [[Farming]] runs.
+|{{NA}}
+|-
+|{{SCP|Agility|32}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Shilo Village)|Stepping stone]]
+|[[Shilo Village (location)|Shilo Village]] stepping stones over the river
+|Shortcut allows you to cross the river in Shilo Village, making it useful for [[fly fishing]].
+|0
+|-
+|{{SCP|Agility|33}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (East Ardougne)|Log balance]]
+|[[Ardougne]] log balance shortcut
+|Allows easy passage across the river. There's a chance of taking a few points of damage when using this shortcut.
+|4 or 2 (if failed)
+|-
+|{{SCP|Agility|33}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tunnel (Nemus Retreat)|Tunnel]]
+|Northern wall of [[Nemus Retreat]] next to the [[Tree patch|Tree Patch]]
+|Skips the walkaround from [[Nemus Retreat]] to [[Auburnvale]].
+|7.5
+|-
+|{{SCP|Agility|34}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crack (Northern Catacombs of Kourend)|Crack]]
+|[[Catacombs of Kourend]] northern crack
+|Allows quicker access between the [[greater nechryael]] and [[warped jelly]] areas.
+|0
+|-
+|{{SCP|Agility|35}}
+|[[File:Agility shortcut climb.png]]
+|[[Trellis (Varrock)|Trellis]]
+|[[Varrock Palace]] garden
+|Allows quicker access to [[Queen Ellamaria]]'s garden, destination for a [[master clue scroll]].
+Requires completion of [[Garden of Tranquillity]].
+|0
+|-
+|{{SCP|Agility|35}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocky handholds (Rellekka Hunter area)|Rocky handholds]]
+|North east in the [[Rellekka Hunter area]]. 
+|Allows access to the [[Polar eagle]] cave. 
+|1
+|-
+|{{SCP|Agility|36}}<br />{{SCP|Strength|22}}<br />{{SCP|Ranged|39}}<br />(grapple)
+
+{{SCP|Agility|72}}<br />(barehanded)
+|[[File:Agility shortcut climb.png]]
+|[[Crossbow Tree]]
+|([[Mith grapple]]) Escape from the [[Water Obelisk Island]]. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|Allows escape from the [[Taverley Dungeon]] by crossing the water to [[Catherby]] from the [[Water Obelisk Island]]. One-way.
+|0
+|-
+|{{SCP|Agility|36}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Nemus Retreat)|Stepping stone]]
+|East of [[Nemus Retreat]] bank
+|Allows quick acces from [[Nemus Retreat]] to the [[Auburn Valley]].
+|14
+|-
+|{{SCP|Agility|37}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Tree Gnome Stronghold)|Rocks]]
+|[[Gnome Stronghold]] shortcut
+|[[The Grand Tree]] and [[Tree Gnome Village]] [[quests]] needed. North-east of the [[Grand Tree]]. Allows easy access to [[Barbarian Outpost]] and the [[Lighthouse]].
+|0
+|-
+|{{SCP|Agility|38}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Al Kharid)|Rocks]]
+|[[Al Kharid]] [[mining]] pit cliffside scramble
+|This shortcut is at the north end of the [[Al Kharid mine|mine]], and is useful for exiting to go north instead of going all the way around from the southern end.
+|0
+|-
+|{{SCP|Agility|39}}<br />{{SCP|Strength|38}}<br />{{SCP|Ranged|21}}<br />(grapple)
+
+{{SCP|Agility|69}}<br />(barehanded)
+|[[File:Agility shortcut climb.png]]
+|[[Wall (Yanille)|Wall]]
+|([[Mith grapple]]) Scale [[Yanille]] wall. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|South-west [[Yanille]]. Provides easier access to [[Gu'Tanoth]] and southern areas.
+|{{NA}}
+|-
+|{{SCP|Agility|40}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stones (River Hos)|Stepping stones]]
+|[[Hosidius]] lake isle jump
+|Located south-east of the [[Infirmary]] and west of [[Watson]]'s house. Allows easier travel to [[Shayzien]] and [[Hosidius]].
+|0
+|-
+|{{SCP|Agility|40}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (Tlati Rainforest)|Log balance]]
+|[[Tlati Rainforest]] log balance
+|Gives quicker access to the [[Dragon Nest]] when running from [[Tal Teklan]].
+|0
+|-
+|{{SCP|Agility|41}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Trollheim easy)|Rocks]]
+|[[Trollheim]] easy cliffside scramble
+|Allows easier travel up and down the lower path of the west side of the hill near the [[Troll Stronghold (location)|Troll Stronghold]].
+|0
+|-
+|{{SCP|Agility|41}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Nemus Retreat)]]
+|North of [[Nemus Retreat]] bank
+|Passage from [[Nemus Retreat]] into [[Auburnvale]].
+|9.5
+|-
+|{{SCP|Agility|42}}
+|[[File:Agility shortcut contortion.png]]
+|[[Narrow crevice (Dwarven Mine)|Narrow crevice]]
+|[[Dwarven Mine]] narrow crevice
+|Provides a shortcut between the two arms of the [[Dwarven Mine|mine]].
+|0
+|-
+|{{SCP|Agility|42}}
+|[[File:Agility shortcut contortion.png]]
+|[[Underwall tunnel (Draynor Village)|Underwall tunnel]]
+|[[Draynor]] narrow tunnel
+|Allows easier travel among [[Draynor Village]] and [[Port Sarim]].
+|0
+|-
+|{{SCP|Agility|43}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Trollheim medium)|Rocks]]
+|[[Trollheim]] medium cliffside scramble
+|Allows easier travel up and down the higher paths of the west side of the hill near the [[Troll Stronghold (location)|Troll Stronghold]].
+|0
+|-
+|{{SCP|Agility|43}}
+|[[File:Agility shortcut jump.png]]
+|[[Strange floor (Fremennik Slayer Dungeon)|Strange floor]]
+|[[Fremennik Slayer Dungeon]] near [[pyrefiend]]s
+|Shortcut between the [[cave crawler]] area and the [[Pyrefiend]] area. There's a chance of taking a few points of damage when using this shortcut.
+|5 × 2
+|-
+|{{SCP|Agility|44}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Trollheim advanced)|Rocks]]
+|[[Trollheim]] advanced cliffside scramble
+|Allows easier travel up and down the east side of the hill near the [[Troll Stronghold (location)|Troll Stronghold]].
+This is useful to avoid the Troll Throwers on the north side of the hill.
+|0
+|-
+|{{SCP|Agility|45}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stones (Hosidius)|Stepping stones]]
+|[[Hosidius]] river jump
+|Located west of the Kourend [[Player-owned house]] portal, this allows easier travel over the Great Kourend river in [[Hosidius]].
+|0
+|-
+|{{SCP|Agility|45}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (Auburn Valley)|Log balance]]
+|[[Auburn Valley]] log balance
+|Allows quicker passage between several [[totem site|totem sites]].
+|19.5
+|-
+|{{SCP|Agility|45}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Proudspire, lower)|Rocks]]
+|[[The Proudspire]] lower scramble
+|Shortcut between [[the Proudspire]] slope and its base.
+|0
+|-
+|{{SCP|Agility|46}}
+|[[File:Agility shortcut contortion.png]]
+|[[Jutting wall (Zanaris)#Medium|Jutting wall]]
+|[[Cosmic Altar|Cosmic Temple]] - medium narrow walkway
+|Provides faster travel between the [[bank]] and the [[Cosmic Altar]] at [[Zanaris]]. If you fail, you take a small amount of damage but you still pass through.
+|10 (6 on failure)
+|-
+|{{SCP|Agility|46}}
+|[[File:Agility shortcut contortion.png]]
+|[[Narrow crevice (Deep Wilderness Dungeon)|Narrow crevice]]
+|[[Deep Wilderness Dungeon]] narrow shortcut
+|Requires completion of Medium [[Wilderness Diary]]. Next to the stairs and at the end by the [[Fire giant]]s in the [[Deep Wilderness Dungeon|dungeon]].
+|0
+|-
+|{{SCP|Agility|46}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (Tonali Cavern)|Log balance]] and [[Stepping stone (Tonali Cavern)|stepping stone]]
+|[[Tonali Cavern]] shortcuts
+|
+|0
+|-
+|{{SCP|Agility|47}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Trollheim hard)|Rocks]]
+|[[Trollheim]] hard cliffside scramble
+|Allows easier travel up and down the higher paths of the west side of the hill near the [[Troll Stronghold (location)|Troll Stronghold]].
+|8
+|-
+|{{SCP|Agility|47}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Ralos' Rise)|Rocks]]
+|[[Ralos' Rise]] rock climb
+|Allows faster travel up to the top of Ralos' Rise.
+|0
+|-
+|{{SCP|Agility|48}}
+|[[File:Agility shortcut balance.png]]
+|[[Log balance (Fremennik Province)|Log balance]]
+|Log balance to [[Fremennik Province]]
+|North of [[Camelot]]. Provides slightly faster travel to Eastern [[Fremennik Province]]. There's a chance of taking a few points of damage when using this shortcut.
+|4 (2 on failure)
+|-
+|{{SCP|Agility|49}}
+|[[File:Agility shortcut jump.png]]
+|[[Boulder (dense essence mine)|Boulder]]
+|[[Dense essence mine]] boulder leap
+|Provides a one-way shortcut to quickly return to the mine via the [[Soul Altar]].
+|0
+|-
+|{{SCP|Agility|49}}
+|[[File:Agility shortcut jump.png]]
+|[[Broken fence (Draynor Manor)|Fence]]
+|Broken fence into [[Draynor Manor]]
+|Provides slightly quicker access to the [[Belladonna]] Farming patch.
+|1.5
+|-
+|{{SCP|Agility|50}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Mort Myre Swamp)|Stepping stone]]
+|Stepping stone into [[Morytania]] west of the [[Nature Grotto]]
+|Allows quick access to the Nature Grotto and nearby [[coordinate]]s from [[Treasure Trails]].
+|0
+|-
+|{{SCP|Agility|50}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Great Conch)|Rocks]]
+|[[Summer Shore]]
+|Allows quick access to The Summer Shore centre from the [[Fairy rings|fairy ring]] {{Fairycode|CJQ}}
+|0
+|-
+|{{SCP|Agility|51}}
+|[[File:Agility shortcut contortion.png]]
+|[[Obstacle pipe (Edgeville Dungeon)|Obstacle pipe]]
+|Pipe from [[Edgeville Dungeon]] to [[Varrock Sewers]]
+|Allows passage between the eastern part of the [[Edgeville Dungeon]] and the [[Moss giant]]s in the [[Varrock Sewers]]. There's a chance of taking a few points of damage when using this shortcut.
+|10
+|-
+|{{SCP|Agility|52}}
+|[[File:Agility shortcut swing.png]]
+|[[Railing (Arceuus Library)|Railing]]
+|Railing from the middle floor of [[Arceuus Library]] to its ground floor
+|Useful shortcut when doing the [[Arceuus Library|minigame]].
+|3
+|-
+|{{SCP|Agility|52}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Champions' Guild south)|Stepping stone]]
+|Between the [[Champions' Guild]] and the [[Lumbridge pasture]]
+|Allows easy access to a [[beginner hot cold clue]] step in the cow field north of Lumbridge.
+|2.5
+|-
+|{{SCP|Agility|52}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (dense essence mine, east)|Rocks]]
+|Dense essence mine eastern scramble
+|Shortcut on the eastern side of the [[dense essence mine]].
+|0
+|-
+|{{SCP|Agility|52}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Great Conch)|Rocks]]
+|[[The Great Conch]] eastern plateau
+|Shortcut between [[Carnivorous chinchompa|carnivorous chinchompas]]/[[Camphor tree|camphor trees]] and the Great Conch's south-eastern mine
+|0
+|-
+|{{SCP|Agility|53}}<br />{{SCP|Strength|21}}<br />{{SCP|Ranged|42}}<br />(grapple)
+
+{{SCP|Agility|78}}<br />(barehanded)
+|[[File:Agility shortcut climb.png]]
+|[[Strong Tree (Karamja volcano)|Strong Tree]]
+|([[Mith grapple]]) [[Karamja]] Volcano. Can alternatively be crossed without the grapple, having no Strength and Ranged requirements, but with a higher Agility level requirement.
+|Provides easier travel between the [[Karamja]] Volcano area and lower Karamja.
+|{{NA}}
+|-
+|{{SCP|Agility|54}}
+|[[File:Agility shortcut contortion.png]]
+|[[Dark tunnel (Motherlode Mine)|Dark tunnel]]
+|[[Motherlode Mine]] eastern wall shortcut
+|Requires completion of Medium [[Falador Diary]].
+|0
+|-
+|{{SCP|Agility|54}}
+|[[File:Agility shortcut contortion.png]]
+|[[Dark tunnel (Motherlode Mine)|Dark tunnel]]
+|[[Motherlode Mine]] southern wall shortcut
+|Provides quick access to the south portion of the mine.
+|0
+|-
+|{{SCP|Agility|54}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Aldarin)|Rocks]]
+|West of [[Aldarin]]
+|Provides faster travel between [[Darkmoon Ravine]] and [[Aldarin]]
+|{{NA}}
+|-
+|{{SCP|Agility|54}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Giants' Plateau)|Rocks]]
+|[[Giants' Plateau]]
+|Connects the [[Giants' Foundry]] to the [[Eagle transport system]]
+|7.5
+|-
+|{{SCP|Agility|54}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks_(Wyrmscraig)|Rocks]]
+|[[Wyrmscraig]][[Ardeaglais| Cathedral]]
+|Shortcut at the bottom of the Wyrmscraig Cathedral that can be unlocked during [[Fallen From Grace]]
+|5
+|-
+|{{SCP|Agility|55}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Miscellania)|Stepping stone]]
+|Stepping stone by [[Miscellania]] docks
+|Shortcut jump from [[Miscellania]] dock to [[Etceteria]].
+|0
+|-
+|{{SCP|Agility|55}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Great Conch)|Rocks]]
+|[[Cape Conch]]
+|Provides faster access to [[Hermit Crab|hermit crabs]].
+|0
+|-
+|{{SCP|Agility|56}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stones (Eastern Brimhaven Dungeon)|Stepping stones]]
+|[[Brimhaven Dungeon]] eastern stepping stones
+|Provides easier access to the [[red dragon|red dragons]].<br/>Taking this shortcut only has an [[Agility]] requirement in one direction.
+|0
+|-
+|{{SCP|Agility|57}}
+|[[File:Agility shortcut climb.png]]
+|[[Broken fence (Rellekka)|Broken fence]]
+|[[Rellekka]] east fence shortcut
+|Provides faster travel to Rellekka from the [[fairy ring]] {{Fairycode|DKS}}
+|0
+|-
+|{{SCP|Agility|57}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Great Conch)|Rocks]]
+|[[The Great Conch]] eastern plateau (north-east side)
+|Provides faster access to [[Carnivorous chinchompa|carnivorous chinchompas]]/[[Camphor tree|camphor trees]] from the rowboat on the east side of the island.
+|0
+|-
+|{{SCP|Agility|58}}
+|[[File:Agility shortcut climb.png]]
+|[[Weathered wall]]
+|[[Port Phasmatys]] [[Ectofuntus|Ectopool]] shortcut
+|Provides faster travel down to the [[pool of slime]].
+|0
+|-
+|{{SCP|Agility|58}}
+|[[File:Agility shortcut jump.png]]
+|[[Basalt stepping stone|Stepping Stone]]
+|[[Wyrmscraig]] port shortcut
+|Provides faster travel to [[Auchrie]].
+|5
+|-
+|{{SCP|Agility|59}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Tirannwn)#Easy|Rocks]]
+|Elven Overpass ([[Arandar]]) easy cliffside scramble
+|Helps when using the elven shortcut to [[Tirannwn]].
+|0
+|-
+|{{SCP|Agility|59}}
+|[[File:Agility shortcut contortion.png]]
+|[[Cave (Stalker Den)|Cave]]
+|Cave to the [[Stalker Den]] (after [[Shadows of Custodia]])
+|Allows faster access to the [[Stalker Den]].
+|0
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocky handholds (God Wars Dungeon, Wilderness)|Rocky handholds]]
+|[[Wilderness]] from [[God Wars Dungeon]] area climb
+|Requires partial completion of the [[Troll Stronghold]] [[quest]]. There's a chance of taking a few points of damage when using this shortcut.
+|0
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Mos Le'Harmless)|Stepping stone]]
+|Estuary crossing on [[Mos Le'Harmless]]
+|Provides quicker access to the [[Mos Le'Harmless Cave]].
+|0
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut jump.png]]
+|[[Gap (Wintertodt)|Gap]]
+|Pillars in the [[Wintertodt]]'s Prison
+|Requires level 50 [[Firemaking]].
+|18
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut contortion.png]]
+|[[Obstacle pipe (Edgeville Dungeon south)|Obstacle pipe]]
+|Pipe from [[Edgeville Dungeon]] to [[Obor's lair]]
+|Allows passage between the middle part of the [[Edgeville Dungeon]] and the [[Moss giant]]s and [[Hobgoblin]]s, as well as the [[Obor]] boss.
+|10
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut jump.png]]
+|[[Platform (Tombs of Amascut)|Platform]]/Stepping stone
+|[[Tombs of Amascut]]
+|
+|5
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tunnel (Asgarnian Ice Dungeon, level 60)|Tunnel]]
+|[[Asgarnian Ice Dungeon]] tunnel
+|Shortcut between the dungeon entrance area and frozen throne cavern.
+|0
+|-
+|{{SCP|Agility|61}}
+|[[File:Agility shortcut climb.png]]
+|[[Spikey chain (Slayer Tower medium)|Spikey chain]]
+|[[Slayer Tower]] medium spiked chain climb
+|Shortcut between [[Crawling Hand]] area and [[Aberrant spectre]] area on the {{FloorNumber|uk=1}}. [[Nose peg]] or [[Slayer helmet]] required due to Aberrant spectres. There's a chance of taking a few points of damage when using this shortcut.
+|0
+|-
+|{{SCP|Agility|61}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Fremennik Slayer Dungeon)|Crevice]]
+|[[Fremennik Slayer Dungeon]] near [[basilisk]]s
+|Shortcut between [[Basilisk]] area and [[Turoth]] area.
+|0
+|-
+|{{SCP|Agility|61}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (The Great Conch)|Stepping stone]]
+|[[The Great Conch]]
+|Provides a faster route between [[the Summer Shore]] and skilling locations on the south-east portion of the island
+|0
+|-
+|{{SCP|Agility|61}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Vampyrium)|Rocks]]
+|[[Vampyrium]]
+|Provides faster access from [[letvek]] hill to [[venator]]s
+|27.5
+|-
+|{{SCP|Agility|62}}
+|[[File:Agility shortcut swing.png]]
+|[[Railing (Arceuus Library)|Railing]]
+|Railing from the top floor of [[Arceuus Library]] to its ground floor
+|Useful shortcut when doing the [[Arceuus Library|minigame]].
+|4
+|-
+|{{SCP|Agility|62}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Mount Karuulm)#Upper|Rocks]]
+|Upper [[Mount Karuulm]] cliffside climb
+|Allows quicker access to the volcano's summit.
+|0
+|-
+|{{SCP|Agility|62}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Necropolis)|Stepping stone]]
+|Stepping stones in [[Necropolis]]
+|Allows quicker access to the [[necropolis]] and [[Sophanem]].
+|0
+|-
+|{{SCP|Agility|62}}
+|[[File:Agility shortcut jump.png]]
+|[[Slippery basalt stepping stone|Stepping Stone]]
+|[[Wyrmscraig]] shortcut
+|Provides faster travel from [[Auchrie]] to [[Ardeaglais]].
+|5
+|-
+|{{SCP|Agility|63}}
+|[[File:Agility shortcut climb.png]]
+|[[Loose railing (Taverley Dungeon)|Loose railing]]
+|[[Taverley Dungeon]] lesser demon fence
+|Shortcut that leads to the [[lesser demon]]s area, and subsequently the [[blue dragon]]s area.
+|0
+|-
+|{{SCP|Agility|63}}
+|[[File:Agility shortcut climb.png]]
+|[[Wall (Darkmeyer)|Wall]]
+|[[Darkmeyer]] north-eastern wall
+|Shortcut to and from [[Darkmeyer]] from [[Slepe]]. Must be built, requiring 2 [[long rope]]s and completion of [[Sins of the Father]].
+|0
+|-
+|{{SCP|Agility|63}}
+|[[File:Agility shortcut jump.png]]
+|[[Strange floor (Forthos Dungeon)|Strange floor]]
+|[[Forthos Dungeon]] jump
+|Leads to the [[red dragon]]s. Failing this jump will cause 1-5 damage.
+|10 (5 on fail)
+|-
+|{{SCP|Agility|64}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Wilderness, Trollheim)|Rocks]]
+|[[Trollheim]] Wilderness Route
+|Shortcut from [[Trollheim]] to level 20 [[Wilderness]]. One way.
+|0
+|-
+|{{SCP|Agility|64}}
+|[[File:Agility shortcut climb.png]]
+|[[Rope (Fossil Island)|Rope]]
+|Rope to the [[Fossil Island]] Volcano
+|Quick passage between the [[Museum Camp]] and [[Fossil Island Volcano]].
+|0
+|-
+|{{SCP|Agility|64}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Stalker Den)|Stepping stone]]
+|[[Stalker Den]] stepping stone
+|Quick passage between the den entrance and northern caverns.
+|0
+|-
+|{{SCP|Agility|64}}
+|[[File:Agility shortcut contortion.png]]
+|[[Bush (Vampyrium)|Bush]]
+|[[Vampyrium]]
+|Provides a faster route to [[Maggot King]] and [[fishing spot (river)|leechfin fishing spots]]
+|2
+|-
+|{{SCP|Agility|65}}
+|[[File:Agility shortcut climb.png]]
+|[[Ornate railing]]
+|[[Paterdomus|Temple]] on [[River Salve|the Salve]] to [[Morytania]] shortcut
+|Slightly faster way to get from east [[Varrock]] to [[Canifis]], bypassing the underground route at [[Paterdomus]].
+|0
+|-
+|{{SCP|Agility|65}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Revenant Caves, easy)|Pillar Jump (Easy)]]
+|[[Revenant Caves]]
+|Allows easier navigation around the caves.
+|6.5
+|-
+|{{SCP|Agility|66}}
+|[[File:Agility shortcut contortion.png]]
+|[[Climbing rocks (Taverley)|Climbing rocks]]
+|[[Taverley]] [[tree patch]]
+|Allows players to more easily access the [[Taverley]] [[tree patch]] from the eastern side.
+|25
+|-
+|{{SCP|Agility|66}}
+|[[File:Agility shortcut contortion.png]]
+|[[Jutting wall (Zanaris)#Advanced|Jutting wall]]
+|[[Cosmic Altar]] advanced narrow walkway
+|Much faster travel between the [[bank]] and the [[Cosmic Altar]] at [[Zanaris]]. If you fail, you take a small amount of damage but you still pass through.
+|10
+|-
+|{{SCP|Agility|66}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Lumbridge Swamp)|Stepping stone]]
+|[[Lumbridge Swamp]] to [[Kharidian Desert]]
+|Provides quicker access to the [[Kalphite Lair]].
+|0
+|-
+|{{SCP|Agility|67}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Heroes' Guild)|Crevice]]
+|[[Heroes' Guild]] tunnel
+|Requires completion of Hard [[Falador Diary]]. Provides quicker access to the [[Fountain of Heroes]].
+|0
+|-
+|{{SCP|Agility|68}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Tirannwn)#Medium|Rocks]]
+|Elven Overpass ([[Arandar]]) medium cliffside scramble
+|Helps when using the elven shortcut to [[Tirannwn]].
+|0
+|-
+|{{SCP|Agility|68}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Ice Mountain)|Rocks]]
+|[[Ice Mountain]] western scramble
+|Helps when accessing the [[Ruins of Camdozaal]] and the [[Lassar Undercity]].
+|0
+|-
+|{{SCP|Agility|69}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (dense essence mine, north)|Rocks]]
+|Dense essence mine northern scramble
+|Shortcut on the north side of the [[dense essence mine]].
+|0
+|-
+|{{SCP|Agility|69}}<br/>{{SCP|Construction|59}}
+|[[File:Agility shortcut climb.png]]
+|[[Bridge (Mausoleum)]]
+|[[Bridge (Mausoleum)|Mausoleum bridge]] jump
+|Shortcut to jump over the bridge between mainland [[Morytania]] and the [[Mausoleum]]. (Shortcut requires 59 [[Construction]], a [[hammer]], 12 [[Teak plank|teak planks]], and 56 [[Mithril nails|nails]] to build.)
+|0
+|-
+|{{SCP|Agility|70}}
+|[[File:Agility shortcut contortion.png]]
+|[[Obstacle pipe (Taverley Dungeon)|Obstacle pipe]]
+|[[Taverley Dungeon]] pipe squeeze to [[Blue dragon]] lair
+|Quick passage between the entrance and the [[Blue dragon]] area. Bypasses need for the [[Dusty key]]. There's a chance of taking a few points of damage when using this shortcut.
+|10
+|-
+|{{SCP|Agility|70}}
+|[[File:Agility shortcut contortion.png]]
+|[[Hole (Fossil Island)|Hole]]
+|[[Fossil Island]] hardwood shortcut
+|Quick passage between the [[Museum Camp]] and the hardwood tree patches.
+|0
+|-
+|{{SCP|Agility|70}}
+|[[File:Agility shortcut contortion.png]]
+|[[Big window (Al Kharid)|Big window]]/[[Broken wall (Al Kharid)|Broken wall]]
+|[[Al Kharid Palace]] southern window
+|Requires completion of [[Prince Ali Rescue]]. Quick passage between the [[Al Kharid Palace]] and [[Shantay Pass]].
+|0
+|-
+|{{SCP|Agility|71}}
+|[[File:Agility shortcut climb.png]]
+|[[Spikey chain (Slayer Tower advanced)|Spikey chain]]
+|[[Slayer Tower]] advanced spiked chain climb
+|Shortcut between the [[Infernal Mage]] area on the {{FloorNumber|uk=1}} and [[Nechryael]] area on the {{FloorNumber|uk=2}}. There's a chance of taking a few points of damage when using this shortcut.
+|0
+|-
+|{{SCP|Agility|71}}
+|[[File:Agility shortcut climb.png]]
+|[[Crumbling wall (Gu'Tanoth)|Crumbling wall]]
+|Eastern [[Gu'Tanoth]]
+|Requires completion of [[Watchtower]].
+|0
+|-
+|{{SCP|Agility|71}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Pollnivneach)|Stepping stone]]
+|[[Pollnivneach]]
+|Shortcut between [[Pollnivneach]] and [[Nardah]].
+|25
+|-
+|{{SCP|Agility|71}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Proudspire, upper)|Stepping stone]]
+|[[The Proudspire]] upper scramble
+|Shortcut between [[the Proudspire]] peak and its slope.
+|0
+|-
+|{{SCP|Agility|72}}
+|[[File:Agility shortcut climb.png]]
+|[[Dry stone wall (Barrows)|Dry stone wall]]
+|[[Barrows]]
+|Shortcut between [[Mort'ton]] and the [[Barrows]].
+|25
+|-
+|{{SCP|Agility|72}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Wilderness Chaos Temple)|Stepping stone]]
+|[[Wilderness]] [[Chaos Temple (Wilderness)|Chaos Temple]]
+|Shortcut between the [[Chaos Temple (Wilderness)|Chaos Temple]] lava river and the [[Wilderness Slayer Cave]].
+|0
+|-
+|{{SCP|Agility|72}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tunnel (Stronghold Slayer Cave)|Tunnel]]
+|[[Stronghold Slayer Cave]] narrow tunnel
+|Shortcut between the [[hellhound]] area and [[aberrant spectre]] area.
+|0
+|-
+|{{SCP|Agility|72}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tunnel (Asgarnian Ice Dungeon, level 72)|Tunnel]]
+|[[Asgarnian Ice Dungeon]] tunnel
+|Shortcut between the [[hobgoblin]] area and [[skeletal wyvern]] area.
+|0
+|-
+|{{SCP|Agility|73}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Troll Stronghold)|Rocks]]
+|[[Troll Stronghold (location)|Troll Stronghold]] wall-climb
+|Requires [[My Arm's Big Adventure]]. Shortcut to get to the [[Trollheim]] [[Farming/Patch locations|farming patch]] above [[Troll Stronghold (location)|Troll Stronghold]].
+|0
+|-
+|{{SCP|Agility|73}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (dense essence mine, west)|Rocks]]
+|Dense essence mine western descent
+|Provides a one-way shortcut to quickly return to the mine via [[Blood Altar (Kourend)|Kourend's Blood Altar]].
+|0
+|-
+|{{SCP|Agility|73}}
+|[[File:Agility shortcut jump.png]]
+|[[Gap (Chasm of Fire)|Gap]]
+|[[Chasm of Fire]] platforms
+|Provides a one-way shortcut to the lift to the bottom floor.
+|2.5
+|-
+|{{SCP|Agility|73}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Vampyrium)|Pillar]]
+|[[Vampyrium]]
+|Provides faster access to [[Apsul Hunting Ground]] from [[Sangvesti]]
+|1.9
+|-
+|{{SCP|Agility|74}}
+|[[File:Agility shortcut swing.png]]
+|[[Zip line (Fossil Island)|Zip line]]
+|[[Fossil Island]] zipline
+|Provides faster access to [[Fossil Island]] smaller northern island.
+|0
+|-
+|{{SCP|Agility|74}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Lava Dragon Isle)|Stepping stone]]
+|[[Lava Dragon Isle]] jump
+|Provides easier access to [[lava dragon|lava dragons]] at a lower level of the Wilderness.
+|0
+|-
+|{{SCP|Agility|74}}
+|[[File:Agility shortcut contortion.png]]
+|[[Cave (Meiyerditch Laboratories medium)|Cave]]
+|[[Meiyerditch Laboratories]] tunnels
+|Requires partial completion of the [[Sins of the Father]].
+|0
+|-
+|{{SCP|Agility|75}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Revenant Caves, medium)|Pillar Jump (Medium)]]
+|[[Revenant Caves]]
+|Allows easier navigation around the caves.
+|7.5
+|-
+|{{SCP|Agility|75}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Ruins of Mokhaiotl)|Pillar]]
+|[[Ruins of Mokhaiotl]] pit jump
+|Allows faster access to [[Doom of Mokhaiotl]].
+|0
+|-
+|{{SCP|Agility|76}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Zul-Andra)|Stepping stone]]
+|Island crossing near [[Zul-Andra]]
+|Requires completion of [[Regicide]].
+|0
+|-
+|{{SCP|Agility|76}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (The Darkfrost)|Rocks]]
+|[[The Darkfrost]] cliff scramble
+|Allows faster access across [[Auburn Valley]].
+|0
+|-
+|{{SCP|Agility|77}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Wilderness Slayer Cave)|Crevice]]
+|[[Wilderness Slayer Cave]]
+|Allows easier navigation around the caves.
+|10
+|-
+|{{SCP|Agility|78}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tight gap (North Iorwerth Dungeon)|Tight gap]]
+|[[Iorwerth Dungeon]] northern shortcut
+|Allows quicker access to [[Waterfiends]], [[Nechryaels]], [[Elves]] and [[Dark Beast]]s.
+|1
+|-
+|{{SCP|Agility|78}}
+|[[File:Agility area balance.png]]{{sic}}
+|[[Rockslide (Vampyrium)|Rockslide]]
+|[[Vampyrium]]
+|Provides faster access to [[aranei scout]] from [[Drakan's medallion]] teleport
+|27.5
+|-
+|{{SCP|Agility|79}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Shilo Village)|Rocks]]
+|[[Shilo Village (location)|Shilo Village]]
+|Requires completion of [[Shilo Village]]. Allows quicker access to the [[Nature Altar]].
+|0
+|-
+|{{SCP|Agility|79}}
+|[[File:Agility shortcut climb.png]]
+|[[Vine (Kharazi Jungle)|Vine]]
+|[[Kharazi Jungle]] vine climb
+|Requires completion of [[Legends' Quest]]. Found east of the entrance to [[Shilo Village (location)|Shilo Village]]. Bypasses the need for a machete and axe to access the Kharazi Jungle.
+|0
+|-
+|{{SCP|Agility|79}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (north of Sophanem)|Stepping stone]]
+|Just north of [[Sophanem]], in the River Elid
+|Provides fast access from [[Sophanem]] to an [[elite coordinate clue]] step and to [[Tempoross]].
+|5
+|-
+|{{SCP|Agility|80}}
+|[[File:Agility shortcut jump.png]]
+|[[Strange floor (Taverley Dungeon)|Strange floor]]
+|[[Taverley Dungeon]]
+|Shortcut between the entrance and the [[Poison spider]] area. Bypasses need for the [[Dusty key]].
+|12.5
+|-
+|{{SCP|Agility|81}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Waterbirth Island Dungeon)|Crevice]]
+|[[Waterbirth Island Dungeon]] crevice
+|Entering the shortcut puts the player in the second to last room before the [[Dagannoth Kings]] lair.
+|10
+|-
+|{{SCP|Agility|81}}
+|[[File:Agility shortcut climb.png]]
+|[[Ivy]]
+|[[Slayer Tower]] ivy climb
+|Allows quicker access between [[Slayer Tower]]'s top floor and its entrance.
+|3
+|-
+|{{SCP|Agility|82}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping stone (Lava Maze)|Stepping stone]]
+|[[Lava Maze]] northern jump
+|Allows quick access to the [[muddy chest]] and [[Lava Maze Dungeon]].
+|0
+|-
+|{{SCP|Agility|82}}
+|[[File:Agility shortcut jump.png]]
+|[[Stepping Stone (Mos Le'Harmless, level 82)|Stepping stone]]
+|[[Mos Le'Harmless]] stepping stone
+|Provides much faster access to the island where players may be required to dig for an [[elite coordinate clue]] step. The shortcut is located just north of [[Trouble Brewing]].
+|0
+|-
+|{{SCP|Agility|82}}
+|[[File:Agility shortcut jump.png]]
+|[[Tunnel (Asgarnian Ice Dungeon, level 82)|Tunnel]]
+|[[Asgarnian Ice Dungeon]] tunnel
+|Shortcut from the entrance of the dungeon directly to the [[skeletal wyvern]] cave.
+|0
+|-
+|{{SCP|Agility|83}}
+|[[File:Agility shortcut climb.png]]
+|[[Chain (Chasm of Fire)|Chain]]
+|[[Chasm of Fire]] Chain
+|Provides a one-way shortcut right from the exit to the [[Voice of Yama]].
+|4
+|-
+|{{SCP|Agility|83}}
+|[[File:Agility shortcut climb.png]]
+|[[Slope_(Pollnivneach)|Slope]]
+|[[Pollnivneach]] slope
+|Provides a shortcut from [[Ali the Hag]]'s hut to the nearby plateau, where players may be required to dig for an Elite [[coordinate clue]] step.
+|4
+|-
+|{{SCP|Agility|83}}
+|[[File:Agility shortcut climb.png]]
+|[[Uneven stone ledges]]
+|[[Grimstone]] uneven ledges
+|Provides a more direct route between [[Frost Dragon|frost dragons]] and the [[fairy ring]] {{Fairycode|DLP}}
+|0
+|-
+|{{SCP|Agility|84}}
+|[[File:Agility shortcut contortion.png]]
+|[[Tight gap (South Iorwerth Dungeon)|Tight gap]]
+|[[Iorwerth Dungeon]] southern shortcut
+|Shortcut between the [[Mutated Bloodveld]] area and the [[Nechryael]] area.
+|1.5
+|-
+|{{SCP|Agility|84}}
+|[[File:Agility shortcut contortion.png]]
+|[[Rocks (Crandor)|Rocks]]
+|[[Crandor]] rock-climb
+|Shortcut provides an easier route to the south-west portion of [[Crandor]].
+|0
+|-
+|{{SCP|Agility|84}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Deepfin Mine)|Crevice]]
+|[[Deepfin Mine]] dungeon crevice
+|Connects [[Aberrant spectre|aberrant spectres]] and [[Nickel rocks]] on the west side with a [[Bank_chest_(amenity)|bank chest]] on the east.
+|0
+|-
+|{{SCP|Agility|85}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Tirannwn)#Advanced|Rocks]]
+|Elven Overpass ([[Arandar]]) advanced cliffside scramble
+|Helps when using the elven shortcut to [[Tirannwn]].
+|0
+|-
+|{{SCP|Agility|85}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Waterbirth Island)|Rocks]]
+|[[Waterbirth Island]]
+|Shortcut provides an easier route to the [[Cave entrance (Askeladden)|entrance]] of the [[Waterbirth Island Dungeon]].
+|0
+|-
+|{{SCP|Agility|86}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Kalphite Lair)|Crevice]]
+|[[Kalphite Lair]] wall shortcut
+|Requires completion of the Elite [[Desert Diary]].
+|0
+|-
+|{{SCP|Agility|86}}
+|[[File:Agility shortcut jump.png]]
+|[[Rocks (Darkmeyer)|Rocks]]
+|[[Darkmeyer]] wall jump
+|Shortcut to master clue. Right-click the stash unit to jump, left-click to jump the rocks.
+|0
+|-
+|{{SCP|Agility|87}}
+|[[File:Agility shortcut climb.png]]
+|[[Vine (Brimhaven Dungeon)|Vine]]
+|[[Brimhaven Dungeon]] vine to [[baby green dragon]]s
+|Allows players to reach the baby green dragons quicker.
+|0
+|-
+|{{SCP|Agility|88}}
+|[[File:Agility shortcut contortion.png]]
+|[[Mysterious pipe]]
+|[[Karuulm Slayer Dungeon]]
+|Allows players to reach the [[Alchemical Hydra]] lair safely.
+|0
+|-
+|{{SCP|Agility|89}}
+|[[File:Agility shortcut jump.png]]
+|[[Pillar (Revenant Caves, hard)|Pillar Jump (Hard)]]
+|[[Revenant Caves]]
+|Allows players to quickly reach the southern part of the revenant area.
+|9
+|-
+|{{SCP|Agility|91}}
+|[[File:Agility shortcut climb.png]]
+|[[Rocks (Viyeldi caves)]]
+|[[Viyeldi Caves]] cliff climb
+|Allows players to quickly reach the bottom of the cliff in the [[Viyeldi Caves]]. Players require completion of [[Legends' Quest]], as well as one [[long rope]] to attach to the rock. The rope is permanent and consumed on use.
+|0
+|-
+|{{SCP|Agility|93}}
+|[[File:Agility shortcut contortion.png]]
+|[[Cave (Meiyerditch Laboratories advanced)|Cave]]
+|[[Meiyerditch Laboratories]] tunnels
+|Requires partial completion of the [[Sins of the Father]], as well as 78 Mining to mine the strange wall (one-off requirement).
+|0
+|-
+|{{SCP|Agility|96}}
+|[[File:Agility shortcut contortion.png]]
+|[[Crevice (Shaman Caves)|Crevice]]
+|[[Shaman Caves]]
+|Requires completion of [[Legends' Quest]]. It allows players to skip the route containing skill checks to immediately reach the [[Winch (Shaman Caves)|winch]] that takes the player to the [[Viyeldi caves]].
+|7.5
+|}
+</onlyinclude>
+
+==List of Agility Areas==
+This is a list of all Agility areas and the obstacles which must be crossed in order to enter them.
+<onlyinclude>
+{| class="wikitable sortable align-center-1 align-center-2 align-center-6 sticky-header"
+!Level(s)
+!Icon
+!Obstacle
+! class="unsortable" |Location
+! class="unsortable" |Notes
+!XP
+|-
+|{{SCP|Agility|1}}
+|[[File:Agility area jump.png]]
+|[[Stepping stone (Lumbridge Swamp Caves)|Stepping stones]]
+|[[Lumbridge Swamp Caves]] stepping stones
+|Stepping stones to the [[Chasm of Tears]]. This shortcut provides varying experience for success and failure.<br>Although accessible at level 1 Agility, the chance of success scales with Agility level.
+|3 (1 on failure)
+|-
+|{{SCP|Agility|1}}
+|[[File:Agility area jump.png]]
+|[[Basalt rock]]
+|[[Lighthouse]] basalt rocks
+|Basalt rocks to the south of the Lighthouse.<br>Although accessible at level 1 Agility, the chance of success scales with Agility level.
+|2 (0.5 on failure)
+|-
+|{{SCP|Agility|1}}
+|[[File:Agility area jump.png]]
+|[[Bridge (Nature Grotto)|Bridge]]
+|Outside [[Nature Grotto]]
+|The bridge to the Nature Spirit cave. This shortcut provides varying experience for success and failure.<br>Although accessible at level 1 Agility, the chance of success scales with Agility level.
+|15 (2 on failure)
+|-
+|{{SCP|Agility|10}}
+|[[File:Agility area jump.png]]
+|[[Ropeswing (Brimhaven)|Ropeswing]]
+|Rope swing to [[Moss Giant Island]]
+|West [[Brimhaven]]. Provides access to small island with [[Moss giant]]s and a [[respawn]] of a slice of [[cake]].
+|3
+|-
+|{{SCP|Agility|15}}
+|[[File:Agility area jump.png]]
+|[[Monkey bars (Edgeville Dungeon)|Monkey bars]]
+|Monkey bars under [[Edgeville]]
+|Provides access to the [[Earth warrior]]s in [[Edgeville Dungeon]].
+|20
+|-
+|{{SCP|Agility|25}}
+|[[File:Agility area jump.png]]
+|[[Rock (wrecked ghost ship)|Rocks]]
+|Wrecked ship near [[Port Phasmatys]]
+|Navigated during [[Ghosts Ahoy]], destination for an [[elite clue scroll]].
+|10
+|-
+|{{SCP|Agility|30}}
+|[[File:Agility area balance.png]]
+|[[Log balance (Brimhaven Dungeon)|Log balance]]
+|South-west of the [[red dragon]] area in [[Brimhaven Dungeon]]
+|Allows access to the red dragon area in the Brimhaven Dungeon.<br/>Crossing this obstacle away from the red dragons does not have an [[Agility]] requirement.
+|10
+|-
+|{{SCP|Agility|34}}
+|[[File:Agility area contortion.png]]
+|[[Pipe (Brimhaven Dungeon)|Pipe]]
+|Pipe contortion in [[Brimhaven Dungeon]]
+|Allows passage between the [[Red dragon]] and [[Black demon]] rooms.<br/>Crossing this obstacle toward the red dragons does not have an [[Agility]] requirement.
+|10
+|-
+|{{SCP|Agility|40}}
+|[[File:Agility area balance.png]]
+|[[Balancing ledge (Yanille Agility Dungeon)|Balancing ledge]]
+|[[Yanille Agility Dungeon]] balance ledge
+|First obstacle into the [[Yanille Agility Dungeon]], giving access to the [[Chaos druid warrior]]s. Drops you into a pit of [[poison spider]]s if you fail.
+|22
+|-
+|{{SCP|Agility|43}}
+|[[File:Agility area climb.png]]
+|[[Rocks (Tlati Rainforest)|Rocks]]
+|[[Tlati Rainforest]] rock climb
+|Serves as the only way to enter the hardwood grove on the hill, containing [[teak tree|teak]] and [[mahogany tree]]s.
+|0
+|-
+|{{SCP|Agility|45}}
+|[[File:Agility area balance.png]]
+|[[Log balance (Tirannwn)|Log balance]]
+|[[Tirannwn]] log balance
+|Allows passage between different parts of the forest.
+|0
+|-
+|{{SCP|Agility|49}}
+|[[File:Agility area contortion.png]]
+|[[Obstacle pipe (Yanille Agility Dungeon)|Obstacle pipe]]
+|Contortion in [[Yanille Agility Dungeon]] small room
+|Allows access to a room with [[Skeleton]]s and the [[Sinister chest]]. There's a chance of taking a few points of damage when using this shortcut.
+|0
+|-
+|{{SCP|Agility|52}}
+|[[File:Agility area jump.png]]
+|[[Rocky outcrop (Anglers' Retreat)|Stepping stone]]
+|[[Anglers' Retreat]]
+|Allows access to a [[Chest (Anglers' Retreat)|chest]] unlockable after completing [[The Jubbly Jive]]'s swordfish rank.
+|0
+|-
+|{{SCP|Agility|56}}
+|[[File:Agility area climb.png]]
+|[[Rubble (Temple of the Eye)|Rubble]]
+|Rock climb in the [[Temple of the Eye (location)|Temple of the Eye]]
+|Requires completion of the [[Temple of the Eye]] quest.
+|0
+|-
+|{{SCP|Agility|57}}
+|[[File:Agility area jump.png]]
+|[[Monkeybars (Yanille Agility Dungeon)|Monkey bars]]
+|Monkey bars under [[Yanille]]
+|Provides access to the [[Chaos druid]]s deeper in the [[Yanille Agility Dungeon]], as well as a [[lockpick]] respawn down the nearby stairs. There's a chance of failing this obstacle and falling into a lower level crawling with [[Poison spider|poisonous spiders]].
+|20
+|-
+|{{SCP|Agility|60}}
+|[[File:Agility area contortion.png]]
+|[[Little crack]]
+|Squeeze through to [[God Wars Dungeon]] surface access
+|Allows access to the [[God Wars Dungeon]].
+|0
+|-
+|{{SCP|Agility|61}}
+|[[File:Agility area jump.png]]
+|[[Rocky outcrop (Laguna Aurorae)|Stepping stones]]
+|[[Laguna Aurorae]] north-west island
+|Allows access to a [[Chest (Laguna Aurorae)|chest]] unlockable after completing the [[Gwenith Glide]]'s swordfish rank.
+|0
+|-
+|{{SCP|Agility|67}}
+|[[File:Agility area climb.png]]
+|[[Pile of rubble (Yanille Agility Dungeon)|Pile of rubble]]
+|[[Yanille Agility Dungeon]]'s rubble climb
+|Access to an area with 4 [[Chaos druid]]s and [[Salarin the twisted]].
+|6
+|-
+|{{SCP|Agility|70}}
+|[[File:Agility area climb.png]]
+|[[Rock (God Wars Dungeon)|Rock]]
+|[[Rope]] descent to [[Saradomin's Encampment]]
+|Access to the [[Saradomin]] section of [[God Wars Dungeon]].
+|6
+|-
+|{{SCP|Agility|72}}
+|[[File:Agility area jump.png]]
+|[[Extra_slippery_basalt_stepping_stone|Stepping Stone]]
+|[[Wyrmscraig mine]] shortcut
+|Provides access to the island section of the [[Wyrmscraig mine]].
+|5
+|}</onlyinclude>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = * 8 new shortcuts have been added.
+** [[Broken fence (Draynor Manor)|Broken fence]] on the west side of [[Draynor Manor]]
+** [[Stepping stone (Champions' Guild south)|Stepping stones]] south of the [[Champions guild]]
+** [[rocks (Giants' Plateau)|Rocks]] on the south-west side of the [[Giants plateu|Giants’ Plateau]]
+** [[Obstacle pipe (Edgeville Dungeon south)|Obstacle pipe]] at the southern edge of the [[Edgeville Dungeon]]
+** [[Railing (Arceuus Library)|Railing]] at the top and middle floors of the [[Arceuus Library]]
+** [[Stepping stone (north of Sophanem)|Stepping stones]] north of [[Sophanem]]
+** [[Stepping Stone (Mos Le'Harmless, level 82)|Stepping stones]] on [[Mos Le'Harmless]] north of [[Trouble Brewing]]
+** [[Slope (Pollnivneach)|Slope]] west of [[Pollnivneach]] near [[Ali the Hag|Ali the Hag’s Hut]]
+* Several grapple shortcuts can now be done barehanded with an increased [[Agility]] requirement:
+** [[Broken Raft]] on the [[River Lum]] at level 48.
+** [[Rough wall (Falador)|Falador rough wall]] at level 51.
+** The [[Rocks (Catherby)|rock wall]] between [[Catherby]] and [[Taverly]] at level 68. It is also a two-way shortcut now.
+** [[Wall (Yanille)|Yanille rough wall]] at level 69.
+** [[Crossbow Tree]] between [[Catherby]] and the [[obelisk of Water]] at level 72.
+** The [[Strong Tree (Karamja)|Strong Trees]] south of [[Karamja Volcano]] at level 78.
+}}
+{{Subject changes
+|date = 1 April 2026
+|update = Remaining Getting Around Changes
+|poll = Getting Around Poll
+|change = The following [[Agility]] shortcuts now have shortened animations, removed pauses, or can be completed with a single click:
+* [[Underwall tunnel (Draynor Village)|Underwall tunnel]] between [[Draynor Village]] and [[Port Sarim]]
+* [[Crumbling wall (Falador)|Crumbling wall]] in [[Falador]], south-west of the western bank.
+* [[Rocks (Corsair Cove)|Rocks]] north-west of [[Corsair Cove]].
+* [[Crevice (Kalphite Lair)|Crevice]] leading to the [[Kalphite Queen]] entrance.
+* [[Rough wall (Falador)|Wall]] north-east of [[Falador Park]]. 
+* [[Narrow crevice (Dwarven Mine)|Narrow crevice]] in the [[Dwarven Mine]].
+* [[Mysterious pipe]] to the [[Alchemical Hydra]].
+}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = Adjusted world-map icons to make clear which Agility short-cuts are one-way only and which are two-way (meaning they can be used from either side).
+}}
+{{Subject changes
+|date = 17 September 2025
+|update = Poll 85 - Bridges, Boots, Ropes & Roots
+|change = The [[Bridge (Mausoleum)|mausoleum bridge]] in [[Morytania]] has been made repairable into a jump shortcut.
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = A [[Gap (Chasm of Fire)|gap]] and [[Chain (Chasm of Fire)|chain]] shortcut has been added to the [[Chasm of Fire]].
+}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|change = A [[Trellis (Varrock)|trellis]] shortcut to [[Varrock Palace]] garden has been added.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = * 11 new shortcuts have been added.
+** [[Climbing rocks (Taverley)|Climbing rocks]] on the [[Taverley]] wall east of the [[tree patch]].
+** [[Stepping stone (Pollnivneach)|Stepping stone]] on the river separating [[Pollnivneach]] and [[Nardah]].
+** [[Dry stone wall (Barrows)|Dry stone wall]] on the south-western [[Barrows]] wall.
+** [[Stepping stone (Wilderness Chaos Temple)|Stepping stone]] on the river of lava east of the [[Chaos Temple (Wilderness)|Chaos Temple]].
+** [[Crevice (Wilderness Slayer Cave)|Crevice]]s throughout the [[Wilderness Slayer Cave]].
+** [[Rocks (Shilo Village)|Rocks]] in the north-east corner of [[Shilo Village (location)|Shilo Village]].
+** [[Crevice (Waterbirth Island Dungeon)|Crevice]] in [[Waterbirth Island Dungeon]] leading to the second to last room before the [[Dagannoth Kings]]
+** [[Tunnel (Asgarnian Ice Dungeon, level 82)|Tunnel]] in the [[Asgarnian Ice Dungeon]] directly next to the entrance ladder
+** [[Rocks (Crandor)|Rocks]] south of the [[Crandor and Karamja Dungeon]] entrance on [[Crandor]]
+** [[Rocks (Waterbirth Island)|Rocks]] on [[Waterbirth Island]] leading to the second [[Cave entrance (Askeladden)]] to [[Waterbirth Island Dungeon]]
+** [[Crevice (Shaman Caves)|Crevice]] in [[Shaman Caves]] leading to the [[Viyeldi caves]] entrance
+* [[Achievement Diary]] requirements have been removed from the following shortcuts:
+** [[Lava Maze]] [[Stepping stone (Lava Maze)|stepping stones]]
+** [[Lava Dragon Isle]] [[Stepping stone (Lava Dragon Isle)|stepping stones]]
+** [[Mos Le'Harmless]] estuary [[Stepping stone (Mos Le'Harmless)|stepping stones]]
+** [[Draynor Village]] [[Underwall tunnel (Draynor Village)|underwall tunnel]]
+** [[Lumbridge]] to [[Al Kharid]] [[broken raft]]
+** [[Shilo Village (location)|Shilo Village]] [[Stepping stone (Shilo Village)|stepping stones]]
+** [[Brimhaven Dungeon]] [[Stepping stones (Eastern Brimhaven Dungeon)|stepping stones]] to [[red dragons]]
+** [[Miscellania]] [[Stepping stone (Miscellania)|stepping stones]] to [[Etceteria]]
+** [[Troll Stronghold (location)|Troll Stronghold]] [[Rocks (Troll Stronghold)|rocks]]
+** [[Al Kharid Palace]] [[Big window|window]]
+* The Agility level required to use the following shortcuts has been reduced:
+** Brimhaven stepping stones to red dragons have had their level requirement reduced to 56 Agility.
+** The [[Crevice (Fremennik Slayer Dungeon)|crevice]] in the [[Fremennik Slayer Dungeon]] has had its level requirement reduced to 43 Agility.
+** The [[Strange floor (Fremennik Slayer Dungeon)|strange floor]] in the Fremennik Slayer Dungeon has had its level requirement reduced to 61 Agility and has been sped up.
+** [[Shilo Village (location)|Shilo Village]] [[Stepping stone (Shilo Village)|stepping stones]] have had their level requirement reduced to 32 Agility.
+** The [[Strange floor (Forthos Dungeon)|strange floor]] in the [[Forthos Dungeon]] has had its level requirement reduced to 63 Agility.
+* Sped up the time it takes to use certain shortcuts:
+** [[Underwall tunnel (Draynor Village)|Underwall tunnel]] in [[Draynor Village]]
+** [[Underwall tunnel (Yanille)|Underwall tunnel]] in [[Yanille]]
+** [[Mysterious pipe]] in [[Karuulm Slayer Dungeon]]
+** [[Underwall tunnel (Grand Exchange)|Underwall tunnel]] north-west of the [[Grand Exchange]]
+** [[Underwall tunnel (Falador)|Underwall tunnel]] in [[Falador]]
+** [[Narrow crevice (Dwarven Mine)|Crevice]] in the [[Dwarven Mine]]
+** [[Tight gap (North Iorwerth Dungeon)|north]] and [[Tight gap (South Iorwerth Dungeon)|south gaps]] within the [[Iorwerth Dungeon]]
+** [[Crevice (Kalphite Lair)|Crevice]] in the [[Kalphite Lair]]
+}}
+{{Subject changes
+|date = 15 March 2023
+|update = The Last of Poll 78
+|poll = New Skill: Community Consultation and Poll 78
+|change = A new level 54 shortcut has been added in the [[Motherlode Mine]] between the bank and the southern part of the mine.
+}}
+{{Subject changes
+|date = 9 September 2021
+|update = Deadman Reborn and QoL Changes
+|change = Any text containing 'short-cut' is now 'shortcut'.
+}}
+{{Subject changes
+|date = 17 February 2021
+|update = 8th Birthday Event and LMS Changes
+|change = A new shortcut has been added to the cliff in Viyeldi Caves. To use it, you'll need 91 Agility and completion of Legends Quest, along with a one-time long rope, purchasable from the Darkmeyer General Store.
+}}
+{{Subject changes
+|date = 16 September 2020
+|update = Poll 72 Updates
+|poll = Old School Content Poll 72: Costume Rooms & Skilling
+|change = There is now an Agility shortcut in Gu-Tanoth which will make it a bit easier to complete a particular clue step. To unlock it, you'll need to have completed the Watchtower Quest and have 71 Agility.
+}}
+{{Subject changes
+|date = 16 July 2020
+|update = Ferox Enclave
+|change = The Agility route to the God Wars Dungeon is now marked with a shortcut icon.
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = Pathing relating to the level 26 [[Agility]] shortcut tunnel on the southern [[Falador]] wall has been improved.
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|poll = Old School Content Poll 40: Vanilla LootShare & QoL
+|change = A shortcut is added to the north side of the lava maze requiring 82 Agility to use.
+}}
+{{Subject changes
+|date = 3 December 2015
+|update = Skill Cape Perks
+|change = The message received when failing a stepping stone shortcut is now correctly filtered.
+}}
+{{Subject changes
+|date = 30 July 2015
+|update = Custom F-Keys & Music Cape
+|change = The graphics for the tunnel shortcut under the Draynor wall are now the correct way round.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = The [[Shortcut|agility shortcut]] unlocked as a reward from the [[Desert Elite Diary|Elite Desert achievement diary]] now takes you from the very start of the Kalphite Lair directly to the entrance of the Kalphite Queen boss room.
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|change = Approaching the troll stronghold roof shortcut from the south no longer forces you to climb back down.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = The following have been added to the game:<br/>
+*A shortcut between [[Burthorpe]] and the [[Chaos Temple (Asgarnia)|Chaos Temple]] that you can use at level 14 [[agility]] if you have completed the [[Falador Easy Diary]].
+*A shortcut between [[Draynor Village]] and [[Port Sarim]] that you can use at level 43 [[agility]] if you have completed the [[Medium Lumbridge|Medium Lumbridge & Draynor Diary]].
+*A shortcut between the entrance and the [[Fire giants]] that you can use at level 46 [[agility]] if you have completed the [[Wilderness Medium Diary]].
+*A shortcut in the [[Motherlode Mine]] that you can use at level 54 [[agility]] if you have completed the [[Falador Medium Diary]].
+*A shortcut between the [[Miscellania]] docks and [[Etceteria]] that you can use at level 55 [[agility]] if you have completed the [[Fremennik Medium Diary]].
+*A shortcut across the estuary on [[Mos Le'Harmless]] that you can use at level 60 [[agility]] if you have completed the [[Morytania Hard Diary]].
+*A shortcut between [[Lumbridge Swamp]] and the [[Kharidian Desert]] that you can use at level 66 [[agility]] if you have completed the [[Hard Lumbridge|Hard Lumbridge & Draynor Diary]].
+*A shortcut in the basement of the [[Heroes' Guild]] to the [[Fountain of Heroes]] that you can use at level 67 [[agility]] if you have completed the [[Falador Hard Diary]].
+*A shortcut from the entrance to the roof of the [[Troll Stronghold (location)|Troll Stronghold]] that you can use at level 73 [[agility]] if you have completed the [[Fremennik Hard Diary]].
+*A shortcut on the south side to [[Lava Dragon Isle]] that you can use at level 74 [[agility]] if you have completed the [[Wilderness Hard Diary]].
+*A shortcut across the [[Shilo Village (location)|Shilo Village]] river that you can use at level 77 [[agility]] if you have completed the [[Karamja Elite Diary]].
+*A shortcut in the [[Brimhaven Dungeon]] leading to the [[red dragon]]s that you can use at level 83 [[agility]] if you have completed the [[Karamja Elite Diary]].
+*A shortcut in the [[Kalphite Lair]] that you can use at level 86 [[agility]] if you have completed the [[Desert Elite Diary]].
+}}
+{{Subject changes
+|date = 9 October 2014
+|update = New Bounty Hunter Rewards
+|poll = Old School Content Poll 25
+|change = The strange floor agility shortcut are now significantly easier to click.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|change = Improved routefinding near the Yanille wall agility shortcut.
+}}
+{{Subject changes
+|date = 30 January 2014
+|update = Release the Kraken!
+|poll = Old School feature poll 15: Rejuvenating the Wilderness
+|change = A shortcut has been added north of [[Varrock]] west bank, allowing easier access to the [[spirit tree]].
+}}
+{{Subject changes footer}}
+
+{{Agility shortcuts}}
+[[Category:Agility shortcut| ]]
+[[Category:Agility]]

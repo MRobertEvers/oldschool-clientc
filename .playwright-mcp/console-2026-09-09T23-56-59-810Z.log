@@ -1,0 +1,16 @@
+[     603ms] [LOG] [NoriLogger] Initialized successfully @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[     642ms] [WARNING] No client strategy found. Metrics will not be enabled. @ https://m.media-amazon.com/images/I/A1Cr1DuwcUL.js:27
+[     773ms] [ERROR] [SushiLogger] Logger not initialized, performance not logged for: customImageRender @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1723ms] [LOG] [NoriLogger] Initialized successfully @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1730ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1731ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1751ms] [LOG] [NoriLogger] Initialized successfully @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1774ms] [LOG] [NoriLogger] Initialized successfully @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1777ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1778ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1779ms] [ERROR] [SushiLogger] Logger not initialized, performance not logged for: asinImageRender @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1781ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1781ms] [ERROR] [NoriLogger] [WARN] DSPClientStrategy NoriLogger: Timer for fontsRender already exists. @ https://m.media-amazon.com/images/I/B1CFOoWlT0L.js:0
+[    1792ms] [ERROR] Failed to load resource: net::ERR_TRUST_TOKEN_OPERATION_FAILED @ https://www.amazon.com/tt/i:0
+[    1916ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.amazon.com/gp/product/ajax/billOfMaterial?ref=bom_pw_initialLoad&viewID=billOfMaterial-primary-widget&bomPageNum=1&searchTerm=&_=1788998221629:0
+[    3579ms] [WARNING] Unrecognized feature: 'attribution-reporting'. @ https://m.media-amazon.com/images/I/21vARlfe4pL._RC%7C11WTF6kPMoL.js_.js?AUIClients/ARARegisterTriggerSubAssets-dpv:4

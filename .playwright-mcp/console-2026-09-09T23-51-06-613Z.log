@@ -1,0 +1,11 @@
+[     636ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[    1096ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1120ms] [LOG] {h: 224, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[    1120ms] [LOG] {h: 224, w: 1099} @ https://ir.ebaystatic.com/rs/c/r1vinode/item_evo-BlOUbTnD.js:7
+[    1438ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1438ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1439ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1463ms] [LOG] done @ https://www.ebay.com/itm/357876380695:4
+[    1953ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    1954ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    4087ms] [WARNING] The resource https://ir.ebaystatic.com/cr/v/c1/market-sans/v1.0/MarketSans-Regular-WebS.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://itm.ebaydesc.com/itmdesc/357876380695?t=1710045716000&category=2535&seller=josdy_71&excSoj=1&ver=1&excTrk=1&lsite=0&ittenable=true&domain=ebay.com&descgauge=1&cspheader=1&oneClk=2&secureDesc=1&lang=en:0

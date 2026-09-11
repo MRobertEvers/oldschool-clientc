@@ -18,12 +18,12 @@ What it *can* see, and what this states instead, is the other direction: a
 reference block resolves only if every symbol **inside** it resolves. A `.dbrow`
 naming a sound, a music track, an interface component or an npc this tree has no
 spelling for is not a block that fails to load — three of those four used to be
-read as the integer 0, because `mock230_db.c` treated an unrecognised column type
+read as the integer 0, because `torirs_server_db.c` treated an unrecognised column type
 as a literal. So the bar has two halves and both are new:
 
-  * `mock230_db.c` refuses a column type it cannot resolve, and
-    `mock230_pack` loads the `.dbtable`/`.dbrow` half of the tree at all
-    (it had exactly one caller, `mock230_boot.c`, so the whole family was
+  * `torirs_server_db.c` refuses a column type it cannot resolve, and
+    `ToriRSServer_Pack` loads the `.dbtable`/`.dbrow` half of the tree at all
+    (it had exactly one caller, `torirs_server_boot.c`, so the whole family was
     validated only by starting the server);
   * this file records, for every one of the reference's blocks, what this tree
     does with it — and fails the build when the tree and that statement drift.

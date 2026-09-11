@@ -471,12 +471,13 @@ ToriDraw_RenderModelExtentsAtWidget(
 
     struct ToriDraw_Camera camera = { 0 };
     camera.near_plane_z = WIDGET_MODEL_NEAR;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.texture_affine = 1;
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, ToriDraw_KernelGetSpriteBaker());
+    ToriDraw_RenderModel3RasterWithTable(
+        scene, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     *out_draw_x = draw_x;
     *out_draw_y = draw_y;
@@ -614,22 +615,23 @@ ToriDraw_SpriteNewFromModelRasterExtents(
 
     struct ToriDraw_Camera camera = { 0 };
     camera.near_plane_z = WIDGET_MODEL_NEAR;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
 
     size_t pixel_count = (size_t)width * (size_t)height;
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderModel2SortFacesWithTable(hnd, scene, ToriDraw_KernelGetSpriteBaker());
+    ToriDraw_RenderModel3RasterWithTable(
+        scene, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
     assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
-        uint32_t rgb = (uint32_t)pixels[i];
+        uint32_t rgb = toripixel_to_argb8888(pixels[i]);
         argb[i] = (rgb & 0xFFFFFFu) ? (rgb | 0xFF000000u) : 0u;
     }
 
@@ -680,8 +682,8 @@ ToriDraw_SpriteNewFromModelRaster(
     camera.pitch = xan;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 1;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
@@ -699,14 +701,15 @@ ToriDraw_SpriteNewFromModelRaster(
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
-    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, pixels);
+    ToriDraw_RenderModelWithTable(
+        hnd, scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
     assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
-        uint32_t rgb = (uint32_t)pixels[i] & 0xFFFFFFu;
+        uint32_t rgb = toripixel_to_argb8888(pixels[i]) & 0xFFFFFFu;
         argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
     }
 
@@ -757,8 +760,8 @@ ToriDraw_SpriteNewFromObjIconRaster(
     camera.pitch = xan;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     camera.near_plane_z = 1;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
@@ -793,7 +796,9 @@ ToriDraw_SpriteNewFromObjIconRaster(
     view_port.x_center = render_w / 2;
     view_port.stride = render_w;
 
-    ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, render_pixels);
+    ToriDraw_RenderModelWithTable(
+        hnd, scene, &position, &view_port, &camera, render_pixels,
+        ToriDraw_KernelGetSpriteBaker());
 
     size_t out_pixel_count = (size_t)width * (size_t)height;
     uint32_t* argb = malloc(out_pixel_count * sizeof(uint32_t));
@@ -806,7 +811,8 @@ ToriDraw_SpriteNewFromObjIconRaster(
             for( int x = 0; x < width; x++ )
             {
                 uint32_t rgb =
-                    (uint32_t)render_pixels[(x + crop_x) + y * render_w] & 0xFFFFFFu;
+                    toripixel_to_argb8888(render_pixels[(x + crop_x) + y * render_w]) &
+                    0xFFFFFFu;
                 argb[x + y * width] = rgb ? (rgb | 0xFF000000u) : 0u;
             }
         }
@@ -815,7 +821,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
     {
         for( size_t i = 0; i < out_pixel_count; i++ )
         {
-            uint32_t rgb = (uint32_t)render_pixels[i] & 0xFFFFFFu;
+            uint32_t rgb = toripixel_to_argb8888(render_pixels[i]) & 0xFFFFFFu;
             argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
         }
     }

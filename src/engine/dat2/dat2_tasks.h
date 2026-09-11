@@ -14,6 +14,29 @@ CreateTask_Dat2ComponentPackLoad(
     int iface_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2ClientScriptTableLoad(struct CacheProvider* provider);
+
+struct RS_PreloadTable;
+struct RS_LoginReplyTable;
+/**
+ * Open the cache indices the profile's [preload:] list names, showing the
+ * bar move as each lands.
+ *
+ * NULL when the profile names no indices -- an absent list is a revision
+ * that does not preload, not an error.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2Preload(
+    struct CacheProvider* provider,
+    struct RS_PreloadTable const* steps,
+    struct RS_LoginReplyTable const* strings);
+
+/** The clientscript group whose name hashes to `name_hash`, or -1 (which also
+ *  covers "the reference table has not landed yet"). */
+int
+dat2_clientscript_id_by_name_hash(struct CacheProvider* provider, int name_hash);
+
+struct ToriRS_Task*
 CreateTask_Dat2ClientScriptLoad(
     struct CacheProvider* provider,
     int script_id);
@@ -83,10 +106,37 @@ CreateTask_Dat2SpriteLoad(
     struct CacheProvider* provider,
     int sprite_id);
 
+/**
+ * The title backdrop, from the BINARY table's `archive_name`.
+ *
+ * OldSchool keeps the title image there rather than in a jagfile, which is the
+ * one difference from the dat1 path; the half-and-mirror composite itself is
+ * shared. Registered under `sprite_name`. NULL when already loaded.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2TitlePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name);
+
 struct ToriRS_Task*
 CreateTask_Dat2SpriteLoadByName(
     struct CacheProvider* provider,
     char const* archive_name);
+
+/**
+ * Resolve a graphic-defaults sprite by SLOT, out of the defaults table, the way
+ * the client does — rather than by hashing a name and walking index 8.
+ *
+ * `name` is the profile's section name, which the resolved id is bound to so
+ * later lookups can keep using the one spelling C knows. See the task's own
+ * file for why both paths exist and when they disagree.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2DefaultsSpriteLoad(
+    struct CacheProvider* provider,
+    int slot,
+    char const* name);
 
 struct ToriRS_Task*
 CreateTask_Dat2FontLoad(
@@ -144,6 +194,30 @@ CreateTask_Dat2HitsplatLoad(
     struct RS_Hitsplats* hitsplats);
 
 /*
+ * WorldEntityConfig types (config group 72 — sailing boats, deob class387),
+ * whole-group and eager. OldSchool 239+ only; an absent group leaves the
+ * table empty, which is the pre-sailing world rather than an error.
+ */
+struct WevConfigTable;
+struct ToriRS_Task*
+CreateTask_Dat2WevConfigLoad(
+    struct CacheProvider* provider,
+    struct WevConfigTable* table);
+
+/*
+ * Healthbar types (config group 33), whole-group and eager.
+ *
+ * The overhead bar's pixel width, its fill denominator and its fade are all in
+ * this record; without it every bar falls back to the reference constructor's
+ * 30-wide rectangle, which is right only for the standard bar.
+ */
+struct RS_Healthbars;
+struct ToriRS_Task*
+CreateTask_Dat2HealthbarLoad(
+    struct CacheProvider* provider,
+    struct RS_Healthbars* healthbars);
+
+/*
  * Ambient soundscapes (config group 15), whole-group and eager.
  *
  * An OldSchool 231+ type; a cache without the group leaves the table empty,
@@ -160,6 +234,13 @@ struct ToriRS_Task*
 CreateTask_Dat2ParamLoad(
     struct CacheProvider* provider,
     int param_id);
+
+/** Load one inventory type capacity from config group 5. An absent record is
+ *  installed as a cached size of zero. */
+struct ToriRS_Task*
+CreateTask_Dat2InvtypeLoad(
+    struct CacheProvider* provider,
+    int inv_id);
 
 struct ToriRS_Task*
 CreateTask_Dat2DbRowLoad(

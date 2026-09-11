@@ -6,97 +6,97 @@ At line:1 char:786
     + FullyQualifiedErrorId : NativeCommandError
  
 audio: no device; running silent
-mock230: features era=osrs approach=rect op_nearest=10 ground_nearest=box10_rect
-mock230: obj metadata loaded (34040 records from cache.osrs239.rs2012.obtori, 54224 params in 1270 KB)
-mock230: npc metadata loaded (16349 records from cache.osrs239.rs2012.obtori, 30103 params in 705 KB)
-mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 22081 priorities)
-mock230: loc configs loaded (63474 records from cache.osrs239.rs2012.obtori; 1733 param rows in 41592 bytes, 30217 
+torirsserver: features era=osrs approach=rect op_nearest=10 ground_nearest=box10_rect
+torirsserver: obj metadata loaded (34040 records from cache.osrs239.rs2012.obtori, 54224 params in 1270 KB)
+torirsserver: npc metadata loaded (16349 records from cache.osrs239.rs2012.obtori, 30103 params in 705 KB)
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 22081 priorities)
+torirsserver: loc configs loaded (63474 records from cache.osrs239.rs2012.obtori; 1733 param rows in 41592 bytes, 30217 
 names in 569212 bytes, 17726 footprints in 141808 bytes, 8434 categories in 67472 bytes)
-mock230: struct params loaded (3990 records from cache.osrs239.rs2012.obtori, 20768 rows in 878 KB)
-mock230: 2886 varp(s) carry varbits
-mock230: varbit table loaded (19086 records from cache.osrs239.rs2012.obtori)
-mock230: 1117 param types from configs/all.param
-mock230: 1 server param type(s) from 
+torirsserver: struct params loaded (3990 records from cache.osrs239.rs2012.obtori, 20768 rows in 878 KB)
+torirsserver: 2886 varp(s) carry varbits
+torirsserver: varbit table loaded (19086 records from cache.osrs239.rs2012.obtori)
+torirsserver: 1117 param types from configs/all.param
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
-mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
-mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
-mock230: 1 server param type(s) from 
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
-mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
-mock230: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
-mock230: 2 server param type(s) from 
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
+torirsserver: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
+torirsserver: 2 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
-mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
-mock230: 3 server param type(s) from 
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
+torirsserver: 3 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
-mock230: 1 server param type(s) from 
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
-mock230: 1 server param type(s) from 
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
-mock230: 1 server param type(s) from 
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
-mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
-mock230: 2 server param type(s) from 
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+torirsserver: 2 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
-mock230: 1 server param type(s) from 
+torirsserver: 1 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
-mock230: 3 server param type(s) from 
+torirsserver: 3 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
-mock230: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
-mock230: 44 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
-mock230: 12 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
-mock230: 2 server param type(s) from 
+torirsserver: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
+torirsserver: 44 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
+torirsserver: 12 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
+torirsserver: 2 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
-mock230: 10 server param type(s) from 
+torirsserver: 10 server param type(s) from 
 OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
-mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
-mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
-mock230: 5862 enums from configs/all.enum
-mock230: content loaded (230255 symbols, 5115 constants, 6671 npc defs, 2329 loc defs, 1144 varp defs, 1515 equip reqs 
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
+torirsserver: 5862 enums from configs/all.enum
+torirsserver: content loaded (230255 symbols, 5115 constants, 6671 npc defs, 2329 loc defs, 1144 varp defs, 1515 equip reqs 
 (677 from the cache), 23140 npc spawns, 2256 obj spawns)
-mock230: 13 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay 
+torirsserver: 13 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay 
 is inert
-mock230: server band: npc.hitpoints stays text-loaded on 4 record(s) — the band has no wire for it
-mock230: server band: npc.attack_anim stays text-loaded on 9 record(s) — the band has no wire for it
-mock230: server band: npc.defend_anim stays text-loaded on 8 record(s) — the band has no wire for it
-mock230: server band: npc.death_anim stays text-loaded on 9 record(s) — the band has no wire for it
-mock230: server band: npc.moverestrict stays text-loaded on 19 record(s) — the band has no wire for it
-mock230: server band: npc.nomove stays text-loaded on 17 record(s) — the band has no wire for it
-mock230: server band: npc.huntmode stays text-loaded on 66 record(s) — the band has no wire for it
-mock230: server band loaded: 8340 archive(s) verified identical to the text parse and applied (7512 overlay authored 
+torirsserver: server band: npc.hitpoints stays text-loaded on 4 record(s) — the band has no wire for it
+torirsserver: server band: npc.attack_anim stays text-loaded on 9 record(s) — the band has no wire for it
+torirsserver: server band: npc.defend_anim stays text-loaded on 8 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_anim stays text-loaded on 9 record(s) — the band has no wire for it
+torirsserver: server band: npc.moverestrict stays text-loaded on 19 record(s) — the band has no wire for it
+torirsserver: server band: npc.nomove stays text-loaded on 17 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntmode stays text-loaded on 66 record(s) — the band has no wire for it
+torirsserver: server band loaded: 8340 archive(s) verified identical to the text parse and applied (7512 overlay authored 
 defs, 132 field value(s) text-only, 70 archive(s) over records the runtime never loads)
-mock230: db tables loaded (296 tables, 16519 rows from cache.osrs239.rs2012.obtori; 245 schema(s) installed, 15495 
+torirsserver: db tables loaded (296 tables, 16519 rows from cache.osrs239.rs2012.obtori; 245 schema(s) installed, 15495 
 row(s) filled; 248 archive table(s), 16790 archive row(s))
-mock230: bank tables loaded (19086 varbits, bank=1410 slots)
-mock230: embedded wire osrs239
+torirsserver: bank tables loaded (19086 varbits, bank=1410 slots)
+torirsserver: embedded wire osrs239
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-mock230: login user='testc' session=ok
-mock230: 12899 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
-mock230: ============================================================
-mock230: STALE SCRIPT PACK — the tree is newer than script.dat
-mock230:   OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant
-mock230:   is 3135 second(s) newer than the compiled pack.
-mock230: This server is running content that does NOT match the tree.
-mock230: A script you just edited is not the one about to run.
-mock230: Rebuild it:  make -C src mock230-scripts
-mock230: ============================================================
-mock230: stated gap HINT_NPC             (first wanted by [queue,spawn_jungle_demon])
-mock230: 3 engine fallback(s) still answer triggers content does not bind
-mock230: content binds a trigger over a verb the engine answers itself:
+torirsserver: login user='testc' session=ok
+torirsserver: 12899 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: ============================================================
+torirsserver: STALE SCRIPT PACK — the tree is newer than script.dat
+torirsserver:   OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant
+torirsserver:   is 3135 second(s) newer than the compiled pack.
+torirsserver: This server is running content that does NOT match the tree.
+torirsserver: A script you just edited is not the one about to run.
+torirsserver: Rebuild it:  make -C src torirsserver-scripts
+torirsserver: ============================================================
+torirsserver: stated gap HINT_NPC             (first wanted by [queue,spawn_jungle_demon])
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
   [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
-mock230: 1 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, 
+torirsserver: 1 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, 
 not an error
-mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
-mock230: npc roster 23140 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+torirsserver: npc roster 23140 spawn(s), 993 standing, slot_max=993
 osrs239 login: OK, local player index 1
 textures: sprite-backed system (no materials table)
 Failed to load dat2 texture 65535
 world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
-mock230: osrs239 has no UPDATE_PID -- dropping it (reported once)
-mock230: cheat 'rs2012qbdmanifest' -> debugproc ran
+torirsserver: osrs239 has no UPDATE_PID -- dropping it (reported once)
+torirsserver: cheat 'rs2012qbdmanifest' -> debugproc ran
 Failed to load dat2 idk 307
 spawn_player: element=19359 tile=52,52 level=0
-mock230: instanced scene built at zone 804,11 (base 6384,40 — 256 source zones, 66 locs)
+torirsserver: instanced scene built at zone 804,11 (base 6384,40 — 256 source zones, 66 locs)
 cs2-stub: opcode 7009 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked 
 (script 4873 pc 2)
 cs2-stub: opcode 7019 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked 
@@ -2089,7 +2089,7 @@ raster_tex_alpha: faces=959501 id=459
 raster_tex_alpha: faces=960001 id=389
 raster_tex_alpha: faces=960501 id=389
 raster_tex_alpha: faces=961001 id=389
-mock230: cannot replace saves/testc.ini
+torirsserver: cannot replace saves/testc.ini
 app: map archives are unencrypted at this revision
 app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
 varp load: 5725 types (5725 records, ids 0..5724)
