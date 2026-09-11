@@ -1859,6 +1859,40 @@ selftest_click_through(
 }
 
 /*
+ * Drain Continue pages and stop when the script parks on chatmenu:options.
+ * `selftest_click_through` would pick row 1 and accept the offer; The Final
+ * Dawn refuse walk needs the menu left armed so it can choose row 2.
+ */
+static int
+selftest_click_until_menu(
+    struct ToriRSServer* srv,
+    int max_pages)
+{
+    int clicks = 0;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+    struct ToriRSServerPlayer* player = srv->active_player;
+
+    while( clicks < max_pages && player && player->active_script )
+    {
+        int uid;
+        uint8_t resume[4];
+
+        if( player->resume_button_count <= 0 )
+            break;
+        uid = player->resume_buttons[0];
+        if( chatmenu > 0 && uid == chatmenu )
+            break;
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        clicks++;
+    }
+    return clicks;
+}
+
+/*
  * Any live npc at all, for a proc that needs one bound but does not care which.
  *
  * `[proc,give_combat_experience]` is the case: it reads
@@ -3220,6 +3254,8 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_TFD_ONLY") )
+        goto selftest_tfd_only;
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35895,6 +35931,190 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+selftest_tfd_only:
+    /*
+     * The Final Dawn focused walk. Unset TFD_ONLY leaves the default suite
+     * unmoved. Set, the walk returns here so refuse can pick chatmenu row 2.
+     *
+     *   TORIRSSERVER_SELFTEST_TFD_ONLY=1 TORIRSSERVER_GOD=1 TORIRS_PLUGINS=0 \
+     *     TORIRSSERVER_CACHE=cache.osrs239 ./src/afl_opt/torirsserver --selftest
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_TFD_ONLY") )
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+        int vmq1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "vmq1");
+        int vmq2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "vmq2");
+        int vmq3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "vmq3");
+        int vmq4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "vmq4");
+        int pmoon = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "pmoon_quest");
+        int thieving = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "thieving");
+        int runecraft = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "runecraft");
+        int fletching = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "fletching");
+        int servius = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "vmq3_servius_palace");
+        int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+        static const char* qualify_procs[] = {
+            "tfdbmp_01_qualify_fail_hod",
+            "tfdbmp_02_qualify_fail_tp",
+            "tfdbmp_03_qualify_fail_cots",
+            "tfdbmp_04_qualify_fail_pmoon",
+            "tfdbmp_05_qualify_fail_thieving",
+            "tfdbmp_06_qualify_fail_runecraft",
+            "tfdbmp_07_qualify_fail_fletching",
+        };
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        fprintf(stderr, "ToriRSServer selftest: The Final Dawn\n");
+        player->godmode = 1;
+        SELFTEST_CHECK(loaded, "TFD walk loads a compiled script pack");
+        SELFTEST_CHECK(vmq4 >= 0, "content names varbit vmq4");
+        SELFTEST_CHECK(servius > 0, "content names npc vmq3_servius_palace");
+        SELFTEST_CHECK(chatmenu > 0, "content names chatmenu:options");
+        selftest_reset_world(srv, player, 402, 402);
+        player->godmode = 1;
+
+        for( size_t i = 0; i < sizeof(qualify_procs) / sizeof(qualify_procs[0]); i++ )
+        {
+            if( vmq4 >= 0 )
+                ToriRSServer_VarbitSet(srv, vmq4, 0);
+            if( thieving >= 0 )
+            {
+                player->stat_level[thieving] = 1;
+                player->stat_boosted[thieving] = 1;
+            }
+            if( runecraft >= 0 )
+            {
+                player->stat_level[runecraft] = 1;
+                player->stat_boosted[runecraft] = 1;
+            }
+            if( fletching >= 0 )
+            {
+                player->stat_level[fletching] = 1;
+                player->stat_boosted[fletching] = 1;
+            }
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, qualify_procs[i]),
+                           "TFD qualify %s should run", qualify_procs[i]);
+            SELFTEST_CHECK(vmq4 < 0 || ToriRSServer_VarbitGet(player, vmq4) == 0,
+                           "TFD qualify %s must not write %%vmq4", qualify_procs[i]);
+            player->active_script = NULL;
+        }
+
+        if( vmq1 >= 0 )
+            ToriRSServer_VarbitSet(srv, vmq1, 24);
+        if( vmq2 >= 0 )
+            ToriRSServer_VarbitSet(srv, vmq2, 50);
+        if( vmq3 >= 0 )
+            ToriRSServer_VarbitSet(srv, vmq3, 76);
+        if( pmoon >= 0 )
+            ToriRSServer_VarbitSet(srv, pmoon, 36);
+        if( thieving >= 0 )
+        {
+            player->stat_level[thieving] = 66;
+            player->stat_boosted[thieving] = 66;
+        }
+        if( runecraft >= 0 )
+        {
+            player->stat_level[runecraft] = 52;
+            player->stat_boosted[runecraft] = 52;
+        }
+        if( fletching >= 0 )
+        {
+            player->stat_level[fletching] = 52;
+            player->stat_boosted[fletching] = 52;
+        }
+        if( vmq4 >= 0 )
+            ToriRSServer_VarbitSet(srv, vmq4, 0);
+
+        {
+            int slot = ToriRSServer_WorldNpcSpawn(srv, servius, player->x + 1, player->z,
+                                                 player->level);
+            uint8_t button[6];
+
+            SELFTEST_CHECK(slot >= 0, "TFD walk spawns Servius");
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, servius, -1,
+                                                         slot) == TORIRSSERVER_TRIGGER_RAN,
+                           "[opnpc1,vmq3_servius_palace] should run");
+            selftest_click_until_menu(srv, 8);
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "TFD offer should park on p_choice2");
+            SELFTEST_CHECK(player->resume_button_count == 1 &&
+                               player->resume_buttons[0] == chatmenu,
+                           "TFD offer must stop on chatmenu:options");
+
+            button[0] = (uint8_t)(chatmenu >> 24);
+            button[1] = (uint8_t)(chatmenu >> 16);
+            button[2] = (uint8_t)(chatmenu >> 8);
+            button[3] = (uint8_t)chatmenu;
+            button[4] = 0;
+            button[5] = 2; /* transcript No. */
+            selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            selftest_click_through(srv, 8);
+            SELFTEST_CHECK(vmq4 < 0 || ToriRSServer_VarbitGet(player, vmq4) == 0,
+                           "TFD refuse must not write %%vmq4");
+            player->active_script = NULL;
+
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, servius, -1,
+                                                         slot) == TORIRSSERVER_TRIGGER_RAN,
+                           "TFD accept talk should run");
+            selftest_click_until_menu(srv, 8);
+            SELFTEST_CHECK(player->resume_button_count == 1 &&
+                               player->resume_buttons[0] == chatmenu,
+                           "TFD accept must stop on chatmenu:options");
+            button[5] = 1; /* transcript Yes. */
+            selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            selftest_click_through(srv, 8);
+            SELFTEST_CHECK(vmq4 >= 0 && ToriRSServer_VarbitGet(player, vmq4) == 1,
+                           "TFD accept writes %%vmq4 = ^tfd_start (1), got %d",
+                           vmq4 >= 0 ? ToriRSServer_VarbitGet(player, vmq4) : -1);
+            player->active_script = NULL;
+
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, servius, -1,
+                                                         slot) == TORIRSSERVER_TRIGGER_RAN,
+                           "TFD palace beat talk should run");
+            selftest_click_through(srv, 16);
+            SELFTEST_CHECK(vmq4 >= 0 && ToriRSServer_VarbitGet(player, vmq4) == 3,
+                           "TFD palace beat writes %%vmq4 = ^tfd_temple (3), got %d",
+                           vmq4 >= 0 ? ToriRSServer_VarbitGet(player, vmq4) : -1);
+            player->active_script = NULL;
+            if( slot >= 0 )
+                ToriRSServer_WorldNpcFree(srv, slot);
+        }
+
+        {
+            static struct ToriRSServerCapture tfd_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            ToriRSServer_CaptureBegin(srv, &tfd_capture);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "tfdrun"),
+                           "::tfdrun should run");
+            selftest_click_through(srv, 20);
+            ToriRSServer_CaptureEnd(srv);
+            for( int i = ToriRSServer_CaptureFindNamed(&tfd_capture, PKT_NAME_MESSAGE_GAME, 0);
+                 i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&tfd_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+            {
+                const char* text = selftest_message_text(srv, &tfd_capture.packets[i]);
+
+                if( !text )
+                    continue;
+                if( strncmp(text, "tfdrun OK", 9) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "tfdrun FAIL", 11) == 0 )
+                    said_fail = 1;
+            }
+            SELFTEST_CHECK(!said_fail, "::tfdrun should report no failures");
+            SELFTEST_CHECK(said_ok || (vmq4 >= 0 && ToriRSServer_VarbitGet(player, vmq4) >= 68),
+                           "::tfdrun should reach complete 68");
+            player->active_script = NULL;
+        }
+
+        ToriRSServer_ScriptsFree(srv);
+        fprintf(stderr, "ToriRSServer The Final Dawn focused selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
