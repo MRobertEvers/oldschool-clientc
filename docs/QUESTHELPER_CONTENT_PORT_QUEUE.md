@@ -284,7 +284,7 @@ filed under `helpers/miniquests/` are at the end.
 | 9 | monksfriend | `monksfriend` | 224 | done (LC) | re-audit 2026-08-10: `quest_drunkmonk` (dbrow `quest_monksfriend` id 28, journal wired `~drunkmonk_journal`, npc `brother_omad` not `brotheromad`) |
 | 10 | therestlessghost | `therestlessghost` | 232 | done (LC) | re-audit 2026-08-10: `quest_priest` (`restless_ghost.rs2` npc `ghostx`, `father_aereck.rs2`, `father_urhney.rs2`; dbrow `quest_restlessghost` journal wired `~priest_journal`) |
 | 11 | runemysteries | `runemysteries` | 246 | done | 2026-09-10 parent-verified 33 unique-MD5 named BMPs on OSRS-Content@fa9c641ca (Duke/Sedridor/Aubury). |
-| 12 | pryingtimes | `pryingtimes` | 247 | done |  |
+| 12 | pryingtimes | `pryingtimes` | 247 | in_progress | 2026-09-11 claimed `gp-pry-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 14 | clientofkourend | `clientofkourend` | 257 | done | 2026-09-11 Gate D parent-verified 46 named / 46 unique-MD5 BMPs cherry-picked onto OSRS-Content@0bf87738b6 (worker SHA 22a87ce0d9 not merged wholesale). Leftovers: leftover_port_sarim_ship_cutscene; leftover_lamp_rub_ui; leftover_kourend_castle_teleport; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
@@ -338,7 +338,7 @@ filed under `helpers/miniquests/` are at the end.
 | 63 | dwarfcannon | `dwarfcannon` | 386 | done | 2026-09-10 parent-verified 97 unique-MD5 named BMPs on OSRS-Content@780e8941c9. Leftovers: IF 409 toolkit pairs, railing fail table, private Lollk, post-quest buy. |
 | 64 | familycrest | `familycrest` | 386 | done (LC) | re-audit 2026-08-10: `quest_crest` (`crest_dimintheis.rs2`, `crest_caleb.rs2`; dbrow `quest_familycrest` journal wired) |
 | 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done | 2026-09-10 parent-verified 82 unique-MD5 named BMPs on OSRS-Content@c0502dbec0. Leftovers: Curpile named Someone; font kerning. |
-| 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | in_progress | 2026-09-11 claimed `gp-soc-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done | 2026-09-11 Gate D parent-verified 77 named / 77 unique-MD5 BMPs cherry-picked onto OSRS-Content@76c54bad1f (worker SHA 530fa4ae0a not merged wholesale). Leftovers: leftover_full_refuse_trees; leftover_cloth_fishing_anim; leftover_wall_reinforce_construction; leftover_stalker_combat; leftover_dungeon_unlock_ui. Prior done; Gate D recapture. |
 | 67 | currentaffairs | `currentaffairs` | 407 | done |  |
 | 68 | zogreflesheaters | `zogreflesheaters` | 410 | done | 2026-09-10 parent-verified 88 unique-MD5 named BMPs on OSRS-Content@749c212455. Leftovers: barricade smash anim deferred; portrait crafting always-good; zogre disease bite unwired; transformed Sithik keeps human chathead; font kerning. |
 | 69 | treegnomevillage | `treegnomevillage` | 418 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_tree`) |
