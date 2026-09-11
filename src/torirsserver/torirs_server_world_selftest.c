@@ -3071,6 +3071,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 
 #include "test/sailing_server_selftest.u.h"
 #include "test/sailing_multiplayer_selftest.u.h"
+#include "test/quest_porcineofinterest_selftest.u.h"
 /* Before the lifecycle header, which is its only caller: the stale-callback
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
@@ -3217,6 +3218,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_POI_ONLY") )
+    {
+        player->godmode = 1;
+        selftest_quest_porcineofinterest(srv, player);
+        fprintf(stderr, "ToriRSServer Porcine of Interest selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("porcineofinterest");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35907,10 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /* A Porcine of Interest C-walk. Placed immediately before this shop
+     * `selftest_reset_world` so npc/tick/varbit cost ends at the reset. */
+    selftest_quest_porcineofinterest(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
