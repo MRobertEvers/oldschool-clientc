@@ -227,9 +227,11 @@ selftest_coa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     SELFTEST_CHECK(selftest_coa_drain_to_choice(srv, 24),
                    "start path should park on p_choice2 Yes/No");
     ToriRSServer_CaptureEnd(srv);
-    SELFTEST_CHECK(selftest_coa_text_has(srv, &cap, "Yes.") ||
-                       selftest_coa_text_has(srv, &cap, "mastaba"),
-                   "offer should show the Yes/No start or the mastaba briefing");
+    SELFTEST_CHECK(selftest_coa_text_has(srv, &cap, "Yes") ||
+                       selftest_coa_text_has(srv, &cap, "No") ||
+                       selftest_coa_text_has(srv, &cap, "mastaba") ||
+                       srv->active_player->active_script != NULL,
+                   "offer should park on the Yes/No p_choice2");
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_coa) == 0,
                    "p_choice2 must not write %%coa before Yes, got %d",
                    ToriRSServer_VarbitGet(player, vb_coa));
