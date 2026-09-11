@@ -244,6 +244,27 @@ struct D3D9ModelGroup
     struct TRSPK_ModelArena* arena;
     struct TRSPK_Triangles triangles;
     bool reset_each_frame;
+
+    /*
+     * Baking straight into the mapped GPU buffer -- the dynamic group only.
+     *
+     * `mapped` is the Lock()ed pointer for the frame in progress and
+     * `mapped_capacity` how many vertices it holds. The bake refuses a model
+     * that would run past that, because a DISCARD lock cannot be grown without
+     * throwing away everything already written into it; the refusal is one
+     * skipped model for one frame, and `peak_vertices` -- the high-water mark
+     * across frames -- has by then already sized the next frame's buffer past
+     * the point that refused it.
+     */
+    void* mapped;
+    uint32_t mapped_capacity;
+    uint32_t mapped_vertices;
+    uint32_t peak_vertices;
+    uint32_t mapped_refusals;
+    /* This frame's vertices reached the GPU by being baked into the mapping,
+     * so the copy path must not also run and overwrite them out of the stale
+     * system-memory array. Cleared when the group is reset. */
+    bool uploaded_by_map;
 };
 
 struct D3D9ZBufferWorld;
