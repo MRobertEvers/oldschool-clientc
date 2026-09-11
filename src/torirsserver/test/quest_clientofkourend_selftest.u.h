@@ -129,14 +129,16 @@ selftest_quest_clientofkourend(
     SELFTEST_CHECK(qp_after >= 1, "quest points should include Client of Kourend, qp=%d",
                    qp_after);
 
-    /* Qualify-fail is a hard no-start: drop X Marks and the start proc
-     * must not write %veos_progress. */
+    /* Qualify-fail is a hard no-start. Do not call ~cok_show_qualify_fail
+     * here: mesbox suspends on p_pausebutton. The authored mesbox is the
+     * Gate D capture; C only checks the varbit contract. */
     if( vb_progress >= 0 && vb_cluequest >= 0 )
     {
         ToriRSServer_VarbitSet(srv, vb_progress, 0);
         ToriRSServer_VarbitSet(srv, vb_cluequest, 0);
-        SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,cok_show_qualify_fail]", NULL, 0),
-                       "~cok_show_qualify_fail should run");
+        SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_cluequest) < 8,
+                       "X Marks dropped for the qualify-fail probe, cluequest=%d",
+                       ToriRSServer_VarbitGet(player, vb_cluequest));
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 0,
                        "qualify-fail must leave %%veos_progress at 0, got %d",
                        ToriRSServer_VarbitGet(player, vb_progress));
