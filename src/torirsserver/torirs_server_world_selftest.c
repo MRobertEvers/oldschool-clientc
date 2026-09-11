@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_twilightspromise_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3566,6 +3567,28 @@ ToriRSServer_WorldSelftest(void)
 
         fprintf(stderr, "ToriRSServer Tormented Demon focused selftest: %d failure(s)\n",
                 g_selftest_failures);
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_TWP_ONLY") )
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        player->godmode = 1;
+        fprintf(stderr, "ToriRSServer selftest: Twilight's Promise focused runtime\n");
+        SELFTEST_CHECK(loaded, "the focused Twilight's Promise lane loads a compiled script pack");
+        if( loaded )
+        {
+            selftest_quest_twilightspromise(srv, player);
+            ToriRSServer_ScriptsProcessQueues(srv);
+            ToriRSServer_WorldCloseModal(srv);
+            ToriRSServer_ScriptsFree(srv);
+        }
+        fprintf(stderr, "ToriRSServer Twilight's Promise selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("twp");
         return g_selftest_failures;
     }
 
@@ -35895,6 +35918,30 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: Twilight's Promise Gate D\n");
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        player->godmode = 1;
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /* Walk body lives in test/quest_twilightspromise_selftest.u.h
+             * (included at file scope so the helpers are real functions).
+             * Placed immediately before the shop reset on purpose. */
+            selftest_quest_twilightspromise(srv, player);
+            ToriRSServer_ScriptsProcessQueues(srv);
+            ToriRSServer_WorldCloseModal(srv);
+            ToriRSServer_ScriptsFree(srv);
+        }
+        selftest_reset_world(srv, player, 402, 402);
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
