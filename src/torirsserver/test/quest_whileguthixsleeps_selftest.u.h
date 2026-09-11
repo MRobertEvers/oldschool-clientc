@@ -17,8 +17,39 @@ wgs_pass(const char* step)
 static void
 wgs_close(struct ToriRSServer* srv)
 {
+    struct ToriRSServerPlayer* player;
+
     assert(srv);
+    player = srv->active_player;
+    assert(player);
     ToriRSServer_WorldCloseModal(srv);
+    if( player->active_script )
+        ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+    player->active_script = NULL;
+    player->delayed_until = 0;
+    player->chatmodal_group = 0;
+}
+
+static void
+wgs_drain_dialogue(struct ToriRSServer* srv, int max_clicks)
+{
+    struct ToriRSServerPlayer* player;
+    int clicks;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+    clicks = 0;
+    while( clicks < max_clicks && player->active_script )
+    {
+        if( selftest_click_through(srv, 1) <= 0 )
+        {
+            selftest_tick(srv);
+            if( player->resume_button_count <= 0 )
+                break;
+        }
+        clicks++;
+    }
 }
 
 static void
@@ -192,8 +223,8 @@ selftest_quest_whileguthixsleeps(
     wgs_pass("qualify_split_named_mesboxes");
 
     /* ---- Offer / refuse / accept via real OPNPC1 ---- */
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "wgs"),
-                   "::wgs should reach [debugproc,wgs]");
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "wgsbmp_ready") != 0,
+                   "wgsbmp_ready should grant the authored start gates");
     wgs_close(srv);
     ToriRSServer_VarbitSet(srv, vb_wgs, 0);
     ToriRSServer_WorldTeleport(srv, 0, 2907, 3450);
@@ -210,19 +241,18 @@ selftest_quest_whileguthixsleeps(
                            "opnpc1 Ivy with prereqs should open the offer tree");
             wgs_click_until_menu(srv, 12);
             wgs_pick_row(srv, 2); /* Not now. */
-            selftest_click_through(srv, 8);
-            wgs_close(srv);
+            wgs_drain_dialogue(srv, 12);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_wgs) == 0,
                            "refusing Ivy must not write %%wgs, got %d",
                            ToriRSServer_VarbitGet(player, vb_wgs));
+            wgs_close(srv);
             wgs_pass("ivy_refuse_no_wgs");
 
             player->chatmodal_group = 0;
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_ivy, -1, ivy_slot);
             wgs_click_until_menu(srv, 12);
             wgs_pick_row(srv, 1); /* Yes. */
-            selftest_click_through(srv, 8);
-            wgs_close(srv);
+            wgs_drain_dialogue(srv, 12);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_wgs) == 2,
                            "accepting Ivy should write %%wgs investigating (2), got %d",
                            ToriRSServer_VarbitGet(player, vb_wgs));
