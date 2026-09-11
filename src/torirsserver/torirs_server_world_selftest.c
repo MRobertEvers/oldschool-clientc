@@ -3220,6 +3220,9 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_IOM_ONLY") )
+        goto selftest_iom_only;
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35895,6 +35898,15 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+selftest_iom_only:
+    if( getenv("TORIRSSERVER_SELFTEST_IOM_ONLY") )
+    {
+#include "idesofmilk_selftest.u.h"
+        fprintf(stderr, "ToriRSServer Ides of Milk selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
