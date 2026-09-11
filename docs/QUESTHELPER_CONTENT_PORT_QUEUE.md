@@ -286,7 +286,7 @@ filed under `helpers/miniquests/` are at the end.
 | 11 | runemysteries | `runemysteries` | 246 | done | 2026-09-10 parent-verified 33 unique-MD5 named BMPs on OSRS-Content@fa9c641ca (Duke/Sedridor/Aubury). |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
-| 14 | clientofkourend | `clientofkourend` | 257 | done |  |
+| 14 | clientofkourend | `clientofkourend` | 257 | in_progress | 2026-09-10 claimed `gp-cok-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
 | 16 | thequeenofthieves | `thequeenofthieves` | 259 | done |  |
 | 17 | rovingelves | `rovingelves` | 263 | done | 2026-09-10 parent-verified 46 unique-MD5 named BMPs on OSRS-Content@5c626c570f. Leftovers: moss start BMP is the weapons-gate mesbox; font kerning. |
@@ -445,7 +445,7 @@ filed under `helpers/miniquests/` are at the end.
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
-| 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | in_progress | 2026-09-10 claimed `gp-mm2-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done | 2026-09-10 Gate D parent-verified 93 named / 93 unique-MD5 BMPs cherry-picked onto OSRS-Content@520bdf5733 (worker SHA b059d72572 not merged wholesale). Leftovers: leftover_glough_house_puzzle; leftover_entrana_balloon; leftover_ape_atoll_dungeon_agility; leftover_kruk_fight; leftover_kob_keef; leftover_ship_sabotage_pathing; leftover_lab_gorilla_waves; leftover_demonic_tortured_glough_fights; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 174 | recipefordisaster | `recipefordisaster` | 3,370 | done | 2026-09-10 parent-verified 178 named / 174 unique-MD5 BMPs on OSRS-Content@24772511b. Leftovers: dave hellrat spice, traiborn quizzes, mudknuckles cutscene, rohak drunk icefiend, pirate helmet burn, skrach balloon boat, amik brulee chain, monkey threegree, gelatin cycle, banquet cutscene. Agrith TK-grab implemented. Prior 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale; see Log |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
