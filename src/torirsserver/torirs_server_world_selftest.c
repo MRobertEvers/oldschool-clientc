@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_ascentofarceuus_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3327,6 +3328,24 @@ ToriRSServer_WorldSelftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
+    if( getenv("TORIRSSERVER_SELFTEST_AOA_ONLY") )
+    {
+        int aoa_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !aoa_loaded )
+            aoa_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        fprintf(stderr, "ToriRSServer selftest: The Ascent of Arceuus focused runtime\n");
+        SELFTEST_CHECK(aoa_loaded, "AOA lane loads a compiled script pack");
+        player->godmode = 1;
+        if( aoa_loaded )
+            selftest_quest_ascentofarceuus(srv, player);
+        fprintf(stderr,
+                "ToriRSServer Ascent of Arceuus selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("ascentofarceuus");
+        return g_selftest_failures;
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_TD_ONLY") )
     {
         static struct ToriRSServerCapture td_only_capture;
@@ -35895,6 +35914,24 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_AOA_ONLY") )
+    {
+        int aoa_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !aoa_loaded )
+            aoa_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        fprintf(stderr, "ToriRSServer selftest: The Ascent of Arceuus focused runtime\n");
+        SELFTEST_CHECK(aoa_loaded, "AOA lane loads a compiled script pack");
+        player->godmode = 1;
+        if( aoa_loaded )
+            selftest_quest_ascentofarceuus(srv, player);
+        fprintf(stderr,
+                "ToriRSServer Ascent of Arceuus selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("ascentofarceuus");
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
