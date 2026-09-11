@@ -307,7 +307,7 @@ filed under `helpers/miniquests/` are at the end.
 | 32 | lostcity | `lostcity` | 312 | done (LC) | re-audit 2026-08-10: `quest_zanaris` (`shamus.rs2`, `tree_spirit.rs2`, `zanaris_camp.rs2`; dbrow `quest_lostcity` journal wired) |
 | 33 | ethicallyacquiredantiquities | `ethicallyacquiredantiquities` | 313 | done |  |
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |
-| 35 | insearchofknowledge | `insearchofknowledge` | 317 | in_progress | 2026-09-11 claimed `gp-isok-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 35 | insearchofknowledge | `insearchofknowledge` | 317 | done | 2026-09-11 Gate D parent-verified 57 named / 57 unique-MD5 BMPs cherry-picked onto OSRS-Content@31e351311c (worker SHA dca7e68657 not merged wholesale). Leftovers: leftover_forthos_combat_page_drops; leftover_knife_web_cut; leftover_protect_from_magic; leftover_lamp_rub_ui; leftover_full_aimeri_trees; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
 | 37 | makinghistory | `makinghistory` | 319 | done | 2026-09-10 parent-verified 93 unique-MD5 named BMPs on OSRS-Content@36c53e3ccf. Leftovers: Port Phasmatys entry toll unused; inter-area travel not modelled; scroll QP tenths display. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | 2026-09-10 parent-verified 116 named / 115 unique-MD5 BMPs on OSRS-Content@9d9d81263. Leftovers: herring/shrew collapsed; Betty pink-dye shop stub; Entrana banking; multinpc bucket. Daily sand implemented. Bert named Someone. |
@@ -439,7 +439,7 @@ filed under `helpers/miniquests/` are at the end.
 | 164 | akingdomdivided | `akingdomdivided` | 1,560 | done |  |
 | 165 | theheartofdarkness | `theheartofdarkness` | 1,582 | done |  |
 | 166 | thecurseofarrav | `thecurseofarrav` | 1,665 | done |  |
-| 167 | sinsofthefather | `sinsofthefather` | 1,668 | done |  |
+| 167 | sinsofthefather | `sinsofthefather` | 1,668 | in_progress | 2026-09-11 claimed `gp-sotf-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 168 | ragandboneman | `ragandboneman` | 1,729 | done | 2026-09-10 parent-verified 51 unique-MD5 named BMPs on OSRS-Content@e9bf1694b6 (cherry-picked; stale RfD worker SHA not merged wholesale). Leftovers: wishlist bones II, Fortunato wine shop IF, silent quest-bone drop. Prior done (LC); Gate D recapture. OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-09-10 parent-verified 92 unique-MD5 named BMPs on OSRS-Content@8c427e6f7. Leftovers: wall-chart IF, spellbook switch, dream RNG, suqah/lunar item chain, Pauline disguise/flower. Lokar refuse chathead Someone. 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done | 2026-09-11 Gate D parent-verified 226 named / 226 unique-MD5 BMPs cherry-picked onto OSRS-Content@82e9147ed4 (worker SHA dc856220d4 not merged wholesale). Leftovers: leftover_map_rotation_if; leftover_ship_defense_minigame_play; leftover_galvek_tile_hazards; leftover_dining_room_cutscene; leftover_lamp_rub_ui; leftover_full_refuse_trees; leftover_shayzien_riddle_random; leftover_vorkath_lab_chase. Prior done; Gate D recapture. |
