@@ -3221,6 +3221,20 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_CA_ONLY") )
+    {
+        /*
+         * Focused Current Affairs walk. Same early-return shape as
+         * SAILING_ONLY / CANOES_ONLY so the default suite never runs.
+         * The shop-fprintf insertion below is the documented hook; this
+         * gate is what makes CA_ONLY actually only.
+         */
+        selftest_currentaffairs(srv, player);
+        fprintf(stderr, "ToriRSServer Current Affairs selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
+    }
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and

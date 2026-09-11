@@ -37,6 +37,7 @@ ca_drain_until_choice_or_pages(
 
     assert(srv);
     assert(player);
+    (void)srv;
     chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
     clicks = 0;
     while( clicks < max_pages && player->active_script != NULL )
@@ -69,6 +70,7 @@ ca_pick_choice_row(
 
     assert(srv);
     assert(player);
+    (void)srv;
     rows_uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
     SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
     SELFTEST_CHECK(player->active_script != NULL, "should be parked on p_choice");
@@ -209,7 +211,6 @@ selftest_currentaffairs(
                    "Pandemonium fail must not write %%current_affairs, got %d",
                    ca_get_varbit(player, "current_affairs"));
     player->active_script = NULL;
-    ToriRSServer_ScriptsFree(srv);
 
     /* ---- qualify: Sailing 22 first-missing (Pandemonium done, Fishing high) ---- */
     selftest_reset_world(srv, player, 402, 402);
@@ -230,7 +231,6 @@ selftest_currentaffairs(
                    "Sailing fail must not write %%current_affairs, got %d",
                    ca_get_varbit(player, "current_affairs"));
     player->active_script = NULL;
-    ToriRSServer_ScriptsFree(srv);
 
     /* ---- qualify: Fishing 10 first-missing ---- */
     selftest_reset_world(srv, player, 402, 402);
@@ -251,7 +251,6 @@ selftest_currentaffairs(
                    "Fishing fail must not write %%current_affairs, got %d",
                    ca_get_varbit(player, "current_affairs"));
     player->active_script = NULL;
-    ToriRSServer_ScriptsFree(srv);
 
     /* ---- refuse: pick row 2, varp stays 0 ---- */
     selftest_reset_world(srv, player, 402, 402);
@@ -270,7 +269,6 @@ selftest_currentaffairs(
                    "refuse row 2 must leave %%current_affairs==0, got %d",
                    ca_get_varbit(player, "current_affairs"));
     player->active_script = NULL;
-    ToriRSServer_ScriptsFree(srv);
 
     /* ---- accept: pick row 1, varp writes 5 ---- */
     selftest_reset_world(srv, player, 402, 402);
@@ -288,7 +286,6 @@ selftest_currentaffairs(
                    "accept row 1 must write %%current_affairs==5, got %d",
                    ca_get_varbit(player, "current_affairs"));
     player->active_script = NULL;
-    ToriRSServer_ScriptsFree(srv);
 
     /* ---- ::carun reaches 45 ---- */
     selftest_reset_world(srv, player, 402, 402);
