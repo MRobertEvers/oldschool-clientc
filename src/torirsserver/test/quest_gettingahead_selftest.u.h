@@ -37,8 +37,8 @@
     if( !loaded )
         loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
     SELFTEST_CHECK(loaded, "Getting Ahead C-walk loads a compiled script pack");
-    if( !loaded )
-        goto ga_done;
+    if( loaded )
+    {
 
     selftest_reset_world(srv, player, 19, 57);
     player->godmode = 1;
@@ -194,7 +194,7 @@
     SELFTEST_CHECK(player->godmode == 1, "Getting Ahead C-walk never clears godmode");
     SELFTEST_CHECK(player->hitpoints > 0, "Getting Ahead C-walk does not kill the player");
 
-ga_done:
+    }
     if( getenv("TORIRSSERVER_SELFTEST_GA_ONLY") )
     {
         fprintf(stderr, "ToriRSServer Getting Ahead selftest: %lu checks, %d failures\n",
