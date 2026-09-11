@@ -3199,6 +3199,9 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_NATT_ONLY") )
+        goto selftest_natt_only;
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
@@ -35897,6 +35900,8 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+selftest_natt_only:
+#include "test/quest_nightatthetheatre_selftest.u.h"
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
