@@ -1,22 +1,23 @@
-#include <inttypes.h>
 #include "app.h"
-#include "torirs_env.h"
-#include "log/torirs_log.h"
 #include "bootmanifest/bootmanifest.h"
-#include "executor_config.h"
+#include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
-#include "cmd/cmdbus.h"
+#include "executor_config.h"
+#include "game/content_test.h"
+#include "game/cs2_harness.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
-#include "game/cs2_harness.h"
-#include "game/content_test.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
+#include "log/torirs_log.h"
 #include "net/net.h"
 #include "net/net_out.h"
 #include "perf/torirs_perf.h"
+#include "torirs_env.h"
+
+#include <inttypes.h>
 #if defined(TORIRS_FRAME_TIMES)
 #include "../tools/perf/gles2_frame_times.h"
 #endif
@@ -67,11 +68,11 @@ struct ToriRS_GLES2;
 #else
 #define TORIRS_D3D9_DEFAULT 0
 #endif
+#include "pacer.h"
 #include "render/torirs_frame.h"
 #include "toridraw_eip_sample.h"
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
-#include "pacer.h"
 #include "ui/torirs_chrome_inkwell.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
@@ -102,7 +103,9 @@ struct ToriRS_GLES2;
 /* Render one frame into a BMP for the CS2 harness. Same path TORIRS_EXIT_BMP
  * uses, so a harness frame and an exit frame are the same picture. */
 static void
-harness_shot(void* user, char const* path)
+harness_shot(
+    void* user,
+    char const* path)
 {
     struct App* app = (struct App*)user;
     int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
@@ -239,7 +242,8 @@ dump_tree_node(
 
     for( i = 0; i < depth; i++ )
         TORIRS_REPORT("  ");
-    TORIRS_REPORT("[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
+    TORIRS_REPORT(
+        "[%d] kind=%s widget_type=%d trans=%d fill_mode=0 user_id=0x%08x (%d<<16|%d) %s",
         dump_index(c),
         kind,
         dump_widget_type(c),
@@ -250,21 +254,25 @@ dump_tree_node(
         c->dynamic ? "dynamic" : "static");
 
     if( c->type == UIELEM_RS_GRAPHIC )
-        TORIRS_REPORT(" graphic=%d",
+        TORIRS_REPORT(
+            " graphic=%d",
             UITreeSceneBridge_SpriteCacheIdForScene(&app->bridge, c->u.rs_graphic.scene_id));
     else if( c->type == UIELEM_RS_TEXT )
-        TORIRS_REPORT(" font=%d color=0x%x text=\"%s\"",
+        TORIRS_REPORT(
+            " font=%d color=0x%x text=\"%s\"",
             c->u.rs_text.font_id,
             (unsigned)c->u.rs_text.color,
             c->u.rs_text.text ? c->u.rs_text.text : "");
     else if( c->type == UIELEM_RS_LINE )
-        TORIRS_REPORT(" color=0x%x width=%d dir=%d",
+        TORIRS_REPORT(
+            " color=0x%x width=%d dir=%d",
             (unsigned)c->u.rs_line.color,
             c->u.rs_line.line_width,
             c->u.rs_line.horizontal ? 1 : 0);
 
     if( c->type != UIELEM_RS_LAYER )
-        TORIRS_REPORT(" abs=%d,%d %dx%d hidden=%d ownhide=%d",
+        TORIRS_REPORT(
+            " abs=%d,%d %dx%d hidden=%d ownhide=%d",
             c->position.abs_x,
             c->position.abs_y,
             c->position.abs_w,
@@ -320,7 +328,8 @@ dump_hooks(struct App* app)
             struct UITreeRuntimeScriptHook const* slot = UITree_HooksSlotAtConst(hooks, h);
             if( !UITree_HookIsSet(slot) )
                 continue;
-            TORIRS_REPORT("HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
+            TORIRS_REPORT(
+                "HOOKDUMP com=0x%08x (%d|%d) %s script=%d argc=%d\n",
                 c->component_id,
                 (c->component_id >> 16) & 0xFFFF,
                 c->component_id & 0xFFFF,
@@ -386,14 +395,14 @@ dump_roots(struct App* app)
     int n = 0;
     if( !app->tree )
         return;
-    for( int32_t i = app->tree->root_index; i >= 0;
-         i = app->tree->components[i].next_sibling )
+    for( int32_t i = app->tree->root_index; i >= 0; i = app->tree->components[i].next_sibling )
     {
         struct UITreeComponent const* c = &app->tree->components[i];
         int children = 0;
         for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
             children++;
-        TORIRS_LOG("ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
+        TORIRS_LOG(
+            "ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
             n++,
             (int)i,
             (int)c->type,
@@ -441,7 +450,11 @@ sim_render_frame(struct App* app)
  */
 #if defined(TORIRS_HAVE_GL3)
 static int
-capture_from_gl3(void* user, int* pixels, int width, int height)
+capture_from_gl3(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
 {
     return ToriRS_GL3_ReadPixels((struct ToriRS_GL3*)user, pixels, width, height) ? 1 : 0;
 }
@@ -453,7 +466,11 @@ capture_from_gl3(void* user, int* pixels, int width, int height)
  * screenshot would become a heap overrun. */
 #if defined(TORIRS_HAVE_D3D9)
 static int
-capture_from_d3d9(void* user, int* pixels, int width, int height)
+capture_from_d3d9(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
 {
     return ToriRS_D3D9_ReadPixels((struct ToriRS_D3D9*)user, pixels, width, height) ? 1 : 0;
 }
@@ -461,14 +478,22 @@ capture_from_d3d9(void* user, int* pixels, int width, int height)
 
 #if defined(TORIRS_HAVE_GLES2)
 static int
-capture_from_gles2(void* user, int* pixels, int width, int height)
+capture_from_gles2(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
 {
     return ToriRS_GLES2_ReadPixels((struct ToriRS_GLES2*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
 static int
-capture_from_software(void* user, int* pixels, int width, int height)
+capture_from_software(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
 {
     struct PlatformWindow* platform = (struct PlatformWindow*)user;
     int const* src = PlatformWindow_Pixels(platform);
@@ -490,7 +515,10 @@ capture_from_software(void* user, int* pixels, int width, int height)
  * question. A drag on the panel's scrollbar drove nothing at all.
  */
 static int
-touch_overlay_owns_point(void* user, int x, int y)
+touch_overlay_owns_point(
+    void* user,
+    int x,
+    int y)
 {
     return App_PointerOwnedByUi((struct App*)user, x, y);
 }
@@ -530,10 +558,7 @@ interactive_render_present(
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
             ToriRS_D3D9_DrawBootBar(
-                d3d9,
-                App_BootTextOnly(app) ? -1 : progress,
-                caption_font_id,
-                caption);
+                d3d9, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -547,7 +572,8 @@ interactive_render_present(
                 ToriRS_D3D9_RenderFrame(d3d9, &frame);
             }
             if( torirs_env_frame_debug() )
-                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
                     frame.dbg_drop_not_live,
@@ -596,10 +622,7 @@ interactive_render_present(
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
             ToriRS_GLES2_DrawBootBar(
-                gles2,
-                App_BootTextOnly(app) ? -1 : progress,
-                caption_font_id,
-                caption);
+                gles2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -618,7 +641,8 @@ interactive_render_present(
                     ToriRS_GLES2_RenderFrame(gles2, &frame);
             }
             if( torirs_env_frame_debug() )
-                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
                     frame.dbg_drop_not_live,
@@ -641,11 +665,11 @@ interactive_render_present(
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
 #if defined(TORIRS_FRAME_TIMES)
-            uint64_t before_us=PlatformWindow_TicksUs();
+            uint64_t before_us = PlatformWindow_TicksUs();
 #endif
             PlatformWindow_PresentGL(platform);
 #if defined(TORIRS_FRAME_TIMES)
-            ToriRS_FrameTimes_Present(before_us,PlatformWindow_TicksUs());
+            ToriRS_FrameTimes_Present(before_us, PlatformWindow_TicksUs());
 #endif
         }
         return;
@@ -676,10 +700,7 @@ interactive_render_present(
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
             ToriRS_GL3_DrawBootBar(
-                gl3,
-                App_BootTextOnly(app) ? -1 : progress,
-                caption_font_id,
-                caption);
+                gl3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
@@ -693,7 +714,8 @@ interactive_render_present(
                 ToriRS_GL3_RenderFrame(gl3, &frame);
             }
             if( torirs_env_frame_debug() )
-                TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
                     frame.dbg_emit_element,
                     frame.dbg_emit_terrain,
                     frame.dbg_drop_not_live,
@@ -775,8 +797,7 @@ interactive_render_present(
                     rects[i][2] = dr[i].w;
                     rects[i][3] = dr[i].h;
                 }
-                PlatformWindow_SetPresentDamageRects(
-                    platform, (int const(*)[4])rects, n);
+                PlatformWindow_SetPresentDamageRects(platform, (int const(*)[4])rects, n);
             }
         }
     }
@@ -823,7 +844,6 @@ interactive_present_retained(
     PlatformWindow_Present(platform);
 }
 
-
 /* --- the interactive frame loop -----------------------------------------
  *
  * The loop's state lives at file scope rather than in main's frame because the
@@ -839,9 +859,11 @@ interactive_present_retained(
 #if defined(TORIRS_PLATFORM_WEB)
 /* Is the page hidden? EM_JS rather than EM_ASM: the latter is rejected in
  * `-std=c*` modes, and this file is built as C11. */
-EM_JS(int, web_document_hidden, (void), {
-    return (typeof document !== 'undefined' && document.hidden) ? 1 : 0;
-});
+EM_JS(
+    int,
+    web_document_hidden,
+    (void),
+    { return (typeof document != = 'undefined' && document.hidden) ? 1 : 0; });
 
 /* TORIRS_PERF=1 only (see torirs_perf.h): drops a User Timing mark plus a
  * console.warn at `label`, so a captured DevTools trace shows *why* a frame
@@ -850,12 +872,16 @@ EM_JS(int, web_document_hidden, (void), {
  * camera stutter took to trace back to frame_loop_step's own raf<->
  * settimeout(0) pacing flip, tripped by the 600ms server tick's burst of
  * small packets. All formatting happens in C; this just posts the string. */
-EM_JS(void, web_mark_frame_event, (const char* label), {
-    var s = UTF8ToString(label);
-    if( typeof performance !== 'undefined' && performance.mark )
-        performance.mark(s);
-    console.warn('[torirs] ' + s);
-});
+EM_JS(
+    void,
+    web_mark_frame_event,
+    (const char* label),
+    {
+        var s = UTF8ToString(label);
+        if( typeof performance != = 'undefined' && performance.mark )
+            performance.mark(s);
+        console.warn('[torirs] ' + s);
+    });
 
 /* Tell whoever embedded this page that the module will take commands now.
  *
@@ -865,10 +891,14 @@ EM_JS(void, web_mark_frame_event, (const char* label), {
  * exist, the ring exists, and anything pushed from here on drains on the next
  * iteration. A page with no such hook is the ordinary case and costs the call.
  */
-EM_JS(void, web_announce_ready, (void), {
-    if( typeof window !== 'undefined' && typeof window.torirsAnnounceReady === 'function' )
-        window.torirsAnnounceReady();
-});
+EM_JS(
+    void,
+    web_announce_ready,
+    (void),
+    {
+        if( typeof window != = 'undefined' && typeof window.torirsAnnounceReady == = 'function' )
+            window.torirsAnnounceReady();
+    });
 #endif
 
 static struct App app;
@@ -942,7 +972,9 @@ static uint64_t sim_next_frame_ms;
  * them). A full ring also stops the walk; the count says how far it got.
  */
 EMSCRIPTEN_KEEPALIVE int
-torirs_cmdbus_push_bytes(const uint8_t* data, int length)
+torirs_cmdbus_push_bytes(
+    const uint8_t* data,
+    int length)
 {
     /* cmdring.h's header, restated as offsets rather than as the struct,
      * because what crosses is a byte layout and reading it as one is what makes
@@ -975,13 +1007,13 @@ torirs_cmdbus_push_bytes(const uint8_t* data, int length)
                 accepted);
             return -1;
         }
-        type = (uint32_t)data[offset] | ((uint32_t)data[offset + 1] << 8)
-               | ((uint32_t)data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
+        type = (uint32_t)data[offset] | ((uint32_t)data[offset + 1] << 8) |
+               ((uint32_t)data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
         payload_length = (uint32_t)data[offset + 4] | ((uint32_t)data[offset + 5] << 8);
         offset += HEADER_BYTES;
 
-        if( payload_length > TORIRS_CMD_MAX_PAYLOAD
-            || payload_length > (uint32_t)(length - offset) )
+        if( payload_length > TORIRS_CMD_MAX_PAYLOAD ||
+            payload_length > (uint32_t)(length - offset) )
         {
             fprintf(
                 stderr,
@@ -996,8 +1028,7 @@ torirs_cmdbus_push_bytes(const uint8_t* data, int length)
         {
             /* The ring is full. Not an error in the batch: the host is ahead of
              * the frame loop, and the frames it already gave us will drain. */
-            fprintf(
-                stderr, "cmdbus: push_bytes ring full, %d of the batch accepted\n", accepted);
+            fprintf(stderr, "cmdbus: push_bytes ring full, %d of the batch accepted\n", accepted);
             return accepted;
         }
         offset += (int)payload_length;
@@ -1146,10 +1177,7 @@ pacer_kind_selected(void)
         /* Naming a pacer that does not exist is a typo, and silently running
          * the default would hide it for the whole run -- which, for a knob
          * whose entire purpose is A/B measurement, invalidates the arm. */
-        fprintf(
-            stderr,
-            "torirs: unknown pacer '%s' (expected 'gameshell' or 'deadline')\n",
-            name);
+        fprintf(stderr, "torirs: unknown pacer '%s' (expected 'gameshell' or 'deadline')\n", name);
         exit(2);
     }
     return kind;
@@ -1198,7 +1226,9 @@ static int input_frame_pending;
  * (TORIRS_CHROME_SCALE_MAX), which is the one place that knows.
  */
 static int
-main_dynamic_chrome_scale(int canvas_h, int density)
+main_dynamic_chrome_scale(
+    int canvas_h,
+    int density)
 {
     int steps;
 
@@ -1287,8 +1317,7 @@ frame_loop_step(void)
          * app_net_link_watch is for — it notices the gap and drops the
          * session rather than replaying it.
          */
-        int waiting = app.app_state != APP_STATE_READY
-                      && PlatformWeb_PendingTotal() > 0;
+        int waiting = app.app_state != APP_STATE_READY && PlatformWeb_PendingTotal() > 0;
         int hidden = !waiting && web_document_hidden();
         int mode = (waiting || hidden) ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF;
         int value = waiting ? 0 : (hidden ? 50 : 1);
@@ -1302,9 +1331,9 @@ frame_loop_step(void)
                     label,
                     sizeof label,
                     "torirs-pace %s(%d)->%s(%d) frame=%ld",
-                    paced_mode < 0 ? "init"
+                    paced_mode < 0                ? "init"
                     : paced_mode == EM_TIMING_RAF ? "raf"
-                                                   : "settimeout",
+                                                  : "settimeout",
                     paced_value,
                     mode == EM_TIMING_RAF ? "raf" : "settimeout",
                     value,
@@ -1360,20 +1389,22 @@ frame_loop_step(void)
         if( !sim_ready )
         {
             if( app.app_state == APP_STATE_READY && app.screen == APP_SCREEN_GAME &&
-                !App_AsyncPending(&app) && (!app.net ||
-                (app.net->state == TORIRS_NET_GAME && app.rebuild_zone_x >= 0)) )
+                !App_AsyncPending(&app) &&
+                (!app.net || (app.net->state == TORIRS_NET_GAME && app.rebuild_zone_x >= 0)) )
             {
                 sim_ready = 1;
                 frame_count = 0;
                 sim_next_frame_ms = simulation_now;
-                TORIRS_REPORT("SIM_READY elapsed_ms=%llu tree_generation=%u\n",
+                TORIRS_REPORT(
+                    "SIM_READY elapsed_ms=%llu tree_generation=%u\n",
                     (unsigned long long)(simulation_now - sim_ready_start_ms),
                     app.tree ? app.tree->generation : 0);
                 if( g_torirs_perf_enabled )
                 {
                     TorirsPerf_Shutdown();
                     TorirsPerf_Init(1);
-                    TORIRS_REPORT("SIM_PERF_BEGIN: native gameplay ready; startup samples excluded\n");
+                    TORIRS_REPORT(
+                        "SIM_PERF_BEGIN: native gameplay ready; startup samples excluded\n");
                 }
             }
             else if( simulation_now - sim_ready_start_ms > 60000 )
@@ -1462,11 +1493,9 @@ frame_loop_step(void)
          * enough for instrumentation, and the flip logs its own marker. */
         if( g_torirs_perf_enabled && paced_mode == EM_TIMING_RAF )
         {
-            if( period_us >= 4000
-                && (raf_baseline_us == 0 || period_us < raf_baseline_us) )
+            if( period_us >= 4000 && (raf_baseline_us == 0 || period_us < raf_baseline_us) )
                 raf_baseline_us = period_us;
-            else if( raf_baseline_us != 0
-                     && period_us > raf_baseline_us + raf_baseline_us / 2 )
+            else if( raf_baseline_us != 0 && period_us > raf_baseline_us + raf_baseline_us / 2 )
             {
                 char label[96];
                 snprintf(
@@ -1531,7 +1560,8 @@ frame_loop_step(void)
                 char path_b[600];
                 g_torirs_painter_force = 2;
                 App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                snprintf(path_b, sizeof(path_b), "%s/frame_%05ld_bucket.bmp", series_dir, frame_count);
+                snprintf(
+                    path_b, sizeof(path_b), "%s/frame_%05ld_bucket.bmp", series_dir, frame_count);
                 bmp_write_file(path_b, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
             g_torirs_painter_force = 0;
@@ -1543,14 +1573,16 @@ frame_loop_step(void)
     if( boot_stats && !boot_reported && app.app_state == APP_STATE_READY )
     {
         boot_reported = 1;
-        TORIRS_ERR("boot: %llums  frames=%d steps=%ld capped=%d\n",
+        TORIRS_ERR(
+            "boot: %llums  frames=%d steps=%ld capped=%d\n",
             (unsigned long long)(PlatformWindow_Ticks64() - boot_start_ms),
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
     }
     if( boot_stats && frame_count == max_frames - 1 )
-        TORIRS_ERR("post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
+        TORIRS_ERR(
+            "post-boot: busy_frames=%d busy_steps=%ld (frames that used the "
             "whole budget with work still queued)\n",
             app.busy_frames,
             app.busy_steps);
@@ -1580,8 +1612,7 @@ frame_loop_step(void)
     {
         char* tab_sep = NULL;
         int tabno = (int)strtol(sim_settab, &tab_sep, 0);
-        int tab_iface =
-            tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
+        int tab_iface = tab_sep && *tab_sep == ':' ? (int)strtol(tab_sep + 1, NULL, 0) : -1;
         TORIRS_LOG("sim_settab: tab=%d iface=%d\n", tabno, tab_iface);
         RS_UISlots_SetTab(&app, tabno, tab_iface);
         RS_UISlots_SetSideTab(&app, tabno);
@@ -1650,9 +1681,7 @@ frame_loop_step(void)
     {
         if( sim_sound_next == 0 || (sim_sound_every > 0 && frame_count >= sim_sound_next) )
         {
-            TORIRS_LOG("sim_sound: queueing effect %d loops=%d\n",
-                sim_sound_id,
-                sim_sound_loops);
+            TORIRS_LOG("sim_sound: queueing effect %d loops=%d\n", sim_sound_id, sim_sound_loops);
             App_PlaySound(&app, sim_sound_id, sim_sound_loops, 0);
             sim_sound_next = sim_sound_every > 0 ? frame_count + sim_sound_every : -1;
         }
@@ -1703,1091 +1732,1146 @@ frame_loop_step(void)
                     NetTransport_Poll(sock, app.net, &bus);
             }
 
-        /* Scheduled plugin settings edits use the normal validated config API. */
-        {
-            static int initialized;
-            static char const* cursor;
-            if( !initialized ) { cursor=getenv("TORIRS_SIM_PLUGIN_CONFIG"); initialized=1; }
-            if( cursor && *cursor )
+            /* Scheduled plugin settings edits use the normal validated config API. */
             {
-                long at=-1;char id[64]={0},key[64]={0},value[192]={0};
-                if( sscanf(cursor,"%ld,%63[^,],%63[^,],%191[^;]",&at,id,key,value)!=4 || at<0 )
-                { TORIRS_REPORT("sim_plugin_config: invalid input\n");cursor=NULL; }
-                else if( frame_count>=at && app.plugins )
+                static int initialized;
+                static char const* cursor;
+                if( !initialized )
                 {
-                    int index=PluginHost_IndexOf(app.plugins,id);
-                    int applied=index>=0 && PluginHost_ConfigSet(app.plugins,index,key,value);
-                    TORIRS_REPORT("sim_plugin_config: frame=%ld id=%s key=%s applied=%d\n",frame_count,id,key,applied);
-                    char const* next=strchr(cursor,';');cursor=next ? next+1 : NULL;
+                    cursor = getenv("TORIRS_SIM_PLUGIN_CONFIG");
+                    initialized = 1;
                 }
-            }
-        }
-
-        /* Drive the same enable/disable operation used by plugin settings. */
-        {
-            static int initialized;
-            static char const* cursor;
-            if( !initialized ) { cursor=getenv("TORIRS_SIM_PLUGIN_TOGGLE"); initialized=1; }
-            if( cursor && *cursor )
-            {
-                long at=-1; int enabled=-1; char id[64]={0};
-                if( sscanf(cursor,"%ld,%63[^,],%d",&at,id,&enabled)!=3 || at<0 || (enabled!=0 && enabled!=1) )
-                { TORIRS_REPORT("sim_plugin_toggle: invalid input\n"); cursor=NULL; }
-                else if( frame_count>=at && app.plugins )
+                if( cursor && *cursor )
                 {
-                    int index=PluginHost_IndexOf(app.plugins,id);
-                    if( index>=0 ) PluginHost_SetEnabled(app.plugins,index,enabled!=0);
-                    TORIRS_REPORT("sim_plugin_toggle: frame=%ld id=%s enabled=%d applied=%d\n",frame_count,id,enabled,index>=0);
-                    char const* next=strchr(cursor,';'); cursor=next ? next+1 : NULL;
-                }
-            }
-        }
-
-        /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
-         * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
-         * `repeats` times (default 1). The only way to exercise a drag
-         * headlessly — SIM_CLICK_AT presses and releases in the same
-         * place, which no drag handler reacts to — and the repeat is
-         * what keeps a pan going long enough to show what a client does
-         * when the view never settles. `button` is the LibToriRS_MouseButton
-         * code (1 left, 2 middle, 3 right) and defaults to left; middle is
-         * what drives the viewport's camera rotate. */
-        {
-            static long drag_frame = -2;
-            static long drag_x0, drag_y0, drag_x1, drag_y1;
-            static long drag_repeats = 1;
-            static long drag_button = 1;
-            if( drag_frame == -2 )
-            {
-                char const* spec = getenv("TORIRS_SIM_DRAG");
-                drag_frame = -1;
-                if( spec && *spec )
-                {
-                    char* end = NULL;
-                    long values[7];
-                    int count = 0;
-                    values[count++] = strtol(spec, &end, 0);
-                    while( count < 7 && end && *end == ',' )
-                        values[count++] = strtol(end + 1, &end, 0);
-                    if( count >= 5 )
+                    long at = -1;
+                    char id[64] = { 0 }, key[64] = { 0 }, value[192] = { 0 };
+                    if( sscanf(cursor, "%ld,%63[^,],%63[^,],%191[^;]", &at, id, key, value) != 4 ||
+                        at < 0 )
                     {
-                        drag_frame = values[0];
-                        drag_x0 = values[1];
-                        drag_y0 = values[2];
-                        drag_x1 = values[3];
-                        drag_y1 = values[4];
-                        drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
-                        drag_button = count > 6 && values[6] > 0 ? values[6] : 1;
+                        TORIRS_REPORT("sim_plugin_config: invalid input\n");
+                        cursor = NULL;
+                    }
+                    else if( frame_count >= at && app.plugins )
+                    {
+                        int index = PluginHost_IndexOf(app.plugins, id);
+                        int applied =
+                            index >= 0 && PluginHost_ConfigSet(app.plugins, index, key, value);
+                        TORIRS_REPORT(
+                            "sim_plugin_config: frame=%ld id=%s key=%s applied=%d\n",
+                            frame_count,
+                            id,
+                            key,
+                            applied);
+                        char const* next = strchr(cursor, ';');
+                        cursor = next ? next + 1 : NULL;
                     }
                 }
             }
-            if( drag_frame >= 0 && frame_count >= drag_frame )
+
+            /* Drive the same enable/disable operation used by plugin settings. */
             {
-                long step = frame_count - drag_frame;
-                long const steps = 20;
-                if( step == 0 )
-                    CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
-                else if( step == 2 )
-                    CmdBus_PushMouseButton(
-                        &bus,
-                        TORIRS_CMD_INPUT_MOUSE_DOWN,
-                        (uint8_t)drag_button,
-                        (int)drag_x0,
-                        (int)drag_y0);
-                else if( step > 2 && step <= 2 + steps )
+                static int initialized;
+                static char const* cursor;
+                if( !initialized )
                 {
-                    long i = step - 2;
-                    int x = (int)(drag_x0 + (drag_x1 - drag_x0) * i / steps);
-                    int y = (int)(drag_y0 + (drag_y1 - drag_y0) * i / steps);
-                    CmdBus_PushMouseMove(&bus, x, y);
+                    cursor = getenv("TORIRS_SIM_PLUGIN_TOGGLE");
+                    initialized = 1;
                 }
-                else if( step == 3 + steps )
+                if( cursor && *cursor )
                 {
-                    CmdBus_PushMouseButton(
-                        &bus,
-                        TORIRS_CMD_INPUT_MOUSE_UP,
-                        (uint8_t)drag_button,
-                        (int)drag_x1,
-                        (int)drag_y1);
-                    TORIRS_LOG("sim_drag: %ld,%ld -> %ld,%ld button=%ld (%ld left)\n",
-                        drag_x0, drag_y0, drag_x1, drag_y1, drag_button, drag_repeats - 1);
-                    if( --drag_repeats > 0 )
+                    long at = -1;
+                    int enabled = -1;
+                    char id[64] = { 0 };
+                    if( sscanf(cursor, "%ld,%63[^,],%d", &at, id, &enabled) != 3 || at < 0 ||
+                        (enabled != 0 && enabled != 1) )
                     {
-                        /* Alternate direction each repeat: panning one
-                         * way clamps at the area edge after a couple of
-                         * drags and the view stops moving, which is not
-                         * the "never settles" case worth testing. */
-                        long swap_x = drag_x0;
-                        long swap_y = drag_y0;
-                        drag_x0 = drag_x1;
-                        drag_y0 = drag_y1;
-                        drag_x1 = swap_x;
-                        drag_y1 = swap_y;
-                        drag_frame = frame_count + 2;
+                        TORIRS_REPORT("sim_plugin_toggle: invalid input\n");
+                        cursor = NULL;
+                    }
+                    else if( frame_count >= at && app.plugins )
+                    {
+                        int index = PluginHost_IndexOf(app.plugins, id);
+                        if( index >= 0 )
+                            PluginHost_SetEnabled(app.plugins, index, enabled != 0);
+                        TORIRS_REPORT(
+                            "sim_plugin_toggle: frame=%ld id=%s enabled=%d applied=%d\n",
+                            frame_count,
+                            id,
+                            enabled,
+                            index >= 0);
+                        char const* next = strchr(cursor, ';');
+                        cursor = next ? next + 1 : NULL;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
+             * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
+             * `repeats` times (default 1). The only way to exercise a drag
+             * headlessly — SIM_CLICK_AT presses and releases in the same
+             * place, which no drag handler reacts to — and the repeat is
+             * what keeps a pan going long enough to show what a client does
+             * when the view never settles. `button` is the LibToriRS_MouseButton
+             * code (1 left, 2 middle, 3 right) and defaults to left; middle is
+             * what drives the viewport's camera rotate. */
+            {
+                static long drag_frame = -2;
+                static long drag_x0, drag_y0, drag_x1, drag_y1;
+                static long drag_repeats = 1;
+                static long drag_button = 1;
+                if( drag_frame == -2 )
+                {
+                    char const* spec = getenv("TORIRS_SIM_DRAG");
+                    drag_frame = -1;
+                    if( spec && *spec )
+                    {
+                        char* end = NULL;
+                        long values[7];
+                        int count = 0;
+                        values[count++] = strtol(spec, &end, 0);
+                        while( count < 7 && end && *end == ',' )
+                            values[count++] = strtol(end + 1, &end, 0);
+                        if( count >= 5 )
+                        {
+                            drag_frame = values[0];
+                            drag_x0 = values[1];
+                            drag_y0 = values[2];
+                            drag_x1 = values[3];
+                            drag_y1 = values[4];
+                            drag_repeats = count > 5 && values[5] > 0 ? values[5] : 1;
+                            drag_button = count > 6 && values[6] > 0 ? values[6] : 1;
+                        }
+                    }
+                }
+                if( drag_frame >= 0 && frame_count >= drag_frame )
+                {
+                    long step = frame_count - drag_frame;
+                    long const steps = 20;
+                    if( step == 0 )
+                        CmdBus_PushMouseMove(&bus, (int)drag_x0, (int)drag_y0);
+                    else if( step == 2 )
+                        CmdBus_PushMouseButton(
+                            &bus,
+                            TORIRS_CMD_INPUT_MOUSE_DOWN,
+                            (uint8_t)drag_button,
+                            (int)drag_x0,
+                            (int)drag_y0);
+                    else if( step > 2 && step <= 2 + steps )
+                    {
+                        long i = step - 2;
+                        int x = (int)(drag_x0 + (drag_x1 - drag_x0) * i / steps);
+                        int y = (int)(drag_y0 + (drag_y1 - drag_y0) * i / steps);
+                        CmdBus_PushMouseMove(&bus, x, y);
+                    }
+                    else if( step == 3 + steps )
+                    {
+                        CmdBus_PushMouseButton(
+                            &bus,
+                            TORIRS_CMD_INPUT_MOUSE_UP,
+                            (uint8_t)drag_button,
+                            (int)drag_x1,
+                            (int)drag_y1);
+                        TORIRS_LOG(
+                            "sim_drag: %ld,%ld -> %ld,%ld button=%ld (%ld left)\n",
+                            drag_x0,
+                            drag_y0,
+                            drag_x1,
+                            drag_y1,
+                            drag_button,
+                            drag_repeats - 1);
+                        if( --drag_repeats > 0 )
+                        {
+                            /* Alternate direction each repeat: panning one
+                             * way clamps at the area edge after a couple of
+                             * drags and the view stops moving, which is not
+                             * the "never settles" case worth testing. */
+                            long swap_x = drag_x0;
+                            long swap_y = drag_y0;
+                            drag_x0 = drag_x1;
+                            drag_y0 = drag_y1;
+                            drag_x1 = swap_x;
+                            drag_y1 = swap_y;
+                            drag_frame = frame_count + 2;
+                        }
+                        else
+                            drag_frame = -1;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_WHEEL="frame,x,y,notches[,repeats]": park the pointer
+             * at (x,y) and turn the wheel `notches` (positive = up / toward the
+             * screen, which zooms the viewport in) once per frame for `repeats`
+             * frames. Wheel events carry no position of their own, so the move
+             * has to land first — same reason SIM_CLICK_AT moves ahead of its
+             * press. */
+            {
+                static long wheel_frame = -2;
+                static long wheel_x, wheel_y, wheel_notches;
+                static long wheel_repeats = 1;
+                if( wheel_frame == -2 )
+                {
+                    char const* spec = getenv("TORIRS_SIM_WHEEL");
+                    wheel_frame = -1;
+                    if( spec && *spec )
+                    {
+                        char* end = NULL;
+                        long values[5];
+                        int count = 0;
+                        values[count++] = strtol(spec, &end, 0);
+                        while( count < 5 && end && *end == ',' )
+                            values[count++] = strtol(end + 1, &end, 0);
+                        if( count >= 4 )
+                        {
+                            wheel_frame = values[0];
+                            wheel_x = values[1];
+                            wheel_y = values[2];
+                            wheel_notches = values[3];
+                            wheel_repeats = count > 4 && values[4] > 0 ? values[4] : 1;
+                        }
+                    }
+                }
+                if( wheel_frame >= 0 && frame_count >= wheel_frame )
+                {
+                    long step = frame_count - wheel_frame;
+                    if( step == 0 )
+                        CmdBus_PushMouseMove(&bus, (int)wheel_x, (int)wheel_y);
+                    else if( step <= 2 + wheel_repeats && step > 2 )
+                    {
+                        CmdBus_PushMouseWheel(&bus, (int16_t)wheel_notches);
+                        if( step == 2 + wheel_repeats )
+                        {
+                            TORIRS_LOG(
+                                "sim_wheel: %ld,%ld notches=%ld x%ld\n",
+                                wheel_x,
+                                wheel_y,
+                                wheel_notches,
+                                wheel_repeats);
+                            wheel_frame = -1;
+                        }
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_HOOK="frame,com[;frame,com...]": dispatch a component's
+             * onop (falling back to onclick) hook at that main-loop frame.
+             *
+             * The in-loop twin of the pre-loop TORIRS_SIM_CLICK, and it exists for
+             * the same reason TORIRS_SIM_CLICK_AT does: the pre-loop block runs
+             * before login completes, so it cannot reach anything the *server*
+             * mounted — which at rev 230 is every side panel. Unlike SIM_CLICK_AT
+             * this needs no coordinates and no visibility, so it can drive a
+             * button on a panel whose tab is not selected. */
+            {
+                static char const* hook_cursor = NULL;
+                static int hook_init = 0;
+                static long hook_frame = -1;
+                static long hook_com = 0;
+                if( !hook_init )
+                {
+                    hook_init = 1;
+                    hook_cursor = getenv("TORIRS_SIM_HOOK");
+                }
+                if( hook_frame < 0 && hook_cursor && *hook_cursor )
+                {
+                    char* end = NULL;
+                    hook_frame = strtol(hook_cursor, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        hook_com = strtol(end + 1, &end, 0);
+                        hook_cursor = (end && *end == ';') ? end + 1 : NULL;
                     }
                     else
-                        drag_frame = -1;
-                }
-            }
-        }
-
-        /* TORIRS_SIM_WHEEL="frame,x,y,notches[,repeats]": park the pointer
-         * at (x,y) and turn the wheel `notches` (positive = up / toward the
-         * screen, which zooms the viewport in) once per frame for `repeats`
-         * frames. Wheel events carry no position of their own, so the move
-         * has to land first — same reason SIM_CLICK_AT moves ahead of its
-         * press. */
-        {
-            static long wheel_frame = -2;
-            static long wheel_x, wheel_y, wheel_notches;
-            static long wheel_repeats = 1;
-            if( wheel_frame == -2 )
-            {
-                char const* spec = getenv("TORIRS_SIM_WHEEL");
-                wheel_frame = -1;
-                if( spec && *spec )
-                {
-                    char* end = NULL;
-                    long values[5];
-                    int count = 0;
-                    values[count++] = strtol(spec, &end, 0);
-                    while( count < 5 && end && *end == ',' )
-                        values[count++] = strtol(end + 1, &end, 0);
-                    if( count >= 4 )
                     {
-                        wheel_frame = values[0];
-                        wheel_x = values[1];
-                        wheel_y = values[2];
-                        wheel_notches = values[3];
-                        wheel_repeats = count > 4 && values[4] > 0 ? values[4] : 1;
+                        hook_cursor = NULL;
+                        hook_frame = -1;
                     }
                 }
-            }
-            if( wheel_frame >= 0 && frame_count >= wheel_frame )
-            {
-                long step = frame_count - wheel_frame;
-                if( step == 0 )
-                    CmdBus_PushMouseMove(&bus, (int)wheel_x, (int)wheel_y);
-                else if( step <= 2 + wheel_repeats && step > 2 )
+                if( hook_frame >= 0 && frame_count >= hook_frame && app.tree )
                 {
-                    CmdBus_PushMouseWheel(&bus, (int16_t)wheel_notches);
-                    if( step == 2 + wheel_repeats )
-                    {
-                        TORIRS_LOG("sim_wheel: %ld,%ld notches=%ld x%ld\n",
-                            wheel_x, wheel_y, wheel_notches, wheel_repeats);
-                        wheel_frame = -1;
-                    }
-                }
-            }
-        }
+                    int32_t idx = UITree_FindByComponentId(app.tree, (int)hook_com);
 
-        /* TORIRS_SIM_HOOK="frame,com[;frame,com...]": dispatch a component's
-         * onop (falling back to onclick) hook at that main-loop frame.
-         *
-         * The in-loop twin of the pre-loop TORIRS_SIM_CLICK, and it exists for
-         * the same reason TORIRS_SIM_CLICK_AT does: the pre-loop block runs
-         * before login completes, so it cannot reach anything the *server*
-         * mounted — which at rev 230 is every side panel. Unlike SIM_CLICK_AT
-         * this needs no coordinates and no visibility, so it can drive a
-         * button on a panel whose tab is not selected. */
-        {
-            static char const* hook_cursor = NULL;
-            static int hook_init = 0;
-            static long hook_frame = -1;
-            static long hook_com = 0;
-            if( !hook_init )
-            {
-                hook_init = 1;
-                hook_cursor = getenv("TORIRS_SIM_HOOK");
-            }
-            if( hook_frame < 0 && hook_cursor && *hook_cursor )
-            {
-                char* end = NULL;
-                hook_frame = strtol(hook_cursor, &end, 0);
-                if( end && *end == ',' )
-                {
-                    hook_com = strtol(end + 1, &end, 0);
-                    hook_cursor = (end && *end == ';') ? end + 1 : NULL;
-                }
-                else
-                {
-                    hook_cursor = NULL;
+                    if( idx >= 0 )
+                    {
+                        struct UITreeRuntimeScriptHook hook =
+                            UITree_Hooks(&app.tree->components[idx])->on_op;
+                        if( hook.script_id <= 0 )
+                            hook = UITree_Hooks(&app.tree->components[idx])->on_click;
+                        TORIRS_LOG("sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
+                        /* A real op click latches which op it was; an onop script
+                         * that switches on event_opindex (every list row does) is
+                         * a no-op without it. 1 = the primary left-click op. */
+                        app.host.event_op_index = 1;
+                        RS_CS2_DispatchHook(&app.host, &app.runner, (int)hook_com, &hook);
+                    }
+                    else
+                        TORIRS_ERR("sim_hook: component 0x%lx not found\n", hook_com);
                     hook_frame = -1;
                 }
             }
-            if( hook_frame >= 0 && frame_count >= hook_frame && app.tree )
-            {
-                int32_t idx = UITree_FindByComponentId(app.tree, (int)hook_com);
 
-                if( idx >= 0 )
-                {
-                    struct UITreeRuntimeScriptHook hook =
-                        UITree_Hooks(&app.tree->components[idx])->on_op;
-                    if( hook.script_id <= 0 )
-                        hook = UITree_Hooks(&app.tree->components[idx])->on_click;
-                    TORIRS_LOG("sim_hook: com=0x%lx script=%d\n", hook_com, hook.script_id);
-                    /* A real op click latches which op it was; an onop script
-                     * that switches on event_opindex (every list row does) is
-                     * a no-op without it. 1 = the primary left-click op. */
-                    app.host.event_op_index = 1;
-                    RS_CS2_DispatchHook(&app.host, &app.runner, (int)hook_com, &hook);
-                }
-                else
-                    TORIRS_ERR("sim_hook: component 0x%lx not found\n", hook_com);
-                hook_frame = -1;
-            }
-        }
-
-        /* TORIRS_SIM_OPLOC="frame,op,x,z,loc": send one normal object-menu
-         * operation once the mock session is live. Unlike a server diagnostic,
-         * this traverses the client's net_out_oploc encoder and the server's
-         * regular OPLOC route. All values stay in the invoking test, not C. */
-        {
-            static int sim_oploc_init = 0;
-            static long sim_oploc_frame = -1;
-            static long sim_oploc_op;
-            static long sim_oploc_x;
-            static long sim_oploc_z;
-            static long sim_oploc_id;
-            if( !sim_oploc_init )
+            /* TORIRS_SIM_OPLOC="frame,op,x,z,loc": send one normal object-menu
+             * operation once the mock session is live. Unlike a server diagnostic,
+             * this traverses the client's net_out_oploc encoder and the server's
+             * regular OPLOC route. All values stay in the invoking test, not C. */
             {
-                char const* spec = getenv("TORIRS_SIM_OPLOC");
-                char* end = NULL;
-                sim_oploc_init = 1;
-                if( spec && *spec )
+                static int sim_oploc_init = 0;
+                static long sim_oploc_frame = -1;
+                static long sim_oploc_op;
+                static long sim_oploc_x;
+                static long sim_oploc_z;
+                static long sim_oploc_id;
+                if( !sim_oploc_init )
                 {
-                    sim_oploc_frame = strtol(spec, &end, 0);
-                    if( end && *end == ',' )
-                        sim_oploc_op = strtol(end + 1, &end, 0);
-                    if( end && *end == ',' )
-                        sim_oploc_x = strtol(end + 1, &end, 0);
-                    if( end && *end == ',' )
-                        sim_oploc_z = strtol(end + 1, &end, 0);
-                    if( end && *end == ',' )
-                        sim_oploc_id = strtol(end + 1, &end, 0);
-                    else
-                        sim_oploc_frame = -1;
-                }
-            }
-            if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
-            {
-                TORIRS_LOG("sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
-                    sim_oploc_op,
-                    sim_oploc_x,
-                    sim_oploc_z,
-                    sim_oploc_id);
-                App_SimulateLocOp(
-                    &app,
-                    (int)sim_oploc_op,
-                    (int)sim_oploc_x,
-                    (int)sim_oploc_z,
-                    (int)sim_oploc_id);
-                sim_oploc_frame = -1;
-            }
-        }
-
-        /* TORIRS_SIM_OPNPC="frame,op,npc": the npc counterpart of the above.
-         * The npc is named by cache type, not by server slot — see
-         * App_SimulateNpcOp for why that is the only stable handle a test has.
-         * Same route as a world click: net_out_opnpc, then the server's
-         * ordinary OPNPC trigger dispatch. */
-        {
-            static int sim_opnpc_init = 0;
-            static long sim_opnpc_frame = -1;
-            static long sim_opnpc_op;
-            static long sim_opnpc_npc;
-            if( !sim_opnpc_init )
-            {
-                char const* spec = getenv("TORIRS_SIM_OPNPC");
-                char* end = NULL;
-                sim_opnpc_init = 1;
-                if( spec && *spec )
-                {
-                    sim_opnpc_frame = strtol(spec, &end, 0);
-                    if( end && *end == ',' )
-                        sim_opnpc_op = strtol(end + 1, &end, 0);
-                    if( end && *end == ',' )
-                        sim_opnpc_npc = strtol(end + 1, &end, 0);
-                    else
-                        sim_opnpc_frame = -1;
-                }
-            }
-            if( sim_opnpc_frame >= 0 && frame_count >= sim_opnpc_frame )
-            {
-                int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
-
-                /* REPORT, not LOG: the harness reads this in the OPT build to
-                 * tell "the op was sent" from "no such npc was in the scene". */
-                TORIRS_REPORT("sim_opnpc: op=%ld npc=%ld slot=%d\n",
-                    sim_opnpc_op,
-                    sim_opnpc_npc,
-                    slot);
-                /* Retry on the next frame while the npc has not arrived yet:
-                 * the caller picks a frame, the server picks the tick its spawn
-                 * lands on, and a one-shot would race that.
-                 *
-                 * TORIRS_SIM_OPNPC_EVERY=N re-issues the op every N frames
-                 * after it first lands — a target that walks away from the
-                 * player (a Nylocas Matomenos heading for the Maiden) is never
-                 * reached by a single click, and "the player chases it and
-                 * kills it" is the scenario a death-animation probe needs. */
-                if( slot >= 0 )
-                {
-                    static long every = -1;
-                    if( every < 0 )
+                    char const* spec = getenv("TORIRS_SIM_OPLOC");
+                    char* end = NULL;
+                    sim_oploc_init = 1;
+                    if( spec && *spec )
                     {
-                        char const* e = getenv("TORIRS_SIM_OPNPC_EVERY");
-                        every = (e && *e) ? strtol(e, NULL, 0) : 0;
+                        sim_oploc_frame = strtol(spec, &end, 0);
+                        if( end && *end == ',' )
+                            sim_oploc_op = strtol(end + 1, &end, 0);
+                        if( end && *end == ',' )
+                            sim_oploc_x = strtol(end + 1, &end, 0);
+                        if( end && *end == ',' )
+                            sim_oploc_z = strtol(end + 1, &end, 0);
+                        if( end && *end == ',' )
+                            sim_oploc_id = strtol(end + 1, &end, 0);
+                        else
+                            sim_oploc_frame = -1;
                     }
-                    sim_opnpc_frame = every > 0 ? frame_count + every : -1;
+                }
+                if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
+                {
+                    TORIRS_LOG(
+                        "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
+                        sim_oploc_op,
+                        sim_oploc_x,
+                        sim_oploc_z,
+                        sim_oploc_id);
+                    App_SimulateLocOp(
+                        &app,
+                        (int)sim_oploc_op,
+                        (int)sim_oploc_x,
+                        (int)sim_oploc_z,
+                        (int)sim_oploc_id);
+                    sim_oploc_frame = -1;
                 }
             }
-        }
 
-        /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
-         * run a clientscript by id at that main-loop frame, with up to four
-         * int args.
-         *
-         * TORIRS_SIM_HOOK covers "click this component", which is the right
-         * harness whenever the component exists and its binding is in the
-         * tree. This covers the rest: a script reached through a dropdown or a
-         * menu whose component is a chore to address, and a script with no
-         * binder at all. Same shape as the RUNCLIENTSCRIPT packet path, which
-         * is also "run this id with these ints, no component".
-         *
-         * `3967,12,<mode>` is [clientscript,settings_set_dropdown] on the
-         * Display panel's layout row — the case-12 arm that calls 3998 and so
-         * the whole Fixed/Classic/Modern remount, from the content's own entry
-         * point rather than from 3998 forced by hand. It only reaches 3998 in a
-         * cache baked from the tree (docs/gameframe_layout_resize.md §8.3);
-         * pristine cache.osrs239 has the arm missing and nothing happens. */
-        {
-            static char const* rs_cursor = NULL;
-            static int rs_init = 0;
-            static long rs_frame = -1;
-            static long rs_script = 0;
-            static int rs_argc = 0;
-            static int rs_argv[4];
-            if( !rs_init )
+            /* TORIRS_SIM_OPNPC="frame,op,npc": the npc counterpart of the above.
+             * The npc is named by cache type, not by server slot — see
+             * App_SimulateNpcOp for why that is the only stable handle a test has.
+             * Same route as a world click: net_out_opnpc, then the server's
+             * ordinary OPNPC trigger dispatch. */
             {
-                rs_init = 1;
-                rs_cursor = getenv("TORIRS_SIM_RUNSCRIPT");
-            }
-            if( rs_frame < 0 && rs_cursor && *rs_cursor )
-            {
-                char* end = NULL;
-                rs_frame = strtol(rs_cursor, &end, 0);
-                rs_argc = 0;
-                if( end && *end == ',' )
+                static int sim_opnpc_init = 0;
+                static long sim_opnpc_frame = -1;
+                static long sim_opnpc_op;
+                static long sim_opnpc_npc;
+                if( !sim_opnpc_init )
                 {
-                    rs_script = strtol(end + 1, &end, 0);
-                    while( rs_argc < 4 && end && *end == ',' )
-                        rs_argv[rs_argc++] = (int)strtol(end + 1, &end, 0);
-                    rs_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    char const* spec = getenv("TORIRS_SIM_OPNPC");
+                    char* end = NULL;
+                    sim_opnpc_init = 1;
+                    if( spec && *spec )
+                    {
+                        sim_opnpc_frame = strtol(spec, &end, 0);
+                        if( end && *end == ',' )
+                            sim_opnpc_op = strtol(end + 1, &end, 0);
+                        if( end && *end == ',' )
+                            sim_opnpc_npc = strtol(end + 1, &end, 0);
+                        else
+                            sim_opnpc_frame = -1;
+                    }
                 }
-                else
+                if( sim_opnpc_frame >= 0 && frame_count >= sim_opnpc_frame )
                 {
-                    rs_cursor = NULL;
+                    int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
+
+                    /* REPORT, not LOG: the harness reads this in the OPT build to
+                     * tell "the op was sent" from "no such npc was in the scene". */
+                    TORIRS_REPORT(
+                        "sim_opnpc: op=%ld npc=%ld slot=%d\n", sim_opnpc_op, sim_opnpc_npc, slot);
+                    /* Retry on the next frame while the npc has not arrived yet:
+                     * the caller picks a frame, the server picks the tick its spawn
+                     * lands on, and a one-shot would race that.
+                     *
+                     * TORIRS_SIM_OPNPC_EVERY=N re-issues the op every N frames
+                     * after it first lands — a target that walks away from the
+                     * player (a Nylocas Matomenos heading for the Maiden) is never
+                     * reached by a single click, and "the player chases it and
+                     * kills it" is the scenario a death-animation probe needs. */
+                    if( slot >= 0 )
+                    {
+                        static long every = -1;
+                        if( every < 0 )
+                        {
+                            char const* e = getenv("TORIRS_SIM_OPNPC_EVERY");
+                            every = (e && *e) ? strtol(e, NULL, 0) : 0;
+                        }
+                        sim_opnpc_frame = every > 0 ? frame_count + every : -1;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
+             * run a clientscript by id at that main-loop frame, with up to four
+             * int args.
+             *
+             * TORIRS_SIM_HOOK covers "click this component", which is the right
+             * harness whenever the component exists and its binding is in the
+             * tree. This covers the rest: a script reached through a dropdown or a
+             * menu whose component is a chore to address, and a script with no
+             * binder at all. Same shape as the RUNCLIENTSCRIPT packet path, which
+             * is also "run this id with these ints, no component".
+             *
+             * `3967,12,<mode>` is [clientscript,settings_set_dropdown] on the
+             * Display panel's layout row — the case-12 arm that calls 3998 and so
+             * the whole Fixed/Classic/Modern remount, from the content's own entry
+             * point rather than from 3998 forced by hand. It only reaches 3998 in a
+             * cache baked from the tree (docs/gameframe_layout_resize.md §8.3);
+             * pristine cache.osrs239 has the arm missing and nothing happens. */
+            {
+                static char const* rs_cursor = NULL;
+                static int rs_init = 0;
+                static long rs_frame = -1;
+                static long rs_script = 0;
+                static int rs_argc = 0;
+                static int rs_argv[4];
+                if( !rs_init )
+                {
+                    rs_init = 1;
+                    rs_cursor = getenv("TORIRS_SIM_RUNSCRIPT");
+                }
+                if( rs_frame < 0 && rs_cursor && *rs_cursor )
+                {
+                    char* end = NULL;
+                    rs_frame = strtol(rs_cursor, &end, 0);
+                    rs_argc = 0;
+                    if( end && *end == ',' )
+                    {
+                        rs_script = strtol(end + 1, &end, 0);
+                        while( rs_argc < 4 && end && *end == ',' )
+                            rs_argv[rs_argc++] = (int)strtol(end + 1, &end, 0);
+                        rs_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        rs_cursor = NULL;
+                        rs_frame = -1;
+                    }
+                }
+                /* TORIRS_SCREENSHOT=<name>: a picture of the frame from the
+                 * renderer that is ACTUALLY drawing it -- glReadPixels on the GL
+                 * lanes, GetRenderTargetData on D3D9, the canvas on soft3d.
+                 *
+                 * Distinct from TORIRS_EXIT_BMP, which re-renders through
+                 * App_Render into a plain buffer: that is the software rasteriser
+                 * no matter which renderer the run selected, so it cannot answer
+                 * any question about GPU state and quietly looks like it can.
+                 *
+                 * TORIRS_SCREENSHOT_FRAME picks when; the default is late enough
+                 * to be in the world rather than on the loading bar. */
+                {
+                    static int shot_done = 0;
+                    /* Its own counter. frame_count only advances when
+                     * TORIRS_MAX_FRAMES is set -- the ++ sits behind that
+                     * short-circuit at the top of the loop -- so keying off it
+                     * made this silently never fire in a time-bounded run. */
+                    static long shot_frames = 0;
+                    char const* shot_name = torirs_env_screenshot();
+
+                    shot_frames++;
+                    if( !shot_done && shot_name && *shot_name )
+                    {
+                        char const* at = getenv("TORIRS_SCREENSHOT_FRAME");
+                        long shot_frame = at ? strtol(at, NULL, 0) : 400;
+                        if( shot_frames >= shot_frame )
+                        {
+                            char path[512];
+                            shot_done = 1;
+                            if( App_RequestScreenshot(
+                                    &app,
+                                    getenv("TORIRS_SCREENSHOT_DIR"),
+                                    shot_name,
+                                    path,
+                                    (int)sizeof(path)) &&
+                                path[0] )
+                                TORIRS_REPORT("screenshot: queued %s\n", path);
+                            else
+                                TORIRS_REPORT("screenshot: refused\n");
+                        }
+                    }
+                }
+                /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
+                 * once the client is far enough in to have a cache, a host and a
+                 * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
+                 * the default is late enough for login to have completed against
+                 * ToriRSServer, because a case that reads a varp needs the varps.
+                 * The run ends the way every other headless run here ends, with
+                 * TORIRS_MAX_FRAMES — the harness does not invent a second exit
+                 * path. */
+                {
+                    static int harness_done = 0;
+                    char const* harness_cases = torirs_env_cs2_harness();
+                    if( !harness_done && harness_cases && *harness_cases )
+                    {
+                        char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
+                        long harness_frame = at ? strtol(at, NULL, 0) : 400;
+                        if( frame_count >= harness_frame )
+                        {
+                            char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
+                            harness_done = 1;
+                            CS2Harness_Run(
+                                &app.host,
+                                &app.runner,
+                                harness_cases,
+                                out && *out ? out : "/tmp/cs2_harness_c",
+                                harness_shot,
+                                &app);
+                        }
+                    }
+                }
+
+                if( rs_frame >= 0 && frame_count >= rs_frame )
+                {
+                    TORIRS_LOG("sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
+                    RS_CS2_RunScript(
+                        &app.host,
+                        &app.runner,
+                        (int)rs_script,
+                        rs_argc > 0 ? rs_argv : NULL,
+                        rs_argc,
+                        0,
+                        NULL,
+                        0);
                     rs_frame = -1;
                 }
             }
-            /* TORIRS_SCREENSHOT=<name>: a picture of the frame from the
-             * renderer that is ACTUALLY drawing it -- glReadPixels on the GL
-             * lanes, GetRenderTargetData on D3D9, the canvas on soft3d.
-             *
-             * Distinct from TORIRS_EXIT_BMP, which re-renders through
-             * App_Render into a plain buffer: that is the software rasteriser
-             * no matter which renderer the run selected, so it cannot answer
-             * any question about GPU state and quietly looks like it can.
-             *
-             * TORIRS_SCREENSHOT_FRAME picks when; the default is late enough
-             * to be in the world rather than on the loading bar. */
-            {
-                static int shot_done = 0;
-                /* Its own counter. frame_count only advances when
-                 * TORIRS_MAX_FRAMES is set -- the ++ sits behind that
-                 * short-circuit at the top of the loop -- so keying off it
-                 * made this silently never fire in a time-bounded run. */
-                static long shot_frames = 0;
-                char const* shot_name = torirs_env_screenshot();
 
-                shot_frames++;
-                if( !shot_done && shot_name && *shot_name )
+            /*
+             * TORIRS_SIM_VARBIT="<frame>,<id>,<value>[;<frame>,<id>,<value>...]":
+             * write a client varbit at a frame.
+             *
+             * The All Settings rows are varbits, and nothing in the cache writes
+             * one -- the panel's own row does, through a path that needs a real
+             * click on a real mounted panel. That makes every one of the seventy-four
+             * Activities rows unverifiable from a headless run without either a
+             * click script per row or this. See NXT_CLIENT_PLUGINS.md.
+             *
+             * Optimistic, i.e. exactly what the panel's write is: the value stands
+             * until the server says otherwise, which offline it never does.
+             */
+            {
+                static char const* vb_cursor = NULL;
+                static int vb_init = 0;
+                static long vb_frame = -1;
+                static long vb_id = 0;
+                static long vb_value = 0;
+                if( !vb_init )
                 {
-                    char const* at = getenv("TORIRS_SCREENSHOT_FRAME");
-                    long shot_frame = at ? strtol(at, NULL, 0) : 400;
-                    if( shot_frames >= shot_frame )
+                    vb_init = 1;
+                    vb_cursor = getenv("TORIRS_SIM_VARBIT");
+                }
+                if( vb_frame < 0 && vb_cursor && *vb_cursor )
+                {
+                    char* end = NULL;
+                    vb_frame = strtol(vb_cursor, &end, 0);
+                    if( end && *end == ',' )
                     {
-                        char path[512];
-                        shot_done = 1;
-                        if( App_RequestScreenshot(
-                                &app,
-                                getenv("TORIRS_SCREENSHOT_DIR"),
-                                shot_name,
-                                path,
-                                (int)sizeof(path)) &&
-                            path[0] )
-                            TORIRS_REPORT("screenshot: queued %s\n", path);
-                        else
-                            TORIRS_REPORT("screenshot: refused\n");
+                        vb_id = strtol(end + 1, &end, 0);
+                        vb_value = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                        vb_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        vb_cursor = NULL;
+                        vb_frame = -1;
                     }
                 }
-            }
-            /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
-             * once the client is far enough in to have a cache, a host and a
-             * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
-             * the default is late enough for login to have completed against
-             * ToriRSServer, because a case that reads a varp needs the varps.
-             * The run ends the way every other headless run here ends, with
-             * TORIRS_MAX_FRAMES — the harness does not invent a second exit
-             * path. */
-            {
-                static int harness_done = 0;
-                char const* harness_cases = torirs_env_cs2_harness();
-                if( !harness_done && harness_cases && *harness_cases )
+                if( vb_frame >= 0 && frame_count >= vb_frame )
                 {
-                    char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
-                    long harness_frame = at ? strtol(at, NULL, 0) : 400;
-                    if( frame_count >= harness_frame )
-                    {
-                        char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
-                        harness_done = 1;
-                        CS2Harness_Run(
-                            &app.host,
-                            &app.runner,
-                            harness_cases,
-                            out && *out ? out : "/tmp/cs2_harness_c",
-                            harness_shot,
-                            &app);
-                    }
-                }
-            }
-
-            if( rs_frame >= 0 && frame_count >= rs_frame )
-            {
-                TORIRS_LOG("sim_runscript: script=%ld argc=%d\n", rs_script, rs_argc);
-                RS_CS2_RunScript(
-                    &app.host,
-                    &app.runner,
-                    (int)rs_script,
-                    rs_argc > 0 ? rs_argv : NULL,
-                    rs_argc,
-                    0,
-                    NULL,
-                    0);
-                rs_frame = -1;
-            }
-        }
-
-        /*
-         * TORIRS_SIM_VARBIT="<frame>,<id>,<value>[;<frame>,<id>,<value>...]":
-         * write a client varbit at a frame.
-         *
-         * The All Settings rows are varbits, and nothing in the cache writes
-         * one -- the panel's own row does, through a path that needs a real
-         * click on a real mounted panel. That makes every one of the seventy-four
-         * Activities rows unverifiable from a headless run without either a
-         * click script per row or this. See NXT_CLIENT_PLUGINS.md.
-         *
-         * Optimistic, i.e. exactly what the panel's write is: the value stands
-         * until the server says otherwise, which offline it never does.
-         */
-        {
-            static char const* vb_cursor = NULL;
-            static int vb_init = 0;
-            static long vb_frame = -1;
-            static long vb_id = 0;
-            static long vb_value = 0;
-            if( !vb_init )
-            {
-                vb_init = 1;
-                vb_cursor = getenv("TORIRS_SIM_VARBIT");
-            }
-            if( vb_frame < 0 && vb_cursor && *vb_cursor )
-            {
-                char* end = NULL;
-                vb_frame = strtol(vb_cursor, &end, 0);
-                if( end && *end == ',' )
-                {
-                    vb_id = strtol(end + 1, &end, 0);
-                    vb_value = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
-                    vb_cursor = (end && *end == ';') ? end + 1 : NULL;
-                }
-                else
-                {
-                    vb_cursor = NULL;
+                    VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
+                    RS_CS2Host_NotifyVarChanged(&app.host, -1);
+                    /*
+                     * Mirror it to the server too, exactly as a panel click would.
+                     *
+                     * Ten Activities rows are decided server-side, and this
+                     * variable is the only way to reach any row from a headless
+                     * run -- nothing in the cache writes these varbits. A simulated
+                     * write the server never heard about would leave every one of
+                     * those rows untestable, which is the state that made them look
+                     * unimplementable in the first place.
+                     */
+                    RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
+                    TORIRS_LOG(
+                        "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
+                        vb_id,
+                        vb_value,
+                        VarPManager_VarbitBaseVar(&app.varps, (int)vb_id),
+                        VarPManager_GetVarbit(&app.varps, (int)vb_id));
                     vb_frame = -1;
                 }
             }
-            if( vb_frame >= 0 && frame_count >= vb_frame )
-            {
-                VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
-                RS_CS2Host_NotifyVarChanged(&app.host, -1);
-                /*
-                 * Mirror it to the server too, exactly as a panel click would.
-                 *
-                 * Ten Activities rows are decided server-side, and this
-                 * variable is the only way to reach any row from a headless
-                 * run -- nothing in the cache writes these varbits. A simulated
-                 * write the server never heard about would leave every one of
-                 * those rows untestable, which is the state that made them look
-                 * unimplementable in the first place.
-                 */
-                RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
-                TORIRS_LOG("sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
-                    vb_id,
-                    vb_value,
-                    VarPManager_VarbitBaseVar(&app.varps, (int)vb_id),
-                    VarPManager_GetVarbit(&app.varps, (int)vb_id));
-                vb_frame = -1;
-            }
-        }
 
-        /* TORIRS_SIM_TYPE="frame,c97,c108,k84": push key events at consecutive
-         * main-loop frames starting at `frame`. Same grammar as the pre-loop
-         * TORIRS_SIM_KEYS (c<character>, k<OSRS key code>), in-loop for the
-         * same reason as TORIRS_SIM_HOOK above — a text prompt a *script*
-         * opened does not exist until the panel that opens it is mounted. */
-        {
-            static char const* type_cursor = NULL;
-            static int type_init = 0;
-            static long type_frame = -1;
-            if( !type_init )
+            /* TORIRS_SIM_TYPE="frame,c97,c108,k84": push key events at consecutive
+             * main-loop frames starting at `frame`. Same grammar as the pre-loop
+             * TORIRS_SIM_KEYS (c<character>, k<OSRS key code>), in-loop for the
+             * same reason as TORIRS_SIM_HOOK above — a text prompt a *script*
+             * opened does not exist until the panel that opens it is mounted. */
             {
-                type_init = 1;
-                type_cursor = getenv("TORIRS_SIM_TYPE");
-            }
-            /* Start (or restart, at a ';') a burst: read its frame number. */
-            if( type_frame < 0 && type_cursor && *type_cursor )
-            {
-                char* end = NULL;
-                type_frame = strtol(type_cursor, &end, 0);
-                type_cursor = (end && *end == ',') ? end + 1 : NULL;
-                if( !type_cursor )
-                    type_frame = -1;
-            }
-            if( type_frame >= 0 && type_cursor && *type_cursor && frame_count >= type_frame )
-            {
-                char kind = *type_cursor++;
-                char* end = NULL;
-                long val = strtol(type_cursor, &end, 0);
-
-                if( kind == 'c' )
-                    CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
-                else
-                    CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
-                TORIRS_REPORT("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
-
-                if( end && *end == ',' )
+                static char const* type_cursor = NULL;
+                static int type_init = 0;
+                static long type_frame = -1;
+                if( !type_init )
                 {
-                    type_cursor = end + 1;
-                    type_frame = frame_count + 1;
+                    type_init = 1;
+                    type_cursor = getenv("TORIRS_SIM_TYPE");
                 }
-                else if( end && *end == ';' )
-                {
-                    type_cursor = end + 1;
-                    type_frame = -1; /* next burst names its own frame */
-                }
-                else
-                {
-                    type_cursor = NULL;
-                    type_frame = -1;
-                }
-            }
-        }
-
-        /* TORIRS_SIM_HOTKEY="frame,<key>[;frame,<key>...]": press a named key
-         * at that main-loop frame and release it two frames later. Key names
-         * are the revconfig [hotkey:…] spelling (f1, 3, escape — see
-         * LibToriRS_OsrsKeyFromName).
-         *
-         * Separate from the pre-loop TORIRS_SIM_KEYS block because that one
-         * runs before the frame loop and behind App_BootWait; a binding is only
-         * live once the tree is baked and App_Interact is running. Drives the
-         * OSRS-coded key arrays, which is what both revconfig hotkeys and CS2
-         * KEYPRESSED read. */
-        {
-            static char const* hk_cursor = NULL;
-            static int hk_init = 0;
-            static long hk_frame = -1;
-            static int hk_key = -1;
-            /* Platform-neutral code for the same key when it has one (letters
-             * and digits). A real press fills both arrays, and the debug world
-             * hotkeys read this one — pressing only the OSRS side would make a
-             * hotkey/spawn-key collision untestable. */
-            static enum LibToriRS_KeyCode hk_plain = TORIRSK_UNKNOWN;
-            if( !hk_init )
-            {
-                hk_init = 1;
-                hk_cursor = getenv("TORIRS_SIM_HOTKEY");
-            }
-            if( hk_frame < 0 && hk_cursor && *hk_cursor )
-            {
-                char* end = NULL;
-                char name[64] = { 0 };
-                long at = strtol(hk_cursor, &end, 0);
-                if( end && *end == ',' )
-                {
-                    char const* start = end + 1;
-                    size_t len = 0;
-                    while( start[len] && start[len] != ';' && len < sizeof(name) - 1 )
-                        len++;
-                    memcpy(name, start, len);
-                    hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
-                    hk_frame = at;
-                    hk_key = LibToriRS_OsrsKeyFromName(name);
-                    hk_plain = TORIRSK_UNKNOWN;
-                    if( name[0] && !name[1] )
-                    {
-                        if( name[0] >= 'a' && name[0] <= 'z' )
-                            hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_A + (name[0] - 'a'));
-                        else if( name[0] >= '0' && name[0] <= '9' )
-                            hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
-                    }
-                    TORIRS_LOG("sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
-                            name, hk_key, hk_frame);
-                }
-                else
-                    hk_cursor = NULL;
-            }
-            if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
-            {
-                if( frame_count == hk_frame )
-                {
-                    CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
-                    if( hk_plain != TORIRSK_UNKNOWN )
-                        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)hk_plain);
-                }
-                else if( frame_count >= hk_frame + 2 )
-                {
-                    CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
-                    if( hk_plain != TORIRSK_UNKNOWN )
-                        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)hk_plain);
-                    hk_frame = -1;
-                    hk_key = -1;
-                    hk_plain = TORIRSK_UNKNOWN;
-                }
-            }
-        }
-
-        /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
-         * the given main-loop frame.
-         *
-         * A content lane's debug procs are the only entry to an encounter that
-         * no click can reach — the QBD arena is behind `[debugproc,rs2012qbd]`
-         * — and a headless run has no chatbox to type into. The frame number
-         * matters: the command is a server script call, so it has to land after
-         * login, which SIM_CLICK_AT's own comment explains at length. */
-        {
-            static char const* cmd_cursor = NULL;
-            static int cmd_init = 0;
-            if( !cmd_init )
-            {
-                cmd_init = 1;
-                cmd_cursor = getenv("TORIRS_SIM_CMD");
-            }
-            while( cmd_cursor && *cmd_cursor )
-            {
-                char* end = NULL;
-                long const at = strtol(cmd_cursor, &end, 0);
-                char const* body;
-                size_t len;
-
-                if( !end || *end != ',' )
-                {
-                    cmd_cursor = NULL;
-                    break;
-                }
-                if( frame_count < at )
-                    break; /* not yet; re-checked next frame */
-
-                body = end + 1;
-                len = strcspn(body, ";");
-                {
-                    char text[128];
-                    if( len >= sizeof(text) )
-                        len = sizeof(text) - 1;
-                    memcpy(text, body, len);
-                    text[len] = '\0';
-                    App_SendCommand(&app, text);
-                    /* REPORT, not LOG: a harness that set TORIRS_SIM_CMD wants
-                     * to see its commands go out, in the optimized build too. */
-                    TORIRS_REPORT("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
-                }
-                cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
-            }
-        }
-
-        /*
-         * TORIRS_SIM_KEYHOLD="<LibToriRS_KeyCode>[,<code>...]": press these
-         * keys once, on the first frame, and never release them.
-         *
-         * Exists for the click sims below, which have no way to say "with
-         * shift down" -- and shift is not a decoration on a right click, it is
-         * what makes a whole class of rows appear at all. The cache's own
-         * client ops ("Mark tile", "Tag") are shift-gated, and without this
-         * there is no headless way to reach one.
-         *
-         * Held rather than pulsed because `key_held` is sticky until a key-up
-         * (LibToriRS_Input_End): one press at the top of the run is the whole
-         * mechanism, and nothing here ever wants to let go.
-         */
-        {
-            static int keyhold_done = 0;
-            static long keyhold_frame = -1;
-            /* TORIRS_SIM_KEYHOLD_FRAME=N delays the press to loop iteration N:
-             * a key pressed on frame 1 lands on the title screen, and a held
-             * arrow there rotates no camera. */
-            if( keyhold_frame < 0 )
-            {
-                char const* at = getenv("TORIRS_SIM_KEYHOLD_FRAME");
-                keyhold_frame = at ? strtol(at, NULL, 0) : 1;
-                if( keyhold_frame < 1 )
-                    keyhold_frame = 1;
-            }
-            if( !keyhold_done && frame_count >= keyhold_frame )
-            {
-                char const* spec = getenv("TORIRS_SIM_KEYHOLD");
-                keyhold_done = 1;
-                while( spec && *spec )
+                /* Start (or restart, at a ';') a burst: read its frame number. */
+                if( type_frame < 0 && type_cursor && *type_cursor )
                 {
                     char* end = NULL;
-                    long code = strtol(spec, &end, 0);
-                    if( end == spec )
-                        break;
-                    CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)code);
-                    TORIRS_REPORT("sim_keyhold: holding key %ld\n", code);
-                    spec = (end && *end == ',') ? end + 1 : NULL;
+                    type_frame = strtol(type_cursor, &end, 0);
+                    type_cursor = (end && *end == ',') ? end + 1 : NULL;
+                    if( !type_cursor )
+                        type_frame = -1;
                 }
-            }
-        }
+                if( type_frame >= 0 && type_cursor && *type_cursor && frame_count >= type_frame )
+                {
+                    char kind = *type_cursor++;
+                    char* end = NULL;
+                    long val = strtol(type_cursor, &end, 0);
 
-        /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
-         * inject a mouse click at the given main-loop frame — the
-         * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
-         * before login completes, too early to test the world). The
-         * move lands 3 frames before the press so the hover pick set
-         * (built during render) covers the click position. */
-        {
-            static char const* sim_at_cursor = NULL;
-            static int sim_at_init = 0;
-            static long pend_frame = -1, pend_x, pend_y, pend_right;
-            if( !sim_at_init )
-            {
-                sim_at_init = 1;
-                sim_at_cursor = getenv("TORIRS_SIM_CLICK_AT");
-            }
-            if( pend_frame < 0 && sim_at_cursor && *sim_at_cursor )
-            {
-                char* end = NULL;
-                pend_frame = strtol(sim_at_cursor, &end, 0);
-                if( end && *end == ',' )
-                {
-                    pend_x = strtol(end + 1, &end, 0);
-                    pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
-                    pend_right = 0;
-                    if( end && *end == ',' )
-                        pend_right = strtol(end + 1, &end, 0);
-                    sim_at_cursor = (end && *end == ';') ? end + 1 : NULL;
-                }
-                else
-                {
-                    sim_at_cursor = NULL;
-                    pend_frame = -1;
-                }
-            }
-            if( pend_frame >= 0 && frame_count >= pend_frame )
-            {
-                long step = frame_count - pend_frame;
-                uint8_t btn = pend_right ? 3 : 1;
-                if( step == 0 )
-                {
-                    CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
-                    TORIRS_REPORT("sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
-                        pend_frame,
-                        pend_x,
-                        pend_y,
-                        pend_right);
-                }
-                else if( step == 3 )
-                {
-                    CmdBus_PushMouseButton(
-                        &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, (int)pend_x, (int)pend_y);
-                }
-                else if( step >= 4 )
-                {
-                    CmdBus_PushMouseButton(
-                        &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
-                    TORIRS_REPORT("sim_click_at: released %ld,%ld\n", pend_x, pend_y);
-                    pend_frame = -1;
-                }
-            }
-        }
+                    if( kind == 'c' )
+                        CmdBus_PushKeyEvent(&bus, -1, (int32_t)val, 0);
+                    else
+                        CmdBus_PushKeyEvent(&bus, (int32_t)val, 0, 0);
+                    TORIRS_REPORT("sim_type: %c%ld at frame %ld\n", kind, val, frame_count);
 
-        /* TORIRS_SIM_CLICK_NPC="frame,npc_type[,right]": click the first live
-         * npc of that cache type (-1: any npc) where it is DRAWN, inside the
-         * world viewport. The pointer moves to the
-         * npc's projected body on the frame, presses three frames later and
-         * releases the frame after, like TORIRS_SIM_CLICK_AT; the projection
-         * is asked again every frame until the npc is in the scene and on
-         * screen. Wandering npcs make a fixed coordinate a coin toss, and a
-         * right-click with TORIRS_SIM_KEYHOLD's shift is the only headless
-         * way to a plugin's rows on an npc's menu. */
-        {
-            static int sim_npc_init = 0;
-            static long npc_frame = -1, npc_type, npc_right, npc_step = -1;
-            static int npc_x, npc_y, npc_followed_type = -1;
-            if( !sim_npc_init )
-            {
-                char const* spec = getenv("TORIRS_SIM_CLICK_NPC");
-                char* end = NULL;
-                sim_npc_init = 1;
-                if( spec && *spec )
-                {
-                    npc_frame = strtol(spec, &end, 0);
                     if( end && *end == ',' )
                     {
-                        npc_type = strtol(end + 1, &end, 0);
-                        npc_right = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                        type_cursor = end + 1;
+                        type_frame = frame_count + 1;
+                    }
+                    else if( end && *end == ';' )
+                    {
+                        type_cursor = end + 1;
+                        type_frame = -1; /* next burst names its own frame */
                     }
                     else
-                        npc_frame = -1;
-                }
-            }
-            if( npc_frame >= 0 && frame_count >= npc_frame )
-            {
-                if( npc_step < 0 )
-                {
-                    int found_type = -1;
-                    int slot = App_NpcScreenPosition(&app, (int)npc_type, &npc_x, &npc_y, &found_type);
-                    if( slot >= 0 )
                     {
-                        npc_step = 0;
-                        npc_followed_type = found_type;
-                        CmdBus_PushMouseMove(&bus, npc_x, npc_y);
-                        TORIRS_REPORT(
-                            "sim_click_npc: frame=%ld type=%d slot=%d move %d,%d right=%ld\n",
-                            frame_count,
-                            found_type,
-                            slot,
-                            npc_x,
-                            npc_y,
-                            npc_right);
+                        type_cursor = NULL;
+                        type_frame = -1;
                     }
                 }
-                else
+            }
+
+            /* TORIRS_SIM_HOTKEY="frame,<key>[;frame,<key>...]": press a named key
+             * at that main-loop frame and release it two frames later. Key names
+             * are the revconfig [hotkey:…] spelling (f1, 3, escape — see
+             * LibToriRS_OsrsKeyFromName).
+             *
+             * Separate from the pre-loop TORIRS_SIM_KEYS block because that one
+             * runs before the frame loop and behind App_BootWait; a binding is only
+             * live once the tree is baked and App_Interact is running. Drives the
+             * OSRS-coded key arrays, which is what both revconfig hotkeys and CS2
+             * KEYPRESSED read. */
+            {
+                static char const* hk_cursor = NULL;
+                static int hk_init = 0;
+                static long hk_frame = -1;
+                static int hk_key = -1;
+                /* Platform-neutral code for the same key when it has one (letters
+                 * and digits). A real press fills both arrays, and the debug world
+                 * hotkeys read this one — pressing only the OSRS side would make a
+                 * hotkey/spawn-key collision untestable. */
+                static enum LibToriRS_KeyCode hk_plain = TORIRSK_UNKNOWN;
+                if( !hk_init )
                 {
-                    uint8_t btn = npc_right ? 3 : 1;
-                    npc_step++;
-                    /* Follow the body until the press: a wandering npc walks
-                     * out from under a pointer parked three frames earlier,
-                     * and the menu then belongs to the ground it stood on. */
-                    if( npc_step < 3 )
+                    hk_init = 1;
+                    hk_cursor = getenv("TORIRS_SIM_HOTKEY");
+                }
+                if( hk_frame < 0 && hk_cursor && *hk_cursor )
+                {
+                    char* end = NULL;
+                    char name[64] = { 0 };
+                    long at = strtol(hk_cursor, &end, 0);
+                    if( end && *end == ',' )
                     {
-                        int follow_type = -1;
-                        int follow_x;
-                        int follow_y;
-                        if( App_NpcScreenPosition(&app, (int)npc_type, &follow_x, &follow_y, &follow_type) >= 0 &&
-                            (npc_type >= 0 || follow_type == npc_followed_type) )
+                        char const* start = end + 1;
+                        size_t len = 0;
+                        while( start[len] && start[len] != ';' && len < sizeof(name) - 1 )
+                            len++;
+                        memcpy(name, start, len);
+                        hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
+                        hk_frame = at;
+                        hk_key = LibToriRS_OsrsKeyFromName(name);
+                        hk_plain = TORIRSK_UNKNOWN;
+                        if( name[0] && !name[1] )
                         {
-                            npc_x = follow_x;
-                            npc_y = follow_y;
+                            if( name[0] >= 'a' && name[0] <= 'z' )
+                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_A + (name[0] - 'a'));
+                            else if( name[0] >= '0' && name[0] <= '9' )
+                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
+                        }
+                        TORIRS_LOG(
+                            "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
+                            name,
+                            hk_key,
+                            hk_frame);
+                    }
+                    else
+                        hk_cursor = NULL;
+                }
+                if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
+                {
+                    if( frame_count == hk_frame )
+                    {
+                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
+                        if( hk_plain != TORIRSK_UNKNOWN )
+                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)hk_plain);
+                    }
+                    else if( frame_count >= hk_frame + 2 )
+                    {
+                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
+                        if( hk_plain != TORIRSK_UNKNOWN )
+                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)hk_plain);
+                        hk_frame = -1;
+                        hk_key = -1;
+                        hk_plain = TORIRSK_UNKNOWN;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
+             * the given main-loop frame.
+             *
+             * A content lane's debug procs are the only entry to an encounter that
+             * no click can reach — the QBD arena is behind `[debugproc,rs2012qbd]`
+             * — and a headless run has no chatbox to type into. The frame number
+             * matters: the command is a server script call, so it has to land after
+             * login, which SIM_CLICK_AT's own comment explains at length. */
+            {
+                static char const* cmd_cursor = NULL;
+                static int cmd_init = 0;
+                if( !cmd_init )
+                {
+                    cmd_init = 1;
+                    cmd_cursor = getenv("TORIRS_SIM_CMD");
+                }
+                while( cmd_cursor && *cmd_cursor )
+                {
+                    char* end = NULL;
+                    long const at = strtol(cmd_cursor, &end, 0);
+                    char const* body;
+                    size_t len;
+
+                    if( !end || *end != ',' )
+                    {
+                        cmd_cursor = NULL;
+                        break;
+                    }
+                    if( frame_count < at )
+                        break; /* not yet; re-checked next frame */
+
+                    body = end + 1;
+                    len = strcspn(body, ";");
+                    {
+                        char text[128];
+                        if( len >= sizeof(text) )
+                            len = sizeof(text) - 1;
+                        memcpy(text, body, len);
+                        text[len] = '\0';
+                        App_SendCommand(&app, text);
+                        /* REPORT, not LOG: a harness that set TORIRS_SIM_CMD wants
+                         * to see its commands go out, in the optimized build too. */
+                        TORIRS_REPORT("sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                    }
+                    cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
+                }
+            }
+
+            /*
+             * TORIRS_SIM_KEYHOLD="<LibToriRS_KeyCode>[,<code>...]": press these
+             * keys once, on the first frame, and never release them.
+             *
+             * Exists for the click sims below, which have no way to say "with
+             * shift down" -- and shift is not a decoration on a right click, it is
+             * what makes a whole class of rows appear at all. The cache's own
+             * client ops ("Mark tile", "Tag") are shift-gated, and without this
+             * there is no headless way to reach one.
+             *
+             * Held rather than pulsed because `key_held` is sticky until a key-up
+             * (LibToriRS_Input_End): one press at the top of the run is the whole
+             * mechanism, and nothing here ever wants to let go.
+             */
+            {
+                static int keyhold_done = 0;
+                static long keyhold_frame = -1;
+                /* TORIRS_SIM_KEYHOLD_FRAME=N delays the press to loop iteration N:
+                 * a key pressed on frame 1 lands on the title screen, and a held
+                 * arrow there rotates no camera. */
+                if( keyhold_frame < 0 )
+                {
+                    char const* at = getenv("TORIRS_SIM_KEYHOLD_FRAME");
+                    keyhold_frame = at ? strtol(at, NULL, 0) : 1;
+                    if( keyhold_frame < 1 )
+                        keyhold_frame = 1;
+                }
+                if( !keyhold_done && frame_count >= keyhold_frame )
+                {
+                    char const* spec = getenv("TORIRS_SIM_KEYHOLD");
+                    keyhold_done = 1;
+                    while( spec && *spec )
+                    {
+                        char* end = NULL;
+                        long code = strtol(spec, &end, 0);
+                        if( end == spec )
+                            break;
+                        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)code);
+                        TORIRS_REPORT("sim_keyhold: holding key %ld\n", code);
+                        spec = (end && *end == ',') ? end + 1 : NULL;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
+             * inject a mouse click at the given main-loop frame — the
+             * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
+             * before login completes, too early to test the world). The
+             * move lands 3 frames before the press so the hover pick set
+             * (built during render) covers the click position. */
+            {
+                static char const* sim_at_cursor = NULL;
+                static int sim_at_init = 0;
+                static long pend_frame = -1, pend_x, pend_y, pend_right;
+                if( !sim_at_init )
+                {
+                    sim_at_init = 1;
+                    sim_at_cursor = getenv("TORIRS_SIM_CLICK_AT");
+                }
+                if( pend_frame < 0 && sim_at_cursor && *sim_at_cursor )
+                {
+                    char* end = NULL;
+                    pend_frame = strtol(sim_at_cursor, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        pend_x = strtol(end + 1, &end, 0);
+                        pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                        pend_right = 0;
+                        if( end && *end == ',' )
+                            pend_right = strtol(end + 1, &end, 0);
+                        sim_at_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        sim_at_cursor = NULL;
+                        pend_frame = -1;
+                    }
+                }
+                if( pend_frame >= 0 && frame_count >= pend_frame )
+                {
+                    long step = frame_count - pend_frame;
+                    uint8_t btn = pend_right ? 3 : 1;
+                    if( step == 0 )
+                    {
+                        CmdBus_PushMouseMove(&bus, (int)pend_x, (int)pend_y);
+                        TORIRS_REPORT(
+                            "sim_click_at: frame=%ld move %ld,%ld right=%ld\n",
+                            pend_frame,
+                            pend_x,
+                            pend_y,
+                            pend_right);
+                    }
+                    else if( step == 3 )
+                    {
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, (int)pend_x, (int)pend_y);
+                    }
+                    else if( step >= 4 )
+                    {
+                        CmdBus_PushMouseButton(
+                            &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, (int)pend_x, (int)pend_y);
+                        TORIRS_REPORT("sim_click_at: released %ld,%ld\n", pend_x, pend_y);
+                        pend_frame = -1;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_CLICK_NPC="frame,npc_type[,right]": click the first live
+             * npc of that cache type (-1: any npc) where it is DRAWN, inside the
+             * world viewport. The pointer moves to the
+             * npc's projected body on the frame, presses three frames later and
+             * releases the frame after, like TORIRS_SIM_CLICK_AT; the projection
+             * is asked again every frame until the npc is in the scene and on
+             * screen. Wandering npcs make a fixed coordinate a coin toss, and a
+             * right-click with TORIRS_SIM_KEYHOLD's shift is the only headless
+             * way to a plugin's rows on an npc's menu. */
+            {
+                static int sim_npc_init = 0;
+                static long npc_frame = -1, npc_type, npc_right, npc_step = -1;
+                static int npc_x, npc_y, npc_followed_type = -1;
+                if( !sim_npc_init )
+                {
+                    char const* spec = getenv("TORIRS_SIM_CLICK_NPC");
+                    char* end = NULL;
+                    sim_npc_init = 1;
+                    if( spec && *spec )
+                    {
+                        npc_frame = strtol(spec, &end, 0);
+                        if( end && *end == ',' )
+                        {
+                            npc_type = strtol(end + 1, &end, 0);
+                            npc_right = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                        }
+                        else
+                            npc_frame = -1;
+                    }
+                }
+                if( npc_frame >= 0 && frame_count >= npc_frame )
+                {
+                    if( npc_step < 0 )
+                    {
+                        int found_type = -1;
+                        int slot =
+                            App_NpcScreenPosition(&app, (int)npc_type, &npc_x, &npc_y, &found_type);
+                        if( slot >= 0 )
+                        {
+                            npc_step = 0;
+                            npc_followed_type = found_type;
                             CmdBus_PushMouseMove(&bus, npc_x, npc_y);
+                            TORIRS_REPORT(
+                                "sim_click_npc: frame=%ld type=%d slot=%d move %d,%d right=%ld\n",
+                                frame_count,
+                                found_type,
+                                slot,
+                                npc_x,
+                                npc_y,
+                                npc_right);
                         }
                     }
-                    if( npc_step == 3 )
-                        CmdBus_PushMouseButton(
-                            &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, npc_x, npc_y);
-                    else if( npc_step >= 4 )
-                    {
-                        CmdBus_PushMouseButton(
-                            &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, npc_x, npc_y);
-                        TORIRS_REPORT("sim_click_npc: released %d,%d\n", npc_x, npc_y);
-                        npc_frame = -1;
-                    }
-                }
-            }
-        }
-
-        /* TORIRS_SIM_MENU_ROW="frame,prefix": from that frame on, wait for an
-         * open right-click menu with a row whose text starts with `prefix`
-         * (colour tags included: "Tag @yel@") and left-click its centre with
-         * the same move/press/release cadence as TORIRS_SIM_CLICK_AT. This is
-         * how a plugin's retained menu row is picked headlessly: the menu's
-         * position follows the click that opened it, so no fixed coordinate
-         * can be written down in advance. */
-        {
-            static int sim_row_init = 0;
-            static long row_frame = -1, row_step = -1;
-            static char row_prefix[64];
-            static int row_x, row_y;
-            if( !sim_row_init )
-            {
-                char const* spec = getenv("TORIRS_SIM_MENU_ROW");
-                char* end = NULL;
-                sim_row_init = 1;
-                if( spec && *spec )
-                {
-                    row_frame = strtol(spec, &end, 0);
-                    if( end && *end == ',' )
-                        snprintf(row_prefix, sizeof(row_prefix), "%s", end + 1);
                     else
-                        row_frame = -1;
-                }
-            }
-            if( row_frame >= 0 && frame_count >= row_frame )
-            {
-                if( row_step < 0 )
-                {
-                    char text[128];
-                    if( App_MinimenuRowCenter(&app, row_prefix, &row_x, &row_y, text, sizeof(text)) )
                     {
-                        row_step = 0;
-                        CmdBus_PushMouseMove(&bus, row_x, row_y);
-                        TORIRS_REPORT("sim_menu_row: frame=%ld row '%s' move %d,%d\n",
-                            frame_count, text, row_x, row_y);
+                        uint8_t btn = npc_right ? 3 : 1;
+                        npc_step++;
+                        /* Follow the body until the press: a wandering npc walks
+                         * out from under a pointer parked three frames earlier,
+                         * and the menu then belongs to the ground it stood on. */
+                        if( npc_step < 3 )
+                        {
+                            int follow_type = -1;
+                            int follow_x;
+                            int follow_y;
+                            if( App_NpcScreenPosition(
+                                    &app, (int)npc_type, &follow_x, &follow_y, &follow_type) >= 0 &&
+                                (npc_type >= 0 || follow_type == npc_followed_type) )
+                            {
+                                npc_x = follow_x;
+                                npc_y = follow_y;
+                                CmdBus_PushMouseMove(&bus, npc_x, npc_y);
+                            }
+                        }
+                        if( npc_step == 3 )
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, btn, npc_x, npc_y);
+                        else if( npc_step >= 4 )
+                        {
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, btn, npc_x, npc_y);
+                            TORIRS_REPORT("sim_click_npc: released %d,%d\n", npc_x, npc_y);
+                            npc_frame = -1;
+                        }
                     }
                 }
-                else
-                {
-                    row_step++;
-                    if( row_step == 3 )
-                        CmdBus_PushMouseButton(
-                            &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, row_x, row_y);
-                    else if( row_step >= 4 )
-                    {
-                        CmdBus_PushMouseButton(
-                            &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, row_x, row_y);
-                        TORIRS_REPORT("sim_menu_row: released %d,%d\n", row_x, row_y);
-                        row_frame = -1;
-                    }
-                }
             }
-        }
 
-        /* TORIRS_SIM_MOVE_AT="frame,x,y[;frame,x,y...]": park the pointer at a
-         * main-loop frame WITHOUT pressing anything. The hover-driven native
-         * paths (the cache's mouse-over highlight groups, tooltips, hover
-         * colours) need the pointer over a subject for many frames; a click
-         * would also walk, talk or open a menu and change what is being
-         * measured. */
-        {
-            static char const* sim_move_cursor = NULL;
-            static int sim_move_init = 0;
-            static long move_frame = -1, move_x, move_y;
-            if( !sim_move_init )
+            /* TORIRS_SIM_MENU_ROW="frame,prefix": from that frame on, wait for an
+             * open right-click menu with a row whose text starts with `prefix`
+             * (colour tags included: "Tag @yel@") and left-click its centre with
+             * the same move/press/release cadence as TORIRS_SIM_CLICK_AT. This is
+             * how a plugin's retained menu row is picked headlessly: the menu's
+             * position follows the click that opened it, so no fixed coordinate
+             * can be written down in advance. */
             {
-                sim_move_init = 1;
-                sim_move_cursor = getenv("TORIRS_SIM_MOVE_AT");
-            }
-            if( move_frame < 0 && sim_move_cursor && *sim_move_cursor )
-            {
-                char* end = NULL;
-                move_frame = strtol(sim_move_cursor, &end, 0);
-                if( end && *end == ',' )
+                static int sim_row_init = 0;
+                static long row_frame = -1, row_step = -1;
+                static char row_prefix[64];
+                static int row_x, row_y;
+                if( !sim_row_init )
                 {
-                    move_x = strtol(end + 1, &end, 0);
-                    move_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
-                    sim_move_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    char const* spec = getenv("TORIRS_SIM_MENU_ROW");
+                    char* end = NULL;
+                    sim_row_init = 1;
+                    if( spec && *spec )
+                    {
+                        row_frame = strtol(spec, &end, 0);
+                        if( end && *end == ',' )
+                            snprintf(row_prefix, sizeof(row_prefix), "%s", end + 1);
+                        else
+                            row_frame = -1;
+                    }
                 }
-                else
+                if( row_frame >= 0 && frame_count >= row_frame )
                 {
-                    sim_move_cursor = NULL;
+                    if( row_step < 0 )
+                    {
+                        char text[128];
+                        if( App_MinimenuRowCenter(
+                                &app, row_prefix, &row_x, &row_y, text, sizeof(text)) )
+                        {
+                            row_step = 0;
+                            CmdBus_PushMouseMove(&bus, row_x, row_y);
+                            TORIRS_REPORT(
+                                "sim_menu_row: frame=%ld row '%s' move %d,%d\n",
+                                frame_count,
+                                text,
+                                row_x,
+                                row_y);
+                        }
+                    }
+                    else
+                    {
+                        row_step++;
+                        if( row_step == 3 )
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_DOWN, 1, row_x, row_y);
+                        else if( row_step >= 4 )
+                        {
+                            CmdBus_PushMouseButton(
+                                &bus, TORIRS_CMD_INPUT_MOUSE_UP, 1, row_x, row_y);
+                            TORIRS_REPORT("sim_menu_row: released %d,%d\n", row_x, row_y);
+                            row_frame = -1;
+                        }
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_MOVE_AT="frame,x,y[;frame,x,y...]": park the pointer at a
+             * main-loop frame WITHOUT pressing anything. The hover-driven native
+             * paths (the cache's mouse-over highlight groups, tooltips, hover
+             * colours) need the pointer over a subject for many frames; a click
+             * would also walk, talk or open a menu and change what is being
+             * measured. */
+            {
+                static char const* sim_move_cursor = NULL;
+                static int sim_move_init = 0;
+                static long move_frame = -1, move_x, move_y;
+                if( !sim_move_init )
+                {
+                    sim_move_init = 1;
+                    sim_move_cursor = getenv("TORIRS_SIM_MOVE_AT");
+                }
+                if( move_frame < 0 && sim_move_cursor && *sim_move_cursor )
+                {
+                    char* end = NULL;
+                    move_frame = strtol(sim_move_cursor, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        move_x = strtol(end + 1, &end, 0);
+                        move_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                        sim_move_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        sim_move_cursor = NULL;
+                        move_frame = -1;
+                    }
+                }
+                if( move_frame >= 0 && frame_count >= move_frame )
+                {
+                    CmdBus_PushMouseMove(&bus, (int)move_x, (int)move_y);
+                    TORIRS_REPORT(
+                        "sim_move_at: frame=%ld move %ld,%ld\n", move_frame, move_x, move_y);
                     move_frame = -1;
                 }
             }
-            if( move_frame >= 0 && frame_count >= move_frame )
-            {
-                CmdBus_PushMouseMove(&bus, (int)move_x, (int)move_y);
-                TORIRS_REPORT("sim_move_at: frame=%ld move %ld,%ld\n", move_frame, move_x, move_y);
-                move_frame = -1;
-            }
-        }
 
-        /* TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH...]": inject a window
-         * resize at the given main-loop frame. The only way to exercise
-         * the resize path headlessly — SDL_VIDEODRIVER=dummy never
-         * delivers a real SDL_WINDOWEVENT_SIZE_CHANGED, and the whole
-         * point of the path is what the gameframe's onResize scripts do
-         * after it, which is not observable from the window at all. */
-        {
-            static char const* sim_resize_cursor = NULL;
-            static int sim_resize_init = 0;
-            static long rz_frame = -1, rz_w, rz_h;
-            if( !sim_resize_init )
+            /* TORIRS_SIM_RESIZE="frame,WxH[;frame,WxH...]": inject a window
+             * resize at the given main-loop frame. The only way to exercise
+             * the resize path headlessly — SDL_VIDEODRIVER=dummy never
+             * delivers a real SDL_WINDOWEVENT_SIZE_CHANGED, and the whole
+             * point of the path is what the gameframe's onResize scripts do
+             * after it, which is not observable from the window at all. */
             {
-                sim_resize_init = 1;
-                sim_resize_cursor = getenv("TORIRS_SIM_RESIZE");
-            }
-            if( rz_frame < 0 && sim_resize_cursor && *sim_resize_cursor )
-            {
-                char* end = NULL;
-                rz_frame = strtol(sim_resize_cursor, &end, 0);
-                if( end && *end == ',' )
+                static char const* sim_resize_cursor = NULL;
+                static int sim_resize_init = 0;
+                static long rz_frame = -1, rz_w, rz_h;
+                if( !sim_resize_init )
                 {
-                    rz_w = strtol(end + 1, &end, 0);
-                    rz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
-                    sim_resize_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    sim_resize_init = 1;
+                    sim_resize_cursor = getenv("TORIRS_SIM_RESIZE");
                 }
-                else
+                if( rz_frame < 0 && sim_resize_cursor && *sim_resize_cursor )
                 {
-                    sim_resize_cursor = NULL;
+                    char* end = NULL;
+                    rz_frame = strtol(sim_resize_cursor, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        rz_w = strtol(end + 1, &end, 0);
+                        rz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
+                        sim_resize_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        sim_resize_cursor = NULL;
+                        rz_frame = -1;
+                    }
+                    if( rz_w <= 0 || rz_h <= 0 )
+                        rz_frame = -1;
+                }
+                if( rz_frame >= 0 && frame_count >= rz_frame )
+                {
+                    TORIRS_LOG("sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
+                    CmdBus_PushWindowResize(&bus, (int32_t)rz_w, (int32_t)rz_h);
                     rz_frame = -1;
                 }
-                if( rz_w <= 0 || rz_h <= 0 )
-                    rz_frame = -1;
             }
-            if( rz_frame >= 0 && frame_count >= rz_frame )
-            {
-                TORIRS_LOG("sim_resize: frame=%ld %ldx%ld\n", rz_frame, rz_w, rz_h);
-                CmdBus_PushWindowResize(&bus, (int32_t)rz_w, (int32_t)rz_h);
-                rz_frame = -1;
-            }
-        }
 
-        /* TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH...]": drag the WINDOW's
-         * corner, rather than pushing a canvas resize onto the bus.
-         *
-         * The difference from TORIRS_SIM_RESIZE above is the whole
-         * fixed-vs-resizable question: this touches only the OS window, so
-         * whether the client relayouts or keeps letterboxing a 765x503 canvas
-         * is decided by the follow gate exactly as it is for a real user drag.
-         * TORIRS_SIM_RESIZE walks straight past that gate and therefore cannot
-         * tell the two modes apart. */
-        {
-            static char const* sim_window_cursor = NULL;
-            static int sim_window_init = 0;
-            static long wz_frame = -1, wz_w, wz_h;
-            if( !sim_window_init )
+            /* TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH...]": drag the WINDOW's
+             * corner, rather than pushing a canvas resize onto the bus.
+             *
+             * The difference from TORIRS_SIM_RESIZE above is the whole
+             * fixed-vs-resizable question: this touches only the OS window, so
+             * whether the client relayouts or keeps letterboxing a 765x503 canvas
+             * is decided by the follow gate exactly as it is for a real user drag.
+             * TORIRS_SIM_RESIZE walks straight past that gate and therefore cannot
+             * tell the two modes apart. */
             {
-                sim_window_init = 1;
-                sim_window_cursor = getenv("TORIRS_SIM_WINDOW");
-            }
-            if( wz_frame < 0 && sim_window_cursor && *sim_window_cursor )
-            {
-                char* end = NULL;
-                wz_frame = strtol(sim_window_cursor, &end, 0);
-                if( end && *end == ',' )
+                static char const* sim_window_cursor = NULL;
+                static int sim_window_init = 0;
+                static long wz_frame = -1, wz_w, wz_h;
+                if( !sim_window_init )
                 {
-                    wz_w = strtol(end + 1, &end, 0);
-                    wz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
-                    sim_window_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    sim_window_init = 1;
+                    sim_window_cursor = getenv("TORIRS_SIM_WINDOW");
                 }
-                else
+                if( wz_frame < 0 && sim_window_cursor && *sim_window_cursor )
                 {
-                    sim_window_cursor = NULL;
+                    char* end = NULL;
+                    wz_frame = strtol(sim_window_cursor, &end, 0);
+                    if( end && *end == ',' )
+                    {
+                        wz_w = strtol(end + 1, &end, 0);
+                        wz_h = (end && *end) ? strtol(end + 1, &end, 0) : 0;
+                        sim_window_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    }
+                    else
+                    {
+                        sim_window_cursor = NULL;
+                        wz_frame = -1;
+                    }
+                    if( wz_w <= 0 || wz_h <= 0 )
+                        wz_frame = -1;
+                }
+                if( wz_frame >= 0 && frame_count >= wz_frame )
+                {
+                    TORIRS_LOG("sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
+                    PlatformWindow_SetWindowSize(platform, (int)wz_w, (int)wz_h);
                     wz_frame = -1;
                 }
-                if( wz_w <= 0 || wz_h <= 0 )
-                    wz_frame = -1;
             }
-            if( wz_frame >= 0 && frame_count >= wz_frame )
-            {
-                TORIRS_LOG("sim_window: frame=%ld %ldx%ld\n", wz_frame, wz_w, wz_h);
-                PlatformWindow_SetWindowSize(platform, (int)wz_w, (int)wz_h);
-                wz_frame = -1;
-            }
-        }
         }
     }
 
@@ -2795,7 +2879,8 @@ frame_loop_step(void)
     if( executor_cfg.js5_enabled &&
         PlatformXIO_Js5Pump(app.runner.px, PlatformWindow_Ticks64()) < 0 )
     {
-        TORIRS_ERR("torirs: JS5 cache producer stopped (error=%d)\n",
+        TORIRS_ERR(
+            "torirs: JS5 cache producer stopped (error=%d)\n",
             (int)PlatformXIO_Js5LastError(app.runner.px));
         return 0;
     }
@@ -2870,10 +2955,10 @@ frame_loop_step(void)
                  * so a drag onto a display of a different density re-picks the
                  * baked face for it, which raises no event of its own. */
                 int const density = PlatformWindow_PixelDensity(platform);
-                int const scale =
-                    main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
+                int const scale = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
                 if( App_SetChromeScale(&app, scale) && getenv("TORIRS_RESIZE_DEBUG") )
-                    TORIRS_LOG("chrome: scale %d (canvas %dx%d, density %d)\n",
+                    TORIRS_LOG(
+                        "chrome: scale %d (canvas %dx%d, density %d)\n",
                         App_ChromeScale(&app),
                         UITREE_LAYOUT_ROOT_W,
                         UITREE_LAYOUT_ROOT_H,
@@ -2908,7 +2993,8 @@ frame_loop_step(void)
             int capture_pending = 0;
             for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
                 capture_pending |= app.plugin_screenshots[i].in_use;
-            if( !capture_pending ) app_redraw = 0;
+            if( !capture_pending )
+                app_redraw = 0;
         }
 
         /*
@@ -2959,8 +3045,8 @@ frame_loop_step(void)
         int draw_period_ms;
         ToriRS_Pacer_SetCapFps(&frame_pacer, App_FrameCapFps(&app));
         draw_period_ms = ToriRS_Pacer_DrawPeriodMs(&frame_pacer);
-        if( app_redraw && !uncapped && !replay
-            && (App_AsyncPending(&app) || draw_period_ms > frame_pacer.period_ms) )
+        if( app_redraw && !uncapped && !replay &&
+            (App_AsyncPending(&app) || draw_period_ms > frame_pacer.period_ms) )
         {
             uint64_t const draw_now = PlatformWindow_Ticks64();
             if( draw_now < next_draw_ms )
@@ -3018,10 +3104,9 @@ frame_loop_step(void)
      */
     input_frame_pending =
         !App_InputFrameConsumed(&app) &&
-        (app.app_state == APP_STATE_READY ||
-            LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
-            LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
-            LibToriRS_Input_IsMouseHeld(input, TORIRSM_RIGHT));
+        (app.app_state == APP_STATE_READY || LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
+         LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
+         LibToriRS_Input_IsMouseHeld(input, TORIRSM_RIGHT));
     /* TORIRS_SWAP_DEBUG=1: how many of the last 300 loop iterations actually
      * re-rendered, beside the present cadence the platform prints. A screen
      * that updates less often than the loop runs is one of these two numbers
@@ -3037,10 +3122,12 @@ frame_loop_step(void)
             debug_rendered += app_redraw ? 1 : 0;
             if( ++debug_frames == 300 )
             {
-                fprintf(stderr,
+                fprintf(
+                    stderr,
                     "draw: %d of %d loop iterations re-rendered "
                     "(cap %d fps, draw period %d ms, async %d)\n",
-                    debug_rendered, debug_frames,
+                    debug_rendered,
+                    debug_frames,
                     App_FrameCapFps(&app),
                     ToriRS_Pacer_DrawPeriodMs(&frame_pacer),
                     App_AsyncPending(&app) ? 1 : 0);
@@ -3081,8 +3168,7 @@ frame_loop_step(void)
          * next frame picks up the new backbuffer size. */
         App_SyncUiScale(&app);
 
-        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
-            App_SyncFixedChromeInset(&app) )
+        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED && App_SyncFixedChromeInset(&app) )
         {
             int const fw = UITREE_LAYOUT_ROOT_W;
             int const fh = UITREE_LAYOUT_ROOT_H;
@@ -3134,59 +3220,59 @@ frame_loop_step(void)
                 TORIRS_LOG("resizable-chrome: canvas %dx%d (strip floor)\n", fw, fh);
         }
 
-    /*
-     * A clientscript changed the window mode (the Display panel's client-mode
-     * dropdown is [clientscript,settings_client_mode], and its whole body is
-     * setwindowmode + setdefaultwindowmode). The App cannot act on it — it has
-     * no window — so the shell does:
-     *
-     *   resizable -> the canvas tracks the window from now on, starting with
-     *                the size the window already is
-     *   fixed     -> stop tracking and pin the canvas back to the fixed frame,
-     *                which the window then letterboxes
-     *
-     * Both go out as TORIRS_CMD_WINDOW_RESIZE rather than a direct call, so a
-     * mode flip is in the recorded stream and replays at the frame it happened.
-     */
-    {
-        int keyboard_on = 0;
-        if( App_TakeTextInputChange(&app, &keyboard_on) )
-            PlatformWindow_SetTextInput(platform, keyboard_on);
-    }
-    {
-        int new_mode = 0;
-        if( App_TakeWindowModeChange(&app, &new_mode) )
+        /*
+         * A clientscript changed the window mode (the Display panel's client-mode
+         * dropdown is [clientscript,settings_client_mode], and its whole body is
+         * setwindowmode + setdefaultwindowmode). The App cannot act on it — it has
+         * no window — so the shell does:
+         *
+         *   resizable -> the canvas tracks the window from now on, starting with
+         *                the size the window already is
+         *   fixed     -> stop tracking and pin the canvas back to the fixed frame,
+         *                which the window then letterboxes
+         *
+         * Both go out as TORIRS_CMD_WINDOW_RESIZE rather than a direct call, so a
+         * mode flip is in the recorded stream and replays at the frame it happened.
+         */
         {
-            bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
-            TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
-            PlatformWindow_SetCanvasFollowsWindow(
-                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
-            if( !resizable )
-                CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
-            /* Strip inset is applied next frame once layout has measured it. */
+            int keyboard_on = 0;
+            if( App_TakeTextInputChange(&app, &keyboard_on) )
+                PlatformWindow_SetTextInput(platform, keyboard_on);
         }
         {
-            int layout_mode = 0;
-            if( App_TakeClientLayoutChange(&app, &layout_mode) )
+            int new_mode = 0;
+            if( App_TakeWindowModeChange(&app, &new_mode) )
             {
-                TORIRS_LOG("client_layout: mode=%d\n", layout_mode);
-                if( app.net && app.net->state == TORIRS_NET_GAME )
+                bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+                TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
+                PlatformWindow_SetCanvasFollowsWindow(
+                    platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                if( !resizable )
+                    CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                /* Strip inset is applied next frame once layout has measured it. */
+            }
+            {
+                int layout_mode = 0;
+                if( App_TakeClientLayoutChange(&app, &layout_mode) )
                 {
-                    uint8_t nsbuf[32];
-                    int nslen = net_out_window_status(
-                        app.net->rev,
-                        app.net->random_out,
-                        nsbuf,
-                        (int)sizeof(nsbuf),
-                        layout_mode,
-                        UITREE_LAYOUT_ROOT_W,
-                        UITREE_LAYOUT_ROOT_H);
-                    if( nslen > 0 )
-                        ToriRS_Network_SendRaw(app.net, nsbuf, nslen);
+                    TORIRS_LOG("client_layout: mode=%d\n", layout_mode);
+                    if( app.net && app.net->state == TORIRS_NET_GAME )
+                    {
+                        uint8_t nsbuf[32];
+                        int nslen = net_out_window_status(
+                            app.net->rev,
+                            app.net->random_out,
+                            nsbuf,
+                            (int)sizeof(nsbuf),
+                            layout_mode,
+                            UITREE_LAYOUT_ROOT_W,
+                            UITREE_LAYOUT_ROOT_H);
+                        if( nslen > 0 )
+                            ToriRS_Network_SendRaw(app.net, nsbuf, nslen);
+                    }
                 }
             }
         }
-    }
     }
 
     /*
@@ -3204,9 +3290,7 @@ frame_loop_step(void)
         struct ToriRS_AudioFeedback audio_feedback;
 
         PlatformAudio_SubmitAll(
-            audio,
-            audio_commands,
-            App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
+            audio, audio_commands, App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
         PlatformAudio_Update(audio);
         PlatformAudio_Feedback(audio, &audio_feedback);
         App_SetAudioFeedback(&app, &audio_feedback);
@@ -3272,8 +3356,7 @@ frame_loop_step(void)
             if( now_ms - win_start_ms >= 2000 )
             {
                 TORIRS_REPORT(
-                    "[fps] %.1f\n",
-                    (double)win_frames * 1000.0 / (double)(now_ms - win_start_ms));
+                    "[fps] %.1f\n", (double)win_frames * 1000.0 / (double)(now_ms - win_start_ms));
                 win_start_ms = now_ms;
                 win_frames = 0;
             }
@@ -3334,7 +3417,6 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
-
     /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
      * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
     if( getenv("TORIRS_EXIT_BMP") )
@@ -3358,19 +3440,20 @@ frame_loop_teardown(void)
                 LibToriRS_Input_End(hov_input);
                 App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
             }
-            TORIRS_LOG("sim_hover: parked at %d,%d hover_com_id=%d\n",
-                hov_x,
-                hov_y,
-                app.hover_com_id);
+            TORIRS_LOG(
+                "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
         }
         /* Post-mount snapshot: unlike the boot-time TORIRS_DUMP_TREE (which
          * runs before any server IF_OPENSUB lands), this dumps after the
          * frame loop so server-driven interface mounts are visible. */
         if( getenv("TORIRS_TRACE_NATIVE_UI") && app.plugins )
-            for( int i=0; i<PluginHost_Count(app.plugins); ++i )
-                TORIRS_REPORT("PLUGIN_STATE id=%s enabled=%d running=%d error=%d\n",
-                    PluginHost_Name(app.plugins,i),PluginHost_IsEnabled(app.plugins,i),
-                    PluginHost_IsRunning(app.plugins,i),PluginHost_Error(app.plugins,i)!=NULL);
+            for( int i = 0; i < PluginHost_Count(app.plugins); ++i )
+                TORIRS_REPORT(
+                    "PLUGIN_STATE id=%s enabled=%d running=%d error=%d\n",
+                    PluginHost_Name(app.plugins, i),
+                    PluginHost_IsEnabled(app.plugins, i),
+                    PluginHost_IsRunning(app.plugins, i),
+                    PluginHost_Error(app.plugins, i) != NULL);
         /* The local player's whole tiles and the plugin world-object counts,
          * for the tile-marker and loot-beam rules: a marker or a beam is
          * judged against what the engine holds, not only against its pixels. */
@@ -3378,11 +3461,31 @@ frame_loop_teardown(void)
         {
             int true_x, true_z, level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
             int in_use, active, built;
-            if( App_LocalPlayerTiles(&app, &true_x, &true_z, &level, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z) )
-                TORIRS_REPORT("NATIVE_PLAYER true=%d,%d,%d dest=%d,%d flag=%d,%d draw=%d,%d\n",
-                    true_x, true_z, level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z);
+            if( App_LocalPlayerTiles(
+                    &app,
+                    &true_x,
+                    &true_z,
+                    &level,
+                    &dest_x,
+                    &dest_z,
+                    &flag_x,
+                    &flag_z,
+                    &draw_x,
+                    &draw_z) )
+                TORIRS_REPORT(
+                    "NATIVE_PLAYER true=%d,%d,%d dest=%d,%d flag=%d,%d draw=%d,%d\n",
+                    true_x,
+                    true_z,
+                    level,
+                    dest_x,
+                    dest_z,
+                    flag_x,
+                    flag_z,
+                    draw_x,
+                    draw_z);
             App_PluginObjectCounts(&app, &in_use, &active, &built);
-            TORIRS_REPORT("PLUGIN_SCENE_OBJECTS in_use=%d active=%d built=%d\n", in_use, active, built);
+            TORIRS_REPORT(
+                "PLUGIN_SCENE_OBJECTS in_use=%d active=%d built=%d\n", in_use, active, built);
             App_TraceWorldEntities(&app);
         }
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
@@ -3414,7 +3517,8 @@ frame_loop_teardown(void)
                 /* TORIRS_REPORT, not TORIRS_LOG: the lever is the env var,
                  * and the optimised build is the one the geometry question is
                  * asked of. */
-                TORIRS_REPORT("BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
+                TORIRS_REPORT(
+                    "BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
                     "abs=%d,%d %dx%d "
                     "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
                     (unsigned)c->component_id,
@@ -3425,65 +3529,105 @@ frame_loop_teardown(void)
                      * slider bobble is 2860 when green and 4894 when grey, and
                      * that pair is the only way to tell the two apart from
                      * outside the renderer. */
-                    c->type == UIELEM_RS_GRAPHIC
-                        ? UITreeSceneBridge_SpriteCacheIdForScene(
-                              &app.bridge, c->u.rs_graphic.scene_id)
-                        : -1,
+                    c->type == UIELEM_RS_GRAPHIC ? UITreeSceneBridge_SpriteCacheIdForScene(
+                                                       &app.bridge, c->u.rs_graphic.scene_id)
+                                                 : -1,
                     dump_node_hidden(app.tree, (int32_t)i),
-                    c->position.abs_x, c->position.abs_y,
-                    c->position.abs_w, c->position.abs_h,
-                    c->position.width, c->position.height,
-                    (int)c->position.width_mode, (int)c->position.height_mode,
-                    (int)c->position.x_mode, (int)c->position.y_mode,
+                    c->position.abs_x,
+                    c->position.abs_y,
+                    c->position.abs_w,
+                    c->position.abs_h,
+                    c->position.width,
+                    c->position.height,
+                    (int)c->position.width_mode,
+                    (int)c->position.height_mode,
+                    (int)c->position.x_mode,
+                    (int)c->position.y_mode,
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_width : -1,
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
-                    c->scroll_x, c->scroll_y);
+                    c->scroll_x,
+                    c->scroll_y);
                 if( getenv("TORIRS_TRACE_NATIVE_UI") )
-                    TORIRS_REPORT("NATIVE_UI node=%u incarnation=%" PRIu64 " parent=%d com=%d "
-                        "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u member=%u role=%u "
+                    TORIRS_REPORT(
+                        "NATIVE_UI node=%u incarnation=%" PRIu64 " parent=%d com=%d "
+                        "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u "
+                        "member=%u role=%u "
                         "box=%d,%d,%d,%d cs1_scripts=%d active=%d\n",
-                        i, c->incarnation, c->parent, c->component_id,
-                        UITree_ComponentTypeStr(c->type), dump_node_hidden(app.tree, (int32_t)i),
-                        UITree_NodeNativeVisible(app.tree, &app.ui_host, (int32_t)i, app.hover_com_id),
+                        i,
+                        c->incarnation,
+                        c->parent,
+                        c->component_id,
+                        UITree_ComponentTypeStr(c->type),
+                        dump_node_hidden(app.tree, (int32_t)i),
+                        UITree_NodeNativeVisible(
+                            app.tree, &app.ui_host, (int32_t)i, app.hover_com_id),
                         UITree_NodeNativeInputPresent(app.tree, &app.ui_host, (int32_t)i),
                         c->native_hide,
-                        c->slot_tag, c->frame_member_plus1, c->role_id,
-                        c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
-                        c->behavior.scripts_count, c->cs1_active);
+                        c->slot_tag,
+                        c->frame_member_plus1,
+                        c->role_id,
+                        c->position.abs_x,
+                        c->position.abs_y,
+                        c->position.abs_w,
+                        c->position.abs_h,
+                        c->behavior.scripts_count,
+                        c->cs1_active);
                 /* Every widget a plugin OWNS, by the key it created it under:
                  * a text's length and hash, so a caption's content can be
                  * checked; an image's scene id, so its draw command can be
                  * found in the EMIT_EXIT list; and whether it is hidden, so a
                  * plate the plugin put away is not read as one it drew. */
-                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner && c->type==UIELEM_RS_TEXT )
-                {
-                    char const* text=c->u.rs_text.text ? c->u.rs_text.text : "";
-                    uint64_t hash=UINT64_C(14695981039346656037);
-                    for( unsigned char const* p=(unsigned char const*)text; *p; ++p ) hash=(hash^*p)*UINT64_C(1099511628211);
-                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 " hidden=%d\n",
-                        c->plugin_owner,c->plugin_key ? c->plugin_key : "",i,
-                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,strlen(text),hash,
-                        dump_node_hidden(app.tree, (int32_t)i));
-                }
-                else if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner )
-                {
-                    TORIRS_REPORT("OWNED_WIDGET owner=%" PRIu64 " key=%s node=%u box=%d,%d,%d,%d type=%s scene=%d hidden=%d\n",
-                        c->plugin_owner,c->plugin_key ? c->plugin_key : "",i,
-                        c->position.abs_x,c->position.abs_y,c->position.abs_w,c->position.abs_h,
-                        UITree_ComponentTypeStr(c->type),
-                        c->type == UIELEM_RS_GRAPHIC ? c->u.rs_graphic.scene_id : -1,
-                        dump_node_hidden(app.tree, (int32_t)i));
-                }
-                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->type == UIELEM_RS_TEXT && c->u.rs_text.input )
+                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner &&
+                    c->type == UIELEM_RS_TEXT )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
                     uint64_t hash = UINT64_C(14695981039346656037);
                     for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
                         hash = (hash ^ *p) * UINT64_C(1099511628211);
-                    TORIRS_REPORT("NATIVE_INPUT parent=%d com=%d focused=%d len=%zu hash=%016" PRIx64 "\n",
+                    TORIRS_REPORT(
+                        "OWNED_WIDGET owner=%" PRIu64
+                        " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 " hidden=%d\n",
+                        c->plugin_owner,
+                        c->plugin_key ? c->plugin_key : "",
+                        i,
+                        c->position.abs_x,
+                        c->position.abs_y,
+                        c->position.abs_w,
+                        c->position.abs_h,
+                        strlen(text),
+                        hash,
+                        dump_node_hidden(app.tree, (int32_t)i));
+                }
+                else if( getenv("TORIRS_TRACE_NATIVE_UI") && c->plugin_owner )
+                {
+                    TORIRS_REPORT(
+                        "OWNED_WIDGET owner=%" PRIu64
+                        " key=%s node=%u box=%d,%d,%d,%d type=%s scene=%d hidden=%d\n",
+                        c->plugin_owner,
+                        c->plugin_key ? c->plugin_key : "",
+                        i,
+                        c->position.abs_x,
+                        c->position.abs_y,
+                        c->position.abs_w,
+                        c->position.abs_h,
+                        UITree_ComponentTypeStr(c->type),
+                        c->type == UIELEM_RS_GRAPHIC ? c->u.rs_graphic.scene_id : -1,
+                        dump_node_hidden(app.tree, (int32_t)i));
+                }
+                if( getenv("TORIRS_TRACE_NATIVE_UI") && c->type == UIELEM_RS_TEXT &&
+                    c->u.rs_text.input )
+                {
+                    char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
+                    uint64_t hash = UINT64_C(14695981039346656037);
+                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
+                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    TORIRS_REPORT(
+                        "NATIVE_INPUT parent=%d com=%d focused=%d len=%zu hash=%016" PRIx64 "\n",
                         c->parent >= 0 ? app.tree->components[c->parent].component_id : -1,
-                        c->component_id, UITree_InputFocusId(app.tree) == c->component_id,
-                        strlen(text), hash);
+                        c->component_id,
+                        UITree_InputFocusId(app.tree) == c->component_id,
+                        strlen(text),
+                        hash);
                 }
             }
             /* Every semantic role that resolves, and the box of the node it
@@ -3497,15 +3641,22 @@ frame_loop_teardown(void)
                 if( node < 0 )
                     continue;
                 c = &app.tree->components[node];
-                TORIRS_REPORT("ROLE_WIDGET role=%s node=%d com=0x%08x box=%d,%d,%d,%d hidden=%d\n",
-                    app.ui_roles.entries[ri].name, (int)node, (unsigned)c->component_id,
-                    c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h,
+                TORIRS_REPORT(
+                    "ROLE_WIDGET role=%s node=%d com=0x%08x box=%d,%d,%d,%d hidden=%d\n",
+                    app.ui_roles.entries[ri].name,
+                    (int)node,
+                    (unsigned)c->component_id,
+                    c->position.abs_x,
+                    c->position.abs_y,
+                    c->position.abs_w,
+                    c->position.abs_h,
                     dump_node_hidden(app.tree, node));
             }
         }
 
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            TORIRS_REPORT("NATIVE_CHAT_MODES public=%d private=%d trade=%d\n",
+            TORIRS_REPORT(
+                "NATIVE_CHAT_MODES public=%d private=%d trade=%d\n",
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC],
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE],
                 app.slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE]);
@@ -3527,9 +3678,16 @@ frame_loop_teardown(void)
                         members += hl->member[kind][i].group == group;
                     for( int i = 0; i < hl->named_count; i++ )
                         members += hl->named[i].kind == kind && hl->named[i].group == group;
-                    TORIRS_REPORT("NATIVE_HIGHLIGHT kind=%d group=%d colour=%06x outline=%d opacity=%d flags=%d members=%d\n",
-                        kind, group, style->colour & 0xffffff, style->outline_width,
-                        style->opacity, style->flags, members);
+                    TORIRS_REPORT(
+                        "NATIVE_HIGHLIGHT kind=%d group=%d colour=%06x outline=%d opacity=%d "
+                        "flags=%d members=%d\n",
+                        kind,
+                        group,
+                        style->colour & 0xffffff,
+                        style->outline_width,
+                        style->opacity,
+                        style->flags,
+                        members);
                 }
         }
 
@@ -3542,18 +3700,31 @@ frame_loop_teardown(void)
         {
             int const active = PluginHost_PanelActive(app.plugins);
             uint32_t const generation = PluginHost_PanelSelectionGeneration(app.plugins);
-            int const count = active >= 0 ? PluginHost_PanelWidgetCount(app.plugins, generation) : 0;
-            TORIRS_REPORT("PLUGIN_PANEL visible=%d plugin=%s view=%d generation=%u widgets=%d\n",
-                app.plugin_panel_visible, active >= 0 ? PluginHost_Name(app.plugins, active) : "-",
-                PluginHost_PanelView(app.plugins), generation, count);
+            int const count =
+                active >= 0 ? PluginHost_PanelWidgetCount(app.plugins, generation) : 0;
+            TORIRS_REPORT(
+                "PLUGIN_PANEL visible=%d plugin=%s view=%d generation=%u widgets=%d\n",
+                app.plugin_panel_visible,
+                active >= 0 ? PluginHost_Name(app.plugins, active) : "-",
+                PluginHost_PanelView(app.plugins),
+                generation,
+                count);
             for( int i = 0; i < count; i++ )
             {
-                struct ToriRS_PanelWidget const* w = PluginHost_PanelWidgetAt(app.plugins, generation, i);
+                struct ToriRS_PanelWidget const* w =
+                    PluginHost_PanelWidgetAt(app.plugins, generation, i);
                 if( !w )
                     continue;
-                TORIRS_REPORT("PLUGIN_PANEL_WIDGET index=%d kind=%d id=%s label=%s selected=%d value=%s text=%s\n",
-                    i, w->kind, w->id, w->label, w->selected,
-                    w->structured_select ? w->selected_value : "", w->text);
+                TORIRS_REPORT(
+                    "PLUGIN_PANEL_WIDGET index=%d kind=%d id=%s label=%s selected=%d value=%s "
+                    "text=%s\n",
+                    i,
+                    w->kind,
+                    w->id,
+                    w->label,
+                    w->selected,
+                    w->structured_select ? w->selected_value : "",
+                    w->text);
             }
             /* Custom rows draw through the plugin's own on_ui_draw into a
              * region the executor allotted; the region is the only native
@@ -3563,19 +3734,30 @@ frame_loop_teardown(void)
                 struct AppPluginPanelRow const* row = &app.plugin_panel_rows[i];
                 if( row->widget_kind != TORIRS_PANEL_WIDGET_CUSTOM || !row->custom_layout_valid )
                     continue;
-                TORIRS_REPORT("PLUGIN_PANEL_CUSTOM id=%s region=%d,%d,%d,%d\n", row->widget_id,
-                    row->custom_region.x, row->custom_region.y, row->custom_region.w, row->custom_region.h);
+                TORIRS_REPORT(
+                    "PLUGIN_PANEL_CUSTOM id=%s region=%d,%d,%d,%d\n",
+                    row->widget_id,
+                    row->custom_region.x,
+                    row->custom_region.y,
+                    row->custom_region.w,
+                    row->custom_region.h);
             }
             /* The client's own stat table, as the server has stated it: a
              * skill with last_seen 0 has no reading yet (the plugin API says
              * so too), which is what separates the login burst from a gain. */
             for( int i = 0; i < RS_PLAYER_STATS_SKILL_COUNT; i++ )
-                TORIRS_REPORT("NATIVE_SKILL index=%d base=%d current=%d xp=%d stated=%d\n", i,
-                    app.stats.base_level[i], app.stats.current_level[i], app.stats.xp[i],
+                TORIRS_REPORT(
+                    "NATIVE_SKILL index=%d base=%d current=%d xp=%d stated=%d\n",
+                    i,
+                    app.stats.base_level[i],
+                    app.stats.current_level[i],
+                    app.stats.xp[i],
                     app.stats.last_seen_level[i]);
-            TORIRS_REPORT("NATIVE_DEVICE_OPTION ui_scale=%d ui_scale_mode=%d\n",
+            TORIRS_REPORT(
+                "NATIVE_DEVICE_OPTION ui_scale=%d ui_scale_mode=%d\n",
                 RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE),
-                RS_CS2Host_GetOption(&app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE));
+                RS_CS2Host_GetOption(
+                    &app.host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE));
         }
 
         /* TORIRS_DUMP_EMIT_EXIT: post-net draw list (the boot-time
@@ -3610,20 +3792,43 @@ frame_loop_teardown(void)
                  * parser (cs2dom's emit_parity.js) matches an unanchored
                  * prefix, so trailing fields are additive. A pixel diff on a
                  * model widget is unexplainable without the angles. */
-                TORIRS_REPORT("EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
+                TORIRS_REPORT(
+                    "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d "
+                    "model=%d "
                     "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d "
                     "mzoom=%d mxan=%d myan=%d mzan=%d mox=%d moy=%d\n",
-                    i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
-                    d->x, d->y, d->w, d->h, d->scene_id, d->model_id, d->color, d->filled, d->trans,
-                    d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h,
-                    d->model_zoom, d->model_xan, d->model_yan, d->model_zan,
-                    d->model_x_offset, d->model_y_offset);
+                    i,
+                    (int)d->kind,
+                    d->component_id,
+                    group,
+                    d->component_id & 0xFFFF,
+                    d->x,
+                    d->y,
+                    d->w,
+                    d->h,
+                    d->scene_id,
+                    d->model_id,
+                    d->color,
+                    d->filled,
+                    d->trans,
+                    d->tiled,
+                    d->clip.x,
+                    d->clip.y,
+                    d->clip.w,
+                    d->clip.h,
+                    d->model_zoom,
+                    d->model_xan,
+                    d->model_yan,
+                    d->model_zan,
+                    d->model_x_offset,
+                    d->model_y_offset);
             }
         }
         if( torirs_env_net_debug() && app.tree )
         {
             for( int t = 0; t < 14; t++ )
-                TORIRS_LOG("exit: tab %d overlay=%d owner=%d\n",
+                TORIRS_LOG(
+                    "exit: tab %d overlay=%d owner=%d\n",
                     t,
                     app.slots.side_overlay_id[t],
                     app.slots.side_owner_index[t]);
@@ -3631,7 +3836,8 @@ frame_loop_teardown(void)
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
                 if( c->type == UIELEM_BUILTIN_TAB_ICONS )
-                    TORIRS_LOG("exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
+                    TORIRS_LOG(
+                        "exit: tab_icon idx=%u tab=%d freed=%d hide=%d scene=%d x=%d y=%d\n",
                         i,
                         c->u.tab_icon.tabno,
                         (int)c->freed,
@@ -3641,17 +3847,18 @@ frame_loop_teardown(void)
                         c->position.abs_y);
             }
             for( int t = 0; t < 14; t++ )
-                TORIRS_LOG("exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
+                TORIRS_LOG(
+                    "exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
                     t,
                     RS_UISlots_TabEnabled(&app.slots, t),
                     RS_UISlots_TabFlashHidden(&app.slots, t, app.logic_cycle),
                     app.slots.flash_tab);
             for( int f = 0; f < 6; f++ )
-                TORIRS_LOG("exit: scene_font %d has=%d\n",
-                    f,
-                    (int)ToriDraw_SceneFontHas(app.scene, f));
+                TORIRS_LOG(
+                    "exit: scene_font %d has=%d\n", f, (int)ToriDraw_SceneFontHas(app.scene, f));
             TORIRS_LOG("exit: hover_com_id=%d\n", app.hover_com_id);
-            TORIRS_LOG("exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
+            TORIRS_LOG(
+                "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
                 app.minimap_view_valid,
                 app.minimap_emit_desc.x,
                 app.minimap_emit_desc.y,
@@ -3668,7 +3875,8 @@ frame_loop_teardown(void)
                     struct UITreeComponent const* c = &app.tree->components[i];
                     if( c->component_id != want )
                         continue;
-                    TORIRS_LOG("exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
+                    TORIRS_LOG(
+                        "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
                         "abs=%d,%d wh=%dx%d font=%d color=0x%x "
                         "textalign=%d,%d lineheight=%d parent=%d\n",
                         want,
@@ -3676,8 +3884,7 @@ frame_loop_teardown(void)
                         (int)c->type,
                         (int)c->freed,
                         (int)c->behavior.hide,
-                        c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text
-                                                                      : "",
+                        c->type == UIELEM_RS_TEXT && c->u.rs_text.text ? c->u.rs_text.text : "",
                         c->position.abs_x,
                         c->position.abs_y,
                         c->position.abs_w,
@@ -3695,63 +3902,118 @@ frame_loop_teardown(void)
         assert(pixels);
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         if( getenv("TORIRS_TRACE_NATIVE_UI") && app.tree )
-            for( int i=0;i<RS_OVERLAY_MAX;++i )
+            for( int i = 0; i < RS_OVERLAY_MAX; ++i )
             {
-                struct RS_Overlay const* overlay=RS_OverlayGet(&app.host.overlay,i);
-                if( !overlay || overlay->anchor!=RS_OVERLAY_ANCHOR_STATIC ||
-                    overlay->static_type!=RS_OVERLAY_TYPE_COORD || overlay->slot!=0 ) continue;
-                int root=UITree_FindByComponentId(app.tree,overlay->component_id);
-                if( root<0 ) continue;
-                int emitted=0;
-                for( int j=0;j<app.emit.count;++j )
+                struct RS_Overlay const* overlay = RS_OverlayGet(&app.host.overlay, i);
+                if( !overlay || overlay->anchor != RS_OVERLAY_ANCHOR_STATIC ||
+                    overlay->static_type != RS_OVERLAY_TYPE_COORD || overlay->slot != 0 )
+                    continue;
+                int root = UITree_FindByComponentId(app.tree, overlay->component_id);
+                if( root < 0 )
+                    continue;
+                int emitted = 0;
+                for( int j = 0; j < app.emit.count; ++j )
                 {
-                    int node=app.emit.cmds[j].node_index,guard=0;
-                    while( node>=0 && (uint32_t)node<app.tree->component_count && guard++<(int)app.tree->component_count )
+                    int node = app.emit.cmds[j].node_index, guard = 0;
+                    while( node >= 0 && (uint32_t)node < app.tree->component_count &&
+                           guard++ < (int)app.tree->component_count )
                     {
-                        if( node==root ) { ++emitted;break; }
-                        node=app.tree->components[node].parent;
+                        if( node == root )
+                        {
+                            ++emitted;
+                            break;
+                        }
+                        node = app.tree->components[node].parent;
                     }
                 }
-                struct UITreeComponent const* c=&app.tree->components[root];
-                int captions=0,hidden_captions=0,caption_emits=0,buttons=0,live_buttons=0;
-                for( int child=c->first_child;child>=0;child=app.tree->components[child].next_sibling )
+                struct UITreeComponent const* c = &app.tree->components[root];
+                int captions = 0, hidden_captions = 0, caption_emits = 0, buttons = 0,
+                    live_buttons = 0;
+                for( int child = c->first_child; child >= 0;
+                     child = app.tree->components[child].next_sibling )
                 {
-                    struct UITreeComponent const* item=&app.tree->components[child];
-                    if( item->type==UIELEM_RS_TEXT && item->position.width_mode==1 && item->position.width==108 )
+                    struct UITreeComponent const* item = &app.tree->components[child];
+                    if( item->type == UIELEM_RS_TEXT && item->position.width_mode == 1 &&
+                        item->position.width == 108 )
                     {
-                        ++captions;hidden_captions+=item->widget_hidden!=0;
-                        int painted=0;
-                        for( int j=0;j<app.emit.count;++j ) if( app.emit.cmds[j].node_index==child ) { ++caption_emits;++painted; }
-                        char const* text=item->u.rs_text.text ? item->u.rs_text.text : "";
-                        uint64_t hash=UINT64_C(14695981039346656037);
-                        for( unsigned char const* p=(unsigned char const*)text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
-                        TORIRS_REPORT("NATIVE_GROUND_CAPTION root=%d node=%d painted=%d box=%d,%d,%d,%d color=%06x len=%zu hash=%016" PRIx64 "\n",
-                            root,child,painted,item->position.abs_x,item->position.abs_y,item->position.abs_w,item->position.abs_h,
-                            item->u.rs_text.color&0xffffffu,strlen(text),hash);
+                        ++captions;
+                        hidden_captions += item->widget_hidden != 0;
+                        int painted = 0;
+                        for( int j = 0; j < app.emit.count; ++j )
+                            if( app.emit.cmds[j].node_index == child )
+                            {
+                                ++caption_emits;
+                                ++painted;
+                            }
+                        char const* text = item->u.rs_text.text ? item->u.rs_text.text : "";
+                        uint64_t hash = UINT64_C(14695981039346656037);
+                        for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
+                            hash = (hash ^ *p) * UINT64_C(1099511628211);
+                        TORIRS_REPORT(
+                            "NATIVE_GROUND_CAPTION root=%d node=%d painted=%d box=%d,%d,%d,%d "
+                            "color=%06x len=%zu hash=%016" PRIx64 "\n",
+                            root,
+                            child,
+                            painted,
+                            item->position.abs_x,
+                            item->position.abs_y,
+                            item->position.abs_w,
+                            item->position.abs_h,
+                            item->u.rs_text.color & 0xffffffu,
+                            strlen(text),
+                            hash);
                     }
-                    bool has_op=false;
+                    bool has_op = false;
                     if( item->menu_options )
-                        for( int op=0;op<UITREE_MENU_OPTION_SLOTS;++op ) has_op|=item->menu_options->ops[op][0]!=0;
+                        for( int op = 0; op < UITREE_MENU_OPTION_SLOTS; ++op )
+                            has_op |= item->menu_options->ops[op][0] != 0;
                     if( has_op )
                     {
-                        ++buttons;bool live=UITree_NodeNativeInputPresent(app.tree,&app.ui_host,child);live_buttons+=live;
-                        TORIRS_REPORT("NATIVE_GROUND_CONTROL root=%d node=%d live=%d box=%d,%d,%d,%d\n",
-                            root,child,live,item->position.abs_x,item->position.abs_y,item->position.abs_w,item->position.abs_h);
+                        ++buttons;
+                        bool live = UITree_NodeNativeInputPresent(app.tree, &app.ui_host, child);
+                        live_buttons += live;
+                        TORIRS_REPORT(
+                            "NATIVE_GROUND_CONTROL root=%d node=%d live=%d box=%d,%d,%d,%d\n",
+                            root,
+                            child,
+                            live,
+                            item->position.abs_x,
+                            item->position.abs_y,
+                            item->position.abs_w,
+                            item->position.abs_h);
                     }
                 }
-                TORIRS_REPORT("NATIVE_GROUND_OVERLAY root=%d widget_hide=%d native_hide=%d emitted=%d coord=%d captions=%d hidden_captions=%d caption_emits=%d buttons=%d live_buttons=%d\n",
-                    root,c->widget_hidden,c->native_hide,emitted,overlay->coord,captions,hidden_captions,caption_emits,buttons,live_buttons);
+                TORIRS_REPORT(
+                    "NATIVE_GROUND_OVERLAY root=%d widget_hide=%d native_hide=%d emitted=%d "
+                    "coord=%d captions=%d hidden_captions=%d caption_emits=%d buttons=%d "
+                    "live_buttons=%d\n",
+                    root,
+                    c->widget_hidden,
+                    c->native_hide,
+                    emitted,
+                    overlay->coord,
+                    captions,
+                    hidden_captions,
+                    caption_emits,
+                    buttons,
+                    live_buttons);
             }
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            for( int i=0; i<app.entity_overlay_count; ++i )
+            for( int i = 0; i < app.entity_overlay_count; ++i )
             {
-                struct UITreeEntityOverlay const* entry=&app.entity_overlays[i];
-                if( entry->kind!=UITREE_ENTITY_OVERLAY_TEXT ) continue;
-                uint64_t hash=UINT64_C(14695981039346656037);
-                for( unsigned char const* p=(unsigned char const*)entry->text;*p;++p )
-                    hash=(hash^*p)*UINT64_C(1099511628211);
-                TORIRS_REPORT("OVERLAY_TEXT x=%d y=%d color=%06x len=%zu hash=%016" PRIx64 "\n",
-                    entry->x,entry->y,entry->color&0xffffffu,strlen(entry->text),hash);
+                struct UITreeEntityOverlay const* entry = &app.entity_overlays[i];
+                if( entry->kind != UITREE_ENTITY_OVERLAY_TEXT )
+                    continue;
+                uint64_t hash = UINT64_C(14695981039346656037);
+                for( unsigned char const* p = (unsigned char const*)entry->text; *p; ++p )
+                    hash = (hash ^ *p) * UINT64_C(1099511628211);
+                TORIRS_REPORT(
+                    "OVERLAY_TEXT x=%d y=%d color=%06x len=%zu hash=%016" PRIx64 "\n",
+                    entry->x,
+                    entry->y,
+                    entry->color & 0xffffffu,
+                    strlen(entry->text),
+                    hash);
             }
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -3766,15 +4028,11 @@ frame_loop_teardown(void)
          * comparison against the recorded session. */
         if( getenv("TORIRS_REPLAY_BMP") )
         {
-            int* pixels =
-                calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             assert(pixels);
             App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             bmp_write_file(
-                getenv("TORIRS_REPLAY_BMP"),
-                pixels,
-                UITREE_LAYOUT_ROOT_W,
-                UITREE_LAYOUT_ROOT_H);
+                getenv("TORIRS_REPLAY_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             TORIRS_LOG("wrote %s\n", getenv("TORIRS_REPLAY_BMP"));
             free(pixels);
         }
@@ -3796,7 +4054,8 @@ frame_loop_teardown(void)
     if( ToriRS_AudioTraceEnabled() )
     {
         struct PlatformAudioStats stats = PlatformAudio_Stats(audio);
-        TORIRS_ERR("audio: %d commands, %d voices started (%d stolen, %d rejected), "
+        TORIRS_ERR(
+            "audio: %d commands, %d voices started (%d stolen, %d rejected), "
             "%d frames played, stream %d dropped / %d starved, %d assets still live\n",
             stats.commands,
             stats.voices_started,
@@ -3806,11 +4065,13 @@ frame_loop_teardown(void)
             stats.stream_dropped_frames,
             stats.stream_starved_frames,
             stats.assets_live);
-        TORIRS_LOG("audio: bus gains effects/music/area %d/%d/%d\n",
+        TORIRS_LOG(
+            "audio: bus gains effects/music/area %d/%d/%d\n",
             stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS],
             stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC],
             stats.bus_volume[TORIRS_AUDIO_BUS_AREA]);
-        TORIRS_LOG("audio: %d callbacks, %d underruns, period %.2f ms, "
+        TORIRS_LOG(
+            "audio: %d callbacks, %d underruns, period %.2f ms, "
             "interval %.2f/%.2f/%.2f ms, jitter peak %.2f ms, render peak %.2f ms\n",
             stats.updates,
             stats.underruns,
@@ -3820,7 +4081,8 @@ frame_loop_teardown(void)
             stats.update_interval_max_ms,
             stats.callback_jitter_max_ms,
             stats.render_max_ms);
-        TORIRS_LOG("audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
+        TORIRS_LOG(
+            "audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
             stats.queue_min_frames,
             stats.queue_mean_frames,
             stats.queue_max_frames,
@@ -3888,7 +4150,8 @@ set_executor_js5_host(char const* value)
     size_t len = strlen(value);
     if( len == 0 || len >= sizeof(executor_cfg.js5_host) )
     {
-        TORIRS_LOG("torirs: --js5-host must contain 1..%zu characters\n",
+        TORIRS_LOG(
+            "torirs: --js5-host must contain 1..%zu characters\n",
             sizeof(executor_cfg.js5_host) - 1);
         return -1;
     }
@@ -3952,7 +4215,8 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
         struct Js5Progress progress;
         PlatformXIOJs5Cache_GetProgress(prime, &progress);
         if( status < 0 )
-            TORIRS_ERR("torirs: JS5 reference-table prime failed (error=%d state=%d "
+            TORIRS_ERR(
+                "torirs: JS5 reference-table prime failed (error=%d state=%d "
                 "status=%u port=%u)\n",
                 (int)progress.last_error,
                 (int)progress.state,
@@ -3962,7 +4226,8 @@ executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
             /* Report here as well as after App_Init: this pass is the one that
              * actually downloads on a cold cache, so without it a first boot
              * reports the second pass's local-validation cost and looks free. */
-            TORIRS_LOG("torirs: JS5 reference tables primed (%u references, %llu network bytes)\n",
+            TORIRS_LOG(
+                "torirs: JS5 reference tables primed (%u references, %llu network bytes)\n",
                 (unsigned)progress.references_ready,
                 (unsigned long long)progress.bytes_received);
     }
@@ -3981,7 +4246,8 @@ executor_prepare_js5_cache(void)
     sparse = RSCache_Dat2DiskNewSparseFromDirectory(cfg.cache_dir);
     if( !sparse )
     {
-        TORIRS_ERR("torirs: cannot create/open incremental dat2 cache at %s "
+        TORIRS_ERR(
+            "torirs: cannot create/open incremental dat2 cache at %s "
             "(the directory must already exist)\n",
             cfg.cache_dir);
         return -1;
@@ -4018,7 +4284,8 @@ executor_attach_and_prime_js5(void)
     {
         struct Js5Progress progress;
         PlatformXIO_Js5GetProgress(app.runner.px, &progress);
-        TORIRS_ERR("torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
+        TORIRS_ERR(
+            "torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
             (int)progress.last_error,
             (int)progress.state,
             (unsigned)progress.handshake_status,
@@ -4029,14 +4296,14 @@ executor_attach_and_prime_js5(void)
     {
         struct Js5Progress progress;
         PlatformXIO_Js5GetProgress(app.runner.px, &progress);
-        TORIRS_LOG("torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
+        TORIRS_LOG(
+            "torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
             (unsigned)progress.references_ready,
             (unsigned long long)progress.bytes_received);
     }
     return 0;
 }
 #endif
-
 
 struct MainArgState
 {
@@ -4058,7 +4325,8 @@ struct MainArgState
 static void
 main_print_usage(char const* program)
 {
-    TORIRS_LOG("usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
+    TORIRS_LOG(
+        "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
         "[--pass P] [--rev lc254|lc245_2|xrsps233] "
@@ -4153,11 +4421,8 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--js5-revision") == 0 && argi + 1 < argc )
         {
             if( parse_executor_cli_int(
-                    "--js5-revision",
-                    argv[++argi],
-                    1,
-                    2147483647,
-                    &executor_cfg.js5_revision) != 0 )
+                    "--js5-revision", argv[++argi], 1, 2147483647, &executor_cfg.js5_revision) !=
+                0 )
                 return 0;
             executor_cfg.js5_revision_explicit = 1;
             continue;
@@ -4288,11 +4553,13 @@ main_parse_argument_layer(
             state->use_gles2 = 0;
             continue;
 #elif defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
-            TORIRS_ERR("torirs: this build renders through WebGL1 — use --webgl1%s\n",
+            TORIRS_ERR(
+                "torirs: this build renders through WebGL1 — use --webgl1%s\n",
                 zbuffer ? "-zbuffer" : "");
             return 0;
 #elif defined(TORIRS_HAVE_GLES2)
-            TORIRS_ERR("torirs: this build renders through GLES2 — use --gles2%s\n",
+            TORIRS_ERR(
+                "torirs: this build renders through GLES2 — use --gles2%s\n",
                 zbuffer ? "-zbuffer" : "");
             return 0;
 #else
@@ -4317,18 +4584,20 @@ main_parse_argument_layer(
             /* WebGL1 is a browser API. The renderer is the same one, but the
              * flag is refused rather than aliased, so a manifest written for
              * the browser does not run on a phone unnoticed. */
-            TORIRS_ERR("torirs: %s is the browser build's flag — use --gles2%s\n",
+            TORIRS_ERR(
+                "torirs: %s is the browser build's flag — use --gles2%s\n",
                 argv[argi],
                 zbuffer ? "-zbuffer" : "");
             return 0;
 #elif defined(TORIRS_HAVE_GL3)
-            TORIRS_LOG("torirs: %s is the browser build's flag — use --opengl3%s\n",
+            TORIRS_LOG(
+                "torirs: %s is the browser build's flag — use --opengl3%s\n",
                 argv[argi],
                 zbuffer ? "-zbuffer" : "");
             return 0;
 #else
-            TORIRS_LOG("torirs: %s is the browser build's flag and is not available here\n",
-                argv[argi]);
+            TORIRS_LOG(
+                "torirs: %s is the browser build's flag and is not available here\n", argv[argi]);
             return 0;
 #endif
         }
@@ -4347,8 +4616,8 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             continue;
 #else
-            TORIRS_ERR("torirs: %s is the Android build's flag and is not available here\n",
-                argv[argi]);
+            TORIRS_ERR(
+                "torirs: %s is the Android build's flag and is not available here\n", argv[argi]);
             return 0;
 #endif
         }
@@ -4366,13 +4635,14 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             continue;
 #elif defined(TORIRS_HAVE_GLES2)
-            TORIRS_ERR("torirs: %s is the Android build's flag — use --webgl1%s\n",
+            TORIRS_ERR(
+                "torirs: %s is the Android build's flag — use --webgl1%s\n",
                 argv[argi],
                 zbuffer ? "-zbuffer" : "");
             return 0;
 #else
-            TORIRS_ERR("torirs: %s is the Android build's flag and is not available here\n",
-                argv[argi]);
+            TORIRS_ERR(
+                "torirs: %s is the Android build's flag and is not available here\n", argv[argi]);
             return 0;
 #endif
         }
@@ -4436,7 +4706,8 @@ main_parse_argument_layer(
         }
 
     invalid:
-        TORIRS_ERR("torirs: invalid %s argument '%s'\n",
+        TORIRS_ERR(
+            "torirs: invalid %s argument '%s'\n",
             from_manifest ? "[client:args]" : "command-line",
             argv[argi]);
         main_print_usage(program);
@@ -4462,19 +4733,13 @@ main_parse_argument_layer(
 static int
 main_argument_takes_value(char const* argument)
 {
-    return strcmp(argument, "--manifest") == 0 ||
-           strcmp(argument, "--port") == 0 ||
-           strcmp(argument, "--revconfig") == 0 ||
-           strcmp(argument, "--revconfig-cache") == 0 ||
-           strcmp(argument, "--connect") == 0 ||
-           strcmp(argument, "--user") == 0 ||
-           strcmp(argument, "--pass") == 0 ||
-           strcmp(argument, "--rev") == 0 ||
-           strcmp(argument, "--js5-host") == 0 ||
-           strcmp(argument, "--js5-port") == 0 ||
+    return strcmp(argument, "--manifest") == 0 || strcmp(argument, "--port") == 0 ||
+           strcmp(argument, "--revconfig") == 0 || strcmp(argument, "--revconfig-cache") == 0 ||
+           strcmp(argument, "--connect") == 0 || strcmp(argument, "--user") == 0 ||
+           strcmp(argument, "--pass") == 0 || strcmp(argument, "--rev") == 0 ||
+           strcmp(argument, "--js5-host") == 0 || strcmp(argument, "--js5-port") == 0 ||
            strcmp(argument, "--js5-fallback-port") == 0 ||
-           strcmp(argument, "--js5-revision") == 0 ||
-           strcmp(argument, "--windowmode") == 0 ||
+           strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0;
 }
 
@@ -4558,12 +4823,7 @@ main(
     for( i = 0; i < boot_manifest.client_arg_count; i++ )
         manifest_argv[i] = boot_manifest.client_args[i];
     if( !main_parse_argument_layer(
-            boot_manifest.client_arg_count,
-            manifest_argv,
-            0,
-            1,
-            argv[0],
-            &arg_state) )
+            boot_manifest.client_arg_count, manifest_argv, 0, 1, argv[0], &arg_state) )
         return 1;
     if( !main_parse_argument_layer(argc, argv, 1, 0, argv[0], &arg_state) )
         return 1;
@@ -4600,12 +4860,12 @@ main(
             cfg.cache_revision = named.revision;
             cfg.cache_quirks = named.quirks;
             cfg.cache_identity_set = 1;
-            cfg.cache_kind =
-                named.epoch == 1 /* DAT1 */ ? APP_CACHE_DAT1 : APP_CACHE_DAT2;
+            cfg.cache_kind = named.epoch == 1 /* DAT1 */ ? APP_CACHE_DAT1 : APP_CACHE_DAT2;
         }
         else
         {
-            TORIRS_LOG("torirs: cache identity unset — pass --manifest <boot.ini> (with "
+            TORIRS_LOG(
+                "torirs: cache identity unset — pass --manifest <boot.ini> (with "
                 "epoch/game/revision/quirks) or --rev <name>\n");
             return 1;
         }
@@ -4625,7 +4885,8 @@ main(
             return 1;
         }
         if( executor_cfg.js5_enabled )
-            TORIRS_LOG("torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
+            TORIRS_LOG(
+                "torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
                 executor_cfg.js5_host,
                 executor_cfg.js5_port,
                 executor_cfg.js5_fallback_port,
@@ -4689,10 +4950,7 @@ main(
         int declared;
         RevConfigRefs_Init(&boot_refs);
         RevConfigRefs_LoadSources(
-            &boot_refs,
-            cfg.revconfig_ui_ini,
-            cfg.revconfig_cache_ini,
-            cfg.revconfig_inline_ini);
+            &boot_refs, cfg.revconfig_ui_ini, cfg.revconfig_cache_ini, cfg.revconfig_inline_ini);
         declared = RevConfigRefs_Get(&boot_refs, "iface", "boot");
         RevConfigRefs_Free(&boot_refs);
         if( declared > 0 )
@@ -4707,13 +4965,15 @@ main(
         char const* cache_label = cfg.cache_on_demand ? "(on demand)" : cfg.cache_dir;
 
         if( cfg.revconfig_ui_ini )
-            TORIRS_LOG("torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
+            TORIRS_LOG(
+                "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
                 cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
                 cache_label,
                 cfg.revconfig_ui_ini,
                 cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
         else
-            TORIRS_LOG("torirs: %s cache=%s iface=%d\n",
+            TORIRS_LOG(
+                "torirs: %s cache=%s iface=%d\n",
                 cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
                 cache_label,
                 cfg.interface_id);
@@ -4761,8 +5021,7 @@ main(
      * checked against were not the same value. Fixed mode ignores the size
      * either way: the canvas is pinned back to the fixed frame when the mode is
      * applied to the platform. */
-    else if( cfg.window_w > 0 && cfg.window_h > 0 &&
-             cfg.window_mode != CS2VM_WINDOW_MODE_FIXED )
+    else if( cfg.window_w > 0 && cfg.window_h > 0 && cfg.window_mode != CS2VM_WINDOW_MODE_FIXED )
     {
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }
@@ -4884,12 +5143,10 @@ main(
      * tree synchronously, so pump the boot to completion for them; the plain
      * interactive run skips this and renders the loading state instead. */
     if( write_bmp || getenv("TORIRS_PREVIEW_BMP") || getenv("TORIRS_WORLD_NODE_DEBUG") ||
-        getenv("TORIRS_SIM_CLICK") ||
-        getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
+        getenv("TORIRS_SIM_CLICK") || getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
         getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
-        getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") ||
-        getenv("TORIRS_DUMP_ROLES") || getenv("TORIRS_DUMP_CLIENTCODES") ||
-        getenv("TORIRS_CMD_REPLAY") )
+        getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") || getenv("TORIRS_DUMP_ROLES") ||
+        getenv("TORIRS_DUMP_CLIENTCODES") || getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
 
     if( getenv("TORIRS_PREVIEW_BMP") && app.preview_state_failed )
@@ -4909,7 +5166,8 @@ main(
         if( widx >= 0 )
         {
             struct UITreeComponent const* wc = &app.tree->components[widx];
-            TORIRS_LOG("world node: com=0x%08x client_code=%d type=%d hide=%d trans=%d freed=%d "
+            TORIRS_LOG(
+                "world node: com=0x%08x client_code=%d type=%d hide=%d trans=%d freed=%d "
                 "parent=%d next_sib=%d\n",
                 wc->component_id,
                 wc->behavior.client_code,
@@ -5000,7 +5258,8 @@ main(
             if( !mc_input )
                 mc_input = LibToriRS_Input_Init(&mc_input_storage, 0);
 
-            TORIRS_LOG("sim_mouse_click: %s at %d,%d\n",
+            TORIRS_LOG(
+                "sim_mouse_click: %s at %d,%d\n",
                 button == TORIRSM_RIGHT ? "right" : "left",
                 mcx,
                 mcy);
@@ -5098,9 +5357,17 @@ main(
         {
             TORIRS_LOG("hover_probe y=%3d:", hy);
             for( int hx = hx0; hx <= hx1; hx += hstep )
-                TORIRS_LOG(" %d",
+                TORIRS_LOG(
+                    " %d",
                     UITree_FindHoveredComponentIdForRegion(
-                        app.tree, &app.ui_host, -1, hx, hy, 0, 0, UITREE_LAYOUT_ROOT_W,
+                        app.tree,
+                        &app.ui_host,
+                        -1,
+                        hx,
+                        hy,
+                        0,
+                        0,
+                        UITREE_LAYOUT_ROOT_W,
                         UITREE_LAYOUT_ROOT_H));
             TORIRS_LOG("\n");
         }
@@ -5297,7 +5564,8 @@ main(
                 struct UITreeOpKeyBinding const* b = &UITree_OpKeys(c)->slots[slot];
                 if( !b->bound )
                     continue;
-                TORIRS_LOG("OPKEYDUMP com=0x%08x op=%d pairs=%d key0=(char=%d,code=%d) "
+                TORIRS_LOG(
+                    "OPKEYDUMP com=0x%08x op=%d pairs=%d key0=(char=%d,code=%d) "
                     "rate=%d/%d ignore_held=%d on_op=%d\n",
                     c->component_id,
                     slot + 1,
@@ -5326,7 +5594,8 @@ main(
                     has_ops = 1;
             if( c->freed || !has_ops )
                 continue;
-            TORIRS_LOG("OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
+            TORIRS_LOG(
+                "OPSDUMP com=0x%08x option=\"%s\" ops=[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]\n",
                 c->component_id,
                 mo->option,
                 mo->ops[0],
@@ -5396,22 +5665,22 @@ main(
 
             if( node < 0 )
             {
-                TORIRS_LOG("  %-24s UNRESOLVED (%s%d match rungs)\n",
+                TORIRS_LOG(
+                    "  %-24s UNRESOLVED (%s%d match rungs)\n",
                     entry->name,
                     entry->authored ? "authored + " : "",
                     entry->matcher_count);
                 continue;
             }
             struct UITreeComponent const* c = &app.tree->components[node];
-            TORIRS_LOG("  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
+            TORIRS_LOG(
+                "  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
                 entry->name,
                 (int)node,
                 c->component_id,
                 (int)c->type,
                 c->dynamic ? " dynamic" : "",
-                (c->behavior.hide || c->frame_hidden)
-                    ? " hidden"
-                    : "",
+                (c->behavior.hide || c->frame_hidden) ? " hidden" : "",
                 c->position.abs_x,
                 c->position.abs_y,
                 c->position.abs_w,
@@ -5439,7 +5708,8 @@ main(
             c = &app.tree->components[idx];
             if( c->freed )
                 continue;
-            TORIRS_LOG("  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
+            TORIRS_LOG(
+                "  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
                 c->behavior.client_code,
                 (int)idx,
                 c->component_id,
@@ -5493,14 +5763,13 @@ main(
         if( getenv("TORIRS_PREVIEW_TREE") )
         {
             char const* tree_path = getenv("TORIRS_PREVIEW_TREE");
-            if( !tree_path[0] ||
-                UITreeSnapshot_WriteJson(
-                    app.tree,
-                    &app.emit,
-                    tree_path,
-                    cfg.interface_id,
-                    UITREE_LAYOUT_ROOT_W,
-                    UITREE_LAYOUT_ROOT_H) != 0 )
+            if( !tree_path[0] || UITreeSnapshot_WriteJson(
+                                     app.tree,
+                                     &app.emit,
+                                     tree_path,
+                                     cfg.interface_id,
+                                     UITREE_LAYOUT_ROOT_W,
+                                     UITREE_LAYOUT_ROOT_H) != 0 )
             {
                 TORIRS_ERR("failed to write native preview tree %s\n", tree_path);
                 free(pixels);
@@ -5518,7 +5787,8 @@ main(
             return 1;
         }
         fclose(probe);
-        TORIRS_LOG("wrote %s (%dx%d, %d emit cmds)\n",
+        TORIRS_LOG(
+            "wrote %s (%dx%d, %d emit cmds)\n",
             path,
             UITREE_LAYOUT_ROOT_W,
             UITREE_LAYOUT_ROOT_H,
@@ -5572,7 +5842,8 @@ main(
                         parent_h = parent->u.rs_layer.scroll_height;
                 }
             }
-            TORIRS_LOG("LAYOUT com=0x%08x type=%d if3=%d parent=0x%08x pwh=%dx%d "
+            TORIRS_LOG(
+                "LAYOUT com=0x%08x type=%d if3=%d parent=0x%08x pwh=%dx%d "
                 "raw=%d,%d %dx%d modes=x%d,y%d,w%d,h%d abs=%d,%d %dx%d\n",
                 c->component_id,
                 (int)c->type,
@@ -5625,7 +5896,8 @@ main(
                  child = app.tree->components[child].next_sibling )
             {
                 struct UITreeComponent const* cc = &app.tree->components[child];
-                TORIRS_LOG(" %s(0x%08x,sub=%d)",
+                TORIRS_LOG(
+                    " %s(0x%08x,sub=%d)",
                     cc->dynamic ? "dyn" : "sta",
                     cc->component_id,
                     cc->dynamic ? cc->dynamic_child_index : -1);
@@ -5639,7 +5911,8 @@ main(
         for( int i = 0; i < app.emit.count; i++ )
         {
             struct UITreeEmitDesc* d = &app.emit.cmds[i];
-            TORIRS_LOG("EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
+            TORIRS_LOG(
+                "EMIT[%d] kind=%d com=0x%08x x=%d y=%d w=%d h=%d scene=%d color=0x%06x "
                 "filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
                 i,
                 (int)d->kind,
@@ -5694,10 +5967,12 @@ main(
             /* Snapshot every existing loc first (ApplyLocChange mutates the pool
              * as we go), then re-apply a change to each shape to exercise the
              * whole scenery_add path — walls (doors) included. */
-            struct { int x, z, l, id, shape, angle; } locs[4096];
+            struct
+            {
+                int x, z, l, id, shape, angle;
+            } locs[4096];
             int nlocs = 0;
-            for( int it = World_EntityPoolHead(pool);
-                 it != WORLD_ENTITY_NIL && nlocs < 4096;
+            for( int it = World_EntityPoolHead(pool); it != WORLD_ENTITY_NIL && nlocs < 4096;
                  it = World_EntityPoolNext(pool, it) )
             {
                 struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, it);
@@ -5715,13 +5990,17 @@ main(
             {
                 if( locs[k].shape <= 3 )
                     walls++;
-                WorldBuilder_ApplyLocChange(app.world_builder, locs[k].x, locs[k].z,
-                                            locs[k].l, locs[k].id, locs[k].shape,
-                                            locs[k].angle);
+                WorldBuilder_ApplyLocChange(
+                    app.world_builder,
+                    locs[k].x,
+                    locs[k].z,
+                    locs[k].l,
+                    locs[k].id,
+                    locs[k].shape,
+                    locs[k].angle);
                 applied++;
             }
-            TORIRS_LOG("TEST_LOCCHANGE: applied %d loc changes (%d walls) ok\n",
-                    applied, walls);
+            TORIRS_LOG("TEST_LOCCHANGE: applied %d loc changes (%d walls) ok\n", applied, walls);
         }
         App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         bmp_write_file("build/world.bmp", pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -5795,8 +6074,7 @@ main(
             /* Same contract as D3D9 and GL3: the depth pass needs the app to
              * stop collecting the visible set through the tile wavefront and
              * the opaque face-distance sort. */
-            App_SetWorldRenderMode(
-                &app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+            App_SetWorldRenderMode(&app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
             App_SetRendererAnimatesTextures(&app, true);
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
             /* The lane wraps the renderer main.c just made and keeps driving
@@ -5808,7 +6086,7 @@ main(
         else
 #endif
 #if defined(TORIRS_HAVE_GL3)
-        if( use_opengl3 )
+            if( use_opengl3 )
         {
             if( !PlatformWindow_InitForOpenGL3(
                     platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
@@ -5819,9 +6097,8 @@ main(
                 return 1;
             }
             gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( !gl3 ||
-                !ToriRS_GL3_Init(
-                    gl3, PlatformWindow_GLWindow(platform), app.scene, gl3_zbuffer != 0) )
+            if( !gl3 || !ToriRS_GL3_Init(
+                            gl3, PlatformWindow_GLWindow(platform), app.scene, gl3_zbuffer != 0) )
             {
                 TORIRS_ERR("GL3 renderer init failed\n");
                 ToriRS_GL3_Free(gl3);
@@ -5832,13 +6109,12 @@ main(
             /* The depth pass needs the app to stop collecting the visible set
              * through the tile wavefront and the opaque face-distance sort;
              * that is what TORIRS_WORLD_DEPTH selects. Same contract as D3D9. */
-            App_SetWorldRenderMode(
-                &app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+            App_SetWorldRenderMode(&app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
             App_SetRendererAnimatesTextures(&app, true);
         }
         else
 #endif
-        if( !PlatformWindow_Init(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            if( !PlatformWindow_Init(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
             TORIRS_ERR("window init failed\n");
             PlatformWindow_Free(platform);
@@ -5885,7 +6161,8 @@ main(
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);
                 if( from_env < 0 )
-                    TORIRS_LOG("chrome: '%s' is not an executor "
+                    TORIRS_LOG(
+                        "chrome: '%s' is not an executor "
                         "(web|browser); using the build default\n",
                         want);
                 else
@@ -5899,12 +6176,10 @@ main(
              * not a parseable `platform` pseudo-executor. */
             if( !chosen )
                 wanted = -1;
-            chrome_exec = ToriRSChromeExec_ForKind(
-                wanted,
-                platform,
-                &got);
+            chrome_exec = ToriRSChromeExec_ForKind(wanted, platform, &got);
             if( chosen && got != wanted )
-                TORIRS_LOG("chrome: no '%s' executor in this build; the plugin window stays in the "
+                TORIRS_LOG(
+                    "chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));
             App_SetPluginChromeExec(&app, &chrome_exec, got, chosen);
@@ -5914,22 +6189,21 @@ main(
         if( use_d3d9 )
         {
             d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( !d3d9 ||
-                !ToriRS_D3D9_Init(
-                    d3d9,
-                    PlatformWindow_NativeWindowHandle(platform),
-                    app.scene,
-                    d3d9_zbuffer != 0) )
+            if( !d3d9 || !ToriRS_D3D9_Init(
+                             d3d9,
+                             PlatformWindow_NativeWindowHandle(platform),
+                             app.scene,
+                             d3d9_zbuffer != 0) )
             {
-                TORIRS_ERR("D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
+                TORIRS_ERR(
+                    "D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
                 ToriRS_D3D9_Free(d3d9);
                 d3d9 = NULL;
             }
             else
             {
                 App_SetWorldRenderMode(
-                    &app,
-                    d3d9_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+                    &app, d3d9_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
                 App_SetRendererAnimatesTextures(&app, true);
             }
         }
@@ -5984,7 +6258,8 @@ main(
                 density = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
             App_SetChromeScale(&app, density);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("chrome: scale %d (display density %d)\n",
+                TORIRS_LOG(
+                    "chrome: scale %d (display density %d)\n",
                     App_ChromeScale(&app),
                     PlatformWindow_PixelDensity(platform));
         }
@@ -5997,8 +6272,7 @@ main(
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("windowmode: boot %s\n",
-                    CS2VM_WindowModeName(boot_mode));
+                TORIRS_LOG("windowmode: boot %s\n", CS2VM_WindowModeName(boot_mode));
         }
 
         /* Audio backend. Opening a device is allowed to fail — a machine with no
@@ -6028,9 +6302,8 @@ main(
             int parsed_id = -1;
             int parsed_loops = 1;
             int parsed_every = 0;
-            int fields =
-                sscanf(getenv("TORIRS_SIM_SOUND"), "%d,%d,%d",
-                       &parsed_id, &parsed_loops, &parsed_every);
+            int fields = sscanf(
+                getenv("TORIRS_SIM_SOUND"), "%d,%d,%d", &parsed_id, &parsed_loops, &parsed_every);
             if( fields >= 1 && parsed_id >= 0 )
             {
                 sim_sound_id = parsed_id;
@@ -6078,10 +6351,7 @@ main(
             {
                 char line[96];
                 snprintf(
-                    line,
-                    sizeof(line),
-                    "Seed chat line %ld — scroll container text check",
-                    i + 1);
+                    line, sizeof(line), "Seed chat line %ld — scroll container text check", i + 1);
                 RS_CS2Host_ChatAdd(&app.host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
             }
         }
@@ -6091,7 +6361,8 @@ main(
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
         max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
-        sim_after_ready = getenv("TORIRS_SIM_AFTER_READY") && atoi(getenv("TORIRS_SIM_AFTER_READY"));
+        sim_after_ready =
+            getenv("TORIRS_SIM_AFTER_READY") && atoi(getenv("TORIRS_SIM_AFTER_READY"));
         sim_ready = sim_ready_failed = 0;
         sim_ready_start_ms = PlatformWindow_Ticks64();
         sim_next_frame_ms = 0;
@@ -6140,9 +6411,8 @@ main(
          */
         {
             int transport_kind = app.net ? app.net->rev->transport_kind : 0;
-            const char* transport_name = boot_manifest.transport[0]
-                                             ? boot_manifest.transport
-                                             : NULL;
+            const char* transport_name =
+                boot_manifest.transport[0] ? boot_manifest.transport : NULL;
             const char* env_transport = getenv("TORIRS_TRANSPORT");
 
             if( env_transport && env_transport[0] )
@@ -6157,8 +6427,8 @@ main(
                 else if( strcmp(transport_name, "tcp") == 0 )
                     transport_kind = NET_TRANSPORT_TCP;
                 else
-                    TORIRS_ERR("torirs: unknown transport=%s — using the revision's\n",
-                            transport_name);
+                    TORIRS_ERR(
+                        "torirs: unknown transport=%s — using the revision's\n", transport_name);
             }
 
             /* One process must not quietly use two caches. The client and its
@@ -6174,9 +6444,10 @@ main(
                 cfg.net_server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
                 setenv("TORIRSSERVER_SCRIPTS", cfg.net_server_scripts, 0);
 
-            sock = app.net ? NetTransport_New(transport_kind,
-                                              cfg.connect_port > 0 ? cfg.connect_port : 43594,
-                                              app.net->rev->name)
+            sock = app.net ? NetTransport_New(
+                                 transport_kind,
+                                 cfg.connect_port > 0 ? cfg.connect_port : 43594,
+                                 app.net->rev->name)
                            : NULL;
         }
 
@@ -6184,8 +6455,8 @@ main(
          * interface into the main-modal slot exactly as an IF_OPENMAIN packet
          * would. Offline repro for server-driven modals (player design 3559). */
         sim_openmain = getenv("TORIRS_SIM_OPENMAIN")
-                               ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
-                               : -1;
+                           ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
+                           : -1;
         sim_openmain_done = 0;
 
         /* TORIRS_SIM_OPENSIDE=<iface>: the same for the side-panel slot. The
@@ -6193,16 +6464,16 @@ main(
          * sidebar panels — settings_side 116 and friends — are only reachable
          * offline through here. */
         sim_openside = getenv("TORIRS_SIM_OPENSIDE")
-                               ? (int)strtol(getenv("TORIRS_SIM_OPENSIDE"), NULL, 0)
-                               : -1;
+                           ? (int)strtol(getenv("TORIRS_SIM_OPENSIDE"), NULL, 0)
+                           : -1;
         sim_openside_done = 0;
 
         /* TORIRS_SIM_OPENCHAT=<iface>: same, for the chatback dialog slot
          * (reference IF_OPENCHAT / chatComId). Offline repro for the
          * server-driven chat dialogs (option menus 2459.., npc/player chat). */
         sim_openchat = getenv("TORIRS_SIM_OPENCHAT")
-                               ? (int)strtol(getenv("TORIRS_SIM_OPENCHAT"), NULL, 0)
-                               : -1;
+                           ? (int)strtol(getenv("TORIRS_SIM_OPENCHAT"), NULL, 0)
+                           : -1;
         sim_openchat_done = 0;
 
         /* TORIRS_BOOT_STATS=1: how long the gameframe took to come up, and
