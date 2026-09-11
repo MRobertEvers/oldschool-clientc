@@ -3258,6 +3258,11 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    /* Skip the default suite. The walk itself stays immediately before the
+     * shop fprintf so an unset PRY_ONLY leaves that stanza unmoved. */
+    if( getenv("TORIRSSERVER_SELFTEST_PRY_ONLY") )
+        goto selftest_pry_only;
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -35935,6 +35940,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+selftest_pry_only:
     /*
      * Prying Times Gate D walk. Gated so an unset env leaves the default
      * suite unmoved (the shop stanza below is the next default line).
