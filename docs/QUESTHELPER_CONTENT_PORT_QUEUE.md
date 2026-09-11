@@ -273,7 +273,7 @@ filed under `helpers/miniquests/` are at the end.
 
 | # | Slice | Helper | Lines | Status | Notes |
 |---|---|---|---:|---|---|
-| 1 | bearyoursoul | `bearyoursoul` | 144 | in_progress | 2026-09-10 claimed `gp-bys-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 1 | bearyoursoul | `bearyoursoul` | 144 | done | 2026-09-10 Gate D parent-verified 29 named / 29 unique-MD5 BMPs cherry-picked onto OSRS-Content@41a778396b (worker SHA e6b90a391b not merged wholesale). Leftovers: leftover_library_bookcase_search; leftover_full_dig_anim; leftover_dusty_key_pathing; leftover_full_refuse_trees. Unique MERGE: keeper_of_keys in cerberus.rs2. Prior done; Gate D recapture. |
 | 2 | doricsquest | `doricsquest` | 151 | done | npc=doric; varp31 doricquest (already allocated); dbrow quest_dorics id 30; scripts: doricsquest.rs2 + configs/doricsquest.varp + constant; wiki https://oldschool.runescape.wiki/w/Doric%27s_Quest/Quick_guide + Transcript:Doric%27s_Quest; deferred: pre-quest anvil dialogue (covered by Smithing gate), wares/insult side branches |
 | 3 | witchspotion | `witchspotion` | 162 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 4 | impcatcher | `impcatcher` | 187 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
@@ -311,7 +311,7 @@ filed under `helpers/miniquests/` are at the end.
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
 | 37 | makinghistory | `makinghistory` | 319 | done | 2026-09-10 parent-verified 93 unique-MD5 named BMPs on OSRS-Content@36c53e3ccf. Leftovers: Port Phasmatys entry toll unused; inter-area travel not modelled; scroll QP tenths display. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | 2026-09-10 parent-verified 116 named / 115 unique-MD5 BMPs on OSRS-Content@9d9d81263. Leftovers: herring/shrew collapsed; Betty pink-dye shop stub; Entrana banking; multinpc bucket. Daily sand implemented. Bert named Someone. |
-| 39 | bonevoyage | `bonevoyage` | 320 | done |  |
+| 39 | bonevoyage | `bonevoyage` | 320 | in_progress | 2026-09-10 claimed `gp-bv-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
 | 41 | trollromance | `trollromance` | 321 | done | 2026-09-10 parent-verified 168 unique-MD5 named BMPs on OSRS-Content@7f5c5072f7. Leftovers: piste teleport, cake-tin consume, no ice-troll/animated sled. |
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
