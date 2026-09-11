@@ -277,7 +277,7 @@ filed under `helpers/miniquests/` are at the end.
 | 2 | doricsquest | `doricsquest` | 151 | done | npc=doric; varp31 doricquest (already allocated); dbrow quest_dorics id 30; scripts: doricsquest.rs2 + configs/doricsquest.varp + constant; wiki https://oldschool.runescape.wiki/w/Doric%27s_Quest/Quick_guide + Transcript:Doric%27s_Quest; deferred: pre-quest anvil dialogue (covered by Smithing gate), wares/insult side branches |
 | 3 | witchspotion | `witchspotion` | 162 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 4 | impcatcher | `impcatcher` | 187 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
-| 5 | xmarksthespot | `xmarksthespot` | 204 | done |  |
+| 5 | xmarksthespot | `xmarksthespot` | 204 | in_progress | 2026-09-11 claimed `gp-xmarks-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 6 | tearsofguthix | `tearsofguthix` | 209 | done | 2026-09-10 parent-verified 49 unique-MD5 named BMPs on OSRS-Content@1e8b98cc85. Leftovers: weekly XP lowest-level not lowest-XP; full tears IF deferred; soft chasm tele; first-run mes reconstructed; font kerning. |
 | 7 | entertheabyss | `entertheabyss` | 212 | done | 2026-09-10 parent-verified 48 unique-MD5 named BMPs on OSRS-Content@766e6bfdd. Leftovers: full refuse/Wanted! trees; abyss terrain deferred; fixed Abyss dest; no god-item block; Brimstail/WG spots unused. |
 | 8 | theribbitingtaleofalilypadlabourdispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done |  |
@@ -302,12 +302,12 @@ filed under `helpers/miniquests/` are at the end.
 | 27 | gertrudescat | `gertrudescat` | 299 | done | 2026-09-10 parent-verified 90 unique-MD5 named BMPs on OSRS-Content@d325ac547d. |
 | 28 | princealirescue | `princealirescue` | 302 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 29 | cooksassistant | `cooksassistant` | 303 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_cooksassistant` exists — see IN-LC table (`quest_cook`) |
-| 30 | theascentofarceuus | `theascentofarceuus` | 310 | in_progress | 2026-09-11 claimed `gp-aoa-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 30 | theascentofarceuus | `theascentofarceuus` | 310 | done | 2026-09-11 Gate D parent-verified 63 named / 63 unique-MD5 BMPs cherry-picked onto OSRS-Content@6dcff8dbf5 (worker SHA e641128f66 not merged wholesale). Leftovers: leftover_tower_instance_souls; leftover_hunting_trail_multilocs; leftover_tower_mage_door; leftover_favour_system; leftover_graceful_recolour_ui; leftover_asteros_mid_talk; leftover_kaal_sibling_npcs; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 31 | trollstronghold | `trollstronghold` | 311 | done | 2026-09-10 parent-verified 107 unique-MD5 named BMPs on OSRS-Content@9705435dc. Leftovers: Eadgar stew/goutweed sibling, journal complete still prints mid-quest lines. |
 | 32 | lostcity | `lostcity` | 312 | done (LC) | re-audit 2026-08-10: `quest_zanaris` (`shamus.rs2`, `tree_spirit.rs2`, `zanaris_camp.rs2`; dbrow `quest_lostcity` journal wired) |
 | 33 | ethicallyacquiredantiquities | `ethicallyacquiredantiquities` | 313 | done |  |
 | 34 | theidesofmilk | `theidesofmilk` | 316 | done |  |
-| 35 | insearchofknowledge | `insearchofknowledge` | 317 | done |  |
+| 35 | insearchofknowledge | `insearchofknowledge` | 317 | in_progress | 2026-09-11 claimed `gp-isok-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
 | 37 | makinghistory | `makinghistory` | 319 | done | 2026-09-10 parent-verified 93 unique-MD5 named BMPs on OSRS-Content@36c53e3ccf. Leftovers: Port Phasmatys entry toll unused; inter-area travel not modelled; scroll QP tenths display. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | 2026-09-10 parent-verified 116 named / 115 unique-MD5 BMPs on OSRS-Content@9d9d81263. Leftovers: herring/shrew collapsed; Betty pink-dye shop stub; Entrana banking; multinpc bucket. Daily sand implemented. Bert named Someone. |
@@ -324,7 +324,7 @@ filed under `helpers/miniquests/` are at the end.
 | 49 | tribaltotem | `tribaltotem` | 349 | done (LC) | re-audit 2026-08-10: `quest_totem` (dbrow `quest_tribaltotem` journal wired) |
 | 50 | witchshouse | `witchshouse` | 350 | done (LC) | re-audit 2026-08-10: `quest_ball` (`ball_journal.rs2`, `quest_ball_locs.rs2`; dbrow `quest_witchshouse` journal wired) |
 | 51 | spiritsoftheelid | `spiritsoftheelid` | 352 | done | 2026-09-10 parent-verified 60 unique-MD5 named BMPs on OSRS-Content@fc26016b73. Leftovers: black-golem ranging accepts any wielded weapon; crevice climb-down skips agility. |
-| 52 | taleoftherighteous | `taleoftherighteous` | 353 | in_progress | 2026-09-11 claimed `gp-totr-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 52 | taleoftherighteous | `taleoftherighteous` | 353 | done | 2026-09-11 Gate D parent-verified 54 named / 54 unique-MD5 BMPs cherry-picked onto OSRS-Content@61c869f2fd (worker SHA 540e898cdb not merged wholesale). Leftovers: leftover_library_puzzle; leftover_lizardman_boss; leftover_rope_crevice; leftover_full_phileas_shiro_trees; leftover_full_refuse_trees; leftover_graceful_recolour_ui. Prior done; Gate D recapture. |
 | 53 | contact | `contact` | 355 | done | 2026-09-10 parent-verified 77 named / 76 unique-MD5 BMPs cherry-picked onto OSRS-Content@8e32916bb9 (worker SHA bb31f1068a not merged wholesale). Leftovers: leftover_dungeon_maze_gauntlet; leftover_combat_style_flags; leftover_postquest_bankers_cutscene_lamp. Jan 2007 -- Sophanem quarantined from Menaphos, tunnels of the Sect of Scabaras, Giant Scarab boss; native dbrow `quest_contact` (id 124, endstate 130, questpoints 1, stat_xp_awarded thieving 70000=7000xp) + native varbit schema on basevar `contact_master` reused as-is, matching quest-helper's own VarbitID.CONTACT name exactly; see Log |
 | 54 | shadesofmortton | `shadesofmortton` | 355 | done | 2026-09-10 parent-verified 182 unique-MD5 named BMPs on OSRS-Content@be3b1090ae. Leftovers: afflicted flavour; chat tags; Dampe/catacomb variants; Flamtaer flicker. |
 | 55 | gettingahead | `gettingahead` | 361 | done |  |
