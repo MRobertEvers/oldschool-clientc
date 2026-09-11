@@ -311,7 +311,7 @@ filed under `helpers/miniquests/` are at the end.
 | 36 | sheepherder | `sheepherder` | 317 | done (LC) | OSRS has 8 rs2 files (not in PORT_QUEUE table) |
 | 37 | makinghistory | `makinghistory` | 319 | done | 2026-09-10 parent-verified 93 unique-MD5 named BMPs on OSRS-Content@36c53e3ccf. Leftovers: Port Phasmatys entry toll unused; inter-area travel not modelled; scroll QP tenths display. |
 | 38 | thehandinthesand | `thehandinthesand` | 319 | done | 2026-09-10 parent-verified 116 named / 115 unique-MD5 BMPs on OSRS-Content@9d9d81263. Leftovers: herring/shrew collapsed; Betty pink-dye shop stub; Entrana banking; multinpc bucket. Daily sand implemented. Bert named Someone. |
-| 39 | bonevoyage | `bonevoyage` | 320 | in_progress | 2026-09-10 claimed `gp-bv-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 39 | bonevoyage | `bonevoyage` | 320 | done | 2026-09-11 Gate D parent-verified 67 named / 67 unique-MD5 BMPs cherry-picked onto OSRS-Content@54f8255288 (worker SHA cac5370be4 not merged wholesale). Leftovers: leftover_sailing_arrow_minigame_if; leftover_fossil_island_bank_chest; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
 | 41 | trollromance | `trollromance` | 321 | done | 2026-09-10 parent-verified 168 unique-MD5 named BMPs on OSRS-Content@7f5c5072f7. Leftovers: piste teleport, cake-tin consume, no ice-troll/animated sled. |
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
@@ -332,7 +332,7 @@ filed under `helpers/miniquests/` are at the end.
 | 57 | bigchompybirdhunting | `bigchompybirdhunting` | 363 | done | 2026-09-10 parent-verified 106 unique-MD5 named BMPs on OSRS-Content@35feba354. Leftovers: projectile/camera/sound, diary pet, trail clue. |
 | 58 | animalmagnetism | `animalmagnetism` | 366 | done | 2026-09-10 parent-verified 123 named / 120 unique-MD5 BMPs cherry-picked onto OSRS-Content@b7917271c9 (worker SHA 0fc70d52d3 not merged wholesale). Leftovers: leftover_postquest_ava_shop; leftover_alice_husband_bank_pong; leftover_alice_farming_shop; leftover_notes_model_layers. OSRS has 5 rs2 files (not in PORT_QUEUE table) |
 | 59 | scorpioncatcher | `scorpioncatcher` | 374 | done (LC) | re-audit 2026-08-10: `quest_scorpcatcher` (`thormac.rs2`; dbrow `quest_scorpioncatcher` journal wired) |
-| 60 | thecorsaircurse | `thecorsaircurse` | 376 | done |  |
+| 60 | thecorsaircurse | `thecorsaircurse` | 376 | in_progress | 2026-09-11 claimed `gp-cc-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 61 | belowicemountain | `belowicemountain` | 377 | done |  |
 | 62 | horrorfromthedeep | `horrorfromthedeep` | 380 | done | 2026-09-10 parent-verified 155 unique-MD5 named BMPs on OSRS-Content@27971964fd. Leftovers: Larrissa name garbled; mother colour restates; combat findhero skip; font kerning. |
 | 63 | dwarfcannon | `dwarfcannon` | 386 | done | 2026-09-10 parent-verified 97 unique-MD5 named BMPs on OSRS-Content@780e8941c9. Leftovers: IF 409 toolkit pairs, railing fail table, private Lollk, post-quest buy. |
