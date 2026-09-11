@@ -3,6 +3,7 @@
 
 #include "painters/painters.h"
 #include "render/torirs_arc.h"
+#include "render/torirs_silhouette_frame.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
@@ -839,6 +840,61 @@ translate_scrollbar_h_step(
 }
 
 static bool
+frame_silhouette_span(struct ToriRS_Frame* frame,
+    const struct UITreeEntityOverlay* item,struct ToriRS_RenderCommand* out,
+    int clip_x,int clip_y,int clip_w,int clip_h)
+{
+    struct ToriRS_Silhouette* mask;
+    size_t count,start,end;
+    int alpha;
+    uint32_t color;
+    if( !frame->silhouette || frame->silhouette_emit_index!=frame->emit_index ||
+        frame->silhouette_item_index!=frame->scrollbar_step )
+    {
+        ToriRS_SilhouetteFree(frame->silhouette);
+        free(frame->silhouette);
+        if( item->kind==UITREE_ENTITY_OVERLAY_WORLD_SURFACE )
+            frame->silhouette=ToriRS_SilhouetteBuildSurface(frame,
+                item->surface_x,item->surface_y,item->surface_z,
+                item->trans>=0?255-item->trans:0,item->line_width,
+                item->silhouette_always_on_top,clip_x,clip_y,clip_w,clip_h);
+        else
+            frame->silhouette=ToriRS_SilhouetteBuildFrame(frame,item->silhouette_element_id,
+                item->trans>=0?255-item->trans:0,item->line_width,
+                item->silhouette_always_on_top,clip_x,clip_y,clip_w,clip_h);
+        frame->silhouette_pixel=0;
+        frame->silhouette_emit_index=frame->emit_index;
+        frame->silhouette_item_index=frame->scrollbar_step;
+    }
+    mask=frame->silhouette;
+    if( !mask ) return false;
+    count=(size_t)mask->width*mask->height;
+    while( frame->silhouette_pixel<count && !mask->alpha[frame->silhouette_pixel] )
+        ++frame->silhouette_pixel;
+    if( frame->silhouette_pixel==count ) return false;
+    start=frame->silhouette_pixel;
+    alpha=mask->alpha[start];
+    color=item->kind==UITREE_ENTITY_OVERLAY_WORLD_SURFACE && mask->coverage[start]
+        ? item->surface_fill_color : item->color;
+    end=(start/mask->width+1)*mask->width;
+    while( frame->silhouette_pixel<end && mask->alpha[frame->silhouette_pixel]==alpha )
+    {
+        uint32_t const next_color=item->kind==UITREE_ENTITY_OVERLAY_WORLD_SURFACE &&
+            mask->coverage[frame->silhouette_pixel] ? item->surface_fill_color : item->color;
+        if( next_color!=color ) break;
+        ++frame->silhouette_pixel;
+    }
+    out->kind=TORIRSRC_FILL_RECT;
+    out->u.fill_rect=(struct ToriRS_RenderCommand_FillRect){
+        .x=mask->x+(int)(start%mask->width),.y=mask->y+(int)(start/mask->width),
+        .w=(int)(frame->silhouette_pixel-start),.h=1,
+        .argb=(int)((color&0x00ffffffu)|((uint32_t)alpha<<24)),
+        .scissor_x=clip_x,.scissor_y=clip_y,.scissor_w=clip_w,.scissor_h=clip_h,.filled=1};
+    frame->overlay_repeat=true;
+    return true;
+}
+
+static bool
 translate_ui_cmd(
     struct ToriRS_Frame* frame,
     struct UITreeEmitDesc const* desc,
@@ -1101,6 +1157,34 @@ translate_ui_cmd(
             if( !desc->minimap_dots || frame->scrollbar_step > desc->minimap_dot_count )
                 return false;
             dot = &desc->minimap_dots[frame->scrollbar_step - 1];
+            if( dot->kind==1 )
+            {
+                if( frame->minimap_scan_emit!=frame->emit_index || frame->minimap_scan_item!=frame->scrollbar_step )
+                {
+                    struct ToriDraw_Sprite const* mask=NULL;
+                    if( desc->mask_scene_id>0 )
+                    {
+                        int count=0;
+                        struct ToriDraw_Sprite** frames=ToriDraw_SceneSpriteGet(frame->scene,desc->mask_scene_id,&count);
+                        if( !frames || desc->mask_atlas_index<0 || desc->mask_atlas_index>=count || !frames[desc->mask_atlas_index] ) return false;
+                        mask=frames[desc->mask_atlas_index];
+                    }
+                    ToriRS_MinimapMarkBegin(&frame->minimap_scan,dot,box_cx,box_cy,
+                        left,top,right,bottom,desc->x,desc->y,mask,desc->mask_keep_opaque);
+                    frame->minimap_scan_emit=frame->emit_index;
+                    frame->minimap_scan_item=frame->scrollbar_step;
+                }
+                int x,y,width;
+                uint32_t color;
+                if( !ToriRS_MinimapMarkNext(&frame->minimap_scan,dot,&x,&y,&width,&color) ) return false;
+                out->kind=TORIRSRC_FILL_RECT;
+                out->u.fill_rect.x=x;out->u.fill_rect.y=y;out->u.fill_rect.w=width;out->u.fill_rect.h=1;
+                out->u.fill_rect.argb=(int)color;out->u.fill_rect.filled=1;
+                out->u.fill_rect.scissor_x=left;out->u.fill_rect.scissor_y=top;
+                out->u.fill_rect.scissor_w=right-left;out->u.fill_rect.scissor_h=bottom-top;
+                frame->overlay_repeat=true;
+                return true;
+            }
             if( dot->scene_id > 0 )
             {
                 out->kind = TORIRSRC_SPRITE;
@@ -1280,6 +1364,9 @@ translate_ui_cmd(
 
         switch( item->kind )
         {
+        case UITREE_ENTITY_OVERLAY_SILHOUETTE:
+        case UITREE_ENTITY_OVERLAY_WORLD_SURFACE:
+            return frame_silhouette_span(frame,item,out,clip_x,clip_y,clip_w,clip_h);
         case UITREE_ENTITY_OVERLAY_SPRITE:
             if( item->scene_id <= 0 )
                 return false;
@@ -2712,6 +2799,8 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     assert(frame->scene);
     assert(frame->canvas_w > 0 && frame->canvas_h > 0);
     assert(!frame->flat_arena);
+    assert(!frame->silhouette);
+    assert(!frame->silhouette_worlds);
     for( int i = 1; i < TORIRS_FRAME_MAX_VIEWS; ++i )
         if( frame->views[i].live && frame->views[i].flat_hsl >= 0 )
         {
@@ -2751,6 +2840,8 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
+    frame->overlay_repeat = false;
+    frame->minimap_scan_emit=-1;frame->minimap_scan_item=-1;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
@@ -2783,6 +2874,10 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
     frame->scrollbar_step = 0;
+    /* The replay borrows world data, never the owner's overlay cursor. */
+    frame->silhouette = NULL;
+    frame->overlay_repeat = false;
+    frame->minimap_scan_emit=-1;frame->minimap_scan_item=-1;
     frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
@@ -2919,6 +3014,7 @@ again:
 
         {
             struct ToriRS_RenderCommand draw;
+            frame->overlay_repeat = false;
             if( !translate_ui_cmd(frame, desc, &draw) )
             {
                 if( is_scrollbar )
@@ -2936,7 +3032,7 @@ again:
                 continue;
             }
 
-            if( is_scrollbar )
+            if( is_scrollbar && !frame->overlay_repeat )
             {
                 frame->scrollbar_step++;
                 if( frame->scrollbar_step >= sb_steps )
@@ -2945,7 +3041,7 @@ again:
                     frame->scrollbar_step = 0;
                 }
             }
-            else
+            else if( !is_scrollbar )
             {
                 frame->emit_index++;
                 frame->scrollbar_step = 0;
@@ -2984,6 +3080,10 @@ ToriRS_FrameEnd(struct ToriRS_Frame* frame)
     assert(!frame->world_only);
     frame_flat_free(frame->flat_arena);
     frame->flat_arena = NULL;
+    ToriRS_SilhouetteFree(frame->silhouette);
+    free(frame->silhouette);
+    frame->silhouette = NULL;
+    ToriRS_SilhouetteForgetFrame(frame);
     frame->prepare_gpu_poses = false;
     if( frame->scene )
         ToriDraw_SceneFrameEnd(frame->scene);

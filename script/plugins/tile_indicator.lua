@@ -113,11 +113,33 @@ local plugin = {
   },
 }
 
+-- One marker, drawn and then CHECKED.
+--
+-- The result is not decoration. The client's world overlay pool is finite, and
+-- in a crowded scene -- a hundred health bars, hitsplats and overhead names --
+-- it fills, at which point a quad pushed into it is dropped. On screen that is
+-- indistinguishable from the plugin being switched off, so the log has to be
+-- the thing that tells them apart.
+--
+-- Once per load, not once per frame: the condition lasts as long as the crowd
+-- does, and a line a frame would bury everything else in the log. The C twin
+-- reports the same TILEIND_MARKER_DROPPED, with the result as its number
+-- rather than its name -- the name is what the Lua binding is handed.
+local drop_reported = false
+
+local function marker(api, draw, tile_x, tile_z, level, fill, outline, alpha)
+  local ok, reason = draw.world_tile(tile_x, tile_z, level, fill, outline, alpha)
+  if ok or drop_reported then return end
+  drop_reported = true
+  api.core.log("TILEIND_MARKER_DROPPED result=", reason,
+    " tile=", tile_x, ",", tile_z, " level=", level)
+end
+
 local function plugin_draw_player(api, draw)
   local me = api.world.local_player()
   if not me then return end
 
-  draw.world_tile(me.true_x, me.true_z, me.level,
+  marker(api, draw, me.true_x, me.true_z, me.level,
     api.config.true_fill_color, api.config.true_color, api.config.true_fill_alpha)
 
   if not api.config.show_dest then return end
@@ -132,7 +154,7 @@ local function plugin_draw_player(api, draw)
   -- is set from the routed destination and cleared on arrival, which is
   -- exactly as long as a destination marker should live.
   if me.dest_x ~= me.true_x or me.dest_z ~= me.true_z then
-    draw.world_tile(me.dest_x, me.dest_z, me.level,
+    marker(api, draw, me.dest_x, me.dest_z, me.level,
       api.config.dest_fill_color, api.config.dest_color, api.config.dest_fill_alpha)
   end
 end
@@ -142,7 +164,7 @@ function plugin.on_draw_world(api, draw)
   if api.config.show_hover then
     local hx, hz, hlevel = api.input.hover_tile()
     if hx then
-      draw.world_tile(hx, hz, hlevel,
+      marker(api, draw, hx, hz, hlevel,
         api.config.hover_fill_color, api.config.hover_color, api.config.hover_fill_alpha)
     end
   end

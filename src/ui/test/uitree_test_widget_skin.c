@@ -50,6 +50,35 @@ void test_widget_skin(void)
     TEST_ASSERT(UITree_WidgetSetArt(tree, rs, 7, 900) && UITree_WidgetSetArt(tree, rc, 7, 901) &&
                 UITree_WidgetSetMask(tree, rc, 7, 902) && UITree_WidgetSetMask(tree, rm, 7, 0),
                 "art on sprite and compass, masks on compass and minimap are accepted");
+    UITree_WidgetSetPosition(tree,rs,7,12,14);
+    UITree_WidgetSetSize(tree,rs,7,50,60);
+    UITree_WidgetSetHidden(tree,rs,7,false);
+    UITree_WidgetSetAnchor(tree,rs,7,rc,UITREE_WIDGET_RELATION_BEHIND);
+    UITree_EnsureLayout(tree);
+    uint32_t const quiet_dirty=tree->dirty_gen;
+    uint64_t const quiet_edits=tree->widget_edit_revision;
+    for( int frame=0; frame<100; ++frame )
+    {
+        UITree_WidgetSetArt(tree,rs,7,900);
+        UITree_WidgetSetMask(tree,rc,7,902);
+        UITree_WidgetSetGraphic(tree,ro,9,950,8,8);
+        UITree_WidgetSetPosition(tree,rs,7,12,14);
+        UITree_WidgetSetSize(tree,rs,7,50,60);
+        UITree_WidgetSetHidden(tree,rs,7,false);
+        UITree_WidgetSetAnchor(tree,rs,7,rc,UITREE_WIDGET_RELATION_BEHIND);
+    }
+    TEST_ASSERT(tree->dirty_gen==quiet_dirty && tree->widget_edit_revision==quiet_edits,
+                "idle native and owned dressing neither repaints nor churns retained ownership");
+    UITree_WidgetSetArt(tree,rs,8,905);
+    UITree_WidgetSetArt(tree,rs,7,900);
+    int art,mask;
+    UITree_WidgetSkinAt(tree,sprite,&art,&mask);
+    TEST_ASSERT(art==900,"restating a latent skin reclaims ownership precedence");
+    UITree_WidgetReset(tree,rs,7);
+    UITree_WidgetSkinAt(tree,sprite,&art,&mask);
+    TEST_ASSERT(art==905,"release exposes the other owner's latest latent skin");
+    UITree_WidgetReset(tree,rs,8);
+    UITree_WidgetSetArt(tree,rs,7,900);
     TEST_ASSERT(!UITree_WidgetSetArt(tree, rm, 7, 903), "the minimap has no art to replace");
     TEST_ASSERT(!UITree_WidgetSetMask(tree, rr, 7, 903), "a rect has no mask");
     TEST_ASSERT(!UITree_WidgetSetArt(tree, rs, 7, 0), "art needs a scene id");

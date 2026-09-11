@@ -1420,6 +1420,45 @@ test_debug_overlay_custom_region(void)
         "a custom well scrolled away retains no drawable clip");
 }
 
+static void
+test_debug_overlay_tall_custom_scroll_origin(void)
+{
+    struct ToriRSChromeRect before, region, clip;
+    int local_x = -1, local_y = -1;
+    uint32_t generation = 0, serial = 0;
+    ToriRSChrome_Init(&g_ui);
+    int const panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 240, "Long custom page");
+    int const custom = ToriRSChrome_Custom(&g_ui, panel, "", 512);
+    ToriRSChrome_PanelSetFixedHeight(&g_ui, panel, 160);
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChrome_CustomRegion(&g_ui, custom, &before, &clip),
+                "the tall custom page has an initial drawable region");
+    int const x = clip.x + clip.w / 2;
+    int const y = clip.y + clip.h / 2;
+    ToriRSChrome_MouseWheel(&g_ui, x, y, -100);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChrome_CustomRegion(&g_ui, custom, &region, &clip),
+                "the bottom of the tall custom page remains drawable");
+    TEST_ASSERT(region.y == before.y - g_ui.panels[panel].scroll_y && region.y < clip.y,
+                "scrolling moves the complete custom image origin above its visible clip");
+    TEST_ASSERT(region.h == 512 && clip.y + clip.h <= region.y + region.h,
+                "the complete region and its visible tail stay separate");
+    int const bottom = clip.y + clip.h - 3;
+    ToriRSChrome_MouseDown(&g_ui, x, bottom);
+    ToriRSChrome_MouseUp(&g_ui, x, bottom);
+    TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == custom,
+                "a lower-page control is reachable through real scrolled pointer input");
+    TEST_ASSERT(ToriRSChrome_ActivationWasCustom(&g_ui, &local_x, &local_y, &generation, &serial) &&
+                    local_y == bottom - region.y && local_y > 450,
+                "the click names the lower content row, not a row near the clipped top");
+    ToriRSChrome_MouseDown(&g_ui, x, clip.y + clip.h + 2);
+    ToriRSChrome_MouseUp(&g_ui, x, clip.y + clip.h + 2);
+    TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == -1,
+                "preserving full content coordinates does not make clipped-away pixels clickable");
+}
+
 void
 test_debug_overlay(void)
 {
@@ -1446,4 +1485,5 @@ test_debug_overlay(void)
     test_debug_overlay_colorpick_fold();
     test_debug_overlay_panel_scroll();
     test_debug_overlay_custom_region();
+    test_debug_overlay_tall_custom_scroll_origin();
 }

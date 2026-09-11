@@ -208,7 +208,7 @@ enum AppPluginRowKind
 #define APP_HINT_ARROW_NPC 2
 #define APP_HINT_ARROW_PLAYER 10
 
-#define APP_PLUGIN_HIGHLIGHTS_MAX 256
+#define APP_PLUGIN_HIGHLIGHTS_INITIAL_CAPACITY 256
 
 #define APP_PLUGIN_OBJECTS_MAX 256
 
@@ -580,7 +580,8 @@ enum AppPluginSurface
     APP_PLUGIN_SURFACE_WORLD = 0,
     APP_PLUGIN_SURFACE_CANVAS = 1,
     /** Selected semantic page's custom well; never enters a game draw list. */
-    APP_PLUGIN_SURFACE_PANEL = 2
+    APP_PLUGIN_SURFACE_PANEL = 2,
+    APP_PLUGIN_SURFACE_MINIMAP = 3
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -1183,8 +1184,13 @@ struct App
     int minimap_flag_z;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
-    struct UITreeMinimapDot minimap_dots[256];
-    int minimap_dot_count;
+    /* Plugin tiles precede native icons. Reserve the original 256 native slots
+     * independently of the 512 plugin tile budget. */
+    struct UITreeMinimapDot minimap_dots[256 + TORIRS_PLUGIN_DRAW_BUDGET];
+    int minimap_dot_count, minimap_native_limit;
+    int plugin_minimap_count;
+    bool plugin_minimap_prepared;
+    int minimap_player_x, minimap_player_z, minimap_level;
     /* Per-frame entity overlay primitives (health bars + hitsplats), filled
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
      * frame's draw. Reference drawEntities budget: each entity contributes at
@@ -1293,6 +1299,8 @@ struct App
      * new tree instead of retaining indices into the old one.
      */
     uint32_t plugin_layout_generation;
+    /** Opt-in role-resolution fixture; native chat widgets remain untouched. */
+    uint8_t plugin_fixture_chat_members_absent;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
      * every map element icon over them. A full-screen surface spans ~30 regions
@@ -1844,6 +1852,10 @@ struct App
         int kind;
         /** CONFIG: index into the plugin's schema. */
         int cfg_index;
+        /** Last store value and its rendered form, for merging external writes
+         * without discarding an unsaved edit in the generated settings form. */
+        char config_source[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+        char config_presented[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
         /** PLUGIN_WIDGET: the id the plugin gave it. */
         char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
         /** PANEL_WIDGET: model slot, identity, and semantic kind copied with the row. */
@@ -1953,8 +1965,10 @@ struct App
      */
     int client_trigger_refire_pending;
 
-    struct ToriRS_HighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
+    /** Complete query snapshot; drawing has its own independent budget. */
+    struct ToriRS_HighlightItem* plugin_highlights;
     int plugin_highlight_count;
+    int plugin_highlight_capacity;
     /* Resolved LOC highlights, kept across frames.
      *
      * The loc pass is the expensive one: it walks the whole scenery pool
@@ -1964,8 +1978,9 @@ struct App
      * grid_position, so the answer only changes when the highlight state
      * changes or when the set of scenery does. Those are exactly the two
      * keys below. See app_plugin_highlights_rebuild_pools. */
-    struct ToriRS_HighlightItem plugin_highlight_loc[APP_PLUGIN_HIGHLIGHTS_MAX];
+    struct ToriRS_HighlightItem* plugin_highlight_loc;
     int plugin_highlight_loc_count;
+    int plugin_highlight_loc_capacity;
     int plugin_highlight_loc_revision;
     bool plugin_highlight_loc_valid;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
@@ -2014,10 +2029,14 @@ struct App
     int dbg_panel;
     int dbg_frame_row;
     int dbg_visible;
-    /** Frames App_Render has produced, cumulative. What a frame-rate readout
-     *  differences: the loop runs at the pacer's rate whether or not a frame
-     *  is drawn, so counting iterations measures the pacer, not the screen. */
+    /** Fresh frames presented by any renderer, cumulative; explicit headless
+     *  simulation frames count too. Diagnostic BMP/readback renders and retained
+     *  presents do not. A frame-rate readout differences this count, not loops. */
     uint64_t frames_rendered;
+    /** Input-frame time for plugins. Live input carries monotonic real time;
+     * replay/content-test input carries its recorded/synthetic timestamp.
+     * Separate from last_frame_ms, which belongs to world/network simulation. */
+    uint64_t plugin_frame_ms;
     /** Frame durations in microseconds, newest written at dbg_frame_head. */
     uint32_t dbg_frame_us[APP_DEBUG_FRAME_SAMPLES];
     int dbg_frame_head;
@@ -2441,6 +2460,14 @@ struct App
         int view;
     } pending_zone[256];
     int pending_zone_count;
+    /* Opt-in packet-delivery fixture: keep selected UPDATE_STAT packets in
+     * arrival order while the rest of login progresses normally. This tests
+     * an incomplete skill table without fabricating a plugin callback. */
+    struct PktUpdateStat delayed_stats[128];
+    int delayed_stat_count;
+    int delayed_stat_initialized;
+    int delayed_stat_first;
+    uint64_t delayed_stat_until;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
      * Client-TS mapBuildCenterZoneX/Z). -1 until the first rebuild. Same-zone
      * packets early-out when the world is already active. */
@@ -2708,7 +2735,8 @@ App_SyncResizableCanvasFloor(struct App* app);
 
 /**
  * Apply a pending "Interface scaling" change (device option 27), if a
- * clientscript made one since the last call. Returns 1 if the canvas changed.
+ * clientscript made one since the last call. Returns 1 if a pending scale was
+ * consumed, including when the logical canvas stayed clamped at its floor.
  *
  * The scale is realised as a *smaller canvas*, not as a second coordinate
  * space: the whole client — UI tree, world viewport, backbuffer — lays out and
@@ -2719,9 +2747,9 @@ App_SyncResizableCanvasFloor(struct App* app);
  * the mobile client pays: the 3D viewport renders at the reduced resolution
  * too.
  *
- * Fixed mode is deliberately unaffected — its canvas is pinned to the classic
- * frame and already letterboxed to fill the window, so there is nothing left
- * for a scale to do. App_SetCanvasSize's floor enforces that on its own.
+ * At the logical floor, including a fixed frame, the shell must instead ask
+ * for a larger physical game area. The floor remains intact: native widgets
+ * keep their authored geometry while the presentation scales the whole frame.
  */
 int
 App_SyncUiScale(struct App* app);
@@ -2781,6 +2809,8 @@ App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h);
  */
 void
 App_PluginLayoutTick(struct App* app);
+/** Service-boundary fixture used only by TORIRS_SIM_ROLE_MEMBERS. */
+int App_PluginFixtureRoleMembers(struct App* app, char const* role, int present);
 
 /**
  * Take a pending SETWINDOWMODE, if a clientscript issued one since the last
@@ -3703,6 +3733,8 @@ App_DrainAudio(
 /** Whether the last App_RunOnce left async work queued. */
 int
 App_AsyncPending(const struct App* app);
+
+void App_SetPluginFrameTime(struct App* app, uint64_t frame_ms);
 
 void
 App_NoteFrameTime(

@@ -39,6 +39,7 @@ struct PluginV2Runtime;
 #define TORIRS_PLUGIN_V2_RESOURCE_INCAR_MAX                                            \
     ((uint32_t)INT32_MAX >> TORIRS_PLUGIN_V2_RESOURCE_INCAR_SHIFT)
 
+/* Per-plugin references; the shared image table can hold several owners. */
 #define TORIRS_PLUGIN_V2_IMAGE_TOKENS_MAX 192
 #define TORIRS_PLUGIN_V2_MODEL_TOKENS_MAX 32
 #define TORIRS_PLUGIN_V2_MESH_TOKENS_MAX 8

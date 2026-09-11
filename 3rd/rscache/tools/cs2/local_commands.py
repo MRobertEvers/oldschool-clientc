@@ -39,6 +39,13 @@ LOCAL_NAMES: dict[int, str] = {
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "runelite_callback": (["STRING"], [], False),
+    # Pristine239:6695 selects its root with202;6677 selects child0 with203.
+    # A legacy repack renamed202 to203 and rearranged real203's two inputs.
+    "overlay_cc_find": (["NEWVAR", "INT"], ["INT"], True),
+    # Native ExecuteCommand100To999 case0x67 selects the component slot using
+    # its bool argument. Pristine239 script7232 has103 operands0,1,0,0,1;
+    # dropping the dots makes timer text target a graphic and loses edit icons.
+    "overlay_cc_create": (["NEWVAR", "INT", "INT"], [], True),
     # Command.kt (2021) never gained these, though Opcodes.kt names them. The
     # pop/push counts are src/cs2vm2/cs2vm2_opcode_stack.gen.h's, i.e. taken
     # from a client that executes them, not from the name.
@@ -754,14 +761,13 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #
     # Membership is the client's, not the operand's. Thirteen BASIC opcodes hold
     # operand 1 somewhere in cache.osrs239, but "holds a 1" is not evidence of a
-    # dot form, and taking it as such is wrong for four of them:
+    # dot form, and taking it as such is wrong for three of them:
     #
     #   102  cc_deleteall  `method4548`'s case for it pops the component id off
     #                      the int stack and never touches `var2`. Not a dot
     #                      form, on the client's own evidence. (The RuneStar
     #                      reference happens to agree; the client is why.)
-    #   103                no case in this client and no preamble flag: unknown,
-    #                      so left alone rather than guessed either way.
+    #   103                confirmed in the native client and declared above.
     #   4123, 4124         outside the cc_ range, and `method5814` never reads
     #                      `var2` — the client ignores that byte for them. Worth
     #                      22 scripts, deliberately not taken: printing

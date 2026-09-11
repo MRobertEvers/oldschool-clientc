@@ -40,7 +40,9 @@ function plugin.on_start(api)
         end
         label = assert(viewport:create_text("strength"))
         last_level = nil
-        assert(label:set_position(12, 40))
+        -- Keep these controls below the default performance block, as the C
+        -- widget example does, so both examples demonstrate usable composition.
+        assert(label:set_position(12, 96))
         assert(label:set_text_color(0xffffff))
         update(api)
         assert(label:revalidate())
@@ -48,7 +50,7 @@ function plugin.on_start(api)
         -- invokes a checked native operation on a native widget (public chat
         -- to Friends) through the normal hit test and menu dispatch.
         control = assert(viewport:create_text("public"))
-        assert(control:set_position(12, 56))
+        assert(control:set_position(12, 112))
         assert(control:set_text("Public: Friends"))
         assert(control:set_text_color(0x00ffff))
         assert(control:set_on_op("Set public chat to friends", function(widget, event)

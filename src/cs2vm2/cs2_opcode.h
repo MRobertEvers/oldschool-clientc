@@ -350,15 +350,17 @@
  * str stack in:   -
  * int stack out:  1 if found (active set) else 0
  * str stack out:  -
- * notes: This is opcode 202 even though the vendored decompiler maps both _202 and _203 to 202. Rev-239 call sites pass one argument; treating it as the old guessed CC_FINDROOT leaks an int.
+ * notes: Pristine rev-239 script6695 selects its newly created root with202.
  */
 #define CS2_OP_OVERLAY_FIND 202
-/* OVERLAY_CC_FIND — Find a dynamic child inside a scripted entity overlay layer.
- * int stack in:   overlay, sub                    (sub = top)
+/* OVERLAY_CC_FIND — Find a child of a scripted entity overlay.
+ * int stack in:   overlay, sub                     (sub = top)
  * str stack in:   -
  * int stack out:  1 if found (active set) else 0
  * str stack out:  -
- * notes: Opcode 203; completes the reference overlay-layer family.
+ * notes: Pristine rev-239 script6677 pushes its overlay handle and child0.
+ * Repacked scripts once confused202 with203; their damaged bytecode cannot
+ * define this contract.203 selects a child;202 selects the root.
  */
 #define CS2_OP_OVERLAY_CC_FIND 203
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204

@@ -776,11 +776,25 @@ frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
     int count;
     int32_t hit = -1;
     struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+    int const trace = hit_trace_armed();
     for( int i = 0; i < count; i++ )
     {
         if( events[i].barrier || events[i].world ) hit = -1;
         if( geometric ? events[i].geometric : events[i].interactive ) hit = events[i].node_plus_one - 1;
+        if( trace && (events[i].barrier || events[i].world || events[i].interactive || events[i].menu) )
+        {
+            int const node = events[i].node_plus_one - 1;
+            struct UITreeComponent const* c = &tree->components[node];
+            int x, y, w, h;
+            UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+            TORIRS_REPORT("hit_ordered: point=%d,%d geometric=%d row=%d node=%d com=%d parent=%d "
+                       "box=%d,%d,%d,%d barrier=%d world=%d interactive=%d menu=%d hit=%d\n",
+                       px, py, geometric, i, node, c->component_id, c->parent, x, y, w, h,
+                       events[i].barrier, events[i].world, events[i].interactive, events[i].menu, hit);
+        }
     }
+    if( trace )
+        TORIRS_REPORT("hit_ordered: final point=%d,%d geometric=%d hit=%d\n", px, py, geometric, hit);
     free(events);
     return hit;
 }

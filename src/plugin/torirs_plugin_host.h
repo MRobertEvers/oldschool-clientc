@@ -43,7 +43,7 @@
 #define TORIRS_PLUGIN_CONFIG_VALUE_MAX 192
 #define TORIRS_PLUGIN_SUBS_MAX 32
 /* Rows one menu build may carry routes for. Bounded by the menu itself. */
-#define TORIRS_PLUGIN_MENU_ROUTES_MAX 24
+#define TORIRS_PLUGIN_MENU_ROUTES_MAX TORIRS_PLUGIN_MENU_ROWS_MAX
 /* Overlay items one plugin may push per frame, before the host clips it and
  * says so. The pool it draws from is shared with health bars and chat. */
 #define TORIRS_PLUGIN_DRAW_BUDGET 512
@@ -65,14 +65,35 @@
  * pixels behind them -- a frame drawn with half its art missing and one line
  * on stderr to say why.
  *
+ * Raised again from 128, this time against a COUNT of what the shipped roster
+ * asks for rather than against a guess. A frame provider requests every file
+ * in its table from on_start, so its whole atlas is resident the moment it
+ * runs:
+ *
+ *   gameframe-layout   97   (FRAME_IMAGE_FILE, both surrounds + three icon sets)
+ *   mobile-gameframe   68   (MOBILE_IMAGE_FILE)
+ *   minimap-orbs       15
+ *   loot-tracker       12
+ *   xp-tracker          8
+ *   screenshot          2    item-stats 3, loot-beam 3, xp-drop-orbs 2,
+ *   ground-items        1    paneldemo 1
+ *
+ * That is 144 for the roster with ONE frame provider and 212 with both
+ * resident, so 128 could not seat even the first of those: the layout plugin
+ * alone plus the orbs overran it, and everything asked for afterwards was
+ * refused. 256 seats both providers with room for a plugin somebody adds.
+ *
  * The cost is honest and known: the PNG bytes of an image stay resident after
  * the decode that only needed them once, so ~70 KB of this table is bytes
  * nothing will read again. Dropping them would mean the host deciding that a
  * file loaded as an image is not also wanted as bytes, which is not something
  * it can know -- a plugin may legitimately hold both. Slots are cheap; the
  * guess would not be.
+ *
+ * Exhaustion is never silent: plugin_asset_budget_refused says which plugin
+ * asked for what, once per plugin, on stderr in every build.
  */
-#define TORIRS_PLUGIN_ASSETS_MAX 128
+#define TORIRS_PLUGIN_ASSETS_MAX 256
 /** Resident shipped MODELS, across every plugin. Each holds decoded geometry
  *  the host keeps for as long as the plugin runs, so the ceiling is what stops
  *  a plugin from loading a folder of art nothing stands on. */
@@ -90,7 +111,10 @@
  * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
-#define TORIRS_PLUGIN_IMAGES_MAX 192
+/* Both frame providers coexist while a replacement loads. Their 165 shipped
+ * images share this pool with the rest of the roster, generated frame masks,
+ * XP globes, composed panels and up to 48 cached item icons. */
+#define TORIRS_PLUGIN_IMAGES_MAX 384
 /**
  * Item icons the host keeps rasterised, across every plugin.
  *
@@ -115,6 +139,7 @@ struct ToriRS_PluginHost;
 #define TORIRS_PLUGIN_ENGINE_DRAW_WORLD 0
 #define TORIRS_PLUGIN_ENGINE_DRAW_CANVAS 1
 #define TORIRS_PLUGIN_ENGINE_DRAW_PANEL 2
+#define TORIRS_PLUGIN_ENGINE_DRAW_MINIMAP 3
 
 /* ------------------------------------------------------------------------ */
 /* The engine seam. app.c implements every one of these.                     */
@@ -152,6 +177,9 @@ struct PluginWidgetRequest
  * publication fence. A zero instance means no ready native tree. */
 bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+/** Re-publish semantic bindings whose resolver changed without native node
+ *  replacement. The next ordinary WidgetsChanged call delivers the update. */
+void PluginHost_WidgetBindingsInvalidate(struct ToriRS_PluginHost*);
 
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a
  * plugin. The adapter and its strings live only through this dispatch. */
@@ -306,6 +334,9 @@ struct ToriRS_PluginEngine
     int (*tab_select)(
         void* user,
         int tabno);
+    /** The native control's activation policy, including supported collapse.
+     * Optional for hosts without native tab-control activation. */
+    int (*tab_activate)(void* user, int tabno);
     /** Nonzero when that tab has an interface mounted behind it.
      *  @see tab_enabled. */
     int (*tab_enabled)(
@@ -729,6 +760,24 @@ struct ToriRS_PluginEngine
     uint32_t (*hsl_to_rgb)(
         void* user,
         int hsl);
+    /* Optional stroke-aware drawing. Nonnegative = emitted item count (zero
+     * also covers offscreen geometry), -1 = global pool full, -2 = item_budget
+     * too small. A refusal emits nothing, including no partial polygon run. */
+    int (*draw_tile_stroke)(
+        void* user, int tile_x, int tile_z, int level, uint32_t rgb,
+        uint32_t fill_rgb, int fill_alpha, int outline_width, int item_budget);
+    int (*draw_hull_stroke)(
+        void* user, int element_id, uint32_t rgb, int fill_alpha,
+        int shape, int outline_width, int item_budget);
+    int (*draw_hull_styled)(
+        void* user, int element_id, uint32_t rgb, int fill_alpha,
+        int shape, int outline_width, uint32_t flags, int item_budget);
+    int (*draw_tile_styled)(
+        void* user, int tile_x, int tile_z, int level, uint32_t rgb,
+        uint32_t fill_rgb, int fill_alpha, int outline_width,
+        uint32_t flags, int item_budget);
+    int (*draw_minimap_tile)(void* user, int tile_x, int tile_z, int level,
+        uint32_t outline_rgb, uint32_t fill_rgb, int alpha, int outline_width, int item_budget);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -796,6 +845,13 @@ PluginHost_SetReloadHandler(
     int plugin_index,
     void (*handler)(struct ToriRS_PluginHost*, int, void*),
     void* user);
+/** Internal runtime-host hook, called while a plugin is stopped. Replaces
+ * event subscriptions before Start builds the new run's subscriber lists. */
+void
+PluginHost_SetCallbacks(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    struct ToriRS_PluginCallbacks const* callbacks);
 /**
  * Is this plugin switched on RIGHT NOW -- the user's switch, minus any lane
  * that refused it. What the roster's checkbox and the boot line both want.
@@ -1056,7 +1112,23 @@ PluginHost_ConfigGet(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     char const* key);
-/** Returns false when the key or single-line value cannot be persisted. */
+/** Read an existing setting with the plugin API's boolean spelling and
+ *  declared-default rules. An undeclared/unpersisted key is a caller error. */
+bool
+PluginHost_ConfigGetBool(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key);
+/** Check a proposed write with ConfigSet's rules and diagnostics, without
+ *  changing the store or dispatching config callbacks. */
+bool
+PluginHost_ConfigValidate(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* key,
+    char const* value);
+/** Returns false when the key/value cannot be persisted or the value violates
+ *  its declared type, range or choices. */
 bool
 PluginHost_ConfigSet(
     struct ToriRS_PluginHost* host,
@@ -1113,6 +1185,11 @@ struct ToriRS_PanelWidget
     int value;
     /** CUSTOM only: preferred logical content height. */
     int preferred_height;
+    /** CUSTOM only: the last request did not fit and was cut to the bound
+     *  above. Remembered so the refusal is said once per change rather than
+     *  once per frame -- a plugin that recomputes its well from a row count
+     *  calls set_height on every build. @see api_panel_set_height. */
+    bool height_clamped;
     /** Never reused within one host lifetime. Lets a queued intent distinguish
      *  a removed node from a later declaration with the same string id. */
     uint32_t serial;
@@ -1315,6 +1392,24 @@ PluginHost_PanelDispatch(
     int x,
     int y);
 
+/** Dispatch custom input with its presenter's current logical allocation.
+ *  Ordinary controls use zero dimensions. The old entry point remains a
+ *  compatibility wrapper for callers without custom allocation facts. */
+int
+PluginHost_PanelDispatchRegion(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    uint32_t widget_serial,
+    uint64_t intent_sequence,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text,
+    int x,
+    int y,
+    int region_width,
+    int region_height);
+
 /** Whether a selected custom node is dirty, followed by its scoped draw pass.
  *  The caller prepares `surface` as a panel-local target before dispatch and
  *  restores its renderer afterwards. Draw returns 0 for hidden, clean, stale,
@@ -1340,5 +1435,50 @@ PluginHost_PanelDraw(
     int y,
     int width,
     int height);
+
+/* Opt-in developer measurements. No allocation or clock reads until enabled.
+ * Callback elapsed time is inclusive; self_ns excludes nested plugin callbacks.
+ * Names are host-owned. Read every slot, including zero-call subscriptions, to
+ * distinguish an absent callback from a subscribed callback which did not fire. */
+struct ToriRS_PluginCallbackTelemetry
+{
+    char const* callback;
+    bool subscribed;
+    uint64_t calls, elapsed_ns, self_ns, max_ns;
+};
+enum ToriRS_PluginMutationCategory
+{
+    TORIRS_PLUGIN_MUTATION_WIDGET,
+    TORIRS_PLUGIN_MUTATION_INSTANCE,
+    TORIRS_PLUGIN_MUTATION_PANEL,
+    TORIRS_PLUGIN_MUTATION_COUNT
+};
+struct ToriRS_PluginMutationTelemetry
+{
+    uint64_t attempts, changes, redraw_requests;
+};
+void PluginHost_TelemetryStart(struct ToriRS_PluginHost* host,
+    uint64_t (*clock_ns)(void* user), void* clock_user);
+/** Starts a fresh measurement window; only between callbacks. */
+void PluginHost_TelemetryReset(struct ToriRS_PluginHost* host);
+int PluginHost_TelemetryCallbackCount(void);
+void PluginHost_TelemetryReadCallback(struct ToriRS_PluginHost const* host,
+    int plugin_index, int callback_index, struct ToriRS_PluginCallbackTelemetry* out);
+void PluginHost_TelemetryReadMutation(struct ToriRS_PluginHost const* host,
+    int plugin_index, enum ToriRS_PluginMutationCategory category,
+    struct ToriRS_PluginMutationTelemetry* out);
+/** Record one validated retained setter request using its actual change and
+ * redraw decisions. Owner is the engine seam's 1-based plugin owner token;
+ * redraw_requests counts requests, even when a previous caller already dirtied
+ * the frame. A successful unchanged setter is an attempt, not a change. */
+void PluginHost_RecordRetainedMutation(struct ToriRS_PluginHost* host,
+    uint64_t owner, enum ToriRS_PluginMutationCategory category,
+    bool changed, bool redraw_requested);
+
+/** For engine object setters invoked inside a plugin callback. */
+void PluginHost_RecordCurrentRetainedMutation(struct ToriRS_PluginHost* host,
+    enum ToriRS_PluginMutationCategory category, bool changed, bool redraw_requested);
+
+void PluginHost_DrawMinimap(struct ToriRS_PluginHost* host);
 
 #endif /* TORIRS_PLUGIN_HOST_H */

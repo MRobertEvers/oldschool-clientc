@@ -261,6 +261,20 @@ int main(void)
           strcmp(fake.option_label[fake.option_count - 1], "Native gameframe") == 0,
         "the saved native gameframe is offered as itself, not as unavailable");
 
+    offer(4, "gameframe-layout/modern-fixed", "Modern Fixed");
+    fake.offer_count = 5;
+    fake.selection.revision++;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_frame_start(&api, state, NULL);
+    CHECK(fake.option_count == 6 && !strcmp(fake.selected_value, "core/native"),
+        "the original four-offer roster plus Auto and saved Native has six rows");
+    invalidates = fake.invalidates;
+    action.text = "gameframe-layout/classic-fixed";
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_action(&api, state, &action);
+    CHECK(fake.option_count == 5 && !strcmp(fake.selected_value, action.text),
+        "choosing an available frame removes only the saved-id row");
+    CHECK(fake.invalidates == invalidates,
+        "the six-to-five transition is published without invalidating the page");
+
     free(state);
     printf("client_settings_test: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

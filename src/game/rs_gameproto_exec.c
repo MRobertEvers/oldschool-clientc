@@ -26,6 +26,68 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/* TORIRS_SIM_STAT_DELAY="first_skill,logic_cycles": defer the first burst's
+ * suffix, then deliver every held packet through the normal executor. Other
+ * packets and server-tick fences keep progressing, so plugins see a real
+ * partially stated table rather than a synthetic on_stat notification. */
+static bool
+exec_delay_stat(struct RS_GameProtoCtx const* ctx, struct PktUpdateStat const* stat)
+{
+    struct App* app = ctx->app;
+    if( !app ) return false;
+    if( !app->delayed_stat_initialized )
+    {
+        char const* value = getenv("TORIRS_SIM_STAT_DELAY");
+        app->delayed_stat_initialized = 1;
+        if( value && *value )
+        {
+            int first = -1, cycles = 0;
+            int parsed = sscanf(value, "%d,%d", &first, &cycles);
+            assert(parsed == 2);
+            assert(first >= 0);
+            assert(first < RS_PLAYER_STATS_SKILL_COUNT);
+            assert(cycles > 0);
+            app->delayed_stat_first = first;
+            app->delayed_stat_until = app->logic_cycle + (uint64_t)cycles;
+            TORIRS_REPORT("STAT_DELIVERY_DELAY first=%d cycles=%d start=%llu release=%llu\n",
+                first, cycles, (unsigned long long)app->logic_cycle,
+                (unsigned long long)app->delayed_stat_until);
+        }
+    }
+    if( !app->delayed_stat_until || stat->stat < app->delayed_stat_first ) return false;
+    /* A later same-skill packet must stay behind the queued login baseline,
+     * even when the deadline falls in the middle of a network drain. */
+    if( app->logic_cycle >= app->delayed_stat_until && !app->delayed_stat_count ) return false;
+    assert(app->delayed_stat_count < (int)(sizeof app->delayed_stats / sizeof app->delayed_stats[0]));
+    app->delayed_stats[app->delayed_stat_count++] = *stat;
+    TORIRS_REPORT("STAT_DELIVERY_HELD skill=%d xp=%d cycle=%llu\n",
+        stat->stat, stat->xp, (unsigned long long)app->logic_cycle);
+    return true;
+}
+
+void
+RS_GameProto_FlushDelayedStats(struct RS_GameProtoCtx const* ctx)
+{
+    struct App* app;
+    assert(ctx);
+    app = ctx->app;
+    assert(app);
+    if( !app->delayed_stat_count || app->logic_cycle < app->delayed_stat_until ) return;
+    int const count = app->delayed_stat_count;
+    app->delayed_stat_count = 0;
+    app->delayed_stat_until = 0;
+    TORIRS_REPORT("STAT_DELIVERY_RELEASE count=%d cycle=%llu\n",
+        count, (unsigned long long)app->logic_cycle);
+    for( int i = 0; i < count; ++i )
+    {
+        struct RevPacket packet = {0};
+        packet.packet_type = PKT_NAME_UPDATE_STAT;
+        packet._update_stat = app->delayed_stats[i];
+        RS_GameProto_Exec(ctx, &packet);
+    }
+    app->need_redraw = 1;
+}
+
 /*
  * Put a line in the chatbox.
  *
@@ -839,6 +901,7 @@ RS_GameProto_Exec(
 
     /* ---- player stats ---- */
     case PKT_NAME_UPDATE_STAT:
+        if( exec_delay_stat(ctx, &packet->_update_stat) ) break;
         if( packet->_update_stat.stat >= 0 &&
             packet->_update_stat.stat < RS_PLAYER_STATS_SKILL_COUNT )
         {

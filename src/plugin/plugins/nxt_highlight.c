@@ -84,6 +84,12 @@ nxt_highlight_draw(
     assert(api);
     assert(api->game);
     assert(draw);
+    /* This optional graphics tail keeps the existing major-3 entrypoints and
+     * their offsets intact. An older host cannot represent a fill-only group
+     * or the cache's requested thickness through those older entrypoints. */
+    if( draw->struct_size < TORIRS_GRAPHICS_TILE_STYLE_SIZE ||
+        !draw->world_tile_styled || !draw->world_hull_styled )
+        return;
 
     for( ;; )
     {
@@ -111,12 +117,14 @@ nxt_highlight_draw(
          * carry the model bits and still resolve to a bare tile.
          */
         if( item.element_id >= 0 && (model_outline || model_fill) )
-            (void)draw->world_hull(
+            (void)draw->world_hull_styled(
                 draw,
                 item.element_id,
                 item.rgb,
                 model_fill ? item.opacity : 0,
-                TORIRS_HULL_MESH);
+                TORIRS_HULL_MESH,
+                model_outline ? item.outline_width : 0,
+                item.flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP);
 
         if( tile_outline || tile_fill )
         {
@@ -127,15 +135,41 @@ nxt_highlight_draw(
              * a slope. */
             for( int dz = 0; dz < item.size_z; dz++ )
                 for( int dx = 0; dx < item.size_x; dx++ )
-                    (void)draw->world_tile(
+                    (void)draw->world_tile_styled(
                         draw,
                         item.tile_x + dx,
                         item.tile_z + dz,
                         item.level,
                         item.rgb,
                         item.rgb,
-                        tile_fill ? item.opacity : 0);
+                        tile_fill ? item.opacity : 0,
+                        tile_outline ? item.outline_width : 0,
+                        item.flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP);
         }
+    }
+}
+
+static void nxt_highlight_minimap(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* draw)
+{
+    (void)state;
+    assert(api);
+    assert(api->game);
+    assert(draw);
+    if( draw->struct_size<TORIRS_GRAPHICS_MINIMAP_SIZE || !draw->minimap_tile ) return;
+    int iter=-1;
+    for( ;; )
+    {
+        struct ToriRS_HighlightItem item;
+        iter=api->game->highlight_next(api,iter,&item);
+        if( iter<0 ) break;
+        if( !(item.flags & 64) ) continue;
+        bool const outline=nxt_hl_outline(&item,NXT_HL_TILE_OUTLINE);
+        bool const fill=nxt_hl_fill(&item,NXT_HL_TILE_FILL);
+        if( !outline && !fill ) continue;
+        for( int z=0;z<item.size_z;++z )
+            for( int x=0;x<item.size_x;++x )
+                (void)draw->minimap_tile(draw,item.tile_x+x,item.tile_z+z,item.level,
+                    item.rgb,item.rgb,fill?item.opacity:0,outline?item.outline_width:0);
     }
 }
 
@@ -167,5 +201,6 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_highlight_start,
         .on_draw_world = nxt_highlight_draw,
+        .on_draw_minimap = nxt_highlight_minimap,
     },
 };

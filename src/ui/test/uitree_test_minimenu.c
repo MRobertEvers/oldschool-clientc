@@ -862,6 +862,97 @@ test_interact_hover_uses_host(void)
     UITree_Free(tree);
 }
 
+static void test_minimenu_overflow(void)
+{
+    for( int style=UI_MINIMENU_STYLE_DESKTOP; style<=UI_MINIMENU_STYLE_TOUCH; ++style )
+    {
+        struct UIMinimenu menu;
+        UIMinimenu_Reset(&menu);
+        for( int i=0;i<UITREE_MINIMENU_MAX_OPTIONS;++i )
+        {
+            char text[40];snprintf(text,sizeof(text),"Unique option %d",i);
+            struct UIMinimenuPick pick=pick_none();pick.id=i;
+            UIMinimenu_AddOption(&menu,text,TEST_ACTION_OP1,i,pick);
+        }
+        struct UIMinimenuLayout layout=UIMinimenu_LayoutFromLineBoxStyled(16,(enum UIMinimenuStyle)style);
+        UIMinimenu_ShowAt(&menu,layout,180,764,502,765,503);
+        TEST_ASSERT(menu.height<=503 && menu.y>=0 && menu.y+menu.height<=503,
+            "400-row popup fits the canvas in desktop and touch layouts");
+        TEST_ASSERT(menu.option_count==400 && menu.visible_rows>0 && menu.visible_rows<400 && menu.scrollbar_w>0,
+            "overflow retains every action behind a bounded visible row window");
+        TEST_ASSERT(UIMinimenu_OptionVisible(&menu,399) && !UIMinimenu_OptionVisible(&menu,0),
+            "initial window shows highest-priority options");
+        struct UIMinimenuScrollbar bar;
+        UIMinimenu_Scrollbar(&menu,&bar);
+        TEST_ASSERT(UIMinimenu_HitOption(&menu,bar.x,UIMinimenu_OptionY(&menu,399))<0,
+            "scrollbar pixels never select an underlying option");
+        for( int offset=0;offset<=menu.option_count-menu.visible_rows;++offset )
+        {
+            UIMinimenu_Scroll(&menu,offset-menu.first_row);
+            for( int i=0;i<menu.option_count;++i )
+            {
+                if( !UIMinimenu_OptionVisible(&menu,i) ) continue;
+                int const y=UIMinimenu_OptionY(&menu,i);
+                int const hit=UIMinimenu_HitOption(&menu,menu.x+5,y);
+                TEST_ASSERT(y-menu.layout.hover_above>=menu.y+menu.layout.separator_y &&
+                    y+menu.layout.hover_below<=menu.y+menu.height,
+                    "every visible row keeps its complete click band inside the popup");
+                TEST_ASSERT(hit==i && menu.options[hit].pick.id==i,
+                    "scrolling preserves exact original row and target identity");
+            }
+        }
+        TEST_ASSERT(UIMinimenu_OptionVisible(&menu,0),"the final Cancel/low-priority row is reachable");
+        UIMinimenu_Scroll(&menu,-400);
+        UIMinimenu_Scrollbar(&menu,&bar);
+        TEST_ASSERT(UIMinimenu_ScrollbarInput(&menu,bar.x+bar.w/2,bar.thumb_y+1,true,true),
+            "mouse or touch can capture the scrollbar thumb");
+        UIMinimenu_ScrollbarInput(&menu,bar.x+bar.w/2,bar.y+bar.h,true,true);
+        TEST_ASSERT(UIMinimenu_OptionVisible(&menu,0),"thumb drag reaches the final rows without dropping options");
+        UIMinimenu_ScrollbarInput(&menu,bar.x+bar.w/2,bar.y+bar.h,false,false);
+        TEST_ASSERT(!menu.scroll_dragging,"thumb release retires capture");
+        UIMinimenu_ShowAt(&menu,layout,9999,0,0,765,503);
+        TEST_ASSERT(menu.width==765 && menu.first_row==0,"oversized width clamps and reopening resets scroll");
+    }
+
+    struct UITree* tree=UITree_New(8);
+    struct UITreeHost host;struct TestHostState state;
+    struct UIInteraction interact;struct UIInteractOut out;
+    struct LibToriRS_Input storage,*input=LibToriRS_Input_Init(&storage,0);
+    UITree_TestHostInit(&host,&state);UIInteraction_Init(&interact);
+    int node=UITree_TestPushXy(tree,-1,UIELEM_BUILTIN_MINIMENU,900,0,0,0,0);
+    tree->components[node].u.minimenu.font_id=5;
+    for( int i=0;i<80;++i )
+    {
+        char text[32];snprintf(text,sizeof(text),"Row %d",i);
+        UIMinimenu_AddOption(&interact.minimenu,text,TEST_ACTION_OP1,i,pick_none());
+    }
+    UIMinimenu_ShowAt(&interact.minimenu,UIMinimenu_LayoutFromLineBox(16),120,300,200,765,503);
+    LibToriRS_Input_Begin(input,0);
+    LibToriRS_Input_PushMouseMove(input,interact.minimenu.x+10,100);
+    LibToriRS_Input_PushMouseWheel(input,-2);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact,tree,&host,input,0,&out);
+    TEST_ASSERT(interact.minimenu.first_row==6 && out.wheel_consumed && out.need_redraw && out.minimenu_select<0,
+        "open-menu wheel changes visible rows without selecting or scrolling the world");
+    struct UITreeEmitBuffer emit;UITree_EmitBufferInit(&emit);
+    state.minimenu_visible=1;state.minimenu_state=&interact.minimenu;
+    UITree_TestResolve(tree);UITree_EmitWalk(tree,&host,&emit,-1);
+    int row_texts=0;
+    for( int i=0;i<emit.count;++i )
+    {
+        struct UITreeEmitDesc const* d=&emit.cmds[i];
+        if( d->kind!=UITREE_EMIT_TEXT || strncmp(d->text,"Row ",4) ) continue;
+        ++row_texts;
+        int option=-1;sscanf(d->text,"Row %d",&option);
+        TEST_ASSERT(UIMinimenu_OptionVisible(&interact.minimenu,option),"emit excludes offscreen rows");
+        TEST_ASSERT(d->clip.x>=interact.minimenu.x && d->clip.y>=interact.minimenu.y &&
+            d->clip.y+d->clip.h<=interact.minimenu.y+interact.minimenu.height,
+            "row ink is clipped to the same popup used for hits");
+    }
+    TEST_ASSERT(row_texts==interact.minimenu.visible_rows,"emit publishes exactly the visible row window");
+    UITree_EmitBufferFree(&emit);UITree_Free(tree);
+}
+
 void
 test_minimenu(void)
 {
@@ -872,6 +963,7 @@ test_minimenu(void)
     test_minimenu_width_holds_the_rows();
     test_minimenu_hide_keeps_font();
     test_minimenu_clamping();
+    test_minimenu_overflow();
     test_minimenu_sort();
     test_minimenu_hit_and_hover();
     test_minimenu_emit();

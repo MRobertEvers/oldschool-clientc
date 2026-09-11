@@ -2526,7 +2526,7 @@ ToriRSChrome_CustomRegion(
     if( out_region )
     {
         out_region->x = w->x + DBG_RULE;
-        out_region->y = w->y + (w->label[0] ? DBG_ROW_H : 0) + DBG_RULE;
+        out_region->y = w->custom_region_y;
         out_region->w = w->w - 2 * DBG_RULE;
         out_region->h = w->view_h;
     }
@@ -3033,6 +3033,9 @@ ToriRSChrome_DropdownSetStructuredOptions(
     uint64_t hash;
     uint32_t flags = 0;
     int selected;
+    int scroll;
+    char top_value[TORIRS_CHROME_SELECT_VALUE_MAX] = "";
+    char hover_value[TORIRS_CHROME_SELECT_VALUE_MAX] = "";
 
     if( !dbg_valid_widget(ui, widget) ||
         ui->widgets[widget].kind != TORIRS_CHROME_W_DROPDOWN || option_count < 0 ||
@@ -3050,6 +3053,21 @@ ToriRSChrome_DropdownSetStructuredOptions(
         flags |= TORIRS_CHROME_CHANGE_WIDGET_SELECTED;
     if( flags == 0 )
         return;
+    scroll = dropdown->scroll;
+    if( dropdown->structured_options )
+    {
+        struct ToriRSChromeSelectOption const* top =
+            dbg_structured_option(ui, dropdown, scroll);
+        if( top )
+            dbg_copy(top_value, sizeof(top_value), top->value);
+        if( ui->dropdown_open == widget && ui->dropdown_hover_row >= 0 )
+        {
+            struct ToriRSChromeSelectOption const* hover =
+                dbg_structured_option(ui, dropdown, scroll + ui->dropdown_hover_row);
+            if( hover )
+                dbg_copy(hover_value, sizeof(hover_value), hover->value);
+        }
+    }
     if( !dbg_structured_options_replace(ui, widget, options, option_count) )
         return;
     dbg_legacy_options_release(ui, widget);
@@ -3062,10 +3080,25 @@ ToriRSChrome_DropdownSetStructuredOptions(
         dropdown->selected_value,
         TORIRS_CHROME_SELECT_VALUE_MAX,
         selected_value);
-    dropdown->scroll = selected > 0 ? selected : 0;
+    /* Stable values let a retained list keep its visible top row even when
+     * another option is inserted or removed. A missing top row clamps the
+     * previous position; changing selection does not discard a user's scroll. */
+    dropdown->scroll = scroll;
+    for( int i = 0; i < option_count; i++ )
+        if( strcmp(options[i].value, top_value) == 0 )
+            dropdown->scroll = i;
     dbg_dropdown_clamp(dropdown);
     if( ui->dropdown_open == widget )
-        ui->dropdown_open = -1;
+    {
+        ui->dropdown_hover_row = -1;
+        for( int i = 0; i < option_count; i++ )
+            if( i >= dropdown->scroll &&
+                i < dropdown->scroll + TORIRS_CHROME_DROPDOWN_ROWS &&
+                strcmp(options[i].value, hover_value) == 0 )
+                ui->dropdown_hover_row = i - dropdown->scroll;
+        if( option_count == 0 )
+            dbg_dropdown_close(ui);
+    }
     dbg_dirty_widget(ui, widget);
     dbg_change_widget_layout(ui, widget, flags);
 }
@@ -5653,6 +5686,10 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             inner.y = box.y + DBG_RULE;
             inner.w = box.w - 2 * DBG_RULE;
             inner.h = box.h - 2 * DBG_RULE;
+            /* Keep raster and local-input coordinates tied to the complete
+             * well. The row hit box is clipped below, which must not pin a
+             * tall custom image to the top of the scroll window. */
+            w->custom_region_y = inner.y;
             visible = dbg_rect_clip(clip, inner);
             w->custom_clip_x = visible.x;
             w->custom_clip_y = visible.y;

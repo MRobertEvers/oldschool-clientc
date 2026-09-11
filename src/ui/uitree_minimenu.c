@@ -107,6 +107,7 @@ UIMinimenu_Hide(struct UIMinimenu* menu)
     menu->visible = false;
     menu->option_count = 0;
     menu->hovered_option = -1;
+    menu->scroll_dragging = false;
 }
 
 bool
@@ -241,7 +242,7 @@ UIMinimenu_OptionY(struct UIMinimenu const* menu, int option_index)
     if( option_index < 0 || option_index >= menu->option_count )
         return menu->y;
 
-    int const row = (menu->option_count - 1 - option_index) * menu->layout.row_stride;
+    int const row = (menu->option_count - 1 - option_index - menu->first_row) * menu->layout.row_stride;
     return menu->y + row + menu->layout.option_base_y;
 }
 
@@ -266,7 +267,7 @@ UIMinimenu_RowTextBox(
         int const band_top = UIMinimenu_OptionY(menu, option_index) - menu->layout.hover_above;
         *out_x = menu->x + menu->layout.text_inset_x;
         *out_y = band_top + menu->layout.row_text_offset_y;
-        *out_w = menu->width - 2 * menu->layout.text_inset_x;
+        *out_w = menu->width - menu->scrollbar_w - 2 * menu->layout.text_inset_x;
         *out_h = menu->layout.row_text_box_h;
     }
 }
@@ -285,8 +286,18 @@ UIMinimenu_ShowAt(
     if( menu->option_count <= 0 )
         return;
 
-    int width = content_width > 0 ? content_width : 120;
-    int height = UIMinimenu_Height(&layout, menu->option_count);
+    assert(viewport_w > 0);
+    assert(viewport_h > 0);
+    assert(layout.row_stride > 0);
+    int rows = (viewport_h - layout.chrome_h) / layout.row_stride;
+    if( rows < 0 ) rows = 0;
+    if( rows > menu->option_count ) rows = menu->option_count;
+    int const scrollbar_w = rows < menu->option_count ? (layout.row_stride > 20 ? layout.row_stride : 12) : 0;
+    int width = (content_width > 0 ? content_width : 120) + scrollbar_w;
+    if( width > viewport_w ) width = viewport_w;
+    if( scrollbar_w && UIMinimenu_Height(&layout,rows)+2 > viewport_h && rows>0 ) --rows;
+    int height = UIMinimenu_Height(&layout, rows) + (scrollbar_w ? 2 : 0);
+    if( height > viewport_h ) height = viewport_h;
     int x = click_x - (width / 2);
     int y = click_y - layout.click_y_bias;
 
@@ -306,6 +317,85 @@ UIMinimenu_ShowAt(
     menu->width = width;
     menu->height = height;
     menu->hovered_option = -1;
+    menu->first_row = 0;
+    menu->visible_rows = rows;
+    menu->scrollbar_w = scrollbar_w;
+    menu->scroll_dragging = false;
+}
+
+bool UIMinimenu_OptionVisible(struct UIMinimenu const* menu, int option_index)
+{
+    assert(menu);
+    int const row = menu->option_count - 1 - option_index;
+    return option_index >= 0 && option_index < menu->option_count &&
+        row >= menu->first_row && row < menu->first_row + menu->visible_rows;
+}
+
+bool UIMinimenu_Scroll(struct UIMinimenu* menu, int rows)
+{
+    assert(menu);
+    if( !menu->visible || !menu->scrollbar_w ) return false;
+    int64_t next = (int64_t)menu->first_row + rows;
+    int const maximum = menu->option_count - menu->visible_rows;
+    if( next < 0 ) next = 0;
+    if( next > maximum ) next = maximum;
+    if( next == menu->first_row ) return false;
+    menu->first_row = (int)next;
+    menu->hovered_option = -1;
+    return true;
+}
+
+bool UIMinimenu_Scrollbar(struct UIMinimenu const* menu, struct UIMinimenuScrollbar* out)
+{
+    assert(menu);
+    assert(out);
+    if( !menu->visible || !menu->scrollbar_w || menu->visible_rows <= 0 ) return false;
+    out->x = menu->x + menu->width - menu->scrollbar_w - 2;
+    out->y = menu->y + menu->layout.separator_y + 1;
+    out->w = menu->scrollbar_w;
+    out->h = menu->height - menu->layout.separator_y - 3;
+    out->arrow_h = out->w < out->h / 3 ? out->w : out->h / 3;
+    int const track = out->h - 2 * out->arrow_h;
+    out->thumb_h = track * menu->visible_rows / menu->option_count;
+    if( out->thumb_h < 8 ) out->thumb_h = 8;
+    if( out->thumb_h > track ) out->thumb_h = track;
+    out->thumb_y = out->y + out->arrow_h +
+        (track - out->thumb_h) * menu->first_row / (menu->option_count - menu->visible_rows);
+    return true;
+}
+
+bool UIMinimenu_ScrollbarInput(struct UIMinimenu* menu, int x, int y, bool pressed, bool held)
+{
+    assert(menu);
+    struct UIMinimenuScrollbar bar;
+    if( !UIMinimenu_Scrollbar(menu,&bar) ) return false;
+    if( menu->scroll_dragging )
+    {
+        if( held )
+        {
+            int const travel = bar.h - 2 * bar.arrow_h - bar.thumb_h;
+            int const maximum = menu->option_count - menu->visible_rows;
+            int64_t target = menu->scroll_drag_row;
+            if( travel > 0 ) target += (int64_t)(y - menu->scroll_drag_y) * maximum / travel;
+            if( target < 0 ) target = 0;
+            if( target > maximum ) target = maximum;
+            (void)UIMinimenu_Scroll(menu,(int)target-menu->first_row);
+        }
+        else menu->scroll_dragging = false;
+        return true;
+    }
+    if( !pressed || x < bar.x || x >= bar.x+bar.w || y < bar.y || y >= bar.y+bar.h ) return false;
+    if( y < bar.y+bar.arrow_h ) (void)UIMinimenu_Scroll(menu,-1);
+    else if( y >= bar.y+bar.h-bar.arrow_h ) (void)UIMinimenu_Scroll(menu,1);
+    else if( y < bar.thumb_y ) (void)UIMinimenu_Scroll(menu,-menu->visible_rows);
+    else if( y >= bar.thumb_y+bar.thumb_h ) (void)UIMinimenu_Scroll(menu,menu->visible_rows);
+    else
+    {
+        menu->scroll_dragging = true;
+        menu->scroll_drag_y = y;
+        menu->scroll_drag_row = menu->first_row;
+    }
+    return true;
 }
 
 int
@@ -317,8 +407,10 @@ UIMinimenu_HitOption(struct UIMinimenu const* menu, int click_x, int click_y)
 
     for( int i = 0; i < menu->option_count; i++ )
     {
+        if( !UIMinimenu_OptionVisible(menu,i) ) continue;
         int const option_y = UIMinimenu_OptionY(menu, i);
-        if( click_x > menu->x && click_x < menu->x + menu->width &&
+        if( click_x > menu->x && click_x < menu->x + menu->width - (menu->scrollbar_w ? menu->scrollbar_w+2 : 0) &&
+            click_y > menu->y + menu->layout.separator_y && click_y < menu->y + menu->height - 2 &&
             click_y > option_y - menu->layout.hover_above &&
             click_y < option_y + menu->layout.hover_below )
             return i;

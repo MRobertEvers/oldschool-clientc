@@ -9,6 +9,9 @@
  * config round-trip that drops a key means settings vanish at the next launch.
  */
 
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "plugin/torirs_plugin_host.h"
 
 #include <assert.h>
@@ -126,6 +129,18 @@ fake_frame_ms(void* u)
 {
     (void)u;
     return 1000;
+}
+static uint64_t g_delivery_clock;
+static uint64_t delivery_frame_ms(void* u)
+{ (void)u; return g_delivery_clock; }
+static void delivery_fixture_env(char const* value)
+{
+#if defined(_WIN32)
+    _putenv_s("TORIRS_SIM_ASSET_DELIVERY_DELAY", value ? value : "");
+#else
+    if( value ) setenv("TORIRS_SIM_ASSET_DELIVERY_DELAY", value, 1);
+    else unsetenv("TORIRS_SIM_ASSET_DELIVERY_DELAY");
+#endif
 }
 static uint64_t
 fake_frame_work_us(void* u)
@@ -1402,6 +1417,7 @@ fake_engine(void)
     e.frame_preference_set = fake_frame_preference_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_activate = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
@@ -1670,6 +1686,8 @@ v2_probe_gameframe(
 
     CHECK(!api->cache.tab_select(api, 3) && g_engine.native_tab_selects == navigation_before,
           "frame provision cannot issue native navigation commands");
+    CHECK(!api->cache.tab_activate(api, 3) && g_engine.native_tab_selects == navigation_before,
+          "frame provision cannot activate native navigation controls");
     CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
     CHECK(strcmp(event->offer_id, "test") == 0, "frame provision receives the local offer id");
     if( !event->active )
@@ -2492,6 +2510,578 @@ static struct ToriRS_FrameOffer const GF_BUILDERLESS[]={
     {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
 static struct ToriRS_PluginDef const GF_NO_HANDLER={.struct_size=sizeof(GF_NO_HANDLER),.id="gf-none",.title="None",.version="3.0.0",
     .frames=GF_BUILDERLESS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks)}};
+
+/* ------------------------------------------------------------------------ */
+/* Repair-pass regressions                                                   */
+/*                                                                           */
+/* Four host behaviours that each failed SILENTLY -- settings deleted by a   */
+/* save, a mistyped colour drawn as black, art that stopped loading, a well  */
+/* that drew off its own end -- so nothing above would have gone red for any */
+/* of them.                                                                  */
+/* ------------------------------------------------------------------------ */
+
+static struct ToriRS_Api* g_pin_api;
+static int g_pin_asset_refusals;
+static int g_pin_asset_requests;
+static uint32_t g_pin_colour;
+static int g_pin_rows;
+static int g_pin_beam;
+static enum ToriRS_Result g_pin_height_exact;
+static enum ToriRS_Result g_pin_height_over;
+
+static struct ToriRS_ConfigItem const PIN_CONFIG_ITEMS[] = {
+    { .key = "hull_colour", .label = "Hull", .type = TORIRS_CONFIG_COLOR,
+      .default_value = "0x00ff00" },
+    { .key = "rows", .label = "Rows", .type = TORIRS_CONFIG_INT, .default_value = "12" },
+    { .key = "beam", .label = "Beam", .type = TORIRS_CONFIG_BOOL, .default_value = "true" },
+    { .key = "shape", .label = "Shape", .type = TORIRS_CONFIG_ENUM,
+      .default_value = "hull", .choices = "hull|tile" },
+    { .key = "hotkey", .label = "Hotkey", .type = TORIRS_CONFIG_INT,
+      .default_value = "0", .min = 0, .max = 52 },
+    { 0 },
+};
+static struct ToriRS_ConfigSchema const PIN_CONFIG = {
+    .struct_size = sizeof(PIN_CONFIG),
+    .items = PIN_CONFIG_ITEMS,
+};
+
+static void
+pin_start(
+    struct ToriRS_Api* api,
+    void* state)
+{
+    struct ToriRS_PanelDescriptor panel = { .preferred_width = 320 };
+
+    (void)state;
+    g_pin_api = api;
+    CHECK(
+        api->panel.request(api, &panel) == TORIRS_RESULT_OK,
+        "the pin probe registers a page");
+}
+
+static void
+pin_read_config(struct ToriRS_Api* api)
+{
+    uint32_t colour = 0xdeadbeef;
+    int rows = -1;
+    bool beam = false;
+
+    if( api->config.get_color(api, "hull_colour", &colour) )
+        g_pin_colour = colour;
+    if( api->config.get_int(api, "rows", &rows) )
+        g_pin_rows = rows;
+    if( api->config.get_bool(api, "beam", &beam) )
+        g_pin_beam = beam ? 1 : 0;
+}
+
+static void
+pin_logic(
+    struct ToriRS_Api* api,
+    void* state,
+    struct ToriRS_TickEvent const* event)
+{
+    (void)state;
+    (void)event;
+    pin_read_config(api);
+}
+
+static void
+pin_ui_build(
+    struct ToriRS_Api* api,
+    void* state,
+    struct ToriRS_PanelBuilder* panel,
+    int view)
+{
+    (void)state;
+    if( view != TORIRS_PANEL_VIEW_PAGE )
+        return;
+    panel->custom(panel, "well", TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT);
+    g_pin_height_exact = api->panel.set_height(api, "well", 200);
+    g_pin_height_over =
+        api->panel.set_height(api, "well", TORIRS_PANEL_CUSTOM_HEIGHT_MAX + 400);
+}
+
+static struct ToriRS_PluginDef const PIN_PROBE = {
+    .struct_size = sizeof(PIN_PROBE),
+    .id = "pin-probe",
+    .title = "Pin Probe",
+    .version = "3.0.0",
+    .config = &PIN_CONFIG,
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = pin_start,
+        .on_logic_tick = pin_logic,
+        .on_ui_build = pin_ui_build,
+    },
+};
+
+/* A second definition under a name the FIRST host does not carry, so the
+ * carried-through section can be handed to a real plugin later. */
+static struct ToriRS_PluginDef const PIN_LATE = {
+    .struct_size = sizeof(PIN_LATE),
+    .id = "absent-lua",
+    .title = "Absent Lua",
+    .version = "3.0.0",
+    .config = &PIN_CONFIG,
+    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
+};
+
+/* Asks for more files than the pre-repair ceiling of 128 held, from on_start,
+ * the way a frame provider asks for its whole atlas. */
+static void
+pin_hungry_start(
+    struct ToriRS_Api* api,
+    void* state)
+{
+    char name[32];
+    int i;
+
+    (void)state;
+    for( i = 0; i < 200; i++ )
+    {
+        snprintf(name, sizeof(name), "pin_%03d.png", i);
+        g_pin_asset_requests++;
+        if( api->assets.request(api, name) == TORIRS_ASSET_BUDGET )
+            g_pin_asset_refusals++;
+    }
+}
+
+static struct ToriRS_PluginDef const PIN_HUNGRY = {
+    .struct_size = sizeof(PIN_HUNGRY),
+    .id = "pin-hungry",
+    .title = "Pin Hungry",
+    .version = "3.0.0",
+    .callbacks = {
+        .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = pin_hungry_start,
+    },
+};
+
+static void
+pin_image_roster_start(struct ToriRS_Api* api, void* state)
+{
+    uint32_t pixel = 0xff102030u;
+    char name[32];
+    (void)state;
+    for( int i = 0; i < 110; i++ )
+    {
+        struct ToriRS_ImageRef image = { 0 };
+        snprintf(name, sizeof(name), "composed-%d", i);
+        CHECK(api->assets.image_compose(api, name, 1, 1, &pixel, &image) == TORIRS_ASSET_READY,
+            "concurrent providers and remaining roster can hold their images");
+        CHECK(image.value > 0, "an image in a high shared slot gets a valid owner token");
+    }
+}
+
+static struct ToriRS_Api* g_resize_api;
+static char const* const RESIZE_VALUES[] = { "auto", "one", "two", "three", "four", "core/native" };
+
+static void
+resize_start(struct ToriRS_Api* api, void* state)
+{
+    struct ToriRS_PanelDescriptor panel = { .preferred_width = 320 };
+    (void)state;
+    g_resize_api = api;
+    CHECK(api->panel.request(api, &panel) == TORIRS_RESULT_OK, "resize fixture registers its page");
+}
+
+static void
+resize_build(struct ToriRS_Api* api, void* state, struct ToriRS_PanelBuilder* panel, int view)
+{
+    struct ToriRS_SelectOption options[6];
+    (void)api;
+    (void)state;
+    (void)view;
+    for( int i = 0; i < 6; i++ )
+        options[i] = (struct ToriRS_SelectOption){
+            .struct_size = sizeof(options[i]), .value = RESIZE_VALUES[i],
+            .label = RESIZE_VALUES[i], .enabled = true, .detail = "" };
+    panel->select(panel, "first", "First", "core/native", options, 6);
+    panel->select(panel, "second", "Second", "auto", options, 3);
+    panel->select(panel, "empty", "Empty", "", NULL, 0);
+}
+
+static void
+test_retained_option_resize(void)
+{
+    struct ToriRS_PluginDef def = {
+        .struct_size = sizeof(def), .id = "resize-options", .title = "Resize options", .version = "1",
+        .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+            .on_start = resize_start, .on_ui_build = resize_build }
+    };
+    struct ToriRS_PluginEngine engine = fake_engine();
+    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+    struct ToriRS_SelectOption options[6];
+    int const plugin = PluginHost_Register(host, &def);
+    PluginHost_Start(host);
+    CHECK(PluginHost_PanelSelect(host, plugin), "resize fixture opens");
+    uint32_t const generation = PluginHost_PanelSelectionGeneration(host);
+    struct ToriRS_PanelWidget const* first = PluginHost_PanelWidgetAt(host, generation, 0);
+    struct ToriRS_PanelWidget const* second = PluginHost_PanelWidgetAt(host, generation, 1);
+    uint32_t const serial = first->serial;
+    PluginHost_PanelChangesAcknowledge(host, generation);
+    for( int i = 0; i < 6; i++ )
+        options[i] = (struct ToriRS_SelectOption){
+            .struct_size = sizeof(options[i]), .value = RESIZE_VALUES[i],
+            .label = RESIZE_VALUES[i], .enabled = true, .detail = "" };
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "one", options, 5) == TORIRS_RESULT_OK,
+        "the real host accepts the original six-to-five saved-id transition");
+    CHECK(first->serial == serial && first->select_option_count == 5 && first->selected == 1 &&
+        PluginHost_PanelSelectionGeneration(host) == generation && PluginHost_PanelWidgetCount(host, generation) == 3,
+        "count changes keep widget identity, page identity and stable selection");
+    CHECK(second->select_option_count == 3 && !strcmp(second->select_options[2].value, "two"),
+        "shrinking one packed slice preserves the following dropdown");
+    struct ToriRS_PluginPanelChange change;
+    CHECK(PluginHost_PanelChangeNext(host, generation, &change) == 1 &&
+        change.widget_serial == serial && (change.flags & TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS),
+        "the resize is one retained option mutation");
+    CHECK(PluginHost_PanelChangeNext(host, generation, &change) == 0,
+        "resizing options does not request a page rebuild");
+    options[0].label = "must not leak";
+    options[1].value = "auto";
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "auto", options, 5) == TORIRS_RESULT_INVALID &&
+        !strcmp(first->select_options[0].label, "auto"),
+        "a later invalid row cannot partially mutate an earlier retained option");
+    options[0].label = "auto";
+    options[1].value = "one";
+    for( int i = 0; i < 150; i++ )
+    {
+        CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "", NULL, 0) == TORIRS_RESULT_OK,
+            "a retained slice can become empty");
+        CHECK(g_resize_api->panel.set_options(g_resize_api, "first", "core/native", options, 6) == TORIRS_RESULT_OK,
+            "repeated growth reuses the released option capacity");
+    }
+    CHECK(!strcmp(second->select_options[2].value, "two"),
+        "repeated growth and shrink preserve the following dropdown's copied strings");
+    CHECK(g_resize_api->panel.set_options(g_resize_api, "empty", "one", options, 2) == TORIRS_RESULT_OK,
+        "an originally empty following slice remains a valid insertion point");
+    CHECK(first->select_option_count == 6 && !strcmp(first->selected_value, "core/native"),
+        "growing the final empty slice leaves earlier selections intact");
+    PluginHost_Free(host);
+}
+
+static void
+test_repair_pins(void)
+{
+    test_retained_option_resize();
+    /* ---- (a) a save must not delete a plugin this run does not have ---- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        static char const SAVED[] =
+            "; torirs plugin settings\n"
+            "[plugin:pin-probe]\nrows=3\n"
+            "[plugin:absent-lua]\nhull_colour=0x112233\nrows=9\n"
+            "[plugin:absent-c]\nenabled=0\n";
+        void* encoded = NULL;
+        int encoded_size = 0;
+        int index;
+
+        index = PluginHost_Register(host, &PIN_PROBE);
+        CHECK(index == 0, "the pin probe registers");
+        PluginHost_ConfigDecode(host, SAVED, (int)(sizeof(SAVED) - 1));
+        CHECK(
+            strcmp(PluginHost_ConfigGet(host, index, "rows"), "3") == 0,
+            "a saved value for a registered plugin still lands on it");
+
+        /* The save that used to do the damage: one change to one plugin. */
+        CHECK(
+            PluginHost_ConfigSet(host, index, "rows", "5"),
+            "changing a setting on the loaded plugin succeeds");
+        CHECK(
+            PluginHost_ConfigEncode(host, &encoded, &encoded_size) && encoded,
+            "the store encodes after the change");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:pin-probe]") &&
+                strstr((char const*)encoded, "rows=5"),
+            "the changed plugin's own section is written");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:absent-lua]") &&
+                strstr((char const*)encoded, "hull_colour=0x112233") &&
+                strstr((char const*)encoded, "rows=9"),
+            "a section whose plugin never registered survives the rewrite whole");
+        CHECK(
+            strstr((char const*)encoded, "[plugin:absent-c]") &&
+                strstr((char const*)encoded, "enabled=0"),
+            "an absent plugin's enabled=0 survives the rewrite too");
+
+        /* Round trip: re-reading what was written must not multiply or lose
+         * the carried sections. */
+        {
+            struct ToriRS_PluginHost* second = PluginHost_New(&engine);
+            void* again = NULL;
+            int again_size = 0;
+            char const* at;
+            int sections = 0;
+
+            PluginHost_ConfigDecode(second, encoded, encoded_size);
+            CHECK(
+                PluginHost_ConfigEncode(second, &again, &again_size) && again,
+                "the carried sections encode again from a host that knows none of them");
+            for( at = strstr((char const*)again, "[plugin:absent-lua]"); at;
+                 at = strstr(at + 1, "[plugin:absent-lua]") )
+                sections++;
+            CHECK(sections == 1, "a carried section is written exactly once per round trip");
+            CHECK(
+                strstr((char const*)again, "[plugin:pin-probe]") &&
+                    strstr((char const*)again, "rows=5"),
+                "a section for a plugin the second host does not have is carried as well");
+            free(again);
+            PluginHost_Free(second);
+        }
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* A large unavailable roster must not turn preservation into another
+     * fixed-capacity truncation. Update and replay also remain idempotent. */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        char name[32];
+        void* encoded = NULL;
+        int size = 0;
+        for( int i = 0; i < 256; i++ )
+        {
+            snprintf(name, sizeof(name), "unavailable-%d", i);
+            PluginHost_ConfigApply(host, name, "setting", "saved");
+        }
+        PluginHost_ConfigApply(host, "unavailable-255", "setting", "updated");
+        CHECK(PluginHost_ConfigEncode(host, &encoded, &size), "a large unavailable roster encodes");
+        for( int i = 0; i < 256; i++ )
+        {
+            snprintf(name, sizeof(name), "[plugin:unavailable-%d]", i);
+            CHECK(strstr(encoded, name) != NULL, "every unavailable plugin survives beyond 128 rows");
+        }
+        CHECK(strstr(encoded, "setting=updated") != NULL, "a carried setting is updated in place");
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* ---- (a2) the plugin that turns up late gets its saved values ------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        static char const SAVED[] = "[plugin:absent-lua]\nrows=9\n";
+        void* encoded = NULL;
+        int encoded_size = 0;
+        char const* at;
+        int sections = 0;
+        int late;
+
+        PluginHost_ConfigDecode(host, SAVED, (int)(sizeof(SAVED) - 1));
+        late = PluginHost_Register(host, &PIN_LATE);
+        CHECK(late >= 0, "a script that finishes loading after the settings file registers");
+        CHECK(
+            strcmp(PluginHost_ConfigGet(host, late, "rows"), "9") == 0,
+            "a late registration adopts the values that were being held for its name");
+        CHECK(
+            PluginHost_ConfigEncode(host, &encoded, &encoded_size) && encoded,
+            "the adopted store encodes");
+        for( at = strstr((char const*)encoded, "[plugin:absent-lua]"); at;
+             at = strstr(at + 1, "[plugin:absent-lua]") )
+            sections++;
+        CHECK(sections == 1, "an adopted plugin is written once, not once from each store");
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* ---- (b) an unreadable number falls back to the DECLARED default --- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &PIN_PROBE);
+
+        CHECK(index >= 0, "the pin probe registers for the config read");
+        PluginHost_Start(host);
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_colour == 0x00ff00u, "a declared colour default reads back");
+        CHECK(!PluginHost_ConfigSet(host, index, "shape", "hul"),
+            "an enum write outside the declared choices is refused");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "shape"), "hull") == 0,
+            "a refused enum write preserves the previous setting");
+        CHECK(PluginHost_ConfigSet(host, index, "shape", "tile"),
+            "a declared enum choice remains writable");
+
+        CHECK(
+            !PluginHost_ConfigSet(host, index, "hull_colour", "cyan"),
+            "a mistyped colour is refused without saving it");
+        PluginHost_ConfigApply(host, "pin-probe", "hull_colour", "cyan");
+        g_pin_colour = 0xdeadbeefu;
+        PluginHost_LogicTick(host, 1);
+        CHECK(
+            g_pin_colour == 0x00ff00u,
+            "a colour that will not parse reads as the plugin's declared default, not black");
+
+        CHECK(
+            !PluginHost_ConfigSet(host, index, "rows", "12 rows"),
+            "a trailing word in a number write is refused");
+        PluginHost_ConfigApply(host, "pin-probe", "rows", "12 rows");
+        g_pin_rows = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_rows == 12, "an unparseable int reads as the declared default");
+
+        /* The bool spellings must survive the fallback: `false` is not a
+         * number, and falling back on it would turn a default-on setting
+         * back on every time somebody switched it off by hand. */
+        CHECK(
+            PluginHost_ConfigSet(host, index, "beam", "false"),
+            "a bool can be spelled out");
+        g_pin_beam = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_beam == 0, "'false' switches a default-on bool off");
+        CHECK(!PluginHost_ConfigGetBool(host, index, "beam"),
+            "the settings panel reads the same false spelling as the plugin");
+        {
+            char const* const spellings[] = { "true", "yes", "on", "1 << 4" };
+            for( unsigned i = 0; i < sizeof(spellings) / sizeof(spellings[0]); i++ )
+            {
+                CHECK(PluginHost_ConfigSet(host, index, "beam", spellings[i]),
+                    "a supported true spelling is writable");
+                PluginHost_LogicTick(host, 1);
+                CHECK(g_pin_beam == 1 && PluginHost_ConfigGetBool(host, index, "beam"),
+                    "the settings panel and plugin agree on every true spelling");
+            }
+        }
+        CHECK(
+            !PluginHost_ConfigSet(host, index, "beam", "nonsense"),
+            "a bool write refuses a typo");
+        PluginHost_ConfigApply(host, "pin-probe", "beam", "nonsense");
+        g_pin_beam = -1;
+        PluginHost_LogicTick(host, 1);
+        CHECK(g_pin_beam == 1, "an unparseable bool reads as the declared default");
+        CHECK(PluginHost_ConfigGetBool(host, index, "beam"),
+            "the settings panel uses the same declared boolean fallback");
+        CHECK(!PluginHost_ConfigSet(host, index, "hotkey", "112"),
+            "an unreachable screenshot key is refused at the host boundary");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "hotkey"), "0") == 0,
+            "a refused key leaves the saved preference unchanged");
+        CHECK(PluginHost_ConfigSet(host, index, "hotkey", "16"),
+            "a reachable screenshot key is accepted");
+        PluginHost_Free(host);
+    }
+
+    /* A runtime may remove or reorder settings while rebuilding on reload. */
+    {
+        struct ToriRS_ConfigItem items[] = {
+            { "keep", TORIRS_CONFIG_INT, "Keep", "1", 0, 99, NULL, 0 },
+            { "removed", TORIRS_CONFIG_STRING, "Removed", "seed", 0, 0, NULL, 0 },
+            { "moved", TORIRS_CONFIG_BOOL, "Moved", "true", 0, 0, NULL, 0 },
+            { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 }
+        };
+        struct ToriRS_ConfigItem const replacement[] = {
+            { "moved", TORIRS_CONFIG_BOOL, "Moved", "true", 0, 0, NULL, 0 },
+            { "keep", TORIRS_CONFIG_INT, "Keep", "1", 0, 99, NULL, 0 },
+            { "added", TORIRS_CONFIG_STRING, "Added", "new default", 0, 0, NULL, 0 },
+            { NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0 }
+        };
+        struct ToriRS_ConfigSchema schema = {
+            .struct_size = sizeof(schema), .items = items
+        };
+        struct ToriRS_PluginDef def = {
+            .struct_size = sizeof(def), .id = "reload-schema", .title = "Reload schema",
+            .version = "1", .config = &schema,
+            .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) }
+        };
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &def);
+        void* encoded = NULL;
+        int encoded_size = 0;
+        CHECK(index >= 0, "a mutable runtime schema registers");
+        PluginHost_Start(host);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "legacy before"),
+            "the original string key is writable");
+        CHECK(PluginHost_ConfigSet(host, index, "keep", "9"),
+            "the retained int has a non-default value");
+        memcpy(items, replacement, sizeof(items));
+        PluginHost_Reload(host, index);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "legacy after"),
+            "a removed key remains writable without its old row's new int constraint");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "keep"), "9") == 0,
+            "reload preserves a reordered key's value");
+        CHECK(!PluginHost_ConfigSet(host, index, "keep", "100"),
+            "the reordered int keeps its own range constraint");
+        CHECK(PluginHost_ConfigGetBool(host, index, "moved"),
+            "the reordered bool keeps its value");
+        CHECK(strcmp(PluginHost_ConfigGet(host, index, "added"), "new default") == 0,
+            "reload seeds only the newly declared key");
+        items[0] = (struct ToriRS_ConfigItem){0};
+        PluginHost_Reload(host, index);
+        CHECK(PluginHost_ConfigSet(host, index, "removed", "past terminator"),
+            "an empty replacement schema leaves old keys unclaimed");
+        CHECK(PluginHost_ConfigEncode(host, &encoded, &encoded_size),
+            "old keys still encode after the replacement schema becomes empty");
+        CHECK(strstr((char const*)encoded, "removed=past terminator") != NULL,
+            "removed settings remain preserved in the saved store");
+        free(encoded);
+        PluginHost_Free(host);
+    }
+
+    /* ---- (c) the shared asset table seats the shipped roster ----------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+
+        g_pin_asset_requests = 0;
+        g_pin_asset_refusals = 0;
+        CHECK(PluginHost_Register(host, &PIN_HUNGRY) >= 0, "the hungry probe registers");
+        PluginHost_Start(host);
+        CHECK(g_pin_asset_requests == 200, "the probe asked for every file it ships");
+        CHECK(
+            g_pin_asset_refusals == 0,
+            "a frame provider's whole atlas fits the shared asset table");
+        PluginHost_Free(host);
+    }
+
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        struct ToriRS_PluginDef defs[3];
+        char const* names[] = { "frame-old", "frame-loading", "other-plugins" };
+        int const releases = g_engine.image_releases;
+        for( int i = 0; i < 3; i++ )
+        {
+            defs[i] = PIN_HUNGRY;
+            defs[i].id = names[i];
+            defs[i].callbacks.on_start = pin_image_roster_start;
+            CHECK(PluginHost_Register(host, &defs[i]) >= 0, "a concurrent image owner registers");
+        }
+        PluginHost_Start(host);
+        CHECK(g_composed.slot >= 192, "image composition reaches beyond the previous shared ceiling");
+        PluginHost_Free(host);
+        CHECK(g_engine.image_releases - releases == 330, "teardown releases all three owners' images");
+    }
+
+    /* ---- (d) a clamped well height is reported, not answered OK -------- */
+    {
+        struct ToriRS_PluginEngine engine = fake_engine();
+        struct ToriRS_PluginHost* host = PluginHost_New(&engine);
+        int index = PluginHost_Register(host, &PIN_PROBE);
+        uint32_t generation;
+        struct ToriRS_PanelWidget const* widget;
+
+        CHECK(index >= 0, "the pin probe registers for the panel");
+        PluginHost_Start(host);
+        CHECK(PluginHost_PanelSelect(host, index), "the pin probe's page can be selected");
+        generation = PluginHost_PanelSelectionGeneration(host);
+        CHECK(
+            PluginHost_PanelWidgetCount(host, generation) == 1,
+            "the page carries its one custom well");
+        CHECK(
+            g_pin_height_exact == TORIRS_RESULT_OK,
+            "a height inside the bound is answered OK");
+        CHECK(
+            g_pin_height_over != TORIRS_RESULT_OK,
+            "a height past the bound is NOT answered OK -- the plugin can page or shrink");
+        widget = PluginHost_PanelWidgetAt(host, generation, 0);
+        CHECK(
+            widget && widget->preferred_height == TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+            "the clamped height is still recorded, so the well is bounded rather than stale");
+        PluginHost_Free(host);
+    }
+}
+
 static void test_gameframe_provider(void)
 {
     struct ToriRS_PluginEngine engine;
@@ -2782,6 +3372,86 @@ static void test_script_callbacks(void)
     PluginHost_ScriptCallback(script_test_host,"caption",99,&stack);
     CHECK(script_test_calls==5,"restarted script plugin receives the next callback");
     PluginHost_Free(script_test_host);
+}
+
+static struct ToriRS_PluginHost* telemetry_host;
+static uint64_t telemetry_now;
+static int telemetry_clock_reads;
+static uint64_t telemetry_clock(void* user)
+{
+    (void)user;
+    telemetry_clock_reads++;
+    return telemetry_now;
+}
+static void telemetry_server(struct ToriRS_Api* api, void* state,
+    struct ToriRS_TickEvent const* event)
+{
+    (void)api; (void)state; (void)event;
+    telemetry_now += 7;
+}
+static void telemetry_frame(struct ToriRS_Api* api, void* state,
+    struct ToriRS_FrameEvent const* event)
+{
+    (void)api; (void)state;
+    CHECK(event->drawn_frames == 15, "frame events preserve actual draw count");
+    telemetry_now += 10;
+    PluginHost_ServerTick(telemetry_host, 1);
+    telemetry_now += 3;
+}
+static struct ToriRS_PluginCallbackTelemetry telemetry_row(int plugin, char const* name)
+{
+    struct ToriRS_PluginCallbackTelemetry row = {0};
+    for( int i = 0; i < PluginHost_TelemetryCallbackCount(); ++i )
+    {
+        PluginHost_TelemetryReadCallback(telemetry_host, plugin, i, &row);
+        if( strcmp(row.callback, name) == 0 ) return row;
+    }
+    CHECK(0, "telemetry callback name exists");
+    return row;
+}
+static void test_callback_telemetry(void)
+{
+    struct ToriRS_PluginEngine engine = fake_engine();
+    telemetry_host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef a = {.struct_size=sizeof(a), .id="telemetry-a", .title="A", .version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_frame_start=telemetry_frame}};
+    struct ToriRS_PluginDef b = {.struct_size=sizeof(b), .id="telemetry-b", .title="B", .version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks), .on_server_tick=telemetry_server}};
+    int ai=PluginHost_Register(telemetry_host,&a), bi=PluginHost_Register(telemetry_host,&b);
+    PluginHost_Start(telemetry_host);
+    PluginHost_FrameStart(telemetry_host,0,15);
+    CHECK(telemetry_clock_reads==0 && telemetry_row(ai,"on_frame_start").calls==0,
+        "disabled telemetry does not call the clock or accumulate callbacks");
+    PluginHost_TelemetryStart(telemetry_host,telemetry_clock,NULL);
+    PluginHost_FrameStart(telemetry_host,20,15);
+    struct ToriRS_PluginCallbackTelemetry outer=telemetry_row(ai,"on_frame_start");
+    struct ToriRS_PluginCallbackTelemetry inner=telemetry_row(bi,"on_server_tick");
+    CHECK(outer.calls==1 && outer.elapsed_ns==20 && outer.self_ns==13 && outer.max_ns==20,
+        "per-plugin timing excludes nested callbacks from self time");
+    CHECK(inner.calls==1 && inner.elapsed_ns==7 && inner.self_ns==7,
+        "nested plugin time has its own callback attribution");
+    CHECK(outer.subscribed && !telemetry_row(ai,"on_server_tick").subscribed &&
+        telemetry_row(ai,"on_server_tick").calls==0,
+        "sparse subscription census distinguishes absent handlers from called ones");
+    PluginHost_SetEnabled(telemetry_host,bi,false);
+    PluginHost_FrameStart(telemetry_host,40,15);
+    outer=telemetry_row(ai,"on_frame_start");
+    CHECK(outer.calls==2 && outer.elapsed_ns==33 && outer.self_ns==26 &&
+        telemetry_row(bi,"on_server_tick").calls==1,
+        "disabled plugin remains uncalled while its historical samples survive");
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,false,false);
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,true,true);
+    PluginHost_RecordRetainedMutation(telemetry_host,(uint64_t)ai+1,TORIRS_PLUGIN_MUTATION_WIDGET,true,true);
+    struct ToriRS_PluginMutationTelemetry mutation;
+    PluginHost_TelemetryReadMutation(telemetry_host,ai,TORIRS_PLUGIN_MUTATION_WIDGET,&mutation);
+    CHECK(mutation.attempts==3 && mutation.changes==2 && mutation.redraw_requests==2,
+        "retained attempts, real changes and repeated dirty requests are separate");
+    PluginHost_TelemetryReset(telemetry_host);
+    CHECK(telemetry_row(ai,"on_frame_start").calls==0 && telemetry_row(ai,"on_frame_start").subscribed,
+        "measurement reset clears samples without changing live subscriptions");
+    PluginHost_TelemetryReadMutation(telemetry_host,ai,TORIRS_PLUGIN_MUTATION_WIDGET,&mutation);
+    CHECK(mutation.attempts==0,"measurement reset also clears retained counters");
+    PluginHost_Free(telemetry_host);
 }
 
 int
@@ -3181,6 +3851,39 @@ main(void)
         PluginHost_Free(seam_host);
     }
 
+    /* Real IO bytes remain private until the delayed terminal event. */
+    {
+        struct ToriRS_PluginDef probe = V2_SEAM_PROBE;
+        struct ToriRS_PluginEngine delayed_engine = fake_engine();
+        probe.id = "delivery-probe";
+        delayed_engine.frame_ms = delivery_frame_ms;
+        memset(&g_v2_seam, 0, sizeof g_v2_seam);
+        struct ToriRS_PluginHost* delayed = PluginHost_New(&delayed_engine);
+        CHECK(PluginHost_Register(delayed, &probe) == 0, "delivery probe registers");
+        g_delivery_clock = 1000;
+        delivery_fixture_env("delivery-probe,raw.bin,50");
+        PluginHost_Start(delayed);
+        void* bytes = malloc(4);
+        assert(bytes);
+        memcpy(bytes, "DATA", 4);
+        PluginHost_AssetDeliver(delayed, probe.id, "raw.bin", bytes, 4);
+        PluginHost_LogicTick(delayed, 1);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_PENDING && !g_v2_seam.bytes_ready,
+            "held IO completion remains pending and exposes no bytes");
+        g_delivery_clock = 1049;
+        PluginHost_FrameStart(delayed, g_delivery_clock, 0);
+        PluginHost_LogicTick(delayed, 2);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_PENDING && !g_v2_seam.bytes_ready,
+            "delivery does not happen before its deadline");
+        g_delivery_clock = 1050;
+        PluginHost_FrameStart(delayed, g_delivery_clock, 0);
+        PluginHost_LogicTick(delayed, 3);
+        CHECK(g_v2_seam.raw_final == TORIRS_ASSET_READY && g_v2_seam.bytes_ready,
+            "ordinary delivery publishes the original IO bytes at the deadline");
+        PluginHost_Free(delayed);
+        delivery_fixture_env(NULL);
+    }
+
     /* ---- incarnation-fenced V2 resources survive internal slot reuse ----- */
     {
         struct ToriRS_PluginHost* aba_host;
@@ -3377,6 +4080,8 @@ main(void)
     test_widget_operations();
     test_widget_images();
     test_gameframe_provider();
+    test_repair_pins();
+    test_callback_telemetry();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

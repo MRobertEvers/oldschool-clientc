@@ -1153,6 +1153,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
 #if defined(TORIRS_GPU_COUNTERS)
     gpu_counter_frame_begin();
 #endif
+    frame->world_depth_test = renderer->zbuffer != NULL;
     ToriRS_FrameBegin(frame);
     if( dualcore_arm(lane, frame) )
     {

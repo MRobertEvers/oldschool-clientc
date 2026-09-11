@@ -1,0 +1,9 @@
+staged groundItemCaption: 2601 bytes, fingerprint 8612aa4c0735f62a
+Copying /private/tmp/plugin-engine-cache-curses -> /private/tmp/plugin-engine-cache-goal-v3
+  assets           0% (0/1) 0:00 elapsed, ~--:-- left
+  scripts                 34 archives (reference table updated)
+  assets         100% (1/1) 0:00 elapsed, ~--:-- left
+  scripts            34 archive(s) in 0:00s
+  assets         100% (1/1) 0:00 elapsed, ~--:-- left
+Imported 34 asset archives, 0 indexed but missing.
+native script hook is fresh, compatible and isolated

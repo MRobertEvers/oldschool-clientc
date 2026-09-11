@@ -5534,6 +5534,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     gl3->has_3d = false;
     gl3->frame_clock += 1.0;
 
+    frame->world_depth_test = gl3->z_buffer_enabled;
     ToriRS_FrameBegin(frame);
     struct ToriRS_RenderCommand command;
     while( ToriRS_FrameNextCommand(frame, &command) )

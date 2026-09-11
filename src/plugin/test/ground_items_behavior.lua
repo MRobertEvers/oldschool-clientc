@@ -95,7 +95,9 @@ return {id='ground-behavior',on_start=function(host)
     local parent={position=function() return {width=458,height=34} end,
         set_size=function(self,w,h) width=w;height=h;return true end,
         set_projection_height=function(self,h) lift=h;return true end,revalidate=function() return true end}
+    local hidden_row
     local widget={parent=function() return parent end,
+        set_hidden=function(self,value) hidden_row=value;return true end,
         set_text_outline=function(self,value) outlined=value;return true end}
     config.height=160;config.line_gap=30;config.text_outline=true;values[3]=2;values[4]=0
     product.on_script_callback(api,{name='groundItemCaption',ref={},widget=widget})
@@ -109,8 +111,61 @@ return {id='ground-behavior',on_start=function(host)
     api.input.key_held=function() return false end
     product.on_frame_start(api,{})
     assert(invalidations==2, 'releasing the reveal key refreshes the native captions again')
+    -- A stack the filters remove is HIDDEN, not blanked. An empty caption is
+    -- still a row: it holds its slot in the pile's column, and the native edit
+    -- buttons and despawn timer beside it go on measuring a zero-width label.
+    values[0]=0;values[1]=0;values[5]=0
+    api.config.set('hidden_items','Rune platebody')
+    caption=nil
+    product.on_script_callback(api,{name='groundItemCaption',ref={},widget=widget})
+    assert(caption=='' and hidden_row==true,
+        'a filtered stack hides its native caption row instead of emptying it')
+    api.config.set('hidden_items','')
+    product.on_script_callback(api,{name='groundItemCaption',ref={},widget=widget})
+    assert(caption~='' and hidden_row==false,
+        'and shows the row again as soon as the item passes the filters')
+    assert(invalidations==4, 'each list edit refreshes the native captions')
     product.on_config_changed(api,'price_mode')
     product.on_stop(api)
-    assert(invalidations==4, 'configuration and disable refresh current native caption results')
+    assert(invalidations==6, 'configuration and disable refresh current native caption results')
+
+    -- The client's own "Ground items" row can be switched off at any time.
+    -- The native lane then destroys its overlay and builds no captions at all,
+    -- and no callback ever says so: a plugin that went on believing the client
+    -- was drawing the labels would leave the user with none from either side.
+    local native_rows={}
+    local function caption_row()
+        return {set_hidden=function(self,value)
+            assert(value);hidden_count=hidden_count+1;return true
+        end}
+    end
+    origin={3184,3392}
+    api.widgets.watch_tree=function(callback) tree_listener=callback;return true end
+    api.widgets.find_all=function(role)
+        assert(role=='ground_item_labels');return native_rows
+    end
+    product.on_start(api)
+    product.on_script_callback(api,{name='groundItemCaption',ref={}})
+    labels={}
+    product.on_draw_world(api,graphics)
+    assert(#labels==0,'the native lane owns the labels while it is formatting them')
+    -- Quiet is normal: the native rows only re-run their caption script when a
+    -- row changes, so a lane with captions on screen keeps the job.
+    native_rows={caption_row()}
+    for _=1,60 do product.on_frame_start(api,{}) end
+    labels={}
+    product.on_draw_world(api,graphics)
+    assert(#labels==0,'a quiet lane that still has caption rows keeps the labels')
+    native_rows={}
+    for _=1,50 do product.on_frame_start(api,{}) end
+    labels={}
+    product.on_draw_world(api,graphics)
+    assert(#labels>0 and labels[#labels]:find('Rune platebody',1,true),
+        'a native lane that stopped building captions returns the labels here')
+    native_rows={caption_row()}
+    hidden_count=0
+    tree_listener()
+    assert(hidden_count==1,
+        'and the native hider is re-armed, so a lane that comes back cannot double-draw')
     host.core.log('ground behavior passed')
 end}

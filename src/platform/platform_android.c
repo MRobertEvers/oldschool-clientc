@@ -1291,6 +1291,15 @@ PlatformWindow_CanPresent(struct PlatformWindow const* p)
     return PlatformAndroid_Window() != NULL;
 }
 
+bool
+PlatformWindow_CapturePresent(struct PlatformWindow* p, char const* path)
+{
+    assert(p);
+    assert(path);
+    /* The native surface has no software-renderer readback target. */
+    return false;
+}
+
 void
 PlatformWindow_Present(struct PlatformWindow* p)
 {

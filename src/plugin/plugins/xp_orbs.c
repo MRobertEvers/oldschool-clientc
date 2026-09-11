@@ -119,6 +119,18 @@
 #define ORB_TIP_BORDER 4
 #define ORB_TIP_ARGB 0x9C463D32u
 
+/**
+ * The highest skill id this plugin will ever ask the client about.
+ *
+ * A ceiling rather than a count: what a plugin can enumerate is the skills the
+ * server has STATED, which is not the same set on every cycle, so the scan has
+ * to run past a gap instead of stopping at one. Deliberately above the 25 this
+ * client's own table holds (RS_PLAYER_STATS_SKILL_COUNT), so a lane that grows
+ * one is tracked with no change here; an id past the end costs a failed name
+ * lookup and nothing else. @see orb_size_tables.
+ */
+#define ORB_SKILL_SCAN_MAX 64
+
 /** The largest orb the config will accept, and so the compose buffer's side:
  *  the orb plus the ring that straddles its edge. */
 #define ORB_SIZE_MAX 96
@@ -386,10 +398,6 @@ orb_cfg_color(struct ToriRS_Api* api, char const* key)
     (void)api->config.get_color(api, key, &value);
     return value;
 }
-
-/** The one verb a globe offers, and the reference's own: it flips the column
- *  between across and down. */
-#define ORB_TAG_FLIP 1u
 
 /* ---------------------------------------------------------------- pixel work */
 
@@ -1021,31 +1029,74 @@ orb_reset(struct XpOrbState* state)
     }
 }
 
-/** How many skills this client has, discovered once from api->skill_name. */
+/**
+ * How many skills this client has, discovered from api->game->skill and
+ * allowed to GROW.
+ *
+ * api->game->skill answers false for a skill the server has not stated yet --
+ * app_plugin_stat_xp gates on last_seen_level, because the pre-login table is
+ * a fresh account's rather than this account's -- so what it enumerates is the
+ * skills STATED SO FAR, not the skills that exist. That is a moving quantity:
+ * a lane that states its stat table across two packet pumps, a server that
+ * states the combat stats first, or any hole below the top of the table, all
+ * show fewer skills on one cycle than on the next.
+ *
+ * So this must not size once and freeze. The old shape did -- `if(g_seen_xp)
+ * return;` after a scan that stopped at the first unstated skill -- and a
+ * table frozen at, say, five left every skill above it permanently untracked:
+ * no globe, no drop, no tooltip, for the life of the plugin instance, with
+ * nothing on screen to say why.
+ *
+ * Two things make it settle instead:
+ *
+ *   The scan runs to ORB_SKILL_SCAN_MAX and takes the HIGHEST stated index
+ *   rather than stopping at the first gap, so a hole below the top of the
+ *   table cannot end it early.
+ *
+ *   A larger answer GROWS the tables in place and seeds only the new entries.
+ *   Growing must never disturb what is already tracked: the seen-xp of a
+ *   skill already being watched is what makes the next gain a gain, and
+ *   re-seeding it mid-session would swallow one.
+ *
+ * The probe costs nothing once it has settled: only indices at or above the
+ * current count are asked about, and an index the client has no skill for
+ * fails at the name lookup.
+ */
 static void
 orb_size_tables(struct ToriRS_Api* api, struct XpOrbState* state)
 {
-    int count = 0;
+    int const was = g_skill_count;
+    int count = was;
     struct ToriRS_SkillSnapshot skill;
 
-    if( g_seen_xp )
+    if( !api->game )
+        return;
+    if( was >= ORB_SKILL_SCAN_MAX )
         return;
     memset(&skill, 0, sizeof(skill));
     skill.struct_size = sizeof(skill);
-    while( api->game && api->game->skill(api, count, &skill) )
-        count++;
-    /* Before the server has stated a single stat there is no table to size:
-     * a plugin started on the title screen asks again next cycle rather than
-     * freezing an empty table for the life of the instance. */
-    if( count == 0 )
+    for( int i = was; i < ORB_SKILL_SCAN_MAX; i++ )
+        if( api->game->skill(api, i, &skill) )
+            count = i + 1;
+    /* Nothing new: no stat stated since the last look, which on the title
+     * screen means no stat stated at all. Either way it asks again next cycle
+     * rather than freezing the table it has for the life of the instance. */
+    if( count == was )
         return;
 
-    g_skill_count = count;
-    g_seen_xp = malloc((size_t)count * sizeof(*g_seen_xp));
+    g_seen_xp = realloc(g_seen_xp, (size_t)count * sizeof(*g_seen_xp));
     assert(g_seen_xp);
-    g_track = malloc((size_t)count * sizeof(*g_track));
+    g_track = realloc(g_track, (size_t)count * sizeof(*g_track));
     assert(g_track);
-    orb_reset(state);
+    g_skill_count = count;
+    for( int i = was; i < count; i++ )
+    {
+        g_seen_xp[i] = -1;
+        g_track[i].start_xp = -1;
+        g_track[i].start_ms = 0;
+        g_track[i].actions = 0;
+    }
+    api->core.log(api, "XP_ORBS_SKILLS count=%d was=%d", count, was);
 }
 
 /* --------------------------------------------------------------- the poll */
@@ -1218,6 +1269,21 @@ orb_compose(
     assert(side <= ORB_SCRATCH_H);
 
     arc = 0xFF000000u | orb_skill_rgb(api, globe->skill);
+
+    /*
+     * What the arc was drawn from, said out loud.
+     *
+     * A drive capture cannot read an arc off the screen: the harness's only xp
+     * sources put xp exactly ON a level threshold (LostCity setLevel, so the
+     * base survives a logout), which is honestly 0% of the way into the level,
+     * and an empty ring is what an arc that was never computed at all looks
+     * like too. This line separates them -- it says the plugin got a number and
+     * what the number was -- and it costs one print per RECOMPOSE, which for a
+     * globe sitting still is none. @see orb_key.
+     */
+    api->core.log(
+        api, "XP_ORBS_ARC slot=%d skill=%d progress=%d hovered=%d",
+        slot, globe->skill, progress, hovered);
 
     memset(g_scratch, 0, (size_t)side * (size_t)side * sizeof(uint32_t));
 
@@ -1450,14 +1516,22 @@ orb_place_tooltip(
 place:
     /* Every frame, whatever the gate above decided: the panel follows the
      * pointer, and only its CONTENTS are on a clock. */
-    x = mouse_x + 10;
+    /* The native scene caption grows down and right from the pointer. Globe
+     * images pass input through to that scene, so their tooltip must occupy
+     * the other side instead of covering the caption's first two lines. */
+    x = mouse_x - ORB_TIP_W - 10;
     y = mouse_y + 20;
+    if( x < 0 )
+    {
+        x = mouse_x + 10;
+        y = mouse_y - height - 10;
+    }
     if( x + ORB_TIP_W > canvas_w )
         x = canvas_w - ORB_TIP_W;
     if( y + height > canvas_h )
         y = mouse_y - height - 5;
-    x = orb_clampi(x, 0, canvas_w);
-    y = orb_clampi(y, 0, canvas_h);
+    x = orb_clampi(x, 0, canvas_w > ORB_TIP_W ? canvas_w - ORB_TIP_W : 0);
+    y = orb_clampi(y, 0, canvas_h > height ? canvas_h - height : 0);
     if( !state->tip_control.opaque[2] &&
         ui->create_image(ui->context, state->viewport, "tooltip", &state->tip_control) != TORIRS_CONTRACT_OK )
         return;
@@ -1639,8 +1713,6 @@ orb_place_drops(
     }
 }
 
-static void orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event);
-
 /**
  * Each frame: expire, place and repaint the globes as owned image controls
  * in the live viewport. Positions are viewport-local; hover is read from the
@@ -1773,7 +1845,8 @@ orb_frame(
                 continue;
             state->globe_image_set[i] = 0;
             state->globe_x[i] = state->globe_y[i] = -1;
-            (void)ui->set_on_op(ui->context, state->globe_control[i], "Flip", orb_operation, state);
+            /* Keep the image pass-through. orb_menu_build adds Flip after the
+             * native world rows have been built, without intercepting clicks. */
         }
         if( !state->globe_image_set[i] )
         {
@@ -1799,15 +1872,42 @@ orb_frame(
         orb_remove_control(api, &state->tip_control);
 }
 
-/** Flip: the operation on every globe control. Row becomes column and back. */
-static void
-orb_operation(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+/* Add a row to the existing menu; the globe itself remains decoration. */
+#define ORB_TAG_FLIP 1u
+static enum ToriRS_CallbackResult
+orb_menu_build(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_MenuBuildEvent* event)
 {
-    struct XpOrbState* state = user;
-    (void)event;
-    (void)state;
+    struct XpOrbState* state = plugin_state;
+    int mouse_x, mouse_y;
+    if( event->hover_pass || !api->input.pointer(api, &mouse_x, &mouse_y) )
+        return TORIRS_CALLBACK_CONTINUE;
+    for( int i = 0; i < g_globe_count; i++ )
+    {
+        struct ToriRS_WidgetBounds box;
+        if( !ToriRS_WidgetRefValid(state->globe_control[i]) ||
+            api->widgets.bounds(api->widgets.context, state->globe_control[i], &box) != TORIRS_CONTRACT_OK )
+            continue;
+        int const dx = mouse_x - (box.x + box.width / 2);
+        int const dy = mouse_y - (box.y + box.height / 2);
+        int const radius = orb_size(api) / 2;
+        if( (int64_t)dx * dx + (int64_t)dy * dy <= (int64_t)radius * radius )
+        {
+            (void)api->menu.add(api, event, "Flip", ORB_TAG_FLIP);
+            break;
+        }
+    }
+    return TORIRS_CALLBACK_CONTINUE;
+}
+
+static enum ToriRS_CallbackResult
+orb_menu_select(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_MenuSelectEvent const* event)
+{
+    (void)plugin_state;
+    if( !event->owned || event->plugin_tag != ORB_TAG_FLIP )
+        return TORIRS_CALLBACK_CONTINUE;
     (void)api->config.set(api, "vertical", orb_cfg_bool(api, "vertical") ? "0" : "1");
     api->core.log(api, "XP_ORBS_FLIP vertical=%d", orb_cfg_bool(api, "vertical"));
+    return TORIRS_CALLBACK_CONSUME;
 }
 
 /* --------------------------------------------------------------- lifecycle */
@@ -1969,5 +2069,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS = {
         .on_frame_start = orb_frame,
         .on_config_changed = orb_config_changed,
         .on_asset = orb_asset,
+        .on_menu_build = orb_menu_build,
+        .on_menu_select = orb_menu_select,
     },
 };

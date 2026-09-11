@@ -28,7 +28,154 @@ def read_bmp(path):
     return width, abs(height), rows
 
 
-def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False, public_chat_mode="on"):
+def read_asset_png(path):
+    """Read the shipped noninterlaced RGBA8 frame art without a Pillow dependency."""
+    import zlib
+    data = Path(path).read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("frame art is not PNG")
+    width, height, depth, colour, compression, filtering, interlace = struct.unpack(">IIBBBBB", data[16:29])
+    if (depth, colour, compression, filtering, interlace) != (8, 6, 0, 0, 0):
+        raise ValueError("frame-art oracle requires noninterlaced RGBA8 PNG")
+    packed = bytearray()
+    at = 8
+    while at < len(data):
+        size = struct.unpack_from(">I", data, at)[0]
+        if data[at+4:at+8] == b"IDAT":
+            packed.extend(data[at+8:at+8+size])
+        at += size + 12
+    raw = zlib.decompress(packed)
+    stride = width * 4
+    if len(raw) != height * (stride + 1):
+        raise ValueError("frame-art PNG has an unexpected decoded length")
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        method = raw[y*(stride+1)]
+        row = bytearray(raw[y*(stride+1)+1:(y+1)*(stride+1)])
+        for x in range(stride):
+            left, above = row[x-4] if x >= 4 else 0, previous[x]
+            corner = previous[x-4] if x >= 4 else 0
+            if method == 0: predictor = 0
+            elif method == 1: predictor = left
+            elif method == 2: predictor = above
+            elif method == 3: predictor = (left + above) // 2
+            elif method == 4:
+                prediction = left + above - corner
+                distances = (abs(prediction-left), abs(prediction-above), abs(prediction-corner))
+                predictor = (left, above, corner)[distances.index(min(distances))]
+            else: raise ValueError("unknown PNG row filter")
+            row[x] = (row[x] + predictor) & 255
+        rows.append([tuple(row[x:x+4]) for x in range(0, stride, 4)])
+        previous = row
+    return width, height, rows
+
+
+def check_classic_chat_pack(rows, log, failures):
+    """Preserve native content and compare both full-height rails with authored art."""
+    height, width = len(rows), len(rows[0])
+    boxes = {int(child): tuple(map(int, box)) for child, *box in re.findall(
+        r"BOUNDS[^\n]*\(162\|(\d+)\)[^\n]*hidden=0[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)", log)}
+    pack, input_line, scroll, bar = (boxes.get(i) for i in (0, 57, 58, 3))
+    def inside(inner, outer):
+        if not inner or not outer: return False
+        x,y,w,h = inner; ox,oy,ow,oh = outer
+        return w > 0 and h > 0 and x >= ox and y >= oy and x+w <= ox+ow and y+h <= oy+oh
+    controls = [boxes.get(i) for i in (5,8,12,16,20,24,28,32)]
+    # The authored desktop chat contains 142px of log/input plus its23px bar.
+    # The scroll window must retain eight14px rows and its2px breathing room.
+    content = (pack is not None and pack[2:] == (519,165) and
+               inside(pack, (0,0,width,height)) and inside(input_line, pack) and
+               input_line[3] == 16 and inside(scroll, pack) and scroll[3] >= 114 and
+               inside(bar, pack) and bar[3] == 23 and
+               input_line[1]+input_line[3] <= bar[1] and
+               all(inside(control, bar) for control in controls))
+    print(f"PIXEL chat_pack_native_content={'PASS' if content else 'FAIL'} pack={pack} scroll={scroll} input={input_line}")
+    if not content: failures.append("chat_pack_native_content")
+    valid, checked = bool(content), 0
+    if valid:
+        px,py,pw,ph = pack
+        art_dir = Path(__file__).resolve().parent.parent / "script/plugins/assets/gameframe-layout"
+        # The bottom-left sidebar stone/icon legitimately paints above the
+        # right rail. Exclude only this frame owner's visible icon/face boxes,
+        # and require at least three quarters of EACH rail to remain sampled.
+        owner_match = re.search(
+            rf"OWNED_WIDGET owner=(\d+) key=piece\.\d+ node=\d+ box={px+pw},{py},17,{ph}[^\n]*hidden=0", log)
+        owner = owner_match[1] if owner_match else None
+        covers = [tuple(map(int, box)) for found_owner, *box in re.findall(
+            r"OWNED_WIDGET owner=(\d+) key=(?:icon|face)\.\d+ node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]*hidden=0", log)
+            if found_owner == owner]
+        valid = owner is not None
+        for filename, x0 in (("classic_backleft2.png", px-17), ("classic_backvmid3.png", px+pw)):
+            sw,sh,source = read_asset_png(art_dir/filename)
+            if not inside((x0,py,17,ph),(0,0,width,height)):
+                valid = False
+                continue
+            rail_checked = 0
+            for y in range(ph):
+                mirrored = y % (2*sh)
+                sy = mirrored if mirrored < sh else 2*sh-1-mirrored
+                for x in range(17):
+                    r,g,b,a = source[sy][x*sw//17]
+                    covered = any(cx <= x0+x < cx+cw and cy <= py+y < cy+ch
+                                  for cx,cy,cw,ch in covers)
+                    if a == 255 and not covered:
+                        checked += 1
+                        rail_checked += 1
+                        if rows[py+y][x0+x] != (b,g,r): valid = False
+            valid = valid and rail_checked >= 17*ph*3//4
+    print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} authored_pixels={checked}")
+    if not valid: failures.append("chat_inside_complete_surround")
+
+
+ORB_NAMES = ("hitpoints", "prayer", "run", "special")
+
+
+def expected_orb_keys(spec=None, enabled=True):
+    names = list(ORB_NAMES) if spec is None else ([name.strip() for name in spec.split(",")] if spec else [])
+    if len(set(names)) != len(names) or any(name not in ORB_NAMES for name in names):
+        raise ValueError("expected orbs must be a unique comma-separated subset of hitpoints,prayer,run,special")
+    return {"orb_" + name for name in names} if enabled else set()
+
+
+def check_expected_orb_set(actual, expected, failures):
+    valid = set(actual) == set(expected)
+    print(f"PIXEL orbs_expected_set={'PASS' if valid else 'FAIL'} expected={','.join(sorted(expected))} actual={','.join(sorted(actual))}")
+    if not valid:
+        failures.append("orbs_expected_set")
+    return valid
+
+
+def check_osrs_chat_hidden(log, root, failures):
+    """An explicitly hidden chat still has its controls, with no paint/input.
+
+    Check the complete descendant set, including dynamically created nodes;
+    checking raw IF_SETHIDE alone misses presentation-level hiding.
+    """
+    nodes = {int(node): (int(parent), int(component), int(paint), int(input_))
+        for node, parent, component, paint, input_ in re.findall(
+            r"^NATIVE_UI node=(\d+)[^\n]*? parent=(-?\d+) com=(-?\d+)[^\n]*? native_paint=(\d+) native_input=(\d+)",
+            log, re.M)}
+    children = (5, 8, 12, 16, 20, 24, 28) if root == 601 else (5, 8, 12, 16, 20, 24, 28, 32)
+    expected = {(162 << 16) | child for child in children}
+    present = {component for _, component, _, _ in nodes.values()}
+    controls_ok = expected <= present and (162 << 16) in present
+    print(f"PIXEL osrs_hidden_chat_controls={'PASS' if controls_ok else 'FAIL'} expected={len(expected)} present={len(expected & present)}")
+    if not controls_ok: failures.append("osrs_hidden_chat_controls")
+    descendants = {node for node, (_, component, _, _) in nodes.items() if component >> 16 == 162}
+    pending = list(descendants)
+    by_parent = collections.defaultdict(list)
+    for node, (parent, _, _, _) in nodes.items(): by_parent[parent].append(node)
+    while pending:
+        for child in by_parent[pending.pop()]:
+            if child not in descendants:
+                descendants.add(child);pending.append(child)
+    leaks = [node for node in descendants if nodes[node][2] or nodes[node][3]]
+    hidden_ok = bool(descendants) and not leaks
+    print(f"PIXEL osrs_chat_subtree_hidden={'PASS' if hidden_ok else 'FAIL'} nodes={len(descendants)} leaks={len(leaks)}")
+    if not hidden_ok: failures.append("osrs_chat_subtree_hidden")
+
+
+def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, failures, native_baseline=False, public_chat_mode="on", expected_orbs=None, chat_visible=True):
     height, width = len(rows), len(rows[0])
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
@@ -103,8 +250,11 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
     # The minimap-orbs plugin's own plates, the owned images it keys
     # orb_hitpoints .. orb_special (minimap_orbs.c ORB_PART); each sits in the
     # lane's orb layer at the plate's 57x34.
+    expected = expected_orb_keys(expected_orbs)
     discs = 0
-    for name in ("hitpoints", "prayer", "run", "special"):
+    for name in ORB_NAMES:
+        if "orb_" + name not in expected:
+            continue
         box = owned.get("orb_"+name)
         if not box or not inside(box):
             continue
@@ -116,9 +266,28 @@ def check_live_surfaces(rows, log, frame, root, minimap_state, server_hide, fail
                              for i,(ex,ey,ew,eh) in draw_list)]
         matches = sum(rows[y+dy][x+dx] == tuple(reversed(rgb)) for (dx,dy),rgb in points)
         discs += len(points) >= 8 and matches >= len(points) - 1
+    # The four discs are the minimap-orbs PLUGIN's owned pictures, so the rule
+    # is a statement about that plugin. A capture that never ran it -- a
+    # single-plugin run of something else, the widget demo, a manifest without
+    # it -- has no discs to find and used to read `discs=0 FAIL`, which says
+    # nothing about the frame under test. The run's own exit dump answers
+    # whether the plugin was live: PLUGIN_STATE. Absent or not running, the
+    # rule does not apply and says so; running, the explicitly requested set must
+    # be present. The default remains all four; capability/config probes name
+    # their expected set independently of whatever the plugin happened to draw.
+    orbs_live = re.search(r"^PLUGIN_STATE id=minimap-orbs enabled=1 running=1", log, re.M)
     if not native_baseline:
-        report("orb_column_four_discs", discs == 4, f"discs={discs}")
+        if orbs_live:
+            actual = {key for key in owned if key.startswith("orb_")}
+            check_expected_orb_set(actual, expected, failures)
+            rule = "orb_column_four_discs" if expected_orbs is None else "orb_column_expected_discs"
+            report(rule, discs == len(expected), f"discs={discs} expected={len(expected)}")
+        else:
+            print("PIXEL orb_column_four_discs=SKIP minimap-orbs not running")
 
+    if not chat_visible:
+        check_osrs_chat_hidden(log, root, failures)
+        return
     controls = []
     for child, hidden, *box in re.findall(
             r"BOUNDS[^\n]*\(162\|(5|8|12|16|20|24|28|32)\)[^\n]*hidden=(\d+)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)", log):
@@ -214,6 +383,20 @@ def check_report_replaced(log, failures):
     if not camera_nodes: failures.append("report_camera_painted")
 
 
+def check_tile_marker_color(rows, color, failures):
+    """Oracle expectation only; configuration does not always request cyan."""
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", color):
+        raise ValueError("true tile color must be RRGGBB")
+    rgb = int(color, 16)
+    bgr = (rgb & 255, (rgb >> 8) & 255, (rgb >> 16) & 255)
+    ink = sum(pixel == bgr for row in rows for pixel in row)
+    valid = ink >= 30
+    detail = f"cyan_pixels={ink}" if color.upper() == "00FFFF" else f"colour={color.upper()} pixels={ink}"
+    print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} {detail}")
+    if not valid:
+        failures.append("true_tile_marker")
+
+
 def check_highlight_color(rows, log, spec, failures):
     """A cache highlight group was recorded live by the engine AND its exact
     colour is painted. spec is RRGGBB[:min_pixels]. The NATIVE_HIGHLIGHT line is
@@ -250,7 +433,7 @@ def check_panel_custom_ink(rows, log, spec, failures):
     if not ok: failures.append("panel_custom_ink")
 
 
-def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on", report_replaced=False):
+def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", public_chat_mode="on", report_replaced=False, chat_visible=True):
     """Revconfig controls, plus evidence that actual mounted CS1 ran.
 
     The RS2 frame has three mode controls and Report. Do not borrow the
@@ -263,7 +446,13 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
             failures.append(name)
     boxes = [tuple(map(int, values)) for values in re.findall(
         r"NATIVE_UI[^\n]*type=chat_button hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", log)]
-    painted = 3 if report_replaced else 4
+    painted = (3 if report_replaced else 4) if chat_visible else 0
+    if not chat_visible:
+        controls = re.findall(
+            r"NATIVE_UI[^\n]*type=chat_button hidden=\d+ native_paint=(\d+) native_input=(\d+)", log)
+        report("rs289_chat_controls_absent", len(controls) == 4 and
+               all(paint == "0" and active == "0" for paint, active in controls),
+               f"native_controls={len(controls)} expected_hidden=4")
     report("rs289_four_chat_controls", len(boxes) == painted, f"controls={len(boxes)} expected={painted}")
     report("rs289_controls_inside_canvas", len(boxes) == painted and all(
         x >= 0 and y >= 0 and w > 0 and h > 0 and x+w <= width and y+h <= height
@@ -274,7 +463,7 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
               for xx in range(max(0,x),min(width,x+w))]
         modes += sum(g > 150 and r < 100 and b < 100 for b,g,r in ps) >= 10
         captions += sum(min(b,g,r) > 180 and max(b,g,r)-min(b,g,r) < 30 for b,g,r in ps) >= 20
-    report("rs289_live_chat_modes", modes == (2 if public_chat_mode=="friends" else 3), f"green_cells={modes}")
+    report("rs289_live_chat_modes", modes == ((2 if public_chat_mode=="friends" else 3) if chat_visible else 0), f"green_cells={modes}")
     report("rs289_chat_captions", captions == painted, f"captions={captions} expected={painted}")
     report("rs289_actual_cs1_values", bool(re.search(r"^NATIVE_CS1 com=\d+ incarnation=[1-9]\d* value\[0\]=[1-9]\d*", log, re.M)))
     report("rs289_mounted_cache_interfaces", bool(re.search(
@@ -303,30 +492,34 @@ def check_rs289(rows, log, failures, scenario="baseline", frame="core/native", p
             for uid,hidden in expected.items()))
 
 
-def check_xp_orbs(rows, log, enabled, failures):
-    """XP globes as owned image controls: the plugin's XP_ORBS_GLOBE lines give
-    each live slot's last canvas box; every box is inside the canvas and its
-    picture is painted (a globe is a coloured ring around an icon, so the box
-    holds many distinct colours). A Flip press is proven by XP_ORBS_FLIP."""
+def check_xp_orbs(rows, log, enabled, failures, expected_count=None):
+    """Use the exit-owned controls: creation logs outlive expired globes.
+
+    Explicit zero is meaningful for no-gain and pointer-leave controls while
+    the plugin stays enabled. The default still requires a globe when enabled.
+    """
     def report(name, valid, detail=""):
         print(f"PIXEL {name}={'PASS' if valid else 'FAIL'} {detail}")
         if not valid: failures.append(name)
     height, width = len(rows), len(rows[0])
-    slots = {}
-    for slot, skill, x, y, side in re.findall(r"XP_ORBS_GLOBE slot=(\d+) skill=(\d+) x=(-?\d+) y=(-?\d+) side=(\d+)", log):
-        slots[int(slot)] = (int(skill), int(x), int(y), int(side))
-    report("xp_orbs_globes", (len(slots) >= 1) == bool(enabled), f"slots={len(slots)}")
-    if not enabled or not slots: return
-    inside = all(0 <= x and 0 <= y and x + s <= width and y + s <= height for _, x, y, s in slots.values())
+    slots = {int(slot): tuple(map(int, (x, y, w, h))) for slot, x, y, w, h in re.findall(
+        r"OWNED_WIDGET owner=\d+ key=globe(\d+) node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+)"
+        r"[^\n]*type=rs_graphic scene=[1-9]\d* hidden=0", log)}
+    valid = len(slots) == expected_count if expected_count is not None else (len(slots) >= 1) == bool(enabled)
+    report("xp_orbs_globes", valid, f"slots={len(slots)} expected={expected_count if expected_count is not None else 'present' if enabled else 0}")
+    if not slots: return
+    inside = all(w > 0 and h > 0 and 0 <= x and 0 <= y and x + w <= width and y + h <= height
+                 for x, y, w, h in slots.values())
     report("xp_orbs_inside_canvas", inside)
+    if not inside: return
     painted = 0
-    for _, x, y, s in slots.values():
-        colours = {rows[yy][xx] for yy in range(y, min(height, y + s)) for xx in range(x, min(width, x + s))}
+    for x, y, w, h in slots.values():
+        colours = {rows[yy][xx] for yy in range(y, y + h) for xx in range(x, x + w)}
         painted += len(colours) >= 8
     report("xp_orbs_painted", painted == len(slots), f"painted={painted}")
 
 
-def check_minimap_orbs(rows, log, enabled, failures):
+def check_minimap_orbs(rows, log, enabled, failures, expected_orbs=None):
     """Four owned orb controls, 57x34 each, painted with their meters.
 
     Read from the final publication: the plugin's own MINIMAP_ORBS_CONTROL lines
@@ -342,8 +535,17 @@ def check_minimap_orbs(rows, log, enabled, failures):
     controls = {}
     for orb, native, armed, x, y, w, h in re.findall(r"MINIMAP_ORBS_CONTROL orb=(\w+) native=(\d) armed=(\d) box=(-?\d+),(-?\d+),(\d+),(\d+)", log):
         controls[orb] = (int(native), int(armed), int(x), int(y), int(w), int(h))
-    report("orbs_controls", len(controls) == (4 if enabled else 0) and all(c[4] == 57 and c[5] == 34 for c in controls.values()), f"count={len(controls)}")
-    if not enabled or len(controls) != 4: return
+    # Boot publication can include controls subsequently removed by a config
+    # write. The exit-owned widgets, not historical log lines, are the set
+    # that still exists; each also needs a matching final placement receipt.
+    live = {key: tuple(map(int, box)) for key, *box in re.findall(
+        r"OWNED_WIDGET owner=\d+ key=(orb_\w+) node=\d+ box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]* hidden=0", log)}
+    expected = expected_orb_keys(expected_orbs, bool(enabled))
+    present = check_expected_orb_set(live, expected, failures)
+    controls = {key: value for key, value in controls.items() if key in live}
+    complete = set(controls) == expected and all(c[4] == 57 and c[5] == 34 and c[2:] == live[key] for key, c in controls.items())
+    report("orbs_controls", present and complete, f"count={len(controls)} expected={len(expected)}")
+    if not enabled or not present or not complete or not controls: return
     minimap = re.findall(r"NATIVE_UI[^\n]*type=minimap hidden=0 native_paint=1[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
     natives = re.findall(r"NATIVE_UI[^\n]*com=(\d+) type=rs_layer[^\n]*box=(-?\d+),(-?\d+),57,34", final)
     native_boxes = {int(c): (int(x), int(y)) for c, x, y in natives}
@@ -365,15 +567,17 @@ def check_minimap_orbs(rows, log, enabled, failures):
     for orb, value, filled, total, inactive in re.findall(r"MINIMAP_ORBS_VALUE orb=(\w+) value=(-?\d+) filled=(-?\d+) total=(\d+) inactive=(\d)", log):
         values[orb] = (int(value), int(filled), int(total), int(inactive))
     hp = controls.get("orb_hitpoints"); run = controls.get("orb_run")
-    hp_low = disc_pixels(hp, 16, 24); run_low = disc_pixels(run, 16, 24)
-    report("orbs_hitpoints_red", sum(r > g + 40 and r > b + 40 for b, g, r in hp_low) >= len(hp_low) // 2, f"pixels={len(hp_low)}")
+    hp_low = disc_pixels(hp, 16, 24) if hp else []
+    run_low = disc_pixels(run, 16, 24) if run else []
+    if hp:
+        report("orbs_hitpoints_red", sum(r > g + 40 and r > b + 40 for b, g, r in hp_low) >= len(hp_low) // 2, f"pixels={len(hp_low)}")
     run_value = values.get("orb_run")
-    if run_value and run_value[3]:
+    if run and run_value and run_value[3]:
         report("orbs_run_inactive_grey", sum(abs(r - g) < 30 and abs(g - b) < 30 and 40 < max(r, g, b) < 200 for b, g, r in run_low) >= len(run_low) // 3, f"pixels={len(run_low)} (walking)")
-    else:
+    elif run:
         report("orbs_run_gold", sum(r > 150 and g > 100 and b < 90 for b, g, r in run_low) >= len(run_low) // 3, f"pixels={len(run_low)}")
     hp_value = values.get("orb_hitpoints")
-    if hp_value and hp_value[2] > 0:
+    if hp and hp_value and hp_value[2] > 0:
         hidden = 26 - (hp_value[1] * 26 + hp_value[2] - 1) // hp_value[2]
         top = disc_pixels(hp, 0, 2)
         if hidden >= 2:
@@ -428,6 +632,53 @@ def check_overlay_text(rows, log, expected, failures):
         if not valid: failures.append("overlay_text")
 
 
+def check_prefs(prefs_path, contains, absent, failures):
+    """The run's own plugin_prefs.ini, scored as text.
+
+    Persistence is otherwise unpinnable from a capture: what a plugin says it
+    saved, what the settings page showed, and what the host actually WROTE are
+    three different facts, and only the third one survives the next launch.
+    A missing file fails both kinds of rule -- "the host never wrote the file"
+    is not evidence that a line is absent from it, it is a different failure.
+    """
+    text = None
+    try:
+        text = Path(prefs_path).read_text()
+    except OSError as error:
+        for pattern in list(contains) + list(absent):
+            print(f"PIXEL prefs_file=FAIL {error}")
+            failures.append(f"prefs_file:{pattern}")
+        return
+    for pattern in contains:
+        found = re.search(pattern, text, re.M) is not None
+        print(f"PIXEL prefs_contains={'PASS' if found else 'FAIL'} pattern={pattern!r}")
+        if not found: failures.append(f"prefs_contains:{pattern}")
+    for pattern in absent:
+        gone = re.search(pattern, text, re.M) is None
+        print(f"PIXEL prefs_absent={'PASS' if gone else 'FAIL'} pattern={pattern!r}")
+        if not gone: failures.append(f"prefs_absent:{pattern}")
+
+
+def check_log_counts(log, specs, failures):
+    """<regex>:<n> -- the log must carry EXACTLY n matches of that regex.
+
+    --expect-log cannot tell "issued once" from "re-issued every frame", which
+    is the whole question behind a per-frame reissue defect; and it cannot say
+    "exactly one orb bound" either. The count is the last colon-separated
+    field, so a regex may itself contain colons.
+    """
+    for spec in specs:
+        pattern, _, wanted = spec.rpartition(":")
+        if not pattern or not wanted.isdigit():
+            print(f"PIXEL expected_log_count=FAIL malformed spec={spec!r} (want '<regex>:<n>')")
+            failures.append(f"expected_log_count:{spec}")
+            continue
+        seen = sum(1 for _ in re.finditer(pattern, log, re.M))
+        valid = seen == int(wanted)
+        print(f"PIXEL expected_log_count={'PASS' if valid else 'FAIL'} pattern={pattern!r} expected={wanted} observed={seen}")
+        if not valid: failures.append(f"expected_log_count:{spec}")
+
+
 def check_native_caption(rows,log,text,failures):
     raw=text.encode();fingerprint=14695981039346656037
     for byte in raw: fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
@@ -446,9 +697,12 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, prefs=None, prefs_contains=None, prefs_absent=None, expect_log_count=None, expected_orbs=None, chat_visible=True, expected_xp_globes=None, true_tile_color="00FFFF"):
     width, height, rows = read_bmp(path)
     failures = []
+    if expected_xp_globes is not None and plugin_id != "xp-drop-orbs":
+        check_xp_orbs(rows, Path(bounds_path).read_text() if bounds_path else "",
+                      plugin_enabled, failures, expected_xp_globes)
     if public_chat_mode=="friends":
         log=Path(bounds_path).read_text() if bounds_path else ""
         valid=bool(re.search(r"NATIVE_CHAT_MODES public=1 private=0 trade=0",log))
@@ -484,6 +738,19 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if "after_ready=1" in log and not re.search(r"^SIM_READY elapsed_ms=\d+ tree_generation=[1-9]\d*", log, re.M):
             print("PIXEL native_readiness=FAIL")
             failures.append("native_readiness")
+        # A capture whose session died before the dump still scores every other
+        # rule: the chrome is retained, the plugin's own widgets are retained,
+        # and the world keeps its last frame under a "Connection lost" banner.
+        # The tell is the local player: NATIVE_PLAYER is printed for every live
+        # session and for none that has lost one. It caught TORIRS_SIM_HOVER
+        # driving four more frames on a clock restarted at 20 ms after the loop
+        # -- fixed since; the pointer is parked inside the loop now -- and the
+        # rule stays because any knob that rewinds or stalls the clock ends the
+        # session the same silent way. Only judged when the run dumped native
+        # state at all, and never on a title-screen capture.
+        if re.search(r"^NATIVE_ROOT ", log, re.M) and not re.search(r"^NATIVE_PLAYER ", log, re.M):
+            print("PIXEL world_session_live=FAIL no NATIVE_PLAYER at exit: the client lost its session")
+            failures.append("world_session_live")
     if plugin_id:
         log = Path(bounds_path).read_text() if bounds_path else ""
         states={name:(int(enabled),int(running),int(error)) for name,enabled,running,error in re.findall(
@@ -493,10 +760,7 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         print(f"PIXEL selected_plugin_running={'PASS' if valid else 'FAIL'} id={plugin_id}")
         if not valid: failures.append("selected_plugin_running")
         if plugin_id in ("tile-indicator-c","tile-indicator-lua") and plugin_enabled:
-            cyan=sum(pixel==(255,255,0) for row in rows for pixel in row)
-            valid=cyan>=30
-            print(f"PIXEL true_tile_marker={'PASS' if valid else 'FAIL'} cyan_pixels={cyan}")
-            if not valid: failures.append("true_tile_marker")
+            check_tile_marker_color(rows, true_tile_color, failures)
         if plugin_id=="drawprobe" and plugin_enabled:
             # Interior of the probe's magenta rectangle, alpha 128, above the
             # native world. The original translator dropped opacity and made
@@ -518,9 +782,9 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if plugin_id=="performance-display":
             check_performance(rows,log,plugin_enabled,performance_metrics,performance_position,performance_color,failures)
         if plugin_id=="minimap-orbs":
-            check_minimap_orbs(rows,log,plugin_enabled,failures)
+            check_minimap_orbs(rows,log,plugin_enabled,failures,expected_orbs)
         if plugin_id=="xp-drop-orbs":
-            check_xp_orbs(rows,log,plugin_enabled,failures)
+            check_xp_orbs(rows,log,plugin_enabled,failures,expected_xp_globes)
     if widget_demo:
         log = Path(bounds_path).read_text() if bounds_path else ""
         if widget_demo == "c":
@@ -566,6 +830,16 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             if not absent: failures.append(f"forbidden_log:{pattern}")
         if screenshot_saved:
             check_screenshot_saved(log, failures)
+    if expect_log_count:
+        check_log_counts(Path(bounds_path).read_text() if bounds_path else "", expect_log_count, failures)
+    if prefs_contains or prefs_absent:
+        # The prefs file is named by the caller because it is the HOST's file,
+        # not the capture's: gameframe_matrix.sh points it at the
+        # plugin_prefs.ini the run was given (TORIRS_PLUGIN_PREFS). Asking for
+        # a prefs rule without saying which file is the caller's bug, and a
+        # scorer that quietly passed it would score nothing at all.
+        assert prefs, "prefs rules need the plugin_prefs.ini path (--prefs)"
+        check_prefs(prefs, prefs_contains or [], prefs_absent or [], failures)
     for spec in find_all_holes or []:
         # ROLE:COUNT:MISSING against the LAST PLUGIN_FIND_ALL line for that role:
         # the numbering the bridge handed the frame plugin, holes included.
@@ -640,46 +914,11 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
     if revision == "rs289lc":
         if not bounds_path:
             raise ValueError("rs289lc requires its matching native trace")
-        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
+        check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced, chat_visible)
         return failures
     if frame == "gameframe-layout/classic-fixed":
-        # The approved plain-rock band spans x=0..495, y=467..498.
-        # Its 29-column source repeats without any of the four old recesses.
-        # Checking all repeats also catches partially covered/late old art.
-        # Mobile puts its message area below the filters, covering part of
-        # this strip. Test the exposed rock, not the chat painted over it.
-        backing = None
-        if bounds_path:
-            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
-                              Path(bounds_path).read_text())
-            if match:
-                backing = tuple(map(int, match.groups()))
-        def exposed(x, y):
-            if backing is None:
-                return True
-            bx, by, bw, bh = backing
-            return not (bx <= x < bx + bw and by <= y < by + bh)
-        valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
-        if valid:
-            valid = all(rows[y][x] == rows[y][x % 29]
-                        for y in range(467, 499) for x in range(29, 496)
-                        if exposed(x, y) and exposed(x % 29, y))
-            valid = valid and len({p for row in rows[467:499] for p in row[:29]}) > 3
-        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
-        if not valid:
-            failures.append("no_captionless_2004_hollows")
-        if root != 601:
-            # Approved running-client crop. The pre-fix 519-wide parchment
-            # covered 40 columns of the old rail; its surviving right edge
-            # does not match this complete re-cut border.
-            fixture = Path(__file__).parent / "testdata/gameframe/classic-chat-rail.bmp"
-            rw, rh, expected = read_bmp(fixture)
-            valid = width >= 536 + rw and height >= 357 + rh
-            if valid:
-                valid = all(rows[357 + y][536:536 + rw] == expected[y] for y in range(rh))
-            print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} root={root}")
-            if not valid:
-                failures.append("chat_inside_complete_surround")
+        log = Path(bounds_path).read_text() if bounds_path else ""
+        check_classic_chat_pack(rows, log, failures)
     if native_focus_hide:
         log = Path(bounds_path).read_text() if bounds_path else ""
         markers = ("sim_type: c97 at frame 700", "sim_type: c98 at frame 701",
@@ -711,18 +950,99 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         if not valid:
             failures.append("native_focused_input_state")
     if bounds_path:
-        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline, public_chat_mode)
+        check_live_surfaces(rows, Path(bounds_path).read_text(), frame, root, minimap_state, server_hide, failures, native_baseline, public_chat_mode, expected_orbs, chat_visible)
     return failures
+
+
+def selftest():
+    """Prove the log-count and prefs rules can BOTH pass and fail.
+
+    A scoring rule that cannot go red is a rule that pins nothing, so every
+    case below is asserted in both directions. Needs no client and no capture:
+    run it after editing this file.
+    """
+    import tempfile
+
+    globe_rows = [[(x, y, x + y) for x in range(20)] for y in range(20)]
+    historical = "XP_ORBS_GLOBE slot=0 skill=10 x=1 y=1 side=8\n"
+    live = "OWNED_WIDGET owner=1 key=globe0 node=10 box=1,1,8,8 type=rs_graphic scene=1207959555 hidden=0\n"
+    for log, expected, should_pass in [(historical, None, False), (historical, 0, True),
+                                       (historical, 1, False), (historical + live, 0, False),
+                                       (historical + live, 1, True)]:
+        failures = []
+        check_xp_orbs(globe_rows, log, True, failures, expected)
+        assert (not failures) == should_pass, (expected, failures)
+
+    expected = expected_orb_keys("hitpoints,run")
+    for actual, should_pass in [({"orb_hitpoints", "orb_run"}, True),
+                                ({"orb_hitpoints"}, False),
+                                ({"orb_hitpoints", "orb_run", "orb_special"}, False)]:
+        failures = []
+        assert check_expected_orb_set(actual, expected, failures) == should_pass
+        assert bool(failures) != should_pass
+    assert expected_orb_keys() == {"orb_" + name for name in ORB_NAMES}
+    assert expected_orb_keys("", False) == set()
+    for invalid in ("hitpoints,hitpoints", "hitpoints,unknown"):
+        try:
+            expected_orb_keys(invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid expected orb set accepted")
+
+    log = ("sim_plugin_toggle: frame=500 id=gameframe-layout enabled=0 found=1 "
+           "was=1/1 now=1/1 applied=0\n"
+           "PLUGIN_STATE id=minimap-orbs enabled=1 running=1 error=0\n"
+           "mobile_chat: set_image slot=0\n"
+           "mobile_chat: set_image slot=1\n")
+
+    failures = []
+    check_log_counts(log, [r"mobile_chat: set_image:2", r"applied=0:1"], failures)
+    assert failures == [], failures
+    check_log_counts(log, [r"mobile_chat: set_image:1"], failures)
+    assert failures == [r"expected_log_count:mobile_chat: set_image:1"], failures
+    # A pattern that never matches is a failure, not a silent zero.
+    failures = []
+    check_log_counts(log, [r"never_emitted_line:1"], failures)
+    assert len(failures) == 1, failures
+    # ... and "exactly none" is a rule in its own right.
+    failures = []
+    check_log_counts(log, [r"never_emitted_line:0"], failures)
+    assert failures == [], failures
+    # A malformed spec must not read as a pass.
+    failures = []
+    check_log_counts(log, [r"missing the count"], failures)
+    assert len(failures) == 1, failures
+
+    with tempfile.TemporaryDirectory() as directory:
+        prefs = Path(directory)/"plugin_prefs.ini"
+        prefs.write_text("[plugin:minimap-orbs]\nenabled=1\nshow_spec=0\n")
+        failures = []
+        check_prefs(prefs, [r"^\[plugin:minimap-orbs\]$", r"^show_spec=0$"], [r"^show_spec=1$"], failures)
+        assert failures == [], failures
+        check_prefs(prefs, [r"^show_spec=1$"], [r"^enabled=1$"], failures)
+        assert len(failures) == 2, failures
+        # A prefs file the host never wrote fails both kinds of rule: "no file"
+        # is not evidence that a line is absent from it.
+        failures = []
+        check_prefs(Path(directory)/"never_written.ini", [r"^enabled=1$"], [r"^show_spec=1$"], failures)
+        assert len(failures) == 2, failures
+
+    print("SELFTEST ok: expected_log_count and prefs rules each pass and fail")
+    return 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("capture")
-    parser.add_argument("--frame", required=True)
-    parser.add_argument("--root", required=True, type=int)
+    # nargs="?" and the two required flags relaxed only so --selftest can run
+    # with no capture at all; a scoring run without them still stops below.
+    parser.add_argument("capture", nargs="?")
+    parser.add_argument("--frame")
+    parser.add_argument("--root", type=int)
     parser.add_argument("--bounds", help="matching TORIRS_DUMP_BOUNDS log")
     parser.add_argument("--revision", choices=("osrs239", "rs289lc"), default="osrs239")
     parser.add_argument("--native-baseline", action="store_true", help="plugins disabled; no plugin orb assertion")
+    parser.add_argument("--chat-visible", type=int, choices=(0,1), default=1, help="rs289 oracle: require all four native chat controls to be painted (1) or nonpainting/noninteractive (0)")
     parser.add_argument("--rs289-scenario", choices=("baseline", "stats", "skill-guide"), default="baseline")
     parser.add_argument("--minimap-state", type=int, choices=range(6))
     parser.add_argument("--server-hide", help="expected native component uid:hide receipt")
@@ -735,12 +1055,15 @@ if __name__ == "__main__":
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--highlight-color", help="RRGGBB[:min] a live cache highlight group of this colour has members and its exact colour is painted")
+    parser.add_argument("--true-tile-color", default="00FFFF", help="oracle-only RRGGBB expected from a configured C/Lua tile outline; default cyan")
     parser.add_argument("--panel-custom-ink", help="ID[:min] a plugin page custom row has an allotted region with at least min distinct colours painted")
     parser.add_argument("--widget-moves", type=int, default=1)
     parser.add_argument("--widget-rune-slot", type=int, choices=range(28), default=0)
     parser.add_argument("--owned-text")
     parser.add_argument("--owned-count",type=int,choices=(0,1),default=1)
     parser.add_argument("--widget-offset",type=int,default=12)
+    parser.add_argument("--expected-orbs", help="exact visible orb names, comma-separated; default hitpoints,prayer,run,special; oracle only")
+    parser.add_argument("--expected-xp-globes", type=int, choices=range(6), help="exact count of exit-owned XP globes, including zero; oracle only")
     parser.add_argument("--plugin-id")
     parser.add_argument("--plugin-enabled",type=int,choices=(0,1),default=1)
     parser.add_argument("--plugin-lua",action="store_true")
@@ -758,10 +1081,21 @@ if __name__ == "__main__":
     parser.add_argument("--native-caption-absent", action="append", default=[], help="no painted native ground caption carries this exact text (repeatable)")
     parser.add_argument("--scene-objects", type=int, help="PLUGIN_SCENE_OBJECTS active count the engine must hold at exit")
     parser.add_argument("--find-all-holes", action="append", default=[], help="ROLE:COUNT:MISSING the last PLUGIN_FIND_ALL line for ROLE must report (repeatable)")
+    parser.add_argument("--prefs", help="the plugin_prefs.ini the run was given (TORIRS_PLUGIN_PREFS), for the two rules below")
+    parser.add_argument("--prefs-contains", action="append", default=[], help="regex that file must match after the run -- how a persistence claim is pinned (repeatable)")
+    parser.add_argument("--prefs-absent", action="append", default=[], help="regex that file must NOT match after the run (repeatable)")
+    parser.add_argument("--expect-log-count", action="append", default=[], help="<regex>:<n> the client log must carry EXACTLY n matches of (repeatable)")
+    parser.add_argument("--selftest", action="store_true", help="prove the log-count and prefs rules can pass AND fail; no capture needed")
     args = parser.parse_args()
+    if args.selftest:
+        raise SystemExit(selftest())
+    if not args.capture or args.frame is None or args.root is None:
+        parser.error("a capture, --frame and --root are required (or --selftest)")
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes,
+                                    prefs=args.prefs, prefs_contains=args.prefs_contains,
+                                    prefs_absent=args.prefs_absent, expect_log_count=args.expect_log_count, expected_orbs=args.expected_orbs, chat_visible=bool(args.chat_visible), expected_xp_globes=args.expected_xp_globes, true_tile_color=args.true_tile_color)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

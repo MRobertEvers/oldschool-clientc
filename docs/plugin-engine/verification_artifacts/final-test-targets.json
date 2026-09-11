@@ -1,0 +1,631 @@
+[
+  {
+    "target": "test-plugin-lua",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-lua",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.239,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-lua.log"
+  },
+  {
+    "target": "test-plugin-host",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-host",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.932,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-host.log"
+  },
+  {
+    "target": "test-plugin-api",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-api",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 4.733,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-api.log"
+  },
+  {
+    "target": "test-tileind-v2",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-tileind-v2",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.588,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-tileind-v2.log"
+  },
+  {
+    "target": "test-trackers",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-trackers",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.826,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-trackers.log"
+  },
+  {
+    "target": "test-item-stats",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-item-stats",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.335,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-item-stats.log"
+  },
+  {
+    "target": "test-client-settings",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-client-settings",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.654,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-client-settings.log"
+  },
+  {
+    "target": "test-feature-flags",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-feature-flags",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.535,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-feature-flags.log"
+  },
+  {
+    "target": "test-nxt-plugins",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-nxt-plugins",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.614,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-nxt-plugins.log"
+  },
+  {
+    "target": "test-gameframe",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-gameframe",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.556,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-gameframe.log"
+  },
+  {
+    "target": "test-mobile-gameframe",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-mobile-gameframe",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.575,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-mobile-gameframe.log"
+  },
+  {
+    "target": "test-xp-orbs",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-xp-orbs",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.188,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-xp-orbs.log"
+  },
+  {
+    "target": "test-minimap-orbs-v2",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-minimap-orbs-v2",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.905,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-minimap-orbs-v2.log"
+  },
+  {
+    "target": "test-uitree",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-uitree",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 6.795,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-uitree.log"
+  },
+  {
+    "target": "test-cs2-highlight",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs2-highlight",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.959,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs2-highlight.log"
+  },
+  {
+    "target": "test-plugin-frame",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-frame",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.61,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-frame.log"
+  },
+  {
+    "target": "test-cs1",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs1",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.001,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs1.log"
+  },
+  {
+    "target": "test-cs2-transmit-pump",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs2-transmit-pump",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 7.463,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs2-transmit-pump.log"
+  },
+  {
+    "target": "test-plugin-contract",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-contract",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.578,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-contract.log"
+  },
+  {
+    "target": "test-minimenu-world",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-minimenu-world",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.386,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-minimenu-world.log"
+  },
+  {
+    "target": "test-cs2-host-request-kinds",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs2-host-request-kinds",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.574,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs2-host-request-kinds.log"
+  },
+  {
+    "target": "test-cs2-host-request-producers",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs2-host-request-producers",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.44,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs2-host-request-producers.log"
+  },
+  {
+    "target": "test-base37",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-base37",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.601,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-base37.log"
+  },
+  {
+    "target": "test-sdl-chrome-geometry",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-sdl-chrome-geometry",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.495,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-sdl-chrome-geometry.log"
+  },
+  {
+    "target": "test-tracker-render",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-tracker-render",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 2.062,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-tracker-render.log"
+  },
+  {
+    "target": "test-plugin-settings-sync",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-settings-sync",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.037,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-settings-sync.log"
+  },
+  {
+    "target": "test-frame-draw-gate",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-frame-draw-gate",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.501,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-frame-draw-gate.log"
+  },
+  {
+    "target": "test-plugin-panel-region",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-panel-region",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.823,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-panel-region.log"
+  },
+  {
+    "target": "test-silhouette",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-silhouette",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.615,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-silhouette.log"
+  },
+  {
+    "target": "test-frame-silhouette",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-frame-silhouette",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.959,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-frame-silhouette.log"
+  },
+  {
+    "target": "test-cs2-overlay-find",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-cs2-overlay-find",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.728,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-cs2-overlay-find.log"
+  },
+  {
+    "target": "test-raster-kernel",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-raster-kernel",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 3.089,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-raster-kernel.log"
+  },
+  {
+    "target": "test-frame-entity-overlay-sprite",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-frame-entity-overlay-sprite",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 1.724,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-frame-entity-overlay-sprite.log"
+  },
+  {
+    "target": "test-plugin-clock",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-clock",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.52,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-clock.log"
+  },
+  {
+    "target": "test-plugin-tab-activation",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-tab-activation",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.553,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-tab-activation.log"
+  },
+  {
+    "target": "test-plugin-chat-focus-order",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-chat-focus-order",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.526,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-chat-focus-order.log"
+  },
+  {
+    "target": "test-plugin-highlight-snapshot",
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/3draster-fix/src",
+      "OPT=1",
+      "EMBED_SERVER=1",
+      "PLATFORM_OBJ_BASE=build_fix",
+      "PLATFORM_TARGET=torirs_fix_goal_h",
+      "test-plugin-highlight-snapshot",
+      "-j8"
+    ],
+    "exit_code": 0,
+    "seconds": 0.662,
+    "log": "/private/tmp/critic-fixes/goal-gate-h/test-plugin-highlight-snapshot.log"
+  }
+]

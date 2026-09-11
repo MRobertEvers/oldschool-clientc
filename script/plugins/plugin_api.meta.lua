@@ -187,6 +187,8 @@ warn = nil
 ---@field generation integer
 ---@field serial integer
 ---@field sequence integer
+---@field region_width integer Current custom-region logical width before drawing; zero for ordinary controls or legacy hosts.
+---@field region_height integer Current custom-region logical height before drawing; zero for ordinary controls or legacy hosts.
 
 ---@class torirs.PanelLayoutEvent
 ---@field width integer
@@ -342,6 +344,7 @@ warn = nil
 ---@field tab_active fun(): integer
 ---@field tab_enabled fun(tab: integer): boolean
 ---@field tab_select fun(tab: integer): boolean
+---@field tab_activate fun(tab: integer): boolean Activate the native control, including supported same-tab collapse; action callbacks only.
 
 ---@class torirs.ClientApi
 ---@field display_get fun(setting: integer): integer?, integer?, integer?
@@ -442,8 +445,18 @@ warn = nil
 ---@field image fun(image: torirs.ImageRef, x: integer, y: integer, alpha?: integer)
 ---@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer): boolean, torirs.ResultName
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
+--- Stroke widths are canvas pixels (0 suppresses the border, default 1, maximum 255).
+--- These optional graphics verbs return unsupported on an older builder and budget on a capacity refusal.
+---@field minimap_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName # Only on_draw_minimap; normal map projection, mask and layering. Zero width suppresses outline.
+---@field world_tile_stroke fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName
+---@field world_hull_stroke fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer, outline_width?: integer): boolean, torirs.ResultName
+---@field world_hull_styled fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer, outline_width?: integer, flags?: integer): boolean, torirs.ResultName # Mesh silhouette by default; flags0 respects foreground, flags16 always on top. Bounds requires flags16.
+---@field world_tile_styled fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer, flags?: integer): boolean, torirs.ResultName # Follows terrain corners; flags0 respects foreground, flags16 always on top.
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
+
+---@class torirs.MinimapGraphics
+---@field minimap_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName
 
 ---@class torirs.PanelBuilder
 ---@field heading fun(text: string)
@@ -498,7 +511,7 @@ warn = nil
 
 ---@class torirs.Widget
 ---@field visible fun(self:torirs.Widget):boolean?
----@field actions fun(self:torirs.Widget):torirs.WidgetAction[]?
+---@field actions fun(self:torirs.Widget):torirs.WidgetAction[]?,string? Failure returns nil plus the native contract reason; an empty table is a successful empty action list.
 ---@field create_text fun(self:torirs.Widget,key:string):torirs.Widget? Creates or returns this owner's child.
 ---@field set_text fun(self:torirs.Widget,text:string):boolean,string Owned text only.
 ---@field set_text_color fun(self:torirs.Widget,color:torirs.Colour):boolean,string Owned text only.
@@ -604,6 +617,7 @@ warn = nil
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
 ---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Graphics)
+---@field on_draw_minimap? fun(api: torirs.Api, draw: torirs.MinimapGraphics)
 ---@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.Graphics)
 ---@field on_ui_build? fun(api: torirs.Api, panel: torirs.PanelBuilder, view: torirs.PanelView)
 ---@field on_ui_action? fun(api: torirs.Api, ev: torirs.PanelActionEvent)

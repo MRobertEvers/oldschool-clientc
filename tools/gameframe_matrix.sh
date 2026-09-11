@@ -127,12 +127,36 @@ if [[ "${GF_MATRIX_SCENARIOS:-0}" == 1 ]]; then
     TORIRS_NET_DEBUG=1 TORIRS_SIM_CLICK_AT='500,785,88;650,820,70' \
     TORIRS_SIM_TYPE='700,c97,c98;800,c120;900,c99' \
     TORIRS_SIM_CMD='750,ifhide 58589197 1;850,ifhide 58589197 0'
-  echo "NATIVE CONTRACT: $failures failed scenario groups / 11 (14 captures)"
+  # The hover knob must survive its own capture. It used to drive four extra
+  # frames after the loop on a clock restarted at 20 ms, which ended the
+  # session: the run then scored a "Connection lost" screen. The tell is the
+  # unconditional world_session_live rule (no NATIVE_PLAYER at exit), which
+  # this scenario exists to keep red if the parking ever leaves the loop again.
+  scenario hover-session GF_MATRIX_TAGS=m03 TORIRS_SIM_HOVER='250,240' \
+    GF_MATRIX_EXPECT_LOG_COUNT='sim_hover: parked at 250,240 hover_com_id=:1'
+  # A disable the host IGNORES must not read as a success. gameframe-layout is
+  # a frame provider, so PluginHost_SetEnabled returns without touching it --
+  # its state is the Gameframe preference -- and the frame stays active, which
+  # the harness's own "FRAME NOT ACTIVE" check confirms in the same run.
+  scenario frame-toggle-honest GF_MATRIX_TAGS=m03 \
+    TORIRS_SIM_PLUGIN_TOGGLE='500,gameframe-layout,0' \
+    GF_MATRIX_EXPECT_LOG='sim_plugin_toggle: frame=[0-9]+ id=gameframe-layout enabled=0 found=1 .*applied=0'
+  echo "NATIVE CONTRACT: $failures failed scenario groups / 13 (16 captures)"
   exit $((failures > 0))
 fi
 if [[ "${GF_MATRIX_SCORE_ONLY:-0}" != 1 ]]; then
 [[ ! -e "$OUT/index.txt" ]] || { echo "capture index already exists: $OUT/index.txt" >&2; exit 2; }
 : > "$OUT/index.txt"
+if [[ -n "${GF_MATRIX_PLUGIN_ASSETS:-}" ]]; then
+  [[ -d "$GF_MATRIX_PLUGIN_ASSETS" ]] || { echo "plugin assets missing: $GF_MATRIX_PLUGIN_ASSETS" >&2; exit 2; }
+  cp -R "$GF_MATRIX_PLUGIN_ASSETS" "$OUT/plugin_assets"
+fi
+if [[ -n "${GF_MATRIX_PLUGIN_PREFS:-}" ]]; then
+  # Copy a real preference file so shipped values and malformed-file recovery
+  # are testable without the matrix replacing the state under investigation.
+  [[ -f "$GF_MATRIX_PLUGIN_PREFS" ]] || { echo "plugin preferences missing: $GF_MATRIX_PLUGIN_PREFS" >&2; exit 2; }
+  cp "$GF_MATRIX_PLUGIN_PREFS" "$OUT/plugin_prefs.ini"
+else
 cat > "$OUT/plugin_prefs.ini" <<EOF
 [plugin:gameframe-layout]
 enabled=1
@@ -148,6 +172,7 @@ show_spec=1
 [plugin:xp-drop-orbs]
 enabled=1
 EOF
+fi
 
 one() {
   local tag=$1 mode=$2 size=$3 frame=$4 mobile=$5
@@ -254,6 +279,10 @@ while IFS='|' read tag m f s; do
       --performance-position "${GF_MATRIX_PERFORMANCE_POSITION:-10,25}"
       --performance-color "${GF_MATRIX_PERFORMANCE_COLOR:-FFFFFF}")
   fi
+  # Oracle only: which orbs this capability/config probe expects to exist.
+  # An explicit empty set is meaningful, so test presence rather than length.
+  [[ "${GF_MATRIX_EXPECT_ORBS+x}" == x ]] && widget_args+=(--expected-orbs "$GF_MATRIX_EXPECT_ORBS")
+  [[ -n "${GF_MATRIX_EXPECT_XP_GLOBES:-}" ]] && widget_args+=(--expected-xp-globes "$GF_MATRIX_EXPECT_XP_GLOBES")
   [[ -n "${GF_MATRIX_NATIVE_GROUND_LABELS:-}" ]] && widget_args+=(--native-ground-labels "$GF_MATRIX_NATIVE_GROUND_LABELS")
   [[ -n "${GF_MATRIX_GROUND_ROW_GAP:-}" ]] && widget_args+=(--ground-row-gap "$GF_MATRIX_GROUND_ROW_GAP")
   [[ -n "${GF_MATRIX_NATIVE_CAPTION:-}" ]] && widget_args+=(--native-caption "$GF_MATRIX_NATIVE_CAPTION")
@@ -263,6 +292,7 @@ while IFS='|' read tag m f s; do
       widget_args+=(--overlay-text "$expected_text")
     done
   fi
+  [[ -n "${GF_MATRIX_CHAT_VISIBLE:-}" ]] && widget_args+=(--chat-visible "$GF_MATRIX_CHAT_VISIBLE")
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == 1 ]] && widget_args+=(--widget-demo c)
   [[ "${GF_MATRIX_WIDGET_DEMO:-0}" == lua ]] && widget_args+=(--widget-demo lua)
   # GF_MATRIX_WIDGET_OP=1: the simulated click (TORIRS_SIM_CLICK_AT) must land
@@ -280,9 +310,37 @@ while IFS='|' read tag m f s; do
       widget_args+=(--forbid-log "$forbidden_line")
     done
   fi
+  # GF_MATRIX_EXPECT_LOG_COUNT: pipe-separated "<regex>:<n>" -- the log must
+  # carry EXACTLY n matches. --expect-log cannot tell "issued once" from
+  # "re-issued every frame", which is the whole question behind a per-frame
+  # reissue, and it cannot say "exactly one of these bound" either.
+  if [[ -n "${GF_MATRIX_EXPECT_LOG_COUNT:-}" ]]; then
+    for counted_line in "${(@s:|:)GF_MATRIX_EXPECT_LOG_COUNT}"; do
+      widget_args+=(--expect-log-count "$counted_line")
+    done
+  fi
+  # GF_MATRIX_PREFS_CONTAINS / GF_MATRIX_PREFS_ABSENT: pipe-separated regexes
+  # the run's own plugin_prefs.ini must / must not match when the run ends.
+  # Persistence is otherwise unpinnable: what a plugin says it saved and what
+  # the host actually WROTE are different facts, and only the written one
+  # survives the next launch. The file is per-OUT and shared by the captures in
+  # it, so pin persistence with GF_MATRIX_TAGS naming a single capture.
+  if [[ -n "${GF_MATRIX_PREFS_CONTAINS:-}" ]]; then
+    widget_args+=(--prefs "$OUT/plugin_prefs.ini")
+    for prefs_line in "${(@s:|:)GF_MATRIX_PREFS_CONTAINS}"; do
+      widget_args+=(--prefs-contains "$prefs_line")
+    done
+  fi
+  if [[ -n "${GF_MATRIX_PREFS_ABSENT:-}" ]]; then
+    widget_args+=(--prefs "$OUT/plugin_prefs.ini")
+    for prefs_line in "${(@s:|:)GF_MATRIX_PREFS_ABSENT}"; do
+      widget_args+=(--prefs-absent "$prefs_line")
+    done
+  fi
   # GF_MATRIX_HIGHLIGHT_COLOR=RRGGBB[:min]: the engine recorded a live cache
   # highlight group of that colour with members, and the renderer painted it.
   [[ -n "${GF_MATRIX_HIGHLIGHT_COLOR:-}" ]] && widget_args+=(--highlight-color "$GF_MATRIX_HIGHLIGHT_COLOR")
+  [[ -n "${GF_MATRIX_TRUE_TILE_COLOR:-}" ]] && widget_args+=(--true-tile-color "$GF_MATRIX_TRUE_TILE_COLOR")
   # GF_MATRIX_PANEL_CUSTOM_INK=ID[:min]: a plugin page custom row has its allotted
   # region and at least min distinct colours painted inside it.
   [[ -n "${GF_MATRIX_PANEL_CUSTOM_INK:-}" ]] && widget_args+=(--panel-custom-ink "$GF_MATRIX_PANEL_CUSTOM_INK")

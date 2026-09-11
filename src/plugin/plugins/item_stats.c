@@ -264,6 +264,8 @@ struct ItemStatsState
     struct is_bonus_row* bonus;
     int bonus_count;
     int bonus_state;
+    /** The last `touch` answer this plugin said out loud; -1 before the first. */
+    int touch_said;
     char skill_name[IS_SKILL_COUNT][32];
 };
 
@@ -295,6 +297,7 @@ struct ItemStatsRuntime
 #define g_bonus (rt->state->bonus)
 #define g_bonus_count (rt->state->bonus_count)
 #define g_bonus_state (rt->state->bonus_state)
+#define g_touch_said (rt->state->touch_said)
 
 static int
 is_cfg_bool(struct ItemStatsRuntime* rt, char const* key)
@@ -1860,6 +1863,11 @@ struct is_glyph
  * the rest of the cache's own 12-pixel line. */
 #define IS_LINE_PITCH (g_glyph_line_h + 2)
 
+/* The gap kept between the plate and the pointer, and the extra drop that
+ * clears the cursor when the plate hangs below it. */
+#define IS_TIP_GAP 12
+#define IS_TIP_DROP 16
+
 #define IS_SCRATCH_W 288
 #define IS_SCRATCH_H 352
 
@@ -2681,6 +2689,15 @@ is_on_menu_build(
     return TORIRS_CALLBACK_CONTINUE;
 }
 
+/*
+ * A frame, and -- once per change -- what this plugin can do with the lane.
+ *
+ * A tooltip that follows the pointer needs a pointer: the panel is composed
+ * from the HOVER pass's rows. A held finger supplies that pointer until the
+ * long-press menu takes over; lifting clears it after the input grace frame.
+ * The touch capability therefore changes how long a preview lasts, not whether
+ * one can ever appear. Report the actual gesture policy once per change.
+ */
 static void
 is_on_frame(
     struct ToriRS_Api* api,
@@ -2689,8 +2706,16 @@ is_on_frame(
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
+    int const touch = g_api->core.capability(g_api, "touch") ? 1 : 0;
     (void)event;
     g_frame++;
+    if( touch != g_touch_said )
+    {
+        g_touch_said = touch;
+        g_api->core.log(g_api, "item stats: %s",
+            touch ? "touch previews last while a finger is held over a cell"
+                  : "the cell under the pointer is described beside it");
+    }
 }
 
 /** Ask for the atlas, and read its pixels back once they land. */
@@ -2813,8 +2838,6 @@ is_on_draw_canvas(
         g_tip_frame = g_frame;
     }
 
-    x = mouse_x + 12;
-    y = mouse_y + 16;
     /* Kept on the canvas this callback may draw on: the graphics context's
      * own bounds, which for a canvas paint is the whole canvas. That is what
      * the retired placement area meant here; the 3D viewport is not it -- an
@@ -2827,14 +2850,47 @@ is_on_draw_canvas(
         if( draw->context && draw->context(draw, &context) )
             canvas = context.bounds;
     }
-    if( canvas.width > 0 && x + g_tip_w > canvas.x + canvas.width )
-        x = mouse_x - g_tip_w - 4;
-    if( canvas.height > 0 && y + g_tip_h > canvas.y + canvas.height )
-        y = mouse_y - g_tip_h - 4;
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
+    {
+        int const left_edge = canvas.x;
+        int const right_edge = canvas.width > 0 ? canvas.x + canvas.width : 0;
+        int const bottom_edge = canvas.height > 0 ? canvas.y + canvas.height : 0;
+
+        /*
+         * DOWN AND LEFT of the pointer, because down and RIGHT is the client's
+         * own.
+         *
+         * The client draws its own caption for the very cell being hovered --
+         * on the OldSchool lane the cache's near-pointer tooltip ("Wear Rune
+         * platebody / 3 more options"), which grows down and to the right from
+         * the pointer -- and this plate is composited after it. A plate
+         * anchored at pointer+(12,16) therefore lands squarely on that caption
+         * and both texts are lost. Mirroring the anchor puts the plate's RIGHT
+         * edge short of the pointer's column, which leaves the caption's band
+         * clear while keeping the plate beside the cell it is about. The 2004
+         * lane has no near-pointer caption at all -- its mouseover line is at
+         * the viewport's top-left -- so the mirror costs it nothing.
+         */
+        x = mouse_x - g_tip_w - IS_TIP_GAP;
+        y = mouse_y + IS_TIP_DROP;
+        if( x < left_edge )
+        {
+            /* No room to the left: go back to the right of the pointer, and
+             * lift the plate ABOVE the pointer's row so the caption below it
+             * is still readable. */
+            x = mouse_x + IS_TIP_GAP;
+            y = mouse_y - g_tip_h - IS_TIP_GAP;
+        }
+        if( right_edge > 0 && x + g_tip_w > right_edge )
+            x = right_edge - g_tip_w;
+        if( bottom_edge > 0 && y + g_tip_h > bottom_edge )
+            y = bottom_edge - g_tip_h;
+        /* A canvas smaller than the plate has nowhere left to put it: the
+         * corner it is pinned to is the readable half. */
+        if( x < left_edge )
+            x = left_edge;
+        if( y < canvas.y )
+            y = canvas.y;
+    }
     draw->image(draw, g_tip_image, x, y, 255);
 }
 
@@ -2873,6 +2929,8 @@ is_start(struct ToriRS_Api* api, void* state_ptr)
     g_hover.obj_id = -1;
     g_hover.frame = -1000;
     g_tip_obj = -1;
+    /* Neither answer yet, so the first frame states one whichever it is. */
+    g_touch_said = -1;
 }
 
 static void

@@ -129,6 +129,8 @@ static struct
     char asset_bytes[FAKE_ASSET_MAX];
     int asset_size;
     bool asset_present;
+    bool session_missing;
+    int session_requests;
 
     /* What the custom draw pass did. */
     int icons_asked;
@@ -472,10 +474,19 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
     }
     if( obj_id < 0 )
         return;
+    /*
+     * `value` is the price of ONE, and the row's value is CUMULATIVE -- that
+     * is LootStore_AddKillLoot's own arithmetic ("rows[i].value += value * qty"
+     * / "row->value = value * qty"), and the reason it is copied exactly here
+     * is that a fake handing back a unit price is a fake in which multiplying
+     * by the quantity a second time looks right. It did, and every stack on
+     * the OldSchool lane was priced cost * qty^2.
+     */
     for( int r = 0; r < g_store.source[index].row_count; r++ )
         if( g_store.source[index].rows[r].obj_id == obj_id )
         {
             g_store.source[index].rows[r].quantity += qty;
+            g_store.source[index].rows[r].value += value * qty;
             return;
         }
     assert(g_store.source[index].row_count < FAKE_LOOT_ROWS);
@@ -484,7 +495,7 @@ loot_add(char const* name, int obj_id, int qty, int value, int event_id)
             &g_store.source[index].rows[g_store.source[index].row_count++];
         row->obj_id = obj_id;
         row->quantity = qty;
-        row->value = value;
+        row->value = value * qty;
     }
 }
 
@@ -592,6 +603,11 @@ static enum ToriRS_AssetState v2_asset_request(
     struct ToriRS_Api* api, char const* name)
 {
     (void)api;
+    if( strcmp(name, "session.txt") == 0 )
+    {
+        ++g_client.session_requests;
+        if( g_client.session_missing ) return TORIRS_ASSET_MISSING;
+    }
     return fake_asset_load(NULL, name) ? TORIRS_ASSET_READY : TORIRS_ASSET_PENDING;
 }
 static bool v2_asset_bytes(
@@ -1068,6 +1084,7 @@ client_reset(void)
     g_client.me.true_x = 3200;
     g_client.me.true_z = 3200;
     g_client.me.level = 0;
+    snprintf(g_client.me.name, sizeof(g_client.me.name), "tracker-test");
     for( int i = 0; i < FAKE_SKILLS; i++ )
     {
         g_client.level[i] = 1;
@@ -1512,6 +1529,155 @@ test_xp_offline_gains_are_not_the_session(void)
         row_text("d_gained") ? row_text("d_gained") : "(none)");
 }
 
+static void
+test_xp_restore_identity_and_late_asset(void)
+{
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    g_client.xp[SKILL_WOODCUTTING] = 1000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] = 1600; tick(1000);
+    dispatch_stop();
+    TEST_ASSERT(strstr(g_client.asset_bytes, "# owner ") == g_client.asset_bytes,
+        "saved XP identifies the character and lane");
+
+    /* Login and an observed gain beat the queued file read. */
+    g_client.asset_present = false;
+    g_client.xp[SKILL_WOODCUTTING] = 1001600;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100; tick(1000);
+    g_client.asset_present = true;
+    struct ToriRS_AssetEvent asset = { .name = "session.txt", .ok = true };
+    g_plugin->callbacks.on_asset(&g_api, g_plugin_state, &asset);
+    if( g_client.rebuild_wanted ) panel_build();
+    press_box(0);
+    TEST_ASSERT(row_text("d_gained") && strcmp(row_text("d_gained"), "700") == 0,
+        "a delayed session read retains saved and newly observed gains");
+    dispatch_stop();
+
+    snprintf(g_client.me.name, sizeof(g_client.me.name), "another-player");
+    g_client.xp[SKILL_WOODCUTTING] += 1000000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    TEST_ASSERT(box_count() == 0, "a higher-XP different character never inherits the session");
+}
+
+static void
+test_xp_runtime_save_missing_is_terminal(void)
+{
+    client_reset();
+    xp_start();
+    tick(20);
+    g_client.session_missing = true;
+    fake_config_set_raw("save_state", "1");
+    g_plugin->callbacks.on_config_changed(&g_api, g_plugin_state, "save_state");
+    tick(20);
+    int const builds = g_client.builds;
+    for( int i = 0; i < 8; ++i ) tick(20);
+    TEST_ASSERT(g_client.session_requests == 1, "runtime save enable asks for the session");
+    TEST_ASSERT(g_client.builds == builds,
+        "a cached missing session does not invalidate the page forever (%d -> %d)",
+        builds, g_client.builds);
+}
+
+static void
+test_xp_pending_session_keeps_page_stable(void)
+{
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(20);
+    int const builds = g_client.builds;
+    for( int i = 0; i < 8; ++i ) tick(20);
+    TEST_ASSERT(g_client.builds == builds,
+        "a pending session read does not rebuild unchanged UI (%d -> %d)", builds, g_client.builds);
+}
+
+static void
+test_xp_late_restore_preserves_rate_time(void)
+{
+    char saved[FAKE_ASSET_MAX];
+    int saved_size;
+    unsigned long long elapsed[2] = {0};
+    client_reset();
+    fake_config_set_raw("save_state", "1");
+    g_client.xp[SKILL_WOODCUTTING] = 1000;
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start(); panel_build(); tick(20);
+    g_client.xp[SKILL_WOODCUTTING] = 1600;
+    tick(1000); dispatch_stop();
+    saved_size = g_client.asset_size;
+    memcpy(saved, g_client.asset_bytes, sizeof saved);
+    for( int delayed = 0; delayed < 2; ++delayed )
+    {
+        client_reset();
+        fake_config_set_raw("save_state", "1");
+        memcpy(g_client.asset_bytes, saved, sizeof saved);
+        g_client.asset_size = saved_size;
+        snprintf(g_client.asset_name, sizeof g_client.asset_name, "session.txt");
+        g_client.asset_present = !delayed;
+        g_client.xp[SKILL_WOODCUTTING] = 2000;
+        plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+        dispatch_start(); panel_build(); tick(20);
+        for( int i = 0; i < 8; ++i )
+        {
+            if( i == 3 ) g_client.xp[SKILL_WOODCUTTING] += 100;
+            tick(1000);
+            if( delayed && i == 5 )
+            {
+                g_client.asset_present = true;
+                struct ToriRS_AssetEvent asset = { .name="session.txt", .ok=true };
+                g_plugin->callbacks.on_asset(&g_api, g_plugin_state, &asset);
+            }
+        }
+        dispatch_stop();
+        char const* row = strstr(g_client.asset_bytes, "Woodcutting ");
+        int start, last, before, since, actions;
+        int parsed = row ? sscanf(row, "Woodcutting %d %d %d %d %d %llu",
+            &start, &last, &before, &since, &actions, &elapsed[delayed]) : 0;
+        TEST_ASSERT(parsed == 6 && since == 700, "both delivery schedules retain700XP");
+    }
+    TEST_ASSERT(elapsed[0] == elapsed[1],
+        "saved rate time is independent of asset latency (%llu versus %llu)", elapsed[0], elapsed[1]);
+}
+
+static void
+test_xp_pages_and_late_skills(void)
+{
+    client_reset();
+    for( int i = 1; i < FAKE_SKILLS; i++ ) g_client.xp_stated[i] = false;
+    xp_start(); tick(20);
+    for( int i = 1; i < 12; i++ ) g_client.xp_stated[i] = true;
+    tick(20);
+    for( int i = 0; i < 12; i++ ) g_client.xp[i] += 100;
+    tick(1000);
+    TEST_ASSERT(box_count() == 8, "eight skills fit beside the overview and navigation");
+    struct FakeWidget const* boxes = fake_widget_find("boxes");
+    TEST_ASSERT(boxes && boxes->height <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+        "a page remains inside the host well allocation");
+    struct ToriRS_PanelActionEvent next = {
+        .id = "boxes", .action = TORIRS_PANEL_ACTION_ACTIVATE,
+        .x = 250, .y = boxes ? boxes->height - 2 : 0, .text = ""
+    };
+    dispatch_panel_action(&next);
+    if( g_client.rebuild_wanted ) panel_build();
+    TEST_ASSERT(box_count() == 4, "Next exposes the four skills beyond the original clipped area");
+    press_box(3);
+    TEST_ASSERT(detail_skill() && strcmp(detail_skill(), "Firemaking") == 0,
+        "a late-stated skill on the second page opens its own detail");
+    TEST_ASSERT(row_text("d_gained") && strcmp(row_text("d_gained"), "100") == 0,
+        "growing the stat table preserves the late skill's real gain");
+    boxes = fake_widget_find("boxes");
+    next.x = 8; next.y = boxes ? boxes->height - 2 : 0;
+    dispatch_panel_action(&next);
+    if( g_client.rebuild_wanted ) panel_build();
+    TEST_ASSERT(box_count() == 8, "Previous returns to the first page");
+}
+
 /* ====================================================================== */
 /* Loot tracker                                                            */
 /* ====================================================================== */
@@ -1620,6 +1786,88 @@ test_loot_rs289_inference_and_osrs_dedup(void)
         row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0 &&
             row_text("d_value") && strcmp(row_text("d_value"), "12") == 0,
         "osrs239 reads one authoritative store record, never store plus inference");
+}
+
+static void
+test_loot_drop_before_removal(void)
+{
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    struct ToriRS_NpcSnapshot man = dying_npc("Man", 3200);
+    /* The real Lost City removal does not retain a health bar. */
+    man.health_ratio = -1;
+    man.health_scale = -1;
+    struct ToriRS_GroundItemSnapshot bones = drop_at(526, 1, 1, "Bones", 3200);
+    struct ToriRS_GroundItemSnapshot bait = drop_at(313, 1, 3, "Fishing bait", 3200);
+    dispatch_item_spawn(&bones);
+    dispatch_npc_despawn(&man);
+    dispatch_item_spawn(&bait);
+    tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(detail_source() && strcmp(detail_source(), "Man") == 0 &&
+        row_text("d_value") && strcmp(row_text("d_value"), "4") == 0,
+        "drops on both sides of one removal become one complete loot record");
+    TEST_ASSERT(row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "the two packet orders do not count the kill twice");
+
+    dispatch_npc_despawn(&man);
+    tick(1201);
+    TEST_ASSERT(row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "an already attributed arrival cannot credit a second removal");
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    dispatch_item_spawn(&bones);
+    tick(1201);
+    dispatch_npc_despawn(&man);
+    tick(1201);
+    TEST_ASSERT(!has_loot(), "an old unrelated ground item is outside the inference window");
+}
+
+/* The original capture could click only after a draw had already repaired
+ * the cached width. Dispatch layout and input consecutively, before any draw. */
+static void
+test_loot_layout_then_click_before_draw(void)
+{
+    for( int era = 0; era < 2; era++ )
+    {
+        for( int width = 278; width <= 294; width += 16 )
+        {
+            client_reset();
+            g_lane_game = era ? TORIRS_GAME_RS2 : TORIRS_GAME_OLDSCHOOL;
+            loot_start();
+            struct ToriRS_PanelLayoutEvent layout = {
+                .width = 320, .height = 500, .scale_milli = 1000,
+                .size_class = TORIRS_PANEL_SIZE_MEDIUM, .visible = true,
+                .game_visible = true, .selection_generation = 1
+            };
+            struct ToriRS_PanelActionEvent action = {
+                .id = "strip", .action = TORIRS_PANEL_ACTION_ACTIVATE,
+                .text = "", .x = 197, .y = 20, .selection_generation = 1,
+                .region_width = width, .region_height = 200
+            };
+            dispatch_panel_layout(&layout);
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"),
+                width == 278 ? "High alchemy" : "Cache value"),
+                "layout then x197 before first draw uses custom width%d on era%d", width, era);
+            fake_config_set_raw("price_source", "Cache value");
+            /* A new layout still must not replace the custom width with the
+             * whole panel width. Test the exact painted button boundary. */
+            layout.width = 350;
+            action.x = width - 96 - 1;
+            dispatch_panel_layout(&layout);
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"), "Cache value"),
+                "one pixel outside the value button is inert before draw at width%d", width);
+            action.x++;
+            dispatch_panel_action(&action);
+            TEST_ASSERT(!strcmp(fake_cfg_str(NULL, "price_source"), "High alchemy"),
+                "the first pixel inside the value button works before draw at width%d", width);
+        }
+    }
 }
 
 /*
@@ -2051,9 +2299,16 @@ main(void)
     test_xp_logout_pauses_and_keeps_state();
     test_xp_reset();
     test_xp_offline_gains_are_not_the_session();
+    test_xp_restore_identity_and_late_asset();
+    test_xp_runtime_save_missing_is_terminal();
+    test_xp_pending_session_keeps_page_stable();
+    test_xp_late_restore_preserves_rate_time();
+    test_xp_pages_and_late_skills();
 
     test_loot_kill_becomes_a_record();
     test_loot_rs289_inference_and_osrs_dedup();
+    test_loot_drop_before_removal();
+    test_loot_layout_then_click_before_draw();
     test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();

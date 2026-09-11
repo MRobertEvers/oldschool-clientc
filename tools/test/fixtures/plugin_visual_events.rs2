@@ -1,0 +1,10 @@
+// Native server messages for the plugin visual verification fixture.
+// Compile into a private copy of the content pack; never install in the baseline.
+[debugproc,visual_long_collection]
+mes("New item added to your collection log: Trailblazer reloaded relic hunter (t3) armour set");
+
+[debugproc,visual_short_collection]
+mes("New item added to your collection log: Bird nest");
+
+[debugproc,visual_plain_chat]
+mes("Visual verification control: no collection log entry was earned.");

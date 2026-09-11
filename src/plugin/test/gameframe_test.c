@@ -109,6 +109,8 @@ static struct
     int active_tab;
     int selected_tab;
     int select_calls;
+    int activate_calls;
+    int native_collapse;
     /** A tab the frame HAS and the server has not handed over, or -1. The
      *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
@@ -164,6 +166,16 @@ fake_tab_select(void* u, int tabno)
     (void)u;
     g_frame.selected_tab = tabno;
     g_frame.select_calls++;
+    return 1;
+}
+
+static int
+fake_tab_activate(void* u, int tabno)
+{
+    int const previous = g_frame.active_tab;
+    g_frame.activate_calls++;
+    fake_tab_select(u, tabno);
+    g_frame.active_tab = g_frame.native_collapse && previous == tabno ? -1 : tabno;
     return 1;
 }
 
@@ -909,6 +921,7 @@ main(void)
     e.platform_safe_rect = fake_platform_safe_rect;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.tab_activate = fake_tab_activate;
     e.tab_enabled = fake_tab_enabled;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
@@ -1032,6 +1045,9 @@ main(void)
     g_frame.select_calls = 0;
     press("tab.03");
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "the semantic tab action runs once and selects the named tab");
+    CHECK(g_frame.activate_calls == 1, "a pressed stone uses native activation, not deterministic selection");
+    press("tab.03");
+    CHECK(g_frame.active_tab == 3, "repeated activation preserves the legacy native always-open policy");
     g_frame.active_tab = 3;
     frame_tick();
     CHECK(owned("face.03") && !owned("face.03")->hidden && owned("face.00") && owned("face.00")->hidden,
@@ -1102,6 +1118,17 @@ main(void)
     declare(1200, 800);
     CHECK(placed("chat", -1, 20, 358, 479, 96) && placed("sidebar", -1, 980, 198, 190, 261),
           "the resizable frame hangs its chat and panel off the safe bottom, not the canvas floor");
+    /*
+     * And a safe rect with an ORIGIN, which is the half a zero-origin band
+     * cannot ask: every surface the frame places moves with it, the chatbox
+     * included. Placed without ctx->origin the chat stays at 20,598 while the
+     * scene, the map ring and the panel all move 40 columns right and 30 rows
+     * down -- the one placement helper that used to skip the origin.
+     */
+    g_safe.present = 1; g_safe.x = 40; g_safe.y = 30; g_safe.w = 1120; g_safe.h = 740;
+    declare(1200, 800);
+    CHECK(placed("viewport", -1, 40, 30, 1120, 740) && placed("chat", -1, 60, 628, 479, 96),
+          "a safe rect with an origin moves the chatbox with every other surface");
     g_safe.present = 0;
     declare(1200, 800);
     CHECK(placed("chat", -1, 20, 658, 479, 96), "and gives the rows back when the band goes");
@@ -1109,6 +1136,36 @@ main(void)
     CHECK(pieces_behind_viewport() == 4, "a collapsed sidebar draws two tab rows and the chat, no pillars and no backing");
     CHECK(owned_count("chatsw.") == 3 && strcmp(owned("chatsw.1")->op, "Hide chat") == 0,
           "the resizable frame's chat switches stand over the first three filters");
+    /* Lose only the role members: their native parents and the active frame
+     * remain alive. Binding invalidation, not a forced declaration, must
+     * trigger teardown and later rebind of the owned chat switches. */
+    {
+        int members[4];
+        for( int i = 0; i < 4; i++ )
+        {
+            members[i] = fw_find("chat_buttons", i);
+            CHECK(members[i] >= 0, "the live frame starts with each chat member");
+            snprintf(g_w[members[i]].role, sizeof(g_w[members[i]].role), "%s", "unresolved_chat");
+        }
+        int published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls > published, "chat member loss requests another plan without changing its parent");
+        if( g_frame.set_calls > published ) declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 0, "memberless bindings remove all three live switches");
+        for( int i = 0; i < 4; i++ )
+            snprintf(g_w[members[i]].role, sizeof(g_w[members[i]].role), "%s", "chat_buttons");
+        published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls > published, "returning members request a new plan without a parent rebind");
+        if( g_frame.set_calls > published ) declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 3, "returned bindings recreate exactly three switches");
+        published = g_frame.set_calls;
+        PluginHost_WidgetBindingsInvalidate(g_host);
+        PluginHost_WidgetsChanged(g_host, 77, 2);
+        CHECK(g_frame.set_calls == published, "unrelated tree changes do not replan an unchanged member set");
+    }
     g_frame.active_tab = 0;
     tick_and_declare(1200, 800);
     printf("GAMEFRAME resizable open pieces=%d\n", pieces_behind_viewport());
@@ -1134,6 +1191,27 @@ main(void)
         declare(1200, 800);
         CHECK(!native("chat", -1)->hidden && placed("chat", -1, 20, 658, 479, 96), "pressing it again brings the chatbox back");
     }
+    /*
+     * A plan with NO chat buttons in it still DROPS the switches.
+     *
+     * Every OldSchool layout is that plan -- the CS2 pack carries its own
+     * filters, so the frame places none -- and the drop is what stops three
+     * live "Hide chat" controls being left parented to the lane's widgets.
+     * Asked of the live frame by changing the answer the layout asks for,
+     * because it is the apply pass's invariant and not a shipped offer: the
+     * drop used to be written inside the member loop, reachable only from the
+     * one plan that HAS members and therefore does not need it.
+     */
+    {
+        int const was_lane = g_lane_game;
+        CHECK(owned_count("chatsw.") == 3, "the switches are live before the plan that has none");
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
+        declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 0, "a plan with no chat buttons drops the owned switches");
+        g_lane_game = was_lane;
+        declare(1200, 800);
+        CHECK(owned_count("chatsw.") == 3, "and the plan that has them puts them back");
+    }
 
     /* ---- 5. release ---------------------------------------------------- */
     g_widget_resets = 0;
@@ -1152,7 +1230,11 @@ main(void)
     declare(765, 503);
     CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && g_frame.active == 1,
           "the provider owns the OldSchool frame too");
-    CHECK(placed("chat", -1, 17, 357, 519, 96), "the chat pack takes the 2004 origin and height and keeps its own width");
+    CHECK(placed("chat", -1, 17, 338, 519, 165),
+          "Classic Fixed preserves the full authored chat pack at the canvas bottom");
+    CHECK(placed("viewport", -1, 4, 4, 512, 334) &&
+              native("chat", -1)->y + native("chat", -1)->h == 503,
+          "preserving chat content neither shrinks the world view nor clips the pack below the canvas");
     CHECK(placed("orbs", -1, 521, 4, 236, 163), "548's orb block sits beside the 2004 housing");
     CHECK(placed("orbs", 1, 717, 119, 30, 30) && placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
           "the world map, the wiki banner and the whole adviser are seated");
@@ -1160,12 +1242,20 @@ main(void)
     CHECK(pieces_behind_viewport() == 14 && owned_count("icon.") == 14,
           "the surround is re-cut for the pack, without the 2004 parchment, and every stone wears rev-239's icon");
     {
-        struct FakeWidget const* flat = NULL;
+        int rails = 0;
         for( int i = 0; i < g_w_count; i++ )
             if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 )
-            { int cx, cy; fw_canvas(i, &cx, &cy); if( cx == 0 && cy == 467 ) flat = &g_w[i]; }
-        CHECK(flat && image_opaque_rows(flat->image) == g_image[flat->image].h,
-              "no captionless 2004 hollows below the CS2 filters: the band is flat rock");
+            {
+                int cx, cy;
+                fw_canvas(i, &cx, &cy);
+                if( cy == 338 && (cx == 0 || cx == 536) && g_w[i].img_h == 165 )
+                {
+                    CHECK(image_opaque_rows(g_w[i].image) > 0,
+                          "the extended chat rail contains the classic frame's rock pixels");
+                    rails++;
+                }
+            }
+        CHECK(rails == 2, "classic rock rails flank the full native chat height");
     }
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0,
@@ -1243,6 +1333,22 @@ main(void)
         CHECK(placed("compass", -1, 588, 5, 35, 35) && placed("minimap", -1, 607, 8, 152, 152) &&
                   placed("viewport", -1, 0, 0, 765, 503),
               "the resizable frame lays out beside the popout strip, where the lane's own frame stands");
+        g_frame.native_collapse = 1;
+        g_frame.active_tab = -1;
+        frame_tick();
+        declare(807, 503);
+        int const closed_pieces = pieces_behind_viewport();
+        press("tab.03");
+        frame_tick();
+        declare(807, 503);
+        CHECK(g_frame.active_tab == 3 && pieces_behind_viewport() == closed_pieces + 3,
+              "native activation opens and dresses the resizable sidebar");
+        press("tab.03");
+        frame_tick();
+        declare(807, 503);
+        CHECK(g_frame.active_tab == -1 && pieces_behind_viewport() == closed_pieces,
+              "a repeated native activation removes the open sidebar surround and replans the tab rows");
+        g_frame.native_collapse = 0;
         g_w[strip].hidden = 1;
         declare(807, 503);
         CHECK(placed("compass", -1, 630, 5, 35, 35) && placed("viewport", -1, 0, 0, 807, 503),

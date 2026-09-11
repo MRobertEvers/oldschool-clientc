@@ -1,0 +1,10 @@
+{
+  "report": "/private/tmp/critic-artifact/report.html",
+  "bytes": 233689547,
+  "sha256": "5b4455156d397defb82eb8e0b4760cb2b927a7d075d4d1d2605dba73eb899e63",
+  "embedded_images_decoded": 534,
+  "unique_anchor_ids": 609,
+  "duplicate_ids": [],
+  "missing_internal_links": [],
+  "verification": "StaticHTMLstructure,imageencodingandanchorvalidation. No browser was available for renderedHTMLinspection; plugin images themselves were all visually inspected at2x."
+}

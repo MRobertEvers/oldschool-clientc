@@ -28,7 +28,9 @@
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
-#define TORIRS_PLUGIN_MENU_ROWS_MAX 16
+/* A snapshot of the complete native menu, including crowded entity picks.
+ * The bridge asserts this matches the native menu's bounded capacity. */
+#define TORIRS_PLUGIN_MENU_ROWS_MAX 400
 /**
  * Controls one plugin may put on its tab. A budget, not a limit on what a
  * window can hold: sixteen plugins sharing one window need the SHARE bounded,
@@ -443,8 +445,8 @@ enum ToriRS_HighlightKind
 };
 
 /**
- * One thing the CACHE has asked to be marked, already resolved to something on
- * the screen.
+ * One thing the CACHE has asked to be marked, resolved against the live world.
+ * Screen clipping and draw capacity are decided separately by the renderer.
  *
  * The HIGHLIGHT_* opcode family (7000..7044) is how the settings panel's
  * Activities category reaches this client: 125 clientscripts read a varbit and
@@ -806,6 +808,10 @@ struct ToriRS_PanelActionEvent
     /** Monotonic within the selection; duplicates and older intents are
      *  discarded before dispatch. */
     uint64_t intent_sequence;
+    /** Current custom-region logical allocation, supplied with the input
+     *  before any draw callback. Zero for ordinary controls or legacy hosts. */
+    int region_width;
+    int region_height;
 };
 
 /** Visibility/allocation facts for the selected page. */
@@ -1143,8 +1149,8 @@ struct ToriRS_FeatureInfo
  * and the wrong one when the outline is meant to read as the entity's own
  * edge.
  *
- * MESH hulls the posed vertices themselves, which is that edge, at one
- * projection per vertex per frame. Prefer it for a few marked entities;
+ * MESH retains coverage of the posed faces, including concavities and holes,
+ * and derives their silhouette. Prefer it for a few marked entities;
  * BOUNDS stays the default and the sane choice for marking a crowd.
  */
 enum ToriRS_HullShape
@@ -1153,6 +1159,12 @@ enum ToriRS_HullShape
     TORIRS_HULL_BOUNDS = 0,
     /** The model's own posed geometry: tight, and linear in the mesh. */
     TORIRS_HULL_MESH = 1
+};
+
+enum ToriRS_WorldDrawFlags
+{
+    /** Match the highlight manager's bit: draw through foreground geometry. */
+    TORIRS_WORLD_DRAW_ALWAYS_ON_TOP = 16
 };
 
 /* ------------------------------------------------------------------------ */

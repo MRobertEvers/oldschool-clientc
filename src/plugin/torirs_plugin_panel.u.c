@@ -352,6 +352,8 @@ app_plugin_panel_value(struct App* app, int plugin, char const* key)
     return v ? v : "";
 }
 
+static void app_plugin_panel_config_remember(struct App* app, struct AppPluginPanelRow* row);
+
 static void
 app_plugin_panel_track(
     struct App* app, int widget, int plugin, int kind, int cfg_index, char const* widget_id)
@@ -372,6 +374,8 @@ app_plugin_panel_track(
     snprintf(row->widget_id, sizeof(row->widget_id), "%s", widget_id ? widget_id : "");
     row->widget_serial = 0;
     row->widget_kind = -1;
+    if( kind == APP_PLUGIN_ROW_CONFIG )
+        app_plugin_panel_config_remember(app, row);
 }
 
 /** Track one control mirrored from the generation-scoped ABI-21 panel model. */
@@ -454,7 +458,7 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
         ToriRSChrome_SetChecked(
             &app->plugin_ui,
             row->widget,
-            atoi(app_plugin_panel_value(app, row->plugin, item->key)) != 0);
+            PluginHost_ConfigGetBool(app->plugins, row->plugin, item->key));
     }
     else if( item->type == TORIRS_CONFIG_ENUM &&
              row->widget < app->plugin_ui.widget_count &&
@@ -484,6 +488,93 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
     {
         ToriRSChrome_SetText(
             &app->plugin_ui, row->widget, app_plugin_panel_value(app, row->plugin, item->key));
+    }
+}
+
+/* Read staged text without interpreting expressions or truncating input.
+ * Only a checkbox needs storage for its canonical persisted spelling. */
+static char const*
+app_plugin_panel_config_value(
+    struct App* app, struct AppPluginPanelRow const* row, char boolean[4])
+{
+    struct ToriRS_ConfigItem const* item;
+    char const* text;
+    assert(app);
+    assert(row);
+    assert(boolean);
+    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+    assert(item);
+    if( item->type == TORIRS_CONFIG_BOOL )
+    {
+        snprintf(boolean, 4, "%d", ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
+        return boolean;
+    }
+    text = item->type == TORIRS_CONFIG_ENUM ? app_plugin_dropdown_value(app, row->widget) : NULL;
+    if( !text )
+        text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
+    return text ? text : "";
+}
+
+/* A canonical snapshot of the staged control. A too-long local edit is
+ * always dirty; never truncate it into looking equal to the stored value. */
+static bool
+app_plugin_panel_config_text(
+    struct App* app, struct AppPluginPanelRow const* row, char* out, size_t size)
+{
+    char boolean[4];
+    char const* text = app_plugin_panel_config_value(app, row, boolean);
+    assert(out);
+    assert(size > 0);
+    if( strlen(text) >= size )
+        return false;
+    snprintf(out, size, "%s", text);
+    return true;
+}
+
+static void
+app_plugin_panel_config_remember(struct App* app, struct AppPluginPanelRow* row)
+{
+    struct ToriRS_ConfigItem const* item;
+    bool captured;
+    assert(app);
+    assert(row);
+    item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+    assert(item);
+    snprintf(row->config_source, sizeof(row->config_source), "%s",
+        app_plugin_panel_value(app, row->plugin, item->key));
+    captured = app_plugin_panel_config_text(app, row, row->config_presented, sizeof(row->config_presented));
+    assert(captured);
+    (void)captured;
+}
+
+/* Settings are staged until Save, but an untouched field must still follow
+ * ConfigSet from another entry point. Merge only those untouched fields;
+ * local edits, focus, open dropdowns and scroll position remain retained. */
+static void
+app_plugin_panel_sync_config(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    {
+        struct AppPluginPanelRow* row = &app->plugin_panel_rows[i];
+        struct ToriRS_ConfigItem const* item;
+        char const* source;
+        char staged[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+        if( row->kind != APP_PLUGIN_ROW_CONFIG )
+            continue;
+        item = PluginHost_ConfigItem(app->plugins, row->plugin, row->cfg_index);
+        assert(item);
+        source = app_plugin_panel_value(app, row->plugin, item->key);
+        if( strcmp(source, row->config_source) == 0 )
+            continue;
+        if( app_plugin_panel_config_text(app, row, staged, sizeof(staged)) &&
+            strcmp(staged, row->config_presented) == 0 )
+        {
+            app_plugin_panel_load_row(app, row);
+            app_plugin_panel_config_remember(app, row);
+        }
+        else
+            snprintf(row->config_source, sizeof(row->config_source), "%s", source);
     }
 }
 
@@ -1005,12 +1096,22 @@ app_plugin_panel_patch_row(
                     model, options, TORIRS_CHROME_SELECT_OPTIONS_MAX);
                 if( count < 0 )
                     return 0;
+                int const before_count = app->plugin_ui.widgets[row->widget].option_count;
+                int const before_open = app->plugin_ui.dropdown_open;
+                int const panel = app->plugin_ui.widgets[row->widget].panel;
+                int const before_scroll = app->plugin_ui.panels[panel].scroll_y;
                 ToriRSChrome_DropdownSetStructuredOptions(
                     &app->plugin_ui,
                     row->widget,
                     options,
                     count,
                     model->selected_value);
+                if( getenv("TORIRS_TRACE_PANEL_RETAINED") )
+                    fprintf(stderr,
+                        "PANEL_RETAINED id=%s serial=%u count=%d->%d open=%d->%d scroll=%d->%d\n",
+                        model->id, row->widget_serial, before_count, count,
+                        before_open, app->plugin_ui.dropdown_open, before_scroll,
+                        app->plugin_ui.panels[panel].scroll_y);
             }
             else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
                 ToriRSChrome_DropdownSetSelected(
@@ -1140,6 +1241,7 @@ app_plugin_panel_sync(struct App* app)
         g_plugin_page_view_built == g_plugin_page_view &&
         g_plugin_fullscreen_built == g_plugin_fullscreen )
     {
+        app_plugin_panel_sync_config(app);
         if( app->plugin_panel_built_model_rev == panel_model_rev )
             return;
         if( app_plugin_panel_patch_semantic(app, panel_active, panel_generation) )
@@ -1457,7 +1559,7 @@ app_plugin_panel_sync(struct App* app)
                     &app->plugin_ui,
                     app->plugin_panel,
                     item->label,
-                    atoi(app_plugin_panel_value(app, p, item->key)) != 0);
+                    PluginHost_ConfigGetBool(app->plugins, p, item->key));
             }
             else if( item->type == TORIRS_CONFIG_ENUM && item->choices )
             {
@@ -1611,58 +1713,36 @@ app_plugin_panel_save(struct App* app, int plugin)
 {
     assert(app);
 
-    for( int i = 0; i < app->plugin_panel_row_count; i++ )
+    /* Validate every staged value before the first write. This is the same
+     * validator ConfigSet uses, so a typo cannot partially save the form and
+     * valid integer expressions keep their original spelling. */
+    for( int pass = 0; pass < 2; pass++ )
     {
-        struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
-        struct ToriRS_ConfigItem const* item;
+        for( int i = 0; i < app->plugin_panel_row_count; i++ )
+        {
+            struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
+            struct ToriRS_ConfigItem const* item;
+            char boolean[4];
+            char const* value;
 
-        if( row->plugin != plugin || row->kind != APP_PLUGIN_ROW_CONFIG )
-            continue;
-        item = PluginHost_ConfigItem(app->plugins, plugin, row->cfg_index);
-        if( !item )
-            continue;
+            if( row->plugin != plugin || row->kind != APP_PLUGIN_ROW_CONFIG )
+                continue;
+            item = PluginHost_ConfigItem(app->plugins, plugin, row->cfg_index);
+            if( !item )
+                continue;
 
-        if( item->type == TORIRS_CONFIG_BOOL )
-        {
-            char buf[4];
-            snprintf(
-                buf, sizeof(buf), "%d",
-                ToriRSChrome_Checked(&app->plugin_ui, row->widget) ? 1 : 0);
-            PluginHost_ConfigSet(app->plugins, plugin, item->key, buf);
-        }
-        else if( item->type == TORIRS_CONFIG_ENUM )
-        {
-            /* The chosen OPTION, not the widget's text field -- a dropdown's
-             * text is empty, so reading it here wrote every enum key blank on
-             * Save. */
-            char const* chosen = app_plugin_dropdown_value(app, row->widget);
-            if( chosen )
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, chosen);
-            else
-                PluginHost_ConfigSet(
-                    app->plugins, plugin, item->key,
-                    ToriRSChrome_Text(&app->plugin_ui, row->widget));
-        }
-        else
-        {
-            char const* text = ToriRSChrome_Text(&app->plugin_ui, row->widget);
-            /* Clamp an int here rather than letting a typo through: the store
-             * is textual, so nothing downstream would catch "999" for a key
-             * declared 0..255, and the plugin would just read a wrong number. */
-            if( item->type == TORIRS_CONFIG_INT && item->max > item->min )
+            value = app_plugin_panel_config_value(app, row, boolean);
+            if( pass == 0 )
             {
-                int v = atoi(text);
-                char buf[16];
-                if( v < item->min )
-                    v = item->min;
-                if( v > item->max )
-                    v = item->max;
-                snprintf(buf, sizeof(buf), "%d", v);
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, buf);
-                ToriRSChrome_SetText(&app->plugin_ui, row->widget, buf);
+                if( !PluginHost_ConfigValidate(app->plugins, plugin, item->key, value) )
+                    return;
             }
             else
-                PluginHost_ConfigSet(app->plugins, plugin, item->key, text);
+            {
+                bool const applied = PluginHost_ConfigSet(app->plugins, plugin, item->key, value);
+                assert(applied);
+                (void)applied;
+            }
         }
     }
 
@@ -1678,7 +1758,11 @@ app_plugin_panel_revert(struct App* app, int plugin)
 {
     for( int i = 0; i < app->plugin_panel_row_count; i++ )
         if( app->plugin_panel_rows[i].plugin == plugin )
+        {
             app_plugin_panel_load_row(app, &app->plugin_panel_rows[i]);
+            if( app->plugin_panel_rows[i].kind == APP_PLUGIN_ROW_CONFIG )
+                app_plugin_panel_config_remember(app, &app->plugin_panel_rows[i]);
+        }
 }
 
 /** The active host record named by one presented semantic row, or NULL. */
@@ -1705,6 +1789,52 @@ app_plugin_panel_model_for_row(
     return NULL;
 }
 
+/** Resolve the custom allocation from the presenter before either input or
+ * paint. The whole panel width is not the custom content width. */
+static int
+app_plugin_panel_custom_size(
+    struct App* app, struct AppPluginPanelRow const* row, int* width, int* height)
+{
+    struct ToriRSChromeRect region;
+    assert(app);
+    assert(row);
+    assert(width);
+    assert(height);
+    int const scale = ToriRSChrome_Scale(&app->plugin_ui) > 0
+        ? ToriRSChrome_Scale(&app->plugin_ui) : 1;
+    *width = 0;
+    *height = 0;
+    if( app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
+    {
+        struct ToriRS_PanelWidget const* model = app_plugin_panel_model_for_row(app, row);
+        if( !app->plugin_rail_has_layout || !app->plugin_rail_layout.visible ||
+            app->plugin_rail_layout.selection_generation != app->plugin_shell.selection_generation ||
+            app->plugin_rail_layout.page_generation != app->plugin_panel_built_generation ||
+            !model || model->kind != TORIRS_PANEL_WIDGET_CUSTOM )
+            return 0;
+        *width = app->plugin_rail_layout.custom_width;
+        *height = model->preferred_height;
+        if( *width <= 0 )
+        {
+            /* Older cached presenters omit customWidth. Share exactly the
+             * same fallback with paint until their measured width arrives. */
+            if( ToriRSChrome_CustomRegion(&app->plugin_ui, row->widget, &region, NULL) )
+                *width = (region.w + scale - 1) / scale;
+            else
+                *width = app->plugin_rail_layout.width > TORIRS_PANEL_WIDTH_MAX
+                    ? TORIRS_PANEL_WIDTH_MAX : app->plugin_rail_layout.width;
+        }
+    }
+    else
+    {
+        if( !ToriRSChrome_CustomRegion(&app->plugin_ui, row->widget, &region, NULL) )
+            return 0;
+        *width = (region.w + scale - 1) / scale;
+        *height = (region.h + scale - 1) / scale;
+    }
+    return *width > 0 && *height > 0;
+}
+
 /** Dispatch one copied semantic intent through all three identity fences. */
 static int
 app_plugin_panel_dispatch_row(
@@ -1717,14 +1847,19 @@ app_plugin_panel_dispatch_row(
     int y)
 {
     uint64_t sequence;
+    int region_width = 0;
+    int region_height = 0;
 
     if( !app || !app->plugins || !row ||
         app->plugin_panel_built_generation == 0 || row->widget_serial == 0 )
         return 0;
+    if( row->widget_kind == TORIRS_PANEL_WIDGET_CUSTOM &&
+        !app_plugin_panel_custom_size(app, row, &region_width, &region_height) )
+        return 0;
     sequence = ++app->plugin_panel_intent_sequence;
     if( sequence == 0 )
         sequence = ++app->plugin_panel_intent_sequence;
-    return PluginHost_PanelDispatch(
+    return PluginHost_PanelDispatchRegion(
         app->plugins,
         app->plugin_panel_built_generation,
         row->widget_serial,
@@ -1734,7 +1869,9 @@ app_plugin_panel_dispatch_row(
         value,
         text,
         x,
-        y);
+        y,
+        region_width,
+        region_height);
 }
 
 /**
@@ -3263,42 +3400,7 @@ app_plugin_panel_draw_custom(struct App* app)
         external = app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER;
         if( external )
         {
-            struct ToriRS_PanelWidget const* model =
-                PluginHost_PanelWidgetAt(
-                    app->plugins, generation, row->model_index);
-
-            if( !app->plugin_rail_has_layout || !app->plugin_rail_layout.visible ||
-                app->plugin_rail_layout.selection_generation !=
-                    app->plugin_shell.selection_generation ||
-                app->plugin_rail_layout.page_generation != generation || !model ||
-                model->kind != TORIRS_PANEL_WIDGET_CUSTOM ||
-                model->serial != row->widget_serial )
-                continue;
-            logical_w = app->plugin_rail_layout.custom_width;
-            logical_h = model->preferred_height;
-            if( logical_w <= 0 )
-            {
-                struct ToriRSChromeRect fallback_region;
-                int const fallback_scale =
-                    ToriRSChrome_Scale(&app->plugin_ui) > 0
-                        ? ToriRSChrome_Scale(&app->plugin_ui)
-                        : 1;
-
-                /* Additive wire compatibility: an older cached page does not
-                 * send customWidth. Prefer the hidden model's already-resolved
-                 * content width when it has one; otherwise use the bounded
-                 * pane allocation rather than leave the custom page blank.
-                 * A later measured width changes the region and redraws it. */
-                if( ToriRSChrome_CustomRegion(
-                        &app->plugin_ui, row->widget, &fallback_region, NULL) )
-                    logical_w =
-                        (fallback_region.w + fallback_scale - 1) / fallback_scale;
-                else
-                    logical_w = app->plugin_rail_layout.width > TORIRS_PANEL_WIDTH_MAX
-                                    ? TORIRS_PANEL_WIDTH_MAX
-                                    : app->plugin_rail_layout.width;
-            }
-            if( logical_w <= 0 || logical_h <= 0 )
+            if( !app_plugin_panel_custom_size(app, row, &logical_w, &logical_h) )
                 continue;
             region = (struct ToriRSChromeRect){ 0, 0, logical_w, logical_h };
             clip = region;
@@ -3338,8 +3440,8 @@ app_plugin_panel_draw_custom(struct App* app)
             /* The exact physical region remains the clip. Rounding the logical
              * callback box up lets IF3 cover an odd-sized final column/row;
              * the region clip trims the at-most-(scale-1) excess pixels. */
-            logical_w = (region.w + scale - 1) / scale;
-            logical_h = (region.h + scale - 1) / scale;
+            if( !app_plugin_panel_custom_size(app, row, &logical_w, &logical_h) )
+                continue;
         }
 
         layout_changes = ToriRSChromePanelDraw_Changes(
@@ -3856,12 +3958,25 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
                  * the row does not offer, a stale serial); the plugin never
                  * saw it. Said as such, not as a missing row. The literal
                  * value "!activate" presses a button or action row instead of
-                 * picking, through the same dispatch. */
-                dispatched = strcmp(sim_pick_value, "!activate") == 0
-                    ? app_plugin_panel_dispatch_row(
-                          app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
-                    : app_plugin_panel_dispatch_row(
-                          app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
+                 * picking. "!open" opens a real retained dropdown so a later
+                 * option-count mutation can prove that interaction survives. */
+                if( strcmp(sim_pick_value, "!open") == 0 &&
+                    row->widget_kind == TORIRS_PANEL_WIDGET_DROPDOWN )
+                {
+                    struct ToriRSChromeWidget const* widget = &app->plugin_ui.widgets[row->widget];
+                    int const x = widget->x + widget->w - 6;
+                    int const y = widget->y + widget->h / 2;
+                    ToriRSChrome_MouseMove(&app->plugin_ui, x, y);
+                    ToriRSChrome_MouseDown(&app->plugin_ui, x, y);
+                    ToriRSChrome_MouseUp(&app->plugin_ui, x, y);
+                    dispatched = app->plugin_ui.dropdown_open == row->widget;
+                }
+                else
+                    dispatched = strcmp(sim_pick_value, "!activate") == 0
+                        ? app_plugin_panel_dispatch_row(
+                              app, row, TORIRS_PANEL_ACTION_ACTIVATE, 0, "", 0, 0)
+                        : app_plugin_panel_dispatch_row(
+                              app, row, TORIRS_PANEL_ACTION_PICK, value, sim_pick_value, 0, 0);
                 fprintf(stderr, "chrome: sim pick '%s' %s = '%s' (option %d) -> %s (tick %d)\n",
                     sim_pick_plugin, sim_pick_widget, sim_pick_value, value,
                     dispatched ? "dispatched" : "refused by the host fence", g_plugin_panel_ticks);

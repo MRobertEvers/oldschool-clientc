@@ -2,11 +2,17 @@
 
 This replaces the unshipped property-claim proposal following the user's explicit
 choice of the RuneLite model. There are no public claims, bundles, declaration
-transactions or conflict-suspension rules. The existing production host now exposes the major-3 aggregate in
-`src/plugin/torirs_plugin_api.h`. Its live-widget geometry/read/reset methods
-are wired through `torirs_plugin_contract.h` for C and Lua. Owned text, presentation hiding, semantic binding subscriptions and tree-publication subscriptions are also live. Interactive controls,
-native style/content setters, other widget events and actions remain to implement; the
-former frame/UI builders remain only for the product ports still in progress.
+transactions or conflict-suspension rules. The production host exposes the major-3 aggregate in
+`src/plugin/torirs_plugin_api.h`, with the shared C/Lua widget contract in
+`torirs_plugin_contract.h`. Live geometry, checked reads/reset, owned text/image
+controls, supported native styling, subscriptions, listeners and native actions
+are implemented. The superseded frame/UI builders and placement execution paths
+were removed in `dabf74abe`; they are not a second public model.
+
+The [full visual verification](FULL_VISUAL_VERIFICATION.md) and
+[API failure analysis](API_FAILURE_ANALYSIS.md) document the subsequent contract
+repairs, independent native evidence and remaining capability/layering limits.
+An implemented method or passing mock test alone does not establish conformance.
 
 ## Execution and lifecycle
 
@@ -82,11 +88,12 @@ native state/semantic colors and preserve live text, quantities and state
 variants; a skin does not substitute an obsolete content snapshot.
 
 
-The initial owned-control path provides `create_text`, `set_text`,
+The owned-control path provides `create_text`, `set_text`,
 `set_text_color` and `remove` in C and Lua. Creation keys are scoped to owner and
 parent; repeated creation returns the same live child. Owned text uses ordinary
-typed geometry setters. Content/color setters currently accept only that owner's
-text widgets; native styling remains a separate unfinished port.
+typed geometry setters. Native and owned setters retain their documented
+per-method type, ownership and native-authority restrictions; the public API
+declarations define the supported operations.
 
 Owned children have no native component ID or dynamic child index. Native child
 lookup/iteration excludes them. Clearing a native slot preserves attached owned

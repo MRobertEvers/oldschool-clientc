@@ -265,7 +265,22 @@ local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
 local prices = {}
+-- True while the client's own ground-item captions are being formatted by
+-- this plugin instead of drawn by it. NOT a one-way latch: the client's
+-- "Ground items" row can be switched off mid-session, and then the native
+-- lane destroys its overlay and builds no captions at all -- a plugin that
+-- still believed the client was doing the job would leave the user with no
+-- labels from either side. on_frame_start watches for that and takes the
+-- labels back.
 local native_captions = false
+-- Frames since the native caption lane last ran a caption. The lane only
+-- re-runs when a row changes, so quiet is normal; it is quiet PLUS an empty
+-- caption tree that means the lane is gone.
+local native_idle = 0
+-- Roughly a second at the pacer's rate. Long enough that a pile whose native
+-- row has not been built yet is not mistaken for a dead lane, and short
+-- enough that turning the client's row off returns the labels at once.
+local NATIVE_IDLE_FRAMES = 50
 -- What the reveal key said the last time the native captions were checked.
 -- The native rows re-run their caption script only when a row changes, so a
 -- key pressed between rows would otherwise reveal nothing until the next
@@ -281,6 +296,24 @@ local function items(api)
         return item
     end
 end
+
+-- Is there anything on the ground the native lane owes a caption? Asked only
+-- when the caption tree is empty, so that walking away from the last stack
+-- reads as "nothing to caption" rather than "the lane died".
+local function items_in_range(api)
+    local me = api.world.local_player()
+    if not me then return false end
+    local range = api.config.max_distance
+    for obj in items(api) do
+        if obj.level == me.level then
+            local dx = math.abs(obj.tile_x - me.true_x)
+            local dz = math.abs(obj.tile_z - me.true_z)
+            if (dx > dz and dx or dz) <= range then return true end
+        end
+    end
+    return false
+end
+
 -- The two name lists, compiled to anchored Lua patterns once per edit rather
 -- than once per item per frame.
 local highlight_pats = {}
@@ -461,18 +494,28 @@ local function parse_prices(text)
     return out, n
 end
 
+-- Native CS2 keeps its buttons, timers and live state. Hide its captions
+-- while this plugin supplies labels; host cleanup restores their current
+-- native visibility on disable. Older clients return nil.
+local function hide_native_captions(api)
+    for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
+        if widget then assert(widget:set_hidden(true)) end
+    end
+end
+
+-- Armed whenever this plugin owns the labels: at start, and again if the
+-- native lane stops. A lane that comes back is hidden on publication and
+-- unhidden by the first caption callback, so the two never draw at once.
+local function arm_native_hider(api)
+    assert(api.widgets.watch_tree(function() hide_native_captions(api) end))
+end
+
 function plugin.on_start(api)
     prices = {}
     native_captions = false
+    native_idle = 0
     load_lists(api)
-    -- Native CS2 keeps its buttons, timers and live state. Hide its captions
-    -- while this plugin supplies labels; host cleanup restores
-    -- their current native visibility on disable. Older clients return nil.
-    assert(api.widgets.watch_tree(function()
-        for _, widget in ipairs(api.widgets.find_all("ground_item_labels") or {}) do
-            if widget then assert(widget:set_hidden(true)) end
-        end
-    end))
+    arm_native_hider(api)
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.assets.request(PRICES_ASSET)
@@ -505,6 +548,7 @@ end
 function plugin.on_stop(api)
     if native_captions then api.scripts.invalidate("groundItemCaption") end
     native_captions = false
+    native_idle = 0
     reveal_shown = false
 end
 
@@ -516,9 +560,28 @@ end
 function plugin.on_frame_start(api)
     if not native_captions then return end
     local reveal = reveal_held(api)
-    if reveal == reveal_shown then return end
-    reveal_shown = reveal
-    api.scripts.invalidate("groundItemCaption")
+    if reveal ~= reveal_shown then
+        reveal_shown = reveal
+        api.scripts.invalidate("groundItemCaption")
+    end
+
+    -- The other half of the latch. Switching the client's own ground-items row
+    -- off destroys the overlay: the caption script stops running, so no
+    -- callback ever says the lane went away. Ask the tree instead -- a lane
+    -- that has been quiet AND has no caption rows at all, while stacks are
+    -- lying in range, is not formatting anything, and the labels come back
+    -- here rather than disappearing from both sides.
+    native_idle = native_idle + 1
+    if native_idle < NATIVE_IDLE_FRAMES then return end
+    native_idle = 0
+    -- nil: this adapter has no native ground-item overlay to ask about.
+    local captions = api.widgets.find_all("ground_item_labels")
+    if not captions or #captions > 0 then return end
+    if not items_in_range(api) then return end
+    native_captions = false
+    reveal_shown = false
+    arm_native_hider(api)
+    api.core.log("native ground-item captions stopped; drawing labels again")
 end
 
 -- The native row will measure this result before positioning its buttons and
@@ -526,6 +589,7 @@ end
 function plugin.on_script_callback(api, event)
     if event.name ~= "groundItemCaption" then return end
     local ref = event.ref
+    native_idle = 0
     local ints, strings = api.scripts.counts(ref)
     assert(ints == 11 and strings == 1, "native caption hook contract mismatch")
     if not native_captions then
@@ -563,10 +627,15 @@ function plugin.on_script_callback(api, event)
     if native_ignore and not native_high then high=nil;hide=api.config.hidden_color end
     local me = api.world.local_player()
     local range = api.config.max_distance
-    local visible = me and ((coord >> 28) & 3) == me.level and
+    local visible = not not (me and ((coord >> 28) & 3) == me.level and
         math.abs(((coord >> 14) & 16383) - me.true_x) <= range and
         math.abs((coord & 16383) - me.true_z) <= range and
-        (edit or reveal_held(api) or high or (not hide and not api.config.show_highlighted_only))
+        (edit or reveal_held(api) or high or (not hide and not api.config.show_highlighted_only)))
+    -- A filtered stack's row is HIDDEN, not blanked. An empty caption is still
+    -- a row: it keeps its slot in the pile's column, and the native edit
+    -- buttons and despawn timer beside it go on measuring and drawing against
+    -- a zero-width label. Hiding it is what "this item is filtered out" means.
+    if event.widget then assert(event.widget:set_hidden(not visible)) end
     assert(api.scripts.set_string(ref, 0, visible and label_for(api, obj, exchange, alch) or ""))
     assert(api.scripts.set_int(ref, 6, high or hide or api.config.default_color))
 end

@@ -111,22 +111,31 @@ nxt_cannon_tick(
         return; /* loading it is not news. */
 
     /*
-     * Out of ammo wins over low on ammo.
+     * Out of ammo wins over low on ammo -- WHEN IT SPEAKS.
      *
      * A cannon going from 3 to 0 crosses both, and saying "running low" and
      * "empty" in the same tick is two lines for one event -- the second is
-     * the one that is true now.
+     * the one that is true now, so it takes the tick.
+     *
+     * It only takes the tick when it is going to say something. Setting 250
+     * unticked means the empty line never speaks, and swallowing the low line
+     * for a line nobody will hear turns setting 248 off for the one drop that
+     * matters most: 15 -> 0 in a single server tick is a downward crossing of
+     * the user's own threshold, and with 250 off it was the only warning
+     * there was ever going to be. So the branch returns on the notify, not on
+     * the value.
      */
-    if( ammo == 0 )
+    if( ammo == 0 &&
+        nxt_cannon_named(api, "varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY, 0) !=
+            0 )
     {
-        if( nxt_cannon_named(
-                api, "varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY, 0) != 0 )
-            api->core.notify(api, "Your cannon has run out of cannonballs.");
+        api->core.notify(api, "Your cannon has run out of cannonballs.");
         return;
     }
 
     /* Crossing the threshold, not merely being under it: firing every tick
-     * below the line would bury the chatbox. */
+     * below the line would bury the chatbox. Zero is under the line like any
+     * other count -- reached here only when the out-of-ammo row is off. */
     if( threshold > 0 && ammo <= threshold && previous > threshold &&
         nxt_cannon_named(api, "varbit", NXT_VARBIT_CANNON_LOW_NOTIFY, 0) != 0 )
     {
@@ -140,14 +149,50 @@ nxt_cannon_tick(
     }
 }
 
+/*
+ * Say what this revision can do, once -- the same line its two siblings print.
+ *
+ * Both varps are the boot profile's, by name, and on a revision that has
+ * neither (rs289lc has no cannon at all) every tick below reads the absent
+ * answer and this builtin does nothing for the whole session. Silence there
+ * is indistinguishable from a builtin that failed to start, which is exactly
+ * the failure mode this family is written against: a support log has to be
+ * able to tell "this revision has no cannon" from "the plugin is broken".
+ *
+ * The line says what resolved, not what the settings say. on_start runs at
+ * boot, before a single VARP has arrived, so any value read here would be the
+ * unloaded zero rather than the user's choice.
+ */
 static void
 nxt_cannon_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct NxtCannonState* state = state_ptr;
-    (void)api;
+    int ammo_id = -1;
+    int coord_id = -1;
+    bool have_ammo;
+    bool have_coord;
+
+    assert(api);
     assert(state);
     state->last_ammo = -1;
     state->last_coord = 0;
+
+    have_ammo = api->cache.named_id(api, "varp", NXT_VARP_CANNON_AMMO, &ammo_id);
+    have_coord =
+        api->cache.named_id(api, "varp", NXT_VARP_CANNON_COORD, &coord_id);
+    if( have_ammo && have_coord )
+        api->core.log(
+            api,
+            "cannon ammo notifications: watching varp %d (cannonballs) and "
+            "varp %d (your cannon)",
+            ammo_id,
+            coord_id);
+    else
+        api->core.log(
+            api,
+            "cannon ammo notifications: unavailable, this revision has no %s "
+            "varp",
+            have_ammo ? NXT_VARP_CANNON_COORD : NXT_VARP_CANNON_AMMO);
 }
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO = {

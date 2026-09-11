@@ -35,6 +35,34 @@ struct UITreeWidgetGeometry
     int art_scene_id, mask_scene_id;
 };
 static uint64_t widget_geometry_serial;
+static uint64_t uitree_widget_next_serial(struct UITree* tree)
+{
+    assert(tree);
+    tree->widget_edit_revision = ++widget_geometry_serial;
+    return widget_geometry_serial;
+}
+
+/* An unchanged value is a no-op only while THIS owner's property still wins.
+ * Repeating a latent value after another owner wrote must reclaim precedence. */
+static bool uitree_widget_edit_wins(struct UITreeComponent const* c,
+    struct UITreeWidgetGeometry const* edit, size_t serial_offset)
+{
+    assert(c);
+    assert(edit);
+    uint64_t serial;
+    memcpy(&serial, (char const*)edit + serial_offset, sizeof(serial));
+    if( !serial ) return false;
+    for( struct UITreeWidgetGeometry const* other=c->widget_geometry; other; other=other->next )
+    {
+        uint64_t candidate;
+        memcpy(&candidate, (char const*)other + serial_offset, sizeof(candidate));
+        if( candidate > serial ) return false;
+    }
+    return true;
+}
+#define WIDGET_EDIT_WINS(c, edit, field) \
+    uitree_widget_edit_wins((c), (edit), offsetof(struct UITreeWidgetGeometry, field))
+
 
 static int canvas_query_compact=-1;
 void UITree_CanvasQuerySetCompact(int enabled) { canvas_query_compact=enabled!=0; }
@@ -4021,7 +4049,7 @@ uitree_widget_geometry(struct UITreeComponent* c, uint64_t owner)
     }
     if( count >= 32 ) return NULL;
     struct UITreeWidgetGeometry* edit = calloc(1, sizeof(*edit));
-    if( !edit ) return NULL;
+    assert(edit);
     edit->owner = owner;
     edit->next = c->widget_geometry;
     c->widget_geometry = edit;
@@ -4043,15 +4071,18 @@ uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
     }
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit ) return false;
+    if( size ? (edit->width == a && edit->height == b && WIDGET_EDIT_WINS(c,edit,size_serial))
+             : (edit->x == a && edit->y == b && WIDGET_EDIT_WINS(c,edit,position_serial)) )
+        return true;
     if( size )
     {
         edit->width = a; edit->height = b;
-        edit->size_serial = ++widget_geometry_serial;
+        edit->size_serial = uitree_widget_next_serial(tree);
     }
     else
     {
         edit->x = a; edit->y = b;
-        edit->position_serial = ++widget_geometry_serial;
+        edit->position_serial = uitree_widget_next_serial(tree);
     }
     uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
@@ -4088,8 +4119,9 @@ bool UITree_WidgetSetHidden(struct UITree* tree,struct UITreeNodeRef ref,uint64_
     if( c->plugin_owner && c->plugin_owner!=owner ) return false;
     struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
     if( !edit ) return false;
+    if( edit->hidden==hidden && WIDGET_EDIT_WINS(c,edit,hidden_serial) ) return true;
     edit->hidden=hidden;
-    edit->hidden_serial=++widget_geometry_serial;
+    edit->hidden_serial=uitree_widget_next_serial(tree);
     uitree_widget_refresh_hidden(tree,idx);
     return true;
 }
@@ -4162,9 +4194,15 @@ UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit )
         return UITREE_WIDGET_ANCHOR_BUDGET;
+    struct UITreeNodeRef const target_ref = t >= 0 ? UITree_RefAt(tree,t) : (struct UITreeNodeRef){0};
+    if( edit->anchor_relation==(int)relation &&
+        edit->anchor_target.tree_instance==target_ref.tree_instance &&
+        edit->anchor_target.index==target_ref.index &&
+        edit->anchor_target.incarnation==target_ref.incarnation &&
+        WIDGET_EDIT_WINS(c,edit,anchor_serial) ) return UITREE_WIDGET_ANCHOR_OK;
     if( !edit->anchor_serial )
         tree->widget_anchor_edits++;
-    edit->anchor_serial = ++widget_geometry_serial;
+    edit->anchor_serial = uitree_widget_next_serial(tree);
     edit->anchor_relation = relation;
     edit->anchor_target = t >= 0 ? UITree_RefAt(tree, t) : (struct UITreeNodeRef){0};
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
@@ -4189,8 +4227,10 @@ static bool uitree_widget_set_skin(struct UITree* tree, struct UITreeNodeRef ref
              : (!uitree_widget_art_type(c->type) || scene_id <= 0) ) return false;
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit ) return false;
-    if( mask ) { edit->mask_scene_id = scene_id; edit->mask_serial = ++widget_geometry_serial; }
-    else { edit->art_scene_id = scene_id; edit->art_serial = ++widget_geometry_serial; }
+    if( mask ? (edit->mask_scene_id==scene_id && WIDGET_EDIT_WINS(c,edit,mask_serial))
+             : (edit->art_scene_id==scene_id && WIDGET_EDIT_WINS(c,edit,art_serial)) ) return true;
+    if( mask ) { edit->mask_scene_id = scene_id; edit->mask_serial = uitree_widget_next_serial(tree); }
+    else { edit->art_scene_id = scene_id; edit->art_serial = uitree_widget_next_serial(tree); }
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
@@ -4270,7 +4310,8 @@ bool UITree_WidgetSetTextOutline(struct UITree* tree,struct UITreeNodeRef ref,ui
     if( c->type!=UIELEM_RS_TEXT || (c->plugin_owner && c->plugin_owner!=owner) ) return false;
     struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
     if( !edit ) return false;
-    edit->outline=outline;edit->outline_serial=++widget_geometry_serial;
+    if( edit->outline==outline && WIDGET_EDIT_WINS(c,edit,outline_serial) ) return true;
+    edit->outline=outline;edit->outline_serial=uitree_widget_next_serial(tree);
     uitree_widget_refresh_hidden(tree,idx);
     return true;
 }
@@ -4284,7 +4325,8 @@ bool UITree_WidgetSetProjectionHeight(struct UITree* tree,struct UITreeNodeRef r
         (c->plugin_owner && c->plugin_owner!=owner) ) return false;
     struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
     if( !edit ) return false;
-    edit->projection_height=height;edit->projection_serial=++widget_geometry_serial;
+    if( edit->projection_height==height && WIDGET_EDIT_WINS(c,edit,projection_serial) ) return true;
+    edit->projection_height=height;edit->projection_serial=uitree_widget_next_serial(tree);
     uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
     return true;
 }

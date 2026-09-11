@@ -111,6 +111,7 @@ static struct
     uint32_t* comp_px;
     int compose_calls;
     int obj_image_calls;
+    int obj_seen[4096];
 
     /** What the plugin registered for its popout-rail entry. */
     char panel_icon[64];
@@ -361,6 +362,8 @@ fake_obj_image(void* ctx, int obj_id, int count, int style)
     (void)ctx;
     (void)style;
     g_c.obj_image_calls++;
+    if( obj_id >= 0 && obj_id < (int)(sizeof(g_c.obj_seen) / sizeof(g_c.obj_seen[0])) )
+        g_c.obj_seen[obj_id]++;
     if( slot < 0 )
         return -1;
     rgb = 0xFF000000u | (uint32_t)(((obj_id * 2654435761u) >> 8) & 0x00FFFFFFu);
@@ -387,8 +390,8 @@ fake_obj_image(void* ctx, int obj_id, int count, int style)
  * scenario below is the reference capture's own log.
  */
 
-#define FAKE_LOOT_SOURCES 12
-#define FAKE_LOOT_ROWS 16
+#define FAKE_LOOT_SOURCES 48
+#define FAKE_LOOT_ROWS 32
 
 static struct FakeLootSource
 {
@@ -472,7 +475,7 @@ fake_obj_info(void* ctx, int obj_id, struct ToriRS_ItemInfo* out)
 
 /* ---- the panel model (only what the strips need) ---- */
 
-struct FakeWidget { char id[32]; int kind; int height; int live; };
+struct FakeWidget { char id[32]; char text[128]; int kind; int height; int live; };
 static struct FakeWidget g_w[48];
 static int g_w_count;
 static int g_building;
@@ -505,6 +508,7 @@ fake_panel_widget(void* c, int kind, char const* id, char const* label)
     snprintf(g_w[g_w_count].id, sizeof(g_w[0].id), "%s", id);
     g_w[g_w_count].kind = kind;
     g_w[g_w_count].live = 1;
+    snprintf(g_w[g_w_count].text, sizeof(g_w[0].text), "%s", label ? label : "");
     g_w_count++;
     return true;
 }
@@ -519,7 +523,13 @@ w_find(char const* id)
 }
 
 static bool fake_panel_set_text(void* c, char const* i, char const* t)
-{ (void)c; (void)t; return w_find(i) != NULL; }
+{
+    struct FakeWidget* widget = w_find(i);
+    (void)c;
+    if( !widget ) return false;
+    snprintf(widget->text, sizeof(widget->text), "%s", t);
+    return true;
+}
 static bool fake_panel_set_value(void* c, char const* i, int v)
 { (void)c; (void)v; return w_find(i) != NULL; }
 static bool fake_panel_set_attention(void* c, bool o) { (void)c; (void)o; return true; }
@@ -1337,8 +1347,8 @@ render_loot(void)
     CHECK(g_c.comp_px != NULL, "the loot strip composed");
     CHECK(g_c.comp_w == 264, "at the well's width (got %d)", g_c.comp_w);
     CHECK(
-        g_c.comp_h == 972,
-        "source headers and their thinbox bodies keep the native pitch (got %d)",
+        g_c.comp_h <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+        "every source page fits the custom well (got %d)",
         g_c.comp_h);
     CHECK(g_c.obj_image_calls > 0, "loot cells request and draw item sprites");
     CHECK(
@@ -1361,11 +1371,38 @@ render_loot(void)
         (g_c.comp_px[83 * g_c.comp_w + 49] >> 24) == 0 &&
             (g_c.comp_px[83 * g_c.comp_w + 59] >> 24) != 0,
         "script3042 leaves the first inter-cell gap and starts column two at x=58");
-    CHECK(
-        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x862D6CF5E77B88D0ULL,
-        "the Loot Tools reference strip retains its exact plates, text, grid, and controls "
-        "(got %016llx)",
-        (unsigned long long)argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h));
+    /* The old golden was a 972px image in a well that could show only512.
+     * Keep its native band/grid checks above, then actually navigate all of
+     * that content. Footer and repeated totals are the only extra rows. */
+    {
+        uint64_t const first = argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h);
+        int full_height = 44;
+        for( int page = 0; page < 3; page++ )
+        {
+            CHECK(g_c.comp_h <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX, "loot page stays within the host bound");
+            full_height += g_c.comp_h - 24 - 44;
+            activate_well("strip", 250, g_c.comp_h - 12);
+            panel_build();
+            draw_well("strip", 264);
+        }
+        CHECK(full_height == 972, "three reachable pages preserve all972 rows of native source bands (got %d)", full_height);
+        activate_well("strip", 10, 49);
+        panel_build();
+        CHECK(w_find("sec_detail") && strcmp(w_find("sec_detail")->text, "Saradomin priest") == 0,
+              "the final source's header opens the correct detail after paging");
+        /* Restore its expansion so returning pages can be compared exactly. */
+        activate_well("strip", 10, 49);
+        panel_build();
+        draw_well("strip", 264);
+        for( int page = 0; page < 2; page++ )
+        {
+            activate_well("strip", 10, g_c.comp_h - 12);
+            panel_build();
+            draw_well("strip", 264);
+        }
+        CHECK(argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == first,
+              "Previous restores the original page's exact plates, text, grid and controls");
+    }
     if( g_c.comp_px )
         write_png(path ? path : "build/loot_strip.png", g_c.comp_w, g_c.comp_h, g_c.comp_px);
     printf("loot strip: %dx%d -> %s\n", g_c.comp_w, g_c.comp_h,
@@ -1459,6 +1496,80 @@ test_loot_stateful_controls(void)
         "ignored sources and items use their exact alternate cache plates");
 }
 
+static void
+test_loot_pages_reach_all_retained_data(void)
+{
+    int obj[FAKE_LOOT_ROWS], qty[FAKE_LOOT_ROWS], value[FAKE_LOOT_ROWS];
+    reset("loot-tracker");
+    cfg_set("remember_loot", "0");
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    for( int source = 0; source < FAKE_LOOT_SOURCES; source++ )
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "Source %02d", source);
+        for( int item = 0; item < FAKE_LOOT_ROWS; item++ )
+        {
+            obj[item] = 1000 + source * FAKE_LOOT_ROWS + item;
+            qty[item] = value[item] = 1;
+        }
+        loot_add(name, 1, obj, qty, value, FAKE_LOOT_ROWS);
+    }
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(1000);
+    panel_build();
+    draw_well("strip", 264);
+    for( int page = 0; page < FAKE_LOOT_SOURCES; page++ )
+    {
+        CHECK(g_c.comp_h == 366, "the largest32-item source fits intact on a bounded page (got%d)", g_c.comp_h);
+        activate_well("strip", 250, g_c.comp_h - 12);
+        panel_build();
+        draw_well("strip", 264);
+    }
+    for( int id = 1000; id < 1000 + FAKE_LOOT_SOURCES * FAKE_LOOT_ROWS; id++ )
+        CHECK(g_c.obj_seen[id] > 0, "source pagination renders retained item%d", id);
+
+    /* Even collapsed,48 names need four pages; the final name must remain a
+     * real action target, rather than a caption saying more names exist. */
+    activate_well("strip", 204, 10);
+    panel_build();
+    draw_well("strip", 264);
+    for( int page = 0; page < 3; page++ )
+    {
+        CHECK(g_c.comp_h <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX, "collapsed source pages are bounded");
+        activate_well("strip", 250, g_c.comp_h - 12);
+        panel_build();
+        draw_well("strip", 264);
+    }
+    activate_well("strip", 10, 44 + 11 * 37 + 5);
+    panel_build();
+    CHECK(w_find("sec_detail") && strcmp(w_find("sec_detail")->text, "Source 47") == 0,
+          "the48th collapsed source remains reachable through its header action");
+
+    /* The flat grid used to truncate collection at192 distinct items. Page
+     * all1536 retained items and verify every id reaches the image service. */
+    activate_well("strip", 9, 10);
+    panel_build();
+    memset(g_c.obj_seen, 0, sizeof(g_c.obj_seen));
+    draw_well("strip", 264);
+    for( int page = 0; page < 32; page++ )
+    {
+        uint64_t const before = argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h);
+        CHECK(g_c.comp_h <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX, "flat drop pages are bounded");
+        activate_well("strip", 250, g_c.comp_h - 12);
+        panel_build();
+        draw_well("strip", 264);
+        if( argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == before ) break;
+    }
+    for( int id = 1000; id < 1000 + FAKE_LOOT_SOURCES * FAKE_LOOT_ROWS; id++ )
+        CHECK(g_c.obj_seen[id] > 0, "flat pagination renders retained item%d beyond the old192-item cut", id);
+}
+
 int
 main(void)
 {
@@ -1467,6 +1578,7 @@ main(void)
     test_xp_ttl_advances_inside_rate_floor();
     render_loot();
     test_loot_stateful_controls();
+    test_loot_pages_reach_all_retained_data();
     if( g_plugin_state ) dispatch_stop();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

@@ -5128,14 +5128,13 @@ exec_entity_overlay(
     case CS2_OP_OVERLAY_CC_FIND:
     {
         int const component_id = rs_cs2_overlay_component_id(host, a[0]);
-        int32_t parent = tree && component_id >= 0
-                             ? UITree_FindByComponentId(tree, component_id)
-                             : -1;
-        int32_t child =
-            parent >= 0 ? UITree_FindChildBySubid(tree, parent, component_id, a[1]) : -1;
+        int32_t const parent = tree && component_id >= 0
+                                  ? UITree_FindByComponentId(tree, component_id) : -1;
+        int32_t const child = parent >= 0
+                                 ? UITree_FindChildBySubid(tree, parent, component_id, a[1]) : -1;
         if( child >= 0 )
             rs_cs2_set_cc_target(vm, dot_operand, tree->components[child].component_id);
-        return CS2VM2_PushInt(vm, child >= 0 ? 1 : 0);
+        return CS2VM2_PushInt(vm, child >= 0);
     }
     case CS2_OP_OVERLAY_CC_CREATE:
     {

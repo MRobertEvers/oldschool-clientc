@@ -924,6 +924,9 @@ struct ToriRSChromeWidget
     int custom_clip_y;
     int custom_clip_w;
     int custom_clip_h;
+    /** Unclipped inner content origin. The generic row y below is trimmed
+     * for hit testing when the row straddles a scrolling panel's edge. */
+    int custom_region_y;
     /**
      * Dropdown-as-menu: the closed state is just the label, opening clears
      * `selected` so choosing the same row twice still reads as a fresh choice,

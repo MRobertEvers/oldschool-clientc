@@ -23,6 +23,7 @@
 #include "engine/png_decode.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -419,6 +420,25 @@ static bool v2_draw_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawCont
     out->bounds = g_canvas_bounds;
     return true;
 }
+/* The lane's input policy, as core.capability reports it. Off is a pointer
+ * lane; on is a phone, where no hover pass runs. */
+static int g_touch;
+static bool v2_capability(struct ToriRS_Api* api, char const* name)
+{ (void)api; return strcmp(name, "touch") == 0 && g_touch != 0; }
+
+/* The plugin's own log, kept so a case can read what it said. */
+static char g_log_last[256];
+static int g_log_count;
+static void v2_log(struct ToriRS_Api* api, char const* format, ...)
+{
+    va_list args;
+    (void)api;
+    va_start(args, format);
+    vsnprintf(g_log_last, sizeof(g_log_last), format, args);
+    va_end(args);
+    g_log_count++;
+}
+
 static int g_draw_x, g_draw_y;
 static void v2_draw_image(
     struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
@@ -432,6 +452,8 @@ api_init(void)
     memset(&g_game_api, 0, sizeof(g_game_api));
     g_api.struct_size = sizeof(g_api);
     g_api.major_version = TORIRS_PLUGIN_API_MAJOR;
+    g_api.core.capability = v2_capability;
+    g_api.core.log = v2_log;
     g_api.config.get_bool = v2_cfg_bool;
     g_api.config.get_color = v2_cfg_color;
     g_api.input.pointer = v2_pointer;
@@ -542,6 +564,9 @@ client_reset(void)
     for( int i = 0; i < FAKE_WORN_SLOTS; i++ )
         g_client.worn[i] = -1;
     g_client.run_energy = 100;
+    g_touch = 0;
+    g_log_count = 0;
+    g_log_last[0] = '\0';
     /* Every case below is about a panel appearing, so the plugin is restarted
      * with it: the composed panel is cached against the item it was built
      * from, and a case that reused it would be measuring the previous one. */
@@ -584,37 +609,100 @@ test_food_heals(void)
     TEST_ASSERT(tip_rows() == 1, "one stat changes; got %d rows", tip_rows());
 }
 
-/* The tooltip stays inside the graphics context's canvas bounds, not inside a
- * placement area: a pointer near the canvas corner flips the panel up and left
- * of the pointer, and a smaller canvas moves that edge. An inventory hover is
- * outside the 3D viewport and must NOT flip: the canvas, not the viewport, is
- * the bound. */
+/*
+ * Where the plate lands, and what it is kept OFF.
+ *
+ * Two rules at once. It is bounded by the graphics context's canvas -- not by
+ * a placement area and not by the 3D viewport, since an inventory hover sits
+ * outside the viewport and must not flip away over the minimap. And it is
+ * anchored down-LEFT of the pointer, because down-RIGHT is where the client
+ * paints its own caption for the same cell: the plate's right edge has to stop
+ * short of the pointer's column or the two texts are drawn over each other.
+ */
 static void
-test_tooltip_clamps_to_draw_canvas(void)
+test_tooltip_clears_the_pointer_caption(void)
 {
+    int w;
+    int h;
+
     client_reset();
     obj_add(385, "Shark");
     g_client.current[3] = 50;
-    g_mouse_x = 100; g_mouse_y = 100;
+    g_mouse_x = 400; g_mouse_y = 300;
     g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
     frame(385);
-    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 116,
-        "away from the edge the panel sits right and below the pointer (%d,%d)", g_draw_x, g_draw_y);
+    /* The panel is composed once and then reused, so its size is read on the
+     * frame that composed it and carried through the cases below. */
+    w = g_client.compose_w;
+    h = g_client.compose_h;
+    TEST_ASSERT(g_client.draw_count == 1 && w > 0 && h > 0, "a shark gets a panel");
+    TEST_ASSERT(g_draw_x == 400 - w - 12 && g_draw_y == 316,
+        "away from the edge the panel sits below and LEFT of the pointer (%d,%d)",
+        g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x + w <= 400,
+        "the panel stops short of the pointer's column, where the client's own "
+        "caption for the cell is drawn (right edge %d, pointer %d)",
+        g_draw_x + w, g_mouse_x);
+
     g_mouse_x = 618; g_mouse_y = 235; /* inventory slot 1 on the fixed frame */
     frame(385);
-    TEST_ASSERT(g_draw_x == 630 && g_draw_y == 251,
-        "an inventory hover outside the 3D viewport keeps the panel beside the pointer (%d,%d)", g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x == 618 - w - 12 && g_draw_y == 251,
+        "an inventory hover outside the 3D viewport keeps the panel beside the pointer (%d,%d)",
+        g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x + w <= 618,
+        "the inventory panel clears the pointer's column too (right edge %d)", g_draw_x + w);
+
+    g_mouse_x = 6; g_mouse_y = 300;
+    frame(385);
+    TEST_ASSERT(g_draw_x == 18 && g_draw_y + h <= 300,
+        "with no room on the left the panel goes right of the pointer and ABOVE "
+        "its row, which the caption's band is below (%d,%d)", g_draw_x, g_draw_y);
+
     g_mouse_x = 760; g_mouse_y = 495;
     frame(385);
-    TEST_ASSERT(g_draw_x < 760 && g_draw_y < 495,
-        "at the canvas corner the panel flips up and left (%d,%d)", g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x < 760 && g_draw_y + h <= 503,
+        "at the canvas corner the panel stays on the canvas (%d,%d)", g_draw_x, g_draw_y);
+
     g_mouse_x = 250; g_mouse_y = 190;
     g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 300, 200 };
     frame(385);
-    TEST_ASSERT(g_draw_x < 250 && g_draw_y < 190,
-        "a smaller canvas moves the flip edge with it (%d,%d)", g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x >= 0 && g_draw_x + w <= 300 && g_draw_y + h <= 200,
+        "a smaller canvas moves the bound with it (%d,%d)", g_draw_x, g_draw_y);
+
     g_mouse_x = 100; g_mouse_y = 100;
     g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+}
+
+/*
+ * A touch lane is told about, once.
+ *
+ * A finger supplies a hover while held, then departs. The diagnostic must not
+ * claim the preview is unavailable merely because the capability is touch.
+ */
+static void
+test_touch_lane_is_stated(void)
+{
+    int said;
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    frame(385);
+    TEST_ASSERT(strstr(g_log_last, "touch") == NULL && g_log_count == 1,
+        "a pointer lane states what it does, once (%d lines: %s)", g_log_count, g_log_last);
+
+    g_touch = 1;
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1, "a held finger can preview its item");
+    TEST_ASSERT(strstr(g_log_last, "touch previews") != NULL,
+        "the touch lane states its actual preview policy (%s)", g_log_last);
+    frame(-1);
+    TEST_ASSERT(g_client.draw_count == 0, "nothing hovered still draws nothing");
+    said = g_log_count;
+    frame(-1);
+    TEST_ASSERT(g_log_count == said,
+        "the policy is said on the change, not every frame (%d lines)", g_log_count);
+    g_touch = 0;
 }
 
 static void
@@ -922,7 +1010,8 @@ main(void)
     test_no_hover();
     test_unknown_item();
     test_food_heals();
-    test_tooltip_clamps_to_draw_canvas();
+    test_tooltip_clears_the_pointer_caption();
+    test_touch_lane_is_stated();
     test_food_at_full_health();
     test_dose_suffix_is_stripped();
     test_combo_potion();

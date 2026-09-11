@@ -593,7 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
-	render/torirs_frame.c render/torirs_pick.c \
+	render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c \
@@ -2484,6 +2484,14 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
 
+.PHONY: test-plugin-tab-activation
+test-plugin-tab-activation: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/src/plugin/test/tab_activation_test.py $(OBJ_DIR)/tab-activation
+
+.PHONY: test-plugin-chat-focus-order
+test-plugin-chat-focus-order: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/src/plugin/test/chat_focus_order_test.py $(OBJ_DIR)/chat-focus-order
+
 # The Stone Drawer mobile gameframe, same harness. What it asserts that the
 # desktop one cannot is the DRAWER: a role the declaration stops mentioning is
 # one the host hides, so "shut" has to be visible as a slot that was not placed.
@@ -2769,6 +2777,20 @@ test-cs1: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		cs1vm/test/cs1_integration_test.c -lm
 	./$(OBJ_DIR)/cs1_integration_test
+
+.PHONY: test-base37
+test-base37: $(OBJ_DIR) net/jbase37.c net/test/jbase37_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/jbase37_test net/jbase37.c net/test/jbase37_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/jbase37_test
+
+.PHONY: test-plugin-settings-sync
+test-plugin-settings-sync: $(OBJ_DIR) plugin/test/settings_merge_test.py plugin/test/settings_save_test.py plugin/torirs_plugin_panel.u.c
+	CC="$(CC)" python3 plugin/test/settings_merge_test.py $(OBJ_DIR)
+	CC="$(CC)" python3 plugin/test/settings_save_test.py $(OBJ_DIR)
+
+.PHONY: test-plugin-panel-region
+test-plugin-panel-region: $(OBJ_DIR) plugin/test/panel_region_test.py plugin/torirs_plugin_panel.u.c
+	CC="$(CC)" python3 plugin/test/panel_region_test.py $(OBJ_DIR)
 
 # -UNDEBUG because assert() is how this suite checks: OPT=1 puts -DNDEBUG in
 # CFLAGS (see the note above OPT_RELEASE_CFLAGS), which compiled every
@@ -3162,7 +3184,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c \
-		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		perf/torirs_perf.c \
@@ -3182,7 +3204,7 @@ test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_entity_overlay_sprite_test \
 		render/test/torirs_frame_entity_overlay_sprite_test.c \
-		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
 
@@ -3191,7 +3213,7 @@ test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_flat_test \
 		render/test/torirs_frame_flat_test.c \
-		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_flat_test
 
@@ -6041,3 +6063,41 @@ test-canoes-server:
 test-sailing-server: torirsserver
 	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_SAILING_ONLY=1 TORIRSSERVER_REV=osrs239 \
 		TORIRSSERVER_CACHE=cache.osrs239 ./src/$(OBJ_DIR)/torirsserver --selftest
+
+.PHONY: test-frame-draw-gate
+test-frame-draw-gate: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/frame_draw_gate_test test/frame_draw_gate_test.c
+	./$(OBJ_DIR)/frame_draw_gate_test
+
+
+.PHONY: test-silhouette
+test-silhouette: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/silhouette_test \
+		render/torirs_silhouette.c render/test/torirs_silhouette_test.c -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/silhouette_test
+
+.PHONY: test-frame-silhouette
+test-frame-silhouette: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_silhouette_test \
+		render/test/torirs_frame_silhouette_test.c \
+		render/torirs_silhouette.c render/torirs_silhouette_frame.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_silhouette_test
+
+.PHONY: test-cs2-overlay-find
+test-cs2-overlay-find: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/cs2_overlay_find_test \
+		cs2vm2/test/overlay_find_test.c cs2vm2/cs2vm2.c cs2vm2/cs2vm2_strpool.c \
+		cs2vm2/cs2_opcode_meta.c perf/torirs_perf.c $(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/cs2_overlay_find_test
+	python3 $(REPO_ROOT)/tools/test_overlay_find_host.py
+
+.PHONY: test-plugin-highlight-snapshot
+test-plugin-highlight-snapshot: $(OBJ_DIR)
+	python3 $(REPO_ROOT)/tools/test_highlight_snapshot.py --out-dir $(OBJ_DIR) --cc "$(CC)"
+
+.PHONY: test-plugin-clock
+test-plugin-clock:
+	python3 plugin/test/plugin_clock_test.py

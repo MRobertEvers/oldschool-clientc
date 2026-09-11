@@ -25,6 +25,11 @@
  * of which live down with the client's own graphics. Only the vtable is
  * assembled here.
  */
+_Static_assert(UITREE_SCENE_PLUGIN_IMAGE_SLOTS >= TORIRS_PLUGIN_IMAGES_MAX,
+    "scene image slots cover the host's shared image table");
+_Static_assert(TORIRS_PLUGIN_MENU_ROWS_MAX == UITREE_MINIMENU_MAX_OPTIONS,
+    "plugins receive the complete native menu");
+
 static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
 static int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
@@ -246,6 +251,47 @@ app_plugin_fill_npc(
     app_plugin_fill_npc_for_world(app, app->world, npc, out);
 }
 
+/* Diagnostic plugin-observation delay, not a network/cache-loader stall. The
+ * world and native models keep progressing while both plugin item queries
+ * consistently report one definition as pending. Time starts at its first
+ * plugin observation; an unrelated earlier item cannot consume the delay. */
+static bool app_plugin_item_info_delayed(struct App* app, int obj_id)
+{
+    static bool parsed, started, released;
+    static int delayed_id = -1;
+    static unsigned long long delay_cycles;
+    static uint64_t first_cycle;
+    assert(app);
+    if( !parsed )
+    {
+        char const* spec = getenv("TORIRS_SIM_ITEM_INFO_DELAY");
+        parsed = true;
+        if( spec )
+        {
+            char extra;
+            if( sscanf(spec,"%d,%llu%c",&delayed_id,&delay_cycles,&extra)!=2 ||
+                delayed_id<0 || delay_cycles<1 || delay_cycles>10000000 )
+            {
+                delayed_id = -1;
+                TORIRS_REPORT("SIM_ITEM_INFO_DELAY invalid; expected item_id,logic_cycles\n");
+            }
+        }
+    }
+    if( obj_id!=delayed_id || released ) return false;
+    if( !started )
+    {
+        started = true;
+        first_cycle = app->logic_cycle;
+        TORIRS_REPORT("SIM_ITEM_INFO_DELAY pending item=%d first_cycle=%llu duration=%llu mode=plugin_observation\n",
+            obj_id,(unsigned long long)first_cycle,delay_cycles);
+    }
+    if( app->logic_cycle-first_cycle < delay_cycles ) return true;
+    released = true;
+    TORIRS_REPORT("SIM_ITEM_INFO_DELAY released item=%d cycle=%llu elapsed=%llu mode=plugin_observation\n",
+        obj_id,(unsigned long long)app->logic_cycle,(unsigned long long)(app->logic_cycle-first_cycle));
+    return false;
+}
+
 static void
 app_plugin_fill_obj(
     struct App* app,
@@ -276,7 +322,8 @@ app_plugin_fill_obj(
      */
     {
         struct ToriRS_Objtype* type =
-            stack->obj_id >= 0 ? CacheProvider_ObjtypeGet(app->provider, stack->obj_id) : NULL;
+            stack->obj_id >= 0 && !app_plugin_item_info_delayed(app,stack->obj_id)
+                ? CacheProvider_ObjtypeGet(app->provider, stack->obj_id) : NULL;
         out->cost = type ? type->cost : 0;
     }
 }
@@ -420,15 +467,39 @@ app_plugin_highlight_begin(
 }
 
 static struct ToriRS_HighlightItem*
+app_plugin_highlight_append(struct ToriRS_HighlightItem** items,int* count,int* capacity,
+                            struct ToriRS_HighlightItem const* proto)
+{
+    assert(items);
+    assert(count);
+    assert(capacity);
+    assert(proto);
+    assert(*count>=0);
+    assert(*capacity>=*count);
+    /* Preserve an item copied from this same vector across a possible grow. */
+    struct ToriRS_HighlightItem const value=*proto;
+    if( *count==*capacity )
+    {
+        assert(*capacity<=INT_MAX/2);
+        int const next=*capacity?*capacity*2:APP_PLUGIN_HIGHLIGHTS_INITIAL_CAPACITY;
+        assert((size_t)next<=SIZE_MAX/sizeof(**items));
+        void* grown=realloc(*items,(size_t)next*sizeof(**items));
+        assert(grown);
+        *items=grown;
+        *capacity=next;
+    }
+    assert(*items);
+    struct ToriRS_HighlightItem* item=&(*items)[(*count)++];
+    *item=value;
+    return item;
+}
+
+static struct ToriRS_HighlightItem*
 app_plugin_highlight_push(struct App* app, struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlights[app->plugin_highlight_count++];
-    *item = *proto;
-    return item;
+    assert(app);
+    return app_plugin_highlight_append(&app->plugin_highlights,&app->plugin_highlight_count,
+                                       &app->plugin_highlight_capacity,proto);
 }
 
 /* The entity pools the rebuild walks, one per pass that has a pool. */
@@ -563,20 +634,17 @@ app_plugin_highlight_loc_cache_needs_full(struct App const* app)
         app->world->scenery_changed_overflow;
 }
 
-/* Push one resolved loc into the cache. Bounded by the same cap as the live
- * list, so a cache that fills cannot outrun what the list could hold. */
+/* Query completeness is independent of the renderer's per-frame draw budget.
+ * A type/group member can resolve to many live entities, so neither the LOC
+ * cache nor the final snapshot may silently stop at a fixed item count. */
 static struct ToriRS_HighlightItem*
 app_plugin_highlight_loc_cache_push(
     struct App* app,
     struct ToriRS_HighlightItem const* proto)
 {
-    struct ToriRS_HighlightItem* item;
-
-    if( app->plugin_highlight_loc_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
-        return NULL;
-    item = &app->plugin_highlight_loc[app->plugin_highlight_loc_count++];
-    *item = *proto;
-    return item;
+    assert(app);
+    return app_plugin_highlight_append(&app->plugin_highlight_loc,&app->plugin_highlight_loc_count,
+                                       &app->plugin_highlight_loc_capacity,proto);
 }
 
 /*
@@ -1243,15 +1311,17 @@ app_plugin_highlight_next(void* user, int iter, struct ToriRS_HighlightItem* out
     /* The start of a walk is the only place the list is rebuilt: see the api
      * declaration. A cursor into a list that moved underneath it would skip or
      * repeat, so the rebuild must not happen mid-walk. */
-    if( iter < 0 )
+    if( iter < -1 )
+        return -1;
+    if( iter == -1 )
     {
         app_plugin_highlights_rebuild(app);
         app_plugin_highlights_report(app);
     }
 
-    next = iter + 1;
-    if( next >= app->plugin_highlight_count )
+    if( iter >= app->plugin_highlight_count - 1 )
         return -1;
+    next = iter + 1;
     *out = app->plugin_highlights[next];
     return next;
 }
@@ -1293,7 +1363,7 @@ app_plugin_frame_ms(void* user)
 {
     struct App* app = (struct App*)user;
     assert(app);
-    return app->last_frame_ms;
+    return app->plugin_frame_ms;
 }
 
 static uint64_t
@@ -2306,6 +2376,20 @@ app_plugin_feature_repush(struct App* app)
     app->need_redraw = 1;
 }
 
+/* A feature's stored spelling can differ from what the renderer applies.
+ * Keep the raw boot cell for RESTORE/default identity, but report the same
+ * effective distance the painter uses rather than its private zero sentinel. */
+static int
+app_plugin_feature_effective_read(struct App* app, struct AppPluginFeatureDesc const* desc)
+{
+    assert(app);
+    assert(desc);
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_TABLE &&
+        desc->offset == APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance) )
+        return ToriRS_Features_PainterDrawDistance(&app->features_storage);
+    return app_plugin_feature_read(app, desc, 0);
+}
+
 static int
 app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
 {
@@ -2333,8 +2417,8 @@ app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
     out->value_count = desc->value_count;
     for( int i = 0; i < desc->value_count; i++ )
         out->values[i] = desc->values[i];
-    out->value = app_plugin_feature_read(app, desc, 0);
-    out->is_default = out->value == app_plugin_feature_read(app, desc, 1);
+    out->value = app_plugin_feature_effective_read(app, desc);
+    out->is_default = app_plugin_feature_read(app, desc, 0) == app_plugin_feature_read(app, desc, 1);
     return at;
 }
 
@@ -2351,7 +2435,7 @@ app_plugin_feature_get(void* user, char const* key)
     struct AppPluginFeatureDesc const* desc = app_plugin_feature_desc(key);
     if( !desc )
         return TORIRS_FEATURE_UNSET;
-    return app_plugin_feature_read(app, desc, 0);
+    return app_plugin_feature_effective_read(app, desc);
 }
 
 static int
@@ -2698,7 +2782,7 @@ app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
     assert(app);
     assert(out);
 
-    if( obj_id < 0 || !app->provider )
+    if( obj_id < 0 || !app->provider || app_plugin_item_info_delayed(app,obj_id) )
         return 0;
     type = CacheProvider_ObjtypeGet(app->provider, obj_id);
     if( !type )
@@ -2843,14 +2927,16 @@ app_plugin_overlay_argb(uint32_t rgb)
  */
 
 static int
-app_plugin_draw_tile(
+app_plugin_draw_tile_stroke(
     void* user,
     int tile_x,
     int tile_z,
     int level,
     uint32_t rgb,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int outline_width,
+    int item_budget)
 {
     struct App* app = (struct App*)user;
     static const int CORNER[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
@@ -2863,7 +2949,6 @@ app_plugin_draw_tile(
     int scene_x;
     int scene_z;
     int plane_y;
-    int const before = app ? app_overlay_count(app) : 0;
 
     assert(app);
 
@@ -2964,48 +3049,167 @@ emit:
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
      * -- see draw_tile in torirs_plugin_api.h. */
-    if( fill_alpha > 0 )
-        app_overlay_push_polygon_filled(
-            app,
-            hull_x,
-            hull_y,
-            hull_size,
-            app_plugin_overlay_argb(fill_rgb),
-            255 - (fill_alpha > 255 ? 255 : fill_alpha));
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
-    return app_overlay_count(app) - before;
+    return app_overlay_push_polygon_styled(
+        app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(fill_rgb),
+        fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+        app_plugin_overlay_argb(rgb), outline_width, item_budget);
 }
 
 static int
-app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape)
+app_plugin_draw_tile_styled(void* user,int tile_x,int tile_z,int level,
+    uint32_t rgb,uint32_t fill_rgb,int alpha,int width,uint32_t flags,int item_budget)
+{
+    struct App* app=user;
+    struct UITreeEntityOverlay item;
+    struct World* source;
+    struct Wev* wev=NULL;
+    struct WevDeckBox box;
+    struct HeightmapHeights heights;
+    int local_x,local_z,view_id,real_level=level;
+    static const int corner[4][2]={{0,0},{1,0},{1,1},{0,1}};
+    assert(app);
+    assert(width>=0);
+    assert(width<=255);
+    assert(alpha>=0);
+    assert(alpha<=255);
+    assert((flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)==0);
+    assert(item_budget>=0);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_WORLD);
+    if( !app->world || !app->world_view_valid || (width==0 && alpha==0) ) return 0;
+    source=app->world;
+    view_id=App_WevHomeViewForAbsTile(app,tile_x,tile_z,&local_x,&local_z);
+    if( view_id!=0 && Wevs_IsLive(&app->wevs,view_id) &&
+        WorldviewRegistry_IsLive(&app->worldviews,view_id) )
+    {
+        wev=Wevs_Get(&app->wevs,view_id);
+        source=WorldviewRegistry_Get(&app->worldviews,view_id)->world;
+        if( !source ) return 0;
+        app_wev_deck_box(app,wev,app->world,&box);
+    }
+    else
+    {
+        local_x=tile_x-source->_base_tile_x;
+        local_z=tile_z-source->_base_tile_z;
+    }
+    if( !source->heightmap || local_x<0 || local_z<0 ||
+        local_x>=source->_scene_size || local_z>=source->_scene_size ||
+        level<0 || level>=source->heightmap->levels ) return 0;
+    if( level<source->heightmap->levels-1 &&
+        (World_TileFlagGet(source,local_x,local_z,1)&RSCACHE_FLOFLAG_LINK_BELOW) )
+        ++real_level;
+    heightmap_get_heights(source->heightmap,local_x,local_z,real_level,&heights);
+    int const height[4]={heights.sw_height,heights.se_height,heights.ne_height,heights.nw_height};
+    memset(&item,0,sizeof(item));
+    item.kind=UITREE_ENTITY_OVERLAY_WORLD_SURFACE;
+    item.color=app_plugin_overlay_argb(rgb);
+    item.surface_fill_color=app_plugin_overlay_argb(fill_rgb);
+    item.trans=alpha>0?255-alpha:-1;
+    item.line_width=(uint8_t)width;
+    item.silhouette_always_on_top=(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)!=0;
+    for( int i=0;i<4;++i )
+    {
+        int x=(local_x+corner[i][0])*128,z=(local_z+corner[i][1])*128;
+        if( wev ) Wev_ParentFromDeck(&box,x,z,&x,&z);
+        item.surface_x[i]=x;
+        item.surface_z[i]=z;
+        item.surface_y[i]=height[i]+(wev?wev->y+wev->bob_y:0);
+    }
+    if( item_budget<1 ) return -2;
+    if( app->entity_overlay_count>=(int)(sizeof(app->entity_overlays)/sizeof(app->entity_overlays[0])) )
+        return -1;
+    app_overlay_push(app,&item);
+    return 1;
+}
+
+static int
+app_plugin_draw_tile(void* user, int x, int z, int level, uint32_t rgb, uint32_t fill, int alpha)
+{
+    return app_plugin_draw_tile_stroke(user, x, z, level, rgb, fill, alpha, 1, INT_MAX);
+}
+
+static int
+app_plugin_draw_hull_stroke(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape,
+                           int outline_width, int item_budget)
 {
     struct App* app = (struct App*)user;
-    int before;
+    int emitted;
 
     assert(app);
     assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
-    before = app_overlay_count(app);
     /* Either silhouette the client already knows how to draw. Their fill
      * transparency is fixed at APP_OUTLINE_FILL_TRANS for the hover and editor
      * marks; here the plugin chooses, so an outline-only highlight is
      * possible. */
     if( shape == TORIRS_HULL_MESH )
-        app_overlay_outline_element_mesh_trans(
+        emitted = app_overlay_outline_element_mesh_stroke(
             app,
             element_id,
             app_plugin_overlay_argb(rgb),
-            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+            outline_width, item_budget);
     else
-        app_overlay_outline_element_model_trans(
+        emitted = app_overlay_outline_element_model_stroke(
             app,
             element_id,
             app_plugin_overlay_argb(rgb),
-            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1,
+            outline_width, item_budget);
     static int trace_count;
     if( getenv("TORIRS_TRACE_PLUGIN_WORLD") && trace_count++<32 )
         TORIRS_REPORT("PLUGIN_HULL element=%d shape=%d emitted=%d\n",
-            element_id,shape,app_overlay_count(app)-before);
-    return app_overlay_count(app) - before;
+            element_id,shape,emitted);
+    return emitted;
+}
+
+/* Native minimap pixels are four per tile. Unlike a world projection these
+ * remain meaningful when the 3D camera faces away from the marked tile. */
+static int app_plugin_draw_minimap_tile(void* user,int tile_x,int tile_z,int level,
+    uint32_t outline,uint32_t fill,int alpha,int width,int item_budget)
+{
+    struct App* app=user;
+    assert(app);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_MINIMAP);
+    if( !app->world || level!=app->minimap_level || (!alpha && !width) ) return 0;
+    int64_t const dx=((int64_t)tile_x-app->world->_base_tile_x)*4-app->minimap_player_x/32;
+    int64_t const dz=((int64_t)tile_z-app->world->_base_tile_z)*4-app->minimap_player_z/32;
+    struct UITreeMinimapDot projected={0};
+    int const yaw=ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    if( !ToriRS_MinimapTileProject(&projected,dx,dz,ToriDraw_Sin(yaw),ToriDraw_Cos(yaw)) ) return 0;
+    if( item_budget<1 ) return -2;
+    if( app->minimap_dot_count>=TORIRS_PLUGIN_DRAW_BUDGET ) return -1;
+    struct UITreeMinimapDot* dot=&app->minimap_dots[app->minimap_dot_count++];
+    *dot=projected;
+    dot->color=app_plugin_overlay_argb(outline);
+    dot->tile_fill=app_plugin_overlay_argb(fill);
+    dot->tile_alpha=alpha;
+    dot->tile_outline_width=width;
+    return 1;
+}
+
+static int
+app_plugin_draw_hull_styled(void* user,int element_id,uint32_t rgb,int alpha,
+    int shape,int outline_width,uint32_t flags,int item_budget)
+{
+    struct App* app=user;
+    assert(app);
+    assert(shape==TORIRS_HULL_BOUNDS || shape==TORIRS_HULL_MESH);
+    assert((flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)==0);
+    if( shape==TORIRS_HULL_BOUNDS )
+    {
+        /* Bounds are a screen-space envelope, with no corresponding depth
+         * surface. Keep that explicit instead of promising false occlusion. */
+        assert(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP);
+        return app_plugin_draw_hull_stroke(user,element_id,rgb,alpha,shape,outline_width,item_budget);
+    }
+    return app_overlay_outline_element_mesh_styled(app,element_id,
+        app_plugin_overlay_argb(rgb),alpha>0?255-alpha:-1,outline_width,
+        (flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP)!=0,item_budget);
+}
+
+static int
+app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int alpha, int shape)
+{
+    return app_plugin_draw_hull_stroke(user, element_id, rgb, alpha, shape, 1, INT_MAX);
 }
 
 static int
@@ -3588,9 +3792,10 @@ app_plugin_mouse_pos(void* user, int* out_x, int* out_y)
     struct App* app = (struct App*)user;
 
     assert(app);
-    /* The same point every click path reads, latched once per frame from the
-     * input drain (App_RunOnce). Before the first frame it is 0,0, which is a
-     * legal position -- so the answer is the position, not a validity flag. */
+    /* Coordinates remain latched after the pointer leaves. That last point
+     * must not keep a plugin tooltip hovered or pause an orb's expiry. */
+    if( app->pointer_absent )
+        return 0;
     if( out_x )
         *out_x = app->world_mouse_x;
     if( out_y )
@@ -3800,18 +4005,68 @@ app_plugin_trace_find_all(
         role, count, list);
 }
 
+int
+App_PluginFixtureRoleMembers(struct App* app, char const* role, int present)
+{
+    assert(app);
+    assert(role);
+    if( strcmp(role, "chat_buttons") != 0 || (present != 0 && present != 1) )
+        return 0;
+    int const absent = !present;
+    if( app->plugin_fixture_chat_members_absent == absent )
+        return 1;
+    app->plugin_fixture_chat_members_absent = absent;
+    if( app->plugins )
+        PluginHost_WidgetBindingsInvalidate(app->plugins);
+    int native_members = 0;
+    if( app->tree )
+        for( int i = 0; i < UITREE_FRAME_SLOT_NODES_MAX; i++ )
+            if( UITree_FrameSlotMemberNode(app->tree, TORIRS_HOST_SURFACE_CHAT_BUTTONS, i) >= 0 )
+                native_members++;
+    TORIRS_REPORT("ROLE_MEMBERS_FIXTURE role=%s exposed=%d native_members=%d binding_publication=pending\n",
+        role, present, native_members);
+    return 1;
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     struct App* app = user;
+    assert(app);
+    assert(r);
     struct UITree* tree = app->tree;
+    uint32_t const dirty_before = tree ? tree->dirty_gen : 0;
+    uint32_t const topology_before = tree ? tree->generation : 0;
+    uint32_t const layout_before = tree ? tree->layout_resolve_seq : 0;
+    uint64_t const edit_before = tree ? tree->widget_edit_revision : 0;
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
     {
         UITree_WidgetResetOwner(tree, owner);
-        app->need_redraw = 1;
+        bool const redraw = tree && (tree->dirty_gen != dirty_before ||
+            tree->generation != topology_before || tree->layout_resolve_seq != layout_before);
+        if( redraw ) app->need_redraw = 1;
+        if( app->plugins ) PluginHost_RecordRetainedMutation(app->plugins,owner,
+            TORIRS_PLUGIN_MUTATION_WIDGET,redraw || (tree && tree->widget_edit_revision != edit_before),redraw);
         return TORIRS_CONTRACT_OK;
     }
     if( !tree ) return TORIRS_CONTRACT_UNAVAILABLE;
+    /* Deliberately model a missing semantic binding while retaining the
+     * actual native nodes. Both public lookup forms give the same answer;
+     * ordinary binding publication, not direct callbacks, drives consumers. */
+    if( app->plugin_fixture_chat_members_absent &&
+        (r->kind == PLUGIN_WIDGET_FIND || r->kind == PLUGIN_WIDGET_FIND_ALL) &&
+        strcmp(r->name, "chat_buttons") == 0 )
+    {
+        if( r->kind == PLUGIN_WIDGET_FIND_ALL )
+        {
+            *r->count = 0;
+            if( r->capacity )
+                memset(r->refs, 0, r->capacity * sizeof(*r->refs));
+        }
+        else
+            *r->refs = (struct ToriRS_WidgetRef){0};
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    }
     if( r->kind==PLUGIN_WIDGET_FIND_ALL && strcmp(r->name,"ground_item_labels")==0 )
     {
         /* The pinned CS2 ground-items script uses coordinate-overlay slot 0.
@@ -4007,19 +4262,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             if( !UITree_WidgetSetArt(tree,ref,owner,UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
         }
         else return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_SET_MASK:
         if( c->plugin_owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( c->type!=UIELEM_BUILTIN_MINIMAP && c->type!=UIELEM_BUILTIN_COMPASS && c->type!=UIELEM_BUILTIN_SPRITE )
             return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetMask(tree,ref,owner,r->id<0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE+r->id) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_OPACITY:
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         if( !UITree_WidgetSetTransparency(tree,ref,owner,255-r->a) ) return TORIRS_CONTRACT_FAILED;
-        app->need_redraw=1;
         break;
     case PLUGIN_WIDGET_ANCHOR:
     {
@@ -4038,7 +4290,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         case UITREE_WIDGET_ANCHOR_BUDGET: return TORIRS_CONTRACT_BUDGET_EXCEEDED;
         default: return TORIRS_CONTRACT_INVALID_ARGUMENT;
         }
-        app->need_redraw=1;
         break;
     }
     case PLUGIN_WIDGET_SET_TEXT:
@@ -4068,7 +4319,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         break;
     default: return TORIRS_CONTRACT_UNAVAILABLE;
     }
-    app->need_redraw = 1;
+    /* A successful setter may have done nothing. The tree owns the mutation
+     * publications; preserve pending redraws, but do not manufacture another
+     * from an unchanged retained value. Latent owner changes are measured
+     * separately from paint/layout changes. */
+    bool const redraw = tree->dirty_gen != dirty_before || tree->generation != topology_before ||
+        tree->layout_resolve_seq != layout_before;
+    bool const changed = redraw || tree->widget_edit_revision != edit_before;
+    if( redraw ) app->need_redraw = 1;
+    if( app->plugins ) PluginHost_RecordRetainedMutation(app->plugins,owner,
+        TORIRS_PLUGIN_MUTATION_WIDGET,changed,redraw);
     return TORIRS_CONTRACT_OK;
 }
 
@@ -4138,7 +4398,8 @@ app_plugin_frame_stamp_role(
     uint8_t tag,
     int member,
     int32_t* next,
-    int* next_count)
+    int* next_count,
+    int* changed)
 {
     uint16_t const role_id = UITree_RoleFind(&app->ui_roles, role);
     int32_t node;
@@ -4149,6 +4410,7 @@ app_plugin_frame_stamp_role(
     assert(role);
     assert(next);
     assert(next_count);
+    assert(changed);
     if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
         return;
     node = UITree_RoleNode(tree, &app->ui_roles, role_id);
@@ -4157,6 +4419,8 @@ app_plugin_frame_stamp_role(
     c = &tree->components[node];
     if( c->freed )
         return;
+    if( c->slot_tag != tag || c->frame_member_plus1 != (uint8_t)(member + 1) )
+        *changed = 1;
     c->slot_tag = tag;
     c->frame_member_plus1 = (uint8_t)(member + 1);
     next[(*next_count)++] = node;
@@ -4383,6 +4647,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
     struct App* app = (struct App*)user;
     int32_t next[APP_FRAME_STAMP_MAX];
     int next_count = 0;
+    int changed = 0;
 
     assert(tree);
     assert(app);
@@ -4407,13 +4672,13 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         if( tag == UITREE_SLOT_NONE || !name )
             continue;
         snprintf(role, sizeof(role), "frame_%s", name);
-        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count);
+        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count, &changed);
         if( !app_plugin_frame_slot_has_members(slot) )
             continue;
         for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
         {
             snprintf(role, sizeof(role), "frame_%s_%d", name, member);
-            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
+            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count, &changed);
         }
     }
 
@@ -4457,6 +4722,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             again = next[n] == idx;
         if( again )
             continue;
+        changed = 1;
         c->slot_tag = UITREE_SLOT_NONE;
         c->frame_member_plus1 = 0;
     }
@@ -4466,6 +4732,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
     }
     app->plugin_frame_stamp_count = next_count;
+    if( changed ) UITree_FrameInvalidateSlots(tree);
 }
 
 /**
@@ -4661,6 +4928,52 @@ app_plugin_tab_enabled(void* user, int tabno)
 
     assert(app);
     return RS_UISlots_TabGiven(app, tabno);
+}
+
+static int
+app_plugin_tab_activate(void* user, int tabno)
+{
+    struct App* app = user;
+    assert(app);
+    if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX || !RS_UISlots_TabGiven(app, tabno) )
+        return 0;
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return app_plugin_tab_select(user, tabno);
+
+    /* The authored control owns the operation arguments, including the live
+     * root's component enum. A declared switch script only selects; its
+     * native on_op also implements same-tab closure where supported.
+     * Navigation remains usable when a provider replaces the native strip,
+     * while TabGiven still checks the cache's actual availability. */
+    if( !app->tree )
+        return 0;
+    /* sidetab_N is the availability ICON. The operation stone can be its
+     * sibling, so neither its own hook nor an ancestor walk identifies the
+     * control. Follow the same declared tab->button and root component maps
+     * used by the cache's init script. */
+    int const buttons = RevConfigRefs_Get(&app->revconfig_refs, "enum", "sidebar_buttons");
+    int control = -1, key = -1, uid = -1;
+    int const element_map = app_plugin_frame_role_enum_id(app, app_plugin_frame_root(app), &control);
+    if( buttons < 0 || element_map < 0 ||
+        !app_plugin_frame_enum_value(app, buttons, tabno, &key) || key < 0 ||
+        !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 )
+        return 0;
+    int const node = UITree_FindByComponentId(app->tree, uid);
+    if( node < 0 )
+        return 0;
+    int component = -1;
+    struct UITreeRuntimeScriptHook const* hook =
+        UITree_ResolveClickHook(app->tree, node, &component);
+    if( !hook || hook->script_id <= 0 )
+        return 0;
+    struct UITreeRuntimeScriptHook snapshot;
+    UITree_HookInitCopy(&snapshot, hook);
+    RS_CS2_SetEventOp(&app->host, 1, 0);
+    RS_CS2_DispatchHook(&app->host, &app->runner, component, &snapshot);
+    RS_CS2_SetEventOp(&app->host, 1, 0);
+    UITree_HookClear(&snapshot);
+    app->need_redraw = 1;
+    return 1;
 }
 
 static int
@@ -4948,6 +5261,11 @@ app_plugin_engine(struct App* app)
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
+    engine.draw_tile_stroke = app_plugin_draw_tile_stroke;
+    engine.draw_tile_styled = app_plugin_draw_tile_styled;
+    engine.draw_hull_stroke = app_plugin_draw_hull_stroke;
+    engine.draw_hull_styled = app_plugin_draw_hull_styled;
+    engine.draw_minimap_tile = app_plugin_draw_minimap_tile;
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;
@@ -4973,6 +5291,7 @@ app_plugin_engine(struct App* app)
     engine.frame_provide = app_plugin_frame_provide;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
+    engine.tab_activate = app_plugin_tab_activate;
     engine.tab_enabled = app_plugin_tab_enabled;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;

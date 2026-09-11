@@ -1,0 +1,22 @@
+[
+  {
+    "source": "/private/tmp/critic-fixes/plugin-engine-goal-actions.ini",
+    "source_sha256": "c04dd33f09d16c50ee35944533f590aa8284a21d1b9c6aebea20814b925a1a35",
+    "destination": "/private/tmp/critic-fixes/plugin-engine-goal-actions-v3.ini",
+    "sha256": "3d55e7351492bd80a75c78fe0126dc5b74161e76eef82f81a6e3790bfe0c557c",
+    "substitution": {
+      "old": "/private/tmp/plugin-engine-cache-goal-v2",
+      "new": "/private/tmp/plugin-engine-cache-goal-v3"
+    }
+  },
+  {
+    "source": "/private/tmp/critic-fixes/plugin-engine-goal-visual-actions.ini",
+    "source_sha256": "5d7f7545e2e1a4ccd63beed1f0187292c48303f17204531242264ef891979152",
+    "destination": "/private/tmp/critic-fixes/plugin-engine-goal-visual-actions-v3.ini",
+    "sha256": "268f42dca2c609a9c809383aedd7bdcb475baf25a3a9789b14170935819f33e8",
+    "substitution": {
+      "old": "/private/tmp/plugin-engine-cache-goal-v2",
+      "new": "/private/tmp/plugin-engine-cache-goal-v3"
+    }
+  }
+]

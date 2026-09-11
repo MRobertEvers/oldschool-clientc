@@ -1,5 +1,6 @@
 #include "plugin/torirs_plugin_api.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -41,12 +42,30 @@ struct Fake
     struct ToriRS_PlayerSnapshot player;
     struct DrawCall calls[3];
     int call_count;
+    int log_count;
+    char log_text[128];
 };
 
 static struct Fake*
 fake_api(struct ToriRS_Api* api)
 {
     return api->instance;
+}
+
+/* The plugin's only way to say something a screenshot cannot. */
+static void
+fake_log(
+    struct ToriRS_Api* api,
+    char const* format,
+    ...)
+{
+    struct Fake* fake = fake_api(api);
+    va_list args;
+
+    va_start(args, format);
+    vsnprintf(fake->log_text, sizeof(fake->log_text), format, args);
+    va_end(args);
+    fake->log_count++;
 }
 
 static bool
@@ -171,6 +190,10 @@ make_api(struct Fake* fake)
         .major_version = TORIRS_PLUGIN_API_MAJOR,
         .minor_version = TORIRS_PLUGIN_API_MINOR,
         .instance = fake,
+        .core = {
+            .struct_size = sizeof(struct ToriRS_CoreApi),
+            .log = fake_log,
+        },
         .config = {
             .struct_size = sizeof(struct ToriRS_ConfigApi),
             .get_bool = fake_config_bool,
@@ -292,6 +315,34 @@ main(void)
     fake.player.dest_z = fake.player.true_z;
     TORIRS_PLUGIN_TILEIND.callbacks.on_draw_world(&api, NULL, &draw);
     CHECK(fake.call_count == 1, "destination marker disappears on arrival");
+
+    /*
+     * The overlay pool is full -- a crowded scene, where the client drops the
+     * quads a plugin pushes.
+     *
+     * The fake reports that the way the client does, with a non-OK result from
+     * world_tile, and the plugin has to turn it into one line. Before, the
+     * result was discarded with a (void) cast: the markers vanished and the
+     * log said nothing, which on screen is indistinguishable from the plugin
+     * having been switched off. Once per session, not once per marker and not
+     * once per frame -- a line a frame buries the log it is meant to explain.
+     *
+     * Last in this file on purpose: the once-flag is process-wide.
+     */
+    fake.call_count = (int)(sizeof(fake.calls) / sizeof(fake.calls[0]));
+    fake.log_count = 0;
+    fake.show_hover = true;
+    fake.player.dest_x = 30;
+    fake.player.dest_z = 31;
+    TORIRS_PLUGIN_TILEIND.callbacks.on_draw_world(&api, NULL, &draw);
+    CHECK(fake.log_count == 1,
+        "a dropped marker is reported once, not once per dropped marker");
+    CHECK(strstr(fake.log_text, "TILEIND_MARKER_DROPPED") != NULL,
+        "the report names the drop rather than some other event");
+    CHECK(strstr(fake.log_text, "result=5") != NULL,
+        "the report carries the host's reason (TORIRS_RESULT_BUDGET)");
+    TORIRS_PLUGIN_TILEIND.callbacks.on_draw_world(&api, NULL, &draw);
+    CHECK(fake.log_count == 1, "the report does not repeat every frame");
 
     printf("tileind v2: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

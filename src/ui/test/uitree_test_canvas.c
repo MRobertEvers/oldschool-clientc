@@ -23,6 +23,19 @@ void test_canvas_queries(void)
     UITree_LayoutResolve(t,0,0,720,480);
     struct UITreeCanvasWidths initial=UITree_CanvasMeasureCompact(t,720,480);
     TEST_ASSERT(initial.strip==42 && initial.core==765,"strip and overflowing native width");
+    /* An inactive mounted frame can retain an oversized authored block. Its
+     * geometry must not become the active canvas floor, even while candidate
+     * membership/generation is unchanged. Match the App's visibility walk. */
+    t->components[area].mount_hidden=1;
+    struct UITreeCanvasWidths hidden_area=UITree_CanvasMeasureCompact(t,720,480);
+    TEST_ASSERT(hidden_area.strip==42 && hidden_area.core==0,"inactive mounted frame does not impose its width");
+    check_widths(t,720,480);
+    t->components[area].mount_hidden=0;
+    TEST_ASSERT(UITree_CanvasMeasureCompact(t,720,480).core==765,"reactivating mounted frame restores its real floor");
+    t->components[root].mount_hidden=1;
+    struct UITreeCanvasWidths hidden_root=UITree_CanvasMeasureCompact(t,720,480);
+    TEST_ASSERT(hidden_root.strip==0 && hidden_root.core==0,"mount-hidden ancestor excludes both strip and frame floor");
+    t->components[root].mount_hidden=0;
     UITree_Reparent(t,core,root);
     check_widths(t,720,480);
     TEST_ASSERT(UITree_CanvasMeasureCompact(t,720,480).core==0,"reparent removes lane overflow");

@@ -841,6 +841,8 @@ toridraw_raster_context_init(
     ctx->target.projection_center_y = ctx->offset_y;
     ctx->target.near_plane_z = ctx->near_plane_z;
     ctx->target.camera_cot16 = ctx->camera_cot16;
+    ctx->target.parallel_zoom16 = camera->parallel_zoom16
+        ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
     ctx->target.model_mid_z = scene->projected_vertex.z;
     ctx->target.parallel_projection = toridraw_projection_is_parallel(camera->projection_mode);
     ctx->target.affine_textures = ctx->affine_textures;

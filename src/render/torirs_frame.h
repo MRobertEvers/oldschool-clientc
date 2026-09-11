@@ -3,14 +3,18 @@
 
 #include "render/torirs_render.h"
 #include "ui/uitree_scroll.h"
+#include "render/torirs_minimap_mark.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 struct PaintersBuffer;
 struct ToriDraw_Scene;
 struct UITreeEmitBuffer;
 struct UITreeEmitDesc;
 struct World;
+struct ToriRS_Silhouette;
+struct ToriRS_SilhouetteWorld;
 
 /** Pass coalescing for BEGIN/END_2D/3D. */
 enum ToriRS_FramePassKind
@@ -146,6 +150,18 @@ struct ToriRS_Frame
     bool world_only;
     /** GPU lane: pose on this owning thread before publishing model inputs. */
     bool prepare_gpu_poses;
+    /** Chosen renderer's scene visibility rule, independent of platform. */
+    bool world_depth_test;
+    /** Deferred mesh overlay cursor; owned by this frame until FrameEnd. */
+    struct ToriRS_Silhouette* silhouette;
+    /** The exact derived world commands, shared by this frame's mesh masks. */
+    struct ToriRS_SilhouetteWorld* silhouette_worlds;
+    size_t silhouette_pixel;
+    int silhouette_emit_index;
+    int silhouette_item_index;
+    bool overlay_repeat;
+    struct ToriRS_MinimapMarkScan minimap_scan;
+    int minimap_scan_emit, minimap_scan_item;
     /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
     int event_index;
     struct ToriRS_RenderCommand queued;

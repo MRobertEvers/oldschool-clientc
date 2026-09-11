@@ -217,6 +217,9 @@ fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
     return 1;
 }
 
+static int g_opaque_housing;
+static int g_opaque_housing_reads;
+
 static int
 fake_image_read(void* u, int slot, uint32_t* out, int max)
 {
@@ -229,6 +232,12 @@ fake_image_read(void* u, int slot, uint32_t* out, int max)
     if( n > max )
         return 0;
     memcpy(out, g_image[slot].argb, (size_t)n * sizeof(*out));
+    if( g_opaque_housing && g_image[slot].w == 233 && g_image[slot].h == 168 )
+    {
+        for( int i = 0; i < n; i++ )
+            out[i] = 0xff606060u;
+        g_opaque_housing_reads++;
+    }
     return n;
 }
 
@@ -357,6 +366,9 @@ static int fake_loc_next(void* u, int i, struct ToriRS_ScenerySnapshot* o) { (vo
 static int fake_highlight_next(void* u, int i, struct ToriRS_HighlightItem* o) { (void)u; (void)i; (void)o; return -1; }
 static void fake_notify(void* u, char const* t) { (void)u; (void)t; }
 static int fake_key_held(void* u, int k) { (void)u; (void)k; return 0; }
+static int g_keyboard_requested, g_chat_focused;
+static void fake_text_input(void* u, int on) { (void)u;g_keyboard_requested=on; }
+static void fake_chat_focus(void* u, int on) { (void)u;g_chat_focused=on; }
 static int fake_hover_tile(void* u, int* x, int* z, int* l) { (void)u; (void)x; (void)z; (void)l; return 0; }
 static int fake_hover_entity(void* u, struct ToriRS_HoverTarget* o) { (void)u; (void)o; return 0; }
 static int fake_element_height(void* u, int e) { (void)u; (void)e; return 0; }
@@ -521,7 +533,7 @@ declare(int w, int h)
  * parent's plus the local position the plugin set, which is what the bridge
  * reports as `bounds`.
  */
-#define FW_MAX 160
+#define FW_MAX 320
 struct FakeWidget
 {
     int alive;
@@ -535,6 +547,7 @@ struct FakeWidget
     int moved;
     int image, img_w, img_h; /* owned: the picture shown; -1 none */
     int art;                 /* native: retained re-skin slot, -1 none */
+    int reskin_blocked;
     int mask;                /* native: retained mask slot, -2 unset, -1 unmasked */
     int opacity;
     char op[32];
@@ -686,7 +699,21 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
         n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SIZE: n->w = r->a; n->h = r->b; n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_HIDDEN: n->hidden = r->a ? 1 : 0; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_ANCHOR: n->anchor_target = r->a ? fw_id(r->target) : -1; n->anchor_relation = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_ANCHOR:
+    {
+        int const target = r->a ? fw_id(r->target) : -1;
+        if( r->a )
+        {
+            if( target < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+            if( target == id ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+            for( int p = n->parent; p >= 0; p = g_w[p].parent )
+                if( p == target ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+            for( int p = g_w[target].parent; p >= 0; p = g_w[p].parent )
+                if( p == id ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        }
+        n->anchor_target = target; n->anchor_relation = r->a;
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_CREATE_IMAGE:
     {
         for( int i = 0; i < g_w_count; i++ )
@@ -700,6 +727,7 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     case PLUGIN_WIDGET_SET_IMAGE:
         if( n->owner ) { n->image = r->id; n->img_w = r->a; n->img_h = r->b; n->w = r->a; n->h = r->b; return TORIRS_CONTRACT_OK; }
         if( r->a || r->b ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        if( n->reskin_blocked ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         n->art = r->id; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SET_MASK: if( n->owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED; n->mask = r->id; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_OPACITY: n->opacity = r->a; return TORIRS_CONTRACT_OK;
@@ -809,6 +837,58 @@ select_frame(char const* id, uint64_t now_ms)
 #define M_W 1024
 #define M_H 600
 
+static int boxes_overlap(struct FakeWidget const* a, struct FakeWidget const* b)
+{
+    assert(a);
+    assert(b);
+    return a->x < b->x + b->w && b->x < a->x + a->w &&
+        a->y < b->y + b->h && b->y < a->y + a->h;
+}
+
+static void check_short_safe_area(void)
+{
+    int const previous_tab = g_frame.active_tab;
+    press("keyboard-toggle");
+    CHECK(g_keyboard_requested && g_chat_focused,
+        "the keyboard operation focuses chat as well as requesting text input");
+    g_safe.present=1;g_safe.x=0;g_safe.y=0;g_safe.w=765;g_safe.h=303;
+    declare(765,503);
+    CHECK(!native("chat",-1)->hidden, "typing keeps the actual chat input visible");
+    CHECK(owned_count("tab.")==14, "a short safe area retains every tab control");
+    for( int i=0;i<14;i++ )
+    {
+        char key[24];snprintf(key,sizeof(key),"tab.%02d",i);
+        struct FakeWidget const* tab=owned(key);
+        CHECK(tab && tab->w==40 && tab->h==40 && tab->x>=0 && tab->y>=0 &&
+            tab->x+tab->w<=765 && tab->y+tab->h<=303,
+            "compact tabs keep full-sized hitboxes inside the safe area");
+        CHECK(tab && !boxes_overlap(tab,owned("housing")),
+            "no compact tab is painted or hit underneath the map housing");
+        CHECK(tab && !boxes_overlap(tab,native("chat",-1)) &&
+            !boxes_overlap(tab,owned("keyboard-toggle")),
+            "compact tabs leave chat and its keyboard control unobstructed");
+        if( native("orbs",-1) )
+            CHECK(tab && !boxes_overlap(tab,native("orbs",-1)),
+                "compact tabs also avoid the native orb and adviser region");
+    }
+    g_frame.active_tab=-1;
+    press("tab.05");
+    CHECK(!g_keyboard_requested && !g_chat_focused,
+        "selecting a tab dismisses typing before presenting its drawer");
+    declare(765,503);
+    CHECK(!native("sidebar",-1)->hidden &&
+        !boxes_overlap(native("sidebar",-1),owned("housing")),
+        "the selected drawer remains reachable while keyboard dismissal is pending");
+    CHECK(!boxes_overlap(native("sidebar",-1),owned("keyboard-toggle")),
+        "pending-dismissal controls do not cover the selected drawer");
+    g_frame.active_tab=g_frame.selected_tab;
+    press("tab.05");
+    declare(765,503);
+    g_frame.active_tab=previous_tab;
+    g_safe.present=0;
+    declare(M_W,M_H);
+}
+
 static void
 declare_after_press(int w, int h)
 {
@@ -835,6 +915,8 @@ main(void)
     e.highlight_next = fake_highlight_next;
     e.notify = fake_notify;
     e.key_held = fake_key_held;
+    e.text_input = fake_text_input;
+    e.chat_focus = fake_chat_focus;
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
@@ -960,6 +1042,11 @@ main(void)
     g_safe.present = 0;
     declare(M_W, M_H);
     CHECK(placed("chat", -1, 17, 456, 479, 96), "and drop back to the floor when the band goes");
+    check_short_safe_area();
+    CHECK(PluginHost_ConfigSet(g_host,g_plugin,"art","OldSchool"), "the alternate stone family is selectable");
+    frame_tick();declare(M_W,M_H);check_short_safe_area();
+    CHECK(PluginHost_ConfigSet(g_host,g_plugin,"art","Auto"), "the original stone family restores");
+    frame_tick();declare(M_W,M_H);
     printf("MOBILE pieces=%d tabs=%d icons=%d plates=%d\n", pieces_behind_viewport(), owned_count("tab."), owned_count("icon."), owned_count("plate."));
     CHECK(pieces_behind_viewport() >= 7, "the rail plates, the sheet, the two switches and the blockers are owned pieces over the scene");
     CHECK(owned_at("piece.02", 0, 439) || owned_at("piece.01", 0, 439) || owned_at("piece.00", 0, 439) || owned_at("piece.03", 0, 439),
@@ -1066,6 +1153,11 @@ main(void)
     CHECK(placed("orbs", -1, 829 - 53, 12 + 2, 207, 197) || native("orbs", -1)->moved, "the orb block is placed beside the map");
     CHECK(owned_at("chat-toggle", 439, 406), "the switches take the far end of the strip on this lane");
     CHECK(owned_count("icon.") == 14, "every stone wears rev-239's icon");
+    check_short_safe_area();
+    CHECK(PluginHost_ConfigSet(g_host,g_plugin,"art","OldSchool"), "the native mobile stone family is selectable");
+    frame_tick();declare(M_W,M_H);check_short_safe_area();
+    CHECK(PluginHost_ConfigSet(g_host,g_plugin,"art","Auto"), "the classic stone family restores");
+    frame_tick();declare(M_W,M_H);
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0 && !native("chat_backing", -1)->hidden,
           "the pack's bar wears the 2004 strip and its backing wears a transparent picture over the sheet");
@@ -1073,6 +1165,75 @@ main(void)
               owned("pack-sheet")->anchor_target == fw_find("chat", -1),
           "the torn sheet is an owned image directly behind the pack");
     CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
+
+    /* A mobile row has a clipped desktop-width named bar, per-button
+     * containers and a hidden Report container. Its visible row is the common
+     * ancestor, not the first button's immediate parent or the clipped bar. */
+    {
+        int const row = fw_add(0, "filter-row", -1, 58, 360, 461, 28);
+        int const background = fw_add(row, "chat_filter_backing", -1, 58, 360, 461, 28);
+        int const bar = fw_find("chat_bar", -1);
+        native("chat_backing", -1)->reskin_blocked = 1;
+        g_w[bar].parent = row;
+        g_w[bar].x = 58; g_w[bar].y = 362; g_w[bar].w = 519; g_w[bar].h = 23;
+        for( int i = 0; i < 8; i++ )
+        {
+            int const button = fw_add(row, "filter-cell", i, 65 + i * 65, 360, 58, 28);
+            int const plate = fw_find("chat_plate", i);
+            g_w[button].hidden = i == 7;
+            g_w[plate].parent = button;
+            g_w[plate].x = 65 + i * 65; g_w[plate].y = 363;
+            g_w[plate].w = 58; g_w[plate].h = 24;
+        }
+        frame_tick();
+        struct FakeWidget const* band = owned("pack-bar");
+        CHECK(band && band->parent == g_w[row].parent && band->w == 461 && band->h == 28 &&
+                  owned_at("pack-bar", 58, 360),
+            "the clipped native bar is replaced by a sibling image covering the visible row");
+        CHECK(band && band->anchor_target == row &&
+                  band->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND,
+            "the owned band is behind the complete button-row subtree");
+        CHECK(g_w[background].hidden && !g_w[row].hidden,
+            "only the separate background is hidden, never the row carrying captions");
+        CHECK(g_w[bar].hidden, "the unusable native bar cannot cover the owned band");
+        CHECK(native("chat_backing", -1)->hidden && !native("chat", -1)->hidden,
+            "a non-reskinnable background is hidden without hiding chat text or input");
+        CHECK(owned("pack-sheet") && owned("pack-sheet")->parent == native("chat", -1)->parent,
+            "the parchment is a disjoint sibling of its chat anchor target");
+    }
+
+    /* The original bad-asset repro is a fully opaque 233x168 housing. Reject
+     * it before publication, keep navigation native and expose a reason; a
+     * once-only mask failure must not leave the bad picture over the compass. */
+    {
+        struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
+        g_opaque_housing = 1;
+        g_opaque_housing_reads = 0;
+        CHECK(PluginHost_ConfigSet(g_host, g_plugin, "housing", "Lizards"),
+            "the housing change is accepted");
+        frame_tick();
+        declare(M_W, M_H);
+        CHECK(g_frame.active == 0 && owned("housing") == NULL,
+            "invalid housing releases the frame without covering native navigation");
+        g_frame_settings_api->frame.selection(g_frame_settings_api, &selection);
+        CHECK(selection.status == TORIRS_FRAME_STATUS_FALLBACK &&
+                  strstr(selection.reason, "two transparent windows") != NULL,
+            "the failed frame exposes the invalid-housing reason");
+        CHECK(g_opaque_housing_reads == 1, "invalid housing is scanned once");
+        for( int i = 0; i < 10; i++ )
+        {
+            frame_tick();
+            declare(M_W, M_H);
+        }
+        CHECK(g_opaque_housing_reads == 1 && owned("housing") == NULL,
+            "a rejected housing is neither retried nor painted on later frames");
+        g_opaque_housing = 0;
+        select_frame("auto", 20000);
+        select_frame("mobile-gameframe/stone-drawer", 20001);
+        declare(M_W, M_H);
+        CHECK(g_frame.active == 1 && owned("housing") != NULL,
+            "reselecting with valid housing restores the normal provider");
+    }
 
     PluginHost_Free(g_host);
     printf("%d checks, %d failures\n", g_checks, g_failures);

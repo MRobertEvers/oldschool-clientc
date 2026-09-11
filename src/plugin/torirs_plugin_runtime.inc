@@ -1566,6 +1566,13 @@ v2_cache_tab_select(struct ToriRS_Api* api, int tab)
 }
 
 static bool
+v2_cache_tab_activate(struct ToriRS_Api* api, int tab)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_tab_activate(runtime->context, tab);
+}
+
+static bool
 v2_client_display_get(
     struct ToriRS_Api* api,
     int setting,
@@ -2181,18 +2188,34 @@ v2_builder_image_clip(
         255 - opaque_alpha);
 }
 
+static enum ToriRS_Result v2_builder_minimap_tile(struct ToriRS_Graphics* draw,
+    int x,int z,int level,uint32_t fill,uint32_t outline,int alpha,int width)
+{
+    struct PluginV2DrawScope* scope=v2_draw_scope(draw);
+    if( scope->runtime->context->host->draw_canvas!=PLUGIN_DRAW_SURFACE_MINIMAP )
+        return TORIRS_RESULT_INVALID;
+    if( width<0 || width>255 || alpha<0 || alpha>255 ) return TORIRS_RESULT_INVALID;
+    return api_draw_minimap_tile(scope->runtime->context,scope->surface_token,
+        x,z,level,fill,outline,alpha,width);
+}
+
 static enum ToriRS_Result
-v2_builder_world_tile(
+v2_builder_world_tile_stroke(
     struct ToriRS_Graphics* draw,
     int tile_x,
     int tile_z,
     int level,
     uint32_t fill_rgb,
     uint32_t outline_rgb,
-    int alpha)
+    int alpha,
+    int outline_width)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
-    api_draw_tile(
+    if( scope->runtime->context->host->draw_canvas!=PLUGIN_DRAW_SURFACE_WORLD )
+        return TORIRS_RESULT_INVALID;
+    if( outline_width < 0 || outline_width > 255 )
+        return TORIRS_RESULT_INVALID;
+    return api_draw_tile_stroke(
         scope->runtime->context,
         scope->surface_token,
         tile_x,
@@ -2200,25 +2223,71 @@ v2_builder_world_tile(
         level,
         outline_rgb,
         fill_rgb,
-        v2_alpha(alpha));
-    return TORIRS_RESULT_OK;
+        v2_alpha(alpha), outline_width);
 }
 
 static enum ToriRS_Result
-v2_builder_world_hull(
+v2_builder_world_hull_stroke(
     struct ToriRS_Graphics* draw,
     int element_id,
     uint32_t rgb,
     int alpha,
-    int shape)
+    int shape,
+    int outline_width)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
+    if( scope->runtime->context->host->draw_canvas!=PLUGIN_DRAW_SURFACE_WORLD )
+        return TORIRS_RESULT_INVALID;
 
     if( shape != TORIRS_HULL_BOUNDS && shape != TORIRS_HULL_MESH )
         return TORIRS_RESULT_INVALID;
-    api_draw_hull(
-        scope->runtime->context, scope->surface_token, element_id, rgb, v2_alpha(alpha), shape);
-    return TORIRS_RESULT_OK;
+    if( outline_width < 0 || outline_width > 255 )
+        return TORIRS_RESULT_INVALID;
+    return api_draw_hull_stroke(
+        scope->runtime->context, scope->surface_token, element_id, rgb, v2_alpha(alpha), shape,
+        outline_width);
+}
+
+static enum ToriRS_Result
+v2_builder_world_tile_styled(struct ToriRS_Graphics* draw,int x,int z,int level,
+    uint32_t fill,uint32_t outline,int alpha,int width,uint32_t flags)
+{
+    struct PluginV2DrawScope* scope=v2_draw_scope(draw);
+    if( scope->runtime->context->host->draw_canvas!=PLUGIN_DRAW_SURFACE_WORLD )
+        return TORIRS_RESULT_INVALID;
+    if( width<0 || width>255 || (flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP) )
+        return TORIRS_RESULT_INVALID;
+    return api_draw_tile_styled(scope->runtime->context,scope->surface_token,
+        x,z,level,outline,fill,v2_alpha(alpha),width,flags);
+}
+
+static enum ToriRS_Result
+v2_builder_world_hull_styled(struct ToriRS_Graphics* draw,int element_id,
+    uint32_t rgb,int alpha,int shape,int outline_width,uint32_t flags)
+{
+    struct PluginV2DrawScope* scope=v2_draw_scope(draw);
+    if( scope->runtime->context->host->draw_canvas!=PLUGIN_DRAW_SURFACE_WORLD )
+        return TORIRS_RESULT_INVALID;
+    if( shape!=TORIRS_HULL_BOUNDS && shape!=TORIRS_HULL_MESH ) return TORIRS_RESULT_INVALID;
+    if( outline_width<0 || outline_width>255 ) return TORIRS_RESULT_INVALID;
+    if( flags & ~TORIRS_WORLD_DRAW_ALWAYS_ON_TOP ) return TORIRS_RESULT_INVALID;
+    if( shape==TORIRS_HULL_BOUNDS && !(flags & TORIRS_WORLD_DRAW_ALWAYS_ON_TOP) )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return api_draw_hull_styled(scope->runtime->context,scope->surface_token,
+        element_id,rgb,v2_alpha(alpha),shape,outline_width,flags);
+}
+
+static enum ToriRS_Result
+v2_builder_world_tile(struct ToriRS_Graphics* draw, int x, int z, int level,
+                      uint32_t fill, uint32_t outline, int alpha)
+{
+    return v2_builder_world_tile_stroke(draw, x, z, level, fill, outline, alpha, 1);
+}
+
+static enum ToriRS_Result
+v2_builder_world_hull(struct ToriRS_Graphics* draw, int element, uint32_t rgb, int alpha, int shape)
+{
+    return v2_builder_world_hull_stroke(draw, element, rgb, alpha, shape, 1);
 }
 
 static bool
@@ -2267,6 +2336,11 @@ plugin_v2_runtime_draw_begin(
         .world_hull = v2_builder_world_hull,
         .image_clip = v2_builder_image_clip,
         .context = v2_builder_context,
+        .world_tile_stroke = v2_builder_world_tile_stroke,
+        .world_hull_stroke = v2_builder_world_hull_stroke,
+        .world_hull_styled = v2_builder_world_hull_styled,
+        .world_tile_styled = v2_builder_world_tile_styled,
+        .minimap_tile = v2_builder_minimap_tile,
     };
 }
 
@@ -3213,6 +3287,7 @@ v2_runtime_init(
             .tab_active = v2_cache_tab_active,
             .tab_enabled = v2_cache_tab_enabled,
             .tab_select = v2_cache_tab_select,
+            .tab_activate = v2_cache_tab_activate,
         },
         .client = &runtime->client_api,
         .game = &runtime->game_api,

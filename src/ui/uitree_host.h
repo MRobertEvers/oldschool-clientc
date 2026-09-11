@@ -57,6 +57,11 @@ typedef uint32_t UITreeHostInputMask;
  * `color` instead (the local-player white square). */
 struct UITreeMinimapDot
 {
+    /** Zero is the native sprite/square; one is a projected tile polygon. */
+    int kind;
+    int tile_x[4], tile_y[4];
+    uint32_t tile_fill;
+    int tile_alpha, tile_outline_width;
     int dx;
     int dy;
     int w;
@@ -94,6 +99,10 @@ enum UITreeEntityOverlayKind
     UITREE_ENTITY_OVERLAY_POLY_BEGIN,
     UITREE_ENTITY_OVERLAY_POLY_POINT,
     UITREE_ENTITY_OVERLAY_POLY_END,
+    /** Deferred posed mesh coverage, expanded to spans by the shared frame. */
+    UITREE_ENTITY_OVERLAY_SILHOUETTE,
+    /** Four terrain-conforming world-space corners, clipped before projection. */
+    UITREE_ENTITY_OVERLAY_WORLD_SURFACE,
 };
 
 /* Long enough for a full overhead chat line (reference chatMessage); hitsplat
@@ -125,6 +134,14 @@ struct UITreeEntityOverlay
     /** LINE only: which diagonal of the box, and its thickness (0 = 1px). */
     uint8_t line_direction;
     uint8_t line_width;
+    /** SILHOUETTE: live scene element and whether foreground can cover it. */
+    int silhouette_element_id;
+    bool silhouette_always_on_top;
+    /** WORLD_SURFACE only: scene-local fine coordinates and independent fill. */
+    int surface_x[4];
+    int surface_y[4];
+    int surface_z[4];
+    uint32_t surface_fill_color;
     /** TEXT: centred on x, baseline at y (reference centreString). */
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };

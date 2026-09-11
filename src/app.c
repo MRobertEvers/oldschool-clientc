@@ -1408,7 +1408,7 @@ app_minimap_push_dot(
     int w = 4, h = 4;
     struct UITreeMinimapDot* dot;
 
-    if( app->minimap_dot_count >= (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count >= app->minimap_native_limit )
         return;
     if( dx * dx + dy * dy > 6400 )
         return;
@@ -1429,6 +1429,7 @@ app_minimap_push_dot(
         }
     }
     dot = &app->minimap_dots[app->minimap_dot_count++];
+    memset(dot,0,sizeof(*dot));
     dot->dx = x - w / 2;
     dot->dy = -y - h / 2;
     dot->w = w;
@@ -2428,6 +2429,8 @@ App_MinimapBuildDots(
     struct App* app,
     struct UITreeMinimapDot const** out_dots)
 {
+    assert(app);
+    assert(out_dots);
     struct WorldEntity_Player* local = app_local_player(app);
     struct World* world = app->world;
     struct World_EntityPool* pool;
@@ -2450,6 +2453,20 @@ App_MinimapBuildDots(
      * hull (deob client.java:9343-9352) — that is what scrolls the sea past
      * while the boat sails. */
     app_wev_actor_root_fine(app, &local->view_placement, &px, &pz);
+    app->minimap_player_x=px;
+    app->minimap_player_z=pz;
+    app->minimap_level=cull_level;
+    /* A separate draw scope, independent of WORLD descriptor order. Rebuild
+     * from current callbacks every time the normal minimap requests its list,
+     * so disabled plugins and removed groups leave no retained ghost marks. */
+    if( !app->plugin_minimap_prepared )
+    {
+        app->plugin_minimap_prepared=true;
+        if( app->plugins ) PluginHost_DrawMinimap(app->plugins);
+        app->plugin_minimap_count=app->minimap_dot_count;
+    }
+    else app->minimap_dot_count=app->plugin_minimap_count;
+    app->minimap_native_limit=app->minimap_dot_count+256;
     dots_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPDOTS);
     marker_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPMARKER);
 
@@ -2631,9 +2648,10 @@ App_MinimapBuildDots(
             0);
 
     /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
-    if( app->minimap_dot_count < (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count < app->minimap_native_limit )
     {
         struct UITreeMinimapDot* dot = &app->minimap_dots[app->minimap_dot_count++];
+        memset(dot,0,sizeof(*dot));
         dot->dx = -1;
         dot->dy = -1;
         dot->w = 3;
@@ -3337,13 +3355,14 @@ app_overlay_build_npc_headicon(
 
 /* Push one projected world segment as a LINE overlay (box + diagonal). */
 static void
-app_overlay_push_segment(
+app_overlay_push_segment_stroke(
     struct App* app,
     int screen_x0,
     int screen_y0,
     int screen_x1,
     int screen_y1,
-    uint32_t color)
+    uint32_t color,
+    int outline_width)
 {
     struct UITreeEntityOverlay seg = {
         .kind = UITREE_ENTITY_OVERLAY_LINE,
@@ -3352,12 +3371,18 @@ app_overlay_push_segment(
         .w = screen_x0 < screen_x1 ? screen_x1 - screen_x0 : screen_x0 - screen_x1,
         .h = screen_y0 < screen_y1 ? screen_y1 - screen_y0 : screen_y0 - screen_y1,
         .color = color,
-        .line_width = 2,
+        .line_width = (uint8_t)outline_width,
         /* Direction 0 = TL->BR. The segment runs that diagonal when x and y
          * grow together; otherwise it is the other one. */
         .line_direction = ((screen_x0 < screen_x1) != (screen_y0 < screen_y1)) ? 1 : 0,
     };
     app_overlay_push(app, &seg);
+}
+
+static void
+app_overlay_push_segment(struct App* app, int x0, int y0, int x1, int y1, uint32_t color)
+{
+    app_overlay_push_segment_stroke(app, x0, y0, x1, y1, color, 2);
 }
 
 /*
@@ -3470,6 +3495,62 @@ app_overlay_push_polygon(
     }
 }
 
+/* Reserve the complete projected primitive before its first item. A global
+ * pool refusal is different from empty/offscreen geometry, and a partial fill
+ * must never leave an unmatched POLY_BEGIN in the retained render stream. */
+static int
+app_overlay_push_polygon_styled(
+    struct App* app, int const* x, int const* y, int count,
+    uint32_t fill, int fill_trans, uint32_t outline, int width, int item_budget)
+{
+    int const fill_items = fill_trans >= 0 && count >= 3 ? count + 2 : 0;
+    int const edge_items = width > 0 && count >= 2 ? (count == 2 ? 1 : count) : 0;
+    int const needed = fill_items + edge_items;
+    int const capacity = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
+
+    assert(app);
+    assert(x);
+    assert(y);
+    assert(width >= 0);
+    assert(width <= 255);
+    assert(count >= 0);
+    assert(item_budget >= 0);
+    assert(app->plugin_draw_canvas == APP_PLUGIN_SURFACE_WORLD);
+    if( needed == 0 )
+        return 0;
+    /* Reject geometry wholly beyond the viewport before asking for storage.
+     * A clipped-away shape is a successful no-op, even when the pool is full. */
+    {
+        int min_x = x[0], max_x = x[0], min_y = y[0], max_y = y[0];
+        int const margin = (width + 1) / 2;
+        for( int i = 1; i < count; i++ )
+        {
+            if( x[i] < min_x ) min_x = x[i];
+            if( x[i] > max_x ) max_x = x[i];
+            if( y[i] < min_y ) min_y = y[i];
+            if( y[i] > max_y ) max_y = y[i];
+        }
+        if( !app->world_view_valid || app->world_emit_desc.w <= 0 || app->world_emit_desc.h <= 0 ||
+            (int64_t)max_x + margin < app->world_emit_desc.x ||
+            (int64_t)max_y + margin < app->world_emit_desc.y ||
+            (int64_t)min_x - margin >= (int64_t)app->world_emit_desc.x + app->world_emit_desc.w ||
+            (int64_t)min_y - margin >= (int64_t)app->world_emit_desc.y + app->world_emit_desc.h )
+            return 0;
+    }
+    if( needed > item_budget )
+        return -2;
+    if( needed > capacity - app->entity_overlay_count )
+        return -1;
+    if( fill_items )
+        app_overlay_push_polygon_filled(app, x, y, count, fill, fill_trans);
+    for( int i = 0; i < edge_items; i++ )
+    {
+        int const next = (i + 1) % count;
+        app_overlay_push_segment_stroke(app, x[i], y[i], x[next], y[next], outline, width);
+    }
+    return needed;
+}
+
 /**
  * Outline the MODEL of a scene element: a silhouette that wraps the thing in
  * three dimensions, not a quad on the ground under it.
@@ -3502,11 +3583,13 @@ app_overlay_push_polygon(
  * @return 1 when an outline was emitted.
  */
 static int
-app_overlay_outline_element_model_trans(
+app_overlay_outline_element_model_stroke(
     struct App* app,
     int element_id,
     uint32_t color,
-    int fill_trans)
+    int fill_trans,
+    int outline_width,
+    int item_budget)
 {
     struct ToriDraw_SceneElement* element;
     struct ToriDraw_BoundsCylinder* bounds;
@@ -3569,251 +3652,53 @@ app_overlay_outline_element_model_trans(
     /* Fill first, outline over it: the wash says "this one" at a glance and the
      * outline gives it a definite edge, which a translucent fill alone does not
      * have against busy ground. */
-    if( fill_trans >= 0 )
-        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    return app_overlay_push_polygon_styled(
+        app, hull_x, hull_y, hull_size, color, fill_trans, color, outline_width, item_budget);
+}
+
+/* Keep posed mesh topology until the shared frame renderer can see its actual
+ * faces and the scene's foreground. One complete request is reserved here;
+ * clipped spans are emitted after world drawing, before interface layers. */
+static int
+app_overlay_outline_element_mesh_styled(
+    struct App* app, int element_id, uint32_t color, int fill_trans,
+    int outline_width, bool always_on_top, int item_budget)
+{
+    struct UITreeEntityOverlay item;
+    int const capacity=(int)(sizeof(app->entity_overlays)/sizeof(app->entity_overlays[0]));
+    assert(app);
+    assert(outline_width>=0);
+    assert(outline_width<=255);
+    assert(item_budget>=0);
+    assert(app->plugin_draw_canvas==APP_PLUGIN_SURFACE_WORLD);
+    if( fill_trans<0 && outline_width==0 ) return 0;
+    if( !app->scene || element_id<0 || !app->world_view_valid ||
+        app->world_emit_desc.w<=0 || app->world_emit_desc.h<=0 ||
+        !ToriDraw_SceneElementIsLive(app->scene,element_id) ) return 0;
+    struct ToriDraw_SceneElement* element=ToriDraw_SceneElementGet(app->scene,element_id);
+    assert(element);
+    if( ToriDraw_ModelGetVertexCount(element->model)<=0 ||
+        ToriDraw_ModelGetFaceCount(element->model)<=0 ) return 0;
+    if( item_budget<1 ) return -2;
+    if( app->entity_overlay_count>=capacity ) return -1;
+    memset(&item,0,sizeof(item));
+    item.kind=UITREE_ENTITY_OVERLAY_SILHOUETTE;
+    item.color=color;
+    item.trans=fill_trans;
+    item.line_width=(uint8_t)outline_width;
+    item.silhouette_element_id=element_id;
+    item.silhouette_always_on_top=always_on_top;
+    app_overlay_push(app,&item);
     return 1;
 }
 
-/**
- * Directions sampled around a projected mesh when reducing it to a hull.
- *
- * The reduction is what makes a mesh outline affordable. The exact hull of a
- * few thousand screen points costs an angular sort over all of them; the
- * extreme point along a FIXED direction is one multiply-add and one compare
- * per vertex. Every such extreme is a vertex of the true hull, so the polygon
- * built from them is inscribed in it — tighter than the real silhouette by at
- * most the sagitta of a 360/(2*N) degree arc, never looser — and it is capped
- * at 2*N points, which is what keeps a highlight's cost to the overlay budget
- * bounded no matter how detailed the model is.
- *
- * 16 directions is an 11.25 degree gap between samples: under half a percent
- * of the silhouette's radius, which is sub-pixel on anything short of a boss
- * filling the viewport.
- */
-#define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
-
-/**
- * Outline the MESH of a scene element: the model's own posed vertices, rather
- * than the box that contains them.
- *
- * The bounds outline above is the cylinder — `radius` in every horizontal
- * direction — so an npc is wrapped at the radius of whatever sticks out
- * furthest: a halberd, a cape, a wing. That reads on screen as a square around
- * every npc regardless of its shape, which is exactly what this is for. Here
- * the geometry that is actually drawn is what gets hulled, so a thin thing
- * outlines thin and a turning thing narrows as it turns.
- *
- * The vertices read are the LIVE ones (`vertices_*`, never
- * `original_vertices_*`): the animation frame, the post-transform placement
- * and any merged spot graphic are already applied to them, which is what keeps
- * the outline on the pose being rendered instead of the bind pose.
- *
- * Placement is re-derived here the way the projector derives it — roll, then
- * pitch, then yaw about the model's own origin, then the element's world
- * position — because a model's vertices are stored in its own frame and only
- * the projector has ever combined them with the element's angles.
- *
- * Cost is one projection per vertex per frame against the bounds outline's
- * eight, which is why the shape is the caller's choice and not the only mode.
- *
- * @param fill_trans 0 opaque .. 255 invisible, or -1 for no fill at all.
- * @return 1 when an outline was emitted.
- */
 static int
-app_overlay_outline_element_mesh_trans(
-    struct App* app,
-    int element_id,
-    uint32_t color,
-    int fill_trans)
+app_overlay_outline_element_mesh_stroke(
+    struct App* app, int element_id, uint32_t color, int fill_trans,
+    int outline_width, int item_budget)
 {
-    enum
-    {
-        DIRECTIONS = APP_OUTLINE_HULL_MESH_DIRECTIONS,
-        CANDIDATES = DIRECTIONS * 2
-    };
-    struct ToriDraw_SceneElement* element;
-    vertexint_t const* vertices_x;
-    vertexint_t const* vertices_y;
-    vertexint_t const* vertices_z;
-    int vertex_count;
-    int sin_dir[DIRECTIONS];
-    int cos_dir[DIRECTIONS];
-    long long extreme[CANDIDATES];
-    int extreme_x[CANDIDATES];
-    int extreme_y[CANDIDATES];
-    int extreme_seen[CANDIDATES];
-    int px[CANDIDATES];
-    int py[CANDIDATES];
-    int hull_x[CANDIDATES];
-    int hull_y[CANDIDATES];
-    int count = 0;
-    int hull_size;
-    int ox;
-    int oy;
-    int oz;
-    int yaw;
-    int pitch;
-    int roll;
-    int sin_yaw;
-    int cos_yaw;
-    int sin_pitch;
-    int cos_pitch;
-    int sin_roll;
-    int cos_roll;
-
-    assert(app);
-
-    if( !app->scene || element_id < 0 )
-        return 0;
-    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
-        return 0;
-
-    element = ToriDraw_SceneElementGet(app->scene, element_id);
-    if( !element )
-        return 0;
-
-    vertex_count = ToriDraw_ModelGetVertexCount(element->model);
-    vertices_x = ToriDraw_ModelGetVerticesX(element->model);
-    vertices_y = ToriDraw_ModelGetVerticesY(element->model);
-    vertices_z = ToriDraw_ModelGetVerticesZ(element->model);
-    /* No mesh is not a failure, for the same reason no bounds cylinder is not:
-     * a handle that is not a full model (a sprite billboard, an empty slot)
-     * has no vertices and there is nothing to outline. */
-    if( vertex_count <= 0 || !vertices_x || !vertices_y || !vertices_z )
-        return 0;
-
-    for( int d = 0; d < DIRECTIONS; d++ )
-    {
-        /* Half a turn of directions, not a whole one: the minimum along a
-         * direction IS the maximum along its opposite, so the other half would
-         * ask every vertex the same question a second time. */
-        int const angle = d * (2048 / (DIRECTIONS * 2));
-        sin_dir[d] = ToriDraw_Sin(angle);
-        cos_dir[d] = ToriDraw_Cos(angle);
-        extreme_seen[d * 2] = 0;
-        extreme_seen[d * 2 + 1] = 0;
-    }
-
-    ox = element->world_position.x;
-    oy = element->world_position.y;
-    oz = element->world_position.z;
-    yaw = element->world_position.yaw;
-    pitch = element->world_position.pitch;
-    roll = element->world_position.roll;
-    sin_yaw = ToriDraw_Sin(yaw);
-    cos_yaw = ToriDraw_Cos(yaw);
-    sin_pitch = ToriDraw_Sin(pitch);
-    cos_pitch = ToriDraw_Cos(pitch);
-    sin_roll = ToriDraw_Sin(roll);
-    cos_roll = ToriDraw_Cos(roll);
-
-    for( int v = 0; v < vertex_count; v++ )
-    {
-        /* 64-bit intermediates. A vertex coordinate is a signed 16-bit
-         * quantity and the trig tables are 16.16, so one product alone reaches
-         * 2^31 and the sum of two passes it -- the same shape the projection
-         * kernels carry, but they are fed a model that has already been culled
-         * against the scene's capacity while this runs on whatever the
-         * element holds. The >>16 result is identical wherever int would not
-         * have overflowed. */
-        long long vx = vertices_x[v];
-        long long vy = vertices_y[v];
-        long long vz = vertices_z[v];
-        int screen_x;
-        int screen_y;
-        long long tmp;
-
-        /* graphics/projection.u.c project_orthographic order: roll (Z), pitch
-         * (X), yaw (Y). Any other order puts the outline somewhere the model
-         * is not the moment two of the three are non-zero. */
-        if( roll != 0 )
-        {
-            tmp = (vy * sin_roll + vx * cos_roll) >> 16;
-            vy = (vy * cos_roll - vx * sin_roll) >> 16;
-            vx = tmp;
-        }
-        if( pitch != 0 )
-        {
-            tmp = (vy * cos_pitch - vz * sin_pitch) >> 16;
-            vz = (vy * sin_pitch + vz * cos_pitch) >> 16;
-            vy = tmp;
-        }
-        if( yaw != 0 )
-        {
-            tmp = (vz * sin_yaw + vx * cos_yaw) >> 16;
-            vz = (vz * cos_yaw - vx * sin_yaw) >> 16;
-            vx = tmp;
-        }
-
-        /* A vertex behind the near plane is dropped rather than clamped: the
-         * hull of what IS on screen is a smaller mark, while a clamped one is
-         * a wrong mark. */
-        if( !app_world_project_at(
-                app, ox + (int)vx, oz + (int)vz, oy + (int)vy, &screen_x, &screen_y) )
-            continue;
-
-        for( int d = 0; d < DIRECTIONS; d++ )
-        {
-            /* 64-bit: screen coordinates run to six figures once a model is
-             * close to the camera, and a 16.16 direction multiplies that past
-             * 2^32. A wrapped dot product picks the wrong vertex and the
-             * outline folds through itself. */
-            long long const dot =
-                (long long)screen_x * cos_dir[d] + (long long)screen_y * sin_dir[d];
-            int const hi = d * 2;
-            int const lo = d * 2 + 1;
-
-            if( !extreme_seen[hi] || dot > extreme[hi] )
-            {
-                extreme_seen[hi] = 1;
-                extreme[hi] = dot;
-                extreme_x[hi] = screen_x;
-                extreme_y[hi] = screen_y;
-            }
-            if( !extreme_seen[lo] || dot < extreme[lo] )
-            {
-                extreme_seen[lo] = 1;
-                extreme[lo] = dot;
-                extreme_x[lo] = screen_x;
-                extreme_y[lo] = screen_y;
-            }
-        }
-    }
-
-    /* Distinct points only. One vertex is the extreme in many directions at
-     * once — on a small model, in nearly all of them — and repeated points
-     * make the scan's collinear tie-break decide a turn between two copies of
-     * the same coordinate. */
-    for( int i = 0; i < CANDIDATES; i++ )
-    {
-        int duplicate = 0;
-
-        if( !extreme_seen[i] )
-            continue;
-        for( int j = 0; j < count; j++ )
-        {
-            if( px[j] == extreme_x[i] && py[j] == extreme_y[i] )
-            {
-                duplicate = 1;
-                break;
-            }
-        }
-        if( duplicate )
-            continue;
-        px[count] = extreme_x[i];
-        py[count] = extreme_y[i];
-        count++;
-    }
-
-    if( count < 2 )
-        return 0;
-
-    hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
-    if( fill_trans >= 0 )
-        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
-    return 1;
+    return app_overlay_outline_element_mesh_styled(app,element_id,color,fill_trans,
+        outline_width,true,item_budget);
 }
 
 /* The mark the hover footprint and the editor selection both draw: the
@@ -3824,8 +3709,8 @@ app_overlay_outline_element_model(
     int element_id,
     uint32_t color)
 {
-    return app_overlay_outline_element_model_trans(
-        app, element_id, color, APP_OUTLINE_FILL_TRANS);
+    return app_overlay_outline_element_model_stroke(
+        app, element_id, color, APP_OUTLINE_FILL_TRANS, 2, INT_MAX) > 0;
 }
 
 static void
@@ -6892,6 +6777,10 @@ app_ui_host_publish_inputs(struct App* app)
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
         signature[UITREE_HOST_INPUT_POINTER] =
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->first_row);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->visible_rows);
         signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
         signature[UITREE_HOST_INPUT_POINTER] =
@@ -8386,6 +8275,12 @@ App_AsyncPending(const struct App* app)
 {
     assert(app);
     return app->async_pending;
+}
+
+void App_SetPluginFrameTime(struct App* app, uint64_t frame_ms)
+{
+    assert(app);
+    app->plugin_frame_ms=frame_ms;
 }
 
 void
@@ -10933,6 +10828,12 @@ App_Shutdown(struct App* app)
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);
     app->plugins = NULL;
+    free(app->plugin_highlights);
+    app->plugin_highlights = NULL;
+    app->plugin_highlight_count = app->plugin_highlight_capacity = 0;
+    free(app->plugin_highlight_loc);
+    app->plugin_highlight_loc = NULL;
+    app->plugin_highlight_loc_count = app->plugin_highlight_loc_capacity = 0;
     if( app->editor )
     {
         /* Releases the content-tree lock. Unsaved edits are NOT written here:
@@ -15763,7 +15664,7 @@ App_MinimenuRowCenter(
     prefix_len = strlen(prefix);
     for( int i = 0; i < menu->option_count; i++ )
     {
-        if( strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
+        if( !UIMinimenu_OptionVisible(menu,i) || strncmp(menu->options[i].text, prefix, prefix_len) != 0 )
             continue;
         *out_x = menu->x + menu->width / 2;
         *out_y = UIMinimenu_OptionY(menu, i);
@@ -16347,6 +16248,8 @@ void
 App_NetSessionReset(struct App* app)
 {
     assert(app);
+    app->delayed_stat_count = 0;
+    app->delayed_stat_until = 0;
     RS_EntitySync_Clear(&app->esync, app->world);
     /* The reference's game-state reset puts both Attack options back to their
      * boot value rather than recomputing them from the varp table it is about
@@ -17315,6 +17218,15 @@ app_logic_tick(struct App* app)
                 }
             }
         }
+    }
+
+    if( app->delayed_stat_count > 0 )
+    {
+        struct RS_GameProtoCtx delayed_ctx = {
+            .tree = app->tree, .invs = &app->invs, .varps = &app->varps,
+            .stats = &app->stats, .chat = &app->chat, .app = app,
+        };
+        RS_GameProto_FlushDelayedStats(&delayed_ctx);
     }
 
     /* Zone sub-packets queued during an async world load drain here once the
@@ -24648,7 +24560,7 @@ app_spawn_task_new(
  * nothing moved -- which matters, because the natural way to write a plugin is
  * to restate the whole intent every tick.
  */
-static void
+static bool
 app_plugin_object_sync(struct App* app, int handle)
 {
     struct AppPluginObject* obj = app_plugin_object_at(app, handle);
@@ -24658,7 +24570,7 @@ app_plugin_object_sync(struct App* app, int handle)
 
     assert(app);
     if( !obj )
-        return;
+        return false;
 
     /* A change to what the MODEL is made of cannot be applied in place. */
     if( obj->element_id >= 0 &&
@@ -24669,7 +24581,7 @@ app_plugin_object_sync(struct App* app, int handle)
 
     /* Nothing to draw yet, or nothing to draw at all. */
     if( obj->model_id < 0 || !app->world )
-        return;
+        return false;
 
     if( !app_plugin_object_scene_pos(app, obj, &world_x, &world_z, &world_y) )
     {
@@ -24677,13 +24589,13 @@ app_plugin_object_sync(struct App* app, int handle)
          * still meaningful and the object comes back when the scene does. */
         if( obj->element_id >= 0 )
             app_plugin_object_teardown(app, obj);
-        return;
+        return false;
     }
 
     if( obj->element_id < 0 )
     {
         if( obj->load_pending )
-            return;
+            return false;
         /* One task per object per attempt. Without the latch a plugin polling
          * an object whose model is still loading would queue a task every
          * frame, and the exec pipeline is serial. */
@@ -24692,7 +24604,7 @@ app_plugin_object_sync(struct App* app, int handle)
             app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
         task->plugin_object = handle;
         ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
-        return;
+        return false;
     }
 
     /* Live: position, orientation, level and visibility are applied in place. */
@@ -24713,6 +24625,7 @@ app_plugin_object_sync(struct App* app, int handle)
         World_PluginObjectSetActive(app->world, obj->world_index, obj->active != 0);
     }
     app->need_redraw = 1;
+    return true;
 }
 
 /*
@@ -25133,6 +25046,9 @@ App_DrawComplete(
     int* pixels;
 
     assert(app);
+    /* Exactly one fresh presentation on every renderer. Readback/fallback and
+     * diagnostic BMP renders do not change the screen's frame-rate counter. */
+    app->frames_rendered++;
 
     /*
      * Nobody waiting, nothing to do -- and this test comes FIRST, before the
@@ -25611,13 +25527,19 @@ app_plugin_object_set_position(
         return;
     if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->level == level &&
         obj->height == height && obj->yaw == yaw )
+    {
+        if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+            TORIRS_PLUGIN_MUTATION_INSTANCE,false,false);
         return;
+    }
     obj->tile_x = tile_x;
     obj->tile_z = tile_z;
     obj->level = level;
     obj->height = height;
     obj->yaw = yaw;
-    app_plugin_object_sync(app, handle);
+    bool const redraw = app_plugin_object_sync(app, handle);
+    if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+        TORIRS_PLUGIN_MUTATION_INSTANCE,true,redraw);
 }
 
 static void
@@ -25631,9 +25553,15 @@ app_plugin_object_set_active(void* user, int handle, int active)
     if( !obj )
         return;
     if( obj->active == (active != 0) )
+    {
+        if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+            TORIRS_PLUGIN_MUTATION_INSTANCE,false,false);
         return;
+    }
     obj->active = active != 0;
-    app_plugin_object_sync(app, handle);
+    bool const redraw = app_plugin_object_sync(app, handle);
+    if( app->plugins ) PluginHost_RecordCurrentRetainedMutation(app->plugins,
+        TORIRS_PLUGIN_MUTATION_INSTANCE,true,redraw);
 }
 
 static int
@@ -27204,6 +27132,11 @@ app_hover_text_update(
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
+        /* Keep the hover pass for item previews and native menu state. The
+         * touch interface uses the held-finger preview and long-press menu;
+         * a second line at viewport(0,0) would paint across its chat filters. */
+        if( app->touch_ui )
+            app->hover_text.visible = false;
     }
 
     /* Anchor at the world viewport's top-left (4726's container origin), or
@@ -30456,8 +30389,11 @@ App_SyncUiScale(struct App* app)
     if( app->window_w <= 0 || app->window_h <= 0 )
         return 0;
     app->host.ui_scale_dirty = false;
-    return App_SetCanvasSize(
+    App_SetCanvasSize(
         app, app_ui_scaled_axis(app, app->window_w), app_ui_scaled_axis(app, app->window_h));
+    /* The logical floor may keep the canvas unchanged. The shell still has
+     * to enlarge the physical game area to present that floor at this scale. */
+    return 1;
 }
 
 int
@@ -30891,7 +30827,9 @@ App_DrainCommands(
                         "resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
                 app->window_w = cmd->width;
                 app->window_h = cmd->height;
-                app->host.ui_scale_dirty = false;
+                /* A resize can arrive alongside a settings change. It updates
+                 * the canvas but must not consume the shell's pending request
+                 * to provide enough physical pixels for the new scale. */
                 App_SetCanvasSize(
                     app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }
@@ -31147,7 +31085,13 @@ App_RunOnce(
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     app->plugin_overlay_batch_started = 0;
-    PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
+    app->plugin_minimap_prepared=false;
+    app->plugin_minimap_count=0;
+    /* Publish one timebase before FrameStart flushes delayed plugin assets:
+     * delivery deadlines (Core.frame_ms) and the flush must see the same clock.
+     * input time is real in a live loop and recorded/synthetic during replay. */
+    App_SetPluginFrameTime(app,input->curr.time);
+    PluginHost_FrameStart(app->plugins, app->plugin_frame_ms, app->frames_rendered);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */
     app_plugin_geometry_settle(app);
@@ -31982,6 +31926,11 @@ App_RunOnce(
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */
+            /* A retained control owns this press even without an open menu.
+             * Its callback may explicitly focus chat; the later outside-chat
+             * click policy must not immediately undo that request. */
+            if( scratch.options[default_idx].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+                plugin_pointer_consumed = 1;
             struct UIMinimenu saved = app->interact.minimenu;
             app->interact.minimenu = scratch;
             if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
@@ -32082,6 +32031,10 @@ App_RunOnce(
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
+            /* The world default list can contain an owned retained control
+             * too; give that press the same focus/gesture ownership. */
+            if( scratch.options[default_idx].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+                plugin_pointer_consumed = 1;
             struct UIMinimenu saved = app->interact.minimenu;
             app->interact.minimenu = scratch;
             if( app_minimenu_use_option(
@@ -34197,7 +34150,11 @@ App_WorldObjStackAdd(
     {
         app_obj_stack_refresh_model(app, world, existing, count);
         World_ObjStackSetCount(world, existing, count);
-        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_CHANGE);
+        /* This is an OBJ_ADD arrival even when the scene reuses a same-id
+         * render slot. Unstackable arrivals can both carry count1, so calling
+         * it a count change loses the second drop. Actual OBJ_COUNT packets
+         * still report CHANGE through App_WorldObjStackSetCount. */
+        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_SPAWN);
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         app->need_redraw = 1;
         return existing;
@@ -34259,6 +34216,9 @@ App_WorldObjStackSetOwnership(
     assert(app);
     assert(idx >= 0);
     world = App_ActiveWorldview(app)->world;
+    if( getenv("TORIRS_GROUND_ITEMS_DEBUG") )
+        TORIRS_REPORT("GROUND_STACK_OWNERSHIP index=%d public_ticks=%d despawn_ticks=%d clock=%d\n",
+            idx, public_ticks, despawn_ticks, now);
     World_ObjStackSetOwnership(
         world,
         idx,
@@ -35551,8 +35511,6 @@ App_Render(
     assert(app);
     assert(pixels);
     assert(app->soft);
-
-    app->frames_rendered++;
 
     if( !App_BuildFrame(app, &frame, width, height) )
     {

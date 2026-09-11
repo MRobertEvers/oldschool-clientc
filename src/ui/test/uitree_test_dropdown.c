@@ -219,6 +219,71 @@ main(void)
             "WantsWheel declines open ground");
     }
 
+    /* A changing structured catalogue keeps the retained page and popup.
+     * Drive real scroll/open input: an exit snapshot of a rebuilt page cannot
+     * distinguish this from losing the user's interaction state. */
+    {
+        struct ToriRSChromeSelectOptionInput choices[14];
+        char values[14][16];
+        int scroll;
+        uint32_t serial;
+        ToriRSChrome_Reset(&ui);
+        panel = ToriRSChrome_PanelAdd(
+            &ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 240, "Retained");
+        ToriRSChrome_PanelSetFixedHeight(&ui, panel, 200);
+        ToriRSChrome_PanelSetScrollable(&ui, panel, 1);
+        for( int i = 0; i < 3; i++ )
+            ToriRSChrome_Label(&ui, panel, "Above the selection");
+        for( int i = 0; i < 14; i++ )
+        {
+            snprintf(values[i], sizeof(values[i]), "choice-%d", i);
+            choices[i] = (struct ToriRSChromeSelectOptionInput){
+                values[i], values[i], 1, "" };
+        }
+        dd = ToriRSChrome_DropdownStructured(&ui, panel, "Gameframe", choices, 6, values[5]);
+        for( int i = 0; i < 20; i++ )
+            ToriRSChrome_Label(&ui, panel, "Below the selection");
+        ToriRSChrome_Build(&ui);
+        struct ToriRSChromeRect rect = ToriRSChrome_PanelRect(&ui, panel);
+        check(ToriRSChrome_MouseWheel(&ui, rect.x + 2, rect.y + rect.h - 20, -1),
+            "the real panel scroll input is consumed");
+        ToriRSChrome_Build(&ui);
+        scroll = ui.panels[panel].scroll_y;
+        check(scroll > 0, "the retained page has a real nonzero scroll position");
+        widget_centre(&ui, dd, &box_x, &box_y);
+        click(&ui, box_x, box_y);
+        check(ui.dropdown_open == dd, "the saved-id list is actually open before replacement");
+        serial = ui.widgets[dd].serial;
+        ToriRSChrome_DropdownSetStructuredOptions(&ui, dd, choices, 5, values[1]);
+        ToriRSChrome_Build(&ui);
+        check(ui.dropdown_open == dd && ui.widgets[dd].serial == serial,
+            "six-to-five options preserves the open retained widget");
+        check(ui.panels[panel].scroll_y == scroll,
+            "six-to-five options preserves the scrolled page");
+        check(!strcmp(ToriRSChrome_DropdownSelectedValue(&ui, dd), values[1]),
+            "the changed catalogue carries the requested stable selection");
+        int count = 0, found = 0;
+        struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&ui, &count);
+        for( int i = 0; i < count; i++ )
+            if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
+                !strcmp(prims[i].text, values[4]) ) found = 1;
+        check(found, "an unselected popup row remains painted after the count change");
+
+        ToriRSChrome_DropdownSetStructuredOptions(&ui, dd, choices, 14, values[1]);
+        ToriRSChrome_Build(&ui);
+        int const list_y = ui.widgets[dd].y + ui.widgets[dd].h + 4;
+        ToriRSChrome_MouseWheel(&ui, box_x - 20, list_y, 2);
+        check(ui.widgets[dd].scroll == 2, "the open structured list itself scrolls");
+        ToriRSChrome_DropdownSetStructuredOptions(&ui, dd, choices + 1, 13, values[1]);
+        ToriRSChrome_Build(&ui);
+        check(ui.dropdown_open == dd && ui.widgets[dd].scroll == 1,
+            "removing an earlier option keeps the same stable top row visible");
+        check(ui.panels[panel].scroll_y == scroll,
+            "a growing or reordered catalogue does not reset page scroll");
+        ToriRSChrome_DropdownSetStructuredOptions(&ui, dd, NULL, 0, "");
+        check(ui.dropdown_open == -1, "an empty replacement dismisses the now-empty popup");
+    }
+
     /* One semantic limit is enforced before the model reaches either web
      * runtime, and a shared page budget makes every legal snapshot deliverable. */
     {

@@ -3,7 +3,8 @@
 #include <assert.h>
 #include <string.h>
 
-#define MAX_BASE37 0x1000000000000000 // 12 characters in base37
+/* Exclusive upper bound for twelve base-37 digits: 37^12. */
+#define MAX_BASE37 UINT64_C(6582952005840035281)
 
 static const char BASE37_LOOKUP[] = {                                //
     '_',                                                             //

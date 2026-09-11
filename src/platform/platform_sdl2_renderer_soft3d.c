@@ -1370,6 +1370,7 @@ ToriRS_Soft3D_RenderFrame(
     }
 
     soft->has_3d = false;
+    frame->world_depth_test = false;
     ToriRS_FrameBegin(frame);
     soft3d_run_commands(soft, frame);
     ToriRS_FrameEnd(frame);

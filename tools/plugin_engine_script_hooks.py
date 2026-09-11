@@ -115,8 +115,62 @@ def fingerprint(script, script_id):
     return value
 
 
+def normalize_overlay_find(data, spec):
+    """Undo only a pinned legacy repack; pristine bytes pass unchanged."""
+    digest=hashlib.sha256(data).hexdigest()
+    if digest==spec['canonical_sha256']: return data
+    if digest!=spec['legacy_sha256']:
+        raise ValueError('overlay-find script fingerprint mismatch')
+    script=decode(data);old=script['ops'];new=[];origins=[];mapping={};pc=0
+    changes={change['pc']:change for change in spec['changes']}
+    while pc<len(old):
+        mapping[pc]=len(new)
+        change=changes.get(pc)
+        if change:
+            before=[tuple(x) for x in change['before']]
+            after=[tuple(x) for x in change['after']]
+            if old[pc:pc+len(before)]!=before:
+                raise ValueError('overlay-find instruction contract changed')
+            # No branch may enter the middle of a repaired expression.
+            for skip in range(1,len(before)): mapping[pc+skip]=None
+            new.extend(after);origins.extend([None]*len(after));pc+=len(before)
+        else:
+            new.append(old[pc]);origins.append(pc);pc+=1
+    mapping[len(old)]=len(new)
+    def target(at):
+        if at not in mapping or mapping[at] is None:
+            raise ValueError('overlay-find branch targets a changed expression')
+        return mapping[at]
+    used_switches=set()
+    for at,source in enumerate(origins):
+        opcode,value=new[at]
+        if source is not None and opcode in BRANCHES:
+            new[at]=(opcode,target(source+1+value)-at-1)
+        if source is not None and opcode==60:
+            if value in used_switches: raise ValueError('shared compatibility switch table')
+            used_switches.add(value)
+            script['switches'][value]=[(key,target(source+1+offset)-at-1)
+                for key,offset in script['switches'][value]]
+    script['ops']=new;output=encode(script)
+    if hashlib.sha256(output).hexdigest()!=spec['canonical_sha256']:
+        raise ValueError('overlay-find normalization did not reproduce pristine bytes')
+    return output
+
+
 def patch(data, spec):
-    if hashlib.sha256(data).hexdigest() != spec['source_sha256']:
+    source_hash = hashlib.sha256(data).hexdigest()
+    if source_hash == spec.get('legacy_source_sha256'):
+        # The old decompiler metadata discarded103's secondary-widget bit.
+        # Repair only the exact shipped bytes, and prove the result is the
+        # canonical native script before applying the callback transform.
+        legacy = decode(data)
+        for pc in spec['legacy_overlay_dot_pcs']:
+            if legacy['ops'][pc] != (103, 0):
+                raise ValueError('legacy overlay target contract changed')
+            legacy['ops'][pc] = (103, 1)
+        data = encode(legacy)
+        source_hash = hashlib.sha256(data).hexdigest()
+    if source_hash != spec['source_sha256']:
         raise ValueError('native script fingerprint mismatch; refusing an incompatible hook')
     script = decode(data)
     if encode(script) != data: raise ValueError('input codec roundtrip changed bytes')
@@ -133,7 +187,13 @@ def patch(data, spec):
     outputs=set(spec['output_locals'])
     for local in reversed(spec['int_locals']):
         added.append((34,local) if local in outputs else (38,0))
-    added += [(36,spec['string_local']),(33,spec['color_local']),(1101,0),
+    # Empty means the row is filtered out. The caption and its native timer /
+    # edit controls form one row, although the cache stores them as siblings.
+    # Return the next child index before creating those auxiliary siblings;
+    # hiding only the caption would leave them beside a zero-width label.
+    added += [(36,spec['string_local']),
+        (35,spec['string_local']),(4117,0),(0,0),(7,2),(33,3),(21,0),
+        (33,spec['color_local']),(1101,0),
         (0,0),(33,13),(0,1),(0,2),(1000,0),(35,spec['string_local'])]
     def target(pc): return pc+len(added) if pc>at else pc
     new_ops=[]
@@ -172,6 +232,7 @@ def main():
     parser.add_argument('--stage',type=Path)
     parser.add_argument('--header',type=Path)
     args=parser.parse_args();spec=json.loads(args.spec.read_text())
+    compatibility=json.loads((args.spec.parent/spec['overlay_find_compatibility']).read_text())['scripts'] if spec.get('overlay_find_compatibility') else []
     if args.build:
         if not args.base or not args.cache: parser.error('--build requires --base and --cache')
         if args.cache.exists(): raise ValueError('output cache already exists; use --check or a new destination')
@@ -185,10 +246,14 @@ def main():
         args.check=True
     data=cache_script(args.base,spec['script_id']) if args.base else args.input.read_bytes()
     output,signature=patch(data,spec)
+    normalized={entry['script_id']:normalize_overlay_find(cache_script(args.base,entry['script_id']),entry) for entry in compatibility} if args.base else {}
     if args.check:
         if not args.base or not args.cache: parser.error('--check requires --base and --cache')
         if cache_script(args.cache,spec['script_id'])!=output:
             raise ValueError('hook cache does not match its source/specification')
+        for script_id,body in normalized.items():
+            if cache_script(args.cache,script_id)!=body:
+                raise ValueError(f'overlay-find compatibility script {script_id} is stale')
         helper=spec['highlight_helper'];body=cache_script(args.cache,helper['script_id'])
         if hashlib.sha256(body).hexdigest()!=helper['source_sha256'] or decode(body)['fields']!=helper['trailer_fields']:
             raise ValueError('native highlight helper contract changed')
@@ -199,7 +264,7 @@ def main():
                 if target.read(len(chunk))!=chunk: raise ValueError('hook cache changed base data')
         for path in args.base.glob('main_file_cache.idx*'):
             original=path.read_bytes();changed=(args.cache/path.name).read_bytes()
-            permitted={spec['script_id']} if path.name.endswith('.idx12') else {12,255} if path.name.endswith('.idx255') else set()
+            permitted=({spec['script_id']} | set(normalized)) if path.name.endswith('.idx12') else {12,255} if path.name.endswith('.idx255') else set()
             for at in range(0,max(len(original),len(changed)),6):
                 if at//6 not in permitted and original[at:at+6]!=changed[at:at+6]:
                     raise ValueError('hook cache changed an unrelated index entry')
@@ -212,10 +277,13 @@ def main():
     (args.stage/'scripts').mkdir();(args.stage/'pack').mkdir()
     name='script_'+str(spec['script_id'])
     (args.stage/'scripts'/(name+'.cs2b')).write_bytes(output)
-    (args.stage/'pack/12_clientscripts.pack').write_text(f"{spec['script_id']}={name}\n")
-    (args.stage/'archives.txt').write_text(f"scripts={spec['script_id']}\n")
+    for script_id,body in normalized.items():
+        (args.stage/'scripts'/f'script_{script_id}.cs2b').write_bytes(body)
+    staged_ids=sorted({spec['script_id']} | set(normalized))
+    (args.stage/'pack/12_clientscripts.pack').write_text(''.join(f'{script_id}=script_{script_id}\n' for script_id in staged_ids))
+    (args.stage/'archives.txt').write_text(''.join(f'scripts={script_id}\n' for script_id in staged_ids))
     (args.stage/'hook-receipt.json').write_text(json.dumps(dict(spec=spec,output_sha256=hashlib.sha256(output).hexdigest(),
-        runtime_fingerprint=f'{signature:016x}',tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),indent=2)+'\n')
+        runtime_fingerprint=f'{signature:016x}',normalized_scripts={str(k):hashlib.sha256(v).hexdigest() for k,v in normalized.items()},tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),indent=2)+'\n')
     if args.header:
         args.header.write_text('/* Generated by tools/plugin_engine_script_hooks.py; do not edit. */\n'
             '#define TORIRS_GROUND_CAPTION_SCRIPT '+str(spec['script_id'])+'\n'

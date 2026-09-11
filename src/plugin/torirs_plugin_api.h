@@ -235,7 +235,51 @@ struct ToriRS_Graphics
     bool (*context)(
         struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
+    /** Optional tail: outline width in canvas pixels, 0 suppresses the border.
+     * Fill alpha is independent. Check struct_size before reading this tail.
+     * A capacity refusal returns BUDGET; offscreen geometry returns OK. */
+    enum ToriRS_Result (*world_tile_stroke)(
+        struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
+        uint32_t fill_rgb, uint32_t outline_rgb, int alpha, int outline_width);
+    enum ToriRS_Result (*world_hull_stroke)(
+        struct ToriRS_Graphics* draw, int element_id, uint32_t rgb,
+        int alpha, int shape, int outline_width);
+    /** Optional visibility-aware mesh styling. Flags zero respects scene
+     * occlusion; TORIRS_WORLD_DRAW_ALWAYS_ON_TOP bypasses foreground surfaces.
+     * BOUNDS has no mesh depth and requires ALWAYS_ON_TOP, otherwise UNSUPPORTED.
+     * Older hull entrypoints preserve their original always-on-top layering. */
+    enum ToriRS_Result (*world_hull_styled)(
+        struct ToriRS_Graphics* draw, int element_id, uint32_t rgb,
+        int alpha, int shape, int outline_width, uint32_t flags);
+    /** Terrain-conforming tile surface with the same visibility policy. */
+    enum ToriRS_Result (*world_tile_styled)(
+        struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
+        uint32_t fill_rgb, uint32_t outline_rgb, int alpha,
+        int outline_width, uint32_t flags);
+    /** Minimap tile, only inside on_draw_minimap. Coordinates are absolute
+     * world tiles; native minimap projection/mask/layering belong to the host.
+     * Zero width suppresses the inward outline; alpha is 0..255. Off-map/other-level is OK
+     * with no draw; unavailable tail is UNSUPPORTED and capacity is BUDGET. */
+    enum ToriRS_Result (*minimap_tile)(
+        struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
+        uint32_t fill_rgb, uint32_t outline_rgb, int alpha, int outline_width);
 };
+
+#define TORIRS_GRAPHICS_STROKE_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, world_hull_stroke) + \
+                sizeof(((struct ToriRS_Graphics*)0)->world_hull_stroke)))
+
+#define TORIRS_GRAPHICS_STYLE_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, world_hull_styled) + \
+                sizeof(((struct ToriRS_Graphics*)0)->world_hull_styled)))
+
+#define TORIRS_GRAPHICS_TILE_STYLE_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, world_tile_styled) + \
+                sizeof(((struct ToriRS_Graphics*)0)->world_tile_styled)))
+
+#define TORIRS_GRAPHICS_MINIMAP_SIZE \
+    ((uint32_t)(offsetof(struct ToriRS_Graphics, minimap_tile) + \
+                sizeof(((struct ToriRS_Graphics*)0)->minimap_tile)))
 
 /* A NULL id terminates an offer array. Only the fields for the chosen canvas
  * policy are meaningful: width/height for FIXED, min_* for WINDOW. An offer
@@ -811,7 +855,11 @@ struct ToriRS_CacheApi
     /** Native navigation is allowed from action callbacks, not from layout,
      * draw or background updates that might fight a server/script closure. */
     bool (*tab_select)(struct ToriRS_Api* api, int tab);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
+    /** Activate the native tab control. Unlike deterministic tab_select,
+     * repeating a tab can collapse it when the cache's control supports that.
+     * Uses the same action-callback restriction as tab_select. */
+    bool (*tab_activate)(struct ToriRS_Api* api, int tab);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
 /** Client-owned settings and process facts, separate from plugin config. */
@@ -1070,6 +1118,9 @@ struct ToriRS_PluginCallbacks
         struct ToriRS_Api* api,
         void* state,
         struct ToriRS_PanelLayoutEvent const* event);
+    /** Native minimap overlay pass, before its actor dots/local-player mark.
+     * Only Graphics.minimap_tile is valid in this scope. */
+    void (*on_draw_minimap)(struct ToriRS_Api* api, void* state, struct ToriRS_Graphics* draw);
 };
 
 #define TORIRS_PLUGIN_CALLBACKS_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))

@@ -5,7 +5,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The word a settings file HOLDS for "let the revision decide". It is a stored
+ * value, not presentation: an existing plugin_prefs.ini carries it. */
 #define FF_DEFAULT_LABEL "Revision default"
+/*
+ * What that entry is CAPTIONED, and why it is not the stored word.
+ *
+ * A closed dropdown on a labelled row gets the panel width less the label
+ * column, the field insets and the arrow -- 160 pixels at 1x on the in-canvas
+ * presentation -- and "Revision default (One at a time (2004))" is 220 of
+ * them. Every caption over that was sliced mid-word, so the row that exists to
+ * report the value in force was the row you could not read it off.
+ * @see feature_flags_test.c, which measures what this builds.
+ */
+#define FF_DEFAULT_CAPTION "Default"
+/* Characters of composed caption that stay inside that budget for the choice
+ * texts the client publishes. Past it the choice's trailing source tag --
+ * "(2004)", "(xrsps)" -- is dropped: when only one of the two can be read it
+ * is the value, not where the value came from. */
+#define FF_CAPTION_MAX 26
 #define FF_MAX 32
 #define FF_OPTION_MAX (TORIRS_FEATURE_VALUES_MAX + 2)
 
@@ -113,6 +131,32 @@ ff_apply_all(struct ToriRS_Api* api, struct FeatureFlagsState* state)
     }
 }
 
+/** "Default: <choice>", trimmed to the caption budget. @see FF_CAPTION_MAX. */
+static void
+ff_default_caption(
+    char* out,
+    size_t out_size,
+    char const* choice)
+{
+    char const* tag;
+    size_t length;
+
+    assert(out);
+    assert(out_size > 0);
+    assert(choice);
+    snprintf(out, out_size, "%s: %s", FF_DEFAULT_CAPTION, choice);
+    if( strlen(out) <= FF_CAPTION_MAX )
+        return;
+    length = strlen(choice);
+    if( length < 4 || choice[length - 1] != ')' )
+        return;
+    tag = strrchr(choice, '(');
+    if( !tag || tag < choice + 2 || tag[-1] != ' ' )
+        return;
+    snprintf(out, out_size, "%s: %.*s",
+        FF_DEFAULT_CAPTION, (int)(tag - 1 - choice), choice);
+}
+
 static int
 ff_options(
     struct ToriRS_Api* api,
@@ -136,12 +180,28 @@ ff_options(
     {
         char choice[TORIRS_FEATURE_CHOICES_MAX];
         (void)ff_choice_at(flag->choices, named, choice, sizeof(choice));
-        snprintf(labels[count], sizeof(labels[count]), "%s (%s)", FF_DEFAULT_LABEL, choice);
+        ff_default_caption(labels[count], sizeof(labels[count]), choice);
     }
-    else if( flag->is_default && flag->kind == TORIRS_FEATURE_INT )
-        snprintf(labels[count], sizeof(labels[count]), "%s (%d)", FF_DEFAULT_LABEL, effective);
+    /*
+     * A raw number only while the row can EXPRESS it.
+     *
+     * `min`..`max` is the band the row offers and the band a pick is checked
+     * against, and an era table may rest outside it on a sentinel: the 2004
+     * lane's painter_draw_distance is 0, which the engine reads as "the fixed
+     * 25 tiles", so the one row that reports the draw distance reported "0" --
+     * not a distance, not in its own list, and 25 tiles out. Outside the band
+     * the number is the engine's private spelling and naming it is worse than
+     * naming nothing.
+     */
+    else if( flag->is_default && flag->kind == TORIRS_FEATURE_INT &&
+             effective >= flag->min && effective <= flag->max )
+    {
+        char number[32];
+        snprintf(number, sizeof(number), "%d", effective);
+        ff_default_caption(labels[count], sizeof(labels[count]), number);
+    }
     else
-        snprintf(labels[count], sizeof(labels[count]), "%s", FF_DEFAULT_LABEL);
+        snprintf(labels[count], sizeof(labels[count]), "%s", FF_DEFAULT_CAPTION);
     options[count] = (struct ToriRS_SelectOption){
         .struct_size = sizeof(options[count]),
         .value = values[count], .label = labels[count], .enabled = true,
@@ -202,6 +262,8 @@ ff_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FeatureFlagsState* state = state_ptr;
     struct ToriRS_PanelDescriptor panel = { NULL, TORIRS_PANEL_WIDTH_DEFAULT };
+    assert(api);
+    assert(state);
     assert(api->client);
     ff_refresh(api, state);
     ff_apply_all(api, state);
@@ -218,6 +280,9 @@ ff_on_ui_build(
     struct FeatureFlagsState* state = state_ptr;
     char section[TORIRS_FEATURE_KEY_MAX] = "";
     (void)view;
+    assert(api);
+    assert(state);
+    assert(panel);
     ff_refresh(api, state);
     for( int i = 0; i < state->flag_count; i++ )
     {
@@ -246,7 +311,11 @@ ff_on_ui_action(
     struct ToriRS_PanelActionEvent const* event)
 {
     struct FeatureFlagsState* state = state_ptr;
-    if( !event || event->action != TORIRS_PANEL_ACTION_PICK || !event->id || !event->text )
+
+    assert(api);
+    assert(state);
+    assert(event);
+    if( event->action != TORIRS_PANEL_ACTION_PICK || !event->id || !event->text )
         return;
     for( int i = 0; i < state->flag_count; i++ )
     {
@@ -274,6 +343,19 @@ ff_on_ui_action(
     }
 }
 
+/*
+ * A config write from anywhere -- this page's own pick, another writer of the
+ * same store, a reload off disk -- re-applies the flags AND re-reads the row
+ * that changed.
+ *
+ * Applying alone left the open page answering the old question: the engine had
+ * taken camera_arrow_keys=Off and the row still read "Default (On)", with no
+ * error, no log and no cue, until the page was closed and reopened. The row is
+ * a RETAINED property, so nothing re-reads it unless this does. Only the
+ * changed key's row is published; set_options on a page that is not up is a
+ * NOT_FOUND the host absorbs, and invalidate on a page that is not this
+ * plugin's is a no-op.
+ */
 static void
 ff_on_config_changed(
     struct ToriRS_Api* api,
@@ -281,9 +363,18 @@ ff_on_config_changed(
     char const* key)
 {
     struct FeatureFlagsState* state = state_ptr;
-    (void)key;
+
+    assert(api);
+    assert(state);
+    assert(key);
     if( state->flag_count == 0 ) ff_refresh(api, state);
     ff_apply_all(api, state);
+    for( int i = 0; i < state->flag_count; i++ )
+    {
+        if( strcmp(state->flags[i].key, key) != 0 ) continue;
+        ff_publish_option(api, &state->flags[i]);
+        return;
+    }
 }
 
 struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS = {

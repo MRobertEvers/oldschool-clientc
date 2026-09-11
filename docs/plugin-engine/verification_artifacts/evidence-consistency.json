@@ -1,0 +1,13 @@
+{
+  "utc": "2026-09-08T20:12:44.259978+00:00",
+  "attempts": 354,
+  "reviewed_captures": 351,
+  "plugins": 19,
+  "examples": 4,
+  "original_commands_controls": 80,
+  "explicit_final_H_replays": 21,
+  "all_frame_inspection_flags_consistent": true,
+  "all_image_hashes_verified": true,
+  "duplicate_ids_or_outputs": false,
+  "plugin_era_api_obstacles_and_acceptance_present": true
+}
