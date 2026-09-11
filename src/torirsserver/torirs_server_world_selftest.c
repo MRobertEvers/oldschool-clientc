@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_sinsofthefather_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_SINS_ONLY") )
+    {
+        selftest_quest_sinsofthefather(srv, player);
+        fprintf(stderr, "ToriRSServer sins selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("sins");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35906,11 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /* Sins of the Father Gate D. Placed immediately before the shop
+     * selftest_reset_world so spawned npcs cannot leak into later
+     * RNG-gated checks. */
+    selftest_quest_sinsofthefather(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
