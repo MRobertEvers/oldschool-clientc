@@ -35897,6 +35897,8 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+#include "test/quest_defenderofvarrock_selftest.u.h"
+
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
