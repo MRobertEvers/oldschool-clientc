@@ -88,6 +88,8 @@ selftest_coa_run(
     assert(srv);
     assert(proc);
     ToriRSServer_WorldCloseModal(srv);
+    selftest_tick(srv);
+    ToriRSServer_WorldCloseModal(srv);
     SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, proc) == TORIRSSERVER_TRIGGER_RAN,
                    "::%s should reach content", proc);
 }
@@ -147,6 +149,9 @@ selftest_coa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     ToriRSServer_VarbitSet(srv, vb_dov, 0);
     if( varp_troll >= 0 )
         player->varps[varp_troll] = 0;
+    /* Oasis Elias: 0_54_47_49_29 -> 3505,3037. Scene must cover the spawn. */
+    ToriRSServer_WorldTeleport(srv, 0, 3505, 3037);
+    selftest_tick(srv);
 
     /* Eight qualify fails: named mesbox, %coa stays 0. */
     {
@@ -154,21 +159,33 @@ selftest_coa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         {
             const char* proc;
             const char* needle;
+            int mine;
+            int thieve;
+            int range;
+            int agil;
+            int str;
+            int slay;
         } fails[] = {
-            { "coa_bmp_qualify_dov", "Defender of Varrock" },
-            { "coa_bmp_qualify_trollromance", "Troll Romance" },
-            { "coa_bmp_qualify_mining", "Mining level of 64" },
-            { "coa_bmp_qualify_thieving", "Thieving level of 62" },
-            { "coa_bmp_qualify_ranged", "Ranged level of 62" },
-            { "coa_bmp_qualify_agility", "Agility level of 61" },
-            { "coa_bmp_qualify_strength", "Strength level of 58" },
-            { "coa_bmp_qualify_slayer", "Slayer level of 37" },
+            { "coa_bmp_qualify_dov", "Defender of Varrock", 1, 1, 1, 1, 1, 1 },
+            { "coa_bmp_qualify_trollromance", "Troll Romance", 1, 1, 1, 1, 1, 1 },
+            { "coa_bmp_qualify_mining", "Mining level of 64", 1, 1, 1, 1, 1, 1 },
+            { "coa_bmp_qualify_thieving", "Thieving level of 62", 64, 1, 1, 1, 1, 1 },
+            { "coa_bmp_qualify_ranged", "Ranged level of 62", 64, 62, 1, 1, 1, 1 },
+            { "coa_bmp_qualify_agility", "Agility level of 61", 64, 62, 62, 1, 1, 1 },
+            { "coa_bmp_qualify_strength", "Strength level of 58", 64, 62, 62, 61, 1, 1 },
+            { "coa_bmp_qualify_slayer", "Slayer level of 37", 64, 62, 62, 61, 58, 1 },
         };
         int i;
 
         for( i = 0; i < (int)(sizeof(fails) / sizeof(fails[0])); i++ )
         {
             ToriRSServer_VarbitSet(srv, vb_coa, 0);
+            ToriRSServer_CombatSetLevel(player, mining, fails[i].mine);
+            ToriRSServer_CombatSetLevel(player, thieving, fails[i].thieve);
+            ToriRSServer_CombatSetLevel(player, ranged, fails[i].range);
+            ToriRSServer_CombatSetLevel(player, agility, fails[i].agil);
+            ToriRSServer_CombatSetLevel(player, strength, fails[i].str);
+            ToriRSServer_CombatSetLevel(player, slayer, fails[i].slay);
             ToriRSServer_CaptureBegin(srv, &cap);
             selftest_coa_run(srv, fails[i].proc);
             ToriRSServer_CaptureEnd(srv);
@@ -178,6 +195,7 @@ selftest_coa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                            "%s must not write %%coa, got %d", fails[i].proc,
                            ToriRSServer_VarbitGet(player, vb_coa));
             ToriRSServer_WorldCloseModal(srv);
+            selftest_tick(srv);
         }
     }
 
