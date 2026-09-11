@@ -1,18 +1,18 @@
 #include "app.h"
+
 #include "ui/uitree_canvas_measure.h"
 #if defined(TORIRS_UI_EMIT_PMU)
 #include "../tools/perf/ui_emit_pmu.u.h"
 #endif
-#include "game/rs_minimap_state.h"
-#include "torirs_env.h"
-#include "log/torirs_log.h"
-
 #include "bmp.h"
+#include "game/rs_minimap_state.h"
+#include "log/torirs_log.h"
+#include "torirs_env.h"
 /* Screenshot encoding. Already linked for the cache codecs; the PNG writer
  * rides along, so a plugin capture costs no new dependency. */
-#include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
 #include "engine/boot_bar.h"
+#include "miniz.h"
 #include "revconfig/revconfig_load.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 /* The dat1 cache source that is a LostCity server rather than a directory.
@@ -43,8 +43,9 @@
 #endif
 
 #if defined(TORIRS_PLATFORM_WEB)
-#include <emscripten.h>
 #include "ui/torirs_chrome_exec_web.h"
+
+#include <emscripten.h>
 
 /*
  * Ask the page to open the command-panel tab (`[editor:boot] panel=tab`).
@@ -54,16 +55,18 @@
  * a page that defines no hook (or a browser that blocks the popup) leaves the
  * editor running without its chrome rather than failing the boot.
  */
-EM_JS(void, web_editor_open_panel_tab, (void), {
-    if( typeof window.torirsOpenPanelTab === 'function' )
-        window.torirsOpenPanelTab();
-    else
-        console.warn('[torirs] panel=tab, but the page defines no torirsOpenPanelTab()');
-});
+EM_JS(
+    void,
+    web_editor_open_panel_tab,
+    (void),
+    {
+        if( typeof window.torirsOpenPanelTab == = 'function' )
+            window.torirsOpenPanelTab();
+        else
+            console.warn('[torirs] panel=tab, but the page defines no torirsOpenPanelTab()');
+    });
 #endif
 
-#include "engine/torirs_chrome_skin_baked.h"
-#include "engine/uitree_role_load.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -71,16 +74,18 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "engine/png_decode.h"
-#include "ui/uitree_frame.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_model_from_rscache.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_cmd_render.h"
+#include "engine/uitree_role_load.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
+#include "game/preview_state.h"
 #include "game/rs_attack_option.h"
 #include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
@@ -88,19 +93,15 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
-#include "game/preview_state.h"
-#include "plugin/torirs_plugin_lua.h"
-#include "plugin/task_plugin_io.h"
-#include "plugin/torirs_plugin_lua.h"
-#include "plugin/torirs_plugin_registry.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/rs_worldmap.h"
 #include "game/rs_worldmap_render.h"
-#include "game/varc_ids.h"
+#include "game/sailing_navigation.h"
 #include "game/task_cs1_run.h"
 #include "game/task_cs2_run.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_gameproto_exec.h"
+#include "game/varc_ids.h"
 #include "input/torirs_input_cmd.h"
 #include "input/torirs_keymap.h"
 #include "net/jbase37.h"
@@ -114,14 +115,17 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "perf/torirs_perf.h"
 #include "platform/platform_memory.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
+#include "plugin/task_plugin_io.h"
+#include "plugin/torirs_plugin_lua.h"
+#include "plugin/torirs_plugin_registry.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/torirs_world_projection.h"
-#include "game/sailing_navigation.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
-#include "ui/uitree_build.h"
 #include "ui/torirs_chrome_panel_draw.h"
+#include "ui/uitree_build.h"
+#include "ui/uitree_frame.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -311,7 +315,9 @@ app_chat_filters(struct App const* app)
  * @see RevConfigCameraItem::pitch_flattest.
  */
 static int
-app_world_clamp_pitch(struct App const* app, int pitch)
+app_world_clamp_pitch(
+    struct App const* app,
+    int pitch)
 {
     assert(app);
     if( pitch < app->revconfig_profile.camera.pitch_flattest )
@@ -338,8 +344,7 @@ app_displayable_component_node(
         return -1;
     idx = UITree_FindByComponentId(app->tree, component_id);
     if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
-        app->tree->components[idx].freed ||
-        UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
+        app->tree->components[idx].freed || UITree_NodeOrAncestorDisplayHidden(app->tree, idx) )
         return -1;
     return idx;
 }
@@ -365,8 +370,7 @@ app_intent_targets_live(
     else if( app_displayable_component_node(app, intent->component_id) < 0 )
         return 0;
     /* -1 is the ordinary "no drop target" carried by onDrag. */
-    if( intent->has_drag_target && intent->drag_target_id >= 0 &&
-        intent->has_drag_target_identity )
+    if( intent->has_drag_target && intent->drag_target_id >= 0 && intent->has_drag_target_identity )
     {
         struct UITreeComponent const* target;
         if( !app || !app->tree || intent->drag_target_node_index < 0 ||
@@ -376,12 +380,12 @@ app_intent_targets_live(
         if( target->freed || intent->drag_target_node_incarnation == 0 ||
             target->incarnation != intent->drag_target_node_incarnation ||
             target->component_id != intent->drag_target_id ||
-            UITree_NodeOrAncestorDisplayHidden(
-                app->tree, intent->drag_target_node_index) )
+            UITree_NodeOrAncestorDisplayHidden(app->tree, intent->drag_target_node_index) )
             return 0;
     }
-    else if( intent->has_drag_target && intent->drag_target_id >= 0 &&
-             app_displayable_component_node(app, intent->drag_target_id) < 0 )
+    else if(
+        intent->has_drag_target && intent->drag_target_id >= 0 &&
+        app_displayable_component_node(app, intent->drag_target_id) < 0 )
         return 0;
     return 1;
 }
@@ -430,8 +434,7 @@ app_chat_region(
     if( out_y )
         *out_y = y;
     if( out_font_id )
-        *out_font_id =
-            UITree_Chat(node)->font_id > 0 ? UITree_Chat(node)->font_id : 1;
+        *out_font_id = UITree_Chat(node)->font_id > 0 ? UITree_Chat(node)->font_id : 1;
     return 1;
 }
 
@@ -533,8 +536,7 @@ app_text_input_focused(struct App const* app)
             * case this function's own header warns about: a list of the inputs
             * that existed when it was written leaves the hotkeys live under the
             * one added next. @see UITree_InputFocusId. */
-           (app->tree && UITree_InputFocusId(app->tree) >= 0) ||
-           app_chrome_holds_keyboard(app);
+           (app->tree && UITree_InputFocusId(app->tree) >= 0) || app_chrome_holds_keyboard(app);
 }
 
 /*
@@ -831,7 +833,8 @@ App_IfEventsSet(
     app->if_event_cap = replacement_cap;
 
     if( torirs_env_net_debug() )
-        TORIRS_LOG("if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
+        TORIRS_LOG(
+            "if_setevents: com=%d (%d:%d) slots=%d..%d events=0x%x\n",
             com_id,
             (com_id >> 16) & 0xffff,
             com_id & 0xffff,
@@ -1116,7 +1119,7 @@ app_entity_spotanim_detach(
 #define APP_NET_SEND(app, builder_call)                                                            \
     do                                                                                             \
     {                                                                                              \
-        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                  \
+        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                   \
         {                                                                                          \
             uint8_t _nsbuf[512];                                                                   \
             int _nslen = builder_call;                                                             \
@@ -1183,8 +1186,7 @@ app_wev_actor_root_fine(
     assert(out_fx);
     assert(out_fz);
 
-    if( placement->view_id == WORLDVIEW_ROOT ||
-        !Wevs_IsLive(&app->wevs, placement->view_id) ||
+    if( placement->view_id == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, placement->view_id) ||
         !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
         return 0;
     wev = Wevs_Get(&app->wevs, placement->view_id);
@@ -1199,8 +1201,7 @@ static int
 app_sailing_at_helm(struct App* app)
 {
     int id = app->sailing_at_helm_varbit;
-    return id >= 0 && id < app->varps.varbit_count &&
-           app->aboard_view != WORLDVIEW_ROOT &&
+    return id >= 0 && id < app->varps.varbit_count && app->aboard_view != WORLDVIEW_ROOT &&
            Wevs_IsLive(&app->wevs, app->aboard_view) &&
            WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
            VarPManager_GetVarbit(&app->varps, id) != 0;
@@ -1209,21 +1210,23 @@ app_sailing_at_helm(struct App* app)
 static int
 app_sailing_can_steer(struct App* app)
 {
-    if( app_sailing_at_helm(app) ) return 1;
-    int role=app->sailing_captain_role_varbit;
-    if( app->aboard_view==WORLDVIEW_ROOT ||
-        !Wevs_IsLive(&app->wevs,app->aboard_view) ||
-        !WorldviewRegistry_IsLive(&app->worldviews,app->aboard_view) ||
-        role<0 || role>=app->varps.varbit_count ||
-        VarPManager_GetVarbit(&app->varps,role)!=10 ) return 0;
-    for( int slot=0; slot<5; ++slot )
+    if( app_sailing_at_helm(app) )
+        return 1;
+    int role = app->sailing_captain_role_varbit;
+    if( app->aboard_view == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, app->aboard_view) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) || role < 0 ||
+        role >= app->varps.varbit_count || VarPManager_GetVarbit(&app->varps, role) != 10 )
+        return 0;
+    for( int slot = 0; slot < 5; ++slot )
     {
-        int duty=app->sailing_crew_duty_varbit[slot];
-        int roster=app->sailing_crew_roster_varbit[slot];
-        if( duty>=0 && duty<app->varps.varbit_count &&
-            roster>=0 && roster<app->varps.varbit_count &&
-            (VarPManager_GetVarbit(&app->varps,duty)==3 || VarPManager_GetVarbit(&app->varps,duty)==4) &&
-            VarPManager_GetVarbit(&app->varps,roster)>0 ) return 1;
+        int duty = app->sailing_crew_duty_varbit[slot];
+        int roster = app->sailing_crew_roster_varbit[slot];
+        if( duty >= 0 && duty < app->varps.varbit_count && roster >= 0 &&
+            roster < app->varps.varbit_count &&
+            (VarPManager_GetVarbit(&app->varps, duty) == 3 ||
+             VarPManager_GetVarbit(&app->varps, duty) == 4) &&
+            VarPManager_GetVarbit(&app->varps, roster) > 0 )
+            return 1;
     }
     return 0;
 }
@@ -1231,48 +1234,71 @@ app_sailing_can_steer(struct App* app)
 /* The native selector intersects the pointer ray with the boat's horizontal
  * plane (class108.method3786), so it works over deck geometry and open sea. */
 static int
-app_sailing_heading_at(struct App* app, int mouse_x, int mouse_y, int* heading)
+app_sailing_heading_at(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int* heading)
 {
     assert(heading);
-    if( !app_sailing_can_steer(app) || !app->world_view_valid ) return 0;
+    if( !app_sailing_can_steer(app) || !app->world_view_valid )
+        return 0;
     struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
-    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return 0;
+    if( vessel->parent_view_id != WORLDVIEW_ROOT )
+        return 0;
     double x, z;
     if( !ToriRS_WorldUnprojectPlane(
-            &app->world_camera, &app->world_camera_pos,
-            app->world_emit_desc.x, app->world_emit_desc.y,
-            app->world_emit_desc.w, app->world_emit_desc.h,
-            mouse_x, mouse_y, vessel->y, &x, &z) ) return 0;
+            &app->world_camera,
+            &app->world_camera_pos,
+            app->world_emit_desc.x,
+            app->world_emit_desc.y,
+            app->world_emit_desc.w,
+            app->world_emit_desc.h,
+            mouse_x,
+            mouse_y,
+            vessel->y,
+            &x,
+            &z) )
+        return 0;
     x -= vessel->x - app->world->_base_tile_x * 128;
     z -= vessel->z - app->world->_base_tile_z * 128;
-    if( fabs(x) < 0.001 && fabs(z) < 0.001 ) return 0;
+    if( fabs(x) < 0.001 && fabs(z) < 0.001 )
+        return 0;
     *heading = SailingNavigation_Heading(x, z);
     return 1;
 }
 
 static void
-app_sailing_menu_context(struct App* app, struct RS_MinimenuBuildCtx* ctx,
-                         int mouse_x, int mouse_y)
+app_sailing_menu_context(
+    struct App* app,
+    struct RS_MinimenuBuildCtx* ctx,
+    int mouse_x,
+    int mouse_y)
 {
     ctx->sailing_navigating = app_sailing_can_steer(app) != 0;
     /* With crew at the helm the captain is free to walk and work on deck.
      * Only open-water/root picks become bearings; a held player helm keeps
      * the native all-directions selector. */
     if( ctx->sailing_navigating && !app_sailing_at_helm(app) && ctx->world_pickset )
-        for( int i=0; i<ctx->world_pickset->count; ++i )
-            if( ctx->world_pickset->items[i].type==WORLD_PICK_TERRAIN &&
-                ctx->world_pickset->items[i].view_id==app->aboard_view )
-                ctx->sailing_navigating=false;
-    ctx->sailing_heading_valid = ctx->sailing_navigating &&
+        for( int i = 0; i < ctx->world_pickset->count; ++i )
+            if( ctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN &&
+                ctx->world_pickset->items[i].view_id == app->aboard_view )
+                ctx->sailing_navigating = false;
+    ctx->sailing_heading_valid =
+        ctx->sailing_navigating &&
         app_sailing_heading_at(app, mouse_x, mouse_y, &ctx->sailing_heading);
 }
 
 static int
-app_sailing_send_heading(struct App* app, int heading)
+app_sailing_send_heading(
+    struct App* app,
+    int heading)
 {
-    if( !app_sailing_can_steer(app) || !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
-    APP_NET_SEND(app, net_out_set_heading(
-        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
+    if( !app_sailing_can_steer(app) || !app->net || app->net->state != TORIRS_NET_GAME )
+        return 0;
+    APP_NET_SEND(
+        app,
+        net_out_set_heading(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
     app->sailing_selected_heading = heading;
     app->sailing_selected_until = app->logic_cycle + 30;
     app->need_redraw = 1;
@@ -1283,36 +1309,45 @@ app_sailing_send_heading(struct App* app, int heading)
  * perspective, terrain occlusion, and GPU depth. They have no interaction row.
  * Statics.method8694 places each four or more tiles along its chosen bearing. */
 static void
-app_sailing_register_arrows(struct App* app, struct World* world)
+app_sailing_register_arrows(
+    struct App* app,
+    struct World* world)
 {
-    if( world != app->world || !app_sailing_can_steer(app) ) return;
+    if( world != app->world || !app_sailing_can_steer(app) )
+        return;
     struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
-    if( vessel->parent_view_id != WORLDVIEW_ROOT ) return;
+    if( vessel->parent_view_id != WORLDVIEW_ROOT )
+        return;
     int hover = -1;
-    if( app->world_mouse_in_viewport && !app->pointer_absent &&
-        !app->interact.minimenu.visible &&
+    if( app->world_mouse_in_viewport && !app->pointer_absent && !app->interact.minimenu.visible &&
         !strcmp(app->host.clientop.mouseover_op, "Set heading") )
         app_sailing_heading_at(app, app->world_mouse_x, app->world_mouse_y, &hover);
-    int selected = app->logic_cycle < app->sailing_selected_until
-                       ? app->sailing_selected_heading : -1;
+    int selected =
+        app->logic_cycle < app->sailing_selected_until ? app->sailing_selected_heading : -1;
     int scale = app->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
                     ? toridraw_projection_scale_from_fov(app->world_camera.fov_rpi2048)
                     : app->world_camera.projection_scale;
-    if( scale <= 0 ) scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    if( scale <= 0 )
+        scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     int distance = app->world_emit_desc.h > 0
-                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h) : 512;
-    if( distance < 512 ) distance = 512;
+                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h)
+                       : 512;
+    if( distance < 512 )
+        distance = 512;
     for( int i = 0; i < 2; ++i )
     {
         int heading = i == 0 ? hover : selected;
-        if( heading < 0 || (i == 0 && heading == selected) ) continue;
+        if( heading < 0 || (i == 0 && heading == selected) )
+            continue;
         int model_id = app->sailing_arrow_model[i];
-        if( model_id < 0 ) continue;
+        if( model_id < 0 )
+            continue;
         if( !CacheProvider_ModelHas(app->provider, model_id) )
         {
             if( !app->sailing_arrow_loading[i] )
             {
-                ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+                ToriRS_TaskQueue_Add(
+                    app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
                 app->sailing_arrow_loading[i] = 1;
             }
             continue;
@@ -1339,10 +1374,18 @@ app_sailing_register_arrows(struct App* app, struct World* world)
         int z = vessel->z - world->_base_tile_z * 128 -
                 (int)((int64_t)ToriDraw_Cos(angle) * distance / 65536);
         int gx = x >> 7, gz = z >> 7;
-        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size ) continue;
+        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size )
+            continue;
         ToriDraw_SceneElementSetPosition(app->scene, element, x, vessel->y - 8, z, angle);
-        painter_add_normal_scenery(world->painter, gx, gz,
-            World_LocPaintLevel(world, gx, gz, vessel->parent_level), element, 1, 1, 0);
+        painter_add_normal_scenery(
+            world->painter,
+            gx,
+            gz,
+            World_LocPaintLevel(world, gx, gz, vessel->parent_level),
+            element,
+            1,
+            1,
+            0);
     }
 }
 
@@ -1749,7 +1792,8 @@ app_worldmap_build_tiles(
             {
                 int dx, dy;
                 RS_WorldMap_DisplayPosition(map, &dx, &dy);
-                TORIRS_ERR("worldmap FORCE_MAP id=%d name=%s display=%d,%d "
+                TORIRS_ERR(
+                    "worldmap FORCE_MAP id=%d name=%s display=%d,%d "
                     "regions x=%d..%d y=%d..%d sources=%d sections=%d zoom=%d\n",
                     area->id,
                     area->internal_name ? area->internal_name : "?",
@@ -1999,8 +2043,8 @@ app_worldmap_build_tiles(
         /* Plane 0: the hint packet carries no plane, and the world map surface
          * is composited from one anyway. */
         if( app->worldmap_tile_count < capacity &&
-            ToriRS_WorldMapArea_Position(area, 0, app->hint_arrow.target, app->hint_arrow.tile_z,
-                                         &map_x, &map_y) )
+            ToriRS_WorldMapArea_Position(
+                area, 0, app->hint_arrow.target, app->hint_arrow.tile_z, &map_x, &map_y) )
         {
             int const flash_scene = app_worldmap_flash_marker_scene(app);
             int const x = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X;
@@ -2008,8 +2052,7 @@ app_worldmap_build_tiles(
 
             if( flash_scene > 0 && x > app->worldmap_box_x - 32 &&
                 x < app->worldmap_box_x + app->worldmap_box_w + 32 &&
-                y > app->worldmap_box_y - 32 &&
-                y < app->worldmap_box_y + app->worldmap_box_h + 32 )
+                y > app->worldmap_box_y - 32 && y < app->worldmap_box_y + app->worldmap_box_h + 32 )
             {
                 /*
                  * The synthesised flash disc, not one of `worldmap_marker_0..8`.
@@ -2020,8 +2063,7 @@ app_worldmap_build_tiles(
                  * "look here" (see `app_worldmap_flash_marker_scene`), and the
                  * cache names no hint-marker asset to prefer over it.
                  */
-                struct UITreeWorldMapTile* tile =
-                    &app->worldmap_tiles[app->worldmap_tile_count++];
+                struct UITreeWorldMapTile* tile = &app->worldmap_tiles[app->worldmap_tile_count++];
 
                 tile->scene_id = flash_scene;
                 tile->atlas_index = 0;
@@ -2046,7 +2088,8 @@ app_worldmap_build_tiles(
              task && queued < 100000;
              task = task->next )
             queued++;
-        TORIRS_ERR("worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
+        TORIRS_ERR(
+            "worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
             "regions x=%d..%d y=%d..%d blits=%d queued_tasks=%d\n",
             display_x,
             display_y,
@@ -2259,7 +2302,8 @@ app_worldmap_click(
         return;
     ToriRS_WorldMapUnpackCoord(source, &plane, &abs_x, &abs_z);
     if( torirs_env_net_debug() )
-        TORIRS_LOG("worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
+        TORIRS_LOG(
+            "worldmap_click: screen=%d,%d display=%d,%d -> %d,%d,%d\n",
             mouse_x,
             mouse_y,
             map_x,
@@ -2485,8 +2529,7 @@ App_MinimapBuildDots(
                     ToriRS_TaskQueue_Add(app->runner.queue, task);
                 continue;
             }
-            scene_id =
-                UITreeSceneBridge_EnsureSprite(&app->bridge, wev->config->minimap_sprite_id);
+            scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, wev->config->minimap_sprite_id);
             if( scene_id <= 0 )
                 continue;
             {
@@ -2505,8 +2548,7 @@ App_MinimapBuildDots(
                  * have swallowed it. */
                 if( app->minimap_dot_count > before )
                     app->minimap_dots[app->minimap_dot_count - 1].rotate =
-                        (ToriDraw_NormalizeAngle(app->world_camera.yaw) - wev->angle +
-                         1024) &
+                        (ToriDraw_NormalizeAngle(app->world_camera.yaw) - wev->angle + 1024) &
                         0x7ff;
             }
         }
@@ -2585,8 +2627,7 @@ App_MinimapBuildDots(
              * `interactable=no` and says nothing at all about opcode 93, so
              * the cache was right and the gate was half of one.
              */
-            if( !npc || npc->multinpc_hidden || !npc->minimap_visible ||
-                !npc->interactable )
+            if( !npc || npc->multinpc_hidden || !npc->minimap_visible || !npc->interactable )
                 continue;
             /* An aboard actor's draw position is deck-local (wire homing) —
              * push it out through the hull before differencing against the
@@ -2793,7 +2834,8 @@ app_world_project_actor(
     wev = Wevs_Get(&app->wevs, placement->view_id);
     /* Model population and its overlay have the same visibility contract:
      * flattened/skipped passengers must not leave floating names or bars. */
-    if( wev->flattened || !wev->render_visible ) return 0;
+    if( wev->flattened || !wev->render_visible )
+        return 0;
     if( wev->parent_view_id != WORLDVIEW_ROOT )
         return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
     view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
@@ -2811,8 +2853,7 @@ app_world_project_actor(
         deck_level = app_wev_deck_level(app, placement->view_id);
     if( deck_level >= COLLISION_LEVELS )
         deck_level = COLLISION_LEVELS - 1;
-    ground_y =
-        wev->y + wev->bob_y + app_world_height_in(view->world, fine_x, fine_z, deck_level);
+    ground_y = wev->y + wev->bob_y + app_world_height_in(view->world, fine_x, fine_z, deck_level);
     return app_world_project_at(
         app, root_fx, root_fz, ground_y - height_above_ground, out_x, out_y);
 }
@@ -3049,8 +3090,14 @@ app_overlay_build_chat(
     if( chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
         return;
     if( !app_world_project_actor(
-            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z, height,
-            &screen_x, &screen_y) )
+            app,
+            placement,
+            actor_level,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height,
+            &screen_x,
+            &screen_y) )
         return;
 
     struct UITreeEntityOverlay shadow = {
@@ -3096,8 +3143,14 @@ app_overlay_build_player_headicons(
     if( headicons == 0 || headicons_scene <= 0 )
         return;
     if( !app_world_project_actor(
-            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
-            height + 15, &screen_x, &screen_y) )
+            app,
+            placement,
+            actor_level,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
         return;
 
     for( int icon = 0; icon < 31; icon++ )
@@ -3317,8 +3370,14 @@ app_overlay_build_npc_headicon(
         return;
     height = app_entity_model_height(app, element_id);
     if( !app_world_project_actor(
-            app, placement, -1, (int)draw_position->x, (int)draw_position->z, height + 15,
-            &screen_x, &screen_y) )
+            app,
+            placement,
+            -1,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
         return;
 
     {
@@ -3824,8 +3883,7 @@ app_overlay_outline_element_model(
     int element_id,
     uint32_t color)
 {
-    return app_overlay_outline_element_model_trans(
-        app, element_id, color, APP_OUTLINE_FILL_TRANS);
+    return app_overlay_outline_element_model_trans(app, element_id, color, APP_OUTLINE_FILL_TRANS);
 }
 
 static void
@@ -3914,7 +3972,8 @@ app_overlay_outline_scenery(
          * projection dropped some (behind the camera), and hull < corners is
          * the interior points being discarded, which is the point. */
         if( getenv("TORIRS_HULL_DEBUG") )
-            TORIRS_LOG("hull: loc %d footprint %dx%d corners=%d hull=%d\n",
+            TORIRS_LOG(
+                "hull: loc %d footprint %dx%d corners=%d hull=%d\n",
                 scenery->loc_id,
                 size_x,
                 size_z,
@@ -3989,8 +4048,7 @@ app_overlay_build_hover_footprint(struct App* app)
              * showing different things would make the by-id form useless for
              * checking the hover form — which is what it is for, since a
              * headless run has no cursor to hover with. */
-            app_overlay_outline_element_model(
-                app, scenery->element_id, APP_OUTLINE_COLOR_HOVER);
+            app_overlay_outline_element_model(app, scenery->element_id, APP_OUTLINE_COLOR_HOVER);
             app_overlay_outline_scenery(app, scenery);
         }
     }
@@ -4050,7 +4108,10 @@ app_overlay_build_editor_selection(struct App* app)
         if( !scenery )
         {
             int const idx = World_SceneryFindAt(
-                app->world, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level,
+                app->world,
+                panel->sel_scene_x,
+                panel->sel_scene_z,
+                panel->sel_level,
                 panel->sel_shape);
             if( idx >= 0 )
                 scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
@@ -4073,7 +4134,12 @@ app_overlay_build_editor_selection(struct App* app)
     {
         int const base_x = panel->sel_scene_x;
         int const base_z = panel->sel_scene_z;
-        static int const corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+        static int const corner[4][2] = {
+            { 0, 0 },
+            { 1, 0 },
+            { 1, 1 },
+            { 0, 1 }
+        };
         int px[4];
         int py[4];
         int hull_x[4];
@@ -4088,8 +4154,12 @@ app_overlay_build_editor_selection(struct App* app)
             int screen_y;
 
             if( !app_world_project_at(
-                    app, (base_x + corner[c][0]) * 128, (base_z + corner[c][1]) * 128, plane_y,
-                    &screen_x, &screen_y) )
+                    app,
+                    (base_x + corner[c][0]) * 128,
+                    (base_z + corner[c][1]) * 128,
+                    plane_y,
+                    &screen_x,
+                    &screen_y) )
                 continue;
             px[count] = screen_x;
             py[count] = screen_y;
@@ -4100,7 +4170,12 @@ app_overlay_build_editor_selection(struct App* app)
 
         hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
         app_overlay_push_polygon_filled(
-            app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OUTLINE_FILL_TRANS);
+            app,
+            hull_x,
+            hull_y,
+            hull_size,
+            APP_OUTLINE_COLOR_EDITOR_SELECT,
+            APP_OUTLINE_FILL_TRANS);
         app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT);
     }
 }
@@ -4166,7 +4241,11 @@ app_iface_com(
  * by exactly one function in this file.
  */
 static int
-app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
+app_minimenu_run_option(
+    struct App* app,
+    int option_index,
+    int click_x,
+    int click_y);
 
 static void
 app_minimenu_stamp_node_identities(
@@ -4383,8 +4462,14 @@ app_overlay_build_entity(
      */
     if( combat->healthbar_type >= 0 && combat->healthbar_end_cycle > cycle &&
         app_world_project_actor(
-            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
-            height + 15, &screen_x, &screen_y) )
+            app,
+            placement,
+            actor_level,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
     {
         app_overlay_build_healthbar(app, combat, screen_x, screen_y);
     }
@@ -4392,8 +4477,14 @@ app_overlay_build_entity(
         combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
         combat->total_health > 0 &&
         app_world_project_actor(
-            app, placement, actor_level, (int)draw_position->x, (int)draw_position->z,
-            height + 15, &screen_x, &screen_y) )
+            app,
+            placement,
+            actor_level,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
     {
         int bar_width = RS_HEALTHBAR_DEFAULT_WIDTH;
         int filled = (combat->health * bar_width) / combat->total_health;
@@ -4630,7 +4721,11 @@ app_client_trigger_queue(
 /** The clientscript bound to `trigger` for this subject, or -1. Narrowest form
  *  first, exactly as `ClientScript::Get` walks them. */
 static int
-app_client_trigger_script(struct App* app, int trigger, int subject, int category)
+app_client_trigger_script(
+    struct App* app,
+    int trigger,
+    int subject,
+    int category)
 {
     int id;
 
@@ -4660,7 +4755,8 @@ app_client_trigger_debug(
 {
     if( !getenv("TORIRS_TRIGGER_DEBUG") )
         return;
-    TORIRS_LOG("trigger: %s %d (subject=%d category=%d) -> script %d\n",
+    TORIRS_LOG(
+        "trigger: %s %d (subject=%d category=%d) -> script %d\n",
         what,
         trigger,
         subject,
@@ -4672,20 +4768,23 @@ app_client_trigger_debug(
  *  server-published one. Split out because most triggers have no coord to
  *  print and the extra field would be -1 noise on every npc. */
 static void
-app_client_trigger_debug_coord(char const* what, int trigger, int subject, int coord)
+app_client_trigger_debug_coord(
+    char const* what,
+    int trigger,
+    int subject,
+    int coord)
 {
     if( !getenv("TORIRS_TRIGGER_DEBUG") )
         return;
-    TORIRS_LOG("trigger: %s %d subject=%d coord=%d\n",
-        what,
-        trigger,
-        subject,
-        coord);
+    TORIRS_LOG("trigger: %s %d subject=%d coord=%d\n", what, trigger, subject, coord);
 }
 
 /** Fire an npc trigger with the npc as the active subject. */
 static void
-app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger)
+app_client_trigger_npc(
+    struct App* app,
+    struct WorldEntity_NPC* npc,
+    int trigger)
 {
     struct ToriRS_Npctype* type;
     struct RS_ClientOpContext ctx;
@@ -4697,10 +4796,8 @@ app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger
     if( !app->world )
         return;
     type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
-    script_id =
-        app_client_trigger_script(app, trigger, npc->npc_id, type ? type->category : 0);
-    app_client_trigger_debug(
-        "npc", trigger, npc->npc_id, type ? type->category : 0, script_id);
+    script_id = app_client_trigger_script(app, trigger, npc->npc_id, type ? type->category : 0);
+    app_client_trigger_debug("npc", trigger, npc->npc_id, type ? type->category : 0, script_id);
     if( script_id < 0 )
         return;
 
@@ -4728,7 +4825,10 @@ app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger
 
 /** Fire a loc trigger with the loc as the active subject. */
 static void
-app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int trigger)
+app_client_trigger_loc(
+    struct App* app,
+    struct WorldEntity_Scenery* loc,
+    int trigger)
 {
     struct ToriRS_Location* type;
     struct RS_ClientOpContext ctx;
@@ -4741,8 +4841,7 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
         return;
     type = CacheProvider_LocationGet(app->provider, loc->loc_id);
     script_id = app_client_trigger_script(app, trigger, loc->loc_id, type ? type->category : 0);
-    app_client_trigger_debug(
-        "loc", trigger, loc->loc_id, type ? type->category : 0, script_id);
+    app_client_trigger_debug("loc", trigger, loc->loc_id, type ? type->category : 0, script_id);
     if( script_id < 0 )
         return;
 
@@ -4769,7 +4868,9 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
  * anchor pass reaped them all a frame later. From here the npc is finished.
  */
 void
-App_ClientTriggerNpcAdd(struct App* app, int npc_pool_index)
+App_ClientTriggerNpcAdd(
+    struct App* app,
+    int npc_pool_index)
 {
     struct WorldEntity_NPC* npc;
 
@@ -4940,7 +5041,11 @@ app_cs2_loc_at_coord(
  * the two are the same number for every player the client can see.
  */
 static int
-app_cs2_player_route(void* user, int player_uid, int index, int* out_coord)
+app_cs2_player_route(
+    void* user,
+    int player_uid,
+    int index,
+    int* out_coord)
 {
     struct App* app = (struct App*)user;
     struct WorldEntity_Player* player;
@@ -4982,7 +5087,9 @@ app_cs2_player_route(void* user, int player_uid, int index, int* out_coord)
  * MINIMENU_FINDPLAYER first) overwrite it before reading.
  */
 static void
-app_cs2_set_active_player(struct App* app, int pid)
+app_cs2_set_active_player(
+    struct App* app,
+    int pid)
 {
     struct RS_ClientOpContext ctx;
     struct WorldEntity_Player* player;
@@ -5011,7 +5118,9 @@ app_cs2_set_active_player(struct App* app, int pid)
 }
 
 static void
-app_cs2_set_active_tile(struct App* app, int coord)
+app_cs2_set_active_tile(
+    struct App* app,
+    int coord)
 {
     struct RS_ClientOpContext ctx;
 
@@ -5060,7 +5169,9 @@ app_cs2_local_route_signature(struct App* app)
 
 /* COORD_INSCENE (6951). */
 static int
-app_cs2_coord_in_scene(void* user, int coord)
+app_cs2_coord_in_scene(
+    void* user,
+    int coord)
 {
     struct App* app = (struct App*)user;
     int x;
@@ -5087,7 +5198,11 @@ app_cs2_coord_in_scene(void* user, int coord)
  * script's own run-merge produces from the reference's list anyway.
  */
 static int
-app_cs2_objs_on_coord(void* user, int coord, int index, struct RS_CS2GroundObj* out)
+app_cs2_objs_on_coord(
+    void* user,
+    int coord,
+    int index,
+    struct RS_CS2GroundObj* out)
 {
     struct App* app = (struct App*)user;
     struct World* world;
@@ -5152,8 +5267,8 @@ app_ground_items_mark(
         return;
     if( app->ground_items_refresh_all )
         return;
-    coord = RS_CLIENTOP_COORD(
-        level & 3, world->_base_tile_x + scene_x, world->_base_tile_z + scene_z);
+    coord =
+        RS_CLIENTOP_COORD(level & 3, world->_base_tile_x + scene_x, world->_base_tile_z + scene_z);
     for( int i = 0; i < app->ground_items_dirty_count; i++ )
     {
         if( app->ground_items_dirty[i] == coord )
@@ -5238,8 +5353,7 @@ app_ground_items_settings_moved(struct App* app)
             continue;
         if( app->ground_items_settings_varp[i] < 0 )
         {
-            app->ground_items_settings_varp[i] =
-                VarPManager_VarbitBaseVar(app->host.varps, varbit);
+            app->ground_items_settings_varp[i] = VarPManager_VarbitBaseVar(app->host.varps, varbit);
             if( app->ground_items_settings_varp[i] < 0 )
                 continue;
             /* Seed rather than fire: the value a carrier comes up with is not
@@ -5278,11 +5392,14 @@ app_ground_items_tick(struct App* app)
         app->ground_items_refresh_all = 1;
     /* Aux lists 3/4 are the native Ignore/Highlight inputs. A time-window
      * timer notification can be missed; their revisions cannot. */
-    for( int i=0;i<2;++i )
+    for( int i = 0; i < 2; ++i )
     {
-        uint64_t revision=LootStore_AuxRevision(&app->loot,3+i);
-        if( revision!=app->ground_items_aux_seen[i] )
-        { app->ground_items_aux_seen[i]=revision;app->ground_items_refresh_all=1; }
+        uint64_t revision = LootStore_AuxRevision(&app->loot, 3 + i);
+        if( revision != app->ground_items_aux_seen[i] )
+        {
+            app->ground_items_aux_seen[i] = revision;
+            app->ground_items_refresh_all = 1;
+        }
     }
     if( app->ground_items_refresh_all )
     {
@@ -5303,7 +5420,9 @@ app_ground_items_tick(struct App* app)
         if( getenv("TORIRS_GROUND_ITEMS_DEBUG") )
         {
             struct RS_CS2GroundObj entry;
-            fprintf(stderr, "ground_items: tile %d,%d level %d -> %d obj(s), script %d\n",
+            fprintf(
+                stderr,
+                "ground_items: tile %d,%d level %d -> %d obj(s), script %d\n",
                 (coord >> 14) & 0x3fff,
                 coord & 0x3fff,
                 (coord >> 28) & 3,
@@ -5312,8 +5431,7 @@ app_ground_items_tick(struct App* app)
         }
         app_cs2_set_active_tile(app, coord);
         RS_CS2_RunScript(
-            &app->host, &app->runner, app->host.script_ground_items_overlay,
-            NULL, 0, 0, NULL, 0);
+            &app->host, &app->runner, app->host.script_ground_items_overlay, NULL, 0, 0, NULL, 0);
     }
     app->ground_items_dirty_count = 0;
 }
@@ -5344,7 +5462,9 @@ struct AppOverlayPos
 /** Where one overlay's subject is this frame, or `ok = false` when the subject
  *  has gone -- which is the signal to reap the overlay, not to hide it. */
 static struct AppOverlayPos
-app_overlay_anchor(struct App* app, struct RS_Overlay const* item)
+app_overlay_anchor(
+    struct App* app,
+    struct RS_Overlay const* item)
 {
     struct AppOverlayPos out;
     int fine_x = 0;
@@ -5399,13 +5519,13 @@ app_overlay_anchor(struct App* app, struct RS_Overlay const* item)
         out.subject_live = true;
     }
 
-    int32_t overlay_node=app->tree ? UITree_FindByComponentId(app->tree,item->component_id) : -1;
-    int lift=UITree_WidgetProjectionHeight(app->tree,overlay_node);
-    if( !app_world_project(app, fine_x, fine_z, height+lift, &out.top_x, &out.top_y) )
+    int32_t overlay_node = app->tree ? UITree_FindByComponentId(app->tree, item->component_id) : -1;
+    int lift = UITree_WidgetProjectionHeight(app->tree, overlay_node);
+    if( !app_world_project(app, fine_x, fine_z, height + lift, &out.top_x, &out.top_y) )
         return out;
-    if( !app_world_project(app, fine_x, fine_z, height / 2+lift, &out.mid_x, &out.mid_y) )
+    if( !app_world_project(app, fine_x, fine_z, height / 2 + lift, &out.mid_x, &out.mid_y) )
         return out;
-    if( !app_world_project(app, fine_x, fine_z, -15+lift, &out.foot_x, &out.foot_y) )
+    if( !app_world_project(app, fine_x, fine_z, -15 + lift, &out.foot_x, &out.foot_y) )
         return out;
     out.ok = true;
     return out;
@@ -5477,7 +5597,8 @@ app_entity_overlay_layout(struct App* app)
              * and the script that made the overlay gets no event to tell it so.
              */
             if( torirs_env_overlay_script_debug() )
-                TORIRS_LOG("overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
+                TORIRS_LOG(
+                    "overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
                     i,
                     item->anchor,
                     item->uid,
@@ -5507,8 +5628,8 @@ app_entity_overlay_layout(struct App* app)
         (void)UITree_SetProjectionHiddenAt(app->tree, node, 0);
 
         struct UITreeComponent* c = &app->tree->components[node];
-        struct UITreeElemPosition allocation=c->position;
-        UITree_WidgetPositionOverride(app->tree,node,&allocation);
+        struct UITreeElemPosition allocation = c->position;
+        UITree_WidgetPositionOverride(app->tree, node, &allocation);
         int const w = allocation.width;
         int const h = allocation.height;
         int x = anchor.mid_x - w / 2;
@@ -5544,7 +5665,9 @@ app_entity_overlay_layout(struct App* app)
             int kids = 0;
             for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
                 kids++;
-            TORIRS_LOG("overlay: #%d anchor=%d slot=%d band=%d com=0x%08x box=%d,%d %dx%d kids=%d hide=%d\n",
+            TORIRS_LOG(
+                "overlay: #%d anchor=%d slot=%d band=%d com=0x%08x box=%d,%d %dx%d kids=%d "
+                "hide=%d\n",
                 i,
                 item->anchor,
                 item->slot,
@@ -5675,8 +5798,13 @@ app_build_entity_overlays(
             hitmarks_scene,
             -1);
         app_overlay_build_player_headicons(
-            app, player->element_id, player->headicon, &player->draw_position,
-            &player->view_placement, player->grid_position.level, headicons_scene);
+            app,
+            player->element_id,
+            player->headicon,
+            &player->draw_position,
+            &player->view_placement,
+            player->grid_position.level,
+            headicons_scene);
     }
 
     /* One arrow, after every entity, so it layers over the health bars and
@@ -5697,8 +5825,13 @@ app_build_entity_overlays(
             if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
                 continue;
             app_overlay_build_chat(
-                app, npc->element_id, &npc->chat, &npc->draw_position, &npc->view_placement,
-                -1, chat_font);
+                app,
+                npc->element_id,
+                &npc->chat,
+                &npc->draw_position,
+                &npc->view_placement,
+                -1,
+                chat_font);
         }
 
         pool = &world->entities.player;
@@ -5709,8 +5842,13 @@ app_build_entity_overlays(
             if( !player || player->element_id < 0 )
                 continue;
             app_overlay_build_chat(
-                app, player->element_id, &player->chat, &player->draw_position,
-                &player->view_placement, player->grid_position.level, chat_font);
+                app,
+                player->element_id,
+                &player->chat,
+                &player->draw_position,
+                &player->view_placement,
+                player->grid_position.level,
+                chat_font);
         }
     }
 
@@ -5740,7 +5878,8 @@ app_build_entity_overlays(
      * reason a hit lands but nothing is drawn. */
     if( torirs_env_overlay_debug() && app->entity_overlay_count > 0 )
     {
-        TORIRS_LOG("overlay: %d items font=%d hitmarks=%d\n",
+        TORIRS_LOG(
+            "overlay: %d items font=%d hitmarks=%d\n",
             app->entity_overlay_count,
             font_id,
             hitmarks_scene);
@@ -5750,7 +5889,8 @@ app_build_entity_overlays(
             /* scene/clip/trans are printed because a SPRITE primitive carries
              * no w/h -- it blits at the sprite's own size -- so without them a
              * health bar's line says nothing about how wide it came out. */
-            TORIRS_LOG("  overlay[%d] kind=%d at %d,%d %dx%d scene=%d clip=%d,%d %dx%d "
+            TORIRS_LOG(
+                "  overlay[%d] kind=%d at %d,%d %dx%d scene=%d clip=%d,%d %dx%d "
                 "trans=%d \"%s\"\n",
                 i,
                 item->kind,
@@ -5845,7 +5985,9 @@ app_panel_overlay_to_chrome(
  * developer tool covering a user's window.
  */
 static struct ToriRSChromePrim const*
-app_chrome_merged_prims(struct App* app, int* out_count)
+app_chrome_merged_prims(
+    struct App* app,
+    int* out_count)
 {
     int dbg_count = 0;
     int win_count = 0;
@@ -5879,16 +6021,13 @@ app_chrome_merged_prims(struct App* app, int* out_count)
         memcpy(app->chrome_merged, dbg, (size_t)n * sizeof(*dbg));
         if( n < APP_CHROME_PRIMS_MAX )
         {
-            int const take = win_count < APP_CHROME_PRIMS_MAX - n
-                                 ? win_count
-                                 : APP_CHROME_PRIMS_MAX - n;
-            memcpy(
-                &app->chrome_merged[n], win, (size_t)take * sizeof(*win));
+            int const take =
+                win_count < APP_CHROME_PRIMS_MAX - n ? win_count : APP_CHROME_PRIMS_MAX - n;
+            memcpy(&app->chrome_merged[n], win, (size_t)take * sizeof(*win));
             n += take;
         }
         for( int i = 0; i < app->panel_overlay_count && n < APP_CHROME_PRIMS_MAX; i++ )
-            if( app_panel_overlay_to_chrome(
-                    app, i, &app->chrome_merged[n]) )
+            if( app_panel_overlay_to_chrome(app, i, &app->chrome_merged[n]) )
                 n++;
         app->chrome_merged_dbg = app->dbg_ui.build_serial;
         app->chrome_merged_win = app->plugin_ui.build_serial;
@@ -6085,16 +6224,14 @@ app_title_flames_tick(
 
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
-        size_t bytes =
-            (size_t)app->flames->width * app->flames->height * sizeof(uint32_t);
+        size_t bytes = (size_t)app->flames->width * app->flames->height * sizeof(uint32_t);
         uint32_t* copy = malloc(bytes);
         struct ToriDraw_Sprite* sprite;
         struct ToriDraw_Sprite** sprites;
 
         assert(copy);
         memcpy(copy, TitleFlames_Pixels(app->flames, (enum TitleFlameSide)side), bytes);
-        sprite = ToriDraw_SpriteNewFromArgbOwned(
-            copy, app->flames->width, app->flames->height);
+        sprite = ToriDraw_SpriteNewFromArgbOwned(copy, app->flames->width, app->flames->height);
         if( !sprite )
         {
             free(copy);
@@ -6173,8 +6310,7 @@ app_title_sync_groups(struct App* app)
     {
         int32_t idx = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_buttons");
         if( idx >= 0 )
-            UITree_SetScreenHiddenAt(
-                app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
+            UITree_SetScreenHiddenAt(app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
     }
 }
 
@@ -6190,8 +6326,7 @@ app_title_state_changed(struct App* app)
 {
     assert(app);
     app_title_sync_groups(app);
-    UITree_HostInputsChanged(
-        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
     app->need_redraw = 1;
 }
 
@@ -6258,7 +6393,6 @@ app_title_progress(
     if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
         app_title_state_changed(app);
 }
-
 
 /*
  * Compose one credential line: prefix, the value (masked if the widget asked),
@@ -6363,11 +6497,10 @@ app_host_request(
          * half. -1 from the profile means "unstated", and the defaults here
          * are the reference client's convention: yellow walks, red interacts.
          */
-        int const style = req->u.get_inkwell.style >= 0 ? req->u.get_inkwell.style
-                                                        : TORIRS_INKWELL_SPLASH;
-        int const walk = req->u.get_inkwell.walk_color >= 0
-                             ? req->u.get_inkwell.walk_color
-                             : TORIRS_INKWELL_YELLOW;
+        int const style =
+            req->u.get_inkwell.style >= 0 ? req->u.get_inkwell.style : TORIRS_INKWELL_SPLASH;
+        int const walk = req->u.get_inkwell.walk_color >= 0 ? req->u.get_inkwell.walk_color
+                                                            : TORIRS_INKWELL_YELLOW;
         int const interact = req->u.get_inkwell.interact_color >= 0
                                  ? req->u.get_inkwell.interact_color
                                  : TORIRS_INKWELL_RED;
@@ -6531,8 +6664,7 @@ app_host_request(
         *req->u.get_title_flames.out_scene_id = side == TORIRS_FLAME_LEFT
                                                     ? UITREE_SCENE_TITLE_FLAME_LEFT_ID
                                                     : UITREE_SCENE_TITLE_FLAME_RIGHT_ID;
-        return ToriDraw_SceneSpriteHas(
-            app->scene, *req->u.get_title_flames.out_scene_id);
+        return ToriDraw_SceneSpriteHas(app->scene, *req->u.get_title_flames.out_scene_id);
     }
     case UITREE_HOST_TITLE_ACTION:
     {
@@ -6546,8 +6678,7 @@ app_host_request(
          * it back. Forgetting what was last pushed makes the next take push
          * the current answer again; on a desktop that re-push is a no-op.
          */
-        if( action == RS_TITLE_ACTION_FOCUS_USERNAME ||
-            action == RS_TITLE_ACTION_FOCUS_PASSWORD )
+        if( action == RS_TITLE_ACTION_FOCUS_USERNAME || action == RS_TITLE_ACTION_FOCUS_PASSWORD )
             app->text_input_effective = -1;
         if( RS_Title_HandleAction(&app->title, action) )
         {
@@ -6623,8 +6754,7 @@ app_host_request(
     case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
         /* logic_cycle is the reference loopCycle, and the 20/10 split is its
          * own: visible for ten client ticks, hidden for ten. */
-        return RS_UISlots_TabFlashHidden(
-            &app->slots, req->u.tab_enabled.tabno, app->logic_cycle);
+        return RS_UISlots_TabFlashHidden(&app->slots, req->u.tab_enabled.tabno, app->logic_cycle);
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
         if( req->u.chat_filter.filter < 0 || req->u.chat_filter.filter >= RS_UI_CHAT_FILTER_COUNT )
             return 0;
@@ -6859,17 +6989,17 @@ app_ui_host_publish_inputs(struct App* app)
         app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
     if( local )
     {
-        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
-            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
-        signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
-            signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
+        signature[UITREE_HOST_INPUT_CAMERA] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
+        signature[UITREE_HOST_INPUT_CAMERA] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
     }
 
     /* POINTER: hash only visible/observable phases. Inactive cross/menu/hover
      * scratch may move without changing a descriptor and should not defeat a
      * quiet retained frame. */
-    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
-        signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
     if( UICross_IsActive(&app->cross) )
     {
         signature[UITREE_HOST_INPUT_POINTER] =
@@ -6892,8 +7022,8 @@ app_ui_host_publish_inputs(struct App* app)
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
         signature[UITREE_HOST_INPUT_POINTER] =
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
-        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
-            signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
         signature[UITREE_HOST_INPUT_POINTER] =
             app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->font_id);
         signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
@@ -6911,9 +7041,7 @@ app_ui_host_publish_inputs(struct App* app)
             signature[UITREE_HOST_INPUT_POINTER] =
                 app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], option->text);
             signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
-                signature[UITREE_HOST_INPUT_POINTER],
-                &option->action,
-                sizeof(option->action));
+                signature[UITREE_HOST_INPUT_POINTER], &option->action, sizeof(option->action));
             signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
                 signature[UITREE_HOST_INPUT_POINTER],
                 &option->action_index,
@@ -6922,16 +7050,16 @@ app_ui_host_publish_inputs(struct App* app)
                 signature[UITREE_HOST_INPUT_POINTER], &option->pick, sizeof(option->pick));
         }
     }
-    signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
-        signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
+    signature[UITREE_HOST_INPUT_POINTER] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
     if( app->hover_text.visible )
     {
         signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
             signature[UITREE_HOST_INPUT_POINTER],
             &app->hover_text.x,
             sizeof(app->hover_text.x) * 5);
-        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_string(
-            signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
+        signature[UITREE_HOST_INPUT_POINTER] =
+            app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
     }
     ghosting = app_inv_drag_ghosting(app);
     signature[UITREE_HOST_INPUT_POINTER] =
@@ -6956,8 +7084,8 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->slots, sizeof(app->slots));
     signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->chat_view, sizeof(app->chat_view));
-    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_int(
-        signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
     if( app->if_event_count > 0 )
         signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
             signature[UITREE_HOST_INPUT_CLIENT_STATE],
@@ -6967,9 +7095,7 @@ app_ui_host_publish_inputs(struct App* app)
     /* INVENTORY: container contents publish through the InvManager callback;
      * selection and drag addressing live on App and need this small snapshot. */
     signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
-        signature[UITREE_HOST_INPUT_INVENTORY],
-        &app->invs.selection,
-        sizeof(app->invs.selection));
+        signature[UITREE_HOST_INPUT_INVENTORY], &app->invs.selection, sizeof(app->invs.selection));
     signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
         signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
     signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
@@ -7005,10 +7131,10 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_WORLD], app->world && app->world->load_complete);
     if( app->world && app->world->minimap )
     {
-        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
-            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
-        signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
-            signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
+        signature[UITREE_HOST_INPUT_WORLD] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
+        signature[UITREE_HOST_INPUT_WORLD] =
+            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
     }
 
     /* Hash visible animation phases, not raw clocks: an inactive cross and a
@@ -7018,8 +7144,8 @@ app_ui_host_publish_inputs(struct App* app)
     if( UICross_IsActive(&app->cross) )
         signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_ANIMATION], UICross_AtlasFrame(&app->cross));
-    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
-        signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
+    signature[UITREE_HOST_INPUT_ANIMATION] =
+        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
     if( app->reboot_timer != 0 )
         signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
             signature[UITREE_HOST_INPUT_ANIMATION],
@@ -7089,8 +7215,7 @@ app_inv_ui_host_change(
     struct App* app = (struct App*)userdata;
     (void)container_id;
 
-    UITree_HostInputsChanged(
-        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
+    UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
     app->need_redraw = 1;
 }
 
@@ -7437,7 +7562,8 @@ app_sync_textures(struct App* app)
             if( task )
                 ToriRS_TaskQueue_Add(app->runner.queue, task);
             if( app_tex_trace_enabled() )
-                TORIRS_ERR("tex_trace: want id=%d -> load task %s\n",
+                TORIRS_ERR(
+                    "tex_trace: want id=%d -> load task %s\n",
                     id,
                     task ? "queued" : "REFUSED (provider returned no task)");
         }
@@ -7451,9 +7577,8 @@ app_sync_textures(struct App* app)
     {
         int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
         if( app_tex_trace_enabled() )
-            TORIRS_LOG("tex_trace: immediate publish %d ready -> %d published\n",
-                ready_count,
-                published);
+            TORIRS_LOG(
+                "tex_trace: immediate publish %d ready -> %d published\n", ready_count, published);
         if( published )
             app->need_redraw = 1;
     }
@@ -7504,8 +7629,8 @@ app_sync_textures_poll(struct App* app)
         {
             app->bridge.texture_failed[id] = 1;
             if( app_tex_trace_enabled() )
-                TORIRS_ERR("tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n",
-                    id);
+                TORIRS_ERR(
+                    "tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n", id);
         }
         else
         {
@@ -7518,7 +7643,8 @@ app_sync_textures_poll(struct App* app)
     {
         int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
         if( app_tex_trace_enabled() )
-            TORIRS_LOG("tex_trace: publish %d ready -> %d published (%d still pending)\n",
+            TORIRS_LOG(
+                "tex_trace: publish %d ready -> %d published (%d still pending)\n",
                 ready_count,
                 published,
                 app->tex_pending_count);
@@ -7694,8 +7820,7 @@ Task_NpcMultiLoad_Run(
                     if( seqs[self->seq_i] >= 0 )
                         ToriRS_TaskQueue_AddJoined(
                             app->runner.queue,
-                            CreateTask_SequenceLoad(
-                                app->provider, app->scene, seqs[self->seq_i]),
+                            CreateTask_SequenceLoad(app->provider, app->scene, seqs[self->seq_i]),
                             &self->pending);
                 }
             }
@@ -7895,19 +8020,27 @@ app_loc_transform_depends_on_varp(
 }
 
 static void
-app_varp_refresh_loc_transforms(struct App* app, int varp_id)
+app_varp_refresh_loc_transforms(
+    struct App* app,
+    int varp_id)
 {
     assert(app);
-    if( !app->provider || varp_id < 0 ) return;
+    if( !app->provider || varp_id < 0 )
+        return;
     int previous_view = app->active_world;
     /* Each view has independent scene-local tile keys. In particular, (3,2)
      * on a raft must never retype (3,2) in the root or another boat. */
     for( int view = 0; view < WORLDVIEW_MAX; ++view )
     {
-        if( !WorldviewRegistry_IsLive(&app->worldviews, view) ) continue;
+        if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
+            continue;
         struct World* world = WorldviewRegistry_Get(&app->worldviews, view)->world;
-        if( !world || !world->load_complete ) continue;
-        enum { MAX_REFRESH = 256 };
+        if( !world || !world->load_complete )
+            continue;
+        enum
+        {
+            MAX_REFRESH = 256
+        };
         struct
         {
             int x, z, level, loc_id, shape, angle, op_flags;
@@ -7927,24 +8060,42 @@ app_varp_refresh_loc_transforms(struct App* app, int varp_id)
             for( int depth = 0; loc && depth < 16; ++depth )
             {
                 if( app_loc_transform_depends_on_varp(app, loc, varp_id) )
-                { depends = 1; break; }
-                if( loc->transform_count <= 0 || !loc->transforms ) break;
-                int next = VarPManager_ResolveTransform(&app->varps, loc->transforms,
-                    loc->transform_count, loc->transform_varbit, loc->transform_varp);
-                if( next < 0 || next == loc->id ) break;
+                {
+                    depends = 1;
+                    break;
+                }
+                if( loc->transform_count <= 0 || !loc->transforms )
+                    break;
+                int next = VarPManager_ResolveTransform(
+                    &app->varps,
+                    loc->transforms,
+                    loc->transform_count,
+                    loc->transform_varbit,
+                    loc->transform_varp);
+                if( next < 0 || next == loc->id )
+                    break;
                 loc = CacheProvider_LocationGet(app->provider, next);
             }
-            if( !depends ) continue;
+            if( !depends )
+                continue;
             int duplicate = 0;
             for( int j = 0; j < n; ++j )
                 if( pending[j].x == sc->grid_position.x && pending[j].z == sc->grid_position.z &&
                     pending[j].level == sc->grid_position.level && pending[j].shape == sc->shape )
-                { duplicate = 1; break; }
-            if( duplicate ) continue;
-            if( n == MAX_REFRESH ) break;
-            pending[n].x = sc->grid_position.x; pending[n].z = sc->grid_position.z;
-            pending[n].level = sc->grid_position.level; pending[n].loc_id = sc->loc_id;
-            pending[n].shape = sc->shape; pending[n].angle = sc->angle;
+                {
+                    duplicate = 1;
+                    break;
+                }
+            if( duplicate )
+                continue;
+            if( n == MAX_REFRESH )
+                break;
+            pending[n].x = sc->grid_position.x;
+            pending[n].z = sc->grid_position.z;
+            pending[n].level = sc->grid_position.level;
+            pending[n].loc_id = sc->loc_id;
+            pending[n].shape = sc->shape;
+            pending[n].angle = sc->angle;
             pending[n].op_flags = 0x1f;
             memset(pending[n].ops, 0, sizeof(pending[n].ops));
             for( int op = 0; op < 5; ++op )
@@ -7953,16 +8104,26 @@ app_varp_refresh_loc_transforms(struct App* app, int varp_id)
                     if( !(sc->placement_op_mask & (1 << op)) )
                         pending[n].op_flags &= ~(1 << op);
                     else
-                        snprintf(pending[n].ops[op], sizeof(pending[n].ops[op]), "%s",
-                                 sc->info->actions[op].name);
+                        snprintf(
+                            pending[n].ops[op],
+                            sizeof(pending[n].ops[op]),
+                            "%s",
+                            sc->info->actions[op].name);
                 }
             ++n;
         }
         app->active_world = view;
         for( int i = 0; i < n; ++i )
-            App_WorldLocChangeOps(app, pending[i].x, pending[i].z, pending[i].level,
-                pending[i].loc_id, pending[i].shape, pending[i].angle,
-                pending[i].op_flags, pending[i].ops);
+            App_WorldLocChangeOps(
+                app,
+                pending[i].x,
+                pending[i].z,
+                pending[i].level,
+                pending[i].loc_id,
+                pending[i].shape,
+                pending[i].angle,
+                pending[i].op_flags,
+                pending[i].ops);
     }
     app->active_world = previous_view;
 }
@@ -7979,8 +8140,7 @@ app_varp_change(
 {
     struct App* app = (struct App*)userdata;
 
-    UITree_HostInputsChanged(
-        &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
     app->need_redraw = 1;
     app_varp_refresh_loc_transforms(app, varp_id);
     app_varp_refresh_npc_transforms(app, varp_id);
@@ -8080,14 +8240,18 @@ app_provider_set_cache_profile(
 
     char quirks_buf[32];
     RSCache_QuirksName(profile.quirks, quirks_buf, (int)sizeof(quirks_buf));
-    TORIRS_LOG("app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
+    TORIRS_LOG(
+        "app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
         RSCache_EpochName(profile.epoch),
         RSCache_GameName(profile.game),
         profile.revision,
         quirks_buf);
     if( getenv("TORIRS_TRACE_NATIVE_UI") )
-        TORIRS_REPORT("NATIVE_REVISION epoch=%s game=%s revision=%d\n",
-            RSCache_EpochName(profile.epoch), RSCache_GameName(profile.game), profile.revision);
+        TORIRS_REPORT(
+            "NATIVE_REVISION epoch=%s game=%s revision=%d\n",
+            RSCache_EpochName(profile.epoch),
+            RSCache_GameName(profile.game),
+            profile.revision);
 
     /* The disk resolves logical table names to ids and decides map XTEA, so it
      * needs the same identity the decoders got. Without this it answers as
@@ -8147,7 +8311,9 @@ app_chrome_fonts_resolve(struct App* app)
 }
 
 int
-App_SetChromeScale(struct App* app, int scale)
+App_SetChromeScale(
+    struct App* app,
+    int scale)
 {
     assert(app);
     if( scale < TORIRS_CHROME_SCALE_MIN )
@@ -8180,7 +8346,9 @@ App_ChromeScale(struct App const* app)
 }
 
 int
-App_SetChromeCheckStyle(struct App* app, int style)
+App_SetChromeCheckStyle(
+    struct App* app,
+    int style)
 {
     assert(app);
     if( ToriRSChrome_CheckStyle(&app->dbg_ui) == style )
@@ -8241,8 +8409,7 @@ app_debug_overlay_init(struct App* app)
             else if( pick && strcmp(pick, "tick") == 0 )
                 style = TORIRS_CHROME_CHECK_STYLE_TICK;
             else if( pick )
-                TORIRS_LOG("chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n",
-                    pick);
+                TORIRS_LOG("chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n", pick);
             ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
         }
 
@@ -8332,16 +8499,16 @@ app_debug_overlay_init(struct App* app)
      * been clicked, so every open clears and rebuilds them. Declared here all
      * the same, so the handle is valid from the first frame and no path has to
      * test for a panel that does not exist yet. */
-    app->settings_colour_panel = ToriRSChrome_PanelAdd(
-        &app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Colour");
+    app->settings_colour_panel =
+        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Colour");
     ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_colour_panel, 1);
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 0);
     app->settings_colour_visible = 0;
     app->settings_colour_pick = -1;
     app->settings_colour_default_btn = -1;
     app->settings_colour_close_btn = -1;
-    app->settings_number_panel = ToriRSChrome_PanelAdd(
-        &app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Value");
+    app->settings_number_panel =
+        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Value");
     ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_number_panel, 1);
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 0);
     app->settings_number_visible = 0;
@@ -8425,7 +8592,9 @@ App_LastFrameUs(struct App const* app)
  * a typed command reach the same code. True when the text was consumed.
  */
 static bool
-app_client_cheat(struct App* app, char const* body)
+app_client_cheat(
+    struct App* app,
+    char const* body)
 {
     assert(app);
     assert(body);
@@ -8852,7 +9021,6 @@ app_loc_editor_rotate(struct App* app)
     app_loc_editor_refresh_labels(app);
 }
 
-
 /**
  * OSRS key code -> the overlay's editing key, or TORIRS_CHROME_KEY_NONE.
  *
@@ -8861,7 +9029,6 @@ app_loc_editor_rotate(struct App* app)
  * Printable characters do not come through this at all — they arrive as
  * `key_pressed` and go straight to ToriRSChrome_KeyChar.
  */
-
 
 static int
 app_dbgui_key_edit_from_osrs(int osrs_key)
@@ -8914,7 +9081,10 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
  * nothing draws, so honouring it would punch an invisible hole in the game.
  */
 static int
-app_chrome_wants_pointer(struct App const* app, int x, int y)
+app_chrome_wants_pointer(
+    struct App const* app,
+    int x,
+    int y)
 {
     assert(app);
     if( ToriRSChrome_WantsPointer(&app->dbg_ui, x, y) )
@@ -9035,7 +9205,8 @@ app_loc_editor_tick(
 
     /* Same suppression as the developer overlay toggle: a chat line has focus
      * must not also flip debug chrome. */
-    if( !app_text_input_focused(app) && app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
+    if( !app_text_input_focused(app) &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
     {
         /* Toggling visibility only, never the selection -- a target picked
          * with Reselect stays active across a close/reopen. */
@@ -9062,8 +9233,7 @@ app_loc_editor_tick(
     if( app->editor && !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
     {
-        Editor_PanelSetVisible(
-            &app->editor_panel, &app->dbg_ui, !app->editor_panel.visible);
+        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, !app->editor_panel.visible);
         app->need_redraw = 1;
     }
 
@@ -9330,7 +9500,9 @@ app_settings_colour_close(struct App* app)
  * than "black".
  */
 static void
-app_settings_colour_commit(struct App* app, uint32_t rgb)
+app_settings_colour_commit(
+    struct App* app,
+    uint32_t rgb)
 {
     assert(app);
     /* A picker is only ever opened for a row whose varp is known, so this is a
@@ -9344,7 +9516,9 @@ app_settings_colour_commit(struct App* app, uint32_t rgb)
 
 /** Put the picker beside the swatch that opened it, clamped onto the canvas. */
 static void
-app_settings_colour_place(struct App* app, int component_id)
+app_settings_colour_place(
+    struct App* app,
+    int component_id)
 {
     int scale;
     int width;
@@ -9384,7 +9558,9 @@ app_settings_colour_place(struct App* app, int component_id)
 }
 
 static void
-app_settings_colour_open(struct App* app, struct RS_CS2SettingsColourRequest const* req)
+app_settings_colour_open(
+    struct App* app,
+    struct RS_CS2SettingsColourRequest const* req)
 {
     assert(app);
     assert(req);
@@ -9396,7 +9572,8 @@ app_settings_colour_open(struct App* app, struct RS_CS2SettingsColourRequest con
         /* The read hub never named a varp for this row, so there is nowhere to
          * put an answer. Said out loud rather than opening a picker whose
          * every move would be discarded. */
-        TORIRS_LOG("settings: colour row %d (%s) has no varp; not opening a picker\n",
+        TORIRS_LOG(
+            "settings: colour row %d (%s) has no varp; not opening a picker\n",
             req->setting_id,
             req->label[0] ? req->label : "unnamed");
         return;
@@ -9455,8 +9632,7 @@ app_settings_colour_tick(struct App* app)
      * of whether the picker is up, and left unreconciled the next click on the
      * same swatch would "reopen" something that is already open.
      */
-    if( app->settings_colour_panel >= 0 &&
-        !app->dbg_ui.panels[app->settings_colour_panel].visible )
+    if( app->settings_colour_panel >= 0 && !app->dbg_ui.panels[app->settings_colour_panel].visible )
     {
         app->settings_colour_visible = 0;
         return;
@@ -9602,7 +9778,9 @@ app_settings_number_commit(struct App* app)
 
 /** Put the box beside the field that opened it, clamped onto the canvas. */
 static void
-app_settings_number_place(struct App* app, int component_id)
+app_settings_number_place(
+    struct App* app,
+    int component_id)
 {
     int scale;
     int width;
@@ -9640,7 +9818,9 @@ app_settings_number_place(struct App* app, int component_id)
 }
 
 static void
-app_settings_number_open(struct App* app, struct RS_CS2SettingsNumberRequest const* req)
+app_settings_number_open(
+    struct App* app,
+    struct RS_CS2SettingsNumberRequest const* req)
 {
     char value[32];
     char label[128];
@@ -9655,7 +9835,8 @@ app_settings_number_open(struct App* app, struct RS_CS2SettingsNumberRequest con
         /* The read hub never named a varp for this row, so there is nowhere to
          * put an answer. Said out loud rather than opening a box whose every
          * keystroke would be discarded. */
-        TORIRS_LOG("settings: number row %d (%s) has no varp; not opening an entry\n",
+        TORIRS_LOG(
+            "settings: number row %d (%s) has no varp; not opening an entry\n",
             req->setting_id,
             req->label[0] ? req->label : "unnamed");
         return;
@@ -9696,7 +9877,9 @@ app_settings_number_open(struct App* app, struct RS_CS2SettingsNumberRequest con
      * TORIRS_LOG is stripped from the optimized build, which is the only build
      * worth taking a screenshot of. Same choice as TORIRS_GROUND_ITEMS_DEBUG. */
     if( getenv("TORIRS_SETTINGS_DEBUG") )
-        fprintf(stderr, "settings: number entry open, setting=%d varp=%d value=%d \"%s\"\n",
+        fprintf(
+            stderr,
+            "settings: number entry open, setting=%d varp=%d value=%d \"%s\"\n",
             req->setting_id,
             req->varp_id,
             req->value,
@@ -9720,8 +9903,7 @@ app_settings_number_tick(struct App* app)
         return;
 
     /* The panel's own Close button hid it. */
-    if( app->settings_number_panel >= 0 &&
-        !app->dbg_ui.panels[app->settings_number_panel].visible )
+    if( app->settings_number_panel >= 0 && !app->dbg_ui.panels[app->settings_number_panel].visible )
     {
         app->settings_number_visible = 0;
         return;
@@ -9960,15 +10142,14 @@ App_Init(
          * stale main_file_cache.* on this machine cannot affect this boot --
          * which is the whole reason to run this way against LostCity. The IO
          * owns the client, the same way it owns the JS5 one. */
-        char const* host = cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target
-                                                                        : "localhost";
+        char const* host =
+            cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target : "localhost";
         /* `dir=` under an ondemand source is where the stream is written
          * down, not where it is read from -- the same shape dat2 has had all
          * along with its sparse cache. Absent means stream everything, every
          * boot, which is what this world did before. */
         int enabled = PlatformXIO_Dat1OnDemandEnable(
-            app->runner.px, host, cfg->connect_port, cfg->web_port,
-            cfg->cache_dir);
+            app->runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
         if( enabled != 0 )
         {
             /* Once more before giving up: the first attempt rides a cold
@@ -9979,8 +10160,7 @@ App_Init(
             struct timespec pause = { 1, 0 };
             nanosleep(&pause, NULL);
             enabled = PlatformXIO_Dat1OnDemandEnable(
-                app->runner.px, host, cfg->connect_port, cfg->web_port,
-                cfg->cache_dir);
+                app->runner.px, host, cfg->connect_port, cfg->web_port, cfg->cache_dir);
         }
         if( enabled != 0 )
         {
@@ -9998,7 +10178,9 @@ App_Init(
             /* Composed rather than printed in pieces: on Android this same
              * string is what the boot menu shows, and a diagnosis split across
              * two calls arrives there as half of one. */
-            used = snprintf(message, sizeof(message),
+            used = snprintf(
+                message,
+                sizeof(message),
                 "[cache:boot] source=ondemand, but %s is not serving a cache "
                 "(game port %d, web port %d); this profile streams its cache from "
                 "there and cannot boot without it.",
@@ -10014,7 +10196,9 @@ App_Init(
              * server machine's bare hostname resolves through the router's
              * DNS (`.local` does not on old Android). */
             if( strcmp(host, "localhost") == 0 || strcmp(host, "127.0.0.1") == 0 )
-                snprintf(message + used, sizeof(message) - (size_t)used,
+                snprintf(
+                    message + used,
+                    sizeof(message) - (size_t)used,
                     "\n\nOn this device 'localhost' is the phone itself. Tap the gear and set "
                     "this profile's host to the server machine's LAN name.");
 #endif
@@ -10031,7 +10215,9 @@ App_Init(
              * deployment state, and the message is the whole diagnosis. */
             char message[512];
 
-            snprintf(message, sizeof(message),
+            snprintf(
+                message,
+                sizeof(message),
                 "no dat1 cache at %s (expected main_file_cache.dat; pass --dat2 for a js5 cache)",
                 cfg->cache_dir);
             app_boot_refuse(message);
@@ -10048,7 +10234,9 @@ App_Init(
         {
             char message[512];
 
-            snprintf(message, sizeof(message),
+            snprintf(
+                message,
+                sizeof(message),
                 "no dat2 cache at %s (expected main_file_cache.dat2; pass --dat1 for a "
                 "317-era cache)",
                 cfg->cache_dir);
@@ -10086,8 +10274,9 @@ App_Init(
         cfg->cache_dir);
     Platform_IO_InitConfigPath(app->runner.px, cfg->config_dir);
     char const* plugin_script_root = getenv("TORIRS_SCRIPT_DIR");
-    Platform_IO_InitScriptPath(app->runner.px,
-                              plugin_script_root && *plugin_script_root ? plugin_script_root : cfg->script_dir);
+    Platform_IO_InitScriptPath(
+        app->runner.px,
+        plugin_script_root && *plugin_script_root ? plugin_script_root : cfg->script_dir);
     /* After the script path, because it is the fallback FOR it: a stored file
      * is looked for under script_dir first and asked of this server second. */
     Platform_IO_InitIoServer(app->runner.px, cfg->io_host, cfg->io_port);
@@ -10139,8 +10328,7 @@ App_Init(
      * for both the boot bake and the runtime interface mount — they share the
      * bridge and nothing else. -1 when the profile does not name one, which
      * leaves the preview in its bind pose instead of another cache's animation. */
-    app->bridge.player_idle_seq =
-        RevConfigRefs_Get(&app->revconfig_refs, "seq", "human_readyanim");
+    app->bridge.player_idle_seq = RevConfigRefs_Get(&app->revconfig_refs, "seq", "human_readyanim");
 
     /* Phase 4: game state (host needs tree + provider + invs + varps, then
      * the bridge for icon rasterization). */
@@ -10172,19 +10360,26 @@ App_Init(
     /* World entities (sailing, SAILING_PLAN C1): no boats until
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
-    app->sailing_at_helm_varbit = RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
-    app->sailing_captain_role_varbit = RevConfigRefs_Get(&app->revconfig_refs,"varbit","sailing_captain_role");
-    for( int slot=0; slot<5; ++slot )
+    app->sailing_at_helm_varbit =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
+    app->sailing_captain_role_varbit =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_captain_role");
+    for( int slot = 0; slot < 5; ++slot )
     {
         char key[48];
-        snprintf(key,sizeof(key),"sailing_crew_duty_%d",slot+1);
-        app->sailing_crew_duty_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
-        snprintf(key,sizeof(key),"sailing_crew_roster_%d",slot+1);
-        app->sailing_crew_roster_varbit[slot]=RevConfigRefs_Get(&app->revconfig_refs,"varbit",key);
+        snprintf(key, sizeof(key), "sailing_crew_duty_%d", slot + 1);
+        app->sailing_crew_duty_varbit[slot] =
+            RevConfigRefs_Get(&app->revconfig_refs, "varbit", key);
+        snprintf(key, sizeof(key), "sailing_crew_roster_%d", slot + 1);
+        app->sailing_crew_roster_varbit[slot] =
+            RevConfigRefs_Get(&app->revconfig_refs, "varbit", key);
     }
-    app->sailing_crew_category = RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
-    app->sailing_arrow_model[0] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
-    app->sailing_arrow_model[1] = RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
+    app->sailing_crew_category =
+        RevConfigRefs_Get(&app->revconfig_refs, "category", "sailing_crew");
+    app->sailing_arrow_model[0] =
+        RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_hover");
+    app->sailing_arrow_model[1] =
+        RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
     app->sailing_arrow_element[0] = app->sailing_arrow_element[1] = -1;
     WevConfigTable_Init(&app->wev_configs);
     /* The dynamic-registration pass puts every entity floating in this world
@@ -10436,8 +10631,8 @@ App_Init(
             if( env_on_mobile && env_on_mobile[0] )
                 on_mobile = atoi(env_on_mobile) != 0;
             CS2VM2_SetClientIdentity(clienttype, on_mobile);
-            TORIRS_REPORT("app: clientscript identity: clienttype %d, on_mobile %d\n",
-                clienttype, on_mobile);
+            TORIRS_REPORT(
+                "app: clientscript identity: clienttype %d, on_mobile %d\n", clienttype, on_mobile);
         }
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");
@@ -10445,7 +10640,8 @@ App_Init(
         {
             era_name = rc_features->era;
             if( era_name[0] && !ToriRS_Features_ByName(era_name) )
-                TORIRS_LOG("app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                TORIRS_LOG(
+                    "app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
                     era_name);
         }
         app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
@@ -10479,7 +10675,8 @@ App_Init(
             {
                 model = ToriRS_Features_NearestModelByName(rc_features->ground_click_nearest);
                 if( model < 0 )
-                    TORIRS_LOG("app: [features] ground_click_nearest must be "
+                    TORIRS_LOG(
+                        "app: [features] ground_click_nearest must be "
                         "ring3|box10_rect|none, got '%s'\n",
                         rc_features->ground_click_nearest);
             }
@@ -10489,7 +10686,8 @@ App_Init(
             {
                 int from_env = ToriRS_Features_NearestModelByName(env);
                 if( from_env < 0 )
-                    TORIRS_LOG("app: TORIRS_GROUND_CLICK_NEAREST must be "
+                    TORIRS_LOG(
+                        "app: TORIRS_GROUND_CLICK_NEAREST must be "
                         "ring3|box10_rect|none, got '%s'\n",
                         env);
                 else
@@ -10507,8 +10705,7 @@ App_Init(
             app->features_storage.ground_click_nearest_unbounded =
                 rc_features->ground_click_unbounded;
         if( rc_features->ground_click_offmap >= 0 )
-            app->features_storage.ground_click_offmap_nearest =
-                rc_features->ground_click_offmap;
+            app->features_storage.ground_click_offmap_nearest = rc_features->ground_click_offmap;
         if( cfg->features_ground_click_unbounded )
             app->features_storage.ground_click_nearest_unbounded = 1;
         if( cfg->features_ground_click_offmap )
@@ -10525,13 +10722,13 @@ App_Init(
         {
             if( rc_features->painter_draw_distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
                 rc_features->painter_draw_distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
-                TORIRS_LOG("app: [features] painter_draw_distance must be %d..%d, got %d\n",
+                TORIRS_LOG(
+                    "app: [features] painter_draw_distance must be %d..%d, got %d\n",
                     TORIRS_PAINTER_DRAW_DISTANCE_MIN,
                     TORIRS_PAINTER_DRAW_DISTANCE_MAX,
                     rc_features->painter_draw_distance);
             else
-                app->features_storage.painter_draw_distance =
-                    rc_features->painter_draw_distance;
+                app->features_storage.painter_draw_distance = rc_features->painter_draw_distance;
         }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance = cfg->features_painter_draw_distance;
@@ -10555,7 +10752,8 @@ App_Init(
             {
                 model = ToriRS_Features_MoverModelByName(rc_features->mover);
                 if( model < 0 )
-                    TORIRS_LOG("app: [features] mover must be cycle|frame, got '%s'\n",
+                    TORIRS_LOG(
+                        "app: [features] mover must be cycle|frame, got '%s'\n",
                         rc_features->mover);
             }
             if( cfg->features_mover_model_set )
@@ -10566,7 +10764,8 @@ App_Init(
                 {
                     int from_env = ToriRS_Features_MoverModelByName(env);
                     if( from_env < 0 )
-                        TORIRS_ERR("app: unknown TORIRS_MOVER_MODEL '%s' "
+                        TORIRS_ERR(
+                            "app: unknown TORIRS_MOVER_MODEL '%s' "
                             "(cycle|frame)\n",
                             env);
                     else
@@ -10578,7 +10777,8 @@ App_Init(
         }
 
         if( torirs_env_net_debug() )
-            TORIRS_LOG("app: features era=%s ground_click_nearest=%s "
+            TORIRS_LOG(
+                "app: features era=%s ground_click_nearest=%s "
                 "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                 app->features->name,
                 ToriRS_Features_NearestModelName(app->features->ground_click_nearest_model),
@@ -10593,7 +10793,8 @@ App_Init(
          * after the overrides above for the same reason. */
         World_SetFeatures(app->world, app->features);
         if( torirs_env_net_debug() )
-            TORIRS_LOG("app: world mover=%s\n",
+            TORIRS_LOG(
+                "app: world mover=%s\n",
                 ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
@@ -10673,8 +10874,8 @@ App_Init(
      * enables the editor even without a content_dir of its own, since the
      * daemon owns the tree in that deployment.
      */
-    if( (cfg->editor_content_dir && cfg->editor_content_dir[0])
-        || cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+    if( (cfg->editor_content_dir && cfg->editor_content_dir[0]) ||
+        cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
     {
         struct EditorHost editor_host = { NULL, NULL };
         char editor_label[600];
@@ -10682,17 +10883,15 @@ App_Init(
 
         if( cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
         {
-            char const* maped_host =
-                cfg->editor_server_host && cfg->editor_server_host[0]
-                    ? cfg->editor_server_host
-                    : "localhost";
+            char const* maped_host = cfg->editor_server_host && cfg->editor_server_host[0]
+                                         ? cfg->editor_server_host
+                                         : "localhost";
             snprintf(
                 editor_label,
                 sizeof(editor_label),
                 "maped://%s:%d",
                 maped_host,
-                cfg->editor_server_port > 0 ? cfg->editor_server_port
-                                            : TORIRSMAPED_DEFAULT_PORT);
+                cfg->editor_server_port > 0 ? cfg->editor_server_port : TORIRSMAPED_DEFAULT_PORT);
             /* A client with a world is a VIEWER; `client=` joins a Client
              * another connection already started, so several processes can
              * share one selection. */
@@ -10719,7 +10918,8 @@ App_Init(
          * an editor whose every operation would fail one at a time. */
         if( !editor_ok )
         {
-            TORIRS_ERR("app: cannot reach ToriRSMapEd at %s — the map editor is disabled "
+            TORIRS_ERR(
+                "app: cannot reach ToriRSMapEd at %s — the map editor is disabled "
                 "this session\n",
                 editor_label);
             goto editor_skipped;
@@ -10728,13 +10928,11 @@ App_Init(
         app->editor = malloc(sizeof(*app->editor));
         assert(app->editor);
         Editor_OpenHost(
-            app->editor,
-            &editor_host,
-            editor_label,
-            CacheProvider_Profile(app->provider));
+            app->editor, &editor_host, editor_label, CacheProvider_Profile(app->provider));
         /* The Client id is printed because it is the handle another PROCESS
          * needs to join this session: `torirsmapedctl --client <id>`. */
-        TORIRS_LOG("app: map editor over %s (%s, client %u)\n",
+        TORIRS_LOG(
+            "app: map editor over %s (%s, client %u)\n",
             editor_label,
             app->editor->writable ? "writable" : "read-only, another server holds it",
             Editor_HostMapEdClientId(&app->editor->host));
@@ -10825,7 +11023,8 @@ App_Init(
             if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
                 GameProtoRev_SetJagChecksums(rev, crc);
             else
-                TORIRS_ERR("app: could not read /crc from the cache server; login will be "
+                TORIRS_ERR(
+                    "app: could not read /crc from the cache server; login will be "
                     "refused as out of date\n");
         }
 #endif
@@ -10869,11 +11068,7 @@ App_Init(
             sizeof(app->autologin_pass),
             "%s",
             cfg->connect_pass ? cfg->connect_pass : "");
-        snprintf(
-            app->connect_target,
-            sizeof(app->connect_target),
-            "%s",
-            cfg->connect_target);
+        snprintf(app->connect_target, sizeof(app->connect_target), "%s", cfg->connect_target);
     }
 }
 
@@ -11102,8 +11297,8 @@ static int
 app_minimenu_font_scene_id(struct App* app)
 {
     int font_cache_id = app_font_b12_cache_id(app);
-    int scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id)
-                                      : -1;
+    int scene_id =
+        font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
     if( scene_id <= 0 && font_cache_id >= 0 )
     {
         /* Queue the load (no blocking drain — the boot task awaits this font
@@ -11182,8 +11377,8 @@ app_world_height_in(
     }
 
     if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
-        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) &
-         RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) & RSCACHE_FLOFLAG_LINK_BELOW) !=
+            0 )
         real_level = level + 1;
     return heightmap_get_interpolated(world->heightmap, world_x, world_z, real_level);
 }
@@ -11326,19 +11521,22 @@ app_wev_register_pseudo_locs(
     app_sailing_register_arrows(app, world);
 
     count = Wevs_ViewListCount(&app->wevs, view_id);
-    int order[WORLDVIEW_MAX], ordered=0;
-    if( view_id==WORLDVIEW_ROOT )
+    int order[WORLDVIEW_MAX], ordered = 0;
+    if( view_id == WORLDVIEW_ROOT )
     {
-        static const int groups[]={-1,2,0,1};
-        for( int pass=0; pass<4; ++pass ) for( int i=0; i<count; ++i )
-        {
-            struct Wev* candidate=Wevs_ViewListAt(&app->wevs,view_id,i);
-            bool aboard=candidate->id==app->aboard_view;
-            if( pass==0 ? aboard : !aboard && candidate->priority_group==groups[pass] )
-                order[ordered++]=i;
-        }
+        static const int groups[] = { -1, 2, 0, 1 };
+        for( int pass = 0; pass < 4; ++pass )
+            for( int i = 0; i < count; ++i )
+            {
+                struct Wev* candidate = Wevs_ViewListAt(&app->wevs, view_id, i);
+                bool aboard = candidate->id == app->aboard_view;
+                if( pass == 0 ? aboard : !aboard && candidate->priority_group == groups[pass] )
+                    order[ordered++] = i;
+            }
     }
-    else for( int i=0; i<count; ++i ) order[ordered++]=i;
+    else
+        for( int i = 0; i < count; ++i )
+            order[ordered++] = i;
     for( int i = 0; i < ordered; i++ )
     {
         struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, order[i]);
@@ -11408,8 +11606,8 @@ app_wev_register_pseudo_locs(
         Wev_PainterFootprint(wev, &fx, &fz, &fsx, &fsz);
         fx -= world->_base_tile_x;
         fz -= world->_base_tile_z;
-        if( fx < 0 || fz < 0 || fx + fsx > world->_scene_size ||
-            fz + fsz > world->_scene_size || !wev->render_visible )
+        if( fx < 0 || fz < 0 || fx + fsx > world->_scene_size || fz + fsz > world->_scene_size ||
+            !wev->render_visible )
             continue;
 
         /* model_height 0: the pseudo-loc is never occlusion-tested (the drain
@@ -11648,18 +11846,26 @@ app_wev_bind_frame_xforms(
 #include "game/sailing_paint_order.u.h"
 
 static bool
-app_wev_ground_below(void* userdata,const struct SailingPaintSpan* span,int x,int z,int level)
+app_wev_ground_below(
+    void* userdata,
+    const struct SailingPaintSpan* span,
+    int x,
+    int z,
+    int level)
 {
-    struct App* app=userdata;
+    struct App* app = userdata;
     assert(app);
     assert(span);
-    struct World* world=WorldviewRegistry_Get(&app->worldviews,span->parent)->world;
-    if( !world->heightmap || x<0 || z<0 || x+1>=world->heightmap->size_x ||
-        z+1>=world->heightmap->size_z ) return false;
+    struct World* world = WorldviewRegistry_Get(&app->worldviews, span->parent)->world;
+    if( !world->heightmap || x < 0 || z < 0 || x + 1 >= world->heightmap->size_x ||
+        z + 1 >= world->heightmap->size_z )
+        return false;
     /* Negative Y is up. Preserve any tile with a corner above the hull's
      * parent surface: a cliff or raised shore must still occlude the boat. */
-    for(int dz=0;dz<2;++dz)for(int dx=0;dx<2;++dx)
-        if(heightmap_get(world->heightmap,x+dx,z+dz,level)<span->surface_y)return false;
+    for( int dz = 0; dz < 2; ++dz )
+        for( int dx = 0; dx < 2; ++dx )
+            if( heightmap_get(world->heightmap, x + dx, z + dz, level) < span->surface_y )
+                return false;
     return true;
 }
 
@@ -11667,75 +11873,111 @@ static void
 app_wev_order_parent_ground(struct App* app)
 {
     assert(app);
-    struct SailingPaintSpan spans[WORLDVIEW_MAX];int count=0;
-    for(int id=1;id<WORLDVIEW_MAX;++id)
+    struct SailingPaintSpan spans[WORLDVIEW_MAX];
+    int count = 0;
+    for( int id = 1; id < WORLDVIEW_MAX; ++id )
     {
-        if(!Wevs_IsLive(&app->wevs,id) || !WorldviewRegistry_IsLive(&app->worldviews,id))continue;
-        struct Wev* wev=Wevs_Get(&app->wevs,id);
-        if(!wev->render_visible)continue;
-        struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,id);
-        if(!WorldviewRegistry_IsLive(&app->worldviews,wev->parent_view_id))continue;
-        struct World* parent=WorldviewRegistry_Get(&app->worldviews,wev->parent_view_id)->world;
-        struct WevDeckBox box;app_wev_deck_box(app,wev,parent,&box);
-        int x,z,width,height;Wev_FootprintTiles(wev,0,&x,&z,&width,&height);
-        x-=parent->_base_tile_x;z-=parent->_base_tile_z;
-        int max_x=x+width-1,max_z=z+height-1;
-        for(int corner=0;corner<4;++corner)
+        if( !Wevs_IsLive(&app->wevs, id) || !WorldviewRegistry_IsLive(&app->worldviews, id) )
+            continue;
+        struct Wev* wev = Wevs_Get(&app->wevs, id);
+        if( !wev->render_visible )
+            continue;
+        struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, id);
+        if( !WorldviewRegistry_IsLive(&app->worldviews, wev->parent_view_id) )
+            continue;
+        struct World* parent = WorldviewRegistry_Get(&app->worldviews, wev->parent_view_id)->world;
+        struct WevDeckBox box;
+        app_wev_deck_box(app, wev, parent, &box);
+        int x, z, width, height;
+        Wev_FootprintTiles(wev, 0, &x, &z, &width, &height);
+        x -= parent->_base_tile_x;
+        z -= parent->_base_tile_z;
+        int max_x = x + width - 1, max_z = z + height - 1;
+        for( int corner = 0; corner < 4; ++corner )
         {
-            int px,pz;Wev_ParentFromDeck(&box,
-                corner&1 ? view->size_x_tiles*128-1:0,
-                corner&2 ? view->size_z_tiles*128-1:0,&px,&pz);
-            px>>=7;pz>>=7;
-            if(px<x)x=px;if(pz<z)z=pz;
-            if(px>max_x)max_x=px;if(pz>max_z)max_z=pz;
+            int px, pz;
+            Wev_ParentFromDeck(
+                &box,
+                corner & 1 ? view->size_x_tiles * 128 - 1 : 0,
+                corner & 2 ? view->size_z_tiles * 128 - 1 : 0,
+                &px,
+                &pz);
+            px >>= 7;
+            pz >>= 7;
+            if( px < x )
+                x = px;
+            if( pz < z )
+                z = pz;
+            if( px > max_x )
+                max_x = px;
+            if( pz > max_z )
+                max_z = pz;
         }
-        spans[count]=(struct SailingPaintSpan){.view=id,.parent=wev->parent_view_id,
-            .level=view->parent_level,.x=x,.z=z,.width=max_x-x+1,.height=max_z-z+1,
-            .surface_y=wev->y,.flat=wev->flattened};
-        Wev_RenderBounds(wev,spans[count].bounds);++count;
+        spans[count] = (struct SailingPaintSpan){ .view = id,
+                                                  .parent = wev->parent_view_id,
+                                                  .level = view->parent_level,
+                                                  .x = x,
+                                                  .z = z,
+                                                  .width = max_x - x + 1,
+                                                  .height = max_z - z + 1,
+                                                  .surface_y = wev->y,
+                                                  .flat = wev->flattened };
+        Wev_RenderBounds(wev, spans[count].bounds);
+        ++count;
     }
     /* Zero boats returns before allocation or command scanning. */
-    if(count)
+    if( count )
     {
-        sailing_paint_order_flat(app->painter_buffer,spans,count);
-        sailing_paint_order_ground(app->painter_buffer,spans,count,app_wev_ground_below,app);
+        sailing_paint_order_flat(app->painter_buffer, spans, count);
+        sailing_paint_order_ground(app->painter_buffer, spans, count, app_wev_ground_below, app);
     }
 }
 
 static bool
-app_wev_actor_overlaps(void* userdata, const struct Wev* wev)
+app_wev_actor_overlaps(
+    void* userdata,
+    const struct Wev* wev)
 {
     struct App* app = userdata;
     assert(app);
     assert(wev);
     struct World* root = app->world;
-    if( !root ) return false;
+    if( !root )
+        return false;
     struct World_EntityPool* pool = &root->entities.player;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-        if( !player || player->element_id < 0 ) continue;
+        if( !player || player->element_id < 0 )
+            continue;
         int x = (int)player->draw_position.x, z = (int)player->draw_position.z;
         app_wev_actor_root_fine(app, &player->view_placement, &x, &z);
-        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
-                             z + root->_base_tile_z * 128, 1) ) return true;
+        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128, z + root->_base_tile_z * 128, 1) )
+            return true;
     }
     pool = &root->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-        if( !npc || npc->element_id < 0 || npc->multinpc_hidden ) continue;
+        if( !npc || npc->element_id < 0 || npc->multinpc_hidden )
+            continue;
         struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         bool actionable = false;
-        if( type ) for( int op = 0; op < 5; ++op )
-            if( type->actions[op] && type->actions[op][0] ) actionable = true;
-        if( !actionable ) continue;
+        if( type )
+            for( int op = 0; op < 5; ++op )
+                if( type->actions[op] && type->actions[op][0] )
+                    actionable = true;
+        if( !actionable )
+            continue;
         int x = (int)npc->draw_position.x, z = (int)npc->draw_position.z;
         app_wev_actor_root_fine(app, &npc->view_placement, &x, &z);
-        if( Wev_OverlapsActor(wev, x + root->_base_tile_x * 128,
-                             z + root->_base_tile_z * 128, npc->size > 0 ? npc->size : 1) )
+        if( Wev_OverlapsActor(
+                wev,
+                x + root->_base_tile_x * 128,
+                z + root->_base_tile_z * 128,
+                npc->size > 0 ? npc->size : 1) )
             return true;
     }
     return false;
@@ -11745,8 +11987,12 @@ static void
 app_wev_decide_flatten(struct App* app)
 {
     assert(app);
-    Wevs_SelectRenderStates(&app->wevs, app->aboard_view,
-                           app->host.world_entity_draw_limit, app_wev_actor_overlaps, app);
+    Wevs_SelectRenderStates(
+        &app->wevs,
+        app->aboard_view,
+        app->host.world_entity_draw_limit,
+        app_wev_actor_overlaps,
+        app);
     for( int id = 1; id < WORLDVIEW_MAX; ++id )
         if( Wevs_IsLive(&app->wevs, id) && WorldviewRegistry_IsLive(&app->worldviews, id) )
         {
@@ -11789,7 +12035,6 @@ app_wev_deck_box(
     out_box->size_x_tiles = view->size_x_tiles;
     out_box->size_z_tiles = view->size_z_tiles;
 }
-
 
 /**
  * The plane, inside a world entity's OWN world, that its deck is authored at.
@@ -11865,7 +12110,6 @@ App_WevHomeViewForAbsTile(
     *out_local_z = abs_tile_z;
     return 0;
 }
-
 
 /**
  * Move one actor's scene element between view pools when its membership
@@ -12013,7 +12257,8 @@ app_wev_route_actors(struct App* app)
         {
             type = CacheProvider_NpctypeGet(
                 app->provider, npc->base_npc_id >= 0 ? npc->base_npc_id : npc->npc_id);
-            if( !type ) type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+            if( !type )
+                type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         }
         /* Only native ship crew opt into projected rendering. Ordinary shore
          * NPCs, sea monsters and dock recruits retain their root-world pose.
@@ -12024,29 +12269,34 @@ app_wev_route_actors(struct App* app)
             {
                 int candidate = pass == 0 ? npc->view_placement.view_id : pass;
                 if( candidate <= 0 || !Wevs_IsLive(&app->wevs, candidate) ||
-                    !WorldviewRegistry_IsLive(&app->worldviews, candidate) ) continue;
+                    !WorldviewRegistry_IsLive(&app->worldviews, candidate) )
+                    continue;
                 struct Wev* wev = Wevs_Get(&app->wevs, candidate);
                 struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, candidate);
-                if( wev->parent_view_id != WORLDVIEW_ROOT || !view->world->load_complete ) continue;
+                if( wev->parent_view_id != WORLDVIEW_ROOT || !view->world->load_complete )
+                    continue;
                 struct WevDeckBox box;
                 int dx, dz;
                 app_wev_deck_box(app, wev, world, &box);
                 Wev_DeckFromWireTarget(wev, &box, x, z, &dx, &dz);
-                if( !Wev_DeckContainsDeckPoint(&box, dx, dz) ) continue;
+                if( !Wev_DeckContainsDeckPoint(&box, dx, dz) )
+                    continue;
                 /* The wire rounds projected feet to a whole tile. One half
                  * tile of tolerance keeps rail-side crew inside the authored
                  * hull, without treating its whole staging zone as planking. */
                 const struct WevConfig* cfg = wev->config;
                 int hx = dx + box.recenter_x - cfg->bounds_off_x;
                 int hz = dz + box.recenter_z - cfg->bounds_off_z;
-                if( cfg->bounds_w > 0 && abs(hx) > cfg->bounds_w / 2 + 64 ) continue;
-                if( cfg->bounds_h > 0 && abs(hz) > cfg->bounds_h / 2 + 64 ) continue;
+                if( cfg->bounds_w > 0 && abs(hx) > cfg->bounds_w / 2 + 64 )
+                    continue;
+                if( cfg->bounds_h > 0 && abs(hz) > cfg->bounds_h / 2 + 64 )
+                    continue;
                 view_id = candidate;
-                x = dx; z = dz;
+                x = dx;
+                z = dz;
                 break;
             }
-        app_wev_apply_placement(
-            app, &npc->view_placement, npc->element_id, view_id, x, z);
+        app_wev_apply_placement(app, &npc->view_placement, npc->element_id, view_id, x, z);
     }
 }
 
@@ -12106,8 +12356,7 @@ app_wev_register_deck_actors(
                     continue;
                 if( player->view_placement.view_id != view_id )
                     continue;
-                is_local =
-                    owner->local_pid >= 0 && player->server_pid == owner->local_pid ? 1 : 0;
+                is_local = owner->local_pid >= 0 && player->server_pid == owner->local_pid ? 1 : 0;
                 if( is_local != want_local )
                     continue;
                 /* A player registers at their OWN wire plane, not the deck's
@@ -12284,8 +12533,7 @@ app_wev_evict_view_actors(
         fx = (int)npc->draw_position.x;
         fz = (int)npc->draw_position.z;
         app_wev_actor_root_fine(app, &npc->view_placement, &fx, &fz);
-        app_wev_apply_placement(
-            app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT, fx, fz);
+        app_wev_apply_placement(app, &npc->view_placement, npc->element_id, WORLDVIEW_ROOT, fx, fz);
         npc->view_placement.home_view = 0;
     }
     if( app->aboard_view == view_id )
@@ -12442,8 +12690,7 @@ app_wev_advance_bobs(struct App* app)
             frame = sk->frame_count - 1;
 
         /* Column-major 4x4: the translation column is elements 12..14. */
-        wev->bob_y =
-            -(int)lroundf(sk->matrices[(size_t)(frame * sk->bone_count) * 16 + 13]);
+        wev->bob_y = -(int)lroundf(sk->matrices[(size_t)(frame * sk->bone_count) * 16 + 13]);
         if( app_wev_debug_enabled() && frame % 60 == 0 )
             fprintf(
                 stderr,
@@ -12693,7 +12940,8 @@ app_rebuild_world_map(
     if( getenv("TORIRS_MINIMAP_BMP") )
     {
         bmp_write_file(getenv("TORIRS_MINIMAP_BMP"), (int*)argb, pixel_w, pixel_h);
-        TORIRS_LOG("minimap: wrote %s (%dx%d level=%d)\n",
+        TORIRS_LOG(
+            "minimap: wrote %s (%dx%d level=%d)\n",
             getenv("TORIRS_MINIMAP_BMP"),
             pixel_w,
             pixel_h,
@@ -12789,7 +13037,10 @@ app_world_map_poll(struct App* app)
  * faster", so the caller keeps its default and says so instead.
  */
 static int
-app_world_map_squares_parse(char const* spec, int* out_chunks, int max_pairs)
+app_world_map_squares_parse(
+    char const* spec,
+    int* out_chunks,
+    int max_pairs)
 {
     int count = 0;
     char const* cursor = spec;
@@ -12875,8 +13126,7 @@ app_world_load_begin(
              * halfway through must not have already overwritten the manifest
              * square the message below is about to name as the fallback. */
             int parsed_chunks[APP_WORLD_MAP_SQUARE_MAX * 2];
-            int parsed = app_world_map_squares_parse(
-                env, parsed_chunks, APP_WORLD_MAP_SQUARE_MAX);
+            int parsed = app_world_map_squares_parse(env, parsed_chunks, APP_WORLD_MAP_SQUARE_MAX);
             if( parsed > 0 )
             {
                 memcpy(chunks, parsed_chunks, sizeof(int) * 2 * (size_t)parsed);
@@ -12884,7 +13134,8 @@ app_world_load_begin(
             }
             else
             {
-                TORIRS_LOG("TORIRS_WORLD_MAP must be \"x,z\", or up to %d such squares "
+                TORIRS_LOG(
+                    "TORIRS_WORLD_MAP must be \"x,z\", or up to %d such squares "
                     "separated by ';', got '%s' - using %d,%d\n",
                     APP_WORLD_MAP_SQUARE_MAX,
                     env,
@@ -12934,8 +13185,7 @@ app_world_load_begin(
     if( app->editor )
     {
         for( int i = 0; i < chunk_pair_count; i++ )
-            Editor_LoadSquare(
-                app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
+            Editor_LoadSquare(app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
     }
 
     task = CreateTask_WorldLoad(
@@ -12980,7 +13230,6 @@ app_modelview_focused(struct App const* app)
            app->dbg_ui.widgets[f].kind == TORIRS_CHROME_W_MODELVIEW;
 }
 
-
 /**
  * A click in the world applies the current tool, as one undoable edit.
  *
@@ -13024,7 +13273,8 @@ app_map_editor_world_click(
     if( app->interact.minimenu.visible || app->interact.swallow_left_click )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
-            TORIRS_LOG("edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
+            TORIRS_LOG(
+                "edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
                 app->interact.minimenu.visible,
                 app->interact.swallow_left_click);
         return;
@@ -13038,7 +13288,8 @@ app_map_editor_world_click(
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
         return;
     if( getenv("TORIRS_EDIT_DEBUG") )
-        TORIRS_LOG("edit: click tool=%d consumed=%d hover=%d,%d\n",
+        TORIRS_LOG(
+            "edit: click tool=%d consumed=%d hover=%d,%d\n",
             (int)app->editor_panel.tool,
             app->input_frame_consumed,
             app->world_hover_tile_x,
@@ -13094,7 +13345,10 @@ app_map_editor_world_click(
     if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
     {
         Editor_PanelSelectTerrain(
-            &app->editor_panel, app, app->world_hover_tile_x, app->world_hover_tile_z,
+            &app->editor_panel,
+            app,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z,
             app->world_hover_tile_level);
         app->need_redraw = 1;
         return;
@@ -13166,15 +13420,19 @@ app_map_editor_ghost_remove(struct App* app)
     if( !app->ghost_active )
         return;
     App_WorldLocChange(
-        app, app->ghost_x, app->ghost_z, app->ghost_level, -1, app->ghost_shape,
-        app->ghost_angle);
+        app, app->ghost_x, app->ghost_z, app->ghost_level, -1, app->ghost_shape, app->ghost_angle);
     /* The slot the ghost sat in belonged to someone: restore them, or the
      * hover reads as a deletion. Scene-only, like the ghost itself -- the
      * document never knew about either. */
     if( app->ghost_displaced_valid )
         App_WorldLocChange(
-            app, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_displaced_loc_id,
-            app->ghost_displaced_shape, app->ghost_displaced_angle);
+            app,
+            app->ghost_x,
+            app->ghost_z,
+            app->ghost_level,
+            app->ghost_displaced_loc_id,
+            app->ghost_displaced_shape,
+            app->ghost_displaced_angle);
     app_map_editor_ghost_forget(app);
     app->need_redraw = 1;
 }
@@ -13203,13 +13461,12 @@ app_map_editor_ghost_update(struct App* app)
      * translucent double, which reads as flicker, not preview. */
     {
         struct Editor_Panel const* panel = &app->editor_panel;
-        int const hover_ok = app->world_hover_tile_x >= 0 &&
-                             !app->interact.minimenu.visible && !app->input_frame_consumed;
+        int const hover_ok = app->world_hover_tile_x >= 0 && !app->interact.minimenu.visible &&
+                             !app->input_frame_consumed;
 
         want = 0;
         if( panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_PLACE &&
-            panel->cat_picked_id >= 0 &&
-            panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
+            panel->cat_picked_id >= 0 && panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
         {
             want = 1;
             id = panel->cat_picked_id;
@@ -13295,10 +13552,9 @@ app_map_editor_ghost_update(struct App* app)
              * ghost every other one of the same fence on screen. It also
              * answers the tagged-union question -- only a full model carries
              * faces to fade, and a sprite billboard comes back NULL. */
-            struct ToriDraw_Model* model = scenery
-                                               ? ToriDraw_SceneElementModelForWrite(
-                                                     app->scene, scenery->element_id)
-                                               : NULL;
+            struct ToriDraw_Model* model =
+                scenery ? ToriDraw_SceneElementModelForWrite(app->scene, scenery->element_id)
+                        : NULL;
 
             if( model && model->face_count > 0 )
             {
@@ -13338,7 +13594,9 @@ app_map_editor_ghost_update(struct App* app)
  * bounds cannot zoom to infinity.
  */
 static struct ToriDraw_Sprite*
-app_preview_raster(struct App* app, struct ToriDraw_ModelHandle hnd)
+app_preview_raster(
+    struct App* app,
+    struct ToriDraw_ModelHandle hnd)
 {
     if( app->preview_fit_pending )
     {
@@ -13434,8 +13692,7 @@ app_map_editor_preview_update(struct App* app)
             {
                 int const ids[1] = { preview_id };
                 int const counts[1] = { 1 };
-                struct ToriRS_Task* task =
-                    CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
+                struct ToriRS_Task* task = CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
                 if( task )
                     ToriRS_TaskQueue_Add(app->runner.queue, task);
             }
@@ -13490,8 +13747,7 @@ app_map_editor_preview_update(struct App* app)
 
     if( panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
     {
-        struct ToriRS_Location* cfg =
-            CacheProvider_LocationGet(app->provider, preview_id);
+        struct ToriRS_Location* cfg = CacheProvider_LocationGet(app->provider, preview_id);
         int model_id = -1;
 
         if( !cfg )
@@ -13654,9 +13910,19 @@ app_map_editor_preview_update(struct App* app)
 }
 
 static void
-app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level, char const* args);
+app_world_spawn_npc(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level,
+    char const* args);
 static void
-app_world_spawn_obj(struct App* app, int tile_x, int tile_z, int level, char const* args);
+app_world_spawn_obj(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level,
+    char const* args);
 
 void
 App_EditorPlaceSpawn(
@@ -13730,8 +13996,7 @@ app_map_editor_drain(struct App* app)
     if( app->world_load_inflight )
         return; /* A load is already rewriting the scene; let it land first. */
 
-    count = Editor_DrainRebuilds(
-        app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
+    count = Editor_DrainRebuilds(app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
     if( count <= 0 )
         return;
 
@@ -13761,8 +14026,7 @@ App_WorldLoadFinish(struct App* app)
          * holding saved tiles has to hear about: every scene-local number it
          * might have cached is renumbered by a rebuild. Raised after
          * world_active so a handler that queries the world finds it live. */
-        PluginHost_WorldLoaded(
-            app->plugins, app->world->_base_tile_x, app->world->_base_tile_z);
+        PluginHost_WorldLoaded(app->plugins, app->world->_base_tile_x, app->world->_base_tile_z);
         /* AFTER the event, so an object a handler placed in response to the
          * rebuild is materialised by its own set_position rather than being
          * swept up by a pass that already ran. */
@@ -13987,7 +14251,8 @@ app_debug_tile_flags(struct App* app)
                 {
                     n_vis++;
                     if( n_vis <= 400 )
-                        TORIRS_LOG("tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
+                        TORIRS_LOG(
+                            "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
                             lv,
                             x,
                             z,
@@ -14050,7 +14315,8 @@ app_debug_log_bridges(struct App* app)
             count++;
             if( count > 40 )
                 continue;
-            TORIRS_LOG("bridge: scene=%d,%d abs=%d,%d y0=%d y1=%d\n",
+            TORIRS_LOG(
+                "bridge: scene=%d,%d abs=%d,%d y0=%d y1=%d\n",
                 x,
                 z,
                 app->world->_base_tile_x + x,
@@ -14160,7 +14426,8 @@ app_apply_wedge_scale(struct App* app)
             if( !logged )
             {
                 logged = 1;
-                TORIRS_LOG("wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
+                TORIRS_LOG(
+                    "wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
                     fov_override,
                     toridraw_projection_scale_from_cot16(
                         toridraw_projection_cot16_from_fov(fov_override)));
@@ -14204,7 +14471,8 @@ app_apply_wedge_scale(struct App* app)
             if( !logged )
             {
                 logged = 1;
-                TORIRS_LOG("wedge: fixed camera -> constant scale=%d (no viewport "
+                TORIRS_LOG(
+                    "wedge: fixed camera -> constant scale=%d (no viewport "
                     "recompute)\n",
                     TORIDRAW_PROJECTION_SCALE_DEFAULT);
             }
@@ -14266,7 +14534,8 @@ app_apply_wedge_scale(struct App* app)
         if( scale != last )
         {
             last = scale;
-            TORIRS_ERR("wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
+            TORIRS_ERR(
+                "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
                 "realised=%d\n",
                 mode,
                 vp_h,
@@ -14298,7 +14567,8 @@ app_update_world_viewport(struct App* app)
         for( int i = 0; i < app->emit.count; i++ )
             if( app->emit.cmds[i].kind >= 0 && app->emit.cmds[i].kind < 24 )
                 kinds[app->emit.cmds[i].kind]++;
-        TORIRS_LOG("worldview: node_index=%d emit_count=%d kinds:",
+        TORIRS_LOG(
+            "worldview: node_index=%d emit_count=%d kinds:",
             App_WorldNodeIndex(app),
             app->emit.count);
         for( int k = 0; k < 24; k++ )
@@ -14324,7 +14594,8 @@ app_update_world_viewport(struct App* app)
             int ey = (d->y + d->h) < (wy + wh) ? (d->y + d->h) : (wy + wh);
             int area = (ex - ox) > 0 && (ey - oy) > 0 ? (ex - ox) * (ey - oy) : 0;
             if( area > (ww * wh) / 20 )
-                TORIRS_LOG("  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
+                TORIRS_LOG(
+                    "  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
                     "overlap=%d%%\n",
                     i,
                     d->kind,
@@ -14642,7 +14913,8 @@ Task_AppBoot_Run(
         app->prefs_dirty_cycle = 0;
     }
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
-        TORIRS_LOG("audio: seeded volume varps master(%d)=%d music(%d)=%d "
+        TORIRS_LOG(
+            "audio: seeded volume varps master(%d)=%d music(%d)=%d "
             "sfx(%d)=%d area(%d)=%d\n",
             RS_CS2_VARP_MASTER_VOLUME,
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_MASTER_VOLUME),
@@ -14759,10 +15031,10 @@ Task_AppBoot_Run(
         }
         PT_TASK_AWAITSELF_IF(
             CreateTask_CS2StatTransmitDispatchSet(&app->host, stat_ids, stat_count));
-        UITree_LayoutResolve(
-            app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
-    TORIRS_LOG("RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
+    TORIRS_LOG(
+        "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
         "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
         app->boot_interface_id,
         app->cfg.revconfig_ui_ini ? app->cfg.revconfig_ui_ini : "-",
@@ -14824,7 +15096,8 @@ Task_AppBoot_Run(
             struct UITreeComponent const* node = &app->tree->components[i];
             if( node->freed || node->type != UIELEM_RS_MODEL )
                 continue;
-            TORIRS_LOG("anim_debug: com=0x%x model=%d seq=%d\n",
+            TORIRS_LOG(
+                "anim_debug: com=0x%x model=%d seq=%d\n",
                 node->component_id,
                 node->u.rs_model.gamecache_model_id,
                 node->u.rs_model.anim_seq_id);
@@ -14857,7 +15130,8 @@ Task_AppBoot_Run(
             App_OpenSubInterface(
                 app, (parent << 16) | (mount->component & 0xFFFF), mount->interface_id, 0);
         }
-        TORIRS_LOG("gameframe: queued %d sub-interface mounts under iface %d\n",
+        TORIRS_LOG(
+            "gameframe: queued %d sub-interface mounts under iface %d\n",
             app->cfg.gameframe_mount_count,
             app->boot_interface_id);
     }
@@ -15176,7 +15450,8 @@ Task_OpenSubRefresh_Run(
     TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
-        TORIRS_ERR("if-opensub: target 0x%08x missing after boot (iface=%d); skip\n",
+        TORIRS_ERR(
+            "if-opensub: target 0x%08x missing after boot (iface=%d); skip\n",
             (unsigned)self->target_uid,
             self->interface_id);
         PT_EXIT(&self->pt);
@@ -15297,7 +15572,8 @@ App_OpenSubInterface(
 {
     assert(app);
     if( torirs_env_net_debug() )
-        TORIRS_LOG("if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
+        TORIRS_LOG(
+            "if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",
             interface_id,
             (unsigned)target_uid,
             (target_uid >> 16) & 0xffff,
@@ -15318,7 +15594,8 @@ App_CloseSubInterface(
 {
     assert(app);
     if( torirs_env_net_debug() )
-        TORIRS_LOG("if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
+        TORIRS_LOG(
+            "if-closesub: unmount uid=0x%08x (%d<<16|%d)\n",
             (unsigned)target_uid,
             (target_uid >> 16) & 0xffff,
             target_uid & 0xffff);
@@ -15345,7 +15622,8 @@ App_MoveSubInterface(
     group_id = app->tree->interface_parents[idx].group_id;
     type = app->tree->interface_parents[idx].type;
     if( torirs_env_net_debug() )
-        TORIRS_LOG("if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
+        TORIRS_LOG(
+            "if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
             group_id,
             type,
             (unsigned)source_uid,
@@ -15405,7 +15683,8 @@ App_RunClientScript(
     assert(app);
     assert(request);
     if( torirs_env_net_debug() )
-        TORIRS_LOG("runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
+        TORIRS_LOG(
+            "runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
             request->script_id,
             request->argc,
             (unsigned)request->str_mask);
@@ -15545,7 +15824,10 @@ App_NpcScreenPosition(
     /* Inside the world viewport with this much to spare: a body projected on
      * the viewport's edge is half under the frame, and the frame takes the
      * click. */
-    enum { MARGIN = 12 };
+    enum
+    {
+        MARGIN = 12
+    };
     struct UITreeEmitDesc const* viewport;
 
     assert(app);
@@ -15686,7 +15968,8 @@ App_TraceWorldEntities(struct App* app)
             struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
             if( !npc || npc->server_slot < 0 )
                 continue;
-            TORIRS_REPORT("NATIVE_NPC slot=%d type=%d tile=%d,%d,%d\n",
+            TORIRS_REPORT(
+                "NATIVE_NPC slot=%d type=%d tile=%d,%d,%d\n",
                 npc->server_slot,
                 npc->npc_id,
                 base_x + npc->grid_position.x,
@@ -15702,7 +15985,8 @@ App_TraceWorldEntities(struct App* app)
             struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
             if( !stack )
                 continue;
-            TORIRS_REPORT("NATIVE_GROUND_STACK tile=%d,%d,%d id=%d count=%d name=%s\n",
+            TORIRS_REPORT(
+                "NATIVE_GROUND_STACK tile=%d,%d,%d id=%d count=%d name=%s\n",
                 base_x + stack->grid_position.x,
                 base_z + stack->grid_position.z,
                 stack->grid_position.level,
@@ -15840,7 +16124,8 @@ static int
 app_cs2_flush_settings_mirrors(struct App* app)
 {
     int sent = 0;
-    if( !app->net || app->net->state != TORIRS_NET_GAME ) return 0;
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+        return 0;
     {
         int mirror_varbit;
         int mirror_value;
@@ -15856,8 +16141,8 @@ app_cs2_flush_settings_mirrors(struct App* app)
             }
             sent = 1;
             if( getenv("TORIRS_SETTINGS_DEBUG") )
-                TORIRS_LOG("settings: mirror varbit %d = %d -> server\n", mirror_varbit,
-                        mirror_value);
+                TORIRS_LOG(
+                    "settings: mirror varbit %d = %d -> server\n", mirror_varbit, mirror_value);
         }
     }
 
@@ -15868,8 +16153,8 @@ static int
 app_cs2_flush_notifications(struct App* app)
 {
     int pending = app->host.close_modal_requested || app->host.logout_requested ||
-        app->host.keyboard_request || app->host.resume_pausebutton_component_id != -1 ||
-        app->host.social_send_count > 0;
+                  app->host.keyboard_request || app->host.resume_pausebutton_component_id != -1 ||
+                  app->host.social_send_count > 0;
     /*
      * An interface asked to close itself.
      *
@@ -16120,22 +16405,40 @@ app_cs2_flush_triggeroplocal(struct App* app)
             if( app->net->rev->packetout_code(PKTOUT_NAME_IF_SCRIPT_TRIGGER) >= 0 )
             {
                 const char* strings[16];
-                for( int i=0; i<16; ++i ) strings[i]=trig.strings[i];
-                int object_id=-1;
-                int node=UITree_FindByComponentId(app->tree,trig.component_id);
-                if( node>=0 && trig.child>=0 )
-                    node=UITree_FindChildBySubid(app->tree,node,trig.component_id,trig.child);
-                if( node>=0 && app->tree->components[node].item_id>0 )
-                    object_id=app->tree->components[node].item_id;
-                APP_NET_SEND(app, net_out_if_script_trigger(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    trig.crc, trig.component_id, trig.child, object_id,
-                    trig.signature, trig.values, strings));
+                for( int i = 0; i < 16; ++i )
+                    strings[i] = trig.strings[i];
+                int object_id = -1;
+                int node = UITree_FindByComponentId(app->tree, trig.component_id);
+                if( node >= 0 && trig.child >= 0 )
+                    node = UITree_FindChildBySubid(app->tree, node, trig.component_id, trig.child);
+                if( node >= 0 && app->tree->components[node].item_id > 0 )
+                    object_id = app->tree->components[node].item_id;
+                APP_NET_SEND(
+                    app,
+                    net_out_if_script_trigger(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        trig.crc,
+                        trig.component_id,
+                        trig.child,
+                        object_id,
+                        trig.signature,
+                        trig.values,
+                        strings));
             }
             else
-                APP_NET_SEND(app, net_out_if_button_op(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    1, trig.component_id, trig.sub));
+                APP_NET_SEND(
+                    app,
+                    net_out_if_button_op(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        1,
+                        trig.component_id,
+                        trig.sub));
         }
     }
 
@@ -16268,8 +16571,7 @@ app_settle_cs2_frame(struct App* app)
              * have different fixes. cs2_settle minus cs2_settle_layout is the
              * task pump. */
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE_LAYOUT);
-            UITree_LayoutResolve(
-                app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         }
         {
             int more;
@@ -16538,8 +16840,8 @@ app_net_link_watch(
     /* Re-established: the handshake reached the game stream again. */
     if( app->net->state == TORIRS_NET_GAME )
     {
-        TORIRS_LOG("net: session re-established after %d attempt(s)\n",
-            app->net_reconnect_attempts);
+        TORIRS_LOG(
+            "net: session re-established after %d attempt(s)\n", app->net_reconnect_attempts);
         app->net_lost = 0;
         app->net_reconnect_attempts = 0;
         app->net_last_recv_ms = now_ms;
@@ -16747,7 +17049,8 @@ app_pump_net_packets(struct App* app)
             {
                 uint64_t dt = PlatformWindow_TicksUs() - t0;
                 if( dt >= (uint64_t)slow_ms * 1000u )
-                    TORIRS_REPORT("pkt_slow: type=%d %.2f ms cycle=%llu\n",
+                    TORIRS_REPORT(
+                        "pkt_slow: type=%d %.2f ms cycle=%llu\n",
                         last_exec_packet_type,
                         dt / 1000.0,
                         (unsigned long long)app->logic_cycle);
@@ -16783,7 +17086,8 @@ app_pump_net_packets(struct App* app)
                 int n = 0;
                 for( struct ToriRS_Task* t = app->runner.queue->head; t; t = t->next )
                     n++;
-                TORIRS_REPORT("frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
+                TORIRS_REPORT(
+                    "frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
                     "io_pending=%d cycle=%d\n",
                     (int)assets,
                     app->runner.progressed,
@@ -16800,7 +17104,8 @@ app_pump_net_packets(struct App* app)
             if( getenv("TORIRS_FRAME_LATCH") )
             {
                 struct ToriRS_Task* head = app->exec_runner.queue->head;
-                TORIRS_LOG("frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
+                TORIRS_LOG(
+                    "frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
@@ -16843,7 +17148,8 @@ app_pump_net_packets(struct App* app)
                 {
                     app->server_tick_open_cycle = app->logic_cycle;
                     if( getenv("TORIRS_FRAME_LATCH") )
-                        TORIRS_LOG("frame_latch: tick opened by packet %d at cycle %d\n",
+                        TORIRS_LOG(
+                            "frame_latch: tick opened by packet %d at cycle %d\n",
                             (int)packet.packet_type,
                             (int)app->logic_cycle);
                 }
@@ -16853,8 +17159,7 @@ app_pump_net_packets(struct App* app)
                 fence_queued = 1;
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
             last_exec_packet_type = packet.packet_type;
-            ToriRS_TaskQueue_Add(
-                app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
+            ToriRS_TaskQueue_Add(app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
     }
@@ -16869,8 +17174,8 @@ app_pump_net_packets(struct App* app)
      * so a tick cut short by a disconnect cannot strand a script forever.
      */
     if( drained && app->pending_clientscript_count &&
-        (!app->server_tick_fence_seen || app->logic_cycle - app->pending_clientscript_cycle >=
-                                             APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
+        (!app->server_tick_fence_seen ||
+         app->logic_cycle - app->pending_clientscript_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
     {
         App_FlushPendingClientScripts(app);
         /* Same recovery fence for a connection whose tick was cut short:
@@ -16889,7 +17194,6 @@ app_pump_net_packets(struct App* app)
         app->server_tick_open = 0;
         redraw = 1;
     }
-
 
     return redraw;
 }
@@ -17005,8 +17309,8 @@ app_title_tick(struct App* app)
      * show progress on -- but the credentials still have to reach the server,
      * which is what App_Init used to do before the connect moved to submit.
      */
-    if( app->net_enabled && app->net && !app->autologin_done &&
-        app->screen == APP_SCREEN_GAME && app->autologin_user[0] )
+    if( app->net_enabled && app->net && !app->autologin_done && app->screen == APP_SCREEN_GAME &&
+        app->autologin_user[0] )
     {
         app->autologin_done = 1;
         app_login_refresh_jag_checksums(app);
@@ -17063,8 +17367,7 @@ app_title_tick(struct App* app)
 
     /* The handshake finished: the server's IF_OPENTOP roots the gameframe,
      * exactly as a networked boot used to do straight out of App_Init. */
-    if( app->screen == APP_SCREEN_CONNECTING && app->net &&
-        app->net->state == TORIRS_NET_GAME )
+    if( app->screen == APP_SCREEN_CONNECTING && app->net && app->net->state == TORIRS_NET_GAME )
     {
         App_OpenRootInterface(app, -1);
         return 1;
@@ -17102,7 +17405,8 @@ app_title_tick(struct App* app)
         }
         else
         {
-            TORIRS_ERR("login: rejected with reply=%d and the profile declares no text for it\n",
+            TORIRS_ERR(
+                "login: rejected with reply=%d and the profile declares no text for it\n",
                 app->net->login_reply);
             RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
         }
@@ -17668,7 +17972,8 @@ app_logic_tick(struct App* app)
                 if( subject != app->highlight_last_mouseover )
                 {
                     app->highlight_last_mouseover = subject;
-                    TORIRS_LOG("mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
+                    TORIRS_LOG(
+                        "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
                         minimenu_type,
                         mo.kind,
                         mo.uid,
@@ -17711,8 +18016,14 @@ app_logic_tick(struct App* app)
                     app_cs2_set_active_player(app, app->world->local_pid);
                     app_cs2_set_active_tile(app, hover_coord);
                     RS_CS2_RunScript(
-                        &app->host, &app->runner, app->host.script_highlight_hover_tile,
-                        NULL, 0, 0, NULL, 0);
+                        &app->host,
+                        &app->runner,
+                        app->host.script_highlight_hover_tile,
+                        NULL,
+                        0,
+                        0,
+                        NULL,
+                        0);
                 }
             }
             /* The current tile: the local player's route changed, which is
@@ -17725,8 +18036,14 @@ app_logic_tick(struct App* app)
                 app->highlight_last_route = route;
                 app_cs2_set_active_player(app, app->world->local_pid);
                 RS_CS2_RunScript(
-                    &app->host, &app->runner, app->host.script_highlight_current_tile,
-                    NULL, 0, 0, NULL, 0);
+                    &app->host,
+                    &app->runner,
+                    app->host.script_highlight_current_tile,
+                    NULL,
+                    0,
+                    0,
+                    NULL,
+                    0);
             }
             /*
              * The destination tile: the minimap flag moved.
@@ -17753,8 +18070,14 @@ app_logic_tick(struct App* app)
                     app_cs2_set_active_player(app, app->world->local_pid);
                     app_cs2_set_active_tile(app, fire_coord);
                     RS_CS2_RunScript(
-                        &app->host, &app->runner, app->host.script_highlight_dest_tile,
-                        NULL, 0, 0, NULL, 0);
+                        &app->host,
+                        &app->runner,
+                        app->host.script_highlight_dest_tile,
+                        NULL,
+                        0,
+                        0,
+                        NULL,
+                        0);
                 }
             }
         }
@@ -17867,7 +18190,8 @@ app_logic_tick(struct App* app)
             int area = (settings.area_sounds * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
 
             if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
-                TORIRS_LOG("audio settings: master %d%%, music %d%%, effects %d%%, area %d%% "
+                TORIRS_LOG(
+                    "audio settings: master %d%%, music %d%%, effects %d%%, area %d%% "
                     "-> buses %d/%d/%d\n",
                     settings.master,
                     settings.music,
@@ -17926,8 +18250,7 @@ app_logic_tick(struct App* app)
             app->logic_cycle - app->plugin_prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
         {
             ToriRS_TaskQueue_Add(
-                app->runner.queue,
-                CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
+                app->runner.queue, CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
             app->plugin_prefs_dirty_cycle = 0;
         }
     }
@@ -18054,7 +18377,8 @@ app_logic_tick(struct App* app)
                 if( com_id >= 0 && UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                     timers_hidden++;
             }
-            TORIRS_LOG("torirs_stats: tick=%d components=%u live=%u hidden=%u freed=%u "
+            TORIRS_LOG(
+                "torirs_stats: tick=%d components=%u live=%u hidden=%u freed=%u "
                 "free_head=%d inv_hooks=%d var_hooks=%d timers=%d timers_hidden=%d "
                 "iface_parents=%d\n",
                 stats_tick,
@@ -18085,7 +18409,8 @@ app_logic_tick(struct App* app)
                     continue;
                 if( node->u.rs_model.anim_seq_id < 0 )
                     continue;
-                TORIRS_LOG("anim_tick t=%d com=0x%x seq=%d frame=%d gen=%u\n",
+                TORIRS_LOG(
+                    "anim_tick t=%d com=0x%x seq=%d frame=%d gen=%u\n",
                     anim_dbg_tick,
                     node->component_id,
                     node->u.rs_model.anim_seq_id,
@@ -18175,9 +18500,10 @@ app_world_sync_placement(
      * carries a root-frame heading that needs the hull's yaw taken out. */
     /* The legacy NPC bridge projects positions but still sends each crew
      * member's native deck-facing direction (NPC_INFO face_dir). */
-    deck_yaw = actor_level < 0 || (placement->home_view == placement->view_id && placement->home_view != 0)
-                   ? yaw & 0x7ff
-                   : (yaw - wev->angle) & 0x7ff;
+    deck_yaw =
+        actor_level < 0 || (placement->home_view == placement->view_id && placement->home_view != 0)
+            ? yaw & 0x7ff
+            : (yaw - wev->angle) & 0x7ff;
     /* The deck plane: a PLAYER stands at their own wire plane inside the
      * boat's world — the deob copies the PLAYER_INFO coordinate's plane
      * verbatim (class60.field552) and samples the sub-view's heights there;
@@ -18231,15 +18557,24 @@ app_world_sync_positions(struct App* app)
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
         int wy;
-        if( app_world_sync_placement(app, &player->view_placement, player->element_id,
-                                     player->orientation.yaw,
-                                     player->grid_position.level) )
+        if( app_world_sync_placement(
+                app,
+                &player->view_placement,
+                player->element_id,
+                player->orientation.yaw,
+                player->grid_position.level) )
             continue;
         wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
-            TORIRS_LOG("plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
-                player->grid_position.x, player->grid_position.z,
-                player->grid_position.level, local_level, wx, wz, wy);
+            TORIRS_LOG(
+                "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
+                player->grid_position.x,
+                player->grid_position.z,
+                player->grid_position.level,
+                local_level,
+                wx,
+                wz,
+                wy);
         ToriDraw_SceneElementSetPosition(
             app->scene, player->element_id, wx, wy, wz, player->orientation.yaw);
     }
@@ -18265,15 +18600,23 @@ app_world_sync_positions(struct App* app)
             continue;
         wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
-            TORIRS_LOG("npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
+            TORIRS_LOG(
+                "npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
                 "h0=%d h1=%d h2=%d lb=%d\n",
-                npc->npc_id, npc->grid_position.x, npc->grid_position.z,
-                npc->grid_position.level, local_level, wx, wz, wy, npc->size,
+                npc->npc_id,
+                npc->grid_position.x,
+                npc->grid_position.z,
+                npc->grid_position.level,
+                local_level,
+                wx,
+                wz,
+                wy,
+                npc->size,
                 heightmap_get_interpolated(app->world->heightmap, wx, wz, 0),
                 heightmap_get_interpolated(app->world->heightmap, wx, wz, 1),
                 heightmap_get_interpolated(app->world->heightmap, wx, wz, 2),
-                (World_TileFlagGet(app->world, wx >> 7, wz >> 7, 1) &
-                 RSCACHE_FLOFLAG_LINK_BELOW) != 0);
+                (World_TileFlagGet(app->world, wx >> 7, wz >> 7, 1) & RSCACHE_FLOFLAG_LINK_BELOW) !=
+                    0);
         ToriDraw_SceneElementSetPosition(
             app->scene, npc->element_id, wx, wy, wz, npc->orientation.yaw);
     }
@@ -18721,13 +19064,12 @@ App_BootBarCaption(
      * knows which stage it is at says so, and this obeys. A task which never
      * asks gets the standing sentence rather than silence.
      */
-    if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR &&
-        app->runner.render.caption && app->runner.render.caption[0] )
+    if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->runner.render.caption &&
+        app->runner.render.caption[0] )
         caption = app->runner.render.caption;
     else
         caption = RS_LoginReplies_String(
-            &app->login_replies,
-            app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+            &app->login_replies, app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
     if( !caption || !caption[0] )
         return NULL;
 
@@ -19097,7 +19439,8 @@ app_update_painter_cull(
             cm, app->world_camera.pitch, app->world_camera.yaw);
         if( slice_n <= 0 )
         {
-            TORIRS_LOG("painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
+            TORIRS_LOG(
+                "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
                 "(%.2f ms) — keeping nocull\n",
                 app->world_camera.pitch,
                 app->world_camera.yaw,
@@ -19118,7 +19461,8 @@ app_update_painter_cull(
             return;
         }
 
-        TORIRS_LOG("painter_cullmap: baked radius=%d near=%d %dx%d slice_vis=%d in %.2f ms\n",
+        TORIRS_LOG(
+            "painter_cullmap: baked radius=%d near=%d %dx%d slice_vis=%d in %.2f ms\n",
             radius,
             near_z,
             vw,
@@ -19229,7 +19573,9 @@ struct AppWedgeCamPath
 /* Returns 1 only if the whole spec parsed. Never a partial path: half a route
  * read as a whole one is a camera that quietly measures somewhere else. */
 static int
-app_wedge_cam_path_parse(char const* spec, struct AppWedgeCamPath* out_path)
+app_wedge_cam_path_parse(
+    char const* spec,
+    struct AppWedgeCamPath* out_path)
 {
     char mode[16];
     char wrap[16];
@@ -19335,7 +19681,9 @@ app_wedge_cam_path_parse(char const* spec, struct AppWedgeCamPath* out_path)
  * the usual way to terminate a Catmull-Rom. */
 static void
 app_wedge_cam_path_key(
-    struct AppWedgeCamPath const* path, int index, struct AppWedgeCamKey* out_key)
+    struct AppWedgeCamPath const* path,
+    int index,
+    struct AppWedgeCamKey* out_key)
 {
     int wrapped;
     long laps = 0;
@@ -19369,13 +19717,21 @@ app_wedge_cam_path_key(
 /* Fixed point rather than float, all the way through: the phase has to be a
  * bit-exact function of the frame ordinal on every build this suite compares. */
 static int
-app_wedge_cam_lerp(int p0, int p1, int64_t t)
+app_wedge_cam_lerp(
+    int p0,
+    int p1,
+    int64_t t)
 {
     return (int)((int64_t)p0 + ((((int64_t)p1 - (int64_t)p0) * t) >> 12));
 }
 
 static int
-app_wedge_cam_spline(int p0, int p1, int p2, int p3, int64_t t)
+app_wedge_cam_spline(
+    int p0,
+    int p1,
+    int p2,
+    int p3,
+    int64_t t)
 {
     int64_t t2 = (t * t) >> 12;
     int64_t t3 = (t2 * t) >> 12;
@@ -19389,7 +19745,9 @@ app_wedge_cam_spline(int p0, int p1, int p2, int p3, int64_t t)
 
 static void
 app_wedge_cam_path_eval(
-    struct AppWedgeCamPath const* path, long frame, struct AppWedgeCamKey* out_key)
+    struct AppWedgeCamPath const* path,
+    long frame,
+    struct AppWedgeCamKey* out_key)
 {
     struct AppWedgeCamKey k0;
     struct AppWedgeCamKey k1;
@@ -19506,7 +19864,8 @@ app_world_paint(struct App* app)
                     /* Once, at resolve time, never per frame. Loud because the
                      * alternative is a mistyped route silently measuring a
                      * still camera and reporting a number that looks fine. */
-                    TORIRS_ERR("TORIRS_WEDGE_CAM_PATH: cannot parse, camera not "
+                    TORIRS_ERR(
+                        "TORIRS_WEDGE_CAM_PATH: cannot parse, camera not "
                         "moving: %s\n",
                         wp);
             }
@@ -19611,8 +19970,7 @@ app_world_paint(struct App* app)
             app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
             break;
         case 4:
-            app->world_camera.pitch =
-                app_world_clamp_pitch(app, app->world_camera.pitch + jitter);
+            app->world_camera.pitch = app_world_clamp_pitch(app, app->world_camera.pitch + jitter);
             break;
         default:
             break;
@@ -19702,7 +20060,8 @@ app_world_paint(struct App* app)
                         else
                             n_wall++;
                     }
-                    TORIRS_LOG("occluders: top=%d built_wall=%d built_floor=%d active=%d "
+                    TORIRS_LOG(
+                        "occluders: top=%d built_wall=%d built_floor=%d active=%d "
                         "eye=(%d,%d,%d) cam_tile=(%d,%d)\n",
                         top_level,
                         n_wall,
@@ -19740,8 +20099,8 @@ app_world_paint(struct App* app)
      * what separates the two: same scene, same frame, the other painter. Pair
      * it with TORIRS_PIXOWNER to name what changed hands, or
      * TORIRS_PAINTER_ALT=1 + TORIRS_BMP_SERIES for a same-frame image pair. */
-    else if( g_torirs_painter_force == 1 ||
-             (g_torirs_painter_force == 0 && torirs_env_painter_w3d()) )
+    else if(
+        g_torirs_painter_force == 1 || (g_torirs_painter_force == 0 && torirs_env_painter_w3d()) )
         painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
@@ -19763,7 +20122,8 @@ app_world_paint(struct App* app)
         int by_kind[16] = { 0 };
         for( int i = 0; i < app->painter_buffer->command_count; i++ )
             by_kind[app->painter_buffer->commands[i]._bf_kind & 0xF]++;
-        TORIRS_LOG("paint: cam=%d,%d campos=(%d,%d,%d) pitch=%d yaw=%d level_mask=0x%x roof=%d "
+        TORIRS_LOG(
+            "paint: cam=%d,%d campos=(%d,%d,%d) pitch=%d yaw=%d level_mask=0x%x roof=%d "
             "commands=%d kinds:",
             cam_sx,
             cam_sz,
@@ -19837,7 +20197,8 @@ app_world_paint(struct App* app)
                                 order = i;
                             order_count++;
                         }
-                        TORIRS_LOG("%3d,%-3d  L%d  0x%02x %5d 0x%x ",
+                        TORIRS_LOG(
+                            "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
                             x,
                             z,
                             lv,
@@ -19869,7 +20230,8 @@ app_world_paint(struct App* app)
                 if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
                     sc->grid_position.z < z0 - 8 || sc->grid_position.z > z1 + 8 )
                     continue;
-                TORIRS_LOG("  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n",
+                TORIRS_LOG(
+                    "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n",
                     i,
                     sc->loc_id,
                     sc->grid_position.x,
@@ -19896,8 +20258,7 @@ app_world_viewport_component_live(struct App const* app)
     if( !app || !app->tree || !app->world_view_valid )
         return 0;
     idx = app->world_emit_desc.node_index;
-    if( idx < 0 || (uint32_t)idx >= app->tree->component_count ||
-        idx != app->tree->world_index )
+    if( idx < 0 || (uint32_t)idx >= app->tree->component_count || idx != app->tree->world_index )
         return 0;
     node = &app->tree->components[idx];
     if( node->freed || node->type != UIELEM_BUILTIN_WORLD )
@@ -19938,10 +20299,9 @@ app_world_mouse_gate(
      * WALKED THE PLAYER, on a screen where the world is not even visible.
      * The box is the same one app_worldmap_drag_tick arms its drag from.
      */
-    if( app->worldmap_box_w > 0 && app->worldmap_box_h > 0 &&
-        mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
-        mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h &&
-        app_worldmap_surface_live(app) )
+    if( app->worldmap_box_w > 0 && app->worldmap_box_h > 0 && mouse_x >= app->worldmap_box_x &&
+        mouse_x < app->worldmap_box_x + app->worldmap_box_w && mouse_y >= app->worldmap_box_y &&
+        mouse_y < app->worldmap_box_y + app->worldmap_box_h && app_worldmap_surface_live(app) )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER
@@ -20076,7 +20436,8 @@ app_world_nearest_ground_tile(
     if( best_d2 == LLONG_MAX )
         return 0;
     if( torirs_env_net_debug() )
-        TORIRS_LOG("groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
+        TORIRS_LOG(
+            "groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
             click_x,
             click_y,
             *out_x,
@@ -20162,7 +20523,8 @@ app_try_move(
             int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
             int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
             if( torirs_env_net_debug() )
-                TORIRS_LOG("groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
+                TORIRS_LOG(
+                    "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
                     dst_x,
                     dst_z,
                     clamped_x,
@@ -20216,7 +20578,8 @@ app_try_move(
         return 0;
 
     if( torirs_env_net_debug() )
-        TORIRS_LOG("trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
+        TORIRS_LOG(
+            "trymove: type=%d src=%d,%d dst=%d,%d route_len=%d nearest=%d dest=%d,%d\n",
             type,
             player->pathing.route_x[0],
             player->pathing.route_z[0],
@@ -20569,7 +20932,8 @@ app_minimap_click(
     if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
         return 0;
     /* Native permission, independent of whether the map is currently painted. */
-    if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) ) return 0;
+    if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) )
+        return 0;
     if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
         mouse_y >= desc->y + desc->h )
         return 0;
@@ -20588,7 +20952,8 @@ app_minimap_click(
     }
     if( app_sailing_can_steer(app) )
     {
-        if( rel_x == 0 && rel_y == 0 ) return 0;
+        if( rel_x == 0 && rel_y == 0 )
+            return 0;
         return app_sailing_send_heading(app, SailingNavigation_Heading(rel_x, -rel_y));
     }
     int player_x = (int)player->draw_position.x;
@@ -20601,7 +20966,8 @@ app_minimap_click(
         return 0;
 
     if( torirs_env_net_debug() )
-        TORIRS_REPORT("minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
+        TORIRS_REPORT(
+            "minimap: click=%d,%d rel=%d,%d scene=%d,%d abs=%d,%d\n",
             center_x,
             center_y,
             rel_x,
@@ -20612,14 +20978,30 @@ app_minimap_click(
             app->world->_base_tile_z + tile_z);
     if( app->aboard_view != WORLDVIEW_ROOT && app->net )
     {
-        int route_x[] = {tile_x}, route_z[] = {tile_z};
+        int route_x[] = { tile_x }, route_z[] = { tile_z };
         /* As with viewport shore clicks, the server chooses a reachable deck
          * edge. Root BFS cannot start from a passenger's staging coordinates. */
-        APP_NET_SEND(app, net_out_move_minimapclick(
-            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-            app->world->_base_tile_x, app->world->_base_tile_z,
-            route_x, route_z, 1, ctrl_held, center_x, center_y, yaw, 0, 0,
-            player_x, player_z, 0));
+        APP_NET_SEND(
+            app,
+            net_out_move_minimapclick(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                app->world->_base_tile_x,
+                app->world->_base_tile_z,
+                route_x,
+                route_z,
+                1,
+                ctrl_held,
+                center_x,
+                center_y,
+                yaw,
+                0,
+                0,
+                player_x,
+                player_z,
+                0));
     }
     else
         app_try_move(app, tile_x, tile_z, 1, center_x, center_y, yaw, ctrl_held);
@@ -20643,8 +21025,14 @@ app_world_pick_finish(
     int player_level = player ? app_cinema_level(app) : -1;
 
     ToriRS_PickHitsClassifyViews(
-        app->world, &app->worldviews, &app->wevs, app->aboard_view,
-        hits, player_level, &app->world_pickset, &result);
+        app->world,
+        &app->worldviews,
+        &app->wevs,
+        app->aboard_view,
+        hits,
+        player_level,
+        &app->world_pickset,
+        &result);
     if( result.hover_tile_valid )
     {
         app->world_hover_tile_x = result.hover_tile_x;
@@ -20668,7 +21056,8 @@ app_world_pick_finish(
 
     if( getenv("TORIRS_WORLD_PICK_DEBUG") )
     {
-        TORIRS_LOG("world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
+        TORIRS_LOG(
+            "world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
             app->world_mouse_x,
             app->world_mouse_y,
             app->world_pickset.count,
@@ -20682,7 +21071,8 @@ app_world_pick_finish(
              * separate 1x1 loc one tile nearer than the statue". */
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(app->world, app->world_pickset.items[i].element_id);
-            TORIRS_LOG("world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
+            TORIRS_LOG(
+                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
                 "origin=%d,%d,%d '%s'\n",
                 i,
                 app->world_pickset.items[i].element_id,
@@ -20746,7 +21136,8 @@ app_world_camera_keys(
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_MORE_100) ||
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS_100)) )
-        TORIRS_LOG("camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
+        TORIRS_LOG(
+            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
             "chat=%d/%d/%d iface_input=%d\n",
             app->world_active,
             app->world_view_valid,
@@ -20963,8 +21354,7 @@ app_ui_hotkeys(
             continue;
 
         node = &app->tree->components[binding->node_index];
-        if( node->freed ||
-            UITree_NodeOrAncestorDisplayHidden(app->tree, binding->node_index) )
+        if( node->freed || UITree_NodeOrAncestorDisplayHidden(app->tree, binding->node_index) )
             continue;
 
         switch( binding->effect )
@@ -21001,7 +21391,8 @@ app_ui_hotkeys(
             app->hotkey_consumed[binding->osrs_key] = 1;
             app->need_redraw = 1;
             if( getenv("TORIRS_HOTKEY_DEBUG") )
-                TORIRS_LOG("hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
+                TORIRS_LOG(
+                    "hotkey: osrs_key=%d node=%d effect=select_tab tab=%d\n",
                     binding->osrs_key,
                     binding->node_index,
                     tabno);
@@ -21046,7 +21437,8 @@ app_debug_log_camera(
 {
     if( !getenv("TORIRS_CAM_DEBUG") )
         return;
-    TORIRS_LOG("cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
+    TORIRS_LOG(
+        "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
@@ -21123,8 +21515,8 @@ app_world_camera_mouse(
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
                     app->orbit_yaw = (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
-                    app->orbit_pitch =
-                        app_world_clamp_pitch(app, app->orbit_pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
+                    app->orbit_pitch = app_world_clamp_pitch(
+                        app, app->orbit_pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
                     app->orbit_yaw_vel = 0;
                     app->orbit_pitch_vel = 0;
                 }
@@ -21152,8 +21544,7 @@ app_world_camera_mouse(
      * scroll pane drawn across the viewport still belongs to that pane —
      * app_world_mouse_gate alone only rejects *interactive* nodes, and an IF1
      * scroll layer is pass-through. */
-    if( input->curr.mouse_wheel_y != 0 &&
-        !out->wheel_consumed && !app->interact.minimenu.visible &&
+    if( input->curr.mouse_wheel_y != 0 && !out->wheel_consumed && !app->interact.minimenu.visible &&
         /* The chrome's claim is checked HERE, not inferred from consumed
          * flags: this runs long after the overlay handled input, when
          * input_frame_consumed is 1 on every frame. A wheel over a panel or
@@ -21177,8 +21568,7 @@ app_world_camera_mouse(
             app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                 &app->revconfig_profile,
                 app->world_cam_zoom -
-                    input->curr.mouse_wheel_y *
-                        app->revconfig_profile.camera.wheel_step);
+                    input->curr.mouse_wheel_y * app->revconfig_profile.camera.wheel_step);
         }
         else
             return;
@@ -21388,7 +21778,8 @@ app_world_try_bind_seq(
              * sequence that was never sent. */
             struct ToriDraw_Model const* m =
                 (el && ToriDraw_ModelKindIsFull(el->model.kind)) ? el->model.u.model.model : NULL;
-            TORIRS_LOG("seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
+            TORIRS_LOG(
+                "seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
                 "frame=%d cycle=%d kind=%d vbones=%d fbones=%d falpha=%d\n",
                 element_id,
                 seq_id,
@@ -21405,7 +21796,8 @@ app_world_try_bind_seq(
         }
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
-        TORIRS_LOG("seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
+        TORIRS_LOG(
+            "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
             element_id,
             seq_id,
             (void*)anim,
@@ -21896,7 +22288,8 @@ app_world_spawn_player_now(
     ToriDraw_ModelCaptureOriginalVertices(copy);
 
     world_y = app_world_height(app, world_x, world_z, level);
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PLAYER, copy, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_PLAYER, copy, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
     app_world_apply_seq(app, element_id, APP_PLAYER_SEQ_READY);
@@ -21924,11 +22317,7 @@ app_world_spawn_player_now(
         if( player )
             player->server_pid = -1;
     }
-    TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n",
-        element_id,
-        tile_x,
-        tile_z,
-        level);
+    TORIRS_LOG("spawn_player: element=%d tile=%d,%d level=%d\n", element_id, tile_x, tile_z, level);
     app_sync_textures(app);
     app->need_redraw = 1;
     return idx;
@@ -22175,7 +22564,8 @@ app_world_spawn_npc_now(
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
     bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NPC, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_NPC, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
     {
@@ -22245,7 +22635,8 @@ app_world_spawn_npc_now(
      * switch so the cost stays measurable (spawn_bd's `log` column). */
     bd_t = bd_us ? PlatformWindow_TicksUs() : 0;
     if( spawn_log )
-        TORIRS_LOG("spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
+        TORIRS_LOG(
+            "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
             "retextures=%d\n",
             npc_id,
             element_id,
@@ -22267,7 +22658,8 @@ app_world_spawn_npc_now(
         bd_tex = PlatformWindow_TicksUs() - bd_t;
         total = PlatformWindow_TicksUs() - bd_t0;
         if( total >= (uint64_t)bd_us )
-            TORIRS_LOG("spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
+            TORIRS_LOG(
+                "spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
                 "log %llu tex %llu (us)\n",
                 npc_id,
                 (unsigned long long)total,
@@ -22340,7 +22732,8 @@ app_world_spawn_projectile_now(
         range = abs(tile_z - src_tile_z);
     t2 = 60 + range * 5; /* ticks: base flight + per-tile stretch */
 
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
     if( element_id < 0 )
         return;
 
@@ -22366,7 +22759,8 @@ app_world_spawn_projectile_now(
      * why the element is marked anim_loop. */
     ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_apply_seq(app, element_id, seq_id);
-    TORIRS_LOG("spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
+    TORIRS_LOG(
+        "spawn_projectile: element=%d %d,%d -> %d,%d t2=%d target=%d\n",
         element_id,
         src_tile_x,
         src_tile_z,
@@ -22441,8 +22835,7 @@ app_world_ground_composed(
         deck_level = app_wev_deck_level(app, view_id);
         if( deck_level >= COLLISION_LEVELS )
             deck_level = COLLISION_LEVELS - 1;
-        return wev->y + wev->bob_y +
-               app_world_height_in(view->world, deck_x, deck_z, deck_level);
+        return wev->y + wev->bob_y + app_world_height_in(view->world, deck_x, deck_z, deck_level);
     }
     return app_world_height(app, fine_x, fine_z, level);
 }
@@ -22489,9 +22882,8 @@ app_world_spawn_projectile_spot_now(
     model = app_world_build_spotanim_model(app, spot);
     if( !model )
     {
-        TORIRS_ERR("spawn_projectile_spot: spotanim %d model %d failed\n",
-            spotanim_id,
-            spot->model);
+        TORIRS_ERR(
+            "spawn_projectile_spot: spotanim %d model %d failed\n", spotanim_id, spot->model);
         return;
     }
 
@@ -22513,7 +22905,8 @@ app_world_spawn_projectile_spot_now(
      * target's tile. */
     src_y = app_world_ground_composed(app, src_x, src_z, src_level) - src_height * 4;
 
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
     if( element_id < 0 )
         return;
 
@@ -22547,7 +22940,8 @@ app_world_spawn_projectile_spot_now(
     app_world_apply_seq(app, element_id, spot->seq);
 
     if( torirs_env_net_debug() )
-        TORIRS_LOG("spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
+        TORIRS_LOG(
+            "spawn_projectile_spot: element=%d spotanim=%d model=%d seq=%d "
             "%d,%d -> %d,%d lvl=%d/%d t1=%d t2=%d target=%d src_y=%d ground=%d "
             "dst_ground=%d h1=%d h2=%d\n",
             element_id,
@@ -22653,14 +23047,14 @@ app_world_spawn_spotanim_now(
      * raises the effect above the ground by `height`. */
     world_y = app_world_height(app, world_x, world_z, level) - height;
 
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_SPOTANIM, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_SPOTANIM, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
 
     lifetime = app_seq_total_duration(app, spot->seq);
 
-    World_SpotanimSpawn(
-        world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
+    World_SpotanimSpawn(world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
     app_world_apply_seq(app, element_id, spot->seq);
     /* A delayed spotanim is invisible until World flips it active, so its
      * sequence must not run in the meantime. Park it as anim_external — the
@@ -22684,7 +23078,8 @@ app_world_spawn_spotanim_now(
         }
     }
 
-    TORIRS_LOG("spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
+    TORIRS_LOG(
+        "spawn_spotanim: id=%d element=%d tile=%d,%d level=%d model=%d seq=%d "
         "life=%d delay=%d\n",
         spotanim_id,
         element_id,
@@ -22718,7 +23113,9 @@ app_world_spawn_spotanim_now(
  */
 
 static struct AppPluginAssetModel*
-app_plugin_asset_model_at(struct App* app, int handle)
+app_plugin_asset_model_at(
+    struct App* app,
+    int handle)
 {
     assert(app);
     if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
@@ -22729,7 +23126,9 @@ app_plugin_asset_model_at(struct App* app, int handle)
 }
 
 static struct AppPluginMesh*
-app_plugin_mesh_at(struct App* app, int handle)
+app_plugin_mesh_at(
+    struct App* app,
+    int handle)
 {
     assert(app);
     if( handle < 0 || handle >= APP_PLUGIN_MESHES_MAX )
@@ -22744,7 +23143,10 @@ app_plugin_mesh_at(struct App* app, int handle)
  * array per append: they are the same list seen eight ways and always carry
  * the same count. */
 static void
-app_plugin_mesh_grow(struct AppPluginMesh* mesh, int faces, int want)
+app_plugin_mesh_grow(
+    struct AppPluginMesh* mesh,
+    int faces,
+    int want)
 {
     int cap;
 
@@ -22817,12 +23219,12 @@ app_plugin_mesh_build_model(struct AppPluginMesh const* mesh)
     model = ToriDraw_ModelNew(mesh->vertex_count, mesh->face_count, 0);
     assert(model);
 
-    model->vertices_x = ToriDraw_BufCopy(
-        mesh->vertices_x, (size_t)mesh->vertex_count, sizeof(*model->vertices_x));
-    model->vertices_y = ToriDraw_BufCopy(
-        mesh->vertices_y, (size_t)mesh->vertex_count, sizeof(*model->vertices_y));
-    model->vertices_z = ToriDraw_BufCopy(
-        mesh->vertices_z, (size_t)mesh->vertex_count, sizeof(*model->vertices_z));
+    model->vertices_x =
+        ToriDraw_BufCopy(mesh->vertices_x, (size_t)mesh->vertex_count, sizeof(*model->vertices_x));
+    model->vertices_y =
+        ToriDraw_BufCopy(mesh->vertices_y, (size_t)mesh->vertex_count, sizeof(*model->vertices_y));
+    model->vertices_z =
+        ToriDraw_BufCopy(mesh->vertices_z, (size_t)mesh->vertex_count, sizeof(*model->vertices_z));
     model->face_indices_a =
         ToriDraw_BufCopy(mesh->face_a, (size_t)mesh->face_count, sizeof(*model->face_indices_a));
     model->face_indices_b =
@@ -22864,7 +23266,9 @@ app_plugin_mesh_build_model(struct AppPluginMesh const* mesh)
  */
 
 static struct AppPluginObject*
-app_plugin_object_at(struct App* app, int handle)
+app_plugin_object_at(
+    struct App* app,
+    int handle)
 {
     assert(app);
     if( handle < 0 || handle >= APP_PLUGIN_OBJECTS_MAX )
@@ -22895,7 +23299,9 @@ app_plugin_object_recolor_stamp(struct AppPluginObject const* obj)
  * rebuilds the objects made from it, and geometry re-stated unchanged rebuilds
  * nothing. */
 static int
-app_plugin_object_geometry_revision(struct App* app, struct AppPluginObject const* obj)
+app_plugin_object_geometry_revision(
+    struct App* app,
+    struct AppPluginObject const* obj)
 {
     assert(app);
     assert(obj);
@@ -22917,7 +23323,9 @@ app_plugin_object_geometry_revision(struct App* app, struct AppPluginObject cons
  * a CACHE object names its model directly, a SPOTANIM object names it through
  * the spotanimtype. Returns -1 when it is not knowable yet. */
 static int
-app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
+app_plugin_object_model_id(
+    struct App* app,
+    struct AppPluginObject const* obj)
 {
     assert(app);
     assert(obj);
@@ -22940,7 +23348,9 @@ app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
 /* The sequence the object should play: the plugin's if it named one, else the
  * spotanimtype's own. -1 = no animation. */
 static int
-app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
+app_plugin_object_seq_id(
+    struct App* app,
+    struct AppPluginObject const* obj)
 {
     assert(app);
     assert(obj);
@@ -22979,7 +23389,9 @@ app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
  * this path is written out rather than layered on one that cannot express it.
  */
 static struct ToriDraw_Model*
-app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj)
+app_plugin_object_build_model(
+    struct App* app,
+    struct AppPluginObject const* obj)
 {
     struct ToriRS_Spotanimtype const* spot = NULL;
     struct ToriDraw_Model* model;
@@ -22993,8 +23405,7 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
         /* Not resident yet is the ordinary state for the first frame or two:
          * the file crosses the IO queue like every other asset, and the settle
          * builds the object when it lands. */
-        struct AppPluginAssetModel const* shipped =
-            app_plugin_asset_model_at(app, obj->model_id);
+        struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
         if( !shipped || !shipped->model )
             return NULL;
         model = ToriDraw_ModelFromToriRS(shipped->model);
@@ -23090,7 +23501,9 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
  * EntityRemoved event frees the scene element on the next drain, which is the
  * same path every other despawn takes. */
 static void
-app_plugin_object_teardown(struct App* app, struct AppPluginObject* obj)
+app_plugin_object_teardown(
+    struct App* app,
+    struct AppPluginObject* obj)
 {
     assert(app);
     assert(obj);
@@ -23136,15 +23549,16 @@ app_plugin_object_scene_pos(
     *out_world_z = scene_z * 128 + 64;
     /* World y is negative-up, so subtracting `height` raises the model off the
      * ground -- the same arithmetic a map spotanim's height uses. */
-    *out_world_y =
-        app_world_height(app, *out_world_x, *out_world_z, obj->level) - obj->height;
+    *out_world_y = app_world_height(app, *out_world_x, *out_world_z, obj->level) - obj->height;
     return 1;
 }
 
 /* Build the element and hand it to World. SYNCHRONOUS -- the model and seq
  * must be resident. */
 static void
-app_plugin_object_materialize_now(struct App* app, int handle)
+app_plugin_object_materialize_now(
+    struct App* app,
+    int handle)
 {
     struct AppPluginObject* obj = app_plugin_object_at(app, handle);
     struct ToriDraw_Model* model;
@@ -23167,15 +23581,15 @@ app_plugin_object_materialize_now(struct App* app, int handle)
     if( !model )
         return;
 
-    element_id = app_world_scene_element_create(app, TORIDRAW_ELEMENT_KIND_NONE, model, world_x, world_y, world_z);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_NONE, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
     /* The element carries the yaw, not the entity: the painter is handed an
      * element id and reads the orientation off it, so an object whose yaw
      * lived only on the WorldEntity stood in its bind orientation forever --
      * a documented parameter that turned nothing. */
-    ToriDraw_SceneElementSetPosition(
-        app->scene, element_id, world_x, world_y, world_z, obj->yaw);
+    ToriDraw_SceneElementSetPosition(app->scene, element_id, world_x, world_y, world_z, obj->yaw);
 
     obj->element_id = element_id;
     obj->built_source = obj->source;
@@ -23409,9 +23823,8 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
-            int idx =
-                app_world_spawn_npc_now(
-                    app, effective, self->npc_id, self->tile_x, self->tile_z, self->level);
+            int idx = app_world_spawn_npc_now(
+                app, effective, self->npc_id, self->tile_x, self->tile_z, self->level);
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
             if( npc )
@@ -23440,8 +23853,7 @@ Task_AppSpawn_Run(
             {
                 int prev_view = app->active_world;
                 app->active_world = self->view;
-                App_WorldObjStackAdd(
-                    app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
+                App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
                 app->active_world = prev_view;
             }
         }
@@ -23597,12 +24009,23 @@ Task_AppSpawn_Run(
                 PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_resolved_id));
                 struct ToriRS_Location* cfg =
                     CacheProvider_LocationGet(app->provider, self->loc_resolved_id);
-                if( !cfg ) { self->loc_resolved_id = -1; break; }
-                if( self->loc_resolve_depth == 0 ) self->loc_base_seq = cfg->seq_id;
-                if( cfg->transform_count <= 0 || !cfg->transforms ) break;
-                int next = VarPManager_ResolveTransform(&app->varps, cfg->transforms,
-                    cfg->transform_count, cfg->transform_varbit, cfg->transform_varp);
-                if( next == self->loc_resolved_id ) break;
+                if( !cfg )
+                {
+                    self->loc_resolved_id = -1;
+                    break;
+                }
+                if( self->loc_resolve_depth == 0 )
+                    self->loc_base_seq = cfg->seq_id;
+                if( cfg->transform_count <= 0 || !cfg->transforms )
+                    break;
+                int next = VarPManager_ResolveTransform(
+                    &app->varps,
+                    cfg->transforms,
+                    cfg->transform_count,
+                    cfg->transform_varbit,
+                    cfg->transform_varp);
+                if( next == self->loc_resolved_id )
+                    break;
                 self->loc_resolved_id = next;
             }
             /*
@@ -23614,8 +24037,10 @@ Task_AppSpawn_Run(
              * Queued as siblings on the asset queue and joined.
              */
             {
-                struct ToriRS_Location* cfg = self->loc_resolved_id >= 0
-                    ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id) : NULL;
+                struct ToriRS_Location* cfg =
+                    self->loc_resolved_id >= 0
+                        ? CacheProvider_LocationGet(app->provider, self->loc_resolved_id)
+                        : NULL;
                 int entries = 0;
                 if( cfg && cfg->models && cfg->lengths )
                     entries = cfg->shapes ? cfg->shapes_and_model_count : 1;
@@ -23714,9 +24139,8 @@ Task_AppSpawn_Run(
                 int const placed_idx = World_SceneryFindAt(
                     world, self->tile_x, self->tile_z, self->level, self->loc_shape);
                 struct WorldEntity_Scenery* placed =
-                    placed_idx >= 0
-                        ? World_EntityPoolGet(&world->entities.scenery, placed_idx)
-                        : NULL;
+                    placed_idx >= 0 ? World_EntityPoolGet(&world->entities.scenery, placed_idx)
+                                    : NULL;
                 if( placed )
                     app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
             }
@@ -23886,7 +24310,8 @@ Task_AppIfHead_Run(
     if( scene_id >= 0 )
         app->need_redraw = 1;
     else if( torirs_env_net_debug() )
-        TORIRS_LOG("if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
+        TORIRS_LOG(
+            "if-head: component=0x%x kind=%d could not composite head (npc=%d)\n",
             (unsigned)self->component_id,
             (int)self->kind,
             self->npc_id);
@@ -24388,7 +24813,8 @@ app_if_head_poll(struct App* app)
              * It makes a composed-but-currently-tab-hidden portrait observable
              * without changing its render or visibility state. */
             if( first_apply && head->kind == APP_IFHEAD_NPC && getenv("TORIRS_NPC_HEAD_DEBUG") )
-                TORIRS_LOG("npc_head: npc=%d component=0x%08x scene=%d applied=1\n",
+                TORIRS_LOG(
+                    "npc_head: npc=%d component=0x%08x scene=%d applied=1\n",
                     head->npc_id,
                     (unsigned)head->com_id,
                     scene_id);
@@ -24410,7 +24836,8 @@ app_if_head_poll(struct App* app)
             head->applied_gen = app->tree->generation;
         }
         else if( torirs_env_net_debug() )
-            TORIRS_LOG("if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
+            TORIRS_LOG(
+                "if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
                 head->com_id,
                 head->npc_id,
                 app->tree->generation);
@@ -24438,7 +24865,8 @@ app_if_player_model_poll(struct App* app)
             model->applied_gen = app->tree->generation;
         }
         else if( torirs_env_net_debug() )
-            TORIRS_LOG("if-player-model: reapply com=%d scene=%d gen=%u missed\n",
+            TORIRS_LOG(
+                "if-player-model: reapply com=%d scene=%d gen=%u missed\n",
                 model->com_id,
                 model->scene_id,
                 app->tree->generation);
@@ -24557,26 +24985,19 @@ app_player_model_poll(struct App* app)
         int const anim_changed =
             node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id;
         if( node->u.rs_model.gamecache_model_id != scene_id || node->u.rs_model.xan != 150 ||
-            node->u.rs_model.yan != yan || node->u.rs_model.zan != 0 ||
-            anim_changed )
+            node->u.rs_model.yan != yan || node->u.rs_model.zan != 0 || anim_changed )
             app->need_redraw = 1;
         (void)UITree_SetModelAt(app->tree, i, scene_id);
         (void)UITree_SetModelPoseAt(
-            app->tree,
-            i,
-            node->u.rs_model.x_offset,
-            node->u.rs_model.y_offset,
-            150,
-            yan,
-            0,
-            0);
+            app->tree, i, node->u.rs_model.x_offset, node->u.rs_model.y_offset, 150, yan, 0, 0);
         /* The entity owns this clock; the UI driver must not advance it again. */
         (void)UITree_SetModelAnimationAt(app->tree, i, seq_id, seq_frame, 0, 1);
         bound = 1;
     }
 
     if( changed && getenv("TORIRS_ANIM_DEBUG") )
-        TORIRS_LOG("player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
+        TORIRS_LOG(
+            "player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
             (unsigned long long)app->logic_cycle,
             scene_id,
             seq_id,
@@ -24649,7 +25070,9 @@ app_spawn_task_new(
  * to restate the whole intent every tick.
  */
 static void
-app_plugin_object_sync(struct App* app, int handle)
+app_plugin_object_sync(
+    struct App* app,
+    int handle)
 {
     struct AppPluginObject* obj = app_plugin_object_at(app, handle);
     int world_x;
@@ -24688,8 +25111,7 @@ app_plugin_object_sync(struct App* app, int handle)
          * an object whose model is still loading would queue a task every
          * frame, and the exec pipeline is serial. */
         obj->load_pending = 1;
-        struct Task_AppSpawn* task =
-            app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
+        struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
         task->plugin_object = handle;
         ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
         return;
@@ -24827,7 +25249,10 @@ app_plugin_asset_saved_path(
 }
 
 static int
-app_plugin_asset_read(void* user, char const* plugin, char const* name)
+app_plugin_asset_read(
+    void* user,
+    char const* plugin,
+    char const* name)
 {
     struct App* app = (struct App*)user;
     char saved[TORIRS_IOITEM_MAX_PATH];
@@ -24845,7 +25270,12 @@ app_plugin_asset_read(void* user, char const* plugin, char const* name)
 }
 
 static int
-app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size)
+app_plugin_asset_write(
+    void* user,
+    char const* plugin,
+    char const* name,
+    void const* data,
+    int size)
 {
     struct App* app = (struct App*)user;
     char saved[TORIRS_IOITEM_MAX_PATH];
@@ -24861,7 +25291,8 @@ app_plugin_asset_write(void* user, char const* plugin, char const* name, void co
         /* Persistence is switched off for this run. Refusing loudly rather
          * than inventing a path: a client told not to write files must not
          * start writing them because a plugin asked. */
-        TORIRS_ERR("plugin: %s cannot save asset '%s'; plugin persistence is off for "
+        TORIRS_ERR(
+            "plugin: %s cannot save asset '%s'; plugin persistence is off for "
             "this run (TORIRS_PLUGIN_PREFS is empty)\n",
             plugin,
             name);
@@ -25014,7 +25445,8 @@ app_plugin_screenshot(
             app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
         if( !shot->path[0] )
         {
-            TORIRS_ERR("plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+            TORIRS_ERR(
+                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
                 "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
                 "under and the destination is not an absolute path\n",
                 shot->plugin,
@@ -25027,7 +25459,8 @@ app_plugin_screenshot(
         return 1;
     }
 
-    TORIRS_LOG("plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
+    TORIRS_LOG(
+        "plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
         plugin,
         APP_PLUGIN_SCREENSHOTS_MAX,
         name);
@@ -25047,7 +25480,11 @@ app_plugin_screenshot(
  * Every lane that can read its own frame back should, and does.
  */
 static int
-app_capture_fallback_render(struct App* app, int* pixels, int width, int height)
+app_capture_fallback_render(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height)
 {
     int saved_pick;
 
@@ -25077,7 +25514,11 @@ app_capture_fallback_render(struct App* app, int* pixels, int width, int height)
  * same frame, so they are requests for the same picture under different names.
  */
 static void
-app_plugin_screenshots_write(struct App* app, int const* pixels, int width, int height)
+app_plugin_screenshots_write(
+    struct App* app,
+    int const* pixels,
+    int width,
+    int height)
 {
     unsigned char* rgb;
     void* png;
@@ -25172,7 +25613,9 @@ App_DrawComplete(
  * See game/rs_game_events.c for why a level-up is NOT read out of prose.
  */
 static void
-app_dispatch_game_event(struct App* app, struct RS_GameEvent const* ev)
+app_dispatch_game_event(
+    struct App* app,
+    struct RS_GameEvent const* ev)
 {
     char const* kind;
 
@@ -25277,7 +25720,11 @@ App_NotifyStatLevel(
  * to get.
  */
 static int
-app_plugin_model_publish(void* user, int handle, void const* data, int size)
+app_plugin_model_publish(
+    void* user,
+    int handle,
+    void const* data,
+    int size)
 {
     struct App* app = (struct App*)user;
     struct AppPluginAssetModel* shipped;
@@ -25310,7 +25757,9 @@ app_plugin_model_publish(void* user, int handle, void const* data, int size)
 }
 
 static void
-app_plugin_model_release(void* user, int handle)
+app_plugin_model_release(
+    void* user,
+    int handle)
 {
     struct App* app = (struct App*)user;
     struct AppPluginAssetModel* shipped;
@@ -25351,7 +25800,9 @@ app_plugin_mesh_create(void* user)
 }
 
 static void
-app_plugin_mesh_destroy(void* user, int handle)
+app_plugin_mesh_destroy(
+    void* user,
+    int handle)
 {
     struct App* app = (struct App*)user;
     struct AppPluginMesh* mesh;
@@ -25367,7 +25818,12 @@ app_plugin_mesh_destroy(void* user, int handle)
 }
 
 static int
-app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
+app_plugin_mesh_vertex(
+    void* user,
+    int handle,
+    int x,
+    int y,
+    int z)
 {
     struct App* app = (struct App*)user;
     struct AppPluginMesh* mesh;
@@ -25379,7 +25835,8 @@ app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
         return -1;
     if( mesh->vertex_count >= TORIRS_PLUGIN_MESH_VERTICES_MAX )
     {
-        TORIRS_ERR("plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
+        TORIRS_ERR(
+            "plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
             handle,
             TORIRS_PLUGIN_MESH_VERTICES_MAX);
         return -1;
@@ -25403,7 +25860,14 @@ app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
 }
 
 static int
-app_plugin_mesh_face(void* user, int handle, int a, int b, int c, int hsl, int alpha)
+app_plugin_mesh_face(
+    void* user,
+    int handle,
+    int a,
+    int b,
+    int c,
+    int hsl,
+    int alpha)
 {
     struct App* app = (struct App*)user;
     struct AppPluginMesh* mesh;
@@ -25415,7 +25879,8 @@ app_plugin_mesh_face(void* user, int handle, int a, int b, int c, int hsl, int a
         return -1;
     if( mesh->face_count >= TORIRS_PLUGIN_MESH_FACES_MAX )
     {
-        TORIRS_ERR("plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
+        TORIRS_ERR(
+            "plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
             handle,
             TORIRS_PLUGIN_MESH_FACES_MAX);
         return -1;
@@ -25466,13 +25931,15 @@ app_plugin_object_create(void* user)
         obj->built_model_id = -1;
         return i;
     }
-    TORIRS_ERR("plugin: world-object table full (%d); object_create refused\n",
-        APP_PLUGIN_OBJECTS_MAX);
+    TORIRS_ERR(
+        "plugin: world-object table full (%d); object_create refused\n", APP_PLUGIN_OBJECTS_MAX);
     return -1;
 }
 
 static void
-app_plugin_object_destroy(void* user, int handle)
+app_plugin_object_destroy(
+    void* user,
+    int handle)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25487,7 +25954,11 @@ app_plugin_object_destroy(void* user, int handle)
 }
 
 static void
-app_plugin_object_set_model(void* user, int handle, int source, int id)
+app_plugin_object_set_model(
+    void* user,
+    int handle,
+    int source,
+    int id)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25504,7 +25975,11 @@ app_plugin_object_set_model(void* user, int handle, int source, int id)
 }
 
 static void
-app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to)
+app_plugin_object_recolor(
+    void* user,
+    int handle,
+    int hsl_from,
+    int hsl_to)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25515,7 +25990,8 @@ app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to)
         return;
     if( obj->recolor_count >= TORIRS_PLUGIN_OBJECT_RECOLORS_MAX )
     {
-        TORIRS_LOG("plugin: world object %d already carries %d recolour pairs; "
+        TORIRS_LOG(
+            "plugin: world object %d already carries %d recolour pairs; "
             "the extra one is dropped\n",
             handle,
             TORIRS_PLUGIN_OBJECT_RECOLORS_MAX);
@@ -25528,7 +26004,9 @@ app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to)
 }
 
 static void
-app_plugin_object_clear_recolors(void* user, int handle)
+app_plugin_object_clear_recolors(
+    void* user,
+    int handle)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25542,7 +26020,11 @@ app_plugin_object_clear_recolors(void* user, int handle)
 }
 
 static void
-app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop)
+app_plugin_object_set_anim(
+    void* user,
+    int handle,
+    int seq_id,
+    int loop)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25572,7 +26054,11 @@ app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop)
 }
 
 static void
-app_plugin_object_set_light(void* user, int handle, int ambient, int contrast)
+app_plugin_object_set_light(
+    void* user,
+    int handle,
+    int ambient,
+    int contrast)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25621,7 +26107,10 @@ app_plugin_object_set_position(
 }
 
 static void
-app_plugin_object_set_active(void* user, int handle, int active)
+app_plugin_object_set_active(
+    void* user,
+    int handle,
+    int active)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -25637,7 +26126,9 @@ app_plugin_object_set_active(void* user, int handle, int active)
 }
 
 static int
-app_plugin_object_ready(void* user, int handle)
+app_plugin_object_ready(
+    void* user,
+    int handle)
 {
     struct App* app = (struct App*)user;
     struct AppPluginObject* obj;
@@ -26391,7 +26882,8 @@ app_world_camera_cinema(struct App* app)
 
     /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
     if( getenv("TORIRS_CAM_DEBUG") )
-        TORIRS_LOG("cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
+        TORIRS_LOG(
+            "cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
             "shake=%d%d%d%d%d\n",
             app->world_camera_pos.x,
             app->world_camera_pos.y,
@@ -26535,8 +27027,7 @@ app_world_camera_follow(struct App* app)
                  * against a constant makes the same packet mean two different
                  * views on two lanes. */
                 app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
-                    &app->revconfig_profile,
-                    app->revconfig_profile.camera.rest * cam_zoom / 100);
+                    &app->revconfig_profile, app->revconfig_profile.camera.rest * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -26563,8 +27054,7 @@ app_world_camera_follow(struct App* app)
      * handles the root-parented case, which is every hull that exists today.
      */
     aboard_y_valid = 0;
-    if( app->aboard_view != WORLDVIEW_ROOT &&
-        player->view_placement.view_id == app->aboard_view &&
+    if( app->aboard_view != WORLDVIEW_ROOT && player->view_placement.view_id == app->aboard_view &&
         app_wev_actor_root_fine(app, &player->view_placement, &target_x, &target_z) )
     {
         struct Wev* wev = Wevs_Get(&app->wevs, app->aboard_view);
@@ -26577,9 +27067,9 @@ app_world_camera_follow(struct App* app)
             cam_level = 0;
         if( cam_level >= COLLISION_LEVELS )
             cam_level = COLLISION_LEVELS - 1;
-        aboard_y = wev->y + app_world_height_in(
-                                view->world, player->view_placement.x,
-                                player->view_placement.z, cam_level) -
+        aboard_y = wev->y +
+                   app_world_height_in(
+                       view->world, player->view_placement.x, player->view_placement.z, cam_level) -
                    8 - 50;
         aboard_y_valid = 1;
     }
@@ -26649,14 +27139,14 @@ app_world_camera_follow(struct App* app)
         /* The same range the drag and the keys respect, in the 256ths this
          * clamp eases in -- `98048` and `32768` were exactly these two
          * products, written out. */
-        if( clamp > app->revconfig_profile.camera.pitch_steepest *
-                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
-            clamp = app->revconfig_profile.camera.pitch_steepest *
-                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
-        if( clamp < app->revconfig_profile.camera.pitch_flattest *
-                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
-            clamp = app->revconfig_profile.camera.pitch_flattest *
-                REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
+        if( clamp >
+            app->revconfig_profile.camera.pitch_steepest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp =
+                app->revconfig_profile.camera.pitch_steepest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
+        if( clamp <
+            app->revconfig_profile.camera.pitch_flattest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
+            clamp =
+                app->revconfig_profile.camera.pitch_flattest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
         if( clamp > app->camera_pitch_clamp )
             app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 24;
         else if( clamp < app->camera_pitch_clamp )
@@ -26694,8 +27184,7 @@ app_world_camera_follow(struct App* app)
      * the band can state is worth more than a few percent of it.
      * @see RevConfigCameraItem::distance_scale.
      */
-    if( app->revconfig_profile.camera.distance_scale !=
-        REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT )
+    if( app->revconfig_profile.camera.distance_scale != REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT )
         distance = distance * app->revconfig_profile.camera.distance_scale / 100;
     /* Not past the near plane. Anything closer than it is not a closer view,
      * it is a dropped one -- the anchor itself fails the `dz < near_plane_z`
@@ -26710,21 +27199,15 @@ app_world_camera_follow(struct App* app)
      *   field753 = var14 - field999          (field999 defaults to 50)
      * method1569 degenerates to a single method1812 sample for a size-1
      * footprint, which the local player always has. */
-    target_y = aboard_y_valid
-                   ? aboard_y
-                   : app_world_height(app, target_x, target_z, player->grid_position.level) -
-                         8 - 50;
+    target_y =
+        aboard_y_valid
+            ? aboard_y
+            : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
     target_x = (int)app->orbit_x;
     target_z = (int)app->orbit_z;
 
     ToriRS_OrbitCameraEye(
-        target_x,
-        target_y,
-        target_z,
-        pitch,
-        yaw,
-        distance,
-        &app->world_camera_pos);
+        target_x, target_y, target_z, pitch, yaw, distance, &app->world_camera_pos);
     app->world_camera.pitch = pitch;
     app->world_camera.yaw = yaw;
 
@@ -26734,7 +27217,8 @@ app_world_camera_follow(struct App* app)
      * circle while you rotate, which reads as "the camera orbits the tile".
      * This is the number that says whether it does: settled, it must go to 0. */
     if( torirs_env_orbit_debug() )
-        TORIRS_LOG("orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
+        TORIRS_LOG(
+            "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
             "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
             (double)app->orbit_x,
             (double)app->orbit_z,
@@ -26984,7 +27468,8 @@ app_world_frame(
                 if( el < 0 || el >= (int)(sizeof(seen_element) / sizeof(seen_element[0])) )
                     continue;
                 if( seen_element[el] == stamp )
-                    TORIRS_LOG("element_alias: element=%d claimed by TWO live entities "
+                    TORIRS_LOG(
+                        "element_alias: element=%d claimed by TWO live entities "
                         "(kinds %d and %d) -- position/model/anim will fight\n",
                         el,
                         seen_kind[el],
@@ -27075,7 +27560,9 @@ app_minimenu_selection(struct App const* app)
  * (SAILING_PLAN C5.2's non-terrain half). NULL for a dead view — the row is
  * then dropped, like every other dead-view pick. */
 static struct World*
-app_minimenu_view_world(void* user, int view_id)
+app_minimenu_view_world(
+    void* user,
+    int view_id)
 {
     struct App* app = (struct App*)user;
 
@@ -27116,8 +27603,7 @@ app_minimenu_entry_publish(
     if( num_ops > 0 )
     {
         struct UIMinimenuOption const* acting = &menu->options[menu->option_count - 1];
-        snprintf(
-            clientop->mouseover_op, sizeof(clientop->mouseover_op), "%s", acting->text);
+        snprintf(clientop->mouseover_op, sizeof(clientop->mouseover_op), "%s", acting->text);
         /* `_7109`'s subject: the component the acting row is about, for the
          * two row kinds that have one. The reference reads the same field off
          * its own entry and gates on the entry TYPE being one of the two
@@ -27314,8 +27800,7 @@ app_clientop_add_rows(
             snprintf(text, sizeof(text), "%s", op->label);
 
         UIMinimenu_AddOption(
-            menu, text, RS_MINIMENU_ACTION_CLIENTOP,
-            RS_MINIMENU_CLIENTOP_INDEX(kind, slot), pick);
+            menu, text, RS_MINIMENU_ACTION_CLIENTOP, RS_MINIMENU_CLIENTOP_INDEX(kind, slot), pick);
     }
 }
 
@@ -27332,7 +27817,10 @@ app_clientop_add_rows(
  * "Walk here" row, and that row is offered even when it is inert.
  */
 static void
-app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
+app_clientop_menu_build(
+    struct App* app,
+    struct UIMinimenu* menu,
+    int hover_pass)
 {
     bool seen[RS_CLIENTOP_KIND_COUNT] = { false, false, false, false, false };
     int const count = menu->option_count;
@@ -27355,8 +27843,7 @@ app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass
         {
         case UI_MINIMENU_PICK_NPC:
         {
-            struct WorldEntity_NPC* npc =
-                World_NpcGetByElementId(app->world, opt->pick.id, NULL);
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt->pick.id, NULL);
             if( !npc )
                 continue;
             kind = RS_CLIENTOP_NPC;
@@ -27365,8 +27852,7 @@ app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass
         }
         case UI_MINIMENU_PICK_SCENERY:
         {
-            struct WorldEntity_Scenery* loc =
-                World_SceneryGetByElementId(app->world, opt->pick.id);
+            struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, opt->pick.id);
             if( !loc )
                 continue;
             kind = RS_CLIENTOP_LOC;
@@ -27427,7 +27913,9 @@ app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass
  * RS_ClientOpContext::script_id.
  */
 static int
-app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
+app_clientop_run(
+    struct App* app,
+    struct UIMinimenuOption const* opt)
 {
     struct RS_ClientOpContext ctx;
     struct RS_ClientOpSlot const* op;
@@ -27467,9 +27955,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
         ctx.uid = npc->server_slot;
         ctx.type = npc->npc_id;
         ctx.coord = RS_CLIENTOP_COORD(
-            npc->grid_position.level,
-            base_x + npc->grid_position.x,
-            base_z + npc->grid_position.z);
+            npc->grid_position.level, base_x + npc->grid_position.x, base_z + npc->grid_position.z);
         snprintf(ctx.name, sizeof(ctx.name), "%s", npc->name);
         break;
     }
@@ -27480,16 +27966,13 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
             return 1;
         ctx.type = loc->loc_id;
         ctx.coord = RS_CLIENTOP_COORD(
-            loc->grid_position.level,
-            base_x + loc->grid_position.x,
-            base_z + loc->grid_position.z);
+            loc->grid_position.level, base_x + loc->grid_position.x, base_z + loc->grid_position.z);
         snprintf(ctx.name, sizeof(ctx.name), "%s", loc->info->name);
         break;
     }
     case RS_CLIENTOP_OBJ:
     {
-        struct WorldEntity_ObjStack* stack =
-            World_ObjStackGetByElementId(app->world, opt->pick.id);
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, opt->pick.id);
         if( !stack )
             return 1;
         ctx.type = stack->obj_id;
@@ -27503,8 +27986,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     }
     case RS_CLIENTOP_PLAYER:
     {
-        struct WorldEntity_Player* player =
-            World_PlayerGetByElementId(app->world, opt->pick.id);
+        struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt->pick.id);
         if( !player )
             return 1;
         ctx.uid = player->server_pid;
@@ -27528,7 +28010,8 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     }
 
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG("clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
+        TORIRS_LOG(
+            "clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
             RS_ClientOpKindName((enum RS_ClientOpKind)kind),
             slot,
             op->label,
@@ -27578,9 +28061,10 @@ app_minimenu_stamp_node_identities(
             continue;
         UITree_StampMenuPick(app->tree, idx, pick);
         pick->has_native_events = 1;
-        pick->native_events = pick->kind == UI_MINIMENU_PICK_INV_SLOT
-            ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
-            : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
+        pick->native_events =
+            pick->kind == UI_MINIMENU_PICK_INV_SLOT
+                ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+                : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
     }
 }
 
@@ -27651,7 +28135,8 @@ app_minimenu_open(
         {
             struct WorldEntity_Player* lp =
                 app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid) : NULL;
-            TORIRS_LOG("minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+            TORIRS_LOG(
+                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
                 "mylevel=%d\n",
                 click_x,
                 click_y,
@@ -27665,7 +28150,8 @@ app_minimenu_open(
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
                 struct World_Picked const* picked = &app->world_pickset.items[i];
-                TORIRS_LOG("  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
+                TORIRS_LOG(
+                    "  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
                     i,
                     (int)picked->type,
                     picked->element_id,
@@ -27674,7 +28160,8 @@ app_minimenu_open(
                     picked->tile_level);
             }
         for( int i = 0; i < menu->option_count; i++ )
-            TORIRS_LOG("  row[%d] action=%d op=%d kind=%d id=%d \"%s\"\n",
+            TORIRS_LOG(
+                "  row[%d] action=%d op=%d kind=%d id=%d \"%s\"\n",
                 i,
                 menu->options[i].action,
                 menu->options[i].action_index,
@@ -27725,7 +28212,8 @@ app_minimenu_open(
          * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
         {
-            TORIRS_LOG("minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
+            TORIRS_LOG(
+                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
                 menu->font_id,
                 line_box,
                 content_w,
@@ -27738,7 +28226,8 @@ app_minimenu_open(
                 int const row_y = UIMinimenu_OptionY(menu, i);
                 /* REPORT, not LOG: opted in by the env, and wanted in the OPT
                  * build the headless harness runs. */
-                TORIRS_REPORT("minimenu: row[%d] '%s' action=%d band=%d,%d..%d,%d\n",
+                TORIRS_REPORT(
+                    "minimenu: row[%d] '%s' action=%d band=%d,%d..%d,%d\n",
                     i,
                     menu->options[i].text,
                     menu->options[i].action,
@@ -28142,7 +28631,8 @@ app_run_default_ui_row(
      */
     if( getenv("TORIRS_CLICK_DEBUG") )
     {
-        TORIRS_LOG("invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
+        TORIRS_LOG(
+            "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
             click_x,
             click_y,
             scratch.option_count,
@@ -28150,7 +28640,8 @@ app_run_default_ui_row(
             (int)mctx.selection.mode,
             (unsigned)mctx.selection.target_mask);
         for( int i = 0; i < scratch.option_count; i++ )
-            TORIRS_LOG("  row[%d] '%s' action=%d\n",
+            TORIRS_LOG(
+                "  row[%d] '%s' action=%d\n",
                 i,
                 scratch.options[i].text,
                 scratch.options[i].action);
@@ -28258,8 +28749,7 @@ app_inv_resolve_drop(
         if( node < 0 || (uint32_t)node >= app->tree->component_count ||
             app->tree->components[node].freed || app->tree->components[node].frame_hidden ||
             (app->tree->components[node].parent >= 0 &&
-             UITree_NodeOrAncestorDisplayHidden(
-                 app->tree, app->tree->components[node].parent)) )
+             UITree_NodeOrAncestorDisplayHidden(app->tree, app->tree->components[node].parent)) )
             continue;
         /* from/to of -1 mean a plain widget (not a sub-id range). */
         if( app->if_events[i].from >= 0 && app->if_events[i].to >= 0 &&
@@ -28469,12 +28959,7 @@ app_inv_drag_source_live(struct App const* app)
         int32_t node = -1;
         int obj = 0;
         if( !UITree_ObjCellDynamicAtSlot(
-                app->tree,
-                app->inv_drag_com_id,
-                app->inv_drag_from_slot,
-                &node,
-                &obj,
-                NULL) ||
+                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, &node, &obj, NULL) ||
             obj <= 0 || obj != app->inv_drag_obj_id ||
             UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
             return 0;
@@ -28705,10 +29190,12 @@ app_minimenu_ui_pick_live(
     }
     if( pick->has_native_events )
     {
-        unsigned current = pick->kind == UI_MINIMENU_PICK_INV_SLOT
-            ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
-            : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
-        if( current != pick->native_events ) return 0;
+        unsigned current =
+            pick->kind == UI_MINIMENU_PICK_INV_SLOT
+                ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
+                : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
+        if( current != pick->native_events )
+            return 0;
     }
     if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
         app->tree->components[idx].type == UIELEM_RS_INV )
@@ -28721,8 +29208,7 @@ app_minimenu_ui_pick_live(
                 app->tree->components[idx].u.rs_inv.inv_source_id,
                 pick->secondary_id,
                 &slot) ||
-            slot.obj_id <= 0 ||
-            (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
+            slot.obj_id <= 0 || (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
             return 0;
     }
     else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
@@ -28818,8 +29304,7 @@ app_minimenu_run_option(
              * already yellow -- "a touch happened" -- from the press itself. */
             UIInk_SetColour(
                 &app->ink,
-                cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED
-                                                : TORIRS_INKWELL_YELLOW);
+                cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW);
         }
     }
 
@@ -28852,8 +29337,7 @@ app_minimenu_run_option(
         row.target_id = -1;
         if( opt.pick.kind == UI_MINIMENU_PICK_NPC && app->world )
         {
-            struct WorldEntity_NPC* npc =
-                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc )
                 row.npc_slot = npc->server_slot;
             row.target_id = opt.pick.secondary_id;
@@ -28908,8 +29392,7 @@ app_minimenu_run_option(
         {
             /* A deck loc's record is in its view's world (C5.2). */
             struct World* loc_world =
-                opt.pick.view_id != 0 ? app_minimenu_view_world(app, opt.pick.view_id)
-                                      : app->world;
+                opt.pick.view_id != 0 ? app_minimenu_view_world(app, opt.pick.view_id) : app->world;
             struct WorldEntity_Scenery* scenery =
                 loc_world ? World_SceneryGetByElementId(loc_world, opt.pick.id) : NULL;
             if( scenery )
@@ -29005,11 +29488,15 @@ app_minimenu_run_option(
      */
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
     {
-        int32_t node=opt.pick.node_index;
-        if( opt.pick.has_node_identity && node>=0 && (uint32_t)node<app->tree->component_count )
+        int32_t node = opt.pick.node_index;
+        if( opt.pick.has_node_identity && node >= 0 && (uint32_t)node < app->tree->component_count )
         {
-            struct UITreeComponent const* c=&app->tree->components[node];
-            PluginHost_WidgetOperation(app->plugins,c->plugin_owner,app_widget_ref(app->tree,node),c->plugin_op_serial);
+            struct UITreeComponent const* c = &app->tree->components[node];
+            PluginHost_WidgetOperation(
+                app->plugins,
+                c->plugin_owner,
+                app_widget_ref(app->tree, node),
+                c->plugin_op_serial);
         }
         return 0;
     }
@@ -29054,7 +29541,10 @@ app_minimenu_run_option(
     {
         if( app_mapedit_select_active(app) )
             Editor_PanelSelectTerrain(
-                &app->editor_panel, app, opt.pick.secondary_id, opt.pick.tertiary_id,
+                &app->editor_panel,
+                app,
+                opt.pick.secondary_id,
+                opt.pick.tertiary_id,
                 opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -29152,7 +29642,8 @@ app_minimenu_run_option(
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
-            TORIRS_LOG("selarm: tgt com=0x%x wire=0x%x mask=0x%x op='%s'\n",
+            TORIRS_LOG(
+                "selarm: tgt com=0x%x wire=0x%x mask=0x%x op='%s'\n",
                 app->targetsel.component_id,
                 app_targetsel_wire_component(app),
                 (unsigned)app->targetsel.mask,
@@ -29176,14 +29667,14 @@ app_minimenu_run_option(
     {
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
-        int deck_loc = opt.pick.view_id != 0 &&
-            (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
-             opt.action == REVCONFIG_MINIMENU_TGT_LOC);
+        int deck_loc = opt.pick.view_id != 0 && (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
+                                                 opt.action == REVCONFIG_MINIMENU_TGT_LOC);
         if( deck_loc )
         {
             if( !WorldviewRegistry_IsLive(&app->worldviews, opt.pick.view_id) || !app->net )
                 return 0;
-            const struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
+            const struct Worldview* view =
+                WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
             abs_x = opt.pick.tertiary_id + view->base_x;
             abs_z = opt.pick.quaternary_id + view->base_z;
         }
@@ -29194,11 +29685,11 @@ app_minimenu_run_option(
              * different collision map; the server routes that interaction,
              * using the picked live view's coordinates as plain OPLOC does. */
             if( !deck_loc && !app_try_move_loc(
-                    app,
-                    opt.pick.id,
-                    opt.pick.tertiary_id,
-                    opt.pick.quaternary_id,
-                    app->ctrl_held) )
+                                 app,
+                                 opt.pick.id,
+                                 opt.pick.tertiary_id,
+                                 opt.pick.quaternary_id,
+                                 app->ctrl_held) )
                 break;
             APP_NET_SEND(
                 app,
@@ -29216,11 +29707,11 @@ app_minimenu_run_option(
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
             if( !deck_loc && !app_try_move_loc(
-                    app,
-                    opt.pick.id,
-                    opt.pick.tertiary_id,
-                    opt.pick.quaternary_id,
-                    app->ctrl_held) )
+                                 app,
+                                 opt.pick.id,
+                                 opt.pick.tertiary_id,
+                                 opt.pick.quaternary_id,
+                                 app->ctrl_held) )
                 break;
             APP_NET_SEND(
                 app,
@@ -29329,7 +29820,8 @@ app_minimenu_run_option(
              * and the click sent nothing" can only be one of these three
              * numbers — and none of them is visible from outside. */
             if( getenv("TORIRS_CLICK_DEBUG") )
-                TORIRS_LOG("clickdbg: tgt player elem=0x%x found=%d pid=%d local=%d wire=0x%x\n",
+                TORIRS_LOG(
+                    "clickdbg: tgt player elem=0x%x found=%d pid=%d local=%d wire=0x%x\n",
                     opt.pick.id,
                     player ? 1 : 0,
                     player ? player->server_pid : -1,
@@ -29411,7 +29903,8 @@ app_minimenu_run_option(
                     int dbg_sub;
 
                     app_if_button_target(app, opt.pick.id, &dbg_target, &dbg_sub);
-                    TORIRS_LOG("clickdbg: op%d on com=0x%x events=0x%x net=%d "
+                    TORIRS_LOG(
+                        "clickdbg: op%d on com=0x%x events=0x%x net=%d "
                         "target=0x%x (%d:%d) sub=%d\n",
                         op_num,
                         opt.pick.id,
@@ -29429,7 +29922,8 @@ app_minimenu_run_option(
 
                     app_if_button_target(app, opt.pick.id, &target, &sub);
                     if( getenv("TORIRS_CLICK_DEBUG") )
-                        TORIRS_LOG("clickdbg: send op%d target=0x%x sub=%d state=%d\n",
+                        TORIRS_LOG(
+                            "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
                             op_num,
                             target,
                             sub,
@@ -29464,9 +29958,8 @@ app_minimenu_run_option(
                     if( sub >= 0 )
                     {
                         if( getenv("TORIRS_CLICK_DEBUG") )
-                            TORIRS_LOG("clickdbg: EVENT_CLICK choice target=0x%x sub=%d\n",
-                                target,
-                                sub);
+                            TORIRS_LOG(
+                                "clickdbg: EVENT_CLICK choice target=0x%x sub=%d\n", target, sub);
                         APP_NET_SEND(
                             app,
                             net_out_if_button_op(
@@ -29494,7 +29987,8 @@ app_minimenu_run_option(
                  * the sink once networking attaches). */
                 if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
                     return 0;
-                TORIRS_LOG("minimenu: no hook for com=0x%x action=%d op=%d\n",
+                TORIRS_LOG(
+                    "minimenu: no hook for com=0x%x action=%d op=%d\n",
                     opt.pick.id,
                     opt.action,
                     opt.action_index);
@@ -29524,9 +30018,7 @@ app_minimenu_run_option(
         {
             char op_cmd[32];
 
-            snprintf(
-                op_cmd, sizeof(op_cmd), "vesselop %d %d", opt.pick.id,
-                opt.pick.secondary_id);
+            snprintf(op_cmd, sizeof(op_cmd), "vesselop %d %d", opt.pick.id, opt.pick.secondary_id);
             APP_NET_SEND(
                 app,
                 net_out_client_cheat(
@@ -29566,7 +30058,8 @@ app_minimenu_run_option(
             int deck_route_z[1] = { opt.pick.tertiary_id };
 
             if( torirs_env_net_debug() )
-                TORIRS_LOG("minimenu: deck walk-click view=%d local=%d,%d abs=%d,%d\n",
+                TORIRS_LOG(
+                    "minimenu: deck walk-click view=%d local=%d,%d abs=%d,%d\n",
                     opt.pick.view_id,
                     opt.pick.secondary_id,
                     opt.pick.tertiary_id,
@@ -29620,7 +30113,8 @@ app_minimenu_run_option(
          * waypoints; no local prediction — the PLAYER_INFO echo moves the
          * player. */
         if( torirs_env_net_debug() )
-            TORIRS_LOG("minimenu: walk-click scene=%d,%d abs=%d,%d\n",
+            TORIRS_LOG(
+                "minimenu: walk-click scene=%d,%d abs=%d,%d\n",
                 opt.pick.secondary_id,
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
@@ -29730,16 +30224,29 @@ app_minimenu_run_option(
             pview = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
             abs_x = opt.pick.tertiary_id + pview->base_x;
             abs_z = opt.pick.quaternary_id + pview->base_z;
-            TORIRS_LOG("oploc view: op%d loc=%d at %d,%d (view %d local %d,%d)\n",
-                opt.action_index + 1, loc_id, abs_x, abs_z, opt.pick.view_id,
-                opt.pick.tertiary_id, opt.pick.quaternary_id);
+            TORIRS_LOG(
+                "oploc view: op%d loc=%d at %d,%d (view %d local %d,%d)\n",
+                opt.action_index + 1,
+                loc_id,
+                abs_x,
+                abs_z,
+                opt.pick.view_id,
+                opt.pick.tertiary_id,
+                opt.pick.quaternary_id);
             if( app->objsel.active )
             {
                 APP_NET_SEND(
                     app,
                     net_out_oplocu(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x,
-                        abs_z, loc_id, app->objsel.obj_id, app->objsel.slot,
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        abs_x,
+                        abs_z,
+                        loc_id,
+                        app->objsel.obj_id,
+                        app->objsel.slot,
                         app->objsel.component_id));
                 app_selection_clear(app);
             }
@@ -29748,8 +30255,14 @@ app_minimenu_run_option(
                 APP_NET_SEND(
                     app,
                     net_out_oploc(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                        opt.action_index + 1, abs_x, abs_z, loc_id));
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        opt.action_index + 1,
+                        abs_x,
+                        abs_z,
+                        loc_id));
             }
             UICross_Show(&app->cross, UI_CROSS_INTERACT, click_x, click_y);
             return 0;
@@ -29921,7 +30434,9 @@ App_SetAudioFeedback(
 }
 
 void
-App_SetAudioDevicePresent(struct App* app, bool present)
+App_SetAudioDevicePresent(
+    struct App* app,
+    bool present)
 {
     assert(app);
     RS_Audio_SetDevicePresent(&app->audio, present);
@@ -30156,10 +30671,11 @@ int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
 #if defined(TORIRS_CANVAS_CAPTURE)
-    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+    canvas_chain_capture(app->tree, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
     if( app->tree && UITree_CanvasQueryCompactEnabled() )
-        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).strip;
+        return UITree_CanvasMeasureCompact(app->tree, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)
+            .strip;
     /*
      * Memo, keyed on the tree publication this answer was read from.
      *
@@ -30285,10 +30801,11 @@ int
 App_MeasureLaneFrameCoreWidth(struct App const* app)
 {
 #if defined(TORIRS_CANVAS_CAPTURE)
-    canvas_chain_capture(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H);
+    canvas_chain_capture(app->tree, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
     if( app->tree && UITree_CanvasQueryCompactEnabled() )
-        return UITree_CanvasMeasureCompact(app->tree,UITREE_LAYOUT_ROOT_W,UITREE_LAYOUT_ROOT_H).core;
+        return UITree_CanvasMeasureCompact(app->tree, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)
+            .core;
     /* Memoised on the same three terms as the strip scan above, and for the
      * same reason: this is a full pass over every component, asked once per
      * frame from App_CanvasFloorWidth. @see App_MeasureRightChromeStripWidth. */
@@ -30534,9 +31051,8 @@ App_SyncPluginLayoutCanvas(struct App* app)
     want = !app->plugin_frame_active
                ? (App_UiLogic(app) == APP_UI_LOGIC_CS1 ? CS2VM_WINDOW_MODE_FIXED
                                                        : app->host.default_window_mode)
-               : app->plugin_layout_canvas == TORIRS_FRAME_CANVAS_FIXED
-                     ? CS2VM_WINDOW_MODE_FIXED
-                     : CS2VM_WINDOW_MODE_RESIZABLE;
+           : app->plugin_layout_canvas == TORIRS_FRAME_CANVAS_FIXED ? CS2VM_WINDOW_MODE_FIXED
+                                                                    : CS2VM_WINDOW_MODE_RESIZABLE;
     if( app->host.window_mode == want )
         return;
     /*
@@ -30559,7 +31075,10 @@ App_SyncPluginLayoutCanvas(struct App* app)
 }
 
 int
-App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
+App_PluginLayoutFixedSize(
+    struct App const* app,
+    int* out_w,
+    int* out_h)
 {
     assert(app);
     if( !app->plugin_frame_active )
@@ -30576,7 +31095,10 @@ App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
 }
 
 int
-App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h)
+App_PluginLayoutMinSize(
+    struct App const* app,
+    int* out_w,
+    int* out_h)
 {
     assert(app);
     if( !app->plugin_frame_active )
@@ -30614,8 +31136,10 @@ App_PluginLayoutTick(struct App* app)
         UITree_FrameSetBinder(app->tree, app_plugin_frame_bind, app);
         UITree_FrameBind(app->tree);
     }
-    bool const widgets_ready = app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0;
-    PluginHost_WidgetsChanged(app->plugins,
+    bool const widgets_ready =
+        app->app_state == APP_STATE_READY && app->tree && app->tree->root_index >= 0;
+    PluginHost_WidgetsChanged(
+        app->plugins,
         widgets_ready ? app->tree->instance_id : 0,
         widgets_ready ? app->tree->generation : 0);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
@@ -30713,8 +31237,7 @@ candidate_layout:
     if( !app->plugin_layout_dirty && UITree_FrameActive(app->tree) &&
         app->plugin_layout_generation != app->tree->generation &&
         app->plugin_layout_w == UITREE_LAYOUT_ROOT_W &&
-        app->plugin_layout_h == UITREE_LAYOUT_ROOT_H &&
-        !UITree_FrameSlotsStale(app->tree) )
+        app->plugin_layout_h == UITREE_LAYOUT_ROOT_H && !UITree_FrameSlotsStale(app->tree) )
         app->plugin_layout_generation = app->tree->generation;
 
     if( frame_candidate || app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
@@ -30770,8 +31293,8 @@ app_wants_text_input(struct App const* app)
      * keeps its last value across a screen change, so testing it alone would
      * raise the keyboard over the main menu. */
     if( (app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING) &&
-        app->title.screen == RS_TITLE_LOGIN_FORM &&
-        app->title.focus >= 0 && app->title.focus < RS_TITLE_FIELD_COUNT )
+        app->title.screen == RS_TITLE_LOGIN_FORM && app->title.focus >= 0 &&
+        app->title.focus < RS_TITLE_FIELD_COUNT )
         return 1;
 
     if( app->chat_input_active )
@@ -30787,7 +31310,9 @@ app_wants_text_input(struct App const* app)
 }
 
 int
-App_TakeTextInputChange(struct App* app, int* out_on)
+App_TakeTextInputChange(
+    struct App* app,
+    int* out_on)
 {
     int wanted;
 
@@ -30887,8 +31412,7 @@ App_DrainCommands(
                  * and resizable pushes are latched — leaving fixed restores
                  * the real window size through the same command. */
                 if( getenv("TORIRS_RESIZE_DEBUG") )
-                    TORIRS_REPORT(
-                        "resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
+                    TORIRS_REPORT("resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
                 app->window_w = cmd->width;
                 app->window_h = cmd->height;
                 app->host.ui_scale_dirty = false;
@@ -30980,8 +31504,7 @@ App_DrainCommands(
          */
         case TORIRS_CMD_UI_OPEN_ROOT:
         {
-            struct ToriRS_CmdUiOpenRoot const* cmd =
-                (struct ToriRS_CmdUiOpenRoot const*)payload;
+            struct ToriRS_CmdUiOpenRoot const* cmd = (struct ToriRS_CmdUiOpenRoot const*)payload;
             assert(header.length >= sizeof(*cmd));
             App_OpenRootInterface(app, cmd->interface_id);
             break;
@@ -31009,8 +31532,7 @@ App_DrainCommands(
         }
         case TORIRS_CMD_UI_RUNSCRIPT:
         {
-            struct ToriRS_CmdUiRunScript const* cmd =
-                (struct ToriRS_CmdUiRunScript const*)payload;
+            struct ToriRS_CmdUiRunScript const* cmd = (struct ToriRS_CmdUiRunScript const*)payload;
             assert(header.length >= offsetof(struct ToriRS_CmdUiRunScript, args));
             assert(cmd->argc >= 0);
             assert(cmd->argc <= TORIRS_CMD_UI_RUNSCRIPT_MAX_ARGS);
@@ -31059,7 +31581,9 @@ App_DrainCommands(
  * it. This counts the run and names the exits that made it up.
  */
 static void
-app_frame_latch_note(struct App* app, char const* reason)
+app_frame_latch_note(
+    struct App* app,
+    char const* reason)
 {
     static int enabled = -1;
     static int frames;
@@ -31185,9 +31709,7 @@ App_RunOnce(
              * row". */
             if( clear_tiles >= 0 && setting_id == clear_tiles )
                 RS_HighlightClear(
-                    &app->host.highlight,
-                    RS_HIGHLIGHT_TILE,
-                    RS_HIGHLIGHT_GROUP_TILE_MARKERS);
+                    &app->host.highlight, RS_HIGHLIGHT_TILE, RS_HIGHLIGHT_GROUP_TILE_MARKERS);
             else if( clear_npcs >= 0 && setting_id == clear_npcs )
                 RS_HighlightClear(
                     &app->host.highlight, RS_HIGHLIGHT_NPC, RS_HIGHLIGHT_GROUP_NPC_TAGS);
@@ -31325,8 +31847,8 @@ App_RunOnce(
                  */
                 if( stat == TASK_RUNNER_BLOCKED )
                     break;
-                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed
-                    && Platform_IO_Pending(app->runner.px, app->runner.io) )
+                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed &&
+                    Platform_IO_Pending(app->runner.px, app->runner.io) )
                     break;
             }
             /*
@@ -31345,7 +31867,9 @@ App_RunOnce(
                     "app: the async pipeline ran %d steps in one frame without "
                     "going idle (limit %d, booting=%d). A task is not "
                     "converging.\n",
-                    steps, budget, booting);
+                    steps,
+                    budget,
+                    booting);
                 fflush(stderr);
                 abort();
             }
@@ -31445,8 +31969,7 @@ App_RunOnce(
             app->cycle_accum_ms = 0.0;
         }
         app->cycle_accum_ms += (double)elapsed_ms;
-        while( app->cycle_accum_ms >= (double)APP_LOGIC_TICK_MS &&
-               ticks < APP_MAX_CATCHUP_TICKS )
+        while( app->cycle_accum_ms >= (double)APP_LOGIC_TICK_MS && ticks < APP_MAX_CATCHUP_TICKS )
         {
             app->cycle_accum_ms -= (double)APP_LOGIC_TICK_MS;
             ticks++;
@@ -31554,8 +32077,7 @@ App_RunOnce(
              * that stopped at the fence silently swallows simulation time and
              * the world falls behind the clock it is supposed to keep. */
             if( ticks < ticks_paid )
-                app->cycle_accum_ms +=
-                    (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+                app->cycle_accum_ms += (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
         }
         else
         {
@@ -31566,10 +32088,7 @@ App_RunOnce(
          * was just given -- already clamped, and measured off the same clock.
          * They read the fraction where the logic reads whole cycles, which is
          * the only difference between the two that should exist. */
-        app_world_frame(
-            app,
-            ticks,
-            (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
+        app_world_frame(app, ticks, (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
     }
 
     /* Resume a parked packet pipeline at frame rate, not tick rate. A packet
@@ -31583,8 +32102,7 @@ App_RunOnce(
      * must also enter this pipeline: a paused client has no next logic tick to
      * start it, so publish-only server responses otherwise wait forever. This
      * drains the existing serial protocol queue without advancing simulation. */
-    if( app->exec_runner_had_work || app->server_tick_open ||
-        app->pending_clientscript_count > 0 ||
+    if( app->exec_runner_had_work || app->server_tick_open || app->pending_clientscript_count > 0 ||
         (app->net && app->net->packets_head) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
@@ -31609,8 +32127,7 @@ App_RunOnce(
         if( stat != TASK_RUNNER_IDLE )
         {
             app->runner_had_work = 1;
-            app_frame_latch_note(
-                app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
+            app_frame_latch_note(app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
             return 0;
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
@@ -31628,7 +32145,7 @@ App_RunOnce(
     {
         app_frame_latch_note(
             app,
-            app->runner_had_work              ? "settled:runner_had_work"
+            app->runner_had_work               ? "settled:runner_had_work"
             : app->runner.frame_settle_pending ? "settled:frame_settle_pending"
             : app->exec_runner_had_work        ? "settled:exec_runner_had_work"
             : app->server_tick_open            ? "settled:server_tick_open"
@@ -31718,11 +32235,11 @@ App_RunOnce(
     {
         UIInk_Cancel(&app->ink);
     }
-    else if( input->curr.mouse_button_down[TORIRSM_LEFT] ||
-             input->curr.mouse_button_down[TORIRSM_RIGHT] )
+    else if(
+        input->curr.mouse_button_down[TORIRSM_LEFT] ||
+        input->curr.mouse_button_down[TORIRSM_RIGHT] )
     {
-        UIInk_Show(
-            &app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
+        UIInk_Show(&app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
     }
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
@@ -31762,8 +32279,7 @@ App_RunOnce(
      */
     app->pointer_absent = input->mouse_pointer_absent;
     app->world_mouse_in_viewport =
-        !app->pointer_absent &&
-        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
+        !app->pointer_absent && app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
     app->world_mouse_x = input->curr.mouse_x;
     app->world_mouse_y = input->curr.mouse_y;
     if( !app->world_mouse_in_viewport )
@@ -31861,8 +32377,7 @@ App_RunOnce(
      * range precisely so this is a bounds test.
      */
     int chrome_took_click = 0;
-    if( out.clicked_com_id >= TORIRS_CHROME_ID_BASE &&
-        out.clicked_com_id < TORIRS_CHROME_ID_END &&
+    if( out.clicked_com_id >= TORIRS_CHROME_ID_BASE && out.clicked_com_id < TORIRS_CHROME_ID_END &&
         app_plugin_button_click(app, out.clicked_com_id) )
     {
         chrome_took_click = 1;
@@ -31884,13 +32399,14 @@ App_RunOnce(
      * owns the hook dispatch -- see RS_CS2_InputSetFocus.
      */
     int input_took_click = 0;
-    if( !chrome_took_click && (out.clicked_com_id >= 0 || out.clicked_node >= 0 || out.left_click_miss) &&
+    if( !chrome_took_click &&
+        (out.clicked_com_id >= 0 || out.clicked_node >= 0 || out.left_click_miss) &&
         !out.minimenu_closed && out.minimenu_select < 0 )
     {
-        int const field = out.clicked_com_id >= 0
-                              ? UITree_InputHitTest(
-                                    app->tree, &app->ui_host, out.clicked_x, out.clicked_y)
-                              : -1;
+        int const field =
+            out.clicked_com_id >= 0
+                ? UITree_InputHitTest(app->tree, &app->ui_host, out.clicked_x, out.clicked_y)
+                : -1;
         int const had_focus = RS_CS2_InputFocusId(&app->host) >= 0;
         if( field >= 0 )
         {
@@ -31913,8 +32429,8 @@ App_RunOnce(
      * on the floor -- neither a UI click here nor a world click below, because
      * the interactive hit had already closed the world gate. */
     if( !chrome_took_click && !input_took_click && app->inv_drag_com_id < 0 &&
-        !pressed_filled_obj &&
-        (out.clicked_com_id >= 0 || out.clicked_node >= 0) && !out.minimenu_closed && out.minimenu_select < 0 )
+        !pressed_filled_obj && (out.clicked_com_id >= 0 || out.clicked_node >= 0) &&
+        !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
             .tree = app->tree,
@@ -31966,12 +32482,14 @@ App_RunOnce(
          */
         if( getenv("TORIRS_CLICK_DEBUG") )
         {
-            TORIRS_LOG("clickdbg: com=0x%x rows=%d default=%d\n",
+            TORIRS_LOG(
+                "clickdbg: com=0x%x rows=%d default=%d\n",
                 out.clicked_com_id,
                 scratch.option_count,
                 default_idx);
             for( int i = 0; i < scratch.option_count; i++ )
-                TORIRS_LOG("  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n",
+                TORIRS_LOG(
+                    "  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n",
                     i,
                     scratch.options[i].text,
                     scratch.options[i].action,
@@ -32024,7 +32542,8 @@ App_RunOnce(
      * entry from world rows only — Walk here / nearest entity op (reference
      * chooseDefaultMenuEntry over the last rendered frame's pickset). */
     if( torirs_env_net_debug() && (out.left_click_miss || out.clicked_com_id >= 0) )
-        TORIRS_LOG("click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
+        TORIRS_LOG(
+            "click: miss=%d (%d,%d) com=0x%x gate=%d drawable=%d picks=%d\n",
             out.left_click_miss,
             out.left_click_miss_x,
             out.left_click_miss_y,
@@ -32344,7 +32863,8 @@ App_RunOnce(
             RS_CS2_SetEventKey(
                 &app->host, out.key_events[e].key_typed, out.key_events[e].key_pressed);
             if( torirs_env_key_debug() )
-                TORIRS_LOG("key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
+                TORIRS_LOG(
+                    "key_dispatch: com=0x%08x script=%d typed=%d pressed=%d\n",
                     target->component_id,
                     UITree_Hooks(&app->tree->components[idx])->on_key.script_id,
                     out.key_events[e].key_typed,
@@ -32397,7 +32917,8 @@ App_RunOnce(
                     &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
                 RS_CS2_SetEventKey(&app->host, codes[e], 0);
                 if( torirs_env_key_debug() )
-                    TORIRS_LOG("key_%s_dispatch: com=0x%08x script=%d key=%d\n",
+                    TORIRS_LOG(
+                        "key_%s_dispatch: com=0x%08x script=%d key=%d\n",
                         down ? "down" : "up",
                         target->component_id,
                         hook->script_id,
@@ -32427,16 +32948,13 @@ App_RunOnce(
      * keys and the hotkey passes further down would happily act on a keystroke
      * meant for a password.
      */
-    title_captures_keys =
-        app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING;
+    title_captures_keys = app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING;
     if( title_captures_keys )
     {
         for( int e = 0; e < input->key_event_count; e++ )
         {
             if( RS_Title_HandleKey(
-                    &app->title,
-                    input->key_events[e].key_typed,
-                    input->key_events[e].key_pressed) )
+                    &app->title, input->key_events[e].key_typed, input->key_events[e].key_pressed) )
                 app_title_state_changed(app);
         }
     }
@@ -32736,7 +33254,7 @@ App_RunOnce(
             {
                 int32_t node = UITree_ResolveRef(app->tree, app->tree->pending_drag_pickup_ref);
                 if( node < 0 || app_displayable_component_node(
-                        app, app->tree->components[node].component_id) < 0 )
+                                    app, app->tree->components[node].component_id) < 0 )
                     app->tree->pending_drag_pickup = 0;
             }
             if( app->tree && app->tree->pending_drag_pickup )
@@ -32817,7 +33335,8 @@ App_RunOnce(
                 bool ok =
                     UITree_ApplyText(app->tree, app->if_texts[i].com_id, app->if_texts[i].text);
                 if( !ok && torirs_env_net_debug() )
-                    TORIRS_LOG("if_settext: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG(
+                        "if_settext: reapply com=%d gen=%u missed\n",
                         app->if_texts[i].com_id,
                         app->tree->generation);
             }
@@ -32830,7 +33349,8 @@ App_RunOnce(
                 bool ok =
                     UITree_ApplyHide(app->tree, app->if_hides[i].com_id, app->if_hides[i].hide);
                 if( !ok && torirs_env_net_debug() )
-                    TORIRS_LOG("if_sethide: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG(
+                        "if_sethide: reapply com=%d gen=%u missed\n",
                         app->if_hides[i].com_id,
                         app->tree->generation);
             }
@@ -32843,7 +33363,8 @@ App_RunOnce(
                 bool ok = UITree_ApplyColour(
                     app->tree, app->if_colours[i].com_id, app->if_colours[i].colour);
                 if( !ok && torirs_env_net_debug() )
-                    TORIRS_LOG("if_setcolour: reapply com=%d gen=%u missed\n",
+                    TORIRS_LOG(
+                        "if_setcolour: reapply com=%d gen=%u missed\n",
                         app->if_colours[i].com_id,
                         app->tree->generation);
             }
@@ -32883,11 +33404,11 @@ App_RunOnce(
         struct UITreeEmitRetainGate overlay_motion_gate;
         int overlay_motion_ready = 0;
         if( !app->plugins && !UIInk_IsActive(&app->ink) )
-            (void)UITree_EmitOverlayMotionBegin(app->tree, &app->ui_host, &app->emit,
-                app->hover_com_id, &app->emit_gate);
+            (void)UITree_EmitOverlayMotionBegin(
+                app->tree, &app->ui_host, &app->emit, app->hover_com_id, &app->emit_gate);
         app_entity_overlay_layout(app);
-        overlay_motion_ready = UITree_EmitOverlayMotionEnd(app->tree, &app->emit_gate,
-            &overlay_motion_gate);
+        overlay_motion_ready =
+            UITree_EmitOverlayMotionEnd(app->tree, &app->emit_gate, &overlay_motion_gate);
         /* Resolve before evaluating retention. Frame reconciliation and the
          * projected entity-overlay pass can both invalidate boxes without
          * changing an already-pruned node's filtered dirty mark; resolving here
@@ -32927,11 +33448,7 @@ App_RunOnce(
              * the frame between UITree_LayoutInvalidate and EmitWalk's
              * UITree_EnsureLayout. */
             gate_quiet = UITree_EmitRetainGateQuiet(
-                app->tree,
-                &app->ui_host,
-                &app->emit,
-                app->hover_com_id,
-                &app->emit_gate);
+                app->tree, &app->ui_host, &app->emit, app->hover_com_id, &app->emit_gate);
             /*
              * A running touch marker is never a quiet frame.
              *
@@ -32963,30 +33480,42 @@ App_RunOnce(
             /* Correctness/dependency census only, never a timing run. Count
              * failed retention inputs after startup; no per-node timer. */
             {
-                static unsigned frames, quiet, dirty, layout, topology, hover, host,
-                    unrefreshable, ink, domains[UITREE_HOST_INPUT_DOMAIN_COUNT];
+                static unsigned frames, quiet, dirty, layout, topology, hover, host, unrefreshable,
+                    ink, domains[UITREE_HOST_INPUT_DOMAIN_COUNT];
                 extern unsigned g_ui_retain_trace_mutations;
-                if( frames == 600u ) g_ui_retain_trace_mutations = 48u;
+                if( frames == 600u )
+                    g_ui_retain_trace_mutations = 48u;
                 if( ++frames > 600u && frames <= 1800u )
                 {
                     quiet += gate_quiet != 0;
                     dirty += app->tree->dirty_gen != app->emit_gate.dirty_gen;
                     layout += app->tree->layout_stale || app->tree->layout_force_full ||
-                        app->tree->layout_resolve_seq != app->emit_gate.layout_resolve_seq;
+                              app->tree->layout_resolve_seq != app->emit_gate.layout_resolve_seq;
                     topology += app->tree->generation != app->emit_gate.tree_generation;
                     hover += app->hover_com_id != app->emit_gate.hovered_component_id;
                     host += !UITree_EmitBufferHostInputsCurrent(&app->emit, &app->ui_host);
                     unrefreshable += app->emit.volatile_unrefreshable != 0;
                     ink += UIInk_IsActive(&app->ink) != 0;
                     for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
-                        domains[d] += (app->emit.host_input_stamp.dependencies & UITREE_HOST_INPUT_BIT(d)) &&
+                        domains[d] +=
+                            (app->emit.host_input_stamp.dependencies & UITREE_HOST_INPUT_BIT(d)) &&
                             app->emit.host_input_stamp.epoch[d] != app->ui_host.input_epoch[d];
                     if( frames == 1800u )
                     {
-                        TORIRS_REPORT("ui-retain-trace: frames=1200 quiet=%u dirty=%u layout=%u topology=%u hover=%u host=%u unrefreshable=%u ink=%u\n",
-                            quiet, dirty, layout, topology, hover, host, unrefreshable, ink);
+                        TORIRS_REPORT(
+                            "ui-retain-trace: frames=1200 quiet=%u dirty=%u layout=%u topology=%u "
+                            "hover=%u host=%u unrefreshable=%u ink=%u\n",
+                            quiet,
+                            dirty,
+                            layout,
+                            topology,
+                            hover,
+                            host,
+                            unrefreshable,
+                            ink);
                         for( int d = 0; d < UITREE_HOST_INPUT_DOMAIN_COUNT; d++ )
-                            TORIRS_REPORT("ui-retain-trace: host_domain=%d changed=%u\n", d, domains[d]);
+                            TORIRS_REPORT(
+                                "ui-retain-trace: host_domain=%d changed=%u\n", d, domains[d]);
                     }
                 }
             }
@@ -32997,11 +33526,9 @@ App_RunOnce(
              * frame the tree term should hold and the gate should fire. It fires
              * twice in 2,000 frames. These two counters say which term is
              * actually failing instead of assuming it is the tree one. */
-            if( app->emit_gate.primed &&
-                app->tree->dirty_gen == app->emit_gate.dirty_gen )
+            if( app->emit_gate.primed && app->tree->dirty_gen == app->emit_gate.dirty_gen )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
-            if( app->emit_gate.primed &&
-                app->hover_com_id == app->emit_gate.hovered_component_id )
+            if( app->emit_gate.primed && app->hover_com_id == app->emit_gate.hovered_component_id )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
             if( app->emit_gate.primed )
                 TORIRS_PERF_COUNT(
@@ -33036,16 +33563,19 @@ App_RunOnce(
             if( verify < 0 )
                 verify = getenv("TORIRS_EMIT_VERIFY") ? 1 : 0;
 
-            retain = gate_quiet && !verify && app->emit.count > 0 &&
-                     !app->emit.volatile_unrefreshable;
+            retain =
+                gate_quiet && !verify && app->emit.count > 0 && !app->emit.volatile_unrefreshable;
 
-            if( gate_quiet && !verify && app->emit.count > 0 &&
-                app->emit.volatile_unrefreshable )
+            if( gate_quiet && !verify && app->emit.count > 0 && app->emit.volatile_unrefreshable )
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAIN_BLOCKED, 1);
 
             if( overlay_motion_ready && !verify &&
-                UITree_EmitOverlayMotionRefresh(app->tree, &app->ui_host, &app->emit,
-                    &app->hover_com_id, &overlay_motion_gate) )
+                UITree_EmitOverlayMotionRefresh(
+                    app->tree,
+                    &app->ui_host,
+                    &app->emit,
+                    &app->hover_com_id,
+                    &overlay_motion_gate) )
             {
 #if defined(TORIRS_UI_EMIT_PMU)
                 overlay_motion_reused = 1;
@@ -33057,27 +33587,28 @@ App_RunOnce(
                 UITree_EmitBufferInit(&reference);
                 UITree_EmitWalk(app->tree, &app->ui_host, &reference, app->hover_com_id);
                 if( reference.count != app->emit.count ||
-                    memcmp(reference.cmds, app->emit.cmds,
+                    memcmp(
+                        reference.cmds,
+                        app->emit.cmds,
                         (size_t)reference.count * sizeof(*reference.cmds)) )
                 {
-                    TORIRS_REPORT("overlay-retain verification FAILED: reference=%d partial=%d\n",
-                        reference.count, app->emit.count);
+                    TORIRS_REPORT(
+                        "overlay-retain verification FAILED: reference=%d partial=%d\n",
+                        reference.count,
+                        app->emit.count);
                     abort();
                 }
                 UITree_EmitBufferFree(&reference);
                 static unsigned matched;
                 if( (++matched % 100u) == 0u )
-                    TORIRS_REPORT("overlay-retain verification: %u full command lists matched\n", matched);
+                    TORIRS_REPORT(
+                        "overlay-retain verification: %u full command lists matched\n", matched);
 #endif
             }
             else if( retain )
             {
                 int reusable = UITree_EmitRetainGateRefreshVolatile(
-                    app->tree,
-                    &app->ui_host,
-                    &app->emit,
-                    &app->hover_com_id,
-                    &app->emit_gate);
+                    app->tree, &app->ui_host, &app->emit, &app->hover_com_id, &app->emit_gate);
                 if( reusable )
                 {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
@@ -33095,8 +33626,7 @@ App_RunOnce(
                     app->emit.count = 0;
                     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
                     {
-                        UITree_EmitWalk(
-                            app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                        UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
                     }
                 }
             }
@@ -33105,8 +33635,7 @@ App_RunOnce(
                 app->emit.count = 0;
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
                 {
-                    UITree_EmitWalk(
-                        app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                    UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
                 }
             }
         }
@@ -33114,8 +33643,7 @@ App_RunOnce(
          * the full walk. A host callback or EnsureLayout inside those paths may
          * advance an input/tree epoch; capturing before publication would make
          * the next frame conservatively rebuild despite a settled result. */
-        UITree_EmitRetainGateCapture(
-            app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
+        UITree_EmitRetainGateCapture(app->tree, &app->emit, app->hover_com_id, &app->emit_gate);
 #if defined(TORIRS_UI_EMIT_PMU)
         ui_emit_pmu_end(overlay_motion_reused, (unsigned)app->emit.count);
 #endif
@@ -33137,8 +33665,7 @@ App_RunOnce(
             emit_seq++;
 
             if( prev_count == n &&
-                (n == 0 ||
-                 memcmp(prev, app->emit.cmds, (size_t)n * sizeof(*prev)) == 0) )
+                (n == 0 || memcmp(prev, app->emit.cmds, (size_t)n * sizeof(*prev)) == 0) )
             {
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_LIST_SAME, 1);
                 if( gate_quiet )
@@ -33165,21 +33692,26 @@ App_RunOnce(
                         for( int u = 0; u < n; u++ )
                         {
                             unsigned char const* a = (unsigned char const*)&prev[u];
-                            unsigned char const* b =
-                                (unsigned char const*)&app->emit.cmds[u];
+                            unsigned char const* b = (unsigned char const*)&app->emit.cmds[u];
                             if( memcmp(a, b, sizeof(*prev)) == 0 )
                                 continue;
                             for( size_t k = 0; k < sizeof(*prev); k++ )
                             {
                                 if( a[k] == b[k] )
                                     continue;
-                                TORIRS_LOG("[emit-unsound] emit#%d desc %d/%d kind %d "
+                                TORIRS_LOG(
+                                    "[emit-unsound] emit#%d desc %d/%d kind %d "
                                     "com %d node %d first diff at byte %zu  "
                                     "clip.w %d -> %d\n",
-                                    emit_seq, u, n, (int)app->emit.cmds[u].kind,
+                                    emit_seq,
+                                    u,
+                                    n,
+                                    (int)app->emit.cmds[u].kind,
                                     app->emit.cmds[u].component_id,
-                                    (int)app->emit.cmds[u].node_index, k,
-                                    prev[u].clip.w, app->emit.cmds[u].clip.w);
+                                    (int)app->emit.cmds[u].node_index,
+                                    k,
+                                    prev[u].clip.w,
+                                    app->emit.cmds[u].clip.w);
                                 break;
                             }
                             break;
@@ -33259,7 +33791,10 @@ App_InputFrameConsumed(struct App const* app)
 }
 
 int
-App_PointerOwnedByUi(struct App* app, int x, int y)
+App_PointerOwnedByUi(
+    struct App* app,
+    int x,
+    int y)
 {
     assert(app);
     /*
@@ -33285,7 +33820,10 @@ App_PointerOwnedByUi(struct App* app, int x, int y)
 }
 
 int
-App_ChromePointerOwned(struct App const* app, int x, int y)
+App_ChromePointerOwned(
+    struct App const* app,
+    int x,
+    int y)
 {
     assert(app);
     /* Asked LIVE rather than answered from app->chrome_pointer_owned: that
@@ -33303,7 +33841,8 @@ App_SendIdkDesign(
 {
     assert(app && kits && colours);
     if( torirs_env_net_debug() )
-        TORIRS_LOG("idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
+        TORIRS_LOG(
+            "idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
             gender,
             kits[0],
             kits[1],
@@ -33352,7 +33891,8 @@ App_IfTextSet(
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
         if( torirs_env_net_debug() )
-            TORIRS_LOG("if_settext: com=%d text='%s' applied=%d\n",
+            TORIRS_LOG(
+                "if_settext: com=%d text='%s' applied=%d\n",
                 com_id,
                 text ? text : "",
                 (int)applied);
@@ -33387,8 +33927,8 @@ App_IfColourSet(
     {
         bool applied = UITree_ApplyColour(app->tree, com_id, colour);
         if( torirs_env_net_debug() )
-            TORIRS_LOG("if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour,
-                (int)applied);
+            TORIRS_LOG(
+                "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour, (int)applied);
     }
     app->need_redraw = 1;
 }
@@ -33939,7 +34479,8 @@ app_world_sync_one_entity_spotanim(
         entry->applied_frame = frame;
         app->need_redraw = 1;
         if( first_combine && getenv("TORIRS_ANIM_DEBUG") )
-            TORIRS_LOG("entity_spotanim: combine id=%d element=%d seq=%d frame=%d height=%d\n",
+            TORIRS_LOG(
+                "entity_spotanim: combine id=%d element=%d seq=%d frame=%d height=%d\n",
                 spot->id,
                 element_id,
                 type->seq,
@@ -34111,7 +34652,10 @@ app_plugin_obj_notify(
  * leaves the element alone and the async load lands on a later packet.
  */
 static struct ToriDraw_Model*
-app_obj_stack_build_model(struct App* app, int obj_id, int count)
+app_obj_stack_build_model(
+    struct App* app,
+    int obj_id,
+    int count)
 {
     struct ToriRS_Objtype* obj;
     int model_ids[1];
@@ -34129,8 +34673,7 @@ app_obj_stack_build_model(struct App* app, int obj_id, int count)
             .recolor_count = obj->recolor_count,
         };
         return app_world_build_model(
-            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast,
-            obj->ambient);
+            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
     }
 }
 
@@ -34139,7 +34682,11 @@ app_obj_stack_build_model(struct App* app, int obj_id, int count)
  * most count edits. Call BEFORE World_ObjStackSetCount: the count still on the
  * entity is what decides whether anything has to change. */
 static void
-app_obj_stack_refresh_model(struct App* app, struct World* world, int idx, int count)
+app_obj_stack_refresh_model(
+    struct App* app,
+    struct World* world,
+    int idx,
+    int count)
 {
     struct WorldEntity_ObjStack* stack;
     struct ToriDraw_Model* model;
@@ -34153,8 +34700,7 @@ app_obj_stack_refresh_model(struct App* app, struct World* world, int idx, int c
     if( ObjModelLoad_RenderObjId(app->provider, stack->obj_id, stack->count) ==
         ObjModelLoad_RenderObjId(app->provider, stack->obj_id, count) )
         return;
-    if( stack->element_id < 0 ||
-        !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
+    if( stack->element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
         return;
     model = app_obj_stack_build_model(app, stack->obj_id, count);
     if( !model )
@@ -34222,7 +34768,8 @@ App_WorldObjStackAdd(
         return -1;
 
     if( torirs_env_net_debug() )
-        TORIRS_LOG("objstack: obj=%d tile=%d,%d,%d element=%d\n",
+        TORIRS_LOG(
+            "objstack: obj=%d tile=%d,%d,%d element=%d\n",
             obj_id,
             scene_x,
             scene_z,
@@ -34462,9 +35009,7 @@ App_WevSpawn(
      * maximum-size view fits and two do not, so the old note about "~15 max-
      * size views" was wrong in the same direction.
      */
-    assert(
-        size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <=
-        TORIDRAW_SCENE_MAX_ELEMENTS);
+    assert(size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <= TORIDRAW_SCENE_MAX_ELEMENTS);
     /* ...and the pool must still have that much left, which is the leak
      * check: a session that has been sailing all day should not have drifted
      * upward. A failure HERE means the scene is leaking elements. */
@@ -34515,27 +35060,10 @@ App_WevSpawn(
      * in base_x/base_z. Until then the view's membership box sits at (0,0)
      * with only its size known. */
     WorldviewRegistry_Register(
-        &app->worldviews,
-        id,
-        world,
-        builder,
-        0,
-        0,
-        size_x_tiles,
-        size_z_tiles,
-        app->active_world);
+        &app->worldviews, id, world, builder, 0, 0, size_x_tiles, size_z_tiles, app->active_world);
 
     return Wevs_Spawn(
-        &app->wevs,
-        id,
-        app->active_world,
-        config,
-        config_id,
-        x,
-        z,
-        angle,
-        priority_group,
-        op_mask);
+        &app->wevs, id, app->active_world, config, config_id, x, z, angle, priority_group, op_mask);
 }
 
 void
@@ -34747,8 +35275,7 @@ app_world_scenery_anim_apply(
     idx = World_SceneryFindAt(world, scene_x, scene_z, level, loc_shape);
     if( idx >= 0 )
     {
-        struct WorldEntity_Scenery* scenery =
-            World_EntityPoolGet(&world->entities.scenery, idx);
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(&world->entities.scenery, idx);
         if( scenery && scenery->element_id >= 0 )
         {
             struct ToriDraw_SceneElement* element;
@@ -34826,10 +35353,8 @@ App_WorldApplyNpcType(
      * See app_npc_entity_facts. */
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
     if( getenv("TORIRS_ANIM_DEBUG") )
-        TORIRS_LOG("npc_retype: world_idx=%d element=%d type=%d\n",
-            world_idx,
-            element_id,
-            npc_type);
+        TORIRS_LOG(
+            "npc_retype: world_idx=%d element=%d type=%d\n", world_idx, element_id, npc_type);
 
     /* Retyping TO a model-less type must actually hide the npc. Building
      * nothing here would leave the old model mounted and the entity would keep
@@ -34904,8 +35429,7 @@ App_WorldApplyNpcType(
              * `turn_speed` is left out of AppNpcEntityFacts. */
             .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
         };
-        World_NpcSetType(
-            app->world, world_idx, npc_type, facts.size, &idle);
+        World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
@@ -34956,7 +35480,8 @@ App_WorldApplyNpcType(
                 PluginHost_NpcRetype(app->plugins, &retyped);
             }
             if( torirs_env_net_debug() )
-                TORIRS_ERR("entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
+                TORIRS_ERR(
+                    "entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
                     "model=%s\n",
                     npc_type,
                     element_id,
@@ -35219,7 +35744,12 @@ app_damage_rects_armed(void)
  * before it reaches the two rects that matter. Overflow is not an error: the
  * caller falls back to the bounding box, which is always correct. */
 static void
-app_damage_rect_add(struct App* app, int x, int y, int w, int h)
+app_damage_rect_add(
+    struct App* app,
+    int x,
+    int y,
+    int w,
+    int h)
 {
     assert(app);
     if( w <= 0 || h <= 0 )
@@ -35261,7 +35791,12 @@ app_damage_rect_add(struct App* app, int x, int y, int w, int h)
 
 /* Grow the frame's damage box to cover [x, x+w) x [y, y+h). */
 static void
-app_damage_add(struct App* app, int x, int y, int w, int h)
+app_damage_add(
+    struct App* app,
+    int x,
+    int y,
+    int w,
+    int h)
 {
     int x1;
     int y1;
@@ -35311,7 +35846,10 @@ app_damage_add(struct App* app, int x, int y, int w, int h)
  * that never repair.
  */
 static void
-app_compute_damage(struct App* app, int width, int height)
+app_compute_damage(
+    struct App* app,
+    int width,
+    int height)
 {
     assert(app);
 
@@ -35330,16 +35868,23 @@ app_compute_damage(struct App* app, int width, int height)
          * behind it is refilled is exactly the thing a retained frame cannot
          * assume it has already drawn. */
         if( !live &&
-            (d->minimap_dots || d->entity_overlays || d->worldmap_tiles ||
-             d->debug_prims) )
+            (d->minimap_dots || d->entity_overlays || d->worldmap_tiles || d->debug_prims) )
             live = 1;
         if( !live )
             continue;
 
         if( g_damage_trace )
-            TORIRS_REPORT("[damage] live kind=%d box=%d,%d %dx%d clip=%d,%d %dx%d\n",
-                (int)d->kind, d->x, d->y, d->w, d->h,
-                d->clip.x, d->clip.y, d->clip.w, d->clip.h);
+            TORIRS_REPORT(
+                "[damage] live kind=%d box=%d,%d %dx%d clip=%d,%d %dx%d\n",
+                (int)d->kind,
+                d->x,
+                d->y,
+                d->w,
+                d->h,
+                d->clip.x,
+                d->clip.y,
+                d->clip.w,
+                d->clip.h);
 
         /* Box INTERSECT clip. A desc draws inside its own box and is then
          * further restricted by the enclosing scissor, so the pixels it can
@@ -35396,8 +35941,7 @@ app_compute_damage(struct App* app, int width, int height)
     if( app->damage_valid && app->damage_w >= width && app->damage_h >= height )
         app->damage_valid = 0;
 
-    if( !app->damage_valid || app->damage_rect_count <= 0 ||
-        !app_damage_rects_armed() )
+    if( !app->damage_valid || app->damage_rect_count <= 0 || !app_damage_rects_armed() )
     {
         app->damage_rect_count = 0;
         return;
@@ -35470,11 +36014,11 @@ app_damage_report_dump(void)
 
     if( g_damage_stats.frames == 0 )
         return;
-    area_pct = g_damage_stats.damaged > 0
-                   ? 100.0 * (double)g_damage_stats.damaged_area /
-                         (double)g_damage_stats.canvas_area
-                   : 100.0;
-    TORIRS_REPORT("[damage] frames=%lld retained=%lld (%.1f%%) damaged=%lld (%.1f%%)\n",
+    area_pct = g_damage_stats.damaged > 0 ? 100.0 * (double)g_damage_stats.damaged_area /
+                                                (double)g_damage_stats.canvas_area
+                                          : 100.0;
+    TORIRS_REPORT(
+        "[damage] frames=%lld retained=%lld (%.1f%%) damaged=%lld (%.1f%%)\n",
         (long long)g_damage_stats.frames,
         (long long)g_damage_stats.retained,
         100.0 * (double)g_damage_stats.retained / (double)g_damage_stats.frames,
@@ -35484,7 +36028,10 @@ app_damage_report_dump(void)
 }
 
 static void
-app_damage_note(struct App const* app, int width, int height)
+app_damage_note(
+    struct App const* app,
+    int width,
+    int height)
 {
     static int armed = -1;
 
@@ -35508,8 +36055,12 @@ app_damage_note(struct App const* app, int width, int height)
     if( g_damage_stats.frames % 600 == 0 )
     {
         app_damage_report_dump();
-        TORIRS_REPORT("[damage] box: %d,%d %dx%d valid=%d\n",
-            app->damage_x, app->damage_y, app->damage_w, app->damage_h,
+        TORIRS_REPORT(
+            "[damage] box: %d,%d %dx%d valid=%d\n",
+            app->damage_x,
+            app->damage_y,
+            app->damage_w,
+            app->damage_h,
             app->damage_valid);
         /* Dump the contributing descs on the NEXT frame -- this one has
          * already unioned them. */
@@ -35584,8 +36135,7 @@ App_Render(
          * ("or -1 to leave the bar alone", rs_preload.h). Overriding with -1
          * would clamp to zero and walk the bar backwards.
          */
-        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR &&
-            app->runner.render.percent >= 0 )
+        if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->runner.render.percent >= 0 )
             percent = app->runner.render.percent;
 
         /* Post-login (and any later quiet bake), the reference shows ONLY the
@@ -35652,7 +36202,8 @@ App_Render(
         app_draw_connection_lost_overlay(app, pixels, width, height);
 
     if( torirs_env_frame_debug() )
-        TORIRS_LOG("frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+        TORIRS_LOG(
+            "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
             frame.dbg_emit_element,
             frame.dbg_emit_terrain,
             frame.dbg_drop_not_live,
@@ -35675,7 +36226,10 @@ App_WriteBmp(
 
 void
 App_SetPluginChromeExec(
-    struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice)
+    struct App* app,
+    struct ToriRSChromeExec const* exec,
+    int kind,
+    int explicit_choice)
 {
     assert(app);
     assert(exec);

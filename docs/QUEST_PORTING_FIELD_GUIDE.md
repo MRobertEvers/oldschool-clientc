@@ -118,13 +118,45 @@ or named BMP with plugins on — overlays are not content evidence. The
 C `--selftest` binary has no plugin host; still export `TORIRS_PLUGINS=0`
 so any client you spawn from the same shell stays clean.
 
+<<<<<<< HEAD
+=======
+**Named Gate D BMPs live in the `OSRS-Content` submodule.** Parent-verify
+with `git -C OSRS-Content ls-tree -r --name-only <gitlink-sha> --
+osrs239-content/server/scripts/selftest/<quest_dir>` and unique MD5s.
+`git ls-tree` on the parent branch only shows the gitlink — it will
+report 0 `.bmp` files even when the content SHA has them. Commit the
+BMPs in OSRS-Content **and** push that SHA, then move the parent
+gitlink.
+
+**Workers must install `cache.osrs239` before any capture.**
+`tools/fetch_cache_osrs239.sh` (OpenRS2 live b239 `#2644` →
+`cache.osrs239/main_file_cache.*`). No cache = no Gate D. Do not close.
+
+**One named BMP per player interaction. A highlight reel is a failed close.**
+Gate D is not "8–10 shots of the critical path." Capture **every**
+player-facing interaction on the quest: every `opnpc` / `oploc` /
+`opheld` / `opobj` that a player clicks, every dialogue beat that
+advances or branches (offer, refuse, accept, clue, wrong-item, hand-in,
+complete), every search/pickup/climb/craft/use. The filename names the
+interaction (`14_trufitus_refuse_dirty_ardrigal.bmp`). The pixels must
+show **that** mesbox, chathead, or interface — a washed-out teleport
+with only `godmode on` in the chat is not a capture of the step.
+`PASS` line count is a floor, not a target; most quests need far more
+named BMPs than C assertions. Parent rejects any close whose BMP set
+is a subset of the walk.
+
+>>>>>>> 008248fe70b03d9bf1abadba595ea4ee8c5d4080
 **The player is unkillable unless the step is a death test.**
 A named BMP that shows Lumbridge after `Oh dear, you are dead!` is not
 quest evidence. Level-3 logins die to Karamja snakes, Harpies, Jogres,
 and wilderness NPCs before the dump. Gate D / `TORIRS_BMP_SERIES` boots
 turn on `::god` at login (`TORIRS_EXIT_BMP` / `TORIRS_BMP_SERIES` /
 `TORIRSSERVER_GOD=1`). Still put `god 1` first in `TORIRS_NET_CHEAT`
+<<<<<<< HEAD
 (`god 1;junglebmp_ardrigal`). C quest selftests set `player->godmode = 1`
+=======
+(`god 1;<quest>bmp_...`). C quest selftests set `player->godmode = 1`
+>>>>>>> 008248fe70b03d9bf1abadba595ea4ee8c5d4080
 for the whole walk. Only a step whose assertion *is* death sends
 `::god 0` / `player->godmode = 0`.
 
