@@ -68,9 +68,37 @@ selftest_mag_talk(
     return ran;
 }
 
+static int
+selftest_mag_click_to_choice(
+    struct ToriRSServerPlayer* player,
+    int choice_uid,
+    int max_pages)
+{
+    int clicks = 0;
+
+    assert(player);
+    while( clicks < max_pages && player->active_script )
+    {
+        int uid;
+        uint8_t resume[4];
+
+        if( player->resume_button_count <= 0 )
+            break;
+        uid = player->resume_buttons[0];
+        if( choice_uid > 0 && uid == choice_uid )
+            return clicks;
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        clicks++;
+    }
+    return clicks;
+}
+
 static void
 selftest_mag_pick(
-    struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player,
     int row)
 {
@@ -78,7 +106,6 @@ selftest_mag_pick(
     uint8_t button[6];
     int uid;
 
-    assert(srv);
     assert(player);
     chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
     SELFTEST_CHECK(chatmenu > 0, "chatmenu:options should resolve");
@@ -191,7 +218,7 @@ selftest_mag(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         selftest_mag_talk(srv, emelio_type, slot);
         SELFTEST_CHECK(player->active_script != NULL,
                        "Emelio start should park on chat");
-        selftest_click_through(srv, 8);
+        selftest_mag_click_to_choice(player, chatmenu, 8);
         SELFTEST_CHECK(player->active_script != NULL,
                        "qualified start should park on p_choice2");
         SELFTEST_CHECK(player->resume_button_count == 1 &&
@@ -202,7 +229,7 @@ selftest_mag(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        selftest_mag_get(player, mag));
 
         /* Refuse: row 2 "No." must chat and leave %mag at 0. */
-        selftest_mag_pick(srv, player, 2);
+        selftest_mag_pick(player, 2);
         SELFTEST_CHECK(player->active_script != NULL,
                        "refuse should park on refuse chat");
         selftest_click_through(srv, 8);
@@ -224,11 +251,11 @@ selftest_mag(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     if( slot >= 0 )
     {
         selftest_mag_talk(srv, emelio_type, slot);
-        selftest_click_through(srv, 8);
+        selftest_mag_click_to_choice(player, chatmenu, 8);
         SELFTEST_CHECK(player->resume_button_count == 1 &&
                            player->resume_buttons[0] == chatmenu,
                        "accept path should still be on p_choice2");
-        selftest_mag_pick(srv, player, 1);
+        selftest_mag_pick(player, 1);
         selftest_click_through(srv, 8);
         SELFTEST_CHECK(selftest_mag_get(player, mag) == 4,
                        "Yes must write %%mag = ^mg_supply (4), got %d",
