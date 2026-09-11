@@ -40,7 +40,7 @@
     if( loaded )
     {
 
-    selftest_reset_world(srv, player, 19, 57);
+    selftest_reset_world(srv, player, 402, 402);
     player->godmode = 1;
     ToriRSServer_WorldSetActive(srv, player);
 
@@ -119,27 +119,28 @@
 
     SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_05_gordon_refuse"),
                    "::gabmp_05_gordon_refuse parks the refuse chat");
+    ToriRSServer_WorldCloseModal(srv);
     if( ga_bit >= 0 )
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, ga_bit) == 0,
                        "refuse leaves %%ga at 0");
 
-    /* Named leftover procs exist (disclosed collapses only). */
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_beast_combat]", NULL, 0),
+    /* Named leftover debugprocs park on the disclosed mesboxes. */
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_beast_combat"),
                    "leftover_beast_combat is authored");
     ToriRSServer_WorldCloseModal(srv);
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_flour_gate_lure]", NULL, 0),
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_flour_gate_lure"),
                    "leftover_flour_gate_lure is authored");
     ToriRSServer_WorldCloseModal(srv);
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_tannery_unlock_ui]", NULL, 0),
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_tannery_unlock_ui"),
                    "leftover_tannery_unlock_ui is authored");
     ToriRSServer_WorldCloseModal(srv);
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_full_gordon_mary_trees]", NULL, 0),
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_full_gordon_mary_trees"),
                    "leftover_full_gordon_mary_trees is authored");
     ToriRSServer_WorldCloseModal(srv);
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_construction_mount_hotspot]", NULL, 0),
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_construction_mount_hotspot"),
                    "leftover_construction_mount_hotspot is authored");
     ToriRSServer_WorldCloseModal(srv);
-    SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ga_leftover_full_refuse_trees]", NULL, 0),
+    SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "gabmp_leftover_full_refuse_trees"),
                    "leftover_full_refuse_trees is authored");
     ToriRSServer_WorldCloseModal(srv);
 
