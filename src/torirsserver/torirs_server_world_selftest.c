@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/currentaffairs_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -35895,6 +35896,22 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_CA_ONLY") )
+    {
+        /*
+         * Focused Current Affairs walk. Worker-branch only -- do not merge
+         * this .u.h onto parent v3. Unset CA_ONLY falls through to the shop
+         * fprintf / default suite unmoved.
+         *
+         *   TORIRSSERVER_SELFTEST_CA_ONLY=1 TORIRSSERVER_GOD=1 TORIRS_PLUGINS=0 \
+         *       TORIRSSERVER_CACHE=cache.osrs239 ./src/afl_opt/torirsserver --selftest
+         */
+        selftest_currentaffairs(srv, player);
+        fprintf(stderr, "ToriRSServer Current Affairs selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
