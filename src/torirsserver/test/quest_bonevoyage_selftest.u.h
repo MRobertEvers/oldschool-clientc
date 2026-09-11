@@ -190,6 +190,14 @@ bv_reset_state(struct ToriRSServer* srv, struct ToriRSServerPlayer* player,
     bv_god(player);
 }
 
+static int
+bv_haig(struct ToriRSServer* srv, int slot)
+{
+    assert(srv);
+    assert(slot >= 0);
+    return ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,bv_haig_talk]", slot);
+}
+
 static void
 bv_talk_and_pick(struct ToriRSServer* srv, struct ToriRSServerPlayer* player,
                  int chatmenu, int row)
@@ -214,6 +222,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     int vb_kudos;
     int vp_itexam;
     int woodcutting;
+    int npc_curator;
     int npc_foreman;
     int npc_sawmill;
     int npc_guild;
@@ -231,6 +240,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     int obj_vodka;
     int obj_pot;
     int chatmenu;
+    int slot_curator;
     int slot_foreman;
     int slot_sawmill;
     int slot_guild;
@@ -272,6 +282,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     vb_kudos = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "vm_kudos");
     vp_itexam = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "itexamlevel");
     woodcutting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "woodcutting");
+    npc_curator = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "curator");
     npc_foreman = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "vm_canal_barge_foremen_talking");
     npc_sawmill = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "poh_sawmill_opp");
     npc_guild = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "prif_sawmill_operator");
@@ -293,18 +304,20 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     SELFTEST_CHECK(vb_progress >= 0, "fossilquest_progress varbit should resolve");
     SELFTEST_CHECK(vb_kudos >= 0, "vm_kudos varbit should resolve");
     SELFTEST_CHECK(vp_itexam >= 0, "itexamlevel varp should resolve");
+    SELFTEST_CHECK(npc_curator >= 0, "curator (Haig) should resolve");
     SELFTEST_CHECK(npc_foreman >= 0, "vm_canal_barge_foremen_talking should resolve");
     SELFTEST_CHECK(npc_sawmill >= 0, "poh_sawmill_opp should resolve");
     SELFTEST_CHECK(npc_guild >= 0, "prif_sawmill_operator should resolve");
     SELFTEST_CHECK(npc_lead >= 0, "fossilquest_lead_navigator should resolve");
     SELFTEST_CHECK(obj_proposal >= 0, "fossilquest_sawmill_proposal should resolve");
-    if( vb_progress < 0 || npc_foreman < 0 || npc_sawmill < 0 || npc_guild < 0 ||
-        npc_lead < 0 || obj_proposal < 0 )
+    if( vb_progress < 0 || npc_curator < 0 || npc_foreman < 0 || npc_sawmill < 0 ||
+        npc_guild < 0 || npc_lead < 0 || obj_proposal < 0 )
     {
         fprintf(stderr, "  SKIP  missing Bone Voyage symbols\n");
         return;
     }
 
+    slot_curator = bv_spawn(srv, npc_curator, BV_HAIG_X, BV_HAIG_Z, 0);
     slot_foreman = bv_spawn(srv, npc_foreman, BV_FOREMAN_X, BV_FOREMAN_Z, 0);
     slot_sawmill = bv_spawn(srv, npc_sawmill, BV_SAWMILL_X, BV_SAWMILL_Z, 0);
     slot_guild = bv_spawn(srv, npc_guild, BV_GUILD_X, BV_GUILD_Z, 0);
@@ -314,6 +327,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     slot_jack = npc_jack >= 0 ? bv_spawn(srv, npc_jack, BV_JACK_X, BV_JACK_Z, 0) : -1;
     slot_odd = npc_odd >= 0 ? bv_spawn(srv, npc_odd, BV_ODD_X, BV_ODD_Z, 0) : -1;
     slot_apoth = npc_apoth >= 0 ? bv_spawn(srv, npc_apoth, BV_APOTH_X, BV_APOTH_Z, 0) : -1;
+    SELFTEST_CHECK(slot_curator >= 0, "Curator Haig should spawn");
     SELFTEST_CHECK(slot_foreman >= 0, "Barge Foreman should spawn");
     SELFTEST_CHECK(slot_sawmill >= 0, "Varrock sawmill should spawn");
     SELFTEST_CHECK(slot_guild >= 0, "Guild sawmill should spawn");
@@ -323,7 +337,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     bv_reset_state(srv, player, BV_NOT_STARTED, 0, BV_KUDOS_REQ, BV_WC_REQ, woodcutting,
                    vb_progress, vb_charm, vb_potion, vb_kudos, vp_itexam);
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    rc = ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    rc = bv_haig(srv, slot_curator);
     bv_finish(srv);
     SELFTEST_CHECK(rc != 0, "bv_haig_talk Dig Site fail should run");
     progress = ToriRSServer_VarbitGet(player, vb_progress);
@@ -335,7 +349,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     bv_reset_state(srv, player, BV_NOT_STARTED, BV_ITEXAM_COMPLETE, 0, BV_WC_REQ, woodcutting,
                    vb_progress, vb_charm, vb_potion, vb_kudos, vp_itexam);
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    rc = ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    rc = bv_haig(srv, slot_curator);
     bv_finish(srv);
     progress = ToriRSServer_VarbitGet(player, vb_progress);
     SELFTEST_CHECK(progress == BV_NOT_STARTED,
@@ -346,7 +360,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     bv_reset_state(srv, player, BV_NOT_STARTED, BV_ITEXAM_COMPLETE, BV_KUDOS_REQ, 1,
                    woodcutting, vb_progress, vb_charm, vb_potion, vb_kudos, vp_itexam);
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    rc = ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    rc = bv_haig(srv, slot_curator);
     bv_finish(srv);
     progress = ToriRSServer_VarbitGet(player, vb_progress);
     SELFTEST_CHECK(progress == BV_NOT_STARTED,
@@ -357,7 +371,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     bv_reset_state(srv, player, BV_NOT_STARTED, BV_ITEXAM_COMPLETE, BV_KUDOS_REQ, BV_WC_REQ,
                    woodcutting, vb_progress, vb_charm, vb_potion, vb_kudos, vp_itexam);
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    rc = ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    rc = bv_haig(srv, slot_curator);
     bv_talk_and_pick(srv, player, chatmenu, 2);
     bv_finish(srv);
     progress = ToriRSServer_VarbitGet(player, vb_progress);
@@ -369,7 +383,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     bv_reset_state(srv, player, BV_NOT_STARTED, BV_ITEXAM_COMPLETE, BV_KUDOS_REQ, BV_WC_REQ,
                    woodcutting, vb_progress, vb_charm, vb_potion, vb_kudos, vp_itexam);
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    rc = ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    rc = bv_haig(srv, slot_curator);
     bv_talk_and_pick(srv, player, chatmenu, 1);
     bv_finish(srv);
     progress = ToriRSServer_VarbitGet(player, vb_progress);
@@ -606,7 +620,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
 
     /* ---- Post-complete Haig ---- */
     bv_tele(srv, BV_HAIG_X, BV_HAIG_Z, 0);
-    ToriRSServer_ScriptsRunProc(srv, "[proc,bv_haig_talk]", NULL, 0);
+    bv_haig(srv, slot_curator);
     bv_finish(srv);
     progress = ToriRSServer_VarbitGet(player, vb_progress);
     SELFTEST_CHECK(progress == BV_COMPLETE, "post-complete Haig must leave 50, got %d",
@@ -653,6 +667,7 @@ selftest_quest_bonevoyage(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     SELFTEST_CHECK(player->hitpoints > 0 && player->godmode == 1,
                    "player must stay alive (godmode) through the walk");
 
+    bv_free_npc(srv, slot_curator);
     bv_free_npc(srv, slot_foreman);
     bv_free_npc(srv, slot_sawmill);
     bv_free_npc(srv, slot_guild);
