@@ -15,6 +15,40 @@ eaa_selftest_close(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 }
 
 static void
+eaa_selftest_resume_chat(struct ToriRSServer* srv)
+{
+    static const char* const k_buttons[] = {
+        "chat_left:continue",
+        "chat_right:continue",
+        "messagebox:continue",
+    };
+    size_t i;
+
+    assert(srv);
+    for( i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
+    {
+        int uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, k_buttons[i]);
+        if( uid > 0 )
+            ToriRSServer_ScriptsResumeButton(srv, uid);
+    }
+}
+
+static void
+eaa_selftest_click_through(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int eaa_bit,
+    int want)
+{
+    int n;
+
+    assert(srv);
+    assert(player);
+    for( n = 0; n < 12 && ToriRSServer_VarbitGet(player, eaa_bit) != want; n++ )
+        eaa_selftest_resume_chat(srv);
+}
+
+static void
 eaa_selftest_set_thieving(struct ToriRSServerPlayer* player, int thieving, int level)
 {
     assert(player);
@@ -141,6 +175,7 @@ selftest_eaa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         {
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_herminius,
                                            -1, npc_slot);
+            eaa_selftest_click_through(srv, player, eaa_bit, 4);
             eaa_selftest_close(srv, player);
             SELFTEST_CHECK(
                 ToriRSServer_VarbitGet(player, eaa_bit) == 4,
@@ -188,6 +223,7 @@ selftest_eaa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         {
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_stan, -1,
                                            npc_slot);
+            eaa_selftest_click_through(srv, player, eaa_bit, 18);
             eaa_selftest_close(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, eaa_bit) == 18,
                            "Stan should advance %%eaa to ^eaa_betty (18), got %d",
@@ -203,12 +239,27 @@ selftest_eaa(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     eaa_selftest_close(srv, player);
     ToriRSServer_ScriptsRunDebugproc(srv, "eaabmp_43_haig_deny");
     eaa_selftest_close(srv, player);
-    ToriRSServer_VarbitSet(srv, eaa_bit, 22);
-    ToriRSServer_ScriptsRunProc(srv, "[proc,eaa_haig_talk]", NULL, 0);
-    eaa_selftest_close(srv, player);
-    SELFTEST_CHECK(ToriRSServer_VarbitGet(player, eaa_bit) == 24,
-                   "Haig deny should advance %%eaa to ^eaa_loot (24), got %d",
-                   ToriRSServer_VarbitGet(player, eaa_bit));
+    {
+        int npc_haig = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "curator");
+        int npc_slot;
+
+        ToriRSServer_VarbitSet(srv, eaa_bit, 22);
+        npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_haig, player->x + 1,
+                                              player->z, player->level);
+        SELFTEST_CHECK(npc_slot >= 0, "Curator Haig should spawn");
+        if( npc_slot >= 0 )
+        {
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_haig, -1,
+                                           npc_slot);
+            eaa_selftest_click_through(srv, player, eaa_bit, 24);
+            eaa_selftest_close(srv, player);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, eaa_bit) == 24,
+                           "Haig deny should advance %%eaa to ^eaa_loot (24), got %d",
+                           ToriRSServer_VarbitGet(player, eaa_bit));
+            ToriRSServer_WorldNpcFree(srv, npc_slot);
+            ToriRSServer_WorldNpcReap(srv);
+        }
+    }
 
     ToriRSServer_ScriptsRunDebugproc(srv, "eaabmp_44_pickpocket_haig");
     eaa_selftest_close(srv, player);
