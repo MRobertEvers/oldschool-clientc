@@ -3075,6 +3075,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/quest_bearyoursoul_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3217,6 +3218,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer canoe selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("canoes");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_BYS_ONLY") )
+    {
+        selftest_quest_bearyoursoul(srv, player);
+        fprintf(stderr, "ToriRSServer bearyoursoul selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("bearyoursoul");
         return g_selftest_failures;
     }
 
@@ -35896,6 +35906,10 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+    /* Bear Your Soul Gate D C walk. Immediately before the shop
+     * selftest_reset_world so spawned Aretha / Key Master cannot leak. */
+    selftest_quest_bearyoursoul(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
