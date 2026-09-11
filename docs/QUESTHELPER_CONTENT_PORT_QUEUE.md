@@ -286,11 +286,11 @@ filed under `helpers/miniquests/` are at the end.
 | 11 | runemysteries | `runemysteries` | 246 | done | 2026-09-10 parent-verified 33 unique-MD5 named BMPs on OSRS-Content@fa9c641ca (Duke/Sedridor/Aubury). |
 | 12 | pryingtimes | `pryingtimes` | 247 | done |  |
 | 13 | sheepshearer | `sheepshearer` | 248 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
-| 14 | clientofkourend | `clientofkourend` | 257 | in_progress | 2026-09-10 claimed `gp-cok-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
+| 14 | clientofkourend | `clientofkourend` | 257 | done | 2026-09-11 Gate D parent-verified 46 named / 46 unique-MD5 BMPs cherry-picked onto OSRS-Content@0bf87738b6 (worker SHA 22a87ce0d9 not merged wholesale). Leftovers: leftover_port_sarim_ship_cutscene; leftover_lamp_rub_ui; leftover_kourend_castle_teleport; leftover_full_refuse_trees. Prior done; Gate D recapture. |
 | 15 | goblindiplomacy | `goblindiplomacy` | 257 | done (LC) | re-audit 2026-08-10: `quest_gobdip` (`general_bentnoze.rs2`; dbrow `quest_goblindiplomacy` journal wired) |
 | 16 | thequeenofthieves | `thequeenofthieves` | 259 | in_progress | 2026-09-11 claimed `gp-qot-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 17 | rovingelves | `rovingelves` | 263 | done | 2026-09-10 parent-verified 46 unique-MD5 named BMPs on OSRS-Content@5c626c570f. Leftovers: moss start BMP is the weapons-gate mesbox; font kerning. |
-| 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | done |  |
+| 18 | thedepthsofdespair | `thedepthsofdespair` | 267 | in_progress | 2026-09-11 claimed `gp-dod-img` on cache image `bld-20260910-ed0a006f`. Prior done; Gate D recapture. |
 | 19 | druidicritual | `druidicritual` | 268 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_druidicritual` exists — see IN-LC table (`quest_druid`/`quest_druidspirit`) |
 | 20 | aporcineofinterest | `aporcineofinterest` | 275 | done |  |
 | 21 | deviousminds | `deviousminds` | 275 | done | 2026-09-10 parent-verified 57 named / 52 unique-MD5 BMPs on OSRS-Content@079a4c3933. Leftovers: Abyss/Law Altar travel soft-skipped; heist narrated mesbox. |
