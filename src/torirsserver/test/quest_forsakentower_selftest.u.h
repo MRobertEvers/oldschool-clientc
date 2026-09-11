@@ -155,22 +155,28 @@ selftest_quest_forsakentower(struct ToriRSServer* srv, struct ToriRSServerPlayer
                        why == 0,
                    "CoK + X Marks qualify with no skill gate, got %d", why);
 
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_show_qualify_fail_cok]", NULL, 0),
                    "CoK qualify-fail mesbox proc exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_show_qualify_fail_xmarks]", NULL, 0),
                    "X Marks qualify-fail mesbox proc exists");
+    player->active_script = NULL;
 
     ToriRSServer_VarbitSet(srv, lovaquest, FT_CWALK_NOT_STARTED);
+    player->active_script = NULL;
     (void)ToriRSServer_ScriptsRunProc(srv, "[proc,ft_refuse]", NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, lovaquest) == FT_CWALK_NOT_STARTED,
                    "refuse must not auto-start, %%lovaquest=%d",
                    ToriRSServer_VarbitGet(player, lovaquest));
 
+    player->active_script = NULL;
     (void)ToriRSServer_ScriptsRunProc(srv, "[proc,ft_accept]", NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, lovaquest) == FT_CWALK_UNDOR,
                    "accept writes %%lovaquest=^ft_undor, got %d",
                    ToriRSServer_VarbitGet(player, lovaquest));
 
+    player->active_script = NULL;
     (void)ToriRSServer_ScriptsRunProc(srv, "[proc,ft_undor_send]", NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, lovaquest) == FT_CWALK_TOWER,
                    "Undor send writes %%lovaquest=^ft_tower, got %d",
@@ -223,6 +229,7 @@ selftest_quest_forsakentower(struct ToriRSServer* srv, struct ToriRSServerPlayer
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, foundhammer) > 0,
                    "display case stamps %%lovaquest_foundhammer");
 
+    player->active_script = NULL;
     (void)ToriRSServer_ScriptsRunProc(srv, "[proc,ft_undor_take_hammer]", NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, lovaquest) == FT_CWALK_RETURN,
                    "Undor return writes %%lovaquest=^ft_return, got %d",
@@ -231,6 +238,7 @@ selftest_quest_forsakentower(struct ToriRSServer* srv, struct ToriRSServerPlayer
                    "Undor takes Dinh's hammer, leftover=%d",
                    ft_cwalk_inv_count(player, hammer));
 
+    player->active_script = NULL;
     (void)ToriRSServer_ScriptsRunProc(srv, "[proc,ft_quest_complete]", NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, lovaquest) == FT_CWALK_COMPLETE,
                    "complete writes %%lovaquest=^ft_complete, got %d",
@@ -244,26 +252,35 @@ selftest_quest_forsakentower(struct ToriRSServer* srv, struct ToriRSServerPlayer
                    "complete awards Jewellery of jubilation page, count=%d",
                    ft_cwalk_inv_count(player, page));
 
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,forsakentower_journal]", NULL, 0),
                    "journal proc exists and prints QUEST COMPLETE at endstate");
 
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_leftover_jug_coolant_puzzle]", NULL, 0),
                    "leftover_jug_coolant_puzzle disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_leftover_power_grid_if]", NULL, 0),
                    "leftover_power_grid_if disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(
                        srv, "[proc,ft_leftover_fluid_refinery_puzzle]", NULL, 0),
                    "leftover_fluid_refinery_puzzle disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_leftover_pylon_altar_puzzle]", NULL, 0),
                    "leftover_pylon_altar_puzzle disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(
                        srv, "[proc,ft_leftover_ignisia_wintertodt_gate]", NULL, 0),
                    "leftover_ignisia_wintertodt_gate disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,ft_leftover_full_refuse_trees]", NULL, 0),
                    "leftover_full_refuse_trees disclosure exists");
+    player->active_script = NULL;
     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(
                        srv, "[proc,ft_leftover_graceful_recolour_ui]", NULL, 0),
                    "leftover_graceful_recolour_ui disclosure exists");
+    player->active_script = NULL;
 
     SELFTEST_CHECK(player->godmode == 1, "godmode still on at end of FT walk");
 }
