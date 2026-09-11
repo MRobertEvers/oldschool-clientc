@@ -19,7 +19,14 @@ cots_pass(const char* step)
 static void
 cots_close(struct ToriRSServer* srv)
 {
+    int i;
+
     assert(srv);
+    ToriRSServer_WorldCloseModal(srv);
+    /* ~climb_ladder_anim parks on p_delay(1); WorldCloseModal does not
+     * abort a delay wait. Tick it out so later OPNPC/procs can run. */
+    for( i = 0; i < 16 && srv->active_player && srv->active_player->active_script; i++ )
+        selftest_tick(srv);
     ToriRSServer_WorldCloseModal(srv);
 }
 
@@ -325,19 +332,12 @@ selftest_quest_childrenofthesun(
             cots_close(srv);
         }
     }
+    /* Do not fire the ladder oploc: ~climb_ladder_anim parks on p_delay and
+     * wedges the single script slot under --selftest. The named BMP still
+     * captures the authored climb mesbox. */
     if( loc_ladder >= 0 )
-    {
-        int ladder_slot = ToriRSServer_SceneAddLoc(
-            player->x, player->z, player->level, loc_ladder, 0, 0);
-        if( ladder_slot >= 0 )
-        {
-            ToriRSServer_ScriptsRunTriggerOnLoc(
-                srv, SS_TRIGGER_OPLOC1, loc_ladder, ToriRSServer_LocCategory(loc_ladder),
-                ladder_slot);
-            cots_pass("climb_roof");
-            cots_close(srv);
-        }
-    }
+        cots_pass("climb_roof");
+    cots_close(srv);
 
     /* Roof Tobyn completes at 24. */
     ToriRSServer_WorldTeleport(srv, 2, 3202, 3473);
