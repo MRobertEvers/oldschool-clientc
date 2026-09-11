@@ -3327,6 +3327,11 @@ ToriRSServer_WorldSelftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
+    if( getenv("TORIRSSERVER_SELFTEST_GA_ONLY") )
+    {
+#include "test/quest_gettingahead_selftest.u.h"
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_TD_ONLY") )
     {
         static struct ToriRSServerCapture td_only_capture;
@@ -35897,6 +35902,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+#include "test/quest_gettingahead_selftest.u.h"
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
