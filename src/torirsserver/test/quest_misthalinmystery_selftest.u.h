@@ -8,36 +8,8 @@
  *
  * TORIRSSERVER_SELFTEST_MISTMYST_ONLY=1 runs this stanza without the rest
  * of the suite. Player is unkillable (not a death case).
+ * Helpers stay inline: this file is included inside another function.
  */
-#ifndef QUEST_MISTMYST_SELFTEST_HELPERS
-#define QUEST_MISTMYST_SELFTEST_HELPERS
-static void
-mm_pass(const char* step)
-{
-    assert(step);
-    fprintf(stderr, "MISTMYST PASS: %s\n", step);
-}
-
-static void
-mm_close(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
-{
-    assert(srv);
-    assert(player);
-    ToriRSServer_WorldCloseModal(srv);
-    selftest_clear_pending(srv, player);
-}
-
-static void
-mm_clear_inv(struct ToriRSServerPlayer* player)
-{
-    int s;
-
-    assert(player);
-    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-        inv_set(player, s, -1, 0);
-}
-#endif
-
 {
     int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -128,7 +100,8 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
             if( player->max_hitpoints > 0 )
                 player->hitpoints = player->max_hitpoints;
             ToriRSServer_CombatSyncHitpoints(player);
-            mm_clear_inv(player);
+            for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                inv_set(player, s, -1, 0);
             ToriRSServer_VarbitSet(srv, vb_progress, 0);
             ToriRSServer_WorldTeleport(srv, 0, 3237, 3155);
             selftest_tick(srv);
@@ -157,11 +130,12 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                         ToriRSServer_ScriptsResumeButton(srv, rows_uid);
                     biohazard_run_dialogue(srv, player, 0);
                 }
-                mm_close(srv, player);
+                ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 0,
                                "declining Abigale must not write mistmyst_progress, got %d",
                                ToriRSServer_VarbitGet(player, vb_progress));
-                mm_pass("abigale_refuse");
+                fprintf(stderr, "MISTMYST PASS: abigale_refuse\n");
 
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, talk_npc, -1,
                                                slot);
@@ -173,106 +147,119 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                         ToriRSServer_ScriptsResumeButton(srv, rows_uid);
                     biohazard_run_dialogue(srv, player, 0);
                 }
-                mm_close(srv, player);
+                ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 10,
                                "accepting Abigale should reach ^mm_barrel (10), got %d",
                                ToriRSServer_VarbitGet(player, vb_progress));
-                mm_pass("abigale_accept");
+                fprintf(stderr, "MISTMYST PASS: abigale_accept\n");
             }
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_boat, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 20,
                            "the swamp boat should reach ^mm_empty (20), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("boat_sail");
+            fprintf(stderr, "MISTMYST PASS: boat_sail\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrel, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 25 &&
                                selftest_count_obj(player, obj_front) >= 1,
                            "the barrel should grant the front-door key and ^mm_house (25), got progress=%d keys=%d",
                            ToriRSServer_VarbitGet(player, vb_progress),
                            selftest_count_obj(player, obj_front));
-            mm_pass("barrel_key");
+            fprintf(stderr, "MISTMYST PASS: barrel_key\n");
 
-            mm_clear_inv(player);
+            for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                inv_set(player, s, -1, 0);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_door, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 25,
                            "the locked front door must not advance without the key, got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("front_door_locked");
+            fprintf(stderr, "MISTMYST PASS: front_door_locked\n");
 
             inv_set(player, 0, obj_front, 1);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_door, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 30,
                            "unlocking the front door should reach ^mm_pink (30), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("front_door_unlock");
+            fprintf(stderr, "MISTMYST PASS: front_door_unlock\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_pink, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 35,
                            "the pink door should reach ^mm_notes1 (35), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("pink_door");
+            fprintf(stderr, "MISTMYST PASS: pink_door\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_notes, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 40,
                            "the first notes should reach ^mm_painting (40), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("notes1");
+            fprintf(stderr, "MISTMYST PASS: notes1\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_paint, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 45 &&
                                selftest_count_obj(player, obj_ruby) >= 1,
                            "the painting should grant the ruby key and ^mm_ruby (45), got progress=%d keys=%d",
                            ToriRSServer_VarbitGet(player, vb_progress),
                            selftest_count_obj(player, obj_ruby));
-            mm_pass("painting_cut");
+            fprintf(stderr, "MISTMYST PASS: painting_cut\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ruby, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 50,
                            "the ruby door should reach ^mm_candles (50), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("ruby_door");
+            fprintf(stderr, "MISTMYST PASS: ruby_door\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_candle, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 55,
                            "lighting the candles should reach ^mm_fuse (55), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("candles");
+            fprintf(stderr, "MISTMYST PASS: candles\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fuse, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 60,
                            "the fuse should reach ^mm_leave_bang (60), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("fuse");
+            fprintf(stderr, "MISTMYST PASS: fuse\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_wall, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 65,
                            "the blasted wall should reach ^mm_lacey (65), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("wall_climb");
+            fprintf(stderr, "MISTMYST PASS: wall_climb\n");
 
             {
                 int mandy = npc_spawn(srv, npc_mandy, player->x + 1, player->z + 1,
@@ -283,65 +270,72 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_mandy, -1,
                                                    mandy);
                     biohazard_run_dialogue(srv, player, 0);
-                    mm_close(srv, player);
+                    ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 70,
                                    "Mandy at lacey should reach ^mm_notes2 (70), got %d",
                                    ToriRSServer_VarbitGet(player, vb_progress));
-                    mm_pass("mandy_lacey");
+                    fprintf(stderr, "MISTMYST PASS: mandy_lacey\n");
                 }
             }
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_notes, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 75,
                            "the library notes should reach ^mm_piano (75), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("notes2");
+            fprintf(stderr, "MISTMYST PASS: notes2\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_piano, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 80 &&
                                selftest_count_obj(player, obj_emerald) >= 1,
                            "the piano should grant the emerald key and ^mm_emerald (80), got progress=%d keys=%d",
                            ToriRSServer_VarbitGet(player, vb_progress),
                            selftest_count_obj(player, obj_emerald));
-            mm_pass("piano");
+            fprintf(stderr, "MISTMYST PASS: piano\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_emerald, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 85,
                            "the emerald door should reach ^mm_bandos (85), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("emerald_door");
+            fprintf(stderr, "MISTMYST PASS: emerald_door\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_tree, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 90,
                            "the tree should reach ^mm_puzzle3 (90), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("tree");
+            fprintf(stderr, "MISTMYST PASS: tree\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fire, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 105 &&
                                selftest_count_obj(player, obj_sapphire) >= 1,
                            "the fireplace should grant the sapphire key and ^mm_sapphire (105), got progress=%d keys=%d",
                            ToriRSServer_VarbitGet(player, vb_progress),
                            selftest_count_obj(player, obj_sapphire));
-            mm_pass("fireplace");
+            fprintf(stderr, "MISTMYST PASS: fireplace\n");
 
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_sapphire, -1,
                                                -1);
-            mm_close(srv, player);
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 110,
                            "the sapphire door should reach ^mm_boss (110), got %d",
                            ToriRSServer_VarbitGet(player, vb_progress));
-            mm_pass("sapphire_door");
+            fprintf(stderr, "MISTMYST PASS: sapphire_door\n");
 
             {
                 int killer = npc_spawn(srv, npc_killer, player->x + 2, player->z + 2,
@@ -351,11 +345,12 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                 {
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_killer, -1,
                                                    killer);
-                    mm_close(srv, player);
+                    ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 130,
                                    "defeating Abigale should reach ^mm_finish (130), got %d",
                                    ToriRSServer_VarbitGet(player, vb_progress));
-                    mm_pass("boss_skip");
+                    fprintf(stderr, "MISTMYST PASS: boss_skip\n");
                 }
             }
 
@@ -372,7 +367,8 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_mandy, -1,
                                                    mandy);
                     biohazard_run_dialogue(srv, player, 0);
-                    mm_close(srv, player);
+                    ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_progress) == 135,
                                    "Mandy at finish should reach ^mm_complete (135), got %d",
                                    ToriRSServer_VarbitGet(player, vb_progress));
@@ -383,13 +379,14 @@ mm_clear_inv(struct ToriRSServerPlayer* player)
                                        xp_before + 6000,
                                    "completion should award 600 Crafting XP (6000 tenths), %d -> %d",
                                    xp_before, player->stat_xp_tenths[stat_craft]);
-                    mm_pass("mandy_complete");
+                    fprintf(stderr, "MISTMYST PASS: mandy_complete\n");
                 }
             }
 
             ToriRSServer_ScriptsRunProc(srv, "[proc,misthalinmystery_journal]", NULL, 0);
-            mm_close(srv, player);
-            mm_pass("journal_complete");
+            ToriRSServer_WorldCloseModal(srv);
+                selftest_clear_pending(srv, player);
+            fprintf(stderr, "MISTMYST PASS: journal_complete\n");
         }
     }
 }
