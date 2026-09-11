@@ -3199,6 +3199,9 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_AKD_ONLY") )
+        goto torirsserver_selftest_akd_only;
+
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
         selftest_sailing(srv, player);
@@ -35896,6 +35899,9 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldNpcFree(srv, slot);
         }
     }
+
+torirsserver_selftest_akd_only:
+#include "test/quest_kingdomdivided_selftest.u.h"
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
