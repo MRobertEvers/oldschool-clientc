@@ -48,8 +48,11 @@
     SELFTEST_CHECK(chatmenu > 0, "chatmenu:options should resolve");
     SELFTEST_CHECK(pog_complete == 50, "pog_complete should be 50, got %d", pog_complete);
 
-    /* Fresh player at King Bolren (0_39_49_46_33 = 2542, 3169). */
-    selftest_reset_world(srv, player, 2542, 3169);
+    /* Fresh player at King Bolren (0_39_49_46_33 = 2542, 3169).
+     * selftest_reset_world takes 8-tile zone coords, not world tiles. */
+    selftest_reset_world(srv, player, 317, 396);
+    ToriRSServer_WorldTeleport(srv, 0, 2542, 3169);
+    selftest_tick(srv);
     player->godmode = 1;
     ToriRSServer_VarbitSet(srv, pog_bit, 0);
     ToriRSServer_CombatSetLevel(player, TORIRSSERVER_STAT_STRENGTH, 1);
@@ -198,7 +201,7 @@
         "[opnpc1,king_bolren] should reach pog_king_bolren_hub");
     SELFTEST_CHECK(player->active_script != NULL,
                    "qualified Bolren hello should park on chat");
-    selftest_click_through(srv, 4);
+    biohazard_run_dialogue(srv, player, chatmenu);
     SELFTEST_CHECK(player->active_script != NULL,
                    "Bolren should park on the existing p_choice2");
     SELFTEST_CHECK(
@@ -227,6 +230,20 @@
         ToriRSServer_ScriptsRunTrigger(
             srv, SS_TRIGGER_OPNPC1, bolren_type, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
         "Bolren re-talk after refuse should run");
+    biohazard_run_dialogue(srv, player, chatmenu);
+    if( player->active_script && player->resume_button_count == 1 &&
+        player->resume_buttons[0] == chatmenu )
+    {
+        uint8_t button[6];
+
+        button[0] = (uint8_t)(chatmenu >> 24);
+        button[1] = (uint8_t)(chatmenu >> 16);
+        button[2] = (uint8_t)(chatmenu >> 8);
+        button[3] = (uint8_t)chatmenu;
+        button[4] = 0;
+        button[5] = 1; /* "That does sound strange. Can I help?" */
+        selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+    }
     selftest_click_through(srv, 8);
     player->active_script = NULL;
     ToriRSServer_WorldCloseModal(srv);
