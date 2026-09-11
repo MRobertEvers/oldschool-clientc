@@ -2182,6 +2182,44 @@ selftest_charter_choose(
     selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
 }
 
+/* Drain continue pages but STOP on chatmenu:options so refuse can pick No. */
+static int
+selftest_pry_drain_to_menu(
+    struct ToriRSServer* srv,
+    int chatmenu,
+    int max_pages)
+{
+    int clicks = 0;
+
+    while( clicks < max_pages && srv->active_player->active_script )
+    {
+        int uid;
+        uint8_t resume[6];
+
+        if( srv->active_player->resume_button_count <= 0 )
+            break;
+        uid = srv->active_player->resume_buttons[0];
+        if( chatmenu > 0 && uid == chatmenu )
+            return clicks;
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        selftest_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        clicks++;
+    }
+    return clicks;
+}
+
+static void
+selftest_pry_close(struct ToriRSServer* srv)
+{
+    ToriRSServer_ScriptsProcessQueues(srv);
+    ToriRSServer_WorldCloseModal(srv);
+    if( srv->active_player )
+        srv->active_player->active_script = NULL;
+}
+
 
 /*
  * Did the capture carry a literal rev-239 script 600 —
@@ -35895,6 +35933,297 @@ ToriRSServer_WorldSelftest(void)
 
             ToriRSServer_WorldNpcFree(srv, slot);
         }
+    }
+
+    /*
+     * Prying Times Gate D walk. Gated so an unset env leaves the default
+     * suite unmoved (the shop stanza below is the next default line).
+     *
+     *   TORIRSSERVER_SELFTEST_PRY_ONLY=1 TORIRSSERVER_GOD=1 TORIRS_PLUGINS=0 \
+     *   TORIRSSERVER_CACHE=cache.osrs239 ./src/afl_opt/torirsserver --selftest
+     *
+     * The offer parks on chatmenu:options; refuse picks the No row and must
+     * not write %quest_pry.
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_PRY_ONLY") )
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+        struct ToriRSServerPlayer* player = srv->active_player;
+        int chatmenu;
+        int vb_pry;
+        int vb_intro;
+        int vp_squire;
+        int npc_steve;
+        int obj_log;
+        int smithing;
+        int sailing;
+        int c_squire;
+        int c_pan;
+        int c_deliver;
+        int c_complete;
+        int c_smith;
+        int c_sail;
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        fprintf(stderr, "ToriRSServer selftest: Prying Times focused walk\n");
+        SELFTEST_CHECK(loaded, "PRY_ONLY loads a compiled script pack");
+        player->godmode = 1;
+        chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+        vb_pry = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "quest_pry");
+        vb_intro = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "sailing_intro");
+        vp_squire = ToriRSServer_WorldVarp("squire");
+        npc_steve = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "steve_beanie_1op");
+        obj_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "sailing_log");
+        smithing = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "smithing");
+        sailing = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "sailing");
+        c_squire = ToriRSServer_ContentConstantInt("squire_complete", -1);
+        c_pan = ToriRSServer_ContentConstantInt("pan_complete", -1);
+        c_deliver = ToriRSServer_ContentConstantInt("pry_deliver", -1);
+        c_complete = ToriRSServer_ContentConstantInt("pry_complete", -1);
+        c_smith = ToriRSServer_ContentConstantInt("pry_smith_req", -1);
+        c_sail = ToriRSServer_ContentConstantInt("pry_sail_req", -1);
+        SELFTEST_CHECK(chatmenu > 0 && vb_pry >= 0 && vb_intro >= 0 && vp_squire >= 0 &&
+                           npc_steve >= 0 && obj_log >= 0 && smithing >= 0 && sailing >= 0,
+                       "pry walk: chatmenu, varbits, steve_beanie_1op, log, stats resolve");
+        SELFTEST_CHECK(c_squire >= 0 && c_pan == 50 && c_deliver == 5 && c_complete == 35 &&
+                           c_smith == 30 && c_sail == 12,
+                       "pry walk: live constants (pan_complete=50, deliver=5, complete=35, "
+                       "smith=30, sail=12), got pan=%d deliver=%d complete=%d smith=%d sail=%d",
+                       c_pan, c_deliver, c_complete, c_smith, c_sail);
+
+        /* Qualify-fail procs must not write %quest_pry. */
+        {
+            static const char* fails[] = {
+                "[proc,pry_qualify_fail_knights_sword]",
+                "[proc,pry_qualify_fail_pandemonium]",
+                "[proc,pry_qualify_fail_smithing]",
+                "[proc,pry_qualify_fail_sailing]",
+            };
+            size_t i;
+
+            for( i = 0; i < sizeof(fails) / sizeof(fails[0]); i++ )
+            {
+                ToriRSServer_VarbitSet(srv, vb_pry, 0);
+                SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, fails[i], NULL, 0),
+                               "pry qualify %s should run", fails[i]);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                               "pry qualify %s must not write %%quest_pry, got %d",
+                               fails[i], ToriRSServer_VarbitGet(player, vb_pry));
+                selftest_pry_close(srv);
+            }
+        }
+
+        /* Real talk: drain to chatmenu, pick work, drain to Yes/No, pick No. */
+        {
+            int slot;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_VarbitSet(srv, vb_pry, 0);
+            ToriRSServer_VarbitSet(srv, vb_intro, c_pan);
+            ToriRSServer_WorldSetVarp(srv, vp_squire, c_squire);
+            ToriRSServer_CombatSetLevel(player, smithing, 30);
+            ToriRSServer_CombatSetLevel(player, sailing, 12);
+            selftest_clear_inv(player);
+            selftest_give(player, obj_log, 1);
+            slot = npc_spawn(srv, npc_steve, player->x + 1, player->z, player->level);
+            SELFTEST_CHECK(slot >= 0, "pry walk: steve_beanie_1op should spawn");
+            SELFTEST_CHECK(
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1, npc_steve, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
+                "[opnpc1,steve_beanie_1op] should run");
+            selftest_pry_drain_to_menu(srv, chatmenu, 8);
+            SELFTEST_CHECK(player->active_script != NULL &&
+                               player->resume_button_count == 1 &&
+                               player->resume_buttons[0] == chatmenu,
+                           "pry start should park on chatmenu:options (work / grog / never mind)");
+            selftest_charter_choose(srv, 1); /* Got any work that needs doing here? */
+            selftest_pry_drain_to_menu(srv, chatmenu, 16);
+            SELFTEST_CHECK(player->active_script != NULL &&
+                               player->resume_button_count == 1 &&
+                               player->resume_buttons[0] == chatmenu,
+                           "pry offer should park on chatmenu:options so refuse can pick No");
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                           "pry offer pause must not write %%quest_pry, got %d",
+                           ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_charter_choose(srv, 2); /* No. */
+            selftest_click_through(srv, 8);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                           "pry refuse (No.) must not write %%quest_pry, got %d",
+                           ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+        }
+
+        /* Never mind on the first menu must not write %quest_pry. */
+        {
+            int slot;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_VarbitSet(srv, vb_pry, 0);
+            ToriRSServer_VarbitSet(srv, vb_intro, c_pan);
+            ToriRSServer_WorldSetVarp(srv, vp_squire, c_squire);
+            ToriRSServer_CombatSetLevel(player, smithing, 30);
+            ToriRSServer_CombatSetLevel(player, sailing, 12);
+            selftest_clear_inv(player);
+            selftest_give(player, obj_log, 1);
+            slot = npc_spawn(srv, npc_steve, player->x + 1, player->z, player->level);
+            SELFTEST_CHECK(
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1, npc_steve, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
+                "[opnpc1,steve_beanie_1op] never-mind should run");
+            selftest_pry_drain_to_menu(srv, chatmenu, 8);
+            selftest_charter_choose(srv, 3); /* Never mind. */
+            selftest_click_through(srv, 4);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                           "pry Never mind. must not write %%quest_pry, got %d",
+                           ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+        }
+
+        /* Accept writes %quest_pry = ^pry_deliver after Yes + log. */
+        {
+            int slot;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_VarbitSet(srv, vb_pry, 0);
+            ToriRSServer_VarbitSet(srv, vb_intro, c_pan);
+            ToriRSServer_WorldSetVarp(srv, vp_squire, c_squire);
+            ToriRSServer_CombatSetLevel(player, smithing, 30);
+            ToriRSServer_CombatSetLevel(player, sailing, 12);
+            selftest_clear_inv(player);
+            selftest_give(player, obj_log, 1);
+            slot = npc_spawn(srv, npc_steve, player->x + 1, player->z, player->level);
+            SELFTEST_CHECK(
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1, npc_steve, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
+                "[opnpc1,steve_beanie_1op] accept should run");
+            selftest_pry_drain_to_menu(srv, chatmenu, 8);
+            selftest_charter_choose(srv, 1);
+            selftest_pry_drain_to_menu(srv, chatmenu, 16);
+            SELFTEST_CHECK(player->resume_button_count == 1 &&
+                               player->resume_buttons[0] == chatmenu,
+                           "pry accept should still be on chatmenu:options (Yes/No)");
+            selftest_charter_choose(srv, 1); /* Yes. */
+            selftest_click_through(srv, 24);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == c_deliver,
+                           "pry accept should write %%quest_pry = ^pry_deliver (%d), got %d",
+                           c_deliver, ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+        }
+
+        /* No log: Yes. must not write %quest_pry. */
+        {
+            int slot;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_VarbitSet(srv, vb_pry, 0);
+            ToriRSServer_VarbitSet(srv, vb_intro, c_pan);
+            ToriRSServer_WorldSetVarp(srv, vp_squire, c_squire);
+            ToriRSServer_CombatSetLevel(player, smithing, 30);
+            ToriRSServer_CombatSetLevel(player, sailing, 12);
+            selftest_clear_inv(player);
+            slot = npc_spawn(srv, npc_steve, player->x + 1, player->z, player->level);
+            SELFTEST_CHECK(
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1, npc_steve, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
+                "[opnpc1,steve_beanie_1op] no-log should run");
+            selftest_pry_drain_to_menu(srv, chatmenu, 8);
+            selftest_charter_choose(srv, 1);
+            selftest_pry_drain_to_menu(srv, chatmenu, 16);
+            selftest_charter_choose(srv, 1);
+            selftest_click_through(srv, 24);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                           "pry accept without the captain's log must not write %%quest_pry, "
+                           "got %d",
+                           ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+        }
+
+        /* Qualify-fail via the live talk: missing Knight's Sword, pick work. */
+        {
+            int slot;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_VarbitSet(srv, vb_pry, 0);
+            ToriRSServer_VarbitSet(srv, vb_intro, c_pan);
+            ToriRSServer_WorldSetVarp(srv, vp_squire, 0);
+            ToriRSServer_CombatSetLevel(player, smithing, 30);
+            ToriRSServer_CombatSetLevel(player, sailing, 12);
+            selftest_clear_inv(player);
+            selftest_give(player, obj_log, 1);
+            slot = npc_spawn(srv, npc_steve, player->x + 1, player->z, player->level);
+            SELFTEST_CHECK(
+                ToriRSServer_ScriptsRunTrigger(
+                    srv, SS_TRIGGER_OPNPC1, npc_steve, -1, slot) == TORIRSSERVER_TRIGGER_RAN,
+                "[opnpc1,steve_beanie_1op] qualify-fail should run");
+            selftest_pry_drain_to_menu(srv, chatmenu, 8);
+            selftest_charter_choose(srv, 1);
+            selftest_click_through(srv, 16);
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == 0,
+                           "pry live qualify-fail must not write %%quest_pry, got %d",
+                           ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+        }
+
+        /* Headless ::pryrun + leftover procs + journal complete. */
+        {
+            static struct ToriRSServerCapture pry_capture;
+            int said_ok = 0;
+
+            selftest_reset_world(srv, player, 402, 402);
+            player->godmode = 1;
+            ToriRSServer_CaptureBegin(srv, &pry_capture);
+            ToriRSServer_ScriptsRunDebugproc(srv, "pryrun");
+            selftest_click_through(srv, 24);
+            ToriRSServer_CaptureEnd(srv);
+            for( int i = ToriRSServer_CaptureFindNamed(&pry_capture, PKT_NAME_MESSAGE_GAME, 0);
+                 i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&pry_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+            {
+                const char* text = selftest_message_text(srv, &pry_capture.packets[i]);
+
+                if( !text )
+                    continue;
+                if( strstr(text, "pryrun") != NULL )
+                    fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "pryrun OK") != NULL )
+                    said_ok = 1;
+            }
+            SELFTEST_CHECK(said_ok, "::pryrun should reach its OK line");
+            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_pry) == c_complete,
+                           "::pryrun should leave %%quest_pry at ^pry_complete (%d), got %d",
+                           c_complete, ToriRSServer_VarbitGet(player, vb_pry));
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pryingtimes_journal]", NULL, 0),
+                           "pryingtimes_journal should render QUEST COMPLETE!");
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pry_leftover_port_task_cargo]", NULL, 0),
+                           "leftover_port_task_cargo should run");
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pry_leftover_sailstep_sea_crate]", NULL, 0),
+                           "leftover_sailstep_sea_crate should run");
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pry_leftover_sailing_xp]", NULL, 0),
+                           "leftover_sailing_xp should run");
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pry_leftover_drink_troll_combat]", NULL, 0),
+                           "leftover_drink_troll_combat should run");
+            selftest_pry_close(srv);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,pry_leftover_full_refuse_trees]", NULL, 0),
+                           "leftover_full_refuse_trees should run");
+            selftest_pry_close(srv);
+        }
+
+        ToriRSServer_ScriptsFree(srv);
+        fprintf(stderr, "ToriRSServer Prying Times selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("pryingtimes");
+        return g_selftest_failures;
     }
 
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
