@@ -1,6 +1,7 @@
 #ifndef MINIMAP_H
 #define MINIMAP_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct Minimap;
@@ -157,6 +158,45 @@ minimap_free(struct Minimap* minimap);
  * Takes the sprite as plain arrays so this stays a leaf: the mapscene atlas
  * lives in the scene, and the caller is what knows how to reach into it.
  */
+/**
+ * Whether one loc's mapscene icon belongs on the minimap being baked at
+ * `bake_level` (reference drawDetail's mapscene pass).
+ *
+ * Two ways in, and the second is the whole reason this is not `icon_level ==
+ * bake_level`:
+ *
+ *   - the icon's own level draws, UNLESS its tile is a hole onto the level
+ *     below. A tile marked VisBelow shows the floor underneath, and the bake
+ *     composes that floor's colours there; leaving the icon on top plants a
+ *     building's marker in the middle of the storey below it.
+ *   - an icon one level UP draws where that upper tile is VisBelow -- a
+ *     balcony or an overhang, whose floor is what you are looking at from
+ *     here. This is the case that makes a first-floor landmark visible from
+ *     the ground, and dropping it is a minimap that goes blank the moment you
+ *     step under anything.
+ *
+ * FORCE_HIGH_DETAIL joins VisBelow on the first arm only. It marks a tile the
+ * bake always draws at full detail, which the composition already treats as
+ * showing something other than this level's plain floor.
+ *
+ * Flags may be absent: a world whose terrain has not been decoded yet has no
+ * holes and no overhangs, so only the icon's own level draws. Out-of-scene
+ * coordinates draw nothing -- a loc whose anchor is off the edge has no tile
+ * to test and no pixels to cover.
+ *
+ * Plain arrays, so this stays a leaf: the icons themselves are gathered on the
+ * World at scene build, and the atlas they index lives in the scene.
+ */
+bool
+minimap_mapscene_draws_at_level(
+    uint8_t const* tile_flags,
+    int scene_size,
+    int level_count,
+    int bake_level,
+    int icon_level,
+    int icon_x,
+    int icon_z);
+
 void
 minimap_plot_mapscene(
     uint32_t* destination,

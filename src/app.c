@@ -10978,11 +10978,10 @@ app_wev_advance_bobs(struct App* app)
 
 /* Reference drawDetail's mapscene pass: after the tile/wall bake, plot each loc
  * mapscene sprite gathered at scene build (world->mapscenes) for the level being
- * baked. The mapscene atlas lives in the scene, so this runs in app.c rather than
- * the leaf minimap layer. Level selection matches the tile bake's VisBelow
- * composition (minimap_bake_argb): an icon on the baked level draws unless its
- * tile is a hole onto the level below, and an icon one level up draws where that
- * tile is VisBelow (balcony/overhang showing the floor beneath). */
+ * baked. The mapscene atlas lives in the scene, so the LOOKUP runs in app.c
+ * rather than the leaf minimap layer; which icons belong on this level is
+ * minimap_mapscene_draws_at_level's, next to the tile bake whose VisBelow
+ * composition it has to agree with. */
 static void
 app_bake_mapscenes(
     struct App* app,
@@ -10995,7 +10994,7 @@ app_bake_mapscenes(
     int mapscene_scene;
     int count = 0;
     struct ToriDraw_Sprite** frames;
-    int scene_size, plane;
+    int scene_size;
     uint8_t const* flags;
 
     if( !world || world->mapscene_count <= 0 || !world->minimap )
@@ -11008,33 +11007,26 @@ app_bake_mapscenes(
         return;
 
     scene_size = world->_scene_size;
-    plane = scene_size * scene_size;
     flags = world->tile_flags;
 
     for( int i = 0; i < world->mapscene_count; i++ )
     {
         struct World_MapSceneIcon const* icon = &world->mapscenes[i];
         struct ToriDraw_Sprite* spr;
-        int idx, draw = 0;
 
         if( icon->mapscene < 0 || icon->mapscene >= count )
             continue;
-        if( icon->x < 0 || icon->x >= scene_size || icon->z < 0 || icon->z >= scene_size )
+        if( !minimap_mapscene_draws_at_level(
+                flags,
+                scene_size,
+                world->minimap->levels,
+                level,
+                icon->level,
+                icon->x,
+                icon->z) )
             continue;
         spr = frames[icon->mapscene];
         if( !spr || !spr->pixels_argb || spr->width <= 0 || spr->height <= 0 )
-            continue;
-
-        idx = icon->x + icon->z * scene_size;
-        if( icon->level == level &&
-            (!flags || (flags[idx + level * plane] &
-                        (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0) )
-            draw = 1;
-        else if(
-            flags && icon->level == level + 1 && level + 1 < world->minimap->levels &&
-            (flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
-            draw = 1;
-        if( !draw )
             continue;
 
         minimap_plot_mapscene(

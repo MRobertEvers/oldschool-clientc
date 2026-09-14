@@ -873,6 +873,38 @@ minimap_compute_camera_src_anchor(
     *out_src_anchor_y = sprite_h - (camera_world_z * px_per_tile_z) / 128;
 }
 
+bool
+minimap_mapscene_draws_at_level(
+    uint8_t const* tile_flags,
+    int scene_size,
+    int level_count,
+    int bake_level,
+    int icon_level,
+    int icon_x,
+    int icon_z)
+{
+    int plane;
+    int index;
+
+    if( icon_x < 0 || icon_x >= scene_size || icon_z < 0 || icon_z >= scene_size )
+        return false;
+
+    plane = scene_size * scene_size;
+    index = icon_x + icon_z * scene_size;
+
+    /* This level's own icon, unless the tile is showing something else. */
+    if( icon_level == bake_level )
+        return !tile_flags ||
+               (tile_flags[index + bake_level * plane] &
+                (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0;
+
+    /* The storey above, seen through its own floor. */
+    if( tile_flags && icon_level == bake_level + 1 && bake_level + 1 < level_count )
+        return (tile_flags[index + (bake_level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0;
+
+    return false;
+}
+
 void
 minimap_plot_mapscene(
     uint32_t* destination,

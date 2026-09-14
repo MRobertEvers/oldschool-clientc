@@ -25,12 +25,17 @@
  *   - every edge clips, including an icon whose origin is off the buffer
  *     entirely, and nothing is written outside the destination.
  *
+ * And then WHICH icons the pass plots at all, which is the level-selection
+ * rule next door -- its own block of cases, with its own explanation.
+ *
  * Build and run:
  *   make -C src test-minimap-mapscene
  */
 
 #include "minimap.h"
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -261,6 +266,170 @@ test_every_edge_clips(void)
     CHECK(guard_is_clean(), "the right clip wrote past the buffer");
 }
 
+/*
+ * Which level's mapscene icons belong on the minimap being baked.
+ *
+ * "The icon's level equals the bake's level" is the obvious rule and it is
+ * wrong in both directions, which is why this has a test of its own. It has to
+ * DROP an icon standing on a tile that is a hole onto the storey below -- the
+ * bake draws that storey's floor there, and leaving the marker on top plants a
+ * building's icon in the middle of a different room. And it has to ADD icons
+ * from the storey ABOVE wherever that storey's floor is see-through, because a
+ * balcony or an overhang is a floor you are looking at from underneath.
+ *
+ * Neither failure looks like a bug in the icon pass. The first is a marker in
+ * the wrong room; the second is a minimap that loses its landmarks the moment
+ * you walk under anything.
+ */
+
+#define LEVEL_SCENE_SIZE 8
+#define LEVEL_COUNT 4
+#define LEVEL_PLANE (LEVEL_SCENE_SIZE * LEVEL_SCENE_SIZE)
+
+/*
+ * One plane more than the world has, filled with VisBelow and never cleared:
+ * a GUARD PLANE. The overhang arm reads the level above the one being baked,
+ * so "is there a level above" is a bound it has to check, and a bound that
+ * stops checking reads whatever is past the array. Zeroed memory there would
+ * answer "no overhang" and look exactly like the correct answer -- this
+ * answers "yes" instead, so reading it fails loudly.
+ */
+static uint8_t g_level_flags[LEVEL_PLANE * (LEVEL_COUNT + 1)];
+
+static void
+clear_level_flags(void)
+{
+    memset(g_level_flags, 0, (size_t)LEVEL_PLANE * LEVEL_COUNT);
+    memset(
+        g_level_flags + LEVEL_PLANE * LEVEL_COUNT,
+        MINIMAP_FLAG_VIS_BELOW,
+        (size_t)LEVEL_PLANE);
+}
+
+static void
+set_level_flag(int level, int x, int z, uint8_t flag)
+{
+    g_level_flags[x + z * LEVEL_SCENE_SIZE + level * LEVEL_PLANE] = flag;
+}
+
+static bool
+draws(uint8_t const* flags, int bake_level, int icon_level, int x, int z)
+{
+    return minimap_mapscene_draws_at_level(
+        flags, LEVEL_SCENE_SIZE, LEVEL_COUNT, bake_level, icon_level, x, z);
+}
+
+static void
+test_the_icons_own_level_draws(void)
+{
+    clear_level_flags();
+
+    CHECK(draws(g_level_flags, 0, 0, 3, 5), "an icon on the baked level does not draw");
+    CHECK(draws(g_level_flags, 2, 2, 3, 5), "the rule is not the same on an upper level");
+
+    /* A level that is neither this one nor the one above is somebody else's. */
+    CHECK(!draws(g_level_flags, 2, 0, 3, 5), "an icon two levels down drew");
+    CHECK(!draws(g_level_flags, 0, 2, 3, 5), "an icon two levels up drew");
+    CHECK(!draws(g_level_flags, 1, 0, 3, 5), "an icon one level DOWN drew");
+
+    /* With no flags at all there are no holes and no overhangs: a world whose
+     * terrain has not been decoded yet still draws its own level's icons and
+     * nothing else. */
+    CHECK(draws(NULL, 1, 1, 3, 5), "a flagless world lost its own level's icons");
+    CHECK(!draws(NULL, 0, 1, 3, 5), "a flagless world invented an overhang");
+}
+
+static void
+test_a_hole_drops_this_levels_icon(void)
+{
+    clear_level_flags();
+
+    /* The tile under the icon shows the storey below, so the bake has drawn
+     * that storey there and the icon does not belong on top of it. */
+    set_level_flag(1, 3, 5, MINIMAP_FLAG_VIS_BELOW);
+    CHECK(!draws(g_level_flags, 1, 1, 3, 5), "an icon over a hole still drew");
+
+    /* Per tile, not per level: the icon next door is unaffected. */
+    CHECK(draws(g_level_flags, 1, 1, 4, 5), "the hole took the whole level's icons");
+    CHECK(draws(g_level_flags, 1, 1, 3, 6), "the hole reached a tile north of it");
+
+    /* And per level, not per column: the same tile one storey down is fine. */
+    CHECK(draws(g_level_flags, 0, 0, 3, 5), "the hole reached the level below it");
+
+    /* Forced high detail is the same answer for the same reason -- the tile is
+     * showing something other than this level's plain floor. */
+    clear_level_flags();
+    set_level_flag(1, 3, 5, MINIMAP_FLAG_FORCE_HIGH_DETAIL);
+    CHECK(!draws(g_level_flags, 1, 1, 3, 5), "an icon on a forced-detail tile still drew");
+
+    /* Any other flag bit is not this test's business. */
+    clear_level_flags();
+    set_level_flag(1, 3, 5, (uint8_t)~(MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL));
+    CHECK(draws(g_level_flags, 1, 1, 3, 5), "an unrelated flag bit dropped the icon");
+}
+
+static void
+test_an_overhang_borrows_the_icon_above(void)
+{
+    clear_level_flags();
+
+    /* Nothing above unless that storey's floor is see-through. */
+    CHECK(!draws(g_level_flags, 0, 1, 3, 5), "the storey above drew through a solid floor");
+
+    set_level_flag(1, 3, 5, MINIMAP_FLAG_VIS_BELOW);
+    CHECK(draws(g_level_flags, 0, 1, 3, 5), "the storey above did not draw through its balcony");
+
+    /* The flag is read on the UPPER tile, which is the whole point: it is that
+     * floor being see-through, not this one. */
+    clear_level_flags();
+    set_level_flag(0, 3, 5, MINIMAP_FLAG_VIS_BELOW);
+    CHECK(!draws(g_level_flags, 0, 1, 3, 5), "the overhang test read the wrong level");
+
+    /* FORCE_HIGH_DETAIL does not open a floor. It joins VisBelow on the first
+     * arm only, where it means "this tile is not plain floor"; up here the
+     * question is whether you can see THROUGH, and only VisBelow says so. */
+    clear_level_flags();
+    set_level_flag(1, 3, 5, MINIMAP_FLAG_FORCE_HIGH_DETAIL);
+    CHECK(!draws(g_level_flags, 0, 1, 3, 5), "forced detail was read as a see-through floor");
+
+    /* And it stops at the top of the stack. There is no level 4, and the guard
+     * plane where one would be says "see-through" so that reading it is a
+     * failure rather than a coincidence. */
+    clear_level_flags();
+    set_level_flag(LEVEL_COUNT - 1, 3, 5, MINIMAP_FLAG_VIS_BELOW);
+    CHECK(
+        !draws(g_level_flags, LEVEL_COUNT - 1, LEVEL_COUNT, 3, 5),
+        "the top level borrowed from a level that does not exist");
+    CHECK(
+        draws(g_level_flags, LEVEL_COUNT - 2, LEVEL_COUNT - 1, 3, 5),
+        "the level below the top lost its overhang");
+}
+
+static void
+test_off_scene_icons_draw_nothing(void)
+{
+    clear_level_flags();
+
+    CHECK(!draws(g_level_flags, 0, 0, -1, 4), "an icon west of the scene drew");
+    CHECK(!draws(g_level_flags, 0, 0, 4, -1), "an icon south of the scene drew");
+    CHECK(
+        !draws(g_level_flags, 0, 0, LEVEL_SCENE_SIZE, 4), "an icon east of the scene drew");
+    CHECK(
+        !draws(g_level_flags, 0, 0, 4, LEVEL_SCENE_SIZE), "an icon north of the scene drew");
+
+    /* Both edges are the last tile IN, so the bounds are half-open and the two
+     * axes are read separately. */
+    CHECK(draws(g_level_flags, 0, 0, 0, 0), "the scene's own corner drew nothing");
+    CHECK(
+        draws(g_level_flags, 0, 0, LEVEL_SCENE_SIZE - 1, LEVEL_SCENE_SIZE - 1),
+        "the scene's far corner drew nothing");
+
+    /* Off-scene wins over everything, including an overhang that would
+     * otherwise index a tile that is not there. */
+    set_level_flag(1, 0, 0, MINIMAP_FLAG_VIS_BELOW);
+    CHECK(!draws(g_level_flags, 0, 1, -1, 0), "an off-scene overhang was read anyway");
+}
+
 int
 main(void)
 {
@@ -269,6 +438,10 @@ main(void)
     test_the_crop_origin_shifts_it();
     test_transparent_pixels_are_skipped();
     test_every_edge_clips();
+    test_the_icons_own_level_draws();
+    test_a_hole_drops_this_levels_icon();
+    test_an_overhang_borrows_the_icon_above();
+    test_off_scene_icons_draw_nothing();
 
     if( g_failures )
     {
