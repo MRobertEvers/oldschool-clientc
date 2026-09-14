@@ -192,36 +192,34 @@ static void
 app_map_editor_ghost_forget(struct App* app)
 {
     assert(app);
-    app->ghost_active = 0;
-    app->ghost_alpha_done = 0;
-    /* A commit chose to overwrite the displaced occupant; forgetting it too
-     * is what makes that choice stick instead of resurrecting the old loc
-     * over the one just placed. */
-    app->ghost_displaced_valid = 0;
+    MapEditorGhost_Commit(&app->map_ghost);
 }
 
-/** Remove the ghost from the scene, put back whatever it displaced, forget. */
+/** Remove the ghost from the scene, put back whatever it displaced, forget.
+ *  Which of those happens is MapEditorGhost's; the placements are ours. */
 static void
 app_map_editor_ghost_remove(struct App* app)
 {
+    struct MapEditorGhostSpec removed;
+    struct MapEditorGhostSpec restore;
+    bool has_restore = false;
+
     assert(app);
-    if( !app->ghost_active )
+    if( !MapEditorGhost_Remove(&app->map_ghost, &removed, &has_restore, &restore) )
         return;
     App_WorldLocChange(
-        app, app->ghost_x, app->ghost_z, app->ghost_level, -1, app->ghost_shape, app->ghost_angle);
-    /* The slot the ghost sat in belonged to someone: restore them, or the
-     * hover reads as a deletion. Scene-only, like the ghost itself -- the
-     * document never knew about either. */
-    if( app->ghost_displaced_valid )
+        app, removed.scene_x, removed.scene_z, removed.level, -1, removed.shape, removed.angle);
+    /* Scene-only, like the ghost itself -- the document never knew about
+     * either. */
+    if( has_restore )
         App_WorldLocChange(
             app,
-            app->ghost_x,
-            app->ghost_z,
-            app->ghost_level,
-            app->ghost_displaced_loc_id,
-            app->ghost_displaced_shape,
-            app->ghost_displaced_angle);
-    app_map_editor_ghost_forget(app);
+            restore.scene_x,
+            restore.scene_z,
+            restore.level,
+            restore.loc_id,
+            restore.shape,
+            restore.angle);
     app->need_redraw = 1;
 }
 
@@ -278,59 +276,66 @@ app_map_editor_ghost_update(struct App* app)
             level = Editor_PanelEditLevel(panel, app);
     }
 
-    /* The ghost follows the hover; any change of tile, loc or pose is a
-     * remove + add. Same tile and spec: nothing to do but the alpha pass. */
-    if( app->ghost_active &&
-        (!want || app->ghost_x != app->world_hover_tile_x ||
-         app->ghost_z != app->world_hover_tile_z || app->ghost_level != level ||
-         app->ghost_loc_id != id || app->ghost_shape != shape || app->ghost_angle != angle) )
-        app_map_editor_ghost_remove(app);
-
-    if( want && !app->ghost_active )
     {
-        /* Whoever holds this tile's slot in the ghost's layer is about to be
-         * replaced by the add below; remember them for the restore. Read
-         * BEFORE the add is queued -- the capture must see the pre-ghost
-         * scene. */
-        app->ghost_displaced_valid = 0;
-        if( app->world )
+        struct MapEditorGhostSpec const wanted = { .loc_id = id,
+                                                   .scene_x = app->world_hover_tile_x,
+                                                   .scene_z = app->world_hover_tile_z,
+                                                   .level = level,
+                                                   .shape = shape,
+                                                   .angle = angle };
+
+        /* The ghost follows the hover; any change of tile, loc or pose is a
+         * remove + add. Same tile and spec: nothing to do but the alpha pass. */
+        if( !want || !MapEditorGhost_Matches(&app->map_ghost, &wanted) )
+            app_map_editor_ghost_remove(app);
+
+        if( want && !app->map_ghost.active )
         {
-            int const occ = World_SceneryFindAt(
-                app->world, app->world_hover_tile_x, app->world_hover_tile_z, level, shape);
-            if( occ >= 0 )
+            struct MapEditorGhostSpec displaced;
+            bool has_displaced = false;
+
+            /* Whoever holds this tile's slot in the ghost's layer is about to
+             * be replaced by the add below; remember them for the restore.
+             * Read BEFORE the add is queued -- the capture must see the
+             * pre-ghost scene. */
+            if( app->world )
             {
-                struct WorldEntity_Scenery const* occupant =
-                    World_EntityPoolGet(&app->world->entities.scenery, occ);
-                if( occupant )
+                int const occ = World_SceneryFindAt(
+                    app->world, wanted.scene_x, wanted.scene_z, level, shape);
+                if( occ >= 0 )
                 {
-                    app->ghost_displaced_valid = 1;
-                    app->ghost_displaced_loc_id = occupant->loc_id;
-                    app->ghost_displaced_shape = occupant->shape;
-                    app->ghost_displaced_angle = occupant->angle;
+                    struct WorldEntity_Scenery const* occupant =
+                        World_EntityPoolGet(&app->world->entities.scenery, occ);
+                    if( occupant )
+                    {
+                        has_displaced = true;
+                        displaced = wanted;
+                        displaced.loc_id = occupant->loc_id;
+                        displaced.shape = occupant->shape;
+                        displaced.angle = occupant->angle;
+                    }
                 }
             }
-        }
 
-        App_WorldLocChange(
-            app, app->world_hover_tile_x, app->world_hover_tile_z, level, id, shape, angle);
-        app->ghost_active = 1;
-        app->ghost_x = app->world_hover_tile_x;
-        app->ghost_z = app->world_hover_tile_z;
-        app->ghost_level = level;
-        app->ghost_loc_id = id;
-        app->ghost_shape = shape;
-        app->ghost_angle = angle;
-        app->ghost_alpha_done = 0;
-        app->need_redraw = 1;
+            App_WorldLocChange(
+                app, wanted.scene_x, wanted.scene_z, level, id, shape, angle);
+            MapEditorGhost_Place(
+                &app->map_ghost, &wanted, has_displaced ? &displaced : NULL);
+            app->need_redraw = 1;
+        }
     }
 
     /* Translucency, once the async add has produced an element. The fade is
      * written onto the ELEMENT's own model rather than the loc's, so only the
      * placement under the cursor goes translucent. */
-    if( app->ghost_active && !app->ghost_alpha_done && app->world && app->scene )
+    if( MapEditorGhost_NeedsFade(&app->map_ghost) && app->world && app->scene )
     {
         int const idx = World_SceneryFindAt(
-            app->world, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_shape);
+            app->world,
+            app->map_ghost.spec.scene_x,
+            app->map_ghost.spec.scene_z,
+            app->map_ghost.spec.level,
+            app->map_ghost.spec.shape);
         if( idx >= 0 )
         {
             struct WorldEntity_Scenery* scenery =
@@ -353,7 +358,7 @@ app_map_editor_ghost_update(struct App* app)
                     assert(model->face_alphas);
                 }
                 memset(model->face_alphas, 150, (size_t)model->face_count);
-                app->ghost_alpha_done = 1;
+                MapEditorGhost_NoteFaded(&app->map_ghost);
                 app->need_redraw = 1;
             }
         }
@@ -386,24 +391,27 @@ app_preview_raster(
     struct App* app,
     struct ToriDraw_ModelHandle hnd)
 {
-    if( app->preview_fit_pending )
     {
+        /* A model with no bounds is one that has not finished loading. 128 is
+         * a middling size, so the well shows something framed rather than a
+         * dot or a wall while it waits. */
         struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
-        int size = 128;
-        if( bounds )
-        {
-            int const height = bounds->max_y - bounds->min_y;
-            size = 2 * bounds->radius > height ? 2 * bounds->radius : height;
-        }
-        app->preview_zoom = (size * 9) / 2;
-        if( app->preview_zoom < 500 )
-            app->preview_zoom = 500;
-        if( app->preview_zoom > 12000 )
-            app->preview_zoom = 12000;
-        app->preview_fit_pending = 0;
+
+        (void)EditorPreviewCamera_TakeFit(
+            &app->preview_camera,
+            bounds ? bounds->radius : 64,
+            bounds ? bounds->min_y : 0,
+            bounds ? bounds->max_y : 128);
     }
     return ToriDraw_SpriteNewFromModelRaster(
-        app->scene, hnd, app->preview_zoom, app->preview_xan, app->preview_yan, 120, 96, false);
+        app->scene,
+        hnd,
+        app->preview_camera.zoom,
+        app->preview_camera.pitch,
+        app->preview_camera.yaw,
+        120,
+        96,
+        false);
 }
 
 static void
@@ -429,26 +437,16 @@ app_map_editor_preview_update(struct App* app)
         last_id = -1;
         return;
     }
-    if( app->preview_dirty )
+    /* A key moved the camera: re-render the same pick. Taking the render is
+     * also what resets the framing for a NEW one, so the two cannot disagree
+     * about whether this is the same model. */
+    if( EditorPreviewCamera_TakeRender(&app->preview_camera) )
     {
-        /* A key moved the camera: re-render the same pick. */
-        app->preview_dirty = 0;
         last_kind = -1;
         last_id = -1;
     }
     if( panel->cat_kind == last_kind && preview_id == last_id )
         return;
-    if( panel->cat_kind != last_kind || preview_id != last_id )
-    {
-        /* A NEW pick gets the default framing; a camera nudge does not. */
-        if( !app->preview_keep_camera )
-        {
-            app->preview_xan = 160;
-            app->preview_yan = 300;
-            app->preview_fit_pending = 1;
-        }
-        app->preview_keep_camera = 0;
-    }
 
     if( panel->cat_kind == CACHEPROVIDER_CATALOG_OBJ )
     {

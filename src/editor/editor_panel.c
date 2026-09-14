@@ -2656,8 +2656,7 @@ Editor_PanelTick(
     else if( activated == panel->cat_reset_view )
     {
         /* Default framing + refit, exactly what a fresh pick gets. */
-        app->preview_dirty = 1;
-        app->preview_keep_camera = 0;
+        EditorPreviewCamera_Invalidate(&app->preview_camera, false);
     }
     else if( activated == panel->item_delete )
     {

@@ -730,6 +730,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	net/net_link_watch.c \
 	game/rs_clientscript_queue.c \
 	perf/frame_time_ring.c \
+	editor/editor_preview_camera.c \
+	editor/map_editor_ghost.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
@@ -1653,6 +1655,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-settings-pickers
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
+	$(MAKE) test-editor-ghost
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-viewport-projection
@@ -1701,6 +1704,19 @@ test-uitree-if-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# The map editor's hover ghost and the editor's model-view camera. The ghost is
+# a REAL scene placement, so it evicts whatever held the tile -- forget the
+# occupant and hovering over a door deletes it, restore it on a commit and the
+# old door comes back on top of the new one. The camera shares one zoom between
+# the player's orbit and the fit that frames a new model, and resetting the
+# wrong one makes the well either unturnable or unframed.
+.PHONY: test-editor-ghost
+test-editor-ghost: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/editor_ghost_preview_test.c editor/map_editor_ghost.c \
+		editor/editor_preview_camera.c $(LDFLAGS)
+	./$(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX)
 
 # Two small containers App used to hold inline: the frame-time ring, whose mean
 # is over the samples HELD and not over the ring, and the clientscript queue,

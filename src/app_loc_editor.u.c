@@ -616,45 +616,40 @@ app_loc_editor_tick(
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
             {
-                app->preview_yan = (app->preview_yan + 2048 - yaw_step) & 2047;
+                EditorPreviewCamera_Orbit(&app->preview_camera, 0, -yaw_step);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
             {
-                app->preview_yan = (app->preview_yan + yaw_step) & 2047;
+                EditorPreviewCamera_Orbit(&app->preview_camera, 0, yaw_step);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
             {
-                app->preview_xan = (app->preview_xan + 2048 - pitch_step) & 2047;
+                EditorPreviewCamera_Orbit(&app->preview_camera, -pitch_step, 0);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) ||
                 LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
             {
-                app->preview_xan = (app->preview_xan + pitch_step) & 2047;
+                EditorPreviewCamera_Orbit(&app->preview_camera, pitch_step, 0);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_E) )
             {
-                app->preview_zoom = app->preview_zoom * 49 / 50;
-                if( app->preview_zoom < 300 )
-                    app->preview_zoom = 300;
+                EditorPreviewCamera_Zoom(&app->preview_camera, -1);
                 took = 1;
             }
             if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
             {
-                app->preview_zoom = app->preview_zoom * 51 / 50;
-                if( app->preview_zoom > 16000 )
-                    app->preview_zoom = 16000;
+                EditorPreviewCamera_Zoom(&app->preview_camera, 1);
                 took = 1;
             }
             if( took )
             {
-                app->preview_dirty = 1;
-                app->preview_keep_camera = 1;
+                /* Orbit and Zoom have already said this is the same model. */
                 app->input_frame_consumed = 1;
                 app->need_redraw = 1;
             }

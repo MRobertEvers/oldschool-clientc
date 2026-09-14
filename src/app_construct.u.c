@@ -21,6 +21,21 @@ App_Init(
      * value of its own. */
     app->modal_host_uid = -1;
 
+    /*
+     * Subsystems that own their own zero state, said out loud.
+     *
+     * The memset above already leaves every one of these correct, and they are
+     * here anyway: a subsystem whose reset is a memset today may not be one
+     * tomorrow, and a constructor that never named it would not notice. This
+     * is what replaces the dozens of individual field initialisations these
+     * structs took with them. @see tools/appc_map.py fields.
+     */
+    NetLinkWatch_Reset(&app->net_link);
+    RS_ClientScriptQueue_Reset(&app->pending_clientscripts);
+    FrameTimeRing_Reset(&app->dbg_frame_times);
+    MapEditorGhost_Reset(&app->map_ghost);
+    EditorPreviewCamera_Reset(&app->preview_camera);
+
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
      * boot font loads want theirs. Local-file parse only — no cache IO, so it
      * does not need the task runtime that phase 1 builds below. */

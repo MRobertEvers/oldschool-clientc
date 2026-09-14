@@ -13,6 +13,8 @@
 #include "engine/world_seq_source_toridraw.h"
 #include "features/features.h"
 #include "game/rs_audio.h"
+#include "editor/editor_preview_camera.h"
+#include "editor/map_editor_ghost.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientscript_queue.h"
 #include "perf/frame_time_ring.h"
@@ -968,43 +970,14 @@ struct App
      * draw path drifts, and this one shows the actual model at the actual
      * scale in the actual light.
      *
-     * `alpha_done` because the add is async: the element exists only once its
-     * assets land, so the translucency pass retries until it finds it.
+     * Which also means it EVICTS whatever held that tile's slot, and has to
+     * put it back. See editor/map_editor_ghost.h for the bookkeeping; the
+     * scene placements it asks for are made here.
      */
-    int ghost_active;
-    int ghost_x;
-    int ghost_z;
-    int ghost_level;
-    int ghost_loc_id;
-    int ghost_shape;
-    int ghost_angle;
-    int ghost_alpha_done;
-    /**
-     * What the ghost DISPLACED, so leaving the tile puts it back.
-     *
-     * The painter holds one loc per layer per tile, so ghosting a wall onto a
-     * tile that has a wall REPLACES it in the scene -- and a plain delete on
-     * hover-out left the slot empty, which read as "hovering destroyed my
-     * wall". The document was never touched; only the scene lied. Captured
-     * synchronously before the ghost's add is queued, restored on removal.
-     */
-    /** The catalog preview's camera: pitch/yaw in raster angle units, zoom as
-     *  the raster's distance. fit_pending recomputes zoom from the next
-     *  model's bounds so it fills the well; dirty forces a re-render with the
-     *  pick unchanged (a key moved the camera). */
-    int preview_xan;
-    int preview_yan;
-    int preview_zoom;
-    int preview_fit_pending;
-    int preview_dirty;
-    /** Set with preview_dirty when the re-render is a camera nudge: the pick
-     *  "changed" from the updater's view, but the framing must not reset. */
-    int preview_keep_camera;
-
-    int ghost_displaced_valid;
-    int ghost_displaced_loc_id;
-    int ghost_displaced_shape;
-    int ghost_displaced_angle;
+    struct MapEditorGhost map_ghost;
+    /** The camera on the editor's model-view well, shared by the catalog's
+     *  preview and the loc editor's. See editor/editor_preview_camera.h. */
+    struct EditorPreviewCamera preview_camera;
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
 

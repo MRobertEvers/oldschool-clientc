@@ -1119,10 +1119,14 @@ app_overlay_build_editor_selection(struct App* app)
      * footprint draws, fed by the ghost's own scenery entity, so a 3x2 loc
      * shows 3x2 here without anything re-deriving sizes. Before the
      * selection early-out: a ghost exists with or without a selection. */
-    if( app->ghost_active && app->world )
+    if( app->map_ghost.active && app->world )
     {
         int const idx = World_SceneryFindAt(
-            app->world, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_shape);
+            app->world,
+            app->map_ghost.spec.scene_x,
+            app->map_ghost.spec.scene_z,
+            app->map_ghost.spec.level,
+            app->map_ghost.spec.shape);
         if( idx >= 0 )
         {
             struct WorldEntity_Scenery* ghost =
