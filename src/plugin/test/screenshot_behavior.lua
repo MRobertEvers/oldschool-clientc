@@ -39,7 +39,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- ------------------------------------------------------------ porcelain
     local described, applied = nil, {}     -- key -> live control
     local dirty, ever, open_count = true, false, 0
-    local revalidates, setters = 0, 0
+    local revalidates, setters, anchors = 0, 0, 0
 
     local function signature(item)
         -- Everything the real hash covers except the resolved box.
@@ -49,6 +49,10 @@ return { id = 'screenshot-behavior', on_start = function(host)
             tostring(item.hit), tostring(item.on_op) }, '|')
     end
 
+    -- INSIDE and WITHIN read the corner and the offsets identically and differ
+    -- only in whose coordinates the answer is in: INSIDE makes a SIBLING under
+    -- the target's parent, so the target's own parent-local origin is added;
+    -- WITHIN makes a CHILD of the target, whose origin is therefore zero.
     local function place_box(item, target)
         local w, h = item.w, item.h
         local t, p = target.box, item.place
@@ -56,11 +60,14 @@ return { id = 'screenshot-behavior', on_start = function(host)
         if p.kind == 'replace' then
             return t.x + (t.width - w) // 2 + dx, t.y + (t.height - h) // 2 + dy, w, h
         end
-        assert(p.kind == 'inside', 'only replace and inside are described')
+        assert(p.kind == 'inside' or p.kind == 'within',
+            'only replace, inside and within are described')
+        local ox = p.kind == 'within' and 0 or t.x
+        local oy = p.kind == 'within' and 0 or t.y
         local x = (p.corner == 'top_right' or p.corner == 'bottom_right')
-            and t.x + t.width - w - dx or t.x + dx
+            and ox + t.width - w - dx or ox + dx
         local y = (p.corner == 'bottom_left' or p.corner == 'bottom_right')
-            and t.y + t.height - h - dy or t.y + dy
+            and oy + t.height - h - dy or oy + dy
         return x, y, w, h
     end
 
@@ -103,7 +110,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
             else
                 local control = applied[item.key]
                 if not control then
-                    control = { key = item.key, parent = item.place.on }
+                    control = { key = item.key }
                     applied[item.key] = control
                     calls[#calls + 1] = 'create ' .. item.key
                 end
@@ -117,7 +124,17 @@ return { id = 'screenshot-behavior', on_start = function(host)
                     control.armed = (item.hit and item.enabled ~= false and item.on_op ~= nil)
                         and item.op_label or nil
                     control.relation = item.place.kind
-                    control.anchor = item.place.on
+                    -- WITHIN parents to the element and takes NO anchor. Every
+                    -- other placement is a SIBLING under the element's parent,
+                    -- which is what an anchor costs and what makes the frame
+                    -- have depth.
+                    if item.place.kind == 'within' then
+                        control.parent, control.anchor = item.place.on, nil
+                    else
+                        control.parent = 'parent-of-' .. item.place.on
+                        control.anchor = item.place.on
+                        anchors = anchors + 1
+                    end
                     setters = setters + 4
                 end
                 local x, y, w, h = place_box(item, target)
@@ -215,8 +232,26 @@ return { id = 'screenshot-behavior', on_start = function(host)
         widgets = { watch = function() error('a Porcelain plugin does not watch widgets') end },
     }
 
+    -- The three pump helpers. `api.porcelain.open()` installs all three in the
+    -- runtime, which is where they are proved (test_porcelain_pump in
+    -- plugin_lua_test.c dispatches through the real callback table and reads
+    -- the real counters). What they do HERE is model the host, so that what
+    -- this file asserts is the plugin's behaviour and not its boilerplate.
     local frames = 0
-    local function frame() frames = frames + 1; product.on_frame_start(api) end
+    local function frame()
+        frames = frames + 1
+        porcelain.fence()
+        product.on_frame_start(api)
+        porcelain.commit()
+    end
+    local function config_changed()
+        porcelain.note('config')
+        if product.on_config_changed then product.on_config_changed(api, 'camera') end
+    end
+    local function server_tick()
+        porcelain.tick('server_tick')
+        if product.on_server_tick then product.on_server_tick(api) end
+    end
     local function only(key)
         local found
         for k, v in pairs(applied) do
@@ -241,22 +276,28 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(next(applied) == nil, 'camera off describes nothing')
 
     -- ------------------------------------------------------- corner camera
-    config.camera = 'bottom-right'; product.on_config_changed(api, 'camera'); frame()
+    config.camera = 'bottom-right'; config_changed(); frame()
     none()   -- the image has not decoded yet, so nothing is described
     assets['camera.png'].landed = true; frame(); frame()
     local camera = only('camera')
     assert(camera.image == 'camera.png' and camera.w == 28 and camera.h == 26,
         'corner control shows the camera image at its size')
-    assert(camera.x == 4 + 512 - 28 - 6 and camera.y == 4 + 334 - 26 - 6,
-        'bottom-right corner keeps the margin')
-    assert(camera.armed == 'Take screenshot' and camera.opacity == 170 and camera.relation == 'inside',
+    assert(camera.x == 512 - 28 - 6 and camera.y == 334 - 26 - 6,
+        'bottom-right corner keeps the margin, in the viewport\'s OWN coordinates')
+    assert(camera.armed == 'Take screenshot' and camera.opacity == 170 and camera.relation == 'within',
         'control is armed with the capture operation: a hit box, enabled, and a handler')
+    -- WITHIN, and the whole reason for it. One live anchor makes
+    -- UITree_FrameHasDepth true for the entire frame; a corner ornament that
+    -- cost no anchor before the layer existed must still cost none through it.
+    assert(camera.parent == 'viewport', 'the corner camera is a CHILD of the viewport')
+    assert(camera.anchor == nil, 'and takes NO anchor')
+    assert(anchors == 0, 'so the corner camera costs the frame no anchor at all')
 
     -- THE DEFECT THE PORT FIXES. The viewport is widened with no rebind and no
     -- config change: before the port the camera stayed at the old offset.
     element_moved('viewport', 4, 4, 900, 600)
     frame()
-    assert(camera.x == 4 + 900 - 28 - 6 and camera.y == 4 + 600 - 26 - 6,
+    assert(camera.x == 900 - 28 - 6 and camera.y == 600 - 26 - 6,
         'the corner camera is re-placed on a resize without a rebind')
     element_moved('viewport', 4, 4, 512, 334); frame()
 
@@ -275,12 +316,17 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(revalidates == before_revalidates + 5, 'exactly one commit per frame')
 
     -- ------------------------------------------------------ report-button
-    config.camera = 'report-button'; product.on_config_changed(api, 'camera')
+    config.camera = 'report-button'; config_changed()
     assets['camera_small.png'].landed = true
     frame(); frame()
     local small = only('camera_report')
     assert(small.relation == 'replace' and small.anchor == 'report_button',
         'the small camera stands in place of the report button through a REPLACE placement')
+    -- REPLACE is the placement that must be a sibling: a REPLACE from a child
+    -- of the target is ANCHOR_INVALID. So this one DOES pay an anchor, and
+    -- that is the difference WITHIN exists to avoid paying twice.
+    assert(small.parent == 'parent-of-report_button' and anchors == 1,
+        'a REPLACE is a sibling over its target, and pays exactly one anchor')
     assert(small.image == 'camera_small.png' and small.x == 430 + (80 - 20) // 2
         and small.y == 6 + (22 - 16) // 2,
         'the small camera is centred on the report slot in its own parent-local box')
@@ -308,19 +354,19 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- ------------------------------ a lane with no report button at all
     elements.report_button.bind = 'absent'; porcelain.note('element'); frame(); frame()
     local fallback = only('camera')
-    assert(fallback.relation == 'inside' and fallback.anchor == 'viewport'
-        and fallback.x == 4 + 512 - 28 - 6,
+    assert(fallback.relation == 'within' and fallback.parent == 'viewport'
+        and fallback.x == 512 - 28 - 6,
         'where the lane has no report button the camera falls back to the viewport corner')
     elements.report_button.bind = 'bound'; porcelain.note('element'); frame(); frame()
     assert(only('camera_report'), 'and it goes back to the report slot when one exists')
 
     -- ---------------------------------------------------------- turning off
-    config.camera = 'off'; product.on_config_changed(api, 'camera'); frame()
+    config.camera = 'off'; config_changed(); frame()
     assert(elements.report_button.hidden == nil, 'the native button was never hidden')
     none()
 
     -- --------------------------------------------------- events and hotkey
-    config.camera = 'report-button'; product.on_config_changed(api, 'camera'); frame(); frame()
+    config.camera = 'report-button'; config_changed(); frame(); frame()
     assert(only('camera_report'), 'report-button mode is re-established')
     product.on_game_event(api, { kind = 'death', subject = 'x', value = -1 })
     assert(#captures == 2, 'disabled event kinds do not capture')
@@ -328,7 +374,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(#captures == 2, 'drops under the threshold do not capture')
     product.on_game_event(api, { kind = 'level_up', subject = 'Attack', value = 40 })
     assert(#captures == 2, 'delayed captures wait for the server tick')
-    product.on_server_tick(api); product.on_server_tick(api)
+    server_tick(); server_tick()
     assert(#captures == 3 and captures[3] == 'Test-Player/Levels|Attack-40_2026-09-06_12-00-00.png',
         'level up captures after delay_ticks into its category folder')
     product.on_key(api, { down = true, key = 44 })
@@ -346,7 +392,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- for on every run, so a mode change never pays a second decode.
     for _ = 1, 8 do porcelain.note('explicit'); frame() end
     assert(#released == 0, 'neither icon is released while the camera is live')
-    config.camera = 'bottom-right'; product.on_config_changed(api, 'camera'); frame()
+    config.camera = 'bottom-right'; config_changed(); frame()
     assert(assets['camera.png'].requests == 1 and assets['camera_small.png'].requests == 1,
         'switching mode re-uses the held icon rather than re-requesting it')
     assert(only('camera').image == 'camera.png', 'and the corner camera is up at once')

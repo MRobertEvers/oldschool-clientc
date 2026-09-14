@@ -2911,6 +2911,8 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .tab_group_count = Porcelain_TabGroupCount,
     .tab_group = Porcelain_TabGroup,
     .tab_detached = Porcelain_TabDetached,
+    .counters_read = Porcelain_CountersRead,
+    .counters_reset = Porcelain_CountersReset,
 };
 
 struct ToriRS_PorcelainApi const*

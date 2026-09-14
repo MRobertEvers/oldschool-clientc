@@ -1016,6 +1016,10 @@ struct ToriRS_GameApi
 
 struct Porcelain;
 struct ToriRS_PorcelainDescribe;
+/* Defined by the layer's own header, plugin/porcelain/torirs_porcelain.h. The
+ * vtable carries a pointer to it, so the shape belongs there and only the name
+ * has to be known here. */
+struct PorcelainCounters;
 
 /*
  * The portable element vocabulary. A plugin names what it wants to sit
@@ -1985,6 +1989,19 @@ struct ToriRS_PorcelainApi
     /** The tab this root hangs outside every group (164's and 601's logout),
      *  or an element of kind PORCELAIN_EL_NONE where there is none. */
     struct PorcelainElement (*tab_detached)(struct Porcelain* porcelain);
+
+    /* ------------------------------------------------------------ counters */
+    /**
+     * Engine calls and allocations this handle has made since the last reset.
+     * @see struct PorcelainCounters in plugin/porcelain/torirs_porcelain.h.
+     *
+     * On the vtable and not only as a direct symbol because a plugin that
+     * cannot READ these cannot pin its own steady state: without them the
+     * best a port's test can do is assert against a stand-in reconciler it
+     * wrote itself, which pins the stand-in and not the layer.
+     */
+    void (*counters_read)(struct Porcelain* porcelain, struct PorcelainCounters* out);
+    void (*counters_reset)(struct Porcelain* porcelain);
 
     TORIRS_API_V2_MODULE_RESERVED;
 };

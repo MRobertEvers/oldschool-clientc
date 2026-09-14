@@ -9,8 +9,10 @@
 -- widgets, does not remember which control is alive, does not re-place a
 -- control when the frame moves its element or the window resizes (the corner
 -- camera going stale on a resize was a defect; geometry now follows the target
--- at every fence), does not remove a control whose target died, and does not
--- hold or release image handles.
+-- at every fence), does not remove a control whose target died, does not hold
+-- or release image handles, and does not drive the layer: open() installs the
+-- pump, so the fence, the commit, the config note and the server-tick forward
+-- are the layer's and this file's handlers run inside them.
 ---@type torirs.Plugin
 local plugin = {
     id = "screenshot",
@@ -135,9 +137,13 @@ local function camera(key, image, place)
              place = place, op_label = OPERATION, hit = true, on_op = on_camera_op }
 end
 
+-- WITHIN, not INSIDE: a CHILD of the viewport in the viewport's own
+-- coordinates, reading corner and offsets identically but taking NO anchor.
+-- INSIDE's sibling-plus-anchor is what REPLACE needs and an ornament does not,
+-- and one live anchor makes UITree_FrameHasDepth true for the whole frame.
 local function corner_item(where)
     return camera("camera", "camera.png",
-        { kind = "inside", on = "viewport", corner = CORNERS[where], dx = MARGIN, dy = MARGIN })
+        { kind = "within", on = "viewport", corner = CORNERS[where], dx = MARGIN, dy = MARGIN })
 end
 
 -- Both icons, held from the start and touched on every describe run, whichever
@@ -198,6 +204,8 @@ function plugin.on_start(api)
     api.porcelain.every_server_tick(tick_pending)
 end
 
+-- The pump calls this between its fence and its commit, so the set() below is
+-- inside the frame the layer opened -- where a direct-motion write belongs.
 function plugin.on_frame_start(api)
     if lit_frames > 0 then
         lit_frames = lit_frames - 1
@@ -206,12 +214,6 @@ function plugin.on_frame_start(api)
             lit_key = nil
         end
     end
-    api.porcelain.fence()
-    api.porcelain.commit()
-end
-
-function plugin.on_config_changed(api, key)
-    if key == "camera" then api.porcelain.note("config") end
 end
 
 function plugin.on_game_event(api, ev)
@@ -227,10 +229,6 @@ function plugin.on_game_event(api, ev)
     else
         pending[#pending + 1] = shot
     end
-end
-
-function plugin.on_server_tick(api)
-    api.porcelain.tick("server_tick")
 end
 
 -- Raw, not Porcelain_KeyEdge: that verb names five modifier keys by string and

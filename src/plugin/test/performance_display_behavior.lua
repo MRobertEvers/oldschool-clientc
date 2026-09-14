@@ -123,9 +123,34 @@ return { id = 'performance-behavior', on_start = function(host)
         return row.text
     end
 
+    -- The host's pump, modelled. `api.porcelain.open()` installs the real one
+    -- in the runtime -- fence, then the plugin's handler, then commit -- and
+    -- the second half of this file proves that against the real layer's own
+    -- counters. Here it only has to be the same shape, so that what these
+    -- cases pin is the plugin and not its boilerplate.
+    local function frame(ev)
+        porcelain.fence()
+        product.on_frame_start(api, ev)
+        porcelain.commit()
+    end
+    local function config_changed()
+        porcelain.note('config')
+        product.on_config_changed(api)
+    end
+    -- The pump's one visible consequence. The fence runs BEFORE the plugin's
+    -- handler, so a string the handler composes and invalidates for is applied
+    -- by the NEXT frame's fence -- a player sees it one frame later, and a
+    -- case that asserts on a string the frame it just sampled produced has to
+    -- let that fence happen. This is that fence and nothing else: no handler
+    -- between, which is exactly what the next frame's pump does first.
+    local function next_fence()
+        porcelain.fence()
+        porcelain.commit()
+    end
+
     product.on_start(api)
     P.bound = true
-    product.on_frame_start(api,{now_ms=0,drawn_frames=10})
+    frame({now_ms=0,drawn_frames=10})
     -- Exactly four rows, exactly those keys, all four alive even before a
     -- single one of them has a number worth reading.
     local keys = {}
@@ -137,8 +162,9 @@ return { id = 'performance-behavior', on_start = function(host)
     assert(P.creates == 4, 'one create per row')
     -- Fifty callbacks, but only fifteen rendered frames in one second.
     for i=1,50 do
-        product.on_frame_start(api,{now_ms=i*20,drawn_frames=10+math.floor(i*15/50)})
+        frame({now_ms=i*20,drawn_frames=10+math.floor(i*15/50)})
     end
+    next_fence()
     assert(text('fps')=='FPS: 15.0', 'FPS must count rendered frames')
     assert(text('frame')=='Frame: 4.00 ms', 'frame time must exclude pacing sleep')
     assert(text('effective')=='Effective FPS: 250.0', 'effective rate uses work time')
@@ -147,19 +173,22 @@ return { id = 'performance-behavior', on_start = function(host)
     assert(P.sizes==4 and P.aligns==4 and P.colors==4, 'style is written once per row')
     assert(P.creates==4 and P.removes==0, 'a frame neither creates nor removes a row')
     work=20000
-    for i=1,10 do product.on_frame_start(api,{now_ms=1000+i*20,drawn_frames=25+i}) end
+    for i=1,10 do frame({now_ms=1000+i*20,drawn_frames=25+i}) end
+    next_fence()
     assert(text('frame')=='Frame: 20.00 ms', 'work window evicts old samples')
     work=0
-    product.on_frame_start(api,{now_ms=1240,drawn_frames=36})
+    frame({now_ms=1240,drawn_frames=36})
+    next_fence()
     assert(text('frame')=='Frame: 20.00 ms', 'unmeasured frames do not dilute work')
 
     -- Steady state: the ring is full of one value, the refresh window has not
     -- closed, and nothing the plugin would say has changed. It must therefore
     -- say nothing -- no describe run, no setter, no revalidate.
     work=20000
-    product.on_frame_start(api,{now_ms=1260,drawn_frames=37})
+    frame({now_ms=1260,drawn_frames=37})
+    next_fence()
     local runs, writes, revalidates = P.describe_runs, setters(), P.revalidates
-    for i=1,20 do product.on_frame_start(api,{now_ms=1280+i*20,drawn_frames=37+i}) end
+    for i=1,20 do frame({now_ms=1280+i*20,drawn_frames=37+i}) end
     assert(P.describe_runs==runs, 'an unchanged readout must not re-describe')
     assert(setters()==writes, 'steady state costs zero engine setters')
     assert(P.revalidates==revalidates, 'steady state costs zero revalidates')
@@ -167,24 +196,25 @@ return { id = 'performance-behavior', on_start = function(host)
     api.config.show_fps=false; api.config.show_effective_fps=false
     api.config.x=160; api.config.y=100; api.config.text_color=0xff00ff
     runs = P.describe_runs
-    product.on_config_changed(api)
-    product.on_frame_start(api,{now_ms=1700,drawn_frames=58})
+    config_changed()
+    frame({now_ms=1700,drawn_frames=58})
     assert(P.describe_runs==runs+1, 'a config change re-describes exactly once')
     assert(text('fps')=='' and text('effective')=='', 'disabled metrics must disappear')
-    local frame,mem=P.items.performance_frame,P.items.performance_memory
-    assert(frame.x==160 and frame.y==103 and mem.y==118, 'visible lines close gaps')
-    assert(frame.w==132 and frame.h==15, 'the row box is stated, not measured')
-    assert(frame.rgb==0xff00ff and frame.align==1, 'style survives port')
+    local frame_row,mem=P.items.performance_frame,P.items.performance_memory
+    assert(frame_row.x==160 and frame_row.y==103 and mem.y==118, 'visible lines close gaps')
+    assert(frame_row.w==132 and frame_row.h==15, 'the row box is stated, not measured')
+    assert(frame_row.rgb==0xff00ff and frame_row.align==1, 'style survives port')
     memory=2*1024*1024*1024
-    product.on_frame_start(api,{now_ms=2000,drawn_frames=60})
+    frame({now_ms=2000,drawn_frames=60})
+    next_fence()
     assert(text('memory')=='Memory: 2.00 GiB', 'a gibibyte figure carries two decimals')
 
     P.bound=false
-    product.on_frame_start(api,{now_ms=2020,drawn_frames=61})
+    frame({now_ms=2020,drawn_frames=61})
     assert(next(P.items)==nil, 'unbinding removes all metric widgets')
     P.bound=true
     local positions = P.positions
-    product.on_frame_start(api,{now_ms=2040,drawn_frames=62})
+    frame({now_ms=2040,drawn_frames=62})
     assert(text('frame')=='Frame: 20.00 ms' and P.items.performance_memory.y==118,
         'remount preserves current samples and settings')
     assert(P.positions==positions+4, 'a remount lays out each row once and stops')
@@ -195,7 +225,7 @@ return { id = 'performance-behavior', on_start = function(host)
     -- An unmeasured frame records nothing, so what this row reads is the ring
     -- and the window as the restart left them -- not a sample taken since.
     work=0
-    product.on_frame_start(api,{now_ms=3000,drawn_frames=70})
+    frame({now_ms=3000,drawn_frames=70})
     assert(text('frame')=='Frame: 0.00 ms', 'restart clears measurements')
     host.core.log('performance behavior passed')
 end }

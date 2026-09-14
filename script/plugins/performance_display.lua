@@ -27,13 +27,13 @@
 -- you have stopped looking for. Averaging FRAME_WINDOW frames is what keeps
 -- them readable.
 --
--- The picture is Porcelain's. This plugin owns no widget, no watch and no
--- geometry repair: it states the four rows it wants, and re-states them only
--- when a string or a setting moved. Everything that used to be bookkeeping
--- here -- create on BOUND, remove on UNBOUND, re-run the layout after a
--- config change, write four positions and four sizes that were already right
--- -- is the reconciler's, and the reconciler compares before it writes. That
--- comparison is what keeps the layout calls at four for the life of a bind.
+-- The picture is Porcelain's. This plugin owns no widget, no watch, no
+-- geometry repair and no pump: it states the four rows it wants, and re-states
+-- them only when a string or a setting moved. Everything that used to be
+-- bookkeeping here -- create on BOUND, remove on UNBOUND, re-run the layout
+-- after a config change, write four positions and four sizes that were already
+-- right, fence and commit -- is the layer's, and the reconciler compares
+-- before it writes. That is what keeps the layout calls at four for a bind.
 --
 
 ---@type torirs.Plugin
@@ -195,10 +195,10 @@ end
 function plugin.on_config_changed(api)
     host = api
     if not live then return end
-    -- The switches gate the strings as well as the rows, so the description
-    -- has to be recomposed before the config stamp moves.
+    -- The switches gate the strings as well as the rows, so the description has
+    -- to be recomposed; the config stamp itself is the pump's, noted before
+    -- this runs, and the next fence reads the recomposed `readout`.
     compose(api)
-    api.porcelain.note("config")
 end
 
 function plugin.on_frame_start(api, ev)
@@ -235,9 +235,9 @@ function plugin.on_frame_start(api, ev)
     -- Re-describe only for a string that moved. A frame that says nothing new
     -- costs one hash compare per row inside the fence and no engine call at
     -- all, which is the whole reason the description is retained.
+    -- open() installed the pump, so there is no fence and no commit here; this
+    -- handler runs between them and the NEXT fence consumes the invalidate.
     if compose(api) then api.porcelain.invalidate() end
-    api.porcelain.fence()
-    api.porcelain.commit()
 end
 
 function plugin.on_stop(api)

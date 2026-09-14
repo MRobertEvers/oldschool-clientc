@@ -614,7 +614,7 @@ warn = nil
 ---@alias torirs.PorcelainInput 'element'|'asset'|'config'|'screen'|'canvas'|'explicit'
 ---@alias torirs.PorcelainCadence 'logic_tick'|'server_tick'|'frame'
 ---@alias torirs.PorcelainBind 'bound'|'absent'|'pending'
----@alias torirs.PorcelainPlacementKind 'replace'|'inside'|'beside'|'at_element'|'at_canvas'|'at_usable'
+---@alias torirs.PorcelainPlacementKind 'replace'|'inside'|'beside'|'at_element'|'at_canvas'|'at_usable'|'within'
 ---@alias torirs.PorcelainCorner 'top_left'|'top_right'|'bottom_left'|'bottom_right'|'centre'
 ---@alias torirs.PorcelainSide 'left'|'right'|'above'|'below'
 ---@alias torirs.PorcelainDerivedState 'ready'|'pending'|'failed'
@@ -632,18 +632,26 @@ warn = nil
 --- script's own and never an argument -- the same shortening `api.widgets.get`
 --- already takes. Call `open` once from `on_start`.
 ---
+--- `open` installs the pump. The runtime fences before your on_frame_start and
+--- commits after it, notes 'config' before your on_config_changed, and
+--- forwards the server tick before your on_server_tick -- so a Lua plugin
+--- writes none of that and cannot half-write it. A fence with no commit is a
+--- `fence without commit` finding, which is the failure the hand-written pump
+--- made possible. `on_asset` is NOT pumped: the layer polls its own pending
+--- images at every fence and stamps the asset input itself.
+---
 --- An element is named by a small grammar: "minimap", "orb:run",
 --- "chat_filter:3", "tab:inventory", "panel:inventory", "role:my_role".
 --- An element a lane does not have answers `bind == 'absent'` with one
 --- finding; it is never a guess and never a lineage test.
 ---@class torirs.PorcelainApi
----@field open fun(): boolean Open the layer for this plugin. False when the host did not install it.
+---@field open fun(): boolean Open the layer for this plugin, and INSTALL ITS PUMP. False when the host did not install the layer.
 ---@field close fun() Remove every owned control, release every image, reset every edit, drop every claim.
 ---@field describe fun(fn: fun(d: torirs.PorcelainDescribe)) The one describe function. Re-run only when an input moved.
 ---@field invalidate fun() Re-run describe at the next fence.
 ---@field note fun(input: torirs.PorcelainInput) One of this plugin's inputs moved.
----@field fence fun() Reconcile this plugin. Call once a frame, from on_frame_start.
----@field commit fun() Flush every fenced plugin with EXACTLY ONE layout resolve.
+---@field fence fun() Reconcile this plugin. `open` installs this: the runtime fences BEFORE your on_frame_start.
+---@field commit fun() Flush every fenced plugin with EXACTLY ONE layout resolve. `open` installs this too, AFTER your on_frame_start.
 ---@field relinquish fun() Drop every claim, before arbitration runs again.
 ---@field element fun(element: string): torirs.PorcelainElementState
 ---@field count fun(family: string): integer How many members this LANE has. Never a picked number.
@@ -670,7 +678,9 @@ warn = nil
 ---@field every_server_tick fun(fn: fun()) Fires on EVERY lane; there is no synthesised cadence.
 ---@field every_ms fun(milliseconds: integer, fn: fun(elapsed_ms: integer)) Re-registering the same handler RE-INTERVALS it; it does not append.
 ---@field cancel_every fun(fn: fun()) Drop the timer registered for this handler.
----@field tick fun(cadence: torirs.PorcelainCadence) Forward this plugin's own tick callback.
+---@field tick fun(cadence: torirs.PorcelainCadence) Forward this plugin's own tick callback. `open` already forwards 'server_tick'.
+---@field counters_read fun(): torirs.PorcelainCounters Engine calls and allocations this handle has made since the last reset.
+---@field counters_reset fun() Zero them, so a steady-state assertion starts from a known point.
 ---@field draw_context fun(element?: string): torirs.PorcelainDrawContext? The drawable rect of the pass now running, and an element's box on it.
 ---@field menu_add fun(text: string, action_id: integer): boolean menu.add, with the refusal recorded as a finding.
 ---@field note_menu fun() From on_menu_build: stamps the hovered cell on the hover pass.
@@ -768,7 +778,7 @@ warn = nil
 ---@field on? string The element this item belongs to.
 ---@field depth? string Sit over (or behind) THIS element instead.
 ---@field behind? boolean
----@field corner? torirs.PorcelainCorner For kind 'inside'.
+---@field corner? torirs.PorcelainCorner For kind 'inside' and kind 'within'.
 ---@field side? torirs.PorcelainSide For kind 'beside'.
 ---@field dx? integer
 ---@field dy? integer
@@ -828,6 +838,21 @@ warn = nil
 ---@field expected boolean
 ---@field first_frame integer
 ---@field count integer
+
+--- What the layer has actually spent. The steady-state rule -- an unchanged
+--- description makes zero engine calls and zero allocations -- is a reading
+--- from here, not a belief: `property_applies` counts items whose property set
+--- was walked AT ALL, so "no engine call because the hash matched" is
+--- distinguishable from "every per-field compare happened to match".
+---@class torirs.PorcelainCounters
+---@field engine_calls integer
+---@field allocations integer
+---@field describe_runs integer
+---@field creates integer
+---@field removes integer
+---@field setters integer
+---@field revalidates integer
+---@field property_applies integer
 
 ---@class torirs.PorcelainTiers
 ---@field low integer

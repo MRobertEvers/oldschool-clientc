@@ -225,16 +225,14 @@ def main() -> int:
 
     screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
     # The camera is described to the Porcelain layer now: one describe, one
-    # REPLACE placement on the report_button element, one INSIDE placement in
+    # REPLACE placement on the report_button element, one WITHIN placement in
     # the viewport, and the layer owns every control, watch and image handle.
     for required in (
         "api.porcelain.open(",
         "api.porcelain.describe(",
-        "api.porcelain.fence(",
-        "api.porcelain.commit(",
         'porcelain.element("report_button")',
         'kind = "replace", on = "report_button"',
-        'kind = "inside", on = "viewport"',
+        'kind = "within", on = "viewport"',
         "d.control(",
         '"report-button"',
         'off|top-left|top-right|bottom-left|bottom-right|report-button',
@@ -245,6 +243,17 @@ def main() -> int:
     for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
         if forbidden in screenshot:
             errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
+    # The pump is the layer's. A plugin that spells it again can half-spell it,
+    # and half of it is a `fence without commit` finding rather than a crash --
+    # which is why this is checked and not merely recommended.
+    performance = (SCRIPT_DIR / "performance_display.lua").read_text(encoding="utf-8")
+    for ported in ("screenshot.lua", "performance_display.lua"):
+        source = screenshot if ported == "screenshot.lua" else performance
+        for hand_written in ("porcelain.fence(", "porcelain.commit(",
+                             'porcelain.note("config")', 'porcelain.tick("server_tick")'):
+            if hand_written in source:
+                errors.append(
+                    f"{ported}: hand-written porcelain pump is back: {hand_written}")
     # The raw retained verbs are the shape the port replaced. A regression to
     # any of them is a plugin doing the layer's bookkeeping again: watching
     # widgets, remembering which control is alive, and re-placing by hand --

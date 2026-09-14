@@ -2054,6 +2054,10 @@ lua_porcelain_place_field(lua_State* L, int table)
         kind = luaL_optstring(L, -1, "at_element");
         if( strcmp(kind, "replace") == 0 ) place.kind = PORCELAIN_REPLACE;
         else if( strcmp(kind, "inside") == 0 ) place.kind = PORCELAIN_INSIDE;
+        /* A child of the element, in the element's own coordinates, with no
+         * anchor. INSIDE reads identically and pays an anchor; one live
+         * anchor is what makes UITree_FrameHasDepth true. */
+        else if( strcmp(kind, "within") == 0 ) place.kind = PORCELAIN_WITHIN;
         else if( strcmp(kind, "beside") == 0 ) place.kind = PORCELAIN_BESIDE;
         else if( strcmp(kind, "at_canvas") == 0 ) place.kind = PORCELAIN_AT_CANVAS;
         else if( strcmp(kind, "at_usable") == 0 ) place.kind = PORCELAIN_AT_USABLE;
@@ -2363,7 +2367,11 @@ lua_porcelain_describe_trampoline(struct ToriRS_PorcelainDescribe* describe, voi
     if( !slot || !slot->used || !slot->script ) return;
     script = slot->script;
     api = script->cur_api;
-    if( !api ) return;
+    /* A fence that ran outside a callback scope. Silently describing nothing
+     * is a blank overlay and two describe runs the counters happily report,
+     * which is how the first version of the pump got this wrong; abort at the
+     * frame that caused it instead. */
+    assert(api);
     if( !lua_porcelain_begin(slot, api) ) return;
     script->cur_describe = describe;
     /* The builder object, the way on_ui_build is handed the panel builder. */
@@ -3048,6 +3056,44 @@ static int lua_porcelain_tick(lua_State* L)
     return 0;
 }
 
+/*
+ * The layer's own counters, as a table.
+ *
+ * A Lua port could not pin its steady state before this: its test asserted
+ * against a stand-in reconciler written in the test file, which pins the
+ * stand-in. These are the real handle's numbers, so "an unchanged description
+ * costs zero engine calls" becomes a reading rather than a belief.
+ */
+static int lua_porcelain_counters_read(lua_State* L)
+{
+    struct PorcelainCounters counters;
+    memset(&counters, 0, sizeof(counters));
+    lua_current_api(L)->porcelain->counters_read(lua_porcelain(L), &counters);
+    lua_createtable(L, 0, 8);
+    lua_pushinteger(L, (lua_Integer)counters.engine_calls);
+    lua_setfield(L, -2, "engine_calls");
+    lua_pushinteger(L, (lua_Integer)counters.allocations);
+    lua_setfield(L, -2, "allocations");
+    lua_pushinteger(L, (lua_Integer)counters.describe_runs);
+    lua_setfield(L, -2, "describe_runs");
+    lua_pushinteger(L, (lua_Integer)counters.creates);
+    lua_setfield(L, -2, "creates");
+    lua_pushinteger(L, (lua_Integer)counters.removes);
+    lua_setfield(L, -2, "removes");
+    lua_pushinteger(L, (lua_Integer)counters.setters);
+    lua_setfield(L, -2, "setters");
+    lua_pushinteger(L, (lua_Integer)counters.revalidates);
+    lua_setfield(L, -2, "revalidates");
+    lua_pushinteger(L, (lua_Integer)counters.property_applies);
+    lua_setfield(L, -2, "property_applies");
+    return 1;
+}
+static int lua_porcelain_counters_reset(lua_State* L)
+{
+    lua_current_api(L)->porcelain->counters_reset(lua_porcelain(L));
+    return 0;
+}
+
 /* Registration arrays are the runtime inventory.  The Python contract test
  * reads these exact arrays and compares them bidirectionally with LuaLS. */
 static struct LuaFn const LUA_SCRIPTS_FNS[] = {
@@ -3356,6 +3402,8 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"every",lua_porcelain_every},{"every_server_tick",lua_porcelain_every_server_tick},
     {"every_ms",lua_porcelain_every_ms},{"cancel_every",lua_porcelain_cancel_every},
     {"tick",lua_porcelain_tick},
+    {"counters_read",lua_porcelain_counters_read},
+    {"counters_reset",lua_porcelain_counters_reset},
     {"draw_context",lua_porcelain_draw_context},{"menu_add",lua_porcelain_menu_add},
     {"note_menu",lua_porcelain_note_menu},{"hover",lua_porcelain_hover},
     {"native_overlay",lua_porcelain_native_overlay},{"note_script",lua_porcelain_note_script},
@@ -3592,15 +3640,138 @@ lua_cb_stop(struct ToriRS_Api* api, void* state)
     lua_porcelain_stop(script, api);
 }
 #define SIMPLE_EVENT_CB(fn,handler,type,push) static void fn(struct ToriRS_Api*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
-SIMPLE_EVENT_CB(lua_cb_frame,LUA_ON_FRAME_START,struct ToriRS_FrameEvent,lua_push_frame_event)
 SIMPLE_EVENT_CB(lua_cb_logic,LUA_ON_LOGIC_TICK,struct ToriRS_TickEvent,lua_push_tick_event)
-SIMPLE_EVENT_CB(lua_cb_server,LUA_ON_SERVER_TICK,struct ToriRS_TickEvent,lua_push_tick_event)
 SIMPLE_EVENT_CB(lua_cb_world,LUA_ON_WORLD_LOADED,struct ToriRS_WorldLoadedEvent,lua_push_world_event)
 SIMPLE_EVENT_CB(lua_cb_screen,LUA_ON_SCREEN_CHANGED,struct ToriRS_ScreenChangedEvent,lua_push_screen_event)
 SIMPLE_EVENT_CB(lua_cb_asset,LUA_ON_ASSET,struct ToriRS_AssetEvent,lua_push_asset_event)
 SIMPLE_EVENT_CB(lua_cb_chat,LUA_ON_CHAT_MESSAGE,struct ToriRS_ChatMessageEvent,lua_push_chat_event)
 SIMPLE_EVENT_CB(lua_cb_game_event,LUA_ON_GAME_EVENT,struct ToriRS_GameEvent,lua_push_game_event)
 #undef SIMPLE_EVENT_CB
+
+/* ------------------------------------------------------ the porcelain pump */
+/*
+ * What `api.porcelain.open()` installs.
+ *
+ * The plan says Porcelain installs the frame, config and tick handlers itself,
+ * does its own work first, and forwards to whatever the plugin registered. A C
+ * library cannot keep that promise and torirs_plugin_api.h says why in as many
+ * words: `open` is handed a `struct ToriRS_PluginDef const*` the host has
+ * ALREADY registered, so "the other four are the plugin forwarding its own
+ * host events, because a library cannot install callbacks into a definition
+ * the host already registered".
+ *
+ * This runtime can, because this runtime IS the definition every Lua plugin is
+ * registered under: the callbacks the host calls are the functions below, and
+ * the plugin's own handler is a table field this file decides when to call. So
+ * the three lines both ported plugins hand-wrote -- fence/commit,
+ * note("config"), tick("server_tick") -- live here, gated on the handle being
+ * open, which is exactly what "open installs the pump" means.
+ *
+ * ORDER, and why the frame pump brackets rather than precedes:
+ *
+ *   fence   -> the plugin's on_frame_start -> commit
+ *
+ * The fence is the layer's work and it goes FIRST, so a handler that asks the
+ * layer anything -- element(), count(), a box -- is answered by a description
+ * already reconciled against this frame's geometry rather than last frame's.
+ * The commit is not more layer work; it is the END of the frame, and
+ * torirs_plugin_api.h defines it as such ("called once per frame AFTER the
+ * last plugin has fenced"). Putting it before the plugin's handler would close
+ * the frame before the plugin had spoken and leave every direct-motion write
+ * it made sitting in the next frame's epoch.
+ *
+ * on_asset is deliberately NOT installed. The plan lists it, but the layer
+ * polls its own pending images at every fence and stamps PORCELAIN_INPUT_ASSET
+ * itself (porcelain_helpers.c, "Images still pending"). Forwarding the host's
+ * asset event would re-run the describe for every asset in the client that a
+ * plugin never asked for, which is a cost this pump exists to remove.
+ *
+ * on_start and on_stop are already the runtime's: the handle is closed from
+ * lua_cb_stop whatever the plugin's own on_stop does, and OPENING is the
+ * plugin's own decision -- performance_display branches on open() answering
+ * false and says so out loud rather than drawing nothing.
+ */
+static bool
+lua_porcelain_pump_armed(struct LuaScript const* script, struct ToriRS_Api const* api)
+{
+    assert(api);
+    return script && script->alive && script->porcelain && api->porcelain;
+}
+
+/*
+ * The layer's work runs inside a Lua callback scope, because the layer calls
+ * BACK into Lua from it: the describe trampoline, an op handler, a tick or a
+ * when_ready callback all need `cur_api` and all need the instruction budget
+ * armed. Every one of those was previously reached from inside the plugin's
+ * own handler, which had both; a pump that fences outside a scope re-describes
+ * into a trampoline that finds no api -- and the first version of this pump
+ * did exactly that. The tell was a plugin whose four rows never appeared while
+ * the layer cheerfully reported two describe runs and zero findings.
+ *
+ * The budget is armed here rather than left to the inner pcall, which arms it
+ * only for the OUTERMOST scope: this scope is the outermost one.
+ */
+static bool
+lua_porcelain_pump_push(struct LuaScript* script, struct ToriRS_Api* api)
+{
+    assert(script);
+    assert(api);
+    if( !lua_callback_scope_push(script, api) )
+        return false;
+    lua_arm_budget(script);
+    return true;
+}
+
+static void
+lua_porcelain_pump_pop(struct LuaScript* script)
+{
+    assert(script);
+    lua_disarm_budget(script);
+    lua_callback_scope_pop(script);
+}
+
+static void
+lua_cb_frame(struct ToriRS_Api* api, void* state, struct ToriRS_FrameEvent const* event)
+{
+    struct LuaScript* script = lua_script_for_api(api);
+    bool const armed = lua_porcelain_pump_armed(script, api);
+    bool fenced = false;
+    (void)state;
+    if( armed && lua_porcelain_pump_push(script, api) )
+    {
+        api->porcelain->fence(script->porcelain);
+        lua_porcelain_pump_pop(script);
+        fenced = true;
+    }
+    if( lua_call_begin(script, api, LUA_ON_FRAME_START) )
+    {
+        lua_push_frame_event(script->L, event);
+        lua_call_end(script, LUA_ON_FRAME_START, 2, false);
+    }
+    /* Gated on the FENCE and not on `armed`: the plugin's own handler may have
+     * closed the layer, and a fence that already ran still has to be flushed.
+     * commit takes the api and no handle for exactly this reason. */
+    if( fenced )
+        api->porcelain->commit(api);
+}
+
+static void
+lua_cb_server(struct ToriRS_Api* api, void* state, struct ToriRS_TickEvent const* event)
+{
+    struct LuaScript* script = lua_script_for_api(api);
+    (void)state;
+    if( lua_porcelain_pump_armed(script, api) && lua_porcelain_pump_push(script, api) )
+    {
+        /* The timer callbacks this fires are the plugin's own Lua functions. */
+        api->porcelain->tick(script->porcelain, PORCELAIN_SERVER_TICK);
+        lua_porcelain_pump_pop(script);
+    }
+    if( lua_call_begin(script, api, LUA_ON_SERVER_TICK) )
+    {
+        lua_push_tick_event(script->L, event);
+        lua_call_end(script, LUA_ON_SERVER_TICK, 2, false);
+    }
+}
 #define SNAP_CB(fn,handler,type,push) static void fn(struct ToriRS_Api*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
 SNAP_CB(lua_cb_npc_spawn,LUA_ON_NPC_SPAWN,struct ToriRS_NpcSnapshot,lua_push_npc)
 SNAP_CB(lua_cb_npc_retype,LUA_ON_NPC_RETYPE,struct ToriRS_NpcSnapshot,lua_push_npc)
@@ -3609,7 +3780,19 @@ SNAP_CB(lua_cb_item_spawn,LUA_ON_ITEM_SPAWN,struct ToriRS_GroundItemSnapshot,lua
 SNAP_CB(lua_cb_item_changed,LUA_ON_ITEM_CHANGED,struct ToriRS_GroundItemSnapshot,lua_push_obj)
 SNAP_CB(lua_cb_item_despawn,LUA_ON_ITEM_DESPAWN,struct ToriRS_GroundItemSnapshot,lua_push_obj)
 #undef SNAP_CB
-static void lua_cb_config(struct ToriRS_Api*a,void*state,char const*key){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,LUA_ON_CONFIG_CHANGED)){lua_pushstring(s->L,key?key:"");lua_call_end(s,LUA_ON_CONFIG_CHANGED,2,false);}}
+static void
+lua_cb_config(struct ToriRS_Api* api, void* state, char const* key)
+{
+    struct LuaScript* script = lua_script_for_api(api);
+    (void)state;
+    if( lua_porcelain_pump_armed(script, api) )
+        api->porcelain->note(script->porcelain, PORCELAIN_INPUT_CONFIG);
+    if( lua_call_begin(script, api, LUA_ON_CONFIG_CHANGED) )
+    {
+        lua_pushstring(script->L, key ? key : "");
+        lua_call_end(script, LUA_ON_CONFIG_CHANGED, 2, false);
+    }
+}
 static enum ToriRS_CallbackResult lua_cb_key(struct ToriRS_Api*a,void*state,struct ToriRS_KeyEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_KEY))return TORIRS_CALLBACK_CONTINUE;lua_push_key_event(s->L,e);return lua_call_end(s,LUA_ON_KEY,2,true);}
 static enum ToriRS_CallbackResult lua_cb_menu_build(struct ToriRS_Api*a,void*state,struct ToriRS_MenuBuildEvent*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_MENU_BUILD))return TORIRS_CALLBACK_CONTINUE;s->cur_menu=e;lua_push_menu_build_event(s->L,e);return lua_call_end(s,LUA_ON_MENU_BUILD,2,true);}
 static enum ToriRS_CallbackResult lua_cb_menu_select(struct ToriRS_Api*a,void*state,struct ToriRS_MenuSelectEvent const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(!lua_call_begin(s,a,LUA_ON_MENU_SELECT))return TORIRS_CALLBACK_CONTINUE;lua_push_menu_select_event(s->L,e);return lua_call_end(s,LUA_ON_MENU_SELECT,2,true);}

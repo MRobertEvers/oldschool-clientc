@@ -2750,11 +2750,16 @@ plugin-engine-cache-hooks:
 .PHONY: test-plugin-lua
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \
-		plugin/test/plugin_lua_test.c test-plugin-lua-api-inventory \
+		plugin/test/plugin_lua_test.c plugin/test/performance_display_counters.lua \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/test/porcelain_testbed.c \
+		test-plugin-lua-api-inventory \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
 		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/test/porcelain_testbed.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test
 
