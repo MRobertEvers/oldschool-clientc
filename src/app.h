@@ -32,6 +32,7 @@
 #include "platform/platform_io.h"
 #include "render/torirs_damage_region.h"
 #include "plugin/torirs_plugin_host.h"
+#include "plugin/torirs_plugin_mesh.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_role.h"
 #include "ui/uitree_scroll.h"
@@ -235,41 +236,6 @@ struct AppPluginAssetModel
  * TORIRS_PLUGIN_MESH_BUDGET each, which is what the host will hand out and so
  * what this has to be able to hold. */
 #define APP_PLUGIN_MESHES_MAX 128
-
-/*
- * One mesh a plugin authored, triangle by triangle.
- *
- * Held as the plugin stated it -- vertices, faces, packed HSL, transparency --
- * and not as a ToriDraw_Model, because the two have different lifetimes: the
- * mesh is the plugin's SHAPE and outlives any number of objects standing on
- * it, each of which builds its own model (its own lighting, its own recolours,
- * its own bounds) from these arrays.
- *
- * `revision` moves on every edit. It is what an object's built_mesh_revision
- * is compared against, so re-authoring a mesh rebuilds the objects made from
- * it and re-stating one unchanged rebuilds nothing.
- */
-struct AppPluginMesh
-{
-    int in_use;
-    int revision;
-    /* Grown on append rather than sized to TORIRS_PLUGIN_MESH_*_MAX up front:
-     * the ceilings are what a plugin may not exceed, not what one costs, and
-     * a table of 128 meshes at the maximum would be megabytes of App that
-     * nothing has authored. */
-    int vertex_count;
-    int vertex_cap;
-    int face_count;
-    int face_cap;
-    int16_t* vertices_x;
-    int16_t* vertices_y;
-    int16_t* vertices_z;
-    int16_t* face_a;
-    int16_t* face_b;
-    int16_t* face_c;
-    uint16_t* face_color;
-    uint8_t* face_alpha;
-};
 
 /*
  * Frame captures a plugin has asked for and the client has not taken yet.
@@ -1951,7 +1917,7 @@ struct App
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
     /** Plugin-authored meshes, indexed by the handle the plugin holds. */
-    struct AppPluginMesh plugin_meshes[APP_PLUGIN_MESHES_MAX];
+    struct ToriRS_PluginMesh plugin_meshes[APP_PLUGIN_MESHES_MAX];
     /** Plugin-shipped models, indexed by the handle the plugin holds. The host
      *  bounds this at TORIRS_PLUGIN_MODELS_MAX, which is a slot table shared
      *  across every plugin -- so unlike the mesh table it is not per plugin

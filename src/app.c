@@ -117,6 +117,7 @@ EM_JS(
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "plugin/task_plugin_io.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "plugin/torirs_plugin_mesh.h"
 #include "plugin/torirs_plugin_registry.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
@@ -22697,7 +22698,7 @@ app_plugin_asset_model_at(
     return &app->plugin_asset_models[handle];
 }
 
-static struct AppPluginMesh*
+static struct ToriRS_PluginMesh*
 app_plugin_mesh_at(
     struct App* app,
     int handle)
@@ -22708,114 +22709,6 @@ app_plugin_mesh_at(
     if( !app->plugin_meshes[handle].in_use )
         return NULL;
     return &app->plugin_meshes[handle];
-}
-
-/* Every array of a mesh's vertex half, or of its face half, grown together to
- * `want` entries. One doubling for the whole half rather than a realloc per
- * array per append: they are the same list seen eight ways and always carry
- * the same count. */
-static void
-app_plugin_mesh_grow(
-    struct AppPluginMesh* mesh,
-    int faces,
-    int want)
-{
-    int cap;
-
-    assert(mesh);
-    cap = faces ? mesh->face_cap : mesh->vertex_cap;
-    if( want <= cap )
-        return;
-    cap = cap ? cap * 2 : 64;
-    while( cap < want )
-        cap *= 2;
-
-    if( faces )
-    {
-        mesh->face_a = realloc(mesh->face_a, (size_t)cap * sizeof(*mesh->face_a));
-        mesh->face_b = realloc(mesh->face_b, (size_t)cap * sizeof(*mesh->face_b));
-        mesh->face_c = realloc(mesh->face_c, (size_t)cap * sizeof(*mesh->face_c));
-        mesh->face_color = realloc(mesh->face_color, (size_t)cap * sizeof(*mesh->face_color));
-        mesh->face_alpha = realloc(mesh->face_alpha, (size_t)cap * sizeof(*mesh->face_alpha));
-        assert(mesh->face_a);
-        assert(mesh->face_b);
-        assert(mesh->face_c);
-        assert(mesh->face_color);
-        assert(mesh->face_alpha);
-        mesh->face_cap = cap;
-        return;
-    }
-
-    mesh->vertices_x = realloc(mesh->vertices_x, (size_t)cap * sizeof(*mesh->vertices_x));
-    mesh->vertices_y = realloc(mesh->vertices_y, (size_t)cap * sizeof(*mesh->vertices_y));
-    mesh->vertices_z = realloc(mesh->vertices_z, (size_t)cap * sizeof(*mesh->vertices_z));
-    assert(mesh->vertices_x);
-    assert(mesh->vertices_y);
-    assert(mesh->vertices_z);
-    mesh->vertex_cap = cap;
-}
-
-static void
-app_plugin_mesh_release(struct AppPluginMesh* mesh)
-{
-    assert(mesh);
-    free(mesh->vertices_x);
-    free(mesh->vertices_y);
-    free(mesh->vertices_z);
-    free(mesh->face_a);
-    free(mesh->face_b);
-    free(mesh->face_c);
-    free(mesh->face_color);
-    free(mesh->face_alpha);
-    memset(mesh, 0, sizeof(*mesh));
-}
-
-/*
- * A drawable model over one mesh, unlit and in its bind pose.
- *
- * Everything a cache model gets from its decoder is stated by the plugin here
- * -- vertices, triangles, a flat colour and a transparency per face -- and the
- * per-vertex a/b/c the rasteriser actually reads are left zeroed for the
- * lighting pass that follows, exactly as ToriDraw_ModelFromToriRS leaves them
- * for a model whose cache copy carried none.
- */
-static struct ToriDraw_Model*
-app_plugin_mesh_build_model(struct AppPluginMesh const* mesh)
-{
-    struct ToriDraw_Model* model;
-
-    assert(mesh);
-    assert(mesh->vertex_count > 0);
-    assert(mesh->face_count > 0);
-
-    model = ToriDraw_ModelNew(mesh->vertex_count, mesh->face_count, 0);
-    assert(model);
-
-    model->vertices_x =
-        ToriDraw_BufCopy(mesh->vertices_x, (size_t)mesh->vertex_count, sizeof(*model->vertices_x));
-    model->vertices_y =
-        ToriDraw_BufCopy(mesh->vertices_y, (size_t)mesh->vertex_count, sizeof(*model->vertices_y));
-    model->vertices_z =
-        ToriDraw_BufCopy(mesh->vertices_z, (size_t)mesh->vertex_count, sizeof(*model->vertices_z));
-    model->face_indices_a =
-        ToriDraw_BufCopy(mesh->face_a, (size_t)mesh->face_count, sizeof(*model->face_indices_a));
-    model->face_indices_b =
-        ToriDraw_BufCopy(mesh->face_b, (size_t)mesh->face_count, sizeof(*model->face_indices_b));
-    model->face_indices_c =
-        ToriDraw_BufCopy(mesh->face_c, (size_t)mesh->face_count, sizeof(*model->face_indices_c));
-    model->face_colors =
-        ToriDraw_BufCopy(mesh->face_color, (size_t)mesh->face_count, sizeof(*model->face_colors));
-    model->face_alphas =
-        ToriDraw_BufCopy(mesh->face_alpha, (size_t)mesh->face_count, sizeof(*model->face_alphas));
-
-    model->face_colors_a = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_a));
-    model->face_colors_b = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_b));
-    model->face_colors_c = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_c));
-    assert(model->face_colors_a);
-    assert(model->face_colors_b);
-    assert(model->face_colors_c);
-
-    return model;
 }
 
 /* ----------------------------------------------- plugin-owned world objects */
@@ -22880,7 +22773,7 @@ app_plugin_object_geometry_revision(
 
     if( obj->source == TORIRS_HOST_MODEL_MESH )
     {
-        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        struct ToriRS_PluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
         return mesh ? mesh->revision : 0;
     }
     if( obj->source == TORIRS_HOST_MODEL_ASSET )
@@ -22986,14 +22879,14 @@ app_plugin_object_build_model(
     }
     else if( obj->source == TORIRS_HOST_MODEL_MESH )
     {
-        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        struct ToriRS_PluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
         /* An empty mesh is not a bug: a plugin that has taken a handle and not
          * yet authored into it is mid-build, and the object has nothing to
          * draw until it has. A handle that names no mesh at all is the same
          * answer from the object's side -- it was destroyed under it. */
         if( !mesh || mesh->face_count <= 0 )
             return NULL;
-        model = app_plugin_mesh_build_model(mesh);
+        model = ToriRS_PluginMeshBuildModel(mesh);
     }
     else
     {
@@ -25356,7 +25249,7 @@ app_plugin_mesh_create(void* user)
 
     for( int i = 0; i < APP_PLUGIN_MESHES_MAX; i++ )
     {
-        struct AppPluginMesh* mesh = &app->plugin_meshes[i];
+        struct ToriRS_PluginMesh* mesh = &app->plugin_meshes[i];
         if( mesh->in_use )
             continue;
         memset(mesh, 0, sizeof(*mesh));
@@ -25377,13 +25270,13 @@ app_plugin_mesh_destroy(
     int handle)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginMesh* mesh;
+    struct ToriRS_PluginMesh* mesh;
 
     assert(app);
     mesh = app_plugin_mesh_at(app, handle);
     if( !mesh )
         return;
-    app_plugin_mesh_release(mesh);
+    ToriRS_PluginMeshRelease(mesh);
     /* Objects built from it are still standing; the settle takes them down. */
     app->plugin_geometry_dirty = 1;
     app->need_redraw = 1;
@@ -25398,7 +25291,7 @@ app_plugin_mesh_vertex(
     int z)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginMesh* mesh;
+    struct ToriRS_PluginMesh* mesh;
     int index;
 
     assert(app);
@@ -25421,7 +25314,7 @@ app_plugin_mesh_vertex(
     assert(z >= INT16_MIN && z <= INT16_MAX);
 
     index = mesh->vertex_count;
-    app_plugin_mesh_grow(mesh, /*faces=*/0, index + 1);
+    ToriRS_PluginMeshGrow(mesh, /*faces=*/0, index + 1);
     mesh->vertices_x[index] = (int16_t)x;
     mesh->vertices_y[index] = (int16_t)y;
     mesh->vertices_z[index] = (int16_t)z;
@@ -25442,7 +25335,7 @@ app_plugin_mesh_face(
     int alpha)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginMesh* mesh;
+    struct ToriRS_PluginMesh* mesh;
     int index;
 
     assert(app);
@@ -25467,7 +25360,7 @@ app_plugin_mesh_face(
     assert(alpha >= 0 && alpha <= TORIRS_PLUGIN_MESH_ALPHA_MAX);
 
     index = mesh->face_count;
-    app_plugin_mesh_grow(mesh, /*faces=*/1, index + 1);
+    ToriRS_PluginMeshGrow(mesh, /*faces=*/1, index + 1);
     mesh->face_a[index] = (int16_t)a;
     mesh->face_b[index] = (int16_t)b;
     mesh->face_c[index] = (int16_t)c;

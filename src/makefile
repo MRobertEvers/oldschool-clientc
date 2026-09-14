@@ -593,6 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	plugin/torirs_plugin_mesh.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/torirs_damage_region.c \
 	render/torirs_wedge_camera_path.c \
@@ -1612,6 +1613,16 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+# A plugin-authored mesh: the two halves grow independently and keep what was
+# written across every reallocation, and the model built from one is a COPY --
+# re-authoring the mesh must not reach into a model already standing on it.
+.PHONY: test-plugin-mesh
+test-plugin-mesh: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/plugin_mesh_test \
+		plugin/test/plugin_mesh_test.c plugin/torirs_plugin_mesh.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/plugin_mesh_test
 
 # The retained tree's compare-before-bump signatures. The retain mechanism
 # rests on "a value changed => the word changed", and a signature that misses a
