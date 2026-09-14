@@ -1255,11 +1255,11 @@ app_inv_drag_drop(
     int32_t src_node = -1;
     int32_t dst_node = -1;
 
-    if( app->inv_drag_source_id >= 0 )
+    if( app->inv_drag.source_id >= 0 )
     {
         struct InvSlot inv_slot;
         if( InvManager_GetSlot(
-                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, &inv_slot) &&
+                &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &inv_slot) &&
             inv_slot.obj_id > 0 )
             src_obj = inv_slot.obj_id;
     }
@@ -1267,7 +1267,7 @@ app_inv_drag_drop(
     {
         int obj = 0;
         if( UITree_ObjCellDynamicAtSlot(
-                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, &src_node, &obj, NULL) &&
+                app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &src_node, &obj, NULL) &&
             obj > 0 )
             src_obj = obj;
     }
@@ -1276,7 +1276,7 @@ app_inv_drag_drop(
         return;
 
     /* Same cell: not a drop. Cross-container with the same slot index is fine. */
-    if( dst_com == app->inv_drag_com_id && to_slot == app->inv_drag_from_slot )
+    if( dst_com == app->inv_drag.component_id && to_slot == app->inv_drag.from_slot )
         return;
 
     if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
@@ -1284,19 +1284,19 @@ app_inv_drag_drop(
         /* 2004 Client.ts: apply locally so the drag feels instant; the
          * server's UPDATE_INV echo repaints either way. Same-container only —
          * cross-container waits on the server. */
-        if( dst_com == app->inv_drag_com_id )
+        if( dst_com == app->inv_drag.component_id )
         {
-            if( app->inv_drag_source_id >= 0 )
+            if( app->inv_drag.source_id >= 0 )
             {
                 InvManager_SwapSlots(
-                    &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+                    &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, to_slot);
                 RS_CS2Host_NotifyInvChanged(
-                    &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
+                    &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag.source_id));
             }
             else
             {
                 UITree_ObjCellDynamicSwap(
-                    app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+                    app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, to_slot);
             }
         }
         APP_NET_SEND(
@@ -1306,9 +1306,9 @@ app_inv_drag_drop(
                 app->net->random_out,
                 _nsbuf,
                 sizeof(_nsbuf),
-                app->inv_drag_com_id,
+                app->inv_drag.component_id,
                 src_obj,
-                app->inv_drag_from_slot,
+                app->inv_drag.from_slot,
                 dst_com,
                 dst_obj,
                 to_slot,
@@ -1321,7 +1321,7 @@ app_inv_drag_drop(
      * an unrelated yielding clientscript cannot delay the optimistic redraw
      * until after the server's UPDATE_INV echo. */
     {
-        int hook_com = app->inv_drag_com_id;
+        int hook_com = app->inv_drag.component_id;
         struct UITreeRuntimeScriptHook const* hook = NULL;
         int32_t hook_idx = src_node;
         int bx = 0, by = 0, bw = 0, bh = 0;
@@ -1329,7 +1329,7 @@ app_inv_drag_drop(
         int32_t parent_idx;
 
         if( hook_idx < 0 )
-            hook_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+            hook_idx = UITree_FindByComponentId(app->tree, app->inv_drag.component_id);
         if( hook_idx >= 0 )
         {
             hook = &UITree_Hooks(&app->tree->components[hook_idx])->on_drag_complete;
@@ -1338,16 +1338,16 @@ app_inv_drag_drop(
             {
                 /* Fall back to the container: some paint scripts put the hook
                  * on the parent layer rather than every CC_CREATE child. */
-                parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+                parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag.component_id);
                 if( parent_idx >= 0 )
                 {
                     hook = &UITree_Hooks(&app->tree->components[parent_idx])->on_drag_complete;
-                    hook_com = app->inv_drag_com_id;
+                    hook_com = app->inv_drag.component_id;
                 }
             }
         }
 
-        parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+        parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag.component_id);
         if( parent_idx >= 0 )
         {
             UITree_LayoutGetBounds(&app->tree->components[parent_idx].position, &bx, &by, &bw, &bh);
@@ -1385,9 +1385,9 @@ app_inv_drag_drop(
             app->net->random_out,
             _nsbuf,
             sizeof(_nsbuf),
-            app->inv_drag_com_id,
+            app->inv_drag.component_id,
             src_obj,
-            app->inv_drag_from_slot,
+            app->inv_drag.from_slot,
             dst_com,
             dst_obj,
             to_slot,
@@ -1400,8 +1400,7 @@ app_inv_drag_drop(
 static int
 app_inv_drag_promoted(struct App const* app)
 {
-    int dead_time = app->inv_drag_dead_time > 0 ? app->inv_drag_dead_time : 5;
-    return app->inv_drag_can_drag && app->inv_drag_threshold && app->inv_drag_cycles >= dead_time;
+    return UIInvDrag_Promoted(&app->inv_drag) ? 1 : 0;
 }
 
 /* The drag latch stores the server-facing parent component id.  Re-resolve it
@@ -1413,31 +1412,31 @@ app_inv_drag_source_live(struct App const* app)
     struct UITreeComponent const* armed;
     int32_t parent;
 
-    if( app->inv_drag_com_id < 0 || !app->tree || app->inv_drag_node_index < 0 ||
-        (uint32_t)app->inv_drag_node_index >= app->tree->component_count )
+    if( app->inv_drag.component_id < 0 || !app->tree || app->inv_drag.node_index < 0 ||
+        (uint32_t)app->inv_drag.node_index >= app->tree->component_count )
         return 0;
-    armed = &app->tree->components[app->inv_drag_node_index];
-    if( armed->freed || app->inv_drag_node_incarnation == 0 ||
-        armed->incarnation != app->inv_drag_node_incarnation ||
-        UITree_NodeOrAncestorDisplayHidden(app->tree, app->inv_drag_node_index) )
+    armed = &app->tree->components[app->inv_drag.node_index];
+    if( armed->freed || app->inv_drag.node_incarnation == 0 ||
+        armed->incarnation != app->inv_drag.node_incarnation ||
+        UITree_NodeOrAncestorDisplayHidden(app->tree, app->inv_drag.node_index) )
         return 0;
-    parent = app_displayable_component_node(app, app->inv_drag_com_id);
+    parent = app_displayable_component_node(app, app->inv_drag.component_id);
     if( parent < 0 )
         return 0;
-    if( app->inv_drag_source_id >= 0 )
+    if( app->inv_drag.source_id >= 0 )
     {
         struct InvSlot slot;
-        return app->inv_drag_obj_id > 0 &&
+        return app->inv_drag.obj_id > 0 &&
                InvManager_GetSlot(
-                   &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, &slot) &&
-               slot.obj_id == app->inv_drag_obj_id;
+                   &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &slot) &&
+               slot.obj_id == app->inv_drag.obj_id;
     }
     {
         int32_t node = -1;
         int obj = 0;
         if( !UITree_ObjCellDynamicAtSlot(
-                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, &node, &obj, NULL) ||
-            obj <= 0 || obj != app->inv_drag_obj_id ||
+                app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &node, &obj, NULL) ||
+            obj <= 0 || obj != app->inv_drag.obj_id ||
             UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
             return 0;
     }
@@ -1447,16 +1446,9 @@ app_inv_drag_source_live(struct App const* app)
 static void
 app_inv_drag_cancel(struct App* app)
 {
-    app->inv_drag_com_id = -1;
-    app->inv_drag_node_index = -1;
-    app->inv_drag_node_incarnation = 0;
-    app->inv_drag_can_drag = 0;
-    app->inv_drag_source_id = -1;
-    app->inv_drag_obj_id = -1;
-    app->inv_drag_cycles = 0;
-    app->inv_drag_threshold = 0;
-    app->inv_drag_dx = 0;
-    app->inv_drag_dy = 0;
+    UIInvDrag_Reset(&app->inv_drag);
+    /* Releasing the gesture also releases the tree's suppression of the
+     * generic node drag, which is the tree's state and not the gesture's. */
     if( app->tree )
         app->tree->anti_drag = 0;
     app->need_redraw = 1;
@@ -1481,11 +1473,10 @@ app_inv_drag_cancel(struct App* app)
 static int
 app_inv_drag_ghosting(struct App const* app)
 {
-    if( app->inv_drag_com_id < 0 )
-        return 0;
-    if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
-        return 1;
-    return app->inv_drag_can_drag;
+    enum UIInvDragLane const lane = App_UiLogic(app) == APP_UI_LOGIC_CS1
+                                        ? UI_INV_DRAG_LANE_UNIFORM
+                                        : UI_INV_DRAG_LANE_PER_CELL;
+    return UIInvDrag_Ghosting(&app->inv_drag, lane) ? 1 : 0;
 }
 
 /* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
@@ -1517,8 +1508,8 @@ app_inv_drag_tick(
 
     /* Never arm while the right-click popup is open: its option rows overlap
      * the grid and the reference routes those clicks through the menu first. */
-    if( app->inv_drag_com_id < 0 && !pointer_consumed && !app->interact.minimenu.visible &&
-        LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+    if( !UIInvDrag_Armed(&app->inv_drag) && !pointer_consumed &&
+        !app->interact.minimenu.visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
         if( app_obj_cell_at(app, mx, my, &cell) )
@@ -1527,28 +1518,24 @@ app_inv_drag_tick(
                 (cell.node_index >= 0 && (uint32_t)cell.node_index < app->tree->component_count)
                     ? &app->tree->components[cell.node_index]
                     : NULL;
-            app->inv_drag_com_id = cell.component_id;
-            app->inv_drag_node_index = cell.node_index;
-            app->inv_drag_node_incarnation = node ? node->incarnation : 0;
-            app->inv_drag_can_drag = cell.can_drag;
-            app->inv_drag_from_slot = cell.slot;
-            app->inv_drag_source_id = cell.inv_source_id;
-            app->inv_drag_obj_id = cell.obj_id;
-            app->inv_drag_cycles = 0;
-            app->inv_drag_grab_x = mx;
-            app->inv_drag_grab_y = my;
-            app->inv_drag_threshold = 0;
-            app->inv_drag_dead_zone = (node && node->drag_dead_zone) ? node->drag_dead_zone : 5;
-            app->inv_drag_dead_time = (node && node->drag_dead_time) ? node->drag_dead_time : 5;
-            app->inv_drag_dx = 0;
-            app->inv_drag_dy = 0;
+            struct UIInvDragPress press;
+            press.component_id = cell.component_id;
+            press.node_index = cell.node_index;
+            press.node_incarnation = node ? node->incarnation : 0;
+            press.can_drag = cell.can_drag != 0;
+            press.slot = cell.slot;
+            press.inv_source_id = cell.inv_source_id;
+            press.obj_id = cell.obj_id;
+            press.dead_zone = node ? node->drag_dead_zone : 0;
+            press.dead_time = node ? node->drag_dead_time : 0;
+            UIInvDrag_Arm(&app->inv_drag, &press, mx, my);
             /* Both logics fade the armed cell on the down edge, so the frame
              * that arms is a frame that changed. */
             app->need_redraw = 1;
         }
     }
 
-    if( app->inv_drag_com_id < 0 )
+    if( !UIInvDrag_Armed(&app->inv_drag) )
     {
         if( app->tree )
             app->tree->anti_drag = 0;
@@ -1568,40 +1555,8 @@ app_inv_drag_tick(
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] &&
         LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
     {
-        int dx = mx - app->inv_drag_grab_x;
-        int dy = my - app->inv_drag_grab_y;
-        int zone = app->inv_drag_dead_zone > 0 ? app->inv_drag_dead_zone : 5;
-        int dead_time = app->inv_drag_dead_time > 0 ? app->inv_drag_dead_time : 5;
-        int was_promoted;
-
-        /* Non-draggable (IF_SETEVENTS drag-depth 0): the press still counts as
-         * a click on release, but it never promotes to a drag. */
-        if( !app->inv_drag_can_drag )
-            return;
-
-        was_promoted = app_inv_drag_promoted(app);
-        app->inv_drag_cycles++;
-        if( dx > zone || dx < -zone || dy > zone || dy < -zone )
-            app->inv_drag_threshold = 1;
-
-        /* Visual offset: reference zeroes each axis inside the dead zone and
-         * both until the dead-time cycles pass. */
-        if( dx < zone && dx > -zone )
-            dx = 0;
-        if( dy < zone && dy > -zone )
-            dy = 0;
-        if( app->inv_drag_cycles < dead_time )
-        {
-            dx = 0;
-            dy = 0;
-        }
-        if( dx != app->inv_drag_dx || dy != app->inv_drag_dy ||
-            (!was_promoted && app_inv_drag_promoted(app)) )
-        {
-            app->inv_drag_dx = dx;
-            app->inv_drag_dy = dy;
+        if( UIInvDrag_Hold(&app->inv_drag, mx, my) )
             app->need_redraw = 1;
-        }
         return;
     }
 

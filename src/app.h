@@ -20,6 +20,7 @@
 #include "game/rs_clientscript_queue.h"
 #include "perf/frame_time_ring.h"
 #include "net/net_link_watch.h"
+#include "ui/inv_drag.h"
 #include "ui/settings_pickers.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
@@ -2280,31 +2281,13 @@ struct App
     /** Inventory slot press/drag (reference objDrag* state machine): a left
      * press on a filled slot ARMS this — the generic node drag is suppressed
      * while armed, the armed slot renders trans-128 at the mouse delta, and
-     * release routes to swap + INV_BUTTOND (real drag: moved >5px AND held
-     * >= 5 cycles) or to the default menu row (short click).
-     * drag_com_id -1 = not armed. CS1 release: optimistic swap + classic
-     * INV_BUTTOND. CS2 release: onDragComplete + dual-endpoint IfButtonD,
-     * no local item mutation (rev-230 deob). */
-    int inv_drag_com_id;
-    /** Exact cell/grid occupant armed on mouse-down. Prevents a held gesture
-     * transferring to a same-id node rebuilt into the recycled slot. */
-    int32_t inv_drag_node_index;
-    uint64_t inv_drag_node_incarnation;
-    int inv_drag_can_drag; /* armed cell's IF_SETEVENTS drag-depth != 0 */
-    int inv_drag_from_slot;
-    int inv_drag_source_id; /* inv container source id */
-    /** Exact item occupying the armed slot on mouse-down. A container update
-     * can replace A with B without rebuilding the grid/cell node, so node
-     * incarnation alone is not an item-gesture lifetime fence. */
-    int inv_drag_obj_id;
-    int inv_drag_cycles;
-    int inv_drag_grab_x; /* mouse at arm time (reference objGrabX/Y) */
-    int inv_drag_grab_y;
-    int inv_drag_threshold; /* moved past dead zone since arm (objGrabThreshold) */
-    int inv_drag_dead_zone; /* px; from widget, else 5 */
-    int inv_drag_dead_time; /* cycles; from widget, else 5 */
-    int inv_drag_dx;        /* emit offset for the armed slot (deadzoned) */
-    int inv_drag_dy;
+     * release routes to swap + INV_BUTTOND (real drag: past the dead zone AND
+     * held past the dead time) or to the default menu row (short click).
+     * CS1 release: optimistic swap + classic INV_BUTTOND. CS2 release:
+     * onDragComplete + dual-endpoint IfButtonD, no local item mutation
+     * (rev-230 deob). The gates themselves are ui/inv_drag.h; what stays here
+     * is the tree/container reach the module deliberately does not have. */
+    struct UIInvDrag inv_drag;
 
     /** Re-entrancy guard for optimistic modal close (rev-230 field267): while
      *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */

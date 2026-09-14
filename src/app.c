@@ -4411,15 +4411,15 @@ app_host_request(
         if( !app_inv_drag_ghosting(app) )
             return 0;
         if( req->u.get_inv_drag.out_source_id )
-            *req->u.get_inv_drag.out_source_id = app->inv_drag_source_id;
+            *req->u.get_inv_drag.out_source_id = app->inv_drag.source_id;
         if( req->u.get_inv_drag.out_slot )
-            *req->u.get_inv_drag.out_slot = app->inv_drag_from_slot;
+            *req->u.get_inv_drag.out_slot = app->inv_drag.from_slot;
         if( req->u.get_inv_drag.out_dx )
-            *req->u.get_inv_drag.out_dx = app->inv_drag_dx;
+            *req->u.get_inv_drag.out_dx = app->inv_drag.dx;
         if( req->u.get_inv_drag.out_dy )
-            *req->u.get_inv_drag.out_dy = app->inv_drag_dy;
+            *req->u.get_inv_drag.out_dy = app->inv_drag.dy;
         if( req->u.get_inv_drag.out_component_id )
-            *req->u.get_inv_drag.out_component_id = app->inv_drag_com_id;
+            *req->u.get_inv_drag.out_component_id = app->inv_drag.component_id;
         return 1;
     case UITREE_HOST_GET_INV_COUNT_FONT:
         /* Reference draws stack counts with the client's p11 — same font (and
@@ -4614,15 +4614,15 @@ app_ui_host_publish_inputs(struct App* app)
     if( ghosting )
     {
         signature[UITREE_HOST_INPUT_POINTER] =
-            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_com_id);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag.component_id);
         signature[UITREE_HOST_INPUT_POINTER] =
-            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_source_id);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag.source_id);
         signature[UITREE_HOST_INPUT_POINTER] =
-            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_from_slot);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag.from_slot);
         signature[UITREE_HOST_INPUT_POINTER] =
-            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dx);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag.dx);
         signature[UITREE_HOST_INPUT_POINTER] =
-            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dy);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag.dy);
     }
 
     /* CLIENT_STATE: selected/available tabs, chat presentation and the server
@@ -4645,10 +4645,15 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_INVENTORY], &app->invs.selection, sizeof(app->invs.selection));
     signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
-    signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
-        signature[UITREE_HOST_INPUT_INVENTORY],
-        &app->inv_drag_com_id,
-        sizeof(app->inv_drag_com_id) * 4);
+    {
+        /* WHICH item the gesture owns, never how far it has been carried: the
+         * offset already reaches emit through the POINTER lane, and hashing it
+         * here would re-walk the whole inventory on every frame of a drag. */
+        int drag_key[4];
+        UIInvDrag_AddressingKey(&app->inv_drag, drag_key);
+        signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
+            signature[UITREE_HOST_INPUT_INVENTORY], drag_key, sizeof(drag_key));
+    }
 
     /* ASSETS: owner-side mutation revisions catch arrivals before a skipped
      * host request gets another chance to publish them, plus same-id registry

@@ -598,6 +598,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_events.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
+	ui/inv_drag.c \
 	ui/settings_pickers.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
@@ -1654,6 +1655,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-settings-pickers
+	$(MAKE) test-inv-drag
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1769,6 +1771,19 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# When a press on an inventory slot becomes a drag. Two gates -- leave a dead
+# ZONE, and stay down for a dead TIME -- and dropping either one misreads whole
+# classes of gesture with nothing on screen to say so: without the zone a shaky
+# trackpad swaps the items of anyone trying to eat one, and without the time a
+# fast flick rearranges a bank mid-withdrawal. The ghost is deliberately not the
+# promotion; tying it to one is what "items don't dim when the button is down"
+# was.
+.PHONY: test-inv-drag
+test-inv-drag: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/inv_drag_test.c ui/inv_drag.c $(LDFLAGS)
+	./$(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX)
 
 # Where a settings popup goes beside the row that opened it. Obviously right
 # until a row is near an edge, and then the popup is half off screen or sitting

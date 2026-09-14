@@ -1062,7 +1062,7 @@ App_RunOnce(
      * control has no component id, and keying on the id alone dropped its click
      * on the floor -- neither a UI click here nor a world click below, because
      * the interactive hit had already closed the world gate. */
-    if( !chrome_took_click && !input_took_click && app->inv_drag_com_id < 0 &&
+    if( !chrome_took_click && !input_took_click && app->inv_drag.component_id < 0 &&
         !pressed_filled_obj && (out.clicked_com_id >= 0 || out.clicked_node >= 0) &&
         !out.minimenu_closed && out.minimenu_select < 0 )
     {
@@ -1187,7 +1187,7 @@ App_RunOnce(
                 : -1,
             app_world_drawable(app),
             app->world_pickset.count);
-    if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
+    if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 &&
         app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
         app_world_drawable(app) )
@@ -1264,7 +1264,7 @@ App_RunOnce(
      * click off anything that can be a "use" target drops the armed selection
      * and its white outline. (A world miss with a default row is consumed above
      * and already cleared; a filled slot is owned by the drag machine.) */
-    if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
+    if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 && (app->objsel.active || app->targetsel.active) &&
         !(app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
           app_world_drawable(app)) )
@@ -1294,7 +1294,7 @@ App_RunOnce(
      * index 1, which on an inventory slot is the SHIFT-CLICK handler, and that
      * drops: a tap on a rune platebody sent the wear, was refused by the
      * server, and dropped the platebody in the same tick. */
-    if( app->inv_drag_com_id >= 0 || pressed_filled_obj )
+    if( app->inv_drag.component_id >= 0 || pressed_filled_obj )
     {
         int kept = 0;
         for( int i = 0; i < out.intent_count; i++ )

@@ -473,9 +473,7 @@ App_Init(
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
-    app->inv_drag_com_id = -1;
-    app->inv_drag_node_index = -1;
-    app->inv_drag_obj_id = -1;
+    UIInvDrag_Reset(&app->inv_drag);
     app->reboot_timer = 0;
     app->multiway = 0;
     app->minimap_state = 0;
