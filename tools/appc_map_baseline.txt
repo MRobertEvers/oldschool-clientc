@@ -11,6 +11,16 @@
 # kept a pointer back in, and is a candidate for the parameter treatment.
 #
 # Recorded 2026-09-14 at v3 82f3e3e24, before the first Tier 0 extraction.
+#
+# And a second shrink-only number: how many top-level fields `struct App` is
+# allowed to have. The list above cannot see the shape an extraction leaves
+# behind -- a module that forward-declares `struct App` and keeps a pointer
+# includes no header and names no type in a way that grep finds, while the
+# state it should have taken sits in app.h exactly where it was. This number
+# sees that. `check` fails when the struct grows past it AND when it has shrunk
+# below it, so a field cannot creep back in on the space a subsystem freed.
+
+struct-App-fields: 443
 
 src/main.c
 src/executor_config.c

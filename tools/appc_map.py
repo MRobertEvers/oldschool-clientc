@@ -20,6 +20,14 @@ Two things it does:
             field is already free to leave; a slice whose fields are its own
             prefixed family and nobody else's is one struct away from leaving.
 
+  fields    Parse `struct App` and report, per FIELD FAMILY, how many fields
+            and declaration lines it is and which units read it. A family only
+            one unit and the constructor touch is a subsystem that happens to
+            be declared inside App; one that half the file reads is App's own.
+            This is the second pass's measurement: `slices` groups functions,
+            `fields` groups state, and what is left in app.c after the rules
+            have gone is state.
+
   check     Fail if a translation unit that is NOT app.c reaches into App.
             A `.u.c` unity fragment is exempt: it is textually part of the
             translation unit that includes it, which is exactly what those are
@@ -32,10 +40,17 @@ Two things it does:
             and it ALSO fails on a list entry that has since become clean, so
             the baseline can only ever shrink.
 
+            The same file records a ceiling on how many top-level fields
+            `struct App` may have, and `check` fails when the struct grows past
+            it. The reach-in list cannot see a module that forward-declares
+            `struct App` and keeps a pointer; the field count can see the state
+            that module would have taken with it.
+
 Usage:
     python3 tools/appc_map.py summary [--source src/app.c] [--json]
     python3 tools/appc_map.py check   [--root src] [--baseline FILE]
     python3 tools/appc_map.py slices  [--source src/app.c] [--top N]
+    python3 tools/appc_map.py fields  [--header src/app.h] [--family NAME]
 
 `check` is the gate; it exits 1 on a violation. `summary` always exits 0 --
 it reports, it does not judge.
@@ -245,21 +260,311 @@ def command_slices(args):
     return 0
 
 
+# ---------------------------------------------------------------------------
+# struct App, as state
+# ---------------------------------------------------------------------------
+
+# The handles every slice legitimately reaches for. A module lifted out takes
+# these as parameters, so they are not evidence that a field family is App's.
+# Wider than SHARED_HANDLES above on purpose: that set is about what a FUNCTION
+# borrows, this one about what a SUBSYSTEM borrows, and a subsystem is entitled
+# to the registries as well as to the bare pointers.
+SHARED_STATE = SHARED_HANDLES | {
+    "active_world",
+    "app_state",
+    "audio",
+    "cfg",
+    "esync",
+    "features",
+    "host",
+    "interact",
+    "invs",
+    "painter_buffer",
+    "plugins",
+    "provider",
+    "screen",
+    "slots",
+    "ui_host",
+    "varps",
+    "wevs",
+    "worldviews",
+}
+
+# Construction touches everything by definition, so a field it shares with one
+# other unit is still that unit's own.
+CONSTRUCTION_UNITS = {"app_construct.u.c", "app_boot.u.c"}
+
+FIELD_DECL_RE = re.compile(
+    r"^\s{4}(?:struct |enum |union |const |unsigned |signed |volatile )*"
+    r"[A-Za-z_][A-Za-z_0-9 \*]*?[\s\*]([A-Za-z_][A-Za-z_0-9]*)(?:\[[^\]]*\])*\s*;"
+)
+FIELD_USE_RE = re.compile(r"\bapp(?:->|\.)([A-Za-z_][A-Za-z_0-9]*)")
+
+# Families whose first word is too generic to name a subsystem on its own.
+TWO_WORD_FAMILIES = {"world", "plugin", "if", "cs2", "cs1", "ui", "inv"}
+
+
+def parse_app_fields(header):
+    """Top-level fields of `struct App`, with the lines each declaration costs.
+
+    The comment above a field counts toward it: that is what actually leaves
+    app.h when the field does, and on this struct the comments are most of it.
+    A nested struct or union counts as one field of however many lines it
+    spans, because that is how it moves.
+    """
+    with open(header, encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().split("\n")
+
+    start = next((i for i, line in enumerate(lines) if line == "struct App"), None)
+    if start is None:
+        return [], 0
+    end = next(i for i in range(start, len(lines)) if lines[i] == "};")
+    body = lines[start + 2 : end]
+
+    fields = []
+    comment_lines = 0
+    in_comment = False
+    index = 0
+    while index < len(body):
+        line = body[index]
+        stripped = line.strip()
+        if in_comment:
+            comment_lines += 1
+            if "*/" in stripped:
+                in_comment = False
+            index += 1
+            continue
+        if stripped.startswith("/*"):
+            comment_lines = 1
+            if "*/" not in stripped:
+                in_comment = True
+            index += 1
+            continue
+        if not stripped:
+            comment_lines = 0
+            index += 1
+            continue
+        if (stripped.startswith("struct") or stripped.startswith("union")) and stripped.endswith("{"):
+            scan = index
+            depth = 0
+            while True:
+                depth += body[scan].count("{") - body[scan].count("}")
+                if depth == 0 and "}" in body[scan]:
+                    break
+                scan += 1
+            named = re.search(r"}\s*([A-Za-z_][A-Za-z_0-9]*)", body[scan])
+            fields.append(
+                {
+                    "name": named.group(1) if named else "(anonymous)",
+                    "lines": scan - index + 1 + comment_lines,
+                    "declared_at": start + 3 + index,
+                }
+            )
+            comment_lines = 0
+            index = scan + 1
+            continue
+        match = FIELD_DECL_RE.match(line)
+        if match:
+            fields.append(
+                {
+                    "name": match.group(1),
+                    "lines": 1 + comment_lines,
+                    "declared_at": start + 3 + index,
+                }
+            )
+        comment_lines = 0
+        index += 1
+    return fields, end - start
+
+
+def field_family(name):
+    """The subsystem a field name claims to belong to.
+
+    Same crude prefix rule as slice_key, and for the same reason: a family in
+    this struct is spelled in the prefix of every field that belongs to it.
+    """
+    parts = name.split("_")
+    if len(parts) >= 2 and parts[0] in TWO_WORD_FAMILIES:
+        return parts[0] + "_" + parts[1]
+    return parts[0]
+
+
+def translation_units(root):
+    """Every unit of app.c's translation unit, plus the external unity files.
+
+    The plugin bridge and panel are included BY app.c, so their reaches are
+    app.c's reaches; they are listed separately because they are where the
+    largest single block of App is actually read.
+    """
+    units = [os.path.join(root, "app.c")]
+    units += sorted(
+        os.path.join(root, name)
+        for name in os.listdir(root)
+        if name.startswith("app_") and name.endswith(".u.c")
+    )
+    for extra in ("plugin/torirs_plugin_bridge.u.c", "plugin/torirs_plugin_panel.u.c"):
+        path = os.path.join(root, extra)
+        if os.path.exists(path):
+            units.append(path)
+    return [unit for unit in units if os.path.exists(unit)]
+
+
+def field_report(root, header):
+    """Who reads what: fields by family, and each unit's own/shared/foreign."""
+    fields, declaration_lines = parse_app_fields(header)
+    declared = {field["name"] for field in fields}
+
+    readers = {}       # field -> {unit -> {function}}
+    unit_fields = {}   # unit -> {field}
+    for unit in translation_units(root):
+        functions, _ = parse_functions(unit)
+        base = os.path.basename(unit)
+        touched = set()
+        for function in functions:
+            for name in set(FIELD_USE_RE.findall(function["body"])):
+                touched.add(name)
+                readers.setdefault(name, {}).setdefault(base, set()).add(function["name"])
+        unit_fields[base] = touched
+
+    def owning_units(name):
+        """Units that read `name`, construction excluded -- it reads everything."""
+        return {u for u in readers.get(name, {}) if u not in CONSTRUCTION_UNITS}
+
+    families = {}
+    for field in fields:
+        family = field_family(field["name"])
+        entry = families.setdefault(
+            family, {"family": family, "fields": [], "lines": 0, "units": set()}
+        )
+        entry["fields"].append(field["name"])
+        entry["lines"] += field["lines"]
+        entry["units"] |= owning_units(field["name"])
+
+    rows = []
+    for entry in families.values():
+        units = entry["units"]
+        shared = all(name in SHARED_STATE for name in entry["fields"])
+        rows.append(
+            {
+                "family": entry["family"],
+                "fields": len(entry["fields"]),
+                "lines": entry["lines"],
+                "units": sorted(units),
+                "sole_owner": sorted(units)[0] if len(units) == 1 else None,
+                "shared": shared,
+                "names": sorted(entry["fields"]),
+            }
+        )
+    rows.sort(key=lambda row: -row["lines"])
+
+    units_report = []
+    for unit, touched in unit_fields.items():
+        own = sorted(
+            n for n in touched
+            if n in declared and n not in SHARED_STATE and owning_units(n) <= {unit}
+        )
+        shared = sorted(n for n in touched if n in SHARED_STATE)
+        foreign = sorted(
+            n for n in touched
+            if n in declared and n not in SHARED_STATE and not owning_units(n) <= {unit}
+        )
+        units_report.append({"unit": unit, "own": own, "shared": shared, "foreign": foreign})
+    units_report.sort(key=lambda row: -len(row["own"]))
+
+    return {
+        "header": header,
+        "field_count": len(fields),
+        "declaration_lines": declaration_lines,
+        "families": rows,
+        "units": units_report,
+        "readers": readers,
+    }
+
+
+def command_fields(args):
+    report = field_report(args.root, args.header)
+    if args.json:
+        printable = dict(report)
+        printable["readers"] = {
+            name: {unit: sorted(functions) for unit, functions in units.items()}
+            for name, units in report["readers"].items()
+        }
+        print(json.dumps(printable, indent=1))
+        return 0
+
+    if args.family:
+        for row in report["families"]:
+            if row["family"] != args.family:
+                continue
+            print(f"{row['family']}: {row['fields']} fields, {row['lines']} declaration lines")
+            for name in row["names"]:
+                where = report["readers"].get(name, {})
+                summary = ", ".join(
+                    f"{unit.replace('.u.c', '').replace('app_', '')}:{len(functions)}"
+                    for unit, functions in sorted(where.items(), key=lambda kv: -len(kv[1]))
+                )
+                print(f"  {name:<40s}{summary}")
+            return 0
+        print(f"no field family named {args.family!r}", file=sys.stderr)
+        return 1
+
+    if args.units:
+        for row in report["units"]:
+            unit = row["unit"].replace(".u.c", "").replace("app_", "")
+            print(
+                f"{unit:<22s}own {len(row['own']):>3d}  shared {len(row['shared']):>3d}"
+                f"  foreign {len(row['foreign']):>3d}"
+            )
+            if row["own"]:
+                print(f"    own:     {' '.join(row['own'])}")
+            if row["foreign"]:
+                print(f"    foreign: {' '.join(row['foreign'])}")
+        return 0
+
+    print(
+        f"{report['header']}: struct App has {report['field_count']} top-level fields "
+        f"in {report['declaration_lines']} lines"
+    )
+    print(f"{'family':<22s}{'fields':>7s}{'decl':>6s}  read from")
+    for row in report["families"][: args.top]:
+        if row["shared"]:
+            where = "(shared handle)"
+        elif row["sole_owner"]:
+            where = row["sole_owner"].replace(".u.c", "").replace("app_", "") + "  <- subsystem"
+        else:
+            where = ", ".join(
+                unit.replace(".u.c", "").replace("app_", "") for unit in row["units"]
+            ) or "(unread)"
+        print(f"{row['family']:<22s}{row['fields']:>7d}{row['lines']:>6d}  {where[:74]}")
+    return 0
+
+
+FIELD_CEILING_RE = re.compile(r"^struct-App-fields:\s*(\d+)\s*$")
+
+
 def read_baseline(path):
-    """The recorded reach-ins, as a set of repo-relative paths.
+    """The recorded reach-ins and the field ceiling.
 
     Missing file means an empty baseline, which is the strict reading: every
-    reach-in is then new. Comments and blank lines are ignored.
+    reach-in is then new, and there is no ceiling to hold the struct under.
+    Comments and blank lines are ignored. A `struct-App-fields: N` line is the
+    ceiling rather than a path.
     """
-    if not os.path.exists(path):
-        return set()
     recorded = set()
+    ceiling = None
+    if not os.path.exists(path):
+        return recorded, ceiling
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             line = line.split("#", 1)[0].strip()
-            if line:
-                recorded.add(os.path.normpath(line))
-    return recorded
+            if not line:
+                continue
+            match = FIELD_CEILING_RE.match(line)
+            if match:
+                ceiling = int(match.group(1))
+                continue
+            recorded.add(os.path.normpath(line))
+    return recorded, ceiling
 
 
 def find_reach_ins(root):
@@ -287,20 +592,33 @@ def find_reach_ins(root):
 
 
 def command_check(args):
-    """A module outside app.c must not reach into App.
+    """A module outside app.c must not reach into App, and App must not grow.
 
-    Exempt: app.c itself (it owns the struct) and `.u.c` unity fragments (they
-    are textually part of whichever translation unit includes them).
+    Exempt from the first: app.c itself (it owns the struct) and `.u.c` unity
+    fragments (they are textually part of whichever translation unit includes
+    them).
+
+    The second gate is the field count, and it exists because the first cannot
+    see the shape an extraction leaves behind. A module that forward-declares
+    `struct App` and keeps a pointer passes the reach-in list -- it includes no
+    header and names no type in a way this grep finds -- while the state it
+    should have taken sits in app.h exactly where it was. The count sees that,
+    and it only ever goes down.
     """
     found = find_reach_ins(args.root)
-    recorded = read_baseline(args.baseline)
+    recorded, ceiling = read_baseline(args.baseline)
 
     added = sorted(path for path in found if path not in recorded)
     cleared = sorted(path for path in recorded if path not in found)
 
-    if not added and not cleared:
+    fields, _ = parse_app_fields(os.path.join(args.root, "app.h"))
+    grown = ceiling is not None and len(fields) > ceiling
+    shrunk = ceiling is not None and len(fields) < ceiling
+
+    if not added and not cleared and not grown and not shrunk:
         print(
-            f"appc_map check: {len(found)} recorded reach-ins, no new ones "
+            f"appc_map check: {len(found)} recorded reach-ins, no new ones; "
+            f"struct App at its recorded {len(fields)} fields "
             f"({args.root}, baseline {args.baseline})"
         )
         return 0
@@ -322,6 +640,22 @@ def command_check(args):
         )
         for path in cleared:
             print(f"  {path}", file=sys.stderr)
+    if grown:
+        print(
+            f"\nappc_map check FAILED -- struct App has {len(fields)} top-level fields, "
+            f"and the baseline records {ceiling}.\n"
+            "State added to App is state a subsystem will have to be prised back out of\n"
+            "it later. Put it in the subsystem that owns it, or raise the ceiling in the\n"
+            "baseline and say in the commit message why this field belongs to nothing.",
+            file=sys.stderr,
+        )
+    if shrunk:
+        print(
+            f"\nappc_map check FAILED -- struct App is down to {len(fields)} fields and the\n"
+            f"baseline still records {ceiling}. Lower it to {len(fields)}, so the number\n"
+            "keeps meaning what it says and the next field cannot creep back in for free.",
+            file=sys.stderr,
+        )
     return 1
 
 
@@ -338,6 +672,15 @@ def main():
     slices.add_argument("--source", default="src/app.c")
     slices.add_argument("--top", type=int, default=40)
     slices.set_defaults(func=command_slices)
+
+    field_parser = subparsers.add_parser("fields", help="struct App's field families, and who reads them")
+    field_parser.add_argument("--root", default="src")
+    field_parser.add_argument("--header", default="src/app.h")
+    field_parser.add_argument("--top", type=int, default=40)
+    field_parser.add_argument("--family", help="list one family's fields and their readers")
+    field_parser.add_argument("--units", action="store_true", help="per unit: own / shared / foreign")
+    field_parser.add_argument("--json", action="store_true")
+    field_parser.set_defaults(func=command_fields)
 
     check = subparsers.add_parser("check", help="gate: nothing new outside app.c reaches into App")
     check.add_argument("--root", default="src")

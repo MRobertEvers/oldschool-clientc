@@ -5992,15 +5992,29 @@ check-kernel-names:
 # clean -- so the baseline only shrinks. `.u.c` unity fragments are exempt:
 # they are textually part of whatever includes them.
 #
-# `make -C src appc-map` prints the per-slice coupling table the extraction
-# order is chosen from. Neither target builds or moves anything.
-.PHONY: check-app-boundary appc-map
+# It also fails when `struct App` has more top-level fields than the baseline
+# records, and when it has fewer -- the list of files cannot see a module that
+# forward-declares App and keeps a pointer, and the field count can.
+#
+# `make -C src appc-map` prints the per-slice coupling table and the field
+# families beneath it: the first is how the extraction order WAS chosen, the
+# second is how it is chosen now. Neither target builds or moves anything.
+.PHONY: check-app-boundary appc-map appc-fields
 check-app-boundary:
 	@cd $(REPO_ROOT) && python3 tools/appc_map.py check --root src
 
 appc-map:
 	@cd $(REPO_ROOT) && python3 tools/appc_map.py summary --source src/app.c
 	@cd $(REPO_ROOT) && python3 tools/appc_map.py slices --source src/app.c --top 30
+	@echo
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py fields --top 24
+
+# Which unit of the translation unit owns, borrows, or reaches into what. A
+# unit with a full `own` column and an empty `foreign` one is a subsystem that
+# is only declared inside App; one with two own fields and eleven handles is
+# the orchestrator, and it stays.
+appc-fields:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py fields --units
 
 # ---- The kernel suite -------------------------------------------------
 #
