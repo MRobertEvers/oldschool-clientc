@@ -106,6 +106,11 @@ static struct
      * exists, so "no reading" is a state the engine reports rather than a
      * zero in the table.  app_plugin_stat_xp. */
     bool xp_stated[FAKE_SKILLS];
+    /* Whether this LANE has the skill at all. The two falses are different
+     * answers -- an absent index comes back with index -1, a stated-but-unread
+     * one with its own index and name -- and a walk that could not tell them
+     * apart stopped at the first hole. app_plugin_skill_name. */
+    bool xp_present[FAKE_SKILLS];
     int level[FAKE_SKILLS];
 
     struct FakeWidget widget[FAKE_WIDGETS];
@@ -414,9 +419,14 @@ fake_panel_set_height(void* ctx, char const* id, int height)
         return false;
     g_client.exact_height_sets++;
     g_client.setters++;
-    /* The presenter's own ceiling, because the defect this models is a well
-     * that is CLIPPED: a band past the limit is not drawn and, being outside
-     * the control, is never handed a click either. @see press_strip_at. */
+    /*
+     * The host's own ceiling, applied where the host applies it
+     * (torirs_plugin_host.c). Without it a page could ask for a well taller
+     * than anything can present and this fake would agree -- and the defect
+     * that models is a well which is CLIPPED: a band past the limit is not
+     * drawn and, being outside the control, is never handed a click either.
+     * @see press_strip_at.
+     */
     w->height = height > TORIRS_PANEL_CUSTOM_HEIGHT_MAX
                     ? TORIRS_PANEL_CUSTOM_HEIGHT_MAX
                     : height;
@@ -696,28 +706,52 @@ static enum ToriRS_Result v2_panel_set_label(
     (void)api;
     widget = fake_widget_find(id);
     if( !widget ) return TORIRS_RESULT_NOT_FOUND;
+    /* A kind whose single string already travels as `text` refuses this
+     * rather than aliasing it, which is the host's own rule: two spellings
+     * for one string is how a later set_text reverts a rename nobody can see
+     * happen. @see ToriRS_PanelApi::set_label. */
+    if( widget->kind == TORIRS_PANEL_HEADING || widget->kind == TORIRS_PANEL_LABEL ||
+        widget->kind == TORIRS_PANEL_BUTTON )
+        return TORIRS_RESULT_INVALID;
     g_client.label_sets++;
     g_client.setters++;
     snprintf(widget->label, sizeof(widget->label), "%s", label ? label : "");
     return TORIRS_RESULT_OK;
 }
+
+/*
+ * One skill, answered exactly as the host answers it.
+ *
+ * The return value is false both for a skill this lane does not have and for
+ * one the server has not stated, and the SNAPSHOT is what tells them apart:
+ *
+ *   no such skill index -> zeroed, index -1, stated false
+ *   stated, no reading  -> index and name, zero readings, stated false
+ *   a real reading      -> everything, stated true (and returns true)
+ *
+ * @see ToriRS_SkillSnapshot::stated, v2_game_skill in the runtime.
+ */
 static bool v2_skill(
     struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     int xp = 0, level_xp = 0, next_xp = 0;
+    uint32_t const capacity = sizeof(*out);
     (void)api;
-    if( skill < 0 || skill >= FAKE_SKILLS ||
-        !fake_stat_xp(NULL, skill, &xp, &level_xp, &next_xp) )
+    memset(out, 0, capacity);
+    out->struct_size = capacity;
+    out->index = -1;
+    if( skill < 0 || skill >= FAKE_SKILLS || !g_client.xp_present[skill] )
         return false;
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
     out->index = skill;
     snprintf(out->name, sizeof(out->name), "%s", FAKE_SKILL_NAME[skill]);
+    if( !fake_stat_xp(NULL, skill, &xp, &level_xp, &next_xp) )
+        return false;
     out->current_level = g_client.level[skill];
     out->base_level = g_client.level[skill];
     out->xp = xp;
     out->level_xp = level_xp;
     out->next_level_xp = next_xp;
+    out->stated = true;
     return true;
 }
 static bool v2_item_info(
@@ -774,6 +808,27 @@ static enum ToriRS_Result v2_panel_set_text(
         snprintf(widget->label, sizeof(widget->label), "%s", text ? text : "");
     return TORIRS_RESULT_OK;
 }
+/* The layer's readiness poll asks for this; a page that never asked still
+ * has to answer, because PORCELAIN_READY_STATS is read at every fence. */
+static int v2_screen(struct ToriRS_Api* api)
+{ (void)api; return g_client.logged_in ? TORIRS_SCREEN_GAME : TORIRS_SCREEN_TITLE; }
+static enum ToriRS_Result v2_panel_set_options(
+    struct ToriRS_Api* api,
+    char const* id,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int option_count)
+{
+    struct FakeWidget* widget;
+    (void)api;
+    (void)options;
+    (void)option_count;
+    widget = fake_widget_find(id);
+    if( !widget ) return TORIRS_RESULT_NOT_FOUND;
+    g_client.setters++;
+    snprintf(widget->text, sizeof(widget->text), "%s", value ? value : "");
+    return TORIRS_RESULT_OK;
+}
 static enum ToriRS_Result v2_panel_set_value(
     struct ToriRS_Api* api, char const* id, int value)
 { (void)api; return fake_panel_set_value(NULL, id, value) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
@@ -813,18 +868,24 @@ static void v2_build_label(
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
 { (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+/*
+ * `node` is the only builder verb Porcelain uses, because it is the only one
+ * that takes an id for every kind -- so it is the one that has to carry every
+ * kind here too. It used to fold everything but three into LABEL, which made a
+ * BUTTON indistinguishable from a caption and left set_label's refusal rule
+ * untestable.
+ */
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 {
-    int kind = TORIRS_PANEL_LABEL;
+    int kind = node->kind;
     (void)panel;
-    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_HEADING;
-    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_KEY_VALUE;
-    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_CUSTOM;
     if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
         return TORIRS_RESULT_BUDGET;
     if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);
     if( node->preferred_height ) (void)fake_panel_set_height(NULL, node->id, node->preferred_height);
+    if( kind == TORIRS_PANEL_BUTTON || kind == TORIRS_PANEL_TOGGLE )
+        (void)fake_panel_set_value(NULL, node->id, node->value);
     return TORIRS_RESULT_OK;
 }
 
@@ -841,6 +902,7 @@ api_init(void)
     g_api.core.frame_ms = v2_frame_ms;
     g_api.core.lane = v2_lane;
     g_api.core.capability = v2_capability;
+    g_api.core.screen = v2_screen;
     g_api.porcelain = ToriRS_PorcelainApiTable();
     g_api.config.has = v2_config_has;
     g_api.config.get_bool = v2_config_bool;
@@ -857,11 +919,12 @@ api_init(void)
     g_api.panel.invalidate = v2_panel_invalidate;
     g_api.panel.attention = v2_panel_attention;
     g_api.panel.set_text = v2_panel_set_text;
+    g_api.panel.set_label = v2_panel_set_label;
+    g_api.panel.set_options = v2_panel_set_options;
     g_api.panel.set_value = v2_panel_set_value;
     g_api.panel.set_height = v2_panel_set_height;
     g_api.panel.redraw = v2_panel_redraw;
     g_api.panel.reidentify = v2_panel_reidentify;
-    g_api.panel.set_label = v2_panel_set_label;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.item_info = v2_item_info;
@@ -871,6 +934,11 @@ api_init(void)
     g_game_api.loot_revision = v2_loot_revision;
     g_game_api.loot_source_clear = v2_loot_source_clear;
     g_api.game = &g_game_api;
+    g_api.porcelain = ToriRS_PorcelainApiTable();
+    /* g_api.widgets is left entirely NULL on purpose. Neither tracker owns a
+     * widget -- every row of both pages is a panel declaration -- so a
+     * describe or a commit that reached widgets.revalidate would crash here
+     * rather than quietly add a full-tree resolve to the frame's budget. */
 }
 
 /* ---------------------------------------------------------------- driving */
@@ -911,22 +979,24 @@ dispatch_stop(void)
 }
 
 /**
- * One frame's reconcile.
+ * One frame's reconcile, which is the layer's fence.
  *
- * Porcelain plugins describe at a FENCE, not at the moment their state moves,
- * so a case that changed something and read the page back without a frame in
- * between would be reading the description from before the change. The client
- * calls on_frame_start once a frame; so does this.
+ * A Porcelain plugin describes and reconciles at on_frame_start -- the library
+ * installs no callbacks of its own -- so a case that changed something and read
+ * the page back without a frame in between would be reading the description
+ * from before the change. The client calls on_frame_start once a frame; so does
+ * this, unconditionally, which is harmless for a plugin that has no such
+ * callback.
  */
 static void
 dispatch_frame_start(void)
 {
-    struct ToriRS_FrameEvent ev;
+    struct ToriRS_FrameEvent event;
 
     assert(g_plugin && g_plugin_state);
-    memset(&ev, 0, sizeof(ev));
+    memset(&event, 0, sizeof(event));
     if( g_plugin->callbacks.on_frame_start )
-        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &ev);
+        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &event);
 }
 
 static void
@@ -1226,6 +1296,9 @@ client_reset(void)
         /* The ordinary case is a logged-in client whose stats have arrived; the
          * one test about the moment before that clears this itself. */
         g_client.xp_stated[i] = true;
+        /* And every skill of this 25-entry lane exists; the one test about a
+         * lane with a HOLE in its table clears one of these. */
+        g_client.xp_present[i] = true;
     }
 }
 
@@ -1235,6 +1308,7 @@ client_reset(void)
 
 #define SKILL_WOODCUTTING 8
 #define SKILL_ATTACK 0
+#define SKILL_MINING 14
 
 static void
 xp_start(void)
@@ -2586,12 +2660,253 @@ test_loot_steady_state_costs_nothing(void)
         "and no rebuild (%d)", g_client.builds - builds);
 }
 
-/** A new visual row replaces the custom widget identity exactly once. */
+/*
+ * A skill earning its first box costs ONE ROW its identity, and the page
+ * nothing at all.
+ *
+ * The well is one control, so a click in it is arithmetic on y against the
+ * order that was described -- and a box arriving changes that mapping. The
+ * well therefore has to take a new input identity, so a click queued against
+ * the old bitmap is refused instead of being delivered to whichever skill
+ * moved under the same y. That is one row's serial.
+ *
+ * It used to be bought with panel.invalidate, which re-declares every row on
+ * the page: the reader lost the scroll position, the detail block's rows were
+ * torn down and rebuilt, and the well blanked for a frame. The page's row SET
+ * does not change because a skill was trained -- the strip is the strip, and
+ * the detail block is whatever was open -- so nothing here rebuilds.
+ */
 static void
-test_xp_growth_rebuilds_for_topology(void)
+test_xp_growth_reidentifies_without_rebuilding(void)
 {
+    uint32_t serial[FAKE_WIDGETS];
     int builds;
     int height;
+    int height_sets;
+    int redraws;
+    int reidentifies;
+    int widgets;
+    int well_row = -1;
+    int kept = 0;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    g_client.xp[SKILL_ATTACK] = 50000;
+    g_client.xp[SKILL_MINING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    /* With a detail block open the page has rows on BOTH sides of the well,
+     * which is what makes "the rows around it survived" a claim worth
+     * reading. */
+    press_box(0);
+    tick(1000);
+
+    builds = g_client.builds;
+    reidentifies = g_client.reidentifies;
+    height = fake_widget_find("boxes")->height;
+    height_sets = g_client.exact_height_sets;
+    redraws = g_client.redraws;
+    widgets = g_client.widget_count;
+    for( int i = 0; i < widgets; i++ )
+    {
+        serial[i] = g_client.widget[i].serial;
+        if( strcmp(g_client.widget[i].id, "boxes") == 0 )
+            well_row = i;
+    }
+    TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+    TEST_ASSERT(widgets > 1, "and the page has rows beside the well");
+    TEST_ASSERT(well_row >= 0, "one of which is the well");
+
+    g_client.xp[SKILL_ATTACK] += 100;
+    tick(1000);
+    g_client.xp[SKILL_MINING] += 100;
+    tick(1000);
+
+    TEST_ASSERT(box_count() == 3, "two more skills trained, two more boxes");
+    TEST_ASSERT(
+        fake_widget_find("boxes")->height > height,
+        "which makes the strip taller (%d -> %d)", height,
+        fake_widget_find("boxes")->height);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and the page is NOT re-declared for either of them (%d rebuilds)",
+        g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies + 2,
+        "each new box re-identifies the one well instead (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        well_row >= 0 && g_client.widget[well_row].serial != serial[well_row],
+        "so a click queued against the old bitmap fails its serial fence");
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( i != well_row && g_client.widget[i].serial == serial[i] )
+            kept++;
+    TEST_ASSERT(
+        g_client.widget_count == widgets && kept == widgets - 1,
+        "while every row around it keeps its identity and its place (%d of %d)",
+        kept, widgets - 1);
+    TEST_ASSERT(
+        g_client.exact_height_sets > height_sets,
+        "each re-identified strip also publishes its exact height");
+    /*
+     * And NOT a redraw on top of it. A re-identified well is repainted by
+     * construction -- the host removes the presentation node and builds a
+     * fresh one, retiring the retained run with the identity it belonged to --
+     * so asking for the pass as well would be a second request for the same
+     * repaint, once per new box.
+     */
+    TEST_ASSERT(
+        g_client.redraws == redraws,
+        "and does not ask for the repaint the reidentify already forces (%d)",
+        g_client.redraws - redraws);
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), "Woodcutting") == 0,
+        "and the block that was open is still open, on the same skill (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
+}
+
+/*
+ * A readout that moved is not an identity.
+ *
+ * The well's input identity is the ORDER of the boxes and nothing else. Fold a
+ * value into it -- the xp gained, the rate, anything that ticks -- and every
+ * readout costs the row a fresh serial: the presentation node is torn down and
+ * rebuilt twice a second, and every click in flight is refused for no reason
+ * anybody could see. The picture moving is a REDRAW; only the mapping moving
+ * is an identity.
+ */
+static void
+test_xp_a_moving_readout_is_not_an_identity(void)
+{
+    int reidentifies;
+    int builds;
+    int redraws;
+    int text_sets;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    tick(1000);
+
+    reidentifies = g_client.reidentifies;
+    builds = g_client.builds;
+    redraws = g_client.redraws;
+    text_sets = g_client.exact_text_sets;
+
+    /* Ten more actions on the one skill that already has a box: every figure
+     * on the page moves and the box ORDER does not. */
+    for( int i = 0; i < 10; i++ )
+    {
+        g_client.xp[SKILL_WOODCUTTING] += 10;
+        tick(1000);
+    }
+
+    TEST_ASSERT(
+        box_count() == 1, "still one box, in the same place (got %d)", box_count());
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies,
+        "so the well keeps its input identity throughout (%d mints)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.builds == builds, "and the page is not re-declared (%d)",
+        g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.redraws > redraws,
+        "while the picture it draws is restated (%d redraws)",
+        g_client.redraws - redraws);
+    TEST_ASSERT(
+        g_client.exact_text_sets > text_sets,
+        "and so are the block's readouts (%d setters)",
+        g_client.exact_text_sets - text_sets);
+}
+
+/*
+ * The well reaches past 512 px.
+ *
+ * Overview plus nine skill boxes is 500, so the tenth box used to be where the
+ * page silently stopped growing: TORIRS_PANEL_CUSTOM_HEIGHT_MAX and the
+ * chrome's own TORIRS_CHROME_M_CUSTOM_H_MAX both clamped a well at 512, and a
+ * person training a tenth skill simply never saw it. Twelve skills is 650.
+ */
+static void
+test_xp_well_grows_past_the_old_ceiling(void)
+{
+    int const trained = 12;
+
+    client_reset();
+    for( int i = 0; i < trained; i++ )
+        g_client.xp[i] = 50000;
+    xp_start();
+    tick(20);
+    for( int i = 0; i < trained; i++ )
+        g_client.xp[i] += 100;
+    tick(1000);
+
+    TEST_ASSERT(
+        box_count() == trained, "twelve skills trained, twelve boxes (got %d)",
+        box_count());
+    TEST_ASSERT(
+        fake_widget_find("boxes") &&
+            fake_widget_find("boxes")->height == (trained + 1) * TEST_BOX_PITCH,
+        "and the well is honoured at %d px rather than clamped (got %d)",
+        (trained + 1) * TEST_BOX_PITCH,
+        fake_widget_find("boxes") ? fake_widget_find("boxes")->height : -1);
+}
+
+/*
+ * A HOLE in the lane's stat table does not truncate the walk.
+ *
+ * The walk used to stop at the first index the client refused, which conflates
+ * three different answers: a skill this lane does not have, a skill it has that
+ * the server has not stated, and the end of the table. A lane with a hole
+ * therefore lost every skill past it for the whole session -- silently, because
+ * the tracker simply never showed them. The snapshot tells the three apart.
+ */
+static void
+test_xp_a_hole_in_the_table_is_not_the_end_of_it(void)
+{
+    int const BEYOND = 20; /* Runecraft, well past the hole */
+
+    client_reset();
+    /* This lane does not have index 7 at all: no name, no reading, index -1. */
+    g_client.xp_present[7] = false;
+    g_client.xp[BEYOND] = 50000;
+    xp_start();
+    tick(20);
+
+    g_client.xp[BEYOND] += 100;
+    tick(1000);
+
+    TEST_ASSERT(
+        box_count() == 1,
+        "a skill past the hole is still tracked (got %d boxes)", box_count());
+    press_box(0);
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), FAKE_SKILL_NAME[BEYOND]) == 0,
+        "and it is the skill it says it is (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
+}
+
+/*
+ * Showing the page shows the CURRENT page.
+ *
+ * The show path used to refresh and redraw without re-collecting the box
+ * order, so a page selected after a new skill had been trained showed up to
+ * half a second of stale strip and then flashed when the next tick found the
+ * topology stale and re-declared the whole thing. The page becoming presented
+ * is an INPUT to the description, so the description is current before the
+ * first paint.
+ */
+static void
+test_xp_showing_the_page_is_not_stale(void)
+{
+    struct ToriRS_PanelLayoutEvent layout;
 
     client_reset();
     g_client.xp[SKILL_WOODCUTTING] = 50000;
@@ -2600,22 +2915,144 @@ test_xp_growth_rebuilds_for_topology(void)
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] += 100;
     tick(1000);
-    builds = g_client.builds;
-    height = fake_widget_find("boxes")->height;
-    TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+    TEST_ASSERT(box_count() == 1, "one skill trained while the page was up");
 
+    memset(&layout, 0, sizeof(layout));
+    layout.width = 320;
+    layout.height = 500;
+    layout.scale_milli = 1000;
+    layout.size_class = TORIRS_PANEL_SIZE_MEDIUM;
+    layout.selection_generation = 1;
+    layout.visible = false;
+    dispatch_panel_layout(&layout);
+    dispatch_frame_start();
+
+    /* A second skill trained while nobody was looking. */
     g_client.xp[SKILL_ATTACK] += 100;
     tick(1000);
+    tick(1000);
 
-    TEST_ASSERT(box_count() == 2, "a second skill trained gets a second box");
+    layout.visible = true;
+    dispatch_panel_layout(&layout);
+    dispatch_frame_start();
+    if( g_client.rebuild_wanted )
+        panel_build();
+
     TEST_ASSERT(
-        fake_widget_find("boxes")->height > height,
-        "which makes the strip taller (%d -> %d)", height,
-        fake_widget_find("boxes")->height);
+        box_count() == 2,
+        "and showing the page again states the second box before anything is "
+        "drawn (got %d)",
+        box_count());
+}
+
+/*
+ * A page with nothing happening on it makes no engine call at all.
+ *
+ * Every readout here is derived from a clock, so the description is re-derived
+ * twice a second whether or not anything moved -- and the whole of the row
+ * model's claim is that a re-derivation which produces the same rows costs
+ * nothing. A paused skill is the state where that is checkable: its rate, its
+ * TTL and its bar caption are all frozen, so every hash is stable and any
+ * setter, redraw, reidentify or rebuild below is the claim failing.
+ */
+static void
+test_xp_settled_page_costs_nothing(void)
+{
+    int builds, setters, redraws, reidentifies;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+    /* Two ticks for the description to settle on the paused readouts. */
+    tick(1000);
+    tick(1000);
+
     TEST_ASSERT(
-        g_client.builds == builds + 1,
-        "and re-declares once to fence clicks from the old bitmap (%d rebuilds)",
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "the page is up, with a block open on a paused skill");
+
+    builds = g_client.builds;
+    /*
+     * Every retained mutation of ANY kind, and not the two or three this case
+     * happens to think of. A page that had started restating a fourth thing
+     * would pass a narrower counter while costing exactly what this claim says
+     * it does not.
+     */
+    setters = g_client.setters;
+    redraws = g_client.redraws;
+    reidentifies = g_client.reidentifies;
+
+    /* Twenty seconds of a visible page with nothing on it moving, which is
+     * forty runs of the twice-a-second refresh. */
+    for( int i = 0; i < 20; i++ )
+        tick(1000);
+
+    TEST_ASSERT(
+        g_client.builds == builds, "no page is re-declared (%d)",
         g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies, "no row is re-identified (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.setters == setters,
+        "and no setter of any kind fires at all (%d)",
+        g_client.setters - setters);
+    TEST_ASSERT(
+        g_client.redraws == redraws,
+        "nor is the strip asked to repaint a picture it already has (%d)",
+        g_client.redraws - redraws);
+    /* Printed as well as asserted: the claim is a NUMBER, and a report that
+     * says "the assertions passed" is not the same evidence as one that says
+     * what the forty runs cost. */
+    printf(
+        "xp settled page over 40 refresh runs: %d builds, %d reidentifies, "
+        "%d setters, %d redraws\n",
+        g_client.builds - builds, g_client.reidentifies - reidentifies,
+        g_client.setters - setters, g_client.redraws - redraws);
+}
+
+/*
+ * The Pause caption is a SETTER, not a declaration.
+ *
+ * `label` used to be part of a row's declaration identity, so flipping a
+ * button's caption was a page rebuild -- and the host's own BUTTON patch arm
+ * was an empty break that reported OK and applied nothing, so on the executors
+ * it was not even that. Now it is one set_text on one row.
+ */
+static void
+test_xp_pause_caption_is_one_setter(void)
+{
+    int builds;
+    int text_sets;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    tick(1000);
+
+    builds = g_client.builds;
+    text_sets = g_client.exact_text_sets;
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+
+    TEST_ASSERT(
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "the caption flips on the spot (got '%s')",
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "without re-declaring the page (%d rebuilds)", g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.exact_text_sets > text_sets,
+        "and it travels as the row's text, which is what the host patches");
 }
 
 static void
@@ -2721,7 +3158,13 @@ main(void)
     test_loot_a_click_beside_the_menu_only_closes_it();
     test_loot_steady_state_costs_nothing();
     test_loot_unchanged_revision_is_o1();
-    test_xp_growth_rebuilds_for_topology();
+    test_xp_growth_reidentifies_without_rebuilding();
+    test_xp_a_moving_readout_is_not_an_identity();
+    test_xp_well_grows_past_the_old_ceiling();
+    test_xp_a_hole_in_the_table_is_not_the_end_of_it();
+    test_xp_showing_the_page_is_not_stale();
+    test_xp_settled_page_costs_nothing();
+    test_xp_pause_caption_is_one_setter();
     test_hidden_page_does_no_work();
 
     if( g_plugin_state ) dispatch_stop();

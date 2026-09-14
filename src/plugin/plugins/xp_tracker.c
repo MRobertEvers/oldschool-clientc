@@ -1,4 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -115,10 +116,6 @@
  *  ten, and the number is load-bearing: it is what the estimate is a mean of. */
 #define XT_ACTION_HISTORY 10
 
-/** Skill rows the page will draw. The panel's own budget is 48 controls for
- *  every plugin, and the detail block below the list needs ten of them. */
-#define XT_ROWS_MAX 30
-
 /** How often the page's numbers are rewritten, in ms. Every readout on it is
  *  derived from a clock, so it would otherwise be reformatted 50 times a
  *  second to say the same thing. */
@@ -223,73 +220,80 @@ struct XtSkill
     bool paused;
 };
 
+/**
+ * One shipped picture, held as pixels, with the LAYER's answer about it.
+ *
+ * `state` is the whole point. The old spelling was a bool per picture and a
+ * retry on every draw pass: a missing file and a file still crossing the IO
+ * queue were the same answer, so an absent skills.png was re-asked fifty
+ * times a second for the life of the session and said so nowhere.
+ * Porcelain_Image remembers a terminal state and reports it once.
+ */
+struct XtArt
+{
+    char const* name;
+    uint32_t* px;
+    int w;
+    int h;
+    enum PorcelainAssetState state;
+};
+
+/* Named by xt_start, which opens the layer against this plugin's own
+ * definition; the definition itself is at the foot of the file. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
+
 struct XtState
 {
+    struct ToriRS_Api* api;
+    struct Porcelain* porcelain;
     struct PluginDraw_Atlas font;
-    struct ToriRS_ImageRef img_skills;
-    struct ToriRS_ImageRef img_over;
-    uint32_t* over_px;
-    int over_w;
-    int over_h;
-    uint32_t* skill_px;
-    int skill_w;
-    int skill_h;
+    /** The atlas sheet, the 25x25 skill strip, and the overview's own icon. */
+    struct XtArt art_font;
+    struct XtArt art_skills;
+    struct XtArt art_over;
     struct XtSkill skill[XT_SKILLS_MAX];
     int skill_count;
     int detail;
-    char built_rows[XT_SKILLS_MAX];
-    int built_detail;
-    bool page_built;
     bool page_visible;
     bool state_applied;
-    uint64_t last_second_ms;
-    uint64_t session_start_ms;
-    uint64_t next_panel_ms;
     bool logged_in;
+    /** The server has STATED a reading. @see PORCELAIN_READY_STATS. */
+    bool stats_ready;
+    uint64_t session_start_ms;
+    /** The box order this description wants, in stats-tab order. */
     int box_skill[XT_SKILLS_MAX];
     int box_count;
     /* The exact order painted into the retained CUSTOM well. Input uses this
      * snapshot, never a newly collected order under an older bitmap. */
     int built_box_skill[XT_SKILLS_MAX];
     int built_box_count;
-    uint32_t* compose;
-    int compose_w;
-    int compose_h;
     int well_w;
-    uint64_t compose_key;
-    struct ToriRS_ImageRef compose_image;
+    /** The detail block's six readouts and its heading, held rather than
+     *  built on the stack purely for legibility: Porcelain COPIES a row's
+     *  strings, so a stack buffer would be legal too. */
+    char detail_name[PORCELAIN_ROW_TEXT_MAX];
+    char detail_text[6][PORCELAIN_ROW_TEXT_MAX];
 };
 
 #define g_font (state->font)
-#define g_img_skills (state->img_skills)
-#define g_img_over (state->img_over)
-#define g_over_px (state->over_px)
-#define g_over_w (state->over_w)
-#define g_over_h (state->over_h)
-#define g_skill_px (state->skill_px)
-#define g_skill_w (state->skill_w)
-#define g_skill_h (state->skill_h)
+#define g_over_px (state->art_over.px)
+#define g_over_w (state->art_over.w)
+#define g_over_h (state->art_over.h)
+#define g_skill_px (state->art_skills.px)
+#define g_skill_w (state->art_skills.w)
+#define g_skill_h (state->art_skills.h)
 #define g_skill (state->skill)
 #define g_skill_count (state->skill_count)
 #define g_detail (state->detail)
-#define g_built_rows (state->built_rows)
-#define g_built_detail (state->built_detail)
-#define g_page_built (state->page_built)
 #define g_page_visible (state->page_visible)
 #define g_state_applied (state->state_applied)
-#define g_last_second_ms (state->last_second_ms)
 #define g_session_start_ms (state->session_start_ms)
-#define g_next_panel_ms (state->next_panel_ms)
 #define g_logged_in (state->logged_in)
 #define g_box_skill (state->box_skill)
 #define g_box_count (state->box_count)
 #define g_built_box_skill (state->built_box_skill)
 #define g_built_box_count (state->built_box_count)
-#define g_compose (state->compose)
-#define g_compose_w (state->compose_w)
-#define g_compose_h (state->compose_h)
 #define g_well_w (state->well_w)
-#define g_compose_key (state->compose_key)
 
 static bool
 xt_cfg_bool(struct ToriRS_Api* api, char const* key)
@@ -321,8 +325,20 @@ xt_skill_snapshot(
     int index,
     struct ToriRS_SkillSnapshot* out)
 {
+    assert(api);
+    assert(out);
     memset(out, 0, sizeof(*out));
     out->struct_size = sizeof(*out);
+    /*
+     * ABSENT is the default, because that is what the caller reads when the
+     * call writes nothing. The host fills `index` on both of its false paths
+     * -- -1 for a skill this lane does not have, the index itself for one it
+     * has but the server has not stated -- and xt_size_table walks to a bound
+     * rather than to the first refusal on exactly that distinction. Left at
+     * the memset's zero, a call that answered nothing at all would read as
+     * "skill 0 exists", and the walk would size the table to its ceiling.
+     */
+    out->index = -1;
     return api->game && api->game->skill(api, index, out);
 }
 
@@ -868,28 +884,6 @@ xt_state_apply(struct ToriRS_Api* api, struct XtState* state)
     }
 }
 
-/**
- * True once the server has stated ANY skill.
- *
- * Sizing the table and having readings to put in it are two different moments:
- * the names come out of the cache and answer as soon as the client boots,
- * while the xp arrives with the login burst. In between, stat_xp answers "no
- * reading" for every skill -- which is what makes this the moment the saved
- * session can be reconciled, and the moment before which seeding one would be
- * seeding it from a fresh account's defaults.
- */
-static bool
-xt_stats_live(struct ToriRS_Api* api, struct XtState* state)
-{
-    for( int i = 0; i < g_skill_count; i++ )
-    {
-        struct ToriRS_SkillSnapshot snapshot;
-        if( xt_skill_snapshot(api, i, &snapshot) )
-            return true;
-    }
-    return false;
-}
-
 /* ------------------------------------------------------------------------ */
 /* The boxes                                                                 */
 /* ------------------------------------------------------------------------ */
@@ -918,23 +912,101 @@ xt_box_fill(uint32_t* buf, int w, int h, int top)
             buf[(size_t)y * (size_t)w + (size_t)x] = argb;
 }
 
-/** Everything the compose needs, resident. */
+/**
+ * One shipped picture's pixels, asked for through the layer.
+ *
+ * The layer owns the question this function used to answer by guessing: an
+ * asset is READY, still crossing the IO queue (PENDING, the ordinary state
+ * for the first frames and the normal one for ever on web), or terminally
+ * MISSING or ERROR -- and a terminal answer is remembered and reported once
+ * instead of being re-asked on every draw pass. The pixels are copied out
+ * once and the handle goes back, which is what lets Porcelain release the
+ * slot a few runs later.
+ */
+static bool
+xt_art_pixels(struct XtState* state, struct XtArt* art)
+{
+    struct ToriRS_Api* api = state->api;
+    enum PorcelainAssetState asset = PORCELAIN_ASSET_PENDING;
+    struct ToriRS_ImageRef ref;
+    size_t count;
+    size_t written = 0;
+
+    assert(state);
+    assert(art);
+    assert(art->name);
+    if( art->px )
+        return true;
+
+    ref = Porcelain_Image(state->porcelain, art->name, &asset);
+    art->state = asset;
+    if( asset != PORCELAIN_ASSET_READY )
+        return false;
+    if( !Porcelain_ImageSize(state->porcelain, art->name, &art->w, &art->h) ||
+        art->w <= 0 || art->h <= 0 )
+        return false;
+
+    count = (size_t)art->w * (size_t)art->h;
+    art->px = malloc(count * sizeof(*art->px));
+    assert(art->px);
+    if( !api->assets.image_pixels(api, ref, art->px, count, &written) ||
+        written != count )
+    {
+        /* The handle answered a size and then refused its pixels. Terminal
+         * for this run rather than a retry: the alternative is the per-draw
+         * ask this whole function exists to remove. */
+        free(art->px);
+        art->px = NULL;
+        art->w = 0;
+        art->h = 0;
+        art->state = PORCELAIN_ASSET_ERROR;
+        Porcelain_Finding(
+            state->porcelain, "image_pixels", PORCELAIN_ROLE_EL(art->name),
+            PORCELAIN_FINDING_ASSET_ERROR, art->name);
+        return false;
+    }
+    return true;
+}
+
+/** The glyph table, out of the bytes Porcelain_Table fetched. */
+static bool
+xt_parse_atlas(
+    struct ToriRS_Api* api, void* user, void const* data, size_t size)
+{
+    struct XtState* state = user;
+    (void)api;
+    assert(state);
+    assert(data);
+    return PluginDraw_AtlasParse(&g_font, data, size) != 0;
+}
+
+/**
+ * Everything the compose needs, resident.
+ *
+ * The atlas and skills.png are REQUIRED -- no face and no icon strip means no
+ * strip worth publishing. The overview icon is WANTED: a missing picture is a
+ * box with a gap in it, not a page that refuses to draw.
+ */
 static int
 xt_art_ready(struct ToriRS_Api* api, struct XtState* state)
 {
-    if( !PluginDraw_AtlasLoad(api, &g_font, "text") )
+    (void)api;
+    assert(state);
+    if( !g_font.ready &&
+        !Porcelain_Table(state->porcelain, "text.ini", xt_parse_atlas, state) )
         return 0;
-    if( !PluginDraw_ImageLoad(
-            api, "skills.png", &g_img_skills, &g_skill_px, &g_skill_w, &g_skill_h) )
+    if( !xt_art_pixels(state, &state->art_font) )
         return 0;
-    /* The overview icon is wanted but not REQUIRED: the box is two lines of
-     * text and a picture, and a missing picture is a box with a gap in it
-     * rather than a page that refuses to draw. This is staticons2,7, the
-     * graphic xptracker_build_components_5363 names for the null/overall row.
-     * It is deliberately NOT panel_icon.png: the popout rail uses the related
-     * but different popout_icons,2 sprite. */
-    (void)PluginDraw_ImageLoad(
-        api, "overview_icon.png", &g_img_over, &g_over_px, &g_over_w, &g_over_h);
+    g_font.px = state->art_font.px;
+    g_font.w = state->art_font.w;
+    g_font.h = state->art_font.h;
+    if( !xt_art_pixels(state, &state->art_skills) )
+        return 0;
+    /* @see the struct comment: staticons2,7, the graphic
+     * xptracker_build_components_5363 names for the null/overall row. It is
+     * deliberately NOT panel_icon.png, which is the popout rail's related but
+     * different popout_icons,2 sprite. */
+    (void)xt_art_pixels(state, &state->art_over);
     return 1;
 }
 
@@ -1286,6 +1358,11 @@ xt_draw_overview(struct XtState* state, uint32_t* buf, int w, int h, int top)
 /* ------------------------------------------------------------------------ */
 /* The page                                                                  */
 /* ------------------------------------------------------------------------ */
+
+/** The one CUSTOM well, and the heading of the detail block under it. */
+#define XT_WELL "boxes"
+#define XT_DETAIL_HEADING "sec_detail"
+
 /** Which skills get a box, in stats-tab order. */
 static void
 xt_collect_boxes(struct ToriRS_Api* api, struct XtState* state)
@@ -1323,12 +1400,34 @@ xt_well_h(struct XtState const* state)
 }
 
 /**
- * Rasterise every box and publish the strip.
+ * The well's INPUT identity: the order the boxes are in, and nothing else.
  *
- * One image for the whole list rather than one per box: a compose is the
- * expensive half of this plugin and the panel blits one picture either way,
- * so composing per box would pay for the same pixels with more calls.
+ * The strip is one control, so a click in it is arithmetic on `y` against the
+ * order that was painted. When that order or that count changes, the well
+ * takes a new identity and a click queued against the old bitmap is refused
+ * rather than delivered to whichever skill moved under the same y.
+ *
+ * No VALUE is in here, and that is the rule the whole family turns on: this
+ * hash moving costs one row a fresh serial, and folding a readout into it
+ * would mint one twice a second. What the picture SHOWS is the separate
+ * question xt_compose_key answers. @see PorcelainRow::hit_key.
  */
+static uint64_t
+xt_hit_key(struct XtState const* state)
+{
+    uint64_t key = 1469598103934665603ull;
+
+    assert(state);
+    key ^= (uint64_t)g_box_count;
+    key *= 1099511628211ull;
+    for( int i = 0; i < g_box_count; i++ )
+    {
+        key ^= (uint64_t)(g_box_skill[i] + 1);
+        key *= 1099511628211ull;
+    }
+    return key;
+}
+
 /**
  * Everything the strip's picture depends on, in one number.
  *
@@ -1397,419 +1496,682 @@ xt_compose_key(
     return k;
 }
 
-static void
-xt_compose(struct ToriRS_Api* api, struct XtState* state, int width)
+/**
+ * Rasterise every box into the buffer Porcelain handed over.
+ *
+ * One image for the whole list rather than one per box: a compose is the
+ * expensive half of this plugin and the panel blits one picture either way,
+ * so composing per box would pay for the same pixels with more calls. The
+ * buffer arrives zeroed, which is what leaves the panel's own backing showing
+ * between the boxes exactly as the interface's does between the CS2 rows.
+ */
+static bool
+xt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int w, int h)
 {
+    struct XtState* state = user;
     int slot[4];
-    int const height = xt_well_h(state);
-    size_t const pixels = (size_t)width * (size_t)height;
-    uint64_t key;
 
-    if( width <= 0 || height <= 0 )
-        return;
+    assert(api);
+    assert(state);
+    assert(argb);
+
     xt_slots(api, slot);
-    key = xt_compose_key(api, state, width, slot);
-    if( key == g_compose_key && g_compose && g_compose_w == width &&
-        g_compose_h == height )
-        return;
-    g_compose_key = key;
-
-    if( !g_compose || g_compose_w != width || g_compose_h != height )
-    {
-        free(g_compose);
-        g_compose = malloc(pixels * sizeof(*g_compose));
-        assert(g_compose);
-        g_compose_w = width;
-        g_compose_h = height;
-    }
-    /* Transparent, so the panel's own backing shows between the boxes exactly
-     * as the interface's does between the CS2 rows. */
-    memset(g_compose, 0, pixels * sizeof(*g_compose));
-
-    xt_draw_overview(state, g_compose, width, height, 0);
+    xt_draw_overview(state, argb, w, h, 0);
     for( int i = 0; i < g_box_count; i++ )
         xt_draw_box(
-            api,
-            state,
-            g_compose,
-            width,
-            height,
-            (i + 1) * XT_BOX_PITCH,
-            g_box_skill[i],
-            slot);
-
-    (void)api->assets.image_compose(
-        api, "boxes", width, height, g_compose, &state->compose_image);
+            api, state, argb, w, h, (i + 1) * XT_BOX_PITCH, g_box_skill[i], slot);
+    return true;
 }
 
 /**
- * Ask for a redraw of the strip only when the picture would differ.
+ * The well's draw pass: compose once per picture, blit once per pass.
  *
- * The refresh runs on a timer, and an unconditional invalidate would put the
- * well through a full draw pass twice a second for a picture that is already
- * on screen -- every one of those passes a chance to catch the art or an obj
- * icon mid-flight and publish a frame that is missing one. Composing is keyed
- * on the drawn values; so is asking for the pass at all.
+ * PANEL_DRAW does set a draw region, unlike on_draw_world, so the width the
+ * strip is composed at is the context's own. `Porcelain_Derived` is what makes
+ * "once per picture" true rather than aspirational: it paints at most once per
+ * (key, hash of inputs) and hands back the same handle otherwise.
  */
 static void
-xt_strip_invalidate(struct ToriRS_Api* api, struct XtState* state)
+xt_paint_boxes(
+    struct ToriRS_Api* api, void* user, char const* key, struct ToriRS_Graphics* draw)
 {
+    struct XtState* state = user;
+    struct PorcelainDrawContext context;
+    enum PorcelainDerivedState derived = PORCELAIN_DERIVED_PENDING;
+    struct ToriRS_ImageRef strip;
+    uint64_t inputs;
     int slot[4];
+    int height;
 
-    xt_slots(api, slot);
-    if( g_compose && xt_compose_key(api, state, g_well_w, slot) == g_compose_key )
+    assert(api);
+    assert(state);
+    assert(key);
+    assert(draw);
+
+    if( !Porcelain_DrawContext(
+            state->porcelain, draw, PORCELAIN_EL(NONE), &context) ||
+        context.bounds.width <= 0 )
         return;
-    api->panel.redraw(api, "boxes");
-}
-
-/** Rewrite the session readouts. The boxes are pixels and redraw themselves. */
-static void
-xt_page_refresh(struct ToriRS_Api* api, struct XtState* state)
-{
-    long long total_gained = 0;
-    long long total_rate = 0;
-    uint64_t const now = api->core.frame_ms(api);
-    char text[96];
-
-    if( !g_page_built )
-        return;
-
-    /*
-     * A skill earning its first box makes the well TALLER. That is a property
-     * of a widget the page already has, so the retained page states it in
-     * place -- the same call the build makes. This used to be a panel_clear,
-     * and re-declaring the whole page the first time each skill was trained is
-     * what the strip flashed on.
-     */
-    (void)api->panel.set_height(api, "boxes", xt_well_h(state));
-
-    for( int i = 0; i < g_skill_count; i++ )
-    {
-        total_gained += xt_gained(&g_skill[i]);
-        if( !g_skill[i].paused )
-            total_rate += xt_hourly(&g_skill[i], g_skill[i].gained_since_reset);
-    }
-
-    /*
-     * The session's totals are the OVERVIEW BOX's, and nowhere else.
-     *
-     * They were rows on the page and then a rail badge, and both were the same
-     * mistake in different places: the strip's first box is exactly
-     * `torirs_xptracker_total_labels` and already states them, so anything
-     * else that does is a second copy to keep in step -- and the rail is a
-     * column of icons with no room for a number anyway.
-     */
-    (void)total_gained;
-    (void)total_rate;
-    (void)now;
-
-    if( g_detail >= 0 && g_detail < g_skill_count )
-    {
-        struct XtSkill const* skill = &g_skill[g_detail];
-        char scratch[24];
-        struct ToriRS_SkillSnapshot snapshot;
-        struct XtProgress progress;
-        int next_xp;
-        long long remaining;
-        int mean;
-
-        if( !xt_skill_snapshot(api, g_detail, &snapshot) )
-            memset(&snapshot, 0, sizeof(snapshot));
-        xt_progress(snapshot.xp, &progress);
-        next_xp = progress.next_xp;
-        remaining = next_xp > 0 ? next_xp - progress.xp : 0;
-        mean = xt_mean_action_xp(skill);
-
-        (void)api->panel.set_text(
-            api, "sec_detail", snapshot.name[0] ? snapshot.name : "?");
-        (void)api->panel.set_text(api, "d_pause", skill->paused ? "Unpause" : "Pause");
-
-        xt_commas(xt_gained(skill), text, sizeof(text));
-        (void)api->panel.set_text(api, "d_gained", text);
-        xt_commas(xt_hourly(skill, skill->gained_since_reset), text, sizeof(text));
-        (void)api->panel.set_text(api, "d_hr", text);
-
-        if( next_xp > 0 )
-            xt_commas(remaining, text, sizeof(text));
-        else
-            snprintf(text, sizeof(text), "\xe2\x80\x94");
-        (void)api->panel.set_text(api, "d_left", text);
-
-        xt_commas(skill->actions, scratch, sizeof(scratch));
-        snprintf(
-            text, sizeof(text), "%s  (%lld/hr)", scratch,
-            xt_hourly(skill, skill->actions_since_reset));
-        (void)api->panel.set_text(api, "d_actions", text);
-
-        if( mean > 0 && next_xp > 0 )
-            xt_commas((remaining + mean - 1) / mean, text, sizeof(text));
-        else
-            snprintf(text, sizeof(text), "\xe2\x80\x94");
-        (void)api->panel.set_text(api, "d_actleft", text);
-
-        if( skill->skill_time_ms >= XT_SECOND_MS && skill->gained_since_reset > 0 &&
-            next_xp > 0 )
-            xt_duration(
-                (remaining * (long long)(skill->skill_time_ms / 1000u)) /
-                    skill->gained_since_reset,
-                text,
-                sizeof(text));
-        else
-            snprintf(text, sizeof(text), "\xe2\x80\x94");
-        (void)api->panel.set_text(api, "d_ttl", text);
-
-        /* The detail block's shape is stable across skills.  Remember which
-         * skill its retained values now describe without rebuilding it. */
-        if( g_built_detail >= 0 )
-            g_built_detail = g_detail;
-    }
-
-    /* The strip is a picture of numbers that may just have moved. */
-    xt_strip_invalidate(api, state);
-}
-
-/**
- * Declare the page.
- *
- * The dispatch is the whole declaration -- the host empties the model before
- * calling -- so this states the page it wants rather than the difference from
- * the page it had.
- */
-static void
-xt_panel_build(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_PanelBuilder* panel,
-    int view)
-{
-    struct XtState* state = plugin_state;
-
-    if( view != TORIRS_PANEL_VIEW_PAGE )
-    {
-        g_page_built = false;
-        return;
-    }
-
-    xt_collect_boxes(api, state);
-    g_built_box_count = g_box_count;
-    memcpy(
-        g_built_box_skill,
-        g_box_skill,
-        (size_t)g_box_count * sizeof(g_built_box_skill[0]));
-    panel->custom(panel, "boxes", xt_well_h(state));
-
-    g_built_detail = g_detail;
-    if( g_detail >= 0 && g_detail < g_skill_count &&
-        xt_row_wanted(api, state, g_detail) )
-    {
-        struct ToriRS_SkillSnapshot snapshot;
-        struct ToriRS_PanelNode heading;
-        char const* name =
-            xt_skill_snapshot(api, g_detail, &snapshot) ? snapshot.name : "?";
-
-        memset(&heading, 0, sizeof(heading));
-        heading.struct_size = sizeof(heading);
-        heading.kind = TORIRS_PANEL_HEADING;
-        heading.id = "sec_detail";
-        heading.text = name;
-        (void)panel->node(panel, &heading);
-        panel->key_value(panel, "d_gained", "XP gained", "");
-        panel->key_value(panel, "d_hr", "XP/hr", "");
-        panel->key_value(panel, "d_left", "XP to level", "");
-        panel->key_value(panel, "d_actions", "Actions", "");
-        panel->key_value(panel, "d_actleft", "Actions to level", "");
-        panel->key_value(panel, "d_ttl", "Time to level", "");
-        panel->button(panel, "d_pause", g_skill[g_detail].paused ? "Unpause" : "Pause", true);
-        panel->button(panel, "d_reset", "Reset", true);
-        panel->button(panel, "d_reset_others", "Reset others", true);
-        panel->button(panel, "d_reset_rate", "Reset/hr", true);
-    }
-    else
-        g_built_detail = -1;
-
-    g_page_built = true;
-    xt_page_refresh(api, state);
-}
-
-/** Does the built page still show the boxes the state now wants? */
-static bool
-xt_page_stale(struct ToriRS_Api* api, struct XtState* state)
-{
-    bool wants_detail;
-
-    if( !g_page_built )
-        return false;
-    /* A box-order/identity change replaces the CUSTOM widget generation. A
-     * click queued against the prior bitmap then fails its widget-serial
-     * fence instead of opening whichever skill moved under the same y. */
-    xt_collect_boxes(api, state);
-    if( g_box_count != g_built_box_count )
-        return true;
-    for( int i = 0; i < g_box_count; i++ )
-        if( g_box_skill[i] != g_built_box_skill[i] )
-            return true;
-    wants_detail = g_detail >= 0 && g_detail < g_skill_count &&
-                   xt_row_wanted(api, state, g_detail);
-    return (g_built_detail >= 0) != wants_detail;
-}
-
-/** The shell moved, showed or hid this page. */
-static void
-xt_panel_layout(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_PanelLayoutEvent const* ev)
-{
-    struct XtState* state = plugin_state;
-    assert(ev);
-
-    g_page_visible = ev->visible;
-    if( ev->width > 0 )
-        g_well_w = ev->width;
-    if( g_page_visible )
-    {
-        xt_page_refresh(api, state);
-        api->panel.redraw(api, "boxes");
-    }
-}
-
-/** The strip, blitted into the well. */
-static void
-xt_panel_draw(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    char const* node,
-    struct ToriRS_Graphics* draw)
-{
-    struct XtState* state = plugin_state;
-    struct ToriRS_DrawContext context;
-
-    if( !node || strcmp(node, "boxes") != 0 )
-        return;
-    memset(&context, 0, sizeof(context));
-    context.struct_size = sizeof(context);
-    if( !draw->context(draw, &context) || context.bounds.width <= 0 )
-        return;
+    /* PENDING art is the ordinary state for the first frames and the normal
+     * one on web; a terminal state has already been reported once and asking
+     * again is what this call no longer does. @see xt_art_pixels. */
     if( !xt_art_ready(api, state) )
         return;
 
     g_well_w = context.bounds.width;
-    xt_compose(api, state, context.bounds.width);
-    if( state->compose_image.value != 0 )
-        draw->image(draw, state->compose_image, 0, 0, 255);
+    height = xt_well_h(state);
+    xt_slots(api, slot);
+    inputs = xt_compose_key(api, state, g_well_w, slot);
+    strip = Porcelain_Derived(
+        state->porcelain, XT_WELL, &inputs, sizeof(inputs), g_well_w, height,
+        xt_paint_strip, state, &derived);
+    if( derived == PORCELAIN_DERIVED_READY )
+        draw->image(draw, strip, 0, 0, 255);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The detail block                                                          */
+/* ------------------------------------------------------------------------ */
+
+/** Is the selected skill still one the page has a box for? */
+static bool
+xt_detail_open(struct ToriRS_Api* api, struct XtState* state)
+{
+    assert(api);
+    assert(state);
+    return g_detail >= 0 && g_detail < g_skill_count &&
+           xt_row_wanted(api, state, g_detail);
 }
 
 /**
- * A control on the page, or a click in the box strip.
+ * The six readouts, restated into the state the description borrows from.
  *
- * The strip is ONE control, so a click in it arrives with well-local
- * coordinates and the row is arithmetic: the boxes are a fixed pitch and the
- * order they were drawn in is `g_box_skill`.
+ * Every one of them is derived from a clock, which is why they are computed on
+ * the describe run rather than pushed: an unchanged string hashes the same and
+ * reaches no setter at all.
  */
 static void
-xt_panel_action(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_PanelActionEvent const* ev)
+xt_detail_readouts(struct ToriRS_Api* api, struct XtState* state)
 {
-    struct XtState* state = plugin_state;
-    assert(ev);
-    assert(ev->id);
+    struct XtSkill const* skill;
+    struct ToriRS_SkillSnapshot snapshot;
+    struct XtProgress progress;
+    char scratch[24];
+    int next_xp;
+    long long remaining;
+    int mean;
 
-    if( strcmp(ev->id, "boxes") == 0 )
-    {
-        /* Row zero is the session overview. Skill boxes begin one pitch down. */
-        int const row = ev->y / XT_BOX_PITCH - 1;
-        int const skill = row >= 0 && row < g_built_box_count
-                              ? g_built_box_skill[row]
-                              : -1;
-        bool const had_detail = g_built_detail >= 0;
+    assert(api);
+    assert(state);
+    assert(g_detail >= 0);
+    assert(g_detail < g_skill_count);
 
-        /* Clicking the open box closes it, which is what makes the strip its
-         * own way back out of a selection. */
-        g_detail = skill >= 0 && skill != g_detail ? skill : -1;
-        if( had_detail != (g_detail >= 0) )
-            api->panel.invalidate(api);
-        else
-            xt_page_refresh(api, state);
+    skill = &g_skill[g_detail];
+    if( !xt_skill_snapshot(api, g_detail, &snapshot) )
+        memset(&snapshot, 0, sizeof(snapshot));
+    xt_progress(snapshot.xp, &progress);
+    next_xp = progress.next_xp;
+    remaining = next_xp > 0 ? next_xp - progress.xp : 0;
+    mean = xt_mean_action_xp(skill);
+
+    snprintf(
+        state->detail_name, sizeof(state->detail_name), "%s",
+        snapshot.name[0] ? snapshot.name : "?");
+
+    xt_commas(xt_gained(skill), state->detail_text[0], sizeof(state->detail_text[0]));
+    xt_commas(
+        xt_hourly(skill, skill->gained_since_reset), state->detail_text[1],
+        sizeof(state->detail_text[1]));
+
+    if( next_xp > 0 )
+        xt_commas(remaining, state->detail_text[2], sizeof(state->detail_text[2]));
+    else
+        snprintf(state->detail_text[2], sizeof(state->detail_text[2]), "\xe2\x80\x94");
+
+    xt_commas(skill->actions, scratch, sizeof(scratch));
+    snprintf(
+        state->detail_text[3], sizeof(state->detail_text[3]), "%s  (%lld/hr)", scratch,
+        xt_hourly(skill, skill->actions_since_reset));
+
+    if( mean > 0 && next_xp > 0 )
+        xt_commas(
+            (remaining + mean - 1) / mean, state->detail_text[4],
+            sizeof(state->detail_text[4]));
+    else
+        snprintf(state->detail_text[4], sizeof(state->detail_text[4]), "\xe2\x80\x94");
+
+    if( skill->skill_time_ms >= XT_SECOND_MS && skill->gained_since_reset > 0 &&
+        next_xp > 0 )
+        xt_duration(
+            (remaining * (long long)(skill->skill_time_ms / 1000u)) /
+                skill->gained_since_reset,
+            state->detail_text[5],
+            sizeof(state->detail_text[5]));
+    else
+        snprintf(state->detail_text[5], sizeof(state->detail_text[5]), "\xe2\x80\x94");
+}
+
+/* ------------------------------------------------------------------------ */
+/* What a person did to the page                                             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * A click in the box strip.
+ *
+ * The strip is ONE control, so the click arrives with well-local coordinates
+ * and the row is arithmetic: the boxes are a fixed pitch and the order they
+ * were DRAWN in is `built_box_skill`. Row zero is the session overview, so the
+ * skill boxes begin one pitch down.
+ */
+static void
+xt_well_pressed(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct XtState* state = user;
+    int row;
+    int skill;
+
+    assert(api);
+    assert(state);
+    assert(action);
+    if( action->kind != TORIRS_PANEL_ACTION_ACTIVATE )
         return;
-    }
 
+    row = action->y / XT_BOX_PITCH - 1;
+    skill = row >= 0 && row < g_built_box_count ? g_built_box_skill[row] : -1;
+    /* Clicking the open box closes it, which is what makes the strip its own
+     * way back out of a selection. */
+    g_detail = skill >= 0 && skill != g_detail ? skill : -1;
+    /*
+     * One stamp, and the reconciler decides what it costs. A block that
+     * appeared or went away is a different row SET and therefore the page's
+     * one legitimate rebuild; a different skill under a block that was already
+     * open is the same set, so it is the heading's text and six readouts.
+     */
+    Porcelain_Invalidate(state->porcelain);
+}
+
+static void
+xt_pause_pressed(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(action);
     if( g_detail < 0 || g_detail >= g_skill_count )
         return;
+    g_skill[g_detail].paused = !g_skill[g_detail].paused;
+    g_skill[g_detail].last_change_ms = api->core.frame_ms(api);
+    Porcelain_Invalidate(state->porcelain);
+}
 
-    if( strcmp(ev->id, "d_pause") == 0 )
+static void
+xt_reset_pressed(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(action);
+    if( g_detail < 0 || g_detail >= g_skill_count )
+        return;
+    xt_reset_skill(api, state, g_detail);
+    g_detail = -1;
+    Porcelain_Invalidate(state->porcelain);
+}
+
+static void
+xt_reset_others_pressed(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(action);
+    if( g_detail < 0 || g_detail >= g_skill_count )
+        return;
+    /* The reference's "Reset others": everything BUT this one, which is how a
+     * person keeps the skill they are training and clears the noise a trip
+     * picked up around it. */
+    for( int i = 0; i < g_skill_count; i++ )
+        if( i != g_detail )
+            xt_reset_skill(api, state, i);
+    Porcelain_Invalidate(state->porcelain);
+}
+
+static void
+xt_reset_rate_pressed(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(action);
+    if( g_detail < 0 || g_detail >= g_skill_count )
+        return;
+    /* Only the per-hour figures, keeping the session total -- @see
+     * xt_reset_rate, which is XpStateSingle::resetPerHour. */
+    xt_reset_rate(&g_skill[g_detail]);
+    Porcelain_Invalidate(state->porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The description                                                           */
+/* ------------------------------------------------------------------------ */
+
+/** One KEY_VALUE readout of the detail block. */
+static void
+xt_readout(
+    struct ToriRS_PorcelainDescribe* describe,
+    char const* key,
+    char const* label,
+    char const* text)
+{
+    struct PorcelainRow row;
+
+    assert(describe);
+    memset(&row, 0, sizeof(row));
+    row.key = key;
+    row.kind = PORCELAIN_ROW_KEY_VALUE;
+    row.label = label;
+    row.text = text;
+    Porcelain_Row(describe, &row);
+}
+
+/** One button of the detail block. Every one of them is servable. */
+static void
+xt_button(
+    struct ToriRS_PorcelainDescribe* describe,
+    char const* key,
+    char const* caption,
+    PorcelainRowActionFn on_action,
+    struct XtState* state)
+{
+    struct PorcelainRow row;
+
+    assert(describe);
+    assert(state);
+    memset(&row, 0, sizeof(row));
+    row.key = key;
+    row.kind = PORCELAIN_ROW_BUTTON;
+    row.text = caption;
+    row.on_action = on_action;
+    row.user = state;
+    Porcelain_Row(describe, &row);
+}
+
+/**
+ * The page, described.
+ *
+ * The box order, the well's height, the picture's key and the six readouts are
+ * all re-derived here on every run, and none of them is pushed. What the row
+ * model does with the difference is the whole of the plan's cost model:
+ *
+ *   a new box            the well is TALLER and its input identity moved: one
+ *                        set_height and one reidentify on that row, with the
+ *                        rows around it and the reader's scroll untouched
+ *   a readout moved      one set_text on the row that says it
+ *   the picture moved    one redraw on the well
+ *   the block opened     a different row SET, which is the page's one
+ *                        legitimate rebuild
+ *
+ * It used to be that the first and the last were the same thing: any change to
+ * the box ORDER called panel.invalidate, which clears the page, resets the
+ * scroll to the top and retires every retained custom run. That is the flash.
+ */
+static void
+xt_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct XtState* state = user;
+    struct ToriRS_Api* api;
+    struct PorcelainRow row;
+    int slot[4];
+
+    assert(describe);
+    assert(state);
+    api = state->api;
+    assert(api);
+
+    xt_collect_boxes(api, state);
+    xt_slots(api, slot);
+
+    memset(&row, 0, sizeof(row));
+    row.key = XT_WELL;
+    row.kind = PORCELAIN_ROW_CUSTOM;
+    row.height = xt_well_h(state);
+    row.hit_key = xt_hit_key(state);
+    row.paint_key = xt_compose_key(api, state, g_well_w, slot);
+    row.on_action = xt_well_pressed;
+    row.paint = xt_paint_boxes;
+    row.user = state;
+    Porcelain_Row(describe, &row);
+    /*
+     * The order a click is resolved against, taken WITH the identity that
+     * fences it.
+     *
+     * A click carries the serial of the widget it was aimed at, and the well
+     * is re-identified on exactly the run that moves `hit_key` -- so a click
+     * authored against the previous order fails that fence rather than
+     * arriving here to be mapped by this table. Snapshotting anywhere else
+     * splits the two: taken at the PAINT it lags the identity by a draw pass
+     * that has not run yet, and taken at the BUILD it is not taken at all on a
+     * run the row model resolved without re-declaring the page -- which, now
+     * that a new box is a reidentify and not a rebuild, is every such run.
+     */
+    g_built_box_count = g_box_count;
+    memcpy(
+        g_built_box_skill, g_box_skill,
+        (size_t)g_box_count * sizeof(g_built_box_skill[0]));
+
+    if( !xt_detail_open(api, state) )
+        return;
+
+    xt_detail_readouts(api, state);
+
+    memset(&row, 0, sizeof(row));
+    row.key = XT_DETAIL_HEADING;
+    row.kind = PORCELAIN_ROW_HEADING;
+    row.text = state->detail_name;
+    Porcelain_Row(describe, &row);
+
+    xt_readout(describe, "d_gained", "XP gained", state->detail_text[0]);
+    xt_readout(describe, "d_hr", "XP/hr", state->detail_text[1]);
+    xt_readout(describe, "d_left", "XP to level", state->detail_text[2]);
+    xt_readout(describe, "d_actions", "Actions", state->detail_text[3]);
+    xt_readout(describe, "d_actleft", "Actions to level", state->detail_text[4]);
+    xt_readout(describe, "d_ttl", "Time to level", state->detail_text[5]);
+
+    /* The caption IS the state, and it is a setter now: the host's BUTTON
+     * patch arm used to be an empty break, so pressing Pause left the button
+     * saying Pause on every lane and every executor. @see host fix H1. */
+    xt_button(
+        describe, "d_pause", g_skill[g_detail].paused ? "Unpause" : "Pause",
+        xt_pause_pressed, state);
+    xt_button(describe, "d_reset", "Reset", xt_reset_pressed, state);
+    xt_button(
+        describe, "d_reset_others", "Reset others", xt_reset_others_pressed, state);
+    xt_button(describe, "d_reset_rate", "Reset/hr", xt_reset_rate_pressed, state);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The state machine's own cadences                                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Size the skill table, the first time the client can answer.
+ *
+ * NOT at on_start, and that is the whole point: a plugin starts when the
+ * client boots, and the stat table does not exist until a session has one --
+ * so a table sized there is sized to ZERO, permanently, for a plugin whose
+ * every loop runs to g_skill_count. The assert that was supposed to catch it
+ * is compiled out of a release build, so the symptom is not a crash: it is a
+ * tracker that quietly never tracks anything for the whole session.
+ *
+ * The WALK is the half that was wrong. It used to stop at the first index
+ * `skill` refused, which conflates three different answers: a skill the lane
+ * does not have, a skill it has that the server has not stated, and the end of
+ * the table. A lane with a hole therefore truncated silently and every skill
+ * past the hole was invisible for the session. The snapshot tells them apart
+ * now -- an absent index comes back with `index` -1 and a real one with its
+ * own index and name -- so the walk is a BOUND and a refusal inside it is
+ * skipped rather than obeyed. @see ToriRS_SkillSnapshot::stated.
+ */
+static void
+xt_size_table(struct ToriRS_Api* api, struct XtState* state)
+{
+    struct ToriRS_SkillSnapshot snapshot;
+    int highest = -1;
+    bool any_stated = false;
+
+    assert(api);
+    assert(state);
+    if( g_skill_count > 0 )
+        return;
+
+    for( int i = 0; i < XT_SKILLS_MAX; i++ )
     {
-        g_skill[g_detail].paused = !g_skill[g_detail].paused;
-        g_skill[g_detail].last_change_ms = api->core.frame_ms(api);
-        xt_page_refresh(api, state);
+        if( xt_skill_snapshot(api, i, &snapshot) )
+            any_stated = true;
+        /* Filled on both false paths: this is "the lane HAS this skill", not
+         * "the server has stated it". */
+        if( snapshot.index >= 0 )
+            highest = i;
+    }
+    /* No session yet; ask again next tick. */
+    if( !any_stated )
+        return;
+
+    g_skill_count = highest + 1;
+    for( int i = 0; i < g_skill_count; i++ )
+    {
+        memset(&g_skill[i], 0, sizeof(g_skill[i]));
+        g_skill[i].start_xp = -1;
+    }
+    g_session_start_ms = api->core.frame_ms(api);
+}
+
+/**
+ * Reconcile the saved session, once there are READINGS to reconcile onto.
+ *
+ * The gate is the whole of it: the names come out of the cache and answer as
+ * soon as the client boots, while the xp arrives with the login burst, and in
+ * between the pre-login table is a FRESH ACCOUNT's rather than an empty one.
+ * Seeding from it reads the whole burst as one enormous gain -- the panel
+ * snapping to the character's total the moment it appeared.
+ */
+static void
+xt_apply_saved(struct ToriRS_Api* api, struct XtState* state)
+{
+    assert(api);
+    assert(state);
+    if( g_state_applied || !state->stats_ready || g_skill_count == 0 )
+        return;
+    g_state_applied = true;
+    xt_state_apply(api, state);
+    Porcelain_Invalidate(state->porcelain);
+}
+
+/** A skill has been STATED. @see PORCELAIN_READY_STATS, host fix H8. */
+static void
+xt_stats_ready(struct ToriRS_Api* api, void* user, unsigned what)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    (void)what;
+    state->stats_ready = true;
+    /* The names answer now even where they did not at on_start, so this is
+     * also the first moment the table can be sized. */
+    xt_size_table(api, state);
+    xt_apply_saved(api, state);
+}
+
+/**
+ * One reading per skill, per logic tick.
+ *
+ * The logged-out EDGE is here and not on a readiness watch because the layer
+ * has no falling edge to offer: `Porcelain_WhenReady` fires when a bit comes
+ * true and re-arms when the game goes away, and "the player has just logged
+ * out" is the moment between those two. The state is KEPT rather than reset --
+ * a hop is not a new session, and the saved-state reconciliation on the way
+ * back in is what decides whether the xp that appeared meanwhile was yours.
+ */
+static void
+xt_observe_all(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
+{
+    struct XtState* state = user;
+    struct ToriRS_PlayerSnapshot me;
+    uint64_t now;
+    bool logged_in;
+
+    assert(api);
+    assert(state);
+    (void)elapsed_ms;
+
+    now = api->core.frame_ms(api);
+    logged_in = api->world.local_player(api, &me);
+
+    xt_size_table(api, state);
+    if( g_skill_count == 0 )
+        return;
+    xt_apply_saved(api, state);
+
+    if( !logged_in )
+    {
+        if( g_logged_in )
+        {
+            if( xt_cfg_bool(api, "pause_on_logout") )
+                for( int i = 0; i < g_skill_count; i++ )
+                    g_skill[i].paused = true;
+            xt_state_save(api, state);
+            /* On the EDGE, not on a throttle: the moment the state changed is
+             * the moment the page has to stop disagreeing with it. */
+            Porcelain_Invalidate(state->porcelain);
+        }
+        g_logged_in = false;
         return;
     }
-    if( strcmp(ev->id, "d_reset") == 0 )
+
+    g_logged_in = true;
+    for( int i = 0; i < g_skill_count; i++ )
     {
-        xt_reset_skill(api, state, g_detail);
-        g_detail = -1;
-        api->panel.invalidate(api);
-        return;
-    }
-    if( strcmp(ev->id, "d_reset_others") == 0 )
-    {
-        /* The reference's "Reset others": everything BUT this one, which is
-         * how a person keeps the skill they are training and clears the noise
-         * a trip picked up around it. */
-        for( int i = 0; i < g_skill_count; i++ )
-            if( i != g_detail )
-                xt_reset_skill(api, state, i);
-        api->panel.invalidate(api);
-        return;
-    }
-    if( strcmp(ev->id, "d_reset_rate") == 0 )
-    {
-        /* Only the per-hour figures, keeping the session total -- @see
-         * xt_reset_rate, which is XpStateSingle::resetPerHour. */
-        xt_reset_rate(&g_skill[g_detail]);
-        xt_page_refresh(api, state);
-        return;
+        struct ToriRS_SkillSnapshot snapshot;
+        if( xt_skill_snapshot(api, i, &snapshot) )
+            xt_observe(state, i, snapshot.xp, now);
     }
 }
+
+/**
+ * The per-second half: accumulate training time, and apply the two timers.
+ *
+ * Separate from the poll above because both timers are about xp NOT arriving,
+ * which no xp event can announce. `elapsed_ms` is the REAL time since this
+ * timer last fired rather than the second it asked for, which is what keeps a
+ * rate honest across a frame budget that slipped.
+ */
+static void
+xt_second(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    /* No stat table to read while logged out, and no clock that should run:
+     * an idle logged-out session must not dilute the rate it measured. */
+    if( !g_logged_in || g_skill_count == 0 )
+        return;
+    xt_tick_second(api, state, api->core.frame_ms(api), elapsed_ms);
+}
+
+/**
+ * The page's numbers, twice a second, and only while it is on screen.
+ *
+ * Every readout on it is derived from a clock, so it would otherwise be
+ * reformatted fifty times a second to say the same thing. Saying the
+ * description is stale is all this does: what the run costs is decided by the
+ * reconciler, and a run in which nothing moved costs no engine call at all.
+ */
+static void
+xt_refresh(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
+{
+    struct XtState* state = user;
+
+    assert(api);
+    assert(state);
+    (void)elapsed_ms;
+    if( !g_page_visible )
+        return;
+    Porcelain_Invalidate(state->porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The host callbacks                                                        */
+/* ------------------------------------------------------------------------ */
 
 static void
 xt_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct XtState* state = plugin_state;
-    struct ToriRS_PanelDescriptor desc;
+
+    assert(api);
+    assert(state);
+    /* A page with no layer is a page that cannot exist. */
+    assert(api->porcelain);
 
     memset(state, 0, sizeof(*state));
+    state->api = api;
     g_detail = -1;
-    g_built_detail = -1;
     g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
-    g_skill_count = 0;
-    memset(g_built_rows, 0, sizeof(g_built_rows));
-    g_detail = -1;
-    g_built_detail = -1;
-    g_page_built = false;
-    g_page_visible = false;
-    g_compose_key = 0;
-    g_state_applied = false;
-    g_logged_in = false;
+    state->art_font.name = "text.png";
+    state->art_skills.name = "skills.png";
+    state->art_over.name = "overview_icon.png";
     g_session_start_ms = api->core.frame_ms(api);
-    g_last_second_ms = g_session_start_ms;
-    g_next_panel_ms = 0;
 
-    memset(&desc, 0, sizeof(desc));
+    state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_XP_TRACKER, state);
+    assert(state->porcelain);
     /* The cache popout's own XP Tracker icon (popout_icons,2 / sprite 3579).
-     * @see script/plugins/assets/xp-tracker/panel_icon.txt. */
-    desc.icon_asset = "panel_icon.png";
-    desc.preferred_width = TORIRS_PANEL_WIDTH_DEFAULT;
-    (void)api->panel.request(api, &desc);
+     * @see script/plugins/assets/xp-tracker/panel_icon.txt. The PAGE face is
+     * the only one this description covers: declaring nothing on the settings
+     * face is what leaves the host presenting the form it generates from the
+     * config schema. */
+    Porcelain_Panel(
+        state->porcelain, "panel_icon.png", TORIRS_PANEL_WIDTH_DEFAULT,
+        PORCELAIN_FACE_PAGE);
+    /*
+     * The one thing this page cannot do right on both lanes, said out loud.
+     *
+     * skills.png is cut in RAW skill-id order, and dat1 and dat2 number the
+     * stats differently -- so one of the two draws the wrong picture in every
+     * box. The fix is the lane's own enum(stat, graphic) on the CS2 lane and
+     * sideicons.dat on the CS1 one, which is a single verb with no engine half
+     * yet. Declared rather than left quiet, so the day that verb lands this
+     * declaration stops being true and says so.
+     */
+    Porcelain_ExpectUnsupported(
+        state->porcelain, "skill_icon_lane_enum",
+        "skills.png is keyed by raw skill id; the lanes number the stats "
+        "differently");
+
+    Porcelain_Describe(state->porcelain, xt_describe, state);
+    /* The saved session may only be reconciled once the server has STATED a
+     * reading. @see xt_apply_saved. */
+    Porcelain_WhenReady(
+        state->porcelain, PORCELAIN_READY_STATS, xt_stats_ready, state);
+    Porcelain_Every(state->porcelain, PORCELAIN_LOGIC_TICK, xt_observe_all, state);
+    Porcelain_EveryMs(state->porcelain, XT_SECOND_MS, xt_second, state);
+    Porcelain_EveryMs(state->porcelain, XT_PANEL_REFRESH_MS, xt_refresh, state);
 
     /* Queued, not read: the file crosses the IO queue like every other asset,
      * and the answer arrives at on_asset. A load that is already resident
-     * answers 1 and no event follows, so the apply has to happen here too. */
-    /* Requested here and applied by the sizer: the file crosses the IO queue
-     * and the stat table does not exist yet either. */
+     * answers READY and no event follows, so the readiness watch has to try
+     * the apply too. */
     if( xt_cfg_bool(api, "save_state") )
         (void)api->assets.request(api, XT_STATE_ASSET);
+}
+
+static void
+xt_stop(struct ToriRS_Api* api, void* plugin_state)
+{
+    struct XtState* state = plugin_state;
+
+    assert(api);
+    assert(state);
+    xt_state_save(api, state);
+    /* Every image the layer owns -- the composed strip and the source art --
+     * goes back here; the pixel copies are this plugin's own. */
+    Porcelain_Close(state->porcelain);
+    state->porcelain = NULL;
+    free(state->art_font.px);
+    free(state->art_skills.px);
+    free(state->art_over.px);
+    api->assets.release(api, XT_STATE_ASSET);
+    memset(state, 0, sizeof(*state));
 }
 
 static void
@@ -1819,151 +2181,142 @@ xt_asset(
     struct ToriRS_AssetEvent const* ev)
 {
     struct XtState* state = plugin_state;
-    assert(ev);
 
-    /* Only once there are READINGS to reconcile onto; otherwise the tick does
-     * it the moment there are. @see xt_stats_live. */
-    if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 &&
-        !g_state_applied && g_skill_count > 0 && xt_stats_live(api, state) )
-    {
-        g_state_applied = true;
-        xt_state_apply(api, state);
-        api->panel.invalidate(api);
-    }
+    assert(api);
+    assert(state);
+    assert(ev);
+    /* Only once there are READINGS to reconcile onto; otherwise the readiness
+     * watch does it the moment there are. @see xt_apply_saved. */
+    if( ev->ok && ev->name && strcmp(ev->name, XT_STATE_ASSET) == 0 )
+        xt_apply_saved(api, state);
+    /*
+     * And the art, warmed on the event rather than on the first draw.
+     *
+     * Not an optimisation and not a retry: it is WHEN the three source
+     * pictures are claimed. Loading them only from the draw pass would mean a
+     * page nobody has opened holds no handles -- which sounds better and is a
+     * behaviour change, because the handles a plugin holds are the numbering
+     * every handle allocated after them inherits. The ledger's cost column for
+     * this row reads "boot only", and this is boot.
+     */
     (void)xt_art_ready(api, state);
 }
 
 static void
-xt_stop(struct ToriRS_Api* api, void* plugin_state)
-{
-    struct XtState* state = plugin_state;
-    xt_state_save(api, state);
-    g_page_built = false;
-    free(g_compose);
-    g_compose = NULL;
-    PluginDraw_AtlasFree(api, &g_font);
-    PluginDraw_ImageFree(api, &g_over_px, &g_img_over);
-    PluginDraw_ImageFree(api, &g_skill_px, &g_img_skills);
-    if( state->compose_image.value != 0 )
-        api->assets.image_release(api, state->compose_image);
-    api->assets.release(api, XT_STATE_ASSET);
-    memset(state, 0, sizeof(*state));
-}
-
-/**
- * Size the skill table, the first time the client can answer.
- *
- * NOT at on_start, and that is the whole point: a plugin starts when the
- * client boots, and the stat table does not exist until a session has one --
- * so `skill_name` answers NULL for every index and a table sized there is
- * sized to ZERO, permanently, for a plugin whose every loop runs to
- * g_skill_count. The assert that was supposed to catch it is compiled out of a
- * release build, so the symptom is not a crash: it is a tracker that quietly
- * never tracks anything for the whole session.
- *
- * Lazy and idempotent, which is how xp-drop-orbs sizes the same table.
- */
-static void
-xt_size_table(struct ToriRS_Api* api, struct XtState* state)
-{
-    int count = 0;
-    struct ToriRS_SkillSnapshot snapshot;
-
-    if( g_skill_count > 0 )
-        return;
-    while( count < XT_SKILLS_MAX && xt_skill_snapshot(api, count, &snapshot) )
-        count++;
-    if( count == 0 )
-        return; /* no session yet; ask again next tick */
-
-    g_skill_count = count;
-    for( int i = 0; i < g_skill_count; i++ )
-    {
-        memset(&g_skill[i], 0, sizeof(g_skill[i]));
-        g_skill[i].start_xp = -1;
-    }
-    g_session_start_ms = api->core.frame_ms(api);
-}
-
-static void
-xt_tick(
+xt_logic_tick(
     struct ToriRS_Api* api,
     void* plugin_state,
     struct ToriRS_TickEvent const* event)
 {
     struct XtState* state = plugin_state;
+
+    assert(api);
+    assert(state);
     (void)event;
+    /* The library installs no callbacks of its own: the definition belongs to
+     * the plugin and the host already registered it, so a cadence the layer
+     * offers is a cadence the plugin forwards. */
+    Porcelain_Tick(state->porcelain, PORCELAIN_LOGIC_TICK);
+}
 
-    struct ToriRS_PlayerSnapshot me;
-    uint64_t const now = api->core.frame_ms(api);
-    bool const logged_in = api->world.local_player(api, &me);
+static void
+xt_frame_start(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_FrameEvent const* event)
+{
+    struct XtState* state = plugin_state;
 
-    xt_size_table(api, state);
-    if( g_skill_count == 0 )
-        return;
+    assert(api);
+    assert(state);
+    (void)event;
+    Porcelain_Fence(state->porcelain);
+    Porcelain_Commit(api);
+}
 
-    if( !logged_in )
-    {
-        /*
-         * Logged out. The reference pauses every skill here when
-         * `logoutPausing` is set, and the state is KEPT rather than reset: a
-         * hop is not a new session, and the saved-state reconciliation on the
-         * way back in is what decides whether the xp that appeared meanwhile
-         * was yours.
-         *
-         * The poll and the per-second half are skipped -- there is no stat
-         * table to read -- but the page REFRESH below is not, or the rows
-         * would go on saying "training" for as long as the panel stayed open
-         * on a logged-out client.
-         */
-        if( g_logged_in )
-        {
-            if( xt_cfg_bool(api, "pause_on_logout") )
-                for( int i = 0; i < g_skill_count; i++ )
-                    g_skill[i].paused = true;
-            xt_state_save(api, state);
-            /* On the EDGE, not on the throttle: the moment the state changed
-             * is the moment the page has to stop disagreeing with it. */
-            g_next_panel_ms = 0;
-        }
-        g_logged_in = false;
-        g_last_second_ms = now;
-    }
-    else
-    {
-        g_logged_in = true;
+static void
+xt_config_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
+{
+    struct XtState* state = plugin_state;
 
-        /* BEFORE the poll: the saved session's start_xp is the one this
-         * session runs on, and a seed taken first would be the one it kept. */
-        if( !g_state_applied && xt_stats_live(api, state) )
-        {
-            g_state_applied = true;
-            xt_state_apply(api, state);
-            api->panel.invalidate(api);
-        }
+    assert(api);
+    assert(state);
+    (void)key;
+    /* One of the layer's own six inputs, forwarded: the four label slots and
+     * hide_maxed are all read by the description. */
+    Porcelain_Note(state->porcelain, PORCELAIN_INPUT_CONFIG);
+}
 
-        for( int i = 0; i < g_skill_count; i++ )
-        {
-            struct ToriRS_SkillSnapshot snapshot;
-            if( xt_skill_snapshot(api, i, &snapshot) )
-                xt_observe(state, i, snapshot.xp, now);
-        }
+static void
+xt_ui_build(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_PanelBuilder* panel,
+    int view)
+{
+    struct XtState* state = plugin_state;
 
-        if( now >= g_last_second_ms + XT_SECOND_MS )
-        {
-            xt_tick_second(api, state, now, now - g_last_second_ms);
-            g_last_second_ms = now;
-        }
-    }
+    assert(api);
+    assert(state);
+    assert(panel);
+    Porcelain_PanelBuild(state->porcelain, panel, view);
+}
 
-    if( g_page_visible && now >= g_next_panel_ms )
-    {
-        g_next_panel_ms = now + XT_PANEL_REFRESH_MS;
-        if( xt_page_stale(api, state) )
-            api->panel.invalidate(api);
-        else
-            xt_page_refresh(api, state);
-    }
+static void
+xt_ui_action(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_PanelActionEvent const* event)
+{
+    struct XtState* state = plugin_state;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    (void)Porcelain_PanelAction(state->porcelain, event);
+}
+
+static void
+xt_ui_draw(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    char const* node,
+    struct ToriRS_Graphics* draw)
+{
+    struct XtState* state = plugin_state;
+
+    assert(api);
+    assert(state);
+    assert(node);
+    assert(draw);
+    (void)Porcelain_PanelDraw(state->porcelain, node, draw);
+}
+
+/**
+ * The shell moved, showed or hid this page.
+ *
+ * Both halves are description INPUTS: the width is in the picture's key, and
+ * the page becoming presented is the moment its numbers have to be current.
+ * This used to refresh and redraw without re-collecting the box order, so a
+ * page shown after a new skill had been trained displayed up to half a second
+ * of stale strip and then flashed when the next tick found the topology stale
+ * and re-declared the whole page.
+ */
+static void
+xt_ui_layout(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_PanelLayoutEvent const* ev)
+{
+    struct XtState* state = plugin_state;
+
+    assert(api);
+    assert(state);
+    assert(ev);
+    g_page_visible = ev->visible;
+    if( ev->width > 0 )
+        g_well_w = ev->width;
+    Porcelain_Invalidate(state->porcelain);
 }
 
 static struct ToriRS_ConfigItem const XT_CONFIG[] = {
@@ -1992,7 +2345,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
     .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "xp-tracker",
     .title = "XP Tracker",
-    .version = "2.0.0",
+    .version = "3.0.0",
     .state_size = sizeof(struct XtState),
     .config = &XT_SCHEMA,
     .callbacks = {
@@ -2000,10 +2353,12 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER = {
         .on_start = xt_start,
         .on_stop = xt_stop,
         .on_asset = xt_asset,
-        .on_logic_tick = xt_tick,
-        .on_ui_build = xt_panel_build,
-        .on_ui_action = xt_panel_action,
-        .on_ui_draw = xt_panel_draw,
-        .on_ui_layout = xt_panel_layout,
+        .on_config_changed = xt_config_changed,
+        .on_frame_start = xt_frame_start,
+        .on_logic_tick = xt_logic_tick,
+        .on_ui_build = xt_ui_build,
+        .on_ui_action = xt_ui_action,
+        .on_ui_draw = xt_ui_draw,
+        .on_ui_layout = xt_ui_layout,
     },
 };

@@ -100,6 +100,12 @@ static struct
 
     /** Which plugin's asset folder a read resolves against. */
     char const* asset_dir;
+    /** One shipped file this run pretends is not there, and how many times
+     *  anybody asked the store for a picture. A terminal asset state has to be
+     *  remembered: re-asking every draw pass is what it replaces. */
+    char const* absent_asset;
+    int image_asks;
+    int absent_asks;
 
     struct FakeAsset asset[FAKE_ASSETS];
     int asset_count;
@@ -194,6 +200,8 @@ fake_asset_load(void* ctx, char const* name)
     long size;
 
     (void)ctx;
+    if( g_c.absent_asset && strcmp(g_c.absent_asset, name) == 0 )
+        return 0;
     if( asset_find(name) )
         return 1;
     assert(g_c.asset_count < FAKE_ASSETS);
@@ -598,6 +606,9 @@ static enum ToriRS_AssetState v2_image(
 {
     int const image = fake_image_load(NULL, name);
     (void)api;
+    g_c.image_asks++;
+    if( g_c.absent_asset && strcmp(g_c.absent_asset, name) == 0 )
+        g_c.absent_asks++;
     out->value = image >= 0 ? (uint32_t)image + 1u : 0;
     return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING;
 }
@@ -631,10 +642,14 @@ static bool v2_skill(
     struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     (void)api;
-    if( skill < 0 || skill >= FAKE_SKILLS ) return false;
     memset(out, 0, sizeof(*out));
     out->struct_size = sizeof(*out);
+    /* Absent is index -1 and stated is the bit, exactly as the host answers.
+     * @see ToriRS_SkillSnapshot::stated. */
+    out->index = -1;
+    if( skill < 0 || skill >= FAKE_SKILLS ) return false;
     out->index = skill;
+    out->stated = true;
     snprintf(out->name, sizeof(out->name), "%s", SKILL_NAME[skill]);
     out->current_level = g_c.level[skill];
     out->base_level = g_c.level[skill];
@@ -692,15 +707,39 @@ static enum ToriRS_Result v2_panel_height(
 { (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 static void v2_panel_redraw(struct ToriRS_Api* api, char const* id)
 { (void)api; fake_panel_invalidate(NULL, id); }
-/* The two verbs the row reconciler reaches for that this fixture never had: a
- * caption restated in place, and a well whose y-mapping moved. Both are now
- * the ordinary path for a page that grows, so a NULL here is a crash rather
- * than an unexercised branch. */
+/*
+ * The three verbs the row reconciler reaches for that this fixture never had:
+ * a caption restated in place, a choice list restated with its selection, and
+ * a well whose y-mapping moved. All three are the ordinary path for a page
+ * that grows, so a NULL here is a crash rather than an unexercised branch.
+ *
+ * Each of them does BOTH halves, because the two trackers ask different
+ * questions of the same call: one reads the value back and the other pins
+ * that an id the page does not have is REFUSED. A verb that only stored
+ * would answer OK to a row that is not there; one that only checked would
+ * lose the string the caller is about to read.
+ */
 static enum ToriRS_Result v2_panel_label(
     struct ToriRS_Api* api, char const* id, char const* label)
 { (void)api; return fake_panel_set_text(NULL, id, label) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
+static enum ToriRS_Result v2_panel_options(
+    struct ToriRS_Api* api, char const* id, char const* value,
+    struct ToriRS_SelectOption const* options, int count)
+{
+    (void)api; (void)value; (void)options; (void)count;
+    return w_find(id) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND;
+}
 static enum ToriRS_Result v2_panel_reidentify(struct ToriRS_Api* api, char const* id)
-{ (void)api; (void)id; g_c.reidentifies++; return TORIRS_RESULT_OK; }
+{
+    (void)api;
+    if( !w_find(id) )
+        return TORIRS_RESULT_NOT_FOUND;
+    g_c.reidentifies++;
+    return TORIRS_RESULT_OK;
+}
+/* The layer's readiness poll reads this at every fence. */
+static int v2_screen(struct ToriRS_Api* api)
+{ (void)api; return TORIRS_SCREEN_GAME; }
 static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
 { (void)panel; (void)text; }
 static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* text)
@@ -726,7 +765,14 @@ static void v2_build_key_value(
 { (void)panel; (void)value; (void)fake_panel_widget(NULL, TORIRS_PANEL_KEY_VALUE, id, label); }
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
-{ (void)panel; return fake_panel_widget(NULL, TORIRS_PANEL_HEADING, node->id, node->text) ? TORIRS_RESULT_OK : TORIRS_RESULT_BUDGET; }
+{
+    (void)panel;
+    if( !fake_panel_widget(NULL, node->kind, node->id, node->text) )
+        return TORIRS_RESULT_BUDGET;
+    if( node->preferred_height )
+        (void)fake_panel_set_height(NULL, node->id, node->preferred_height);
+    return TORIRS_RESULT_OK;
+}
 static void v2_draw_image(
     struct ToriRS_Graphics* draw, struct ToriRS_ImageRef image, int x, int y, int alpha)
 { (void)draw; (void)image; (void)x; (void)y; (void)alpha; }
@@ -751,6 +797,7 @@ api_init(void)
     g_api.core.notify = v2_notify;
     g_api.core.frame_ms = v2_frame_ms;
     g_api.core.capability = v2_capability;
+    g_api.core.screen = v2_screen;
     g_api.porcelain = ToriRS_PorcelainApiTable();
     g_api.config.has = v2_cfg_has;
     g_api.config.get_bool = v2_cfg_bool;
@@ -775,6 +822,7 @@ api_init(void)
     g_api.panel.set_height = v2_panel_height;
     g_api.panel.redraw = v2_panel_redraw;
     g_api.panel.set_label = v2_panel_label;
+    g_api.panel.set_options = v2_panel_options;
     g_api.panel.reidentify = v2_panel_reidentify;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
@@ -910,6 +958,19 @@ dispatch_stop(void)
     g_plugin = NULL;
 }
 
+/* A Porcelain plugin describes and reconciles at on_frame_start, so a harness
+ * that never dispatched one would be running a plugin whose description never
+ * converged. Harmless for a plugin that has no such callback. */
+static void
+dispatch_frame_start(void)
+{
+    struct ToriRS_FrameEvent event;
+    assert(g_plugin && g_plugin_state);
+    memset(&event, 0, sizeof(event));
+    if( g_plugin->callbacks.on_frame_start )
+        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &event);
+}
+
 static void
 dispatch_logic_tick(struct ToriRS_TickEvent const* event)
 {
@@ -924,16 +985,6 @@ dispatch_panel_layout(struct ToriRS_PanelLayoutEvent const* event)
     assert(g_plugin && g_plugin_state && event);
     if( g_plugin->callbacks.on_ui_layout )
         g_plugin->callbacks.on_ui_layout(&g_api, g_plugin_state, event);
-}
-
-static void
-dispatch_frame_start(void)
-{
-    struct ToriRS_FrameEvent ev;
-    assert(g_plugin && g_plugin_state);
-    memset(&ev, 0, sizeof(ev));
-    if( g_plugin->callbacks.on_frame_start )
-        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &ev);
 }
 
 static void
@@ -1307,6 +1358,101 @@ test_xp_ttl_advances_inside_rate_floor(void)
         "a TTL slot recomposes as elapsed seconds advance inside the XP/hr floor");
 }
 
+/*
+ * Art that is not there is asked for ONCE.
+ *
+ * skills.png is REQUIRED -- no icon strip, no strip worth publishing -- and
+ * the old spelling answered that with a bool per picture and a retry on every
+ * draw pass. A missing file and a file still crossing the IO queue were the
+ * same answer, so an absent sheet was re-asked fifty times a second for the
+ * life of the session and said so nowhere. Porcelain_Image remembers a
+ * terminal state and reports it once; that it is reported at all is pinned by
+ * porcelain_test.c's own terminal-asset cases, and what belongs here is that
+ * this plugin stops asking.
+ */
+static void
+test_xp_missing_art_is_asked_for_once(void)
+{
+    int const WC = 8;
+    int asks;
+
+    reset("xp-tracker");
+    cfg_set("save_state", "0");
+    cfg_set("hide_maxed", "0");
+    cfg_set("pause_on_logout", "1");
+    cfg_set("pause_skill_after", "0");
+    cfg_set("reset_rate_after", "0");
+    g_c.absent_asset = "skills.png";
+    g_c.level[WC] = 40;
+    g_c.xp[WC] = LEVEL_XP[40];
+
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(20);
+    g_c.xp[WC] += 100;
+    tick(1000);
+
+    draw_well("boxes", 264);
+    CHECK(
+        g_c.comp_px == NULL,
+        "a required sheet that is missing publishes no strip at all");
+    asks = g_c.absent_asks;
+    CHECK(asks > 0, "and it was asked for (got %d)", asks);
+
+    for( int i = 0; i < 20; i++ )
+    {
+        tick(50);
+        draw_well("boxes", 264);
+    }
+    CHECK(
+        g_c.absent_asks == asks,
+        "twenty more draw passes ask the store for it not once more (got %d)",
+        g_c.absent_asks - asks);
+}
+
+/*
+ * The overview icon is WANTED, not required.
+ *
+ * A missing picture there is a box with a gap in it, not a page that refuses
+ * to draw: the overall card is two lines of text and a graphic, and the two
+ * lines are the answer. The strip below is the same 3x50 the reference case
+ * composes, with the staticons2,7 blit simply absent.
+ */
+static void
+test_xp_wanted_art_is_a_gap_not_a_refusal(void)
+{
+    int const ATT = 0, HP = 3;
+
+    reset("xp-tracker");
+    cfg_set("save_state", "0");
+    cfg_set("hide_maxed", "0");
+    cfg_set("pause_on_logout", "1");
+    cfg_set("pause_skill_after", "0");
+    cfg_set("reset_rate_after", "0");
+    g_c.absent_asset = "overview_icon.png";
+    g_c.level[ATT] = 99; g_c.xp[ATT] = 113479718;
+    g_c.level[HP] = 99;  g_c.xp[HP] = 39107294;
+
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(20);
+    g_c.xp[ATT] += 20;
+    g_c.xp[HP] += 7;
+    tick(60000);
+    panel_build();
+    draw_well("boxes", 264);
+
+    CHECK(g_c.comp_px != NULL, "the strip still composes");
+    CHECK(
+        g_c.comp_h == 3 * 50,
+        "with the overview box and both skill boxes (got %d)", g_c.comp_h);
+    CHECK(
+        !dominant_colour_in_rect(g_c.comp_px, g_c.comp_w, g_c.comp_h, 0, 0, 31, 48, 0),
+        "and a gap where the stats-bars icon would have been");
+}
+
 /** The loot strip, seeded with the reference capture's own log. */
 static void
 render_loot(void)
@@ -1579,6 +1725,8 @@ main(void)
     api_init();
     render_xp();
     test_xp_ttl_advances_inside_rate_floor();
+    test_xp_missing_art_is_asked_for_once();
+    test_xp_wanted_art_is_a_gap_not_a_refusal();
     render_loot();
     test_loot_stateful_controls();
     test_loot_a_pending_icon_does_not_recompose_every_frame();
