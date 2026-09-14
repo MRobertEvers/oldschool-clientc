@@ -49,7 +49,27 @@ RevConfigRefs_Free(struct RevConfigRefs* refs);
 
 /**
  * Ingest every ref-bearing item in `items`: RCITEM_CACHE_REF under its own
- * section kind, and RCITEM_CACHE_FONT under kind "font".
+ * section kind, RCITEM_CACHE_FONT under kind "font", and RCITEM_TABS under the
+ * four tab kinds below.
+ *
+ * The sidebar tabs, which are the one family whose rows are not one section
+ * apiece:
+ *
+ *   "tab"        <name>        -> the tab NUMBER, from `[tabs]`. On a lane
+ *                                 with no `[tabs]` section this is derived
+ *                                 instead from the `[role:panel_<name>]
+ *                                 match=slot(sidebar, <n>)` rows a 2004
+ *                                 profile already carries, so the question has
+ *                                 one spelling on every lane.
+ *   "tabcol"     <root>:<name> -> which column of that gameframe root the tab
+ *                                 sits in, from `[tabs:<root>] columns=`.
+ *   "tabpos"     <root>:<name> -> where in that column, top first.
+ *   "tabdetach"  <root>:<name> -> 1 for a tab that root hangs outside every
+ *                                 column, from `detached=`.
+ *
+ * A root that states no arrangement answers -1 to all three of the per-root
+ * kinds, which reads as "one plain run" -- the same answer as a tab that is in
+ * no column and not detached, and the same thing.
  *
  * A name declared twice replaces the earlier entry, so a boot manifest's inline
  * sections override the shared profile files it also names — the same
