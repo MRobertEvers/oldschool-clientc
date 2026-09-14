@@ -1,9 +1,9 @@
 -- Screenshot capture: game-event and hotkey captures, plus a camera control
 -- that is an owned widget with one native operation. The corner modes place
--- the control inside the live viewport; the report-button mode hides the
--- native Report button's presentation and puts the camera over its slot. The
--- native button keeps its identity and comes back when the mode changes or the
--- plugin stops.
+-- the control inside the live viewport; the report-button mode stands the
+-- camera in place of the native Report button through a REPLACE anchor, so it
+-- follows the button's native visibility both ways. The native button keeps
+-- its identity and comes back when the mode changes or the plugin stops.
 ---@type torirs.Plugin
 local plugin = {
     id = "screenshot",
@@ -143,20 +143,22 @@ local function update_controls(api)
         local x, y = corner_position(api, where, width, height)
         if x then corner_control = place_camera(api, viewport, "camera", icon, x, y) end
     end
-    -- Report-button mode hides the native button's presentation only; its
-    -- native identity, operation and later server updates stay intact and are
-    -- revealed again by set_hidden(false), reset or plugin teardown.
+    -- Report-button mode stands the camera IN PLACE of the native button: a
+    -- REPLACE anchor, which the engine paints and hits instead of the target
+    -- while the target is natively presented, and not at all while it is not.
+    -- The native identity, operation and later server updates stay intact and
+    -- come back when the control is removed, on reset or on plugin teardown.
+    -- A presentation hide plus a positioned sibling was the previous shape,
+    -- and on the mobile toplevel, where the cache hides Report and gives its
+    -- columns to Trade, it painted the camera over the Trade caption.
     if report_control then report_control:remove(); report_control = nil end
-    if report then
-        local replace = where == "report-button"
-        assert(report:set_hidden(replace))
-        if replace and icon_small then
-            local parent, box = report:parent(), report:position()
-            local width, height = api.assets.image_size(icon_small)
-            if parent and box and width then
-                report_control = place_camera(api, parent, "camera_report", icon_small,
-                    box.x + (box.width - width) // 2, box.y + (box.height - height) // 2)
-            end
+    if report and where == "report-button" and icon_small then
+        local parent, box = report:parent(), report:position()
+        local width, height = api.assets.image_size(icon_small)
+        if parent and box and width then
+            report_control = place_camera(api, parent, "camera_report", icon_small,
+                box.x + (box.width - width) // 2, box.y + (box.height - height) // 2)
+            if report_control then assert(report_control:set_anchor(report, "replace")) end
         end
     end
 end
@@ -165,14 +167,19 @@ function plugin.on_start(api)
     pending = {}
     icon = api.assets.image("camera.png")
     icon_small = api.assets.image("camera_small.png")
+    -- UNBOUND removes the control rather than merely forgetting it: a control
+    -- whose anchor target died keeps painting at its last position with a
+    -- native relation and no inherited hide (a floating camera) if its own
+    -- parent survived the remount. Removing a control whose parent died too
+    -- is a harmless stale reference.
     assert(api.widgets.watch("viewport", function(widget, event)
         viewport = event.kind == "bound" and widget or nil
-        if event.kind == "unbound" then corner_control = nil end
+        if event.kind == "unbound" and corner_control then corner_control:remove(); corner_control = nil end
         update_controls(api)
     end))
     assert(api.widgets.watch("report_button", function(widget, event)
         report = event.kind == "bound" and widget or nil
-        if event.kind == "unbound" then report_control = nil end
+        if event.kind == "unbound" and report_control then report_control:remove(); report_control = nil end
         update_controls(api)
     end))
 end
@@ -221,8 +228,8 @@ end
 
 function plugin.on_stop(api)
     pending = {}
-    -- Owner teardown removes the owned controls and the report button's
-    -- presentation hide; only the image handles are ours to release.
+    -- Owner teardown removes the owned controls and their anchors; only the
+    -- image handles are ours to release.
     if icon then api.assets.image_release(icon) end
     if icon_small then api.assets.image_release(icon_small) end
     icon, icon_small, viewport, report, corner_control, report_control = nil, nil, nil, nil, nil, nil

@@ -219,7 +219,7 @@ def main() -> int:
         ":create_image(",
         ":set_image(",
         ":set_on_op(",
-        "report:set_hidden(",
+        ':set_anchor(report, "replace")',
         '"report-button"',
         'off|top-left|top-right|bottom-left|bottom-right|report-button',
         "api.assets.screenshot(",
@@ -229,6 +229,12 @@ def main() -> int:
     for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
         if forbidden in screenshot:
             errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
+    # The camera stands in place of the native Report button through a REPLACE
+    # anchor, which follows the target's native visibility both ways. Hiding the
+    # button and positioning a sibling is the shape that painted the camera over
+    # the Trade caption on the mobile toplevel, where the cache hides Report.
+    if "report:set_hidden(" in screenshot:
+        errors.append("screenshot.lua: report button hidden instead of replaced by anchor")
 
     if errors:
         for error in errors:
