@@ -2411,13 +2411,20 @@ test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 		plugin/test/plugin_panel_route_test.c ui/torirs_chrome_rail.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_panel_route_test
 
-# The client-owned Gameframe dropdown against the public legacy API. This is a
-# small adapter test: visible titles may change (or even contain the old pipe
-# delimiter), while a click must always send the canonical catalogue id.
+# The client-owned settings page against a fake engine seam. It is a seam test
+# and not an adapter one: what is checked is what reaches api->panel -- a click
+# always sends the canonical catalogue id, a resolver move costs two setters
+# and no rebuild, a catalogue that grows or shrinks costs one setter, and a
+# settled page costs nothing at all. The Porcelain row reconciler is linked in
+# because it is the half under test.
 .PHONY: test-client-settings
 test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/porcelain_panel.c \
 		plugin/test/client_settings_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/porcelain_panel.c \
 		plugin/plugins/client_settings.c plugin/test/client_settings_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/client_settings_test
 
