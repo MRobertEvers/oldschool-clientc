@@ -98,6 +98,7 @@ EM_JS(
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/rs_worldmap.h"
+#include "game/rs_worldmap_drag.h"
 #include "game/rs_worldmap_render.h"
 #include "game/sailing_navigation.h"
 #include "game/task_cs1_run.h"
@@ -1453,10 +1454,10 @@ app_worldmap_push_icon(
         return false;
 
     /* Off-surface icons are not worth a config load. */
-    if( screen_x < app->worldmap_box_x - 32 ||
-        screen_x > app->worldmap_box_x + app->worldmap_box_w + 32 ||
-        screen_y < app->worldmap_box_y - 32 ||
-        screen_y > app->worldmap_box_y + app->worldmap_box_h + 32 )
+    if( screen_x < app->worldmap_drag.box_x - 32 ||
+        screen_x > app->worldmap_drag.box_x + app->worldmap_drag.box_w + 32 ||
+        screen_y < app->worldmap_drag.box_y - 32 ||
+        screen_y > app->worldmap_drag.box_y + app->worldmap_drag.box_h + 32 )
         return false;
 
     /* Warm the mapelement first so category visibility can gate the sprite
@@ -1575,10 +1576,10 @@ app_worldmap_build_tiles(
      * app_worldmap_surface_live, not by this box — emit only runs on redraw
      * frames, and once the interface is hidden it stops writing, so the last
      * rectangle would otherwise outlive the open map. */
-    app->worldmap_box_x = box_x;
-    app->worldmap_box_y = box_y;
-    app->worldmap_box_w = box_w;
-    app->worldmap_box_h = box_h;
+    app->worldmap_drag.box_x = box_x;
+    app->worldmap_drag.box_y = box_y;
+    app->worldmap_drag.box_w = box_w;
+    app->worldmap_drag.box_h = box_h;
     *req->u.get_worldmap_tiles.out_items = app->worldmap_tiles;
     if( req->u.get_worldmap_tiles.out_background_rgb )
         *req->u.get_worldmap_tiles.out_background_rgb = 0;
@@ -1866,9 +1867,9 @@ app_worldmap_build_tiles(
             int const x = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X;
             int const y = centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z;
 
-            if( flash_scene > 0 && x > app->worldmap_box_x - 32 &&
-                x < app->worldmap_box_x + app->worldmap_box_w + 32 &&
-                y > app->worldmap_box_y - 32 && y < app->worldmap_box_y + app->worldmap_box_h + 32 )
+            if( flash_scene > 0 && x > app->worldmap_drag.box_x - 32 &&
+                x < app->worldmap_drag.box_x + app->worldmap_drag.box_w + 32 &&
+                y > app->worldmap_drag.box_y - 32 && y < app->worldmap_drag.box_y + app->worldmap_drag.box_h + 32 )
             {
                 /*
                  * The synthesised flash disc, not one of `worldmap_marker_0..8`.
@@ -2107,9 +2108,9 @@ app_worldmap_click(
     if( scale_fp <= 0 )
         return;
 
-    map_x = display_x + (mouse_x - (app->worldmap_box_x + app->worldmap_box_w / 2)) *
+    map_x = display_x + (mouse_x - (app->worldmap_drag.box_x + app->worldmap_drag.box_w / 2)) *
                             RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
-    map_y = display_y - (mouse_y - (app->worldmap_box_y + app->worldmap_box_h / 2)) *
+    map_y = display_y - (mouse_y - (app->worldmap_drag.box_y + app->worldmap_drag.box_h / 2)) *
                             RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
 
     source =
@@ -2162,22 +2163,11 @@ app_worldmap_surface_live(struct App* app)
 }
 
 /*
- * Drag to pan the world map.
+ * Drag to pan the world map, as the App sees it.
  *
- * Anchored, like the reference (OsrsClient.updateWorldMapDrag): the grab records
- * where the view was, and every frame sets the view to that origin plus the
- * *total* pointer delta converted to tiles. Accumulating per-frame deltas
- * instead loses the sub-tile remainder on every step, so the map slides behind
- * the pointer over a long drag.
- *
- * Unclamped, also like the reference: dragging past the edge of the map is
- * allowed and dragging back brings it straight back. A clamp on the centre
- * parks the view in a corner of the area, where most of the surface is legitimately
- * off-map and the map appears to have stopped loading.
- *
- * The surface has no widget-level drag — it is a builtin, and the pan lives in
- * the CS2 world map state — so the press is picked up here from the box the
- * emit walk recorded.
+ * The pan itself is UIWorldMapDrag (game/rs_worldmap_drag.h). What is here is
+ * the half that needs an App: gathering this frame's pointer facts, and
+ * turning the result back into a click or a redraw.
  */
 static void
 app_worldmap_drag_tick(
@@ -2185,93 +2175,27 @@ app_worldmap_drag_tick(
     struct LibToriRS_Input* input,
     int pointer_consumed)
 {
-    int mouse_x = input->curr.mouse_x;
-    int mouse_y = input->curr.mouse_y;
+    struct UIWorldMapDragInput drag_input;
+    enum UIWorldMapDragResult result;
 
-    /* Idle frames skip the tree scan; an in-progress drag still reaches its
-     * release handling below. */
-    if( !app->worldmap_drag_active && !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
-        return;
+    assert(app);
+    assert(input);
 
-    if( !app_worldmap_surface_live(app) )
-    {
-        app->worldmap_drag_active = 0;
-        return;
-    }
+    drag_input.mouse_x = input->curr.mouse_x;
+    drag_input.mouse_y = input->curr.mouse_y;
+    drag_input.left_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT);
+    drag_input.left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    drag_input.left_up = input->curr.mouse_button_up[TORIRSM_LEFT];
+    drag_input.pointer_consumed = pointer_consumed;
+    drag_input.minimenu_visible = app->interact.minimenu.visible;
+    drag_input.hover_component_id = app->hover_com_id;
+    drag_input.surface_live = app_worldmap_surface_live(app);
 
-    if( app->worldmap_box_w <= 0 || app->worldmap_box_h <= 0 || !app->host.worldmap )
-    {
-        app->worldmap_drag_active = 0;
-        return;
-    }
-
-    /*
-     * The map's own chrome sits *inside* the surface box — the close X, the key
-     * panel, the search field, the zoom buttons — so "the pointer is in the box"
-     * is not "the pointer is on the map". A clickable component under the
-     * pointer owns the press: hover_com_id is -1 over bare map and a real id
-     * over anything else, which is exactly the distinction needed. Without it,
-     * closing the map also teleported the player to whatever tile the X was
-     * drawn over.
-     */
-    if( !app->worldmap_drag_active && !pointer_consumed && !app->interact.minimenu.visible &&
-        app->hover_com_id < 0 && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
-        mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
-        mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
-    {
-        int display_x = 0;
-        int display_y = 0;
-        RS_WorldMap_DisplayPosition(app->host.worldmap, &display_x, &display_y);
-        if( display_x < 0 || display_y < 0 )
-            return;
-        app->worldmap_drag_active = 1;
-        app->worldmap_drag_x = mouse_x;
-        app->worldmap_drag_y = mouse_y;
-        app->worldmap_drag_display_x = display_x;
-        app->worldmap_drag_display_y = display_y;
-        app->worldmap_drag_moved = 0;
-    }
-
-    if( !app->worldmap_drag_active )
-        return;
-
-    if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) ||
-        input->curr.mouse_button_up[TORIRSM_LEFT] )
-    {
-        /* Released without ever panning: this was a click on the map, and the
-         * server is the one that decides what a click there means (the
-         * reference's ClickWorldMap — a teleport for staff, ignored for
-         * everyone else). A drag that moved the view is not also a click. */
-        if( !app->worldmap_drag_moved )
-            app_worldmap_click(app, mouse_x, mouse_y);
-        app->worldmap_drag_active = 0;
-        return;
-    }
-
-    {
-        int scale_fp = RS_WorldMap_ZoomScaleFp(app->host.worldmap);
-        int dx = mouse_x - app->worldmap_drag_x;
-        int dy = mouse_y - app->worldmap_drag_y;
-        int next_x;
-        int next_y;
-        int current_x = 0;
-        int current_y = 0;
-
-        if( scale_fp <= 0 )
-            scale_fp = RS_WORLDMAP_ZOOM_SCALE_ONE;
-        /* Screen y grows downward, map y northward, and the map moves opposite
-         * the pointer — the tile under the cursor stays under it. */
-        next_x = app->worldmap_drag_display_x - dx * RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
-        next_y = app->worldmap_drag_display_y + dy * RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
-
-        RS_WorldMap_DisplayPosition(app->host.worldmap, &current_x, &current_y);
-        if( next_x == current_x && next_y == current_y )
-            return;
-
-        RS_WorldMap_SetDisplayPosition(app->host.worldmap, next_x, next_y);
-        app->worldmap_drag_moved = 1;
+    result = UIWorldMapDrag_Tick(&app->worldmap_drag, &drag_input, app->host.worldmap);
+    if( result == UI_WORLDMAP_DRAG_CLICKED )
+        app_worldmap_click(app, drag_input.mouse_x, drag_input.mouse_y);
+    else if( result == UI_WORLDMAP_DRAG_PANNED )
         app->need_redraw = 1;
-    }
 }
 
 /* Defined with the world-map bake further down. */
@@ -19455,9 +19379,9 @@ app_world_mouse_gate(
      * WALKED THE PLAYER, on a screen where the world is not even visible.
      * The box is the same one app_worldmap_drag_tick arms its drag from.
      */
-    if( app->worldmap_box_w > 0 && app->worldmap_box_h > 0 && mouse_x >= app->worldmap_box_x &&
-        mouse_x < app->worldmap_box_x + app->worldmap_box_w && mouse_y >= app->worldmap_box_y &&
-        mouse_y < app->worldmap_box_y + app->worldmap_box_h && app_worldmap_surface_live(app) )
+    if( app->worldmap_drag.box_w > 0 && app->worldmap_drag.box_h > 0 && mouse_x >= app->worldmap_drag.box_x &&
+        mouse_x < app->worldmap_drag.box_x + app->worldmap_drag.box_w && mouse_y >= app->worldmap_drag.box_y &&
+        mouse_y < app->worldmap_drag.box_y + app->worldmap_drag.box_h && app_worldmap_surface_live(app) )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER

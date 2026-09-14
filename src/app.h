@@ -28,6 +28,7 @@
 #include "game/rs_prefs.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
+#include "game/rs_worldmap_drag.h"
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
@@ -1271,23 +1272,10 @@ struct App
      * lowest zoom over the whole map surface stays well inside this. */
     struct App_WorldMapVisit worldmap_visits[512];
     int worldmap_visit_count;
-    /* World map surface box, recorded by the emit walk (the widget is sized by
-     * the world map's scripts), and the drag-to-pan grab point. */
-    int worldmap_box_x;
-    int worldmap_box_y;
-    int worldmap_box_w;
-    int worldmap_box_h;
+    /* World map surface box and drag-to-pan state. The box is recorded by the
+     * emit walk, because the widget is sized by the world map's own scripts. */
+    struct UIWorldMapDrag worldmap_drag;
     int worldmap_debug_frame;
-    int worldmap_drag_active;
-    int worldmap_drag_x;
-    int worldmap_drag_y;
-    /* View position when the drag started: the pan is anchored to it, not
-     * accumulated per frame. */
-    int worldmap_drag_display_x;
-    int worldmap_drag_display_y;
-    /* A press that releases without panning is a click on the map, not a drag,
-     * so the release has to know whether the view ever moved. */
-    int worldmap_drag_moved;
     /** Scene id of the hitmarks sprite pack, resolved once at boot. */
     int hitmarks_scene_id;
 

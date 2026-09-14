@@ -593,6 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
@@ -1633,7 +1634,19 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-world-seq-source
 	$(MAKE) test-env-values
 	$(MAKE) test-uitree-if-events
+	$(MAKE) test-worldmap-drag
 	$(MAKE) test-world
+
+# Drag to pan the world map. The pan is anchored to where the view was at the
+# grab, not accumulated -- accumulating truncates the sub-tile remainder every
+# frame and the map slides out from under the pointer over a long drag. Also
+# the click/drag split, and the map's own chrome keeping its clicks.
+.PHONY: test-worldmap-drag
+test-worldmap-drag: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_worldmap_drag_test.c game/rs_worldmap_drag.c game/rs_worldmap.c \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX)
 
 # The server's IF_SETEVENTS store: the arming gate for every click. Its failure
 # mode always looks like a different bug -- the interface renders, the
