@@ -596,6 +596,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	ui/uitree_keyboard_owner.c \
+	engine/async_pending.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
 	engine/world_seq_source_toridraw.c \
@@ -1637,7 +1638,18 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-if-events
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
+	$(MAKE) test-async-pending
 	$(MAKE) test-world
+
+# The two "asked for it, waiting for it" lists. Both fail in ways nothing else
+# in the frame notices: a duplicate queues a second decoder, an overflow makes
+# a model render untextured forever, a stale entry binds somebody else's
+# animation onto whoever inherited a recycled scene element id.
+.PHONY: test-async-pending
+test-async-pending: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/async_pending_test.c engine/async_pending.c $(LDFLAGS)
+	./$(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX)
 
 # Who has the keyboard. Every hotkey asks this, and the failure is always a
 # text input the rule does not know about leaving the hotkeys live underneath

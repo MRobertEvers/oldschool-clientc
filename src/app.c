@@ -77,6 +77,7 @@ EM_JS(
 #include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/async_pending.h"
 #include "engine/toridraw_element_anim.h"
 #include "engine/world_seq_source_toridraw.h"
 #include "engine/torirs_chrome_skin_baked.h"
@@ -7174,12 +7175,7 @@ app_sync_textures(struct App* app)
          * flight. Do the pending-set test before creating the task; the old
          * order queued another decoder for every rebuild and only deduplicated
          * the publish list afterwards. */
-        for( int p = 0; p < app->tex_pending_count; p++ )
-            if( app->tex_pending[p] == id )
-            {
-                already_pending = 1;
-                break;
-            }
+        already_pending = AsyncPendingTextures_Has(&app->tex_pending, id);
         if( already_pending )
         {
             if( app_tex_trace_enabled() )
@@ -7212,9 +7208,7 @@ app_sync_textures(struct App* app)
                     id,
                     task ? "queued" : "REFUSED (provider returned no task)");
         }
-        if( app->tex_pending_count < 512 )
-            app->tex_pending[app->tex_pending_count++] = id;
-        else if( app_tex_trace_enabled() )
+        if( !AsyncPendingTextures_Add(&app->tex_pending, id) && app_tex_trace_enabled() )
             TORIRS_LOG("tex_trace: want id=%d -> DROPPED (pending list full)\n", id);
     }
 
@@ -7240,12 +7234,12 @@ app_sync_textures_poll(struct App* app)
     int kept = 0;
     int const queue_idle = !app->runner.queue || !app->runner.queue->head;
 
-    if( app->tex_pending_count == 0 )
+    if( app->tex_pending.count == 0 )
         return;
 
-    for( int i = 0; i < app->tex_pending_count; i++ )
+    for( int i = 0; i < app->tex_pending.count; i++ )
     {
-        int id = app->tex_pending[i];
+        int id = app->tex_pending.ids[i];
 
         if( id < 0 || id >= 2048 || app->bridge.texture_failed[id] )
         {
@@ -7279,10 +7273,10 @@ app_sync_textures_poll(struct App* app)
         }
         else
         {
-            app->tex_pending[kept++] = id;
+            app->tex_pending.ids[kept++] = id;
         }
     }
-    app->tex_pending_count = kept;
+    AsyncPendingTextures_Keep(&app->tex_pending, kept);
 
     if( ready_count > 0 )
     {
@@ -7292,7 +7286,7 @@ app_sync_textures_poll(struct App* app)
                 "tex_trace: publish %d ready -> %d published (%d still pending)\n",
                 ready_count,
                 published,
-                app->tex_pending_count);
+                app->tex_pending.count);
         if( published )
             app->need_redraw = 1;
     }
@@ -17675,14 +17669,7 @@ app_world_apply_seq(
 
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
-    if( app->seq_bind_pending_count <
-        (int)(sizeof(app->seq_bind_pending) / sizeof(app->seq_bind_pending[0])) )
-    {
-        app->seq_bind_pending[app->seq_bind_pending_count].element_id = element_id;
-        app->seq_bind_pending[app->seq_bind_pending_count].seq_id = seq_id;
-        app->seq_bind_pending[app->seq_bind_pending_count].start_cycle = start_cycle;
-        app->seq_bind_pending_count++;
-    }
+    (void)AsyncPendingSeqBinds_Add(&app->seq_bind_pending, element_id, seq_id, start_cycle);
 }
 
 /*
@@ -17701,14 +17688,7 @@ app_seq_bind_pending_drop(
     struct App* app,
     int element_id)
 {
-    int kept = 0;
-    for( int i = 0; i < app->seq_bind_pending_count; i++ )
-    {
-        if( app->seq_bind_pending[i].element_id == element_id )
-            continue;
-        app->seq_bind_pending[kept++] = app->seq_bind_pending[i];
-    }
-    app->seq_bind_pending_count = kept;
+    AsyncPendingSeqBinds_DropElement(&app->seq_bind_pending, element_id);
 }
 
 /* Per-frame: bind deferred element/sequence pairs whose loads landed. */
@@ -17716,9 +17696,9 @@ static void
 app_world_bind_pending_seqs(struct App* app)
 {
     int kept = 0;
-    for( int i = 0; i < app->seq_bind_pending_count; i++ )
+    for( int i = 0; i < app->seq_bind_pending.count; i++ )
     {
-        struct AppSeqBindPending* pend = &app->seq_bind_pending[i];
+        struct AsyncPendingSeqBind* pend = &app->seq_bind_pending.items[i];
         if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
             continue; /* element despawned while loading */
         if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id, pend->start_cycle) )
@@ -17726,9 +17706,9 @@ app_world_bind_pending_seqs(struct App* app)
             app->need_redraw = 1;
             continue;
         }
-        app->seq_bind_pending[kept++] = *pend;
+        app->seq_bind_pending.items[kept++] = *pend;
     }
-    app->seq_bind_pending_count = kept;
+    AsyncPendingSeqBinds_Keep(&app->seq_bind_pending, kept);
 }
 
 /* Config-driven color/texture swaps for a built model (npc/loc style). NULL

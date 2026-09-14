@@ -2,6 +2,7 @@
 #define SRC_APP_H
 
 #include "asyncio.h"
+#include "engine/async_pending.h"
 #include "engine/cache_provider.h"
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
@@ -597,16 +598,6 @@ enum AppScreen
     APP_SCREEN_CONNECTING = 20,
     /** Gameframe rooted. deob 25/30. */
     APP_SCREEN_GAME = 30,
-};
-
-/* One deferred element<->sequence binding (animation still loading). */
-struct AppSeqBindPending
-{
-    int element_id;
-    int seq_id;
-    /** World/client cycle on which LOC_ANIM requested the sequence. Async
-     * loading must not reset a DynamicObject's clock when the bind lands. */
-    int start_cycle;
 };
 
 /** One visible map surface region, with its distance from the view centre. */
@@ -2133,11 +2124,9 @@ struct App
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
     int world_load_server_driven;
     /** Texture ids requested but not yet published into the scene. */
-    int tex_pending[512];
-    int tex_pending_count;
+    struct AsyncPendingTextures tex_pending;
     /** Element/seq bindings deferred until the sequence load lands. */
-    struct AppSeqBindPending seq_bind_pending[64];
-    int seq_bind_pending_count;
+    struct AsyncPendingSeqBinds seq_bind_pending;
     /** Entity-sync bookkeeping (server slots -> world entities). */
     struct RS_EntitySync esync;
     /** Dedupe for entity movement-seq load requests. */
