@@ -1318,6 +1318,126 @@ test_debug_overlay_panel_scroll(void)
     TEST_ASSERT(g_ui.widgets[rows[0]].h > 0, "and every row is back");
 }
 
+/*
+ * Replacing ONE row in place: the buffer executor's half of panel.reidentify.
+ *
+ * A page whose row keeps its place but not its identity is what the plugin
+ * host's reidentify asks for. The chrome has to answer it without the two
+ * things a rebuild costs: the reader's scroll position, and the identity of
+ * every OTHER row (an executor shadow keyed on a serial would drop and
+ * recreate each one). Widgets are always added at the END, so putting the
+ * fresh row back where the old one stood is the move this pins.
+ */
+static void
+test_debug_overlay_widget_reidentify_in_place(void)
+{
+    int panel;
+    int rows[24];
+    int serial[24];
+    int before;
+    int fresh;
+    int scrolled;
+    int line;
+    int kept = 0;
+    int order = 0;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 160, "Page");
+    for( int i = 0; i < 24; i++ )
+    {
+        rows[i] = ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+        serial[i] = g_ui.widgets[rows[i]].serial;
+    }
+    line = ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale);
+    ToriRSChrome_PanelSetFixedWidth(&g_ui, panel, 160);
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    g_ui.panels[panel].fixed_h = 6 * line;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    for( int i = 0; i < 8; i++ )
+        ToriRSChrome_MouseWheel(
+            &g_ui,
+            g_ui.panels[panel].last_rect.x + 4,
+            g_ui.panels[panel].last_rect.y + g_ui.panels[panel].last_rect.h / 2,
+            -1);
+    ToriRSChrome_Build(&g_ui);
+    scrolled = g_ui.panels[panel].scroll_y;
+    TEST_ASSERT(scrolled > 0, "the reader is part-way down the page");
+
+    /* The replacement, exactly as the panel executor performs it. */
+    before = ToriRSChrome_WidgetPrev(&g_ui, rows[11]);
+    TEST_ASSERT(before == rows[10], "the row's predecessor is the row above it");
+    ToriRSChrome_WidgetRemove(&g_ui, rows[11]);
+    fresh = ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    ToriRSChrome_WidgetMoveAfter(&g_ui, fresh, before);
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(
+        g_ui.panels[panel].scroll_y == scrolled,
+        "the page keeps the scroll position the reader left it at");
+    TEST_ASSERT(
+        g_ui.widgets[fresh].serial != serial[11],
+        "the replaced row carries an identity nothing was holding");
+    for( int i = 0; i < 24; i++ )
+        if( i != 11 && g_ui.widgets[rows[i]].serial == serial[i] )
+            kept++;
+    TEST_ASSERT(kept == 23, "every other row keeps its identity");
+
+    /* Walking the panel's own list -- the order the executors emit in. */
+    {
+        int at = g_ui.panels[panel].first_widget;
+        for( int i = 0; i < 24 && at >= 0; i++, at = g_ui.widgets[at].next )
+            if( at == (i == 11 ? fresh : rows[i]) )
+                order++;
+        TEST_ASSERT(at == -1, "the row list still holds exactly the page's rows");
+    }
+    TEST_ASSERT(order == 24, "and in the order they were declared");
+}
+
+/*
+ * A button that cannot be used says so and does nothing.
+ *
+ * Both halves. Greying the caption alone ships a control that reads as dead
+ * and still fires; refusing the click alone ships one that looks live and
+ * silently ignores the press.
+ */
+static void
+test_debug_overlay_button_disabled(void)
+{
+    int panel;
+    int commit;
+    int box_x;
+    int box_y;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 160, "Page");
+    commit = ToriRSChrome_Button(&g_ui, panel, "Commit");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(!ToriRSChrome_Disabled(&g_ui, commit), "a button is usable by default");
+
+    ToriRSChrome_SetDisabled(&g_ui, commit, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChrome_Disabled(&g_ui, commit), "and reports the state it was given");
+
+    box_x = g_ui.widgets[commit].x + 2;
+    box_y = g_ui.widgets[commit].y + g_ui.widgets[commit].h / 2;
+    ToriRSChrome_MouseMove(&g_ui, box_x, box_y);
+    ToriRSChrome_MouseDown(&g_ui, box_x, box_y);
+    ToriRSChrome_MouseUp(&g_ui, box_x, box_y);
+    TEST_ASSERT(
+        ToriRSChrome_TakeActivated(&g_ui) != commit,
+        "a click on a disabled button activates nothing");
+
+    ToriRSChrome_SetDisabled(&g_ui, commit, 0);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChrome_MouseDown(&g_ui, box_x, box_y);
+    ToriRSChrome_MouseUp(&g_ui, box_x, box_y);
+    TEST_ASSERT(
+        ToriRSChrome_TakeActivated(&g_ui) == commit,
+        "and the same click on the enabled one does");
+}
+
 static void
 test_debug_overlay_custom_region(void)
 {
@@ -1445,5 +1565,7 @@ test_debug_overlay(void)
     test_debug_overlay_button();
     test_debug_overlay_colorpick_fold();
     test_debug_overlay_panel_scroll();
+    test_debug_overlay_widget_reidentify_in_place();
+    test_debug_overlay_button_disabled();
     test_debug_overlay_custom_region();
 }

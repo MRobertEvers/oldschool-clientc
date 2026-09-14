@@ -1465,6 +1465,18 @@ v2_panel_redraw(
         api_panel_invalidate(runtime->context, id);
 }
 
+static enum ToriRS_Result
+v2_panel_reidentify(
+    struct ToriRS_Api* api,
+    char const* id)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    assert(id);
+    return api_panel_reidentify(runtime->context, id)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
 static int
 v2_cache_frame_root(struct ToriRS_Api* api)
 {
@@ -3250,6 +3262,7 @@ v2_runtime_init(
             .set_height = v2_panel_set_height,
             .set_options = v2_panel_set_options,
             .redraw = v2_panel_redraw,
+            .reidentify = v2_panel_reidentify,
         },
         .cache = {
             .struct_size = sizeof(runtime->api.cache),

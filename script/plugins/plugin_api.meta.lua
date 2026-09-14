@@ -331,6 +331,11 @@ warn = nil
 ---@field set_height fun(id: string, preferred_height: integer): boolean, torirs.ResultName
 ---@field set_options fun(id: string, value: string, options: torirs.SelectOption[]): boolean, torirs.ResultName
 ---@field redraw fun(id: string)
+--- Mint one row a new identity, so a click authored against the picture it
+--- used to show is refused. For a row whose INPUT identity changed while the
+--- page's row sequence did not -- a custom well whose y-to-item mapping moved.
+--- Changing only a caption or a value is set_text/set_value, not this.
+---@field reidentify fun(id: string): boolean, torirs.ResultName
 
 ---@class torirs.CacheApi
 ---@field frame_root fun(): integer

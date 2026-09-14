@@ -1254,6 +1254,17 @@ enum ToriRS_PluginPanelChangeFlags
     TORIRS_PLUGIN_PANEL_CHANGE_VALUE = 1u << 1,
     TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT = 1u << 2,
     TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS = 1u << 3,
+    /**
+     * This one row's IDENTITY was reminted; every other row kept its own.
+     *
+     * Not a property at all, which is why it does not sit beside the four
+     * above: a presenter cannot patch it, it has to replace that row's
+     * presentation node and fence the intents that named the old serial. What
+     * it deliberately is NOT is a structural change -- the page's row
+     * sequence, its scroll position and every retained run belonging to the
+     * other rows all survive. @see ToriRS_PanelApi::reidentify.
+     */
+    TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY = 1u << 4,
 };
 
 /**

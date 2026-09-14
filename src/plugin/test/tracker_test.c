@@ -82,6 +82,9 @@ struct FakeWidget
     int kind;
     int value;
     int height;
+    /** The identity the host would fence queued intents with. Minted on
+     *  declaration and reminted -- only for this row -- by panel.reidentify. */
+    uint32_t serial;
     bool live;
 };
 
@@ -111,6 +114,9 @@ static struct
     /** Raised by panel_clear outside a build: the page wants rebuilding. */
     bool rebuild_wanted;
     int builds;
+    /** Rows given a new identity without the page being re-declared. */
+    int reidentifies;
+    uint32_t next_widget_serial;
     int exact_text_sets;
     int exact_height_sets;
     int redraws;
@@ -330,7 +336,29 @@ fake_panel_widget(void* ctx, int kind, char const* id, char const* label)
     snprintf(w->label, sizeof(w->label), "%s", label ? label : "");
     w->kind = kind;
     w->value = -1;
+    w->serial = ++g_client.next_widget_serial;
     w->live = true;
+    return true;
+}
+
+/**
+ * Remint ONE row's identity, exactly as the host's panel.reidentify does.
+ *
+ * Deliberately touches nothing else: no widget is removed, no other serial
+ * moves, and the rebuild flag stays down. That is what the counter test
+ * below is reading -- a page that re-identifies a well is not a page that
+ * was re-declared.
+ */
+static bool
+fake_panel_reidentify(void* ctx, char const* id)
+{
+    struct FakeWidget* widget;
+    (void)ctx;
+    widget = fake_widget_find(id);
+    if( !widget )
+        return false;
+    widget->serial = ++g_client.next_widget_serial;
+    g_client.reidentifies++;
     return true;
 }
 
@@ -696,6 +724,8 @@ static enum ToriRS_Result v2_panel_set_height(
 { (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 static void v2_panel_redraw(struct ToriRS_Api* api, char const* id)
 { (void)api; fake_panel_invalidate(NULL, id); }
+static enum ToriRS_Result v2_panel_reidentify(struct ToriRS_Api* api, char const* id)
+{ (void)api; return fake_panel_reidentify(NULL, id) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 
 static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
 {
@@ -770,6 +800,7 @@ api_init(void)
     g_api.panel.set_value = v2_panel_set_value;
     g_api.panel.set_height = v2_panel_set_height;
     g_api.panel.redraw = v2_panel_redraw;
+    g_api.panel.reidentify = v2_panel_reidentify;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.item_info = v2_item_info;
@@ -1790,9 +1821,9 @@ test_loot_clear_and_stable_detail_identity(void)
     g_store.revision++;
     settle();
     TEST_ASSERT(
-        g_client.builds == builds + 1 && detail_source() &&
+        g_client.builds == builds && detail_source() &&
             strcmp(detail_source(), "Goblin") == 0,
-        "a same-count reorder rebuilds the custom identity but keeps the selected source");
+        "a same-count reorder re-identifies the well but keeps the selected source");
 
     press("d_clear", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
@@ -1875,29 +1906,54 @@ test_loot_attention(void)
  * showing. The state still advances; only the page stops.
  */
 /*
- * A list that grew is a different CUSTOM input identity.
+ * A list that grew is a different CUSTOM input identity -- and NOT a
+ * different page.
  *
- * A band arriving changes the y-to-source mapping. Rebuilding gives the well
- * a new semantic serial, so a delayed click on the prior bitmap is rejected
- * instead of being delivered to the source that moved underneath it.
+ * A band arriving changes the y-to-source mapping, so a delayed click on the
+ * prior bitmap has to be rejected instead of being delivered to the source
+ * that moved underneath it. That is one row's identity. It used to be bought
+ * with panel.invalidate, which re-declares every row on the page: the reader
+ * lost the scroll position and the well blanked on any pass with nothing
+ * staged. The page's rows -- the strip, plus the detail block when one is
+ * open -- do not change because a source appeared, so nothing here rebuilds.
  */
 static void
-test_loot_growth_rebuilds_for_identity(void)
+test_loot_growth_reidentifies_without_rebuilding(void)
 {
+    uint32_t serial[FAKE_WIDGETS];
     int builds;
     int height;
     int height_sets;
     int redraws;
+    int reidentifies;
+    int widgets;
+    int strip_row = -1;
+    int kept = 0;
 
     client_reset();
     loot_start();
     loot_add("Goblin", 1319, 1, 100, 1);
     settle();
+    /* With a band open the page has rows on BOTH sides of the well, which is
+     * what makes "the rows around it survived" a claim worth reading. */
+    press_strip(TEST_TOTALS_H + 4);
+    settle();
+
     builds = g_client.builds;
+    reidentifies = g_client.reidentifies;
     height = fake_widget_find("strip")->height;
     height_sets = g_client.exact_height_sets;
     redraws = g_client.redraws;
-    TEST_ASSERT(builds > 0, "the page was declared once to begin with");
+    widgets = g_client.widget_count;
+    for( int i = 0; i < widgets; i++ )
+    {
+        serial[i] = g_client.widget[i].serial;
+        if( strcmp(g_client.widget[i].id, "strip") == 0 )
+            strip_row = i;
+    }
+    TEST_ASSERT(builds > 0, "the page was declared to begin with");
+    TEST_ASSERT(widgets > 1, "and it has rows beside the well");
+    TEST_ASSERT(strip_row >= 0, "one of which is the well");
 
     loot_add("Cerberus", 1319, 1, 500, 2);
     settle();
@@ -1911,12 +1967,26 @@ test_loot_growth_rebuilds_for_identity(void)
         "three more sources make the strip taller (%d -> %d)", height,
         fake_widget_find("strip")->height);
     TEST_ASSERT(
-        g_client.builds == builds + 3,
-        "each source re-declares the custom input identity once (%d rebuilds)",
+        g_client.builds == builds,
+        "and the page is NOT re-declared for any of them (%d rebuilds)",
         g_client.builds - builds);
     TEST_ASSERT(
+        g_client.reidentifies == reidentifies + 3,
+        "each source re-identifies the one well instead (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        strip_row >= 0 && g_client.widget[strip_row].serial != serial[strip_row],
+        "so a click queued against the old bitmap fails its serial fence");
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( i != strip_row && g_client.widget[i].serial == serial[i] )
+            kept++;
+    TEST_ASSERT(
+        g_client.widget_count == widgets && kept == widgets - 1,
+        "while every row around it keeps its identity and its place (%d of %d)",
+        kept, widgets - 1);
+    TEST_ASSERT(
         g_client.exact_height_sets > height_sets && g_client.redraws > redraws,
-        "each rebuilt bitmap also publishes its exact height and redraw");
+        "each re-identified bitmap also publishes its exact height and redraw");
 }
 
 static void
@@ -2064,7 +2134,7 @@ main(void)
     test_loot_attention();
 
     test_settings_face_is_the_generated_form();
-    test_loot_growth_rebuilds_for_identity();
+    test_loot_growth_reidentifies_without_rebuilding();
     test_loot_unchanged_revision_is_o1();
     test_xp_growth_rebuilds_for_topology();
     test_hidden_page_does_no_work();

@@ -870,6 +870,17 @@ struct ToriRSChromeWidget
      *  secondary summary. @see ToriRSChrome_ListRowLocked and
      *  ToriRSChrome_ActionRow. */
     int row_locked;
+    /**
+     * BUTTON: the control is present but cannot be used right now.
+     *
+     * Drawn in the dim ink a disabled dropdown row already uses, and skipped
+     * by the activation path -- the same two halves the structured select's
+     * `enabled` has. Not `hidden`, because the two say different things: a
+     * hidden row is one the page does not have, and a page whose Save button
+     * vanished while an edit was staged reads as a page that lost the
+     * command. A disabled one says the command exists and is unavailable.
+     */
+    int disabled;
     /** TORIRS_CHROME_W_LABEL only: enum ToriRSChromeLabelStyle. */
     int label_style;
     /** TEXTAREA: visible lines of the box, before it scrolls. Part of the
@@ -1989,6 +2000,32 @@ void
 ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget);
 
 /**
+ * The row before `widget` in its panel's list, or -1 when it is the first.
+ *
+ * Read BEFORE a removal, so the replacement can be put back where the old
+ * row stood. @see ToriRSChrome_WidgetMoveAfter.
+ */
+int
+ToriRSChrome_WidgetPrev(struct ToriRSChrome const* ui, int widget);
+
+/**
+ * Relink one row to sit directly after `after` in its panel's list, or at the
+ * head when `after` is -1.
+ *
+ * The row list is the model's order -- it is what the executors emit in and
+ * what the in-canvas builder lays out in -- and a widget is always ADDED at
+ * the end. So replacing one row in the middle of a page is two steps: build
+ * the fresh row, then move it back to where the old one was. Without the
+ * second step the rebuilt row appears at the bottom of the page, which is
+ * exactly the symptom a full-page rebuild exists to avoid.
+ *
+ * Both handles must name live widgets of the SAME panel; moving a row across
+ * panels is a different operation and is refused.
+ */
+void
+ToriRSChrome_WidgetMoveAfter(struct ToriRSChrome* ui, int widget, int after);
+
+/**
  * Remove every widget of one panel, leaving the panel itself in place.
  *
  * This is what makes a panel rebuildable. The alternative before it existed was
@@ -2052,6 +2089,20 @@ ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked);
 
 int
 ToriRSChrome_Checked(struct ToriRSChrome const* ui, int widget);
+
+/**
+ * Mark a BUTTON present-but-unavailable, or available again.
+ *
+ * Both halves, together: the caption goes to the dim ink a disabled dropdown
+ * row already draws in, and a click on it activates nothing. A caller that
+ * only greyed the caption would ship a button that looks dead and still
+ * fires. @see ToriRSChromeWidget::disabled.
+ */
+void
+ToriRSChrome_SetDisabled(struct ToriRSChrome* ui, int widget, int disabled);
+
+int
+ToriRSChrome_Disabled(struct ToriRSChrome const* ui, int widget);
 
 /** Live text of a TEXTINPUT / LABEL / MENUITEM. Never NULL. */
 char const*

@@ -630,10 +630,8 @@ app_plugin_panel_select_inputs(
  * explicit low-level drawing well; ordinary bundled pages do not use it.
  */
 static int
-app_plugin_panel_add_semantic(
+app_plugin_panel_build_semantic(
     struct App* app,
-    int plugin,
-    int model_index,
     struct ToriRS_PanelWidget const* model)
 {
     char text[TORIRS_CHROME_INPUT_MAX];
@@ -745,6 +743,11 @@ app_plugin_panel_add_semantic(
             &app->plugin_ui,
             app->plugin_panel,
             model->label[0] ? model->label : model->id);
+        /* A button's `value` IS its availability -- what the builder's
+         * `enabled` argument writes. It used to be stored and never read, so
+         * a page that offered a command it could not service drew it as
+         * live. @see ToriRSChromeWidget::disabled. */
+        ToriRSChrome_SetDisabled(&app->plugin_ui, widget, !model->value);
         break;
 
     case TORIRS_PANEL_WIDGET_SEPARATOR:
@@ -813,6 +816,22 @@ app_plugin_panel_add_semantic(
     if( widget >= 0 )
         ToriRSChrome_WidgetSetIntentSerial(
             &app->plugin_ui, widget, model->serial);
+    return widget;
+}
+
+/** Materialize one semantic node AND record it as a new page row. */
+static int
+app_plugin_panel_add_semantic(
+    struct App* app,
+    int plugin,
+    int model_index,
+    struct ToriRS_PanelWidget const* model)
+{
+    int widget;
+
+    assert(app);
+    assert(model);
+    widget = app_plugin_panel_build_semantic(app, model);
     app_plugin_panel_track_semantic(app, widget, plugin, model_index, model);
     return widget;
 }
@@ -909,6 +928,104 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PanelWidget const* model)
     }
 }
 
+/* Defined with the rest of the custom-region bookkeeping, below. */
+static void
+app_plugin_panel_custom_pending_set(
+    struct App* app,
+    struct AppPluginPanelRow* row,
+    int pending);
+
+/**
+ * Retire the retained custom run belonging to one identity.
+ *
+ * Not a general erasure: a reidentified well's last bitmap was drawn against
+ * the mapping that just changed, so it is the one run that must NOT survive.
+ * Everything else in the pool keeps its owner and its pixels, which is the
+ * whole difference between this and the page rebuild it replaces.
+ */
+static void
+app_plugin_panel_overlay_retire(struct App* app, uint32_t serial)
+{
+    int out = 0;
+
+    assert(app);
+    if( serial == 0 )
+        return;
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        if( app->panel_overlay_owner[i] == serial )
+            continue;
+        if( out != i )
+        {
+            app->panel_overlays[out] = app->panel_overlays[i];
+            app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+            app->panel_overlay_row[out] = app->panel_overlay_row[i];
+        }
+        out++;
+    }
+    if( out == app->panel_overlay_count )
+        return;
+    app->panel_overlay_count = out;
+    app->panel_overlay_revision++;
+    if( app->panel_overlay_revision == 0 )
+        app->panel_overlay_revision++;
+}
+
+/**
+ * Replace ONE row's presentation node in place, keeping the rows around it.
+ *
+ * The host reminted this row's serial, so the node the executor holds belongs
+ * to an identity that no longer exists: it has to be removed and built again,
+ * or a queued intent naming the old serial would still be delivered. What it
+ * must NOT cost is the rest of the page -- the chrome adds at the END of the
+ * panel's row list, so the fresh node is moved back to the slot the old one
+ * occupied. The panel's scroll is untouched (only PanelClearWidgets zeroes
+ * it) and every other row's retained custom run is untouched.
+ */
+static int
+app_plugin_panel_reidentify_row(
+    struct App* app,
+    int row_index,
+    struct ToriRS_PanelWidget const* model)
+{
+    struct AppPluginPanelRow* row;
+    uint32_t retired;
+    int before;
+    int fresh;
+
+    assert(app);
+    assert(model);
+    assert(row_index >= 0);
+    assert(row_index < app->plugin_panel_row_count);
+
+    row = &app->plugin_panel_rows[row_index];
+    retired = row->widget_serial;
+    before = ToriRSChrome_WidgetPrev(&app->plugin_ui, row->widget);
+    ToriRSChrome_WidgetRemove(&app->plugin_ui, row->widget);
+    fresh = app_plugin_panel_build_semantic(app, model);
+    if( fresh < 0 )
+    {
+        /* The old node is already gone, so the page and the model disagree;
+         * say so and let the caller take the rebuild path. */
+        row->widget = -1;
+        return 0;
+    }
+    ToriRSChrome_WidgetMoveAfter(&app->plugin_ui, fresh, before);
+
+    row->widget = fresh;
+    row->widget_serial = model->serial;
+    row->widget_kind = model->kind;
+    if( model->kind == TORIRS_PANEL_WIDGET_CUSTOM )
+    {
+        app_plugin_panel_overlay_retire(app, retired);
+        /* Its geometry is resolved by the next layout pass against the new
+         * node; until then nothing may claim the old region for it. */
+        row->custom_layout_valid = 0;
+        app_plugin_panel_custom_pending_set(app, row, 0);
+    }
+    return 1;
+}
+
 /** Apply one exact host-model mutation to its already-retained chrome row. */
 static int
 app_plugin_panel_patch_row(
@@ -935,11 +1052,23 @@ app_plugin_panel_patch_row(
     if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET ||
         row->model_index != change->widget_index || !model ||
         model->serial != change->widget_serial ||
-        model->serial != row->widget_serial || model->kind != row->widget_kind ||
+        model->kind != row->widget_kind ||
         strcmp(model->id, row->widget_id) != 0 || row->widget < 0 ||
         row->widget >= app->plugin_ui.widget_count ||
         app->plugin_ui.widgets[row->widget].kind !=
             app_plugin_panel_semantic_chrome_kind(model) )
+        return 0;
+
+    /* Identity first, and alone: the row it names is about to stop existing,
+     * so patching properties onto the node being replaced would be writing to
+     * a handle the rebuild then frees. Any property the same journal entry
+     * also carried is already in the model the fresh node is built from. */
+    if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY )
+        return app_plugin_panel_reidentify_row(app, mapped, model);
+
+    /* Every other change is a property of the node the row already holds, so
+     * the retained identity has to still be the model's. */
+    if( model->serial != row->widget_serial )
         return 0;
 
     switch( model->kind )
@@ -1035,6 +1164,12 @@ app_plugin_panel_patch_row(
          * and used to apply nothing, reporting OK. */
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* And its availability, which panel.set_value journals as a VALUE
+         * change: a command that became servable has to become pressable on
+         * the page that is already there, not on the next rebuild. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
+            ToriRSChrome_SetDisabled(
+                &app->plugin_ui, row->widget, !model->value);
         break;
     case TORIRS_PANEL_WIDGET_LIST_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )

@@ -808,7 +808,25 @@ struct ToriRS_PanelApi
     void (*redraw)(
         struct ToriRS_Api* api,
         char const* id);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
+    /**
+     * Give ONE row a new identity without re-declaring the page.
+     *
+     * For when a row's input identity changed but the page's row sequence did
+     * not: a custom well whose y-to-item mapping moved, a row that now means
+     * a different thing. The host mints that row a fresh serial, so a click
+     * authored against the old picture is refused, and every other row keeps
+     * its identity, the page keeps its scroll, and every other retained
+     * custom run survives.
+     *
+     * Do NOT call this after changing only a caption or a value -- set_text
+     * and set_value already state those in place, and reminting an identity
+     * costs the row's presentation node for nothing. Use `invalidate` when
+     * the page's SET of rows changed; that is what a rebuild is for.
+     */
+    enum ToriRS_Result (*reidentify)(
+        struct ToriRS_Api* api,
+        char const* id);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 6])(void);
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the widget or

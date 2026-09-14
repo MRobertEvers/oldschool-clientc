@@ -2201,6 +2201,79 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
     ui->free_widget = widget;
 }
 
+int
+ToriRSChrome_WidgetPrev(struct ToriRSChrome const* ui, int widget)
+{
+    struct ToriRSChromePanel const* p;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) )
+        return -1;
+    p = &ui->panels[ui->widgets[widget].panel];
+    for( int at = p->first_widget; at >= 0; at = ui->widgets[at].next )
+        if( ui->widgets[at].next == widget )
+            return at;
+    return -1;
+}
+
+void
+ToriRSChrome_WidgetMoveAfter(struct ToriRSChrome* ui, int widget, int after)
+{
+    struct ToriRSChromePanel* p;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || widget == after )
+        return;
+    if( after >= 0 &&
+        (!dbg_valid_widget(ui, after) ||
+         ui->widgets[after].panel != ui->widgets[widget].panel) )
+        return;
+    p = &ui->panels[ui->widgets[widget].panel];
+
+    /* Unlink, exactly as a removal does -- a walk rather than a back pointer,
+     * for the reason stated on ToriRSChrome_WidgetRemove. */
+    if( p->first_widget == widget )
+    {
+        p->first_widget = ui->widgets[widget].next;
+    }
+    else
+    {
+        for( int prev = p->first_widget; prev >= 0; prev = ui->widgets[prev].next )
+            if( ui->widgets[prev].next == widget )
+            {
+                ui->widgets[prev].next = ui->widgets[widget].next;
+                break;
+            }
+    }
+    if( p->last_widget == widget )
+    {
+        int last = -1;
+        for( int at = p->first_widget; at >= 0; at = ui->widgets[at].next )
+            last = at;
+        p->last_widget = last;
+    }
+
+    if( after < 0 )
+    {
+        ui->widgets[widget].next = p->first_widget;
+        p->first_widget = widget;
+    }
+    else
+    {
+        ui->widgets[widget].next = ui->widgets[after].next;
+        ui->widgets[after].next = widget;
+    }
+    if( ui->widgets[widget].next < 0 )
+        p->last_widget = widget;
+    if( p->last_widget < 0 )
+        p->last_widget = widget;
+
+    /* The panel's SHAPE moved, not any widget's properties: the executors read
+     * order off this list and lay out from the top. */
+    dbg_change_panel(ui, ui->widgets[widget].panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
+    dbg_dirty_panel(ui, ui->widgets[widget].panel);
+}
+
 void
 ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
 {
@@ -3467,6 +3540,34 @@ ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
         dbg_dirty_widget(ui, widget);
     else
         dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_SetDisabled(struct ToriRSChrome* ui, int widget, int disabled)
+{
+    disabled = disabled ? 1 : 0;
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].disabled == disabled )
+        return;
+    ui->widgets[widget].disabled = disabled;
+    /* A button that has just become unavailable must not keep the press it was
+     * holding, or releasing the mouse would fire the command anyway. */
+    if( disabled && ui->press == widget )
+        ui->press = -1;
+    /* A repaint and no dbg_change_widget: the command stream has no field for
+     * this yet, so queueing a mutation would spend a journal slot stating a
+     * flag that means something else. Foreign executors therefore draw the
+     * control as live until the protocol carries it; the ACTION is refused by
+     * the plugin host for every presenter (@see PluginHost_PanelDispatch), so
+     * a press on one there is ignored rather than honoured. */
+    dbg_dirty_widget_paint(ui, widget);
+}
+
+int
+ToriRSChrome_Disabled(struct ToriRSChrome const* ui, int widget)
+{
+    assert(ui);
+    return dbg_valid_widget(ui, widget) ? ui->widgets[widget].disabled : 0;
 }
 
 int
@@ -5381,7 +5482,12 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         {
             char const* caption = w->text[0] ? w->text : w->label;
             int const box_w = DBG_LABEL_W < w->w ? DBG_LABEL_W : w->w;
-            int const pressed = ui->press == widget && hovered;
+            /* An unavailable button answers to nothing the pointer does: no
+             * accent under it, no caption nudge, dim ink. The same vocabulary
+             * a disabled option in the dropdown list is drawn with. */
+            int const usable = !w->disabled;
+            int const lit = hovered && usable;
+            int const pressed = ui->press == widget && lit;
             int const nudge = pressed ? DBG_RULE : 0;
             int const caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption);
             struct ToriRSChromeRect box;
@@ -5391,7 +5497,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             box.w = box_w;
             box.h = row_h;
             dbg_push_field_chrome(ui, box, clip);
-            if( hovered )
+            if( lit )
                 dbg_push_rect(ui, row_x, row_y, box_w, row_h, th->accent, 0, clip);
             dbg_push_text(
                 ui,
@@ -5400,7 +5506,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 row_x + (box_w - caption_w) / 2 + nudge,
                 dbg_row_text_baseline(ui, row_y, row_h) + nudge,
                 caption,
-                hovered ? th->accent : (w->color ? w->color : th->text),
+                !usable ? th->text_dim
+                        : (lit ? th->accent : (w->color ? w->color : th->text)),
                 ui->theme.font_row,
                 0,
                 dbg_rect_clip(clip, box));
@@ -7656,7 +7763,12 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         }
         else if( w->kind == TORIRS_CHROME_W_MENUITEM || w->kind == TORIRS_CHROME_W_BUTTON )
         {
-            ui->activated = hit;
+            /* An unavailable button is not a button that reports nothing and
+             * fires anyway: the activation is never recorded, so no caller
+             * downstream can mistake the click for a command.
+             * @see ToriRSChromeWidget::disabled. */
+            if( !w->disabled )
+                ui->activated = hit;
             /* The button repaints because its pressed state just ended. */
             if( w->kind == TORIRS_CHROME_W_BUTTON )
                 dbg_dirty_widget(ui, hit);

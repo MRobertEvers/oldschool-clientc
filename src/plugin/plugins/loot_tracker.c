@@ -1931,6 +1931,29 @@ lt_page_refresh(struct LootTrackerRuntime* rt)
     }
 }
 
+/**
+ * The well's y-to-source mapping moved; the page's row set did not.
+ *
+ * A band arriving, or a drop grid growing a row, means a click queued against
+ * the picture that was there has to be refused -- and that is an IDENTITY
+ * change on ONE well, not a page. It used to be panel.invalidate, which
+ * re-declares every row: the page went back to the top of its scroll and the
+ * well blanked on any pass that had nothing staged yet. The page's rows here
+ * are the strip and the optional detail block, and neither of those changes
+ * because a source appeared.
+ *
+ * Remembering the topology is part of it: without that the next tick would
+ * see the same staleness and remint the identity again, every tick.
+ */
+static void
+lt_strip_reidentify(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    (void)g_api->panel.reidentify(g_api, "strip");
+    lt_page_topology_remember(rt);
+    lt_page_refresh(rt);
+}
+
 static void
 lt_panel_build(
     struct ToriRS_Api* api,
@@ -2302,9 +2325,10 @@ lt_panel_layout(
     {
         if( !lt_infers_loot(rt) )
             (void)lt_sync_changed(rt, false);
-        if( lt_page_topology_stale(rt) ||
-            (g_built_detail >= 0) != (g_detail >= 0) )
+        if( (g_built_detail >= 0) != (g_detail >= 0) )
             g_api->panel.invalidate(g_api);
+        else if( lt_page_topology_stale(rt) )
+            lt_strip_reidentify(rt);
         else
         {
             lt_page_refresh(rt);
@@ -2386,9 +2410,10 @@ lt_tick(
      */
     if( g_dirty || g_redraw_pending )
     {
-        if( lt_page_topology_stale(rt) ||
-            (g_page_built && ((g_built_detail >= 0) != (g_detail >= 0))) )
+        if( g_page_built && ((g_built_detail >= 0) != (g_detail >= 0)) )
             g_api->panel.invalidate(g_api);
+        else if( lt_page_topology_stale(rt) )
+            lt_strip_reidentify(rt);
         else
             lt_page_refresh(rt);
         g_dirty = false;

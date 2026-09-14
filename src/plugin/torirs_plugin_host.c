@@ -3397,6 +3397,46 @@ api_panel_set_height(
     return true;
 }
 
+/**
+ * Remint one row's identity, leaving every other row's alone.
+ *
+ * The reason this exists: a row's INPUT identity can change while the page's
+ * row sequence does not. A custom well whose y-to-item mapping moved because
+ * a band arrived, a row that now stands for a different thing -- a click
+ * authored against the old picture has to be refused, and the only way to
+ * refuse it was panel.invalidate, which re-declares the whole page. The
+ * browser executor then removes and re-adds every DOM row, and the in-canvas
+ * one frees the widget list, sends the scroll back to the top and retires
+ * every retained custom run, so a well that stages nothing on the next pass
+ * goes blank. A tracker that gained one kill source paid all of that.
+ *
+ * A caller that changed only a caption or a value must NOT call this: the
+ * setters journal those, and reminting an identity throws away the row's
+ * presentation node for nothing.
+ */
+static bool
+api_panel_reidentify(
+    struct PluginContext* ctx,
+    char const* id)
+{
+    struct ToriRS_PanelWidget* widget;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    widget->serial = plugin_widget_next_serial(ctx->host);
+    /* The old bitmap belonged to the old identity, so a custom well is dirty
+     * by construction after this -- exactly as a rebuild would have left it. */
+    if( widget->kind == TORIRS_PANEL_WIDGET_CUSTOM )
+        ctx->host->panel_invalidated[slot] = true;
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    plugin_panel_change_widget(
+        ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY);
+    return true;
+}
+
 static bool
 api_panel_set_attention(
     struct PluginContext* ctx,
@@ -8197,6 +8237,13 @@ PluginHost_PanelDispatch(
         return 0;
     widget = &host->panel_widgets[slot];
     if( action >= TORIRS_PANEL_ACTION_DRAG && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
+        return 0;
+
+    /* A button the page says it cannot service right now does not fire. Its
+     * availability rides `value` -- which is where the builder's `enabled`
+     * argument has always been written, and which nothing used to read, so a
+     * plugin offering a command it could not honour got the click anyway. */
+    if( widget->kind == TORIRS_PANEL_WIDGET_BUTTON && !widget->value )
         return 0;
 
     /* A structured selection is identified by its stable value as well as its

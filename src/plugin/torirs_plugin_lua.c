@@ -1508,6 +1508,7 @@ static int lua_panel_set_options(lua_State* L)
     struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_SelectOption options[PLUGIN_LUA_OPTIONS_MAX];int n=lua_select_options_arg(L,3,options,PLUGIN_LUA_OPTIONS_MAX);lua_push_result(L,a->panel.set_options(a,luaL_checkstring(L,1),luaL_checkstring(L,2),options,n));return 2;
 }
 static int lua_panel_redraw(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);a->panel.redraw(a,luaL_checkstring(L,1));return 0; }
+static int lua_panel_reidentify(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->panel.reidentify(a,luaL_checkstring(L,1)));return 2; }
 
 /* -------------------------------------------------------------- api.cache */
 
@@ -1745,7 +1746,8 @@ static struct LuaFn const LUA_SCENE_FNS[] = {
 static struct LuaFn const LUA_PANEL_FNS[] = {
     {"request",lua_panel_request},{"invalidate",lua_panel_invalidate},{"attention",lua_panel_attention},
     {"set_text",lua_panel_set_text},{"set_value",lua_panel_set_value},{"set_height",lua_panel_set_height},
-    {"set_options",lua_panel_set_options},{"redraw",lua_panel_redraw},{NULL,NULL}
+    {"set_options",lua_panel_set_options},{"redraw",lua_panel_redraw},
+    {"reidentify",lua_panel_reidentify},{NULL,NULL}
 };
 static struct LuaFn const LUA_CACHE_FNS[] = {
     {"frame_root",lua_cache_frame_root},{"varbit",lua_cache_varbit},{"varp",lua_cache_varp},

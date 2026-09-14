@@ -1471,6 +1471,8 @@ static int g_v2_zeroed_starts;
 static int g_v2_typed_calls;
 static int g_v2_panel_builds;
 static int g_v2_panel_actions;
+static int g_v2_button_actions;
+static int g_v2_custom_actions;
 static int g_v2_select_actions;
 static char g_v2_select_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
 static int g_v2_panel_draws;
@@ -1634,6 +1636,9 @@ v2_probe_ui_build(
         "two",
         V2_PANEL_OPTIONS_SECOND,
         (int)(sizeof(V2_PANEL_OPTIONS_SECOND) / sizeof(V2_PANEL_OPTIONS_SECOND[0])));
+    /* A command the page cannot service yet. `enabled` was stored and read by
+     * nobody, so this used to be a button that looked live and fired. */
+    panel->button(panel, "commit", "Commit", false);
     g_v2_panel_builds++;
 }
 
@@ -1647,6 +1652,10 @@ v2_probe_ui_action(
     (void)state;
     if( strcmp(event->id, "enabled") == 0 )
         g_v2_panel_actions++;
+    else if( strcmp(event->id, "commit") == 0 )
+        g_v2_button_actions++;
+    else if( strcmp(event->id, "chart") == 0 )
+        g_v2_custom_actions++;
     else if( strcmp(event->id, "frame") == 0 )
     {
         g_v2_select_actions++;
@@ -3275,7 +3284,7 @@ main(void)
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
         generation = PluginHost_PanelSelectionGeneration(hv2);
         CHECK(
-            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 6,
+            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 7,
             "v2 on_ui_build receives the semantic panel builder");
         CHECK(
             PluginHost_PanelLayout(
@@ -3419,6 +3428,107 @@ main(void)
                 strcmp(widget->id, "labelled_chart") == 0 &&
                 strcmp(widget->label, "Activity chart") == 0,
             "general custom nodes preserve their explicitly authored label");
+
+        /* ---- a button the page cannot service does not fire ------------ */
+        widget = PluginHost_PanelWidgetAt(hv2, generation, 6);
+        CHECK(
+            widget && widget->kind == TORIRS_PANEL_WIDGET_BUTTON &&
+                strcmp(widget->id, "commit") == 0 && widget->value == 0,
+            "a button built disabled reports itself disabled");
+        CHECK(
+            widget && !PluginHost_PanelDispatch(
+                          hv2,
+                          generation,
+                          widget->serial,
+                          10,
+                          "commit",
+                          TORIRS_PANEL_ACTION_ACTIVATE,
+                          0,
+                          NULL,
+                          0,
+                          0) &&
+                g_v2_button_actions == 0,
+            "and its action is refused rather than delivered anyway");
+        CHECK(
+            g_v2_api[1]->panel.set_value(g_v2_api[1], "commit", 1) ==
+                    TORIRS_RESULT_OK &&
+                PluginHost_PanelWidgetAt(hv2, generation, 6)->value == 1,
+            "enabling it in place is a value change, not a rebuild");
+        CHECK(
+            widget && PluginHost_PanelDispatch(
+                          hv2,
+                          generation,
+                          widget->serial,
+                          11,
+                          "commit",
+                          TORIRS_PANEL_ACTION_ACTIVATE,
+                          0,
+                          NULL,
+                          0,
+                          0) &&
+                g_v2_button_actions == 1,
+            "and the same click now reaches the plugin");
+
+        /* ---- one row is reidentified; the page around it is not -------- */
+        {
+            struct ToriRS_PluginPanelChange change;
+            uint32_t before[8];
+            uint32_t was;
+            int const count = PluginHost_PanelWidgetCount(hv2, generation);
+            int kept = 0;
+
+            /* A presenter that has just built the page has consumed the
+             * structural declaration; without this the journal is still in
+             * "rebuild" and no per-row change would be recorded at all. */
+            PluginHost_PanelChangesAcknowledge(hv2, generation);
+            CHECK(count == 7, "the page starts with its seven declared rows");
+            for( int i = 0; i < count; i++ )
+                before[i] = PluginHost_PanelWidgetAt(hv2, generation, i)->serial;
+            was = before[3];
+
+            CHECK(
+                g_v2_api[1]->panel.reidentify(g_v2_api[1], "chart") ==
+                    TORIRS_RESULT_OK,
+                "one named row takes a new identity");
+            widget = PluginHost_PanelWidgetAt(hv2, generation, 3);
+            CHECK(
+                PluginHost_PanelWidgetCount(hv2, generation) == count && widget &&
+                    strcmp(widget->id, "chart") == 0 && widget->serial != was,
+                "the row count and its order are untouched; only its serial moved");
+            for( int i = 0; i < count; i++ )
+                if( i != 3 &&
+                    PluginHost_PanelWidgetAt(hv2, generation, i)->serial ==
+                        before[i] )
+                    kept++;
+            CHECK(
+                kept == count - 1,
+                "every other row keeps the identity it was built with");
+            CHECK(
+                PluginHost_PanelChangeNext(hv2, generation, &change) == 1 &&
+                    change.widget_index == 3 &&
+                    change.flags == TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY &&
+                    change.widget_serial == widget->serial,
+                "the journal carries one identity change and names the new serial");
+            CHECK(
+                PluginHost_PanelChangeNext(hv2, generation, &change) == 0,
+                "and nothing else -- a reidentify is not a page rebuild");
+            CHECK(
+                PluginHost_PanelNeedsDraw(hv2, generation, widget->serial) &&
+                    !PluginHost_PanelNeedsDraw(hv2, generation, was),
+                "the well is dirty under its new identity and absent under the old");
+            CHECK(
+                !PluginHost_PanelDispatch(
+                    hv2, generation, was, 12, "chart",
+                    TORIRS_PANEL_ACTION_ACTIVATE, 0, NULL, 0, 0) &&
+                    g_v2_custom_actions == 0,
+                "a click authored against the row's old serial is refused");
+            CHECK(
+                PluginHost_PanelDispatch(
+                    hv2, generation, widget->serial, 13, "chart",
+                    TORIRS_PANEL_ACTION_ACTIVATE, 0, NULL, 0, 0) &&
+                    g_v2_custom_actions == 1,
+                "while the same click against the new serial is delivered");
+        }
 
         PluginHost_SetEnabled(hv2, a2, false);
         CHECK(
