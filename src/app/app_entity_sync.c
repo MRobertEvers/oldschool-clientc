@@ -1,5 +1,6 @@
 /*
- * The server's view of an entity applied to its scene element: animation tracks, held items, and attached graphics.
+ * The server's view of an entity applied to its scene element: animation
+ * tracks, held items, and attached graphics.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

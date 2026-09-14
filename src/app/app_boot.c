@@ -1,5 +1,6 @@
 /*
- * Boot sequencing: the warm gameframe bake, the title swap, boot-bar captions, and the async polls that gate readiness.
+ * Boot sequencing: the warm gameframe bake, the title swap, boot-bar captions,
+ * and the async polls that gate readiness.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

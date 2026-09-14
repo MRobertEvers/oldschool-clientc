@@ -1,5 +1,6 @@
 /*
- * Canvas size, window mode, the interface scale, the plugin layout pass, and the text-input handoff.
+ * Canvas size, window mode, the interface scale, the plugin layout pass, and
+ * the text-input handoff.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

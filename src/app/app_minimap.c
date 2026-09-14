@@ -1,5 +1,6 @@
 /*
- * The minimap: the per-frame dots, the click-to-walk, and the level it draws at.
+ * The minimap: the per-frame dots, the click-to-walk, and the level it draws
+ * at.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

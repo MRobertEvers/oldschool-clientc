@@ -1,5 +1,6 @@
 /*
- * Server IF_SETEVENTS and the target-selection mask, as the minimenu and the CS2 host read them.
+ * Server IF_SETEVENTS and the target-selection mask, as the minimenu and the
+ * CS2 host read them.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

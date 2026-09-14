@@ -1,5 +1,6 @@
 /*
- * How an App is assembled: construction, teardown, and the globals the frame loop shares with main.c.
+ * How an App is assembled: construction, teardown, and the globals the frame
+ * loop shares with main.c.
  *
  * The composition root of the App layer. The layer is this file plus every
  * unit under src/app/; app/app_internal.h is its map. Nothing outside the

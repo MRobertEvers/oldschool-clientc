@@ -1,5 +1,6 @@
 /*
- * Building the entity overlays: health bars, hitsplats, headicons, overhead chat, and their anchors.
+ * Building the entity overlays: health bars, hitsplats, headicons, overhead
+ * chat, and their anchors.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

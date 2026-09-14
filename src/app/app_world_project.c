@@ -1,5 +1,6 @@
 /*
- * Projecting world points and actors to the screen, and the heights overlays hang off.
+ * Projecting world points and actors to the screen, and the heights overlays
+ * hang off.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

@@ -1,5 +1,6 @@
 /*
- * Texture streaming: the want -> load -> publish sync the scene models depend on.
+ * Texture streaming: the want -> load -> publish sync the scene models depend
+ * on.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

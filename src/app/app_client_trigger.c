@@ -1,5 +1,6 @@
 /*
- * Client triggers: the clientscripts the cache binds to an npc or loc coming into view.
+ * Client triggers: the clientscripts the cache binds to an npc or loc coming
+ * into view.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

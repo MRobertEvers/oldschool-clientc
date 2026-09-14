@@ -1,5 +1,6 @@
 /*
- * Editing the world at runtime: spawns, loc changes and merges, projectiles, and the test hitsplats.
+ * Editing the world at runtime: spawns, loc changes and merges, projectiles,
+ * and the test hitsplats.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

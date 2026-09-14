@@ -1,5 +1,6 @@
 /*
- * The developer overlay, its probes (position, height profile, tile flags, bridges), the settings pickers glue, and the XP-drop debug.
+ * The developer overlay, its probes (position, height profile, tile flags,
+ * bridges), the settings pickers glue, and the XP-drop debug.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

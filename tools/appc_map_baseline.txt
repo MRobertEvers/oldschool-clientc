@@ -50,4 +50,4 @@ src/game/test/task_exec_entity_info_test.c
 src/world/test/wev_rebuild_test.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
-app.c-lines: 1254
+app.c-lines: 1255

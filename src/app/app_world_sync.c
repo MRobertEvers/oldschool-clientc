@@ -1,5 +1,6 @@
 /*
- * Syncing positions, animations and frame sounds from the simulation to the scene, once per frame.
+ * Syncing positions, animations and frame sounds from the simulation to the
+ * scene, once per frame.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

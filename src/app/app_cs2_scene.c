@@ -1,5 +1,6 @@
 /*
- * Scene facts the CS2 host asks for -- coords, routes, active tile -- and the ground-item overlay dirty set.
+ * Scene facts the CS2 host asks for -- coords, routes, active tile -- and the
+ * ground-item overlay dirty set.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

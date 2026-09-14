@@ -1,5 +1,6 @@
 /*
- * Varp-driven npc and loc transforms: the multi-resolve tasks and the refresh on change.
+ * Varp-driven npc and loc transforms: the multi-resolve tasks and the refresh
+ * on change.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

@@ -1,5 +1,6 @@
 /*
- * Publishing the retained tree's inputs, the inventory icon reconcile, and the CS1 evaluation task.
+ * Publishing the retained tree's inputs, the inventory icon reconcile, and the
+ * CS1 evaluation task.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

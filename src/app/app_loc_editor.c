@@ -1,5 +1,6 @@
 /*
- * The loc editor panel: rows, buttons, and the chrome input routing shared by every developer panel.
+ * The loc editor panel: rows, buttons, and the chrome input routing shared by
+ * every developer panel.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

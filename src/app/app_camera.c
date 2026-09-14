@@ -1,5 +1,6 @@
 /*
- * The world camera: key orbit, middle-button orbit, wheel zoom, the cinema camera, and the follow camera.
+ * The world camera: key orbit, middle-button orbit, wheel zoom, the cinema
+ * camera, and the follow camera.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

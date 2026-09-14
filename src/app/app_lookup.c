@@ -1,5 +1,6 @@
 /*
- * Cache id lookups: fonts, interface components, settings, and the scene fonts for hitsplats and the minimenu.
+ * Cache id lookups: fonts, interface components, settings, and the scene fonts
+ * for hitsplats and the minimenu.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

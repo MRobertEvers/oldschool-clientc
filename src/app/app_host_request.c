@@ -1,5 +1,6 @@
 /*
- * The UITree host request switch: everything the retained tree asks the client for during an emit walk.
+ * The UITree host request switch: everything the retained tree asks the client
+ * for during an emit walk.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

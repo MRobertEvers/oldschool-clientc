@@ -1,5 +1,6 @@
 /*
- * Small answers about the world: the local player, its plane, terrain height, and which view a world belongs to.
+ * Small answers about the world: the local player, its plane, terrain height,
+ * and which view a world belongs to.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
@@ -24,6 +25,7 @@ app_local_player(struct App* app)
         return NULL;
     return World_EntityPoolGet(&app->world->entities.player, world_idx);
 }
+
 int
 app_world_local_plane(void* userdata)
 {

@@ -1,5 +1,6 @@
 /*
- * What plugins may ask of the world: simulated ops, screen positions, tile queries, and the game-event notifications.
+ * What plugins may ask of the world: simulated ops, screen positions, tile
+ * queries, and the game-event notifications.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in

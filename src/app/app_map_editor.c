@@ -1,5 +1,6 @@
 /*
- * The map editor: ghost placement, the preview, square loads, and the editor panel drain.
+ * The map editor: ghost placement, the preview, square loads, and the editor
+ * panel drain.
  *
  * One translation unit of the App layer. Everything here may read and write
  * `struct App`; what crosses to another unit of the layer is declared in
