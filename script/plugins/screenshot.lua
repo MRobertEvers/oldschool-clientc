@@ -1,14 +1,21 @@
 -- Screenshot capture: game-event and hotkey captures, plus a camera control
--- that is an owned widget with one native operation. The corner modes place
--- the control inside the live viewport; the report-button mode stands the
--- camera in place of the native Report button through a REPLACE anchor, so it
--- follows the button's native visibility both ways. The native button keeps
--- its identity and comes back when the mode changes or the plugin stops.
+-- described to the Porcelain layer. The report-button mode stands the camera
+-- IN PLACE of the native Report button through a REPLACE placement, so it
+-- follows the button's native visibility both ways and the native identity,
+-- operation and later server updates stay intact. The corner modes place the
+-- control at an inset inside the live viewport.
+--
+-- What this file no longer does, because the layer does it: it does not watch
+-- widgets, does not remember which control is alive, does not re-place a
+-- control when the frame moves its element or the window resizes (the corner
+-- camera going stale on a resize was a defect; geometry now follows the target
+-- at every fence), does not remove a control whose target died, and does not
+-- hold or release image handles.
 ---@type torirs.Plugin
 local plugin = {
     id = "screenshot",
     title = "Screenshots",
-    version = "3.0.0",
+    version = "4.0.0",
     config = {
         { key = "destination", type = "string", default = "",
           label = "Save folder (empty = client plugin folder)" },
@@ -29,19 +36,26 @@ local plugin = {
           max = 2000000000, label = "Valuable drop threshold" },
         { key = "hotkey", type = "int", default = "0", min = 0, max = 512,
           label = "Manual screenshot key (0 = off)" },
+        -- REPLACE consumes the target's paint, input and hover, so the native
+        -- "Report abuse" row is unreachable while the camera stands there.
+        -- That is a consequence of the mode and is stated, not discovered.
         { key = "camera", type = "enum",
           choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
-          default = "off", label = "Camera button" },
+          default = "off", label = "Camera button (report-button hides the Report abuse option)" },
     },
 }
 
 local MARGIN = 6
 local OPERATION = "Take screenshot"
-local IDLE_OPACITY = 170
-local icon, icon_small
-local viewport, report            -- current native widgets, nil when unbound
-local corner_control, report_control
-local pending = {}
+local IDLE_OPACITY, PRESSED_OPACITY = 170, 255
+-- Frames the press stays lit. Without it the control that has ever been
+-- pressed is opaque for ever, which is what it did before the port.
+local PRESS_FRAMES = 12
+
+local CORNERS = {
+    ["top-left"] = "top_left", ["top-right"] = "top_right",
+    ["bottom-left"] = "bottom_left", ["bottom-right"] = "bottom_right",
+}
 
 local KINDS = {
     level_up = { "on_level_up", "Levels" },
@@ -56,6 +70,12 @@ local KINDS = {
     treasure_trail = { "on_treasure_trail", "Clue-Scroll-Rewards" },
     duel_end = { "on_duel_end", "Duels" },
 }
+
+-- The api table is one object for the script's whole life, so the describe and
+-- the op handler reach it without a fresh closure per describe run.
+local API
+local pending = {}
+local lit_key, lit_frames = nil, 0
 
 local function slug(text)
     if not text or text == "" then return "" end
@@ -96,6 +116,70 @@ local function capture_now(api)
         folder(api, nil))
 end
 
+-- The press: motion, not structure, so it takes the direct path and never
+-- re-runs the describe. on_frame_start puts it back.
+local function on_camera_op(key)
+    lit_key, lit_frames = key, PRESS_FRAMES
+    API.porcelain.set(key, { opacity = PRESSED_OPACITY })
+    capture_now(API)
+end
+
+-- One camera item. Porcelain owns the image handle; its size is the only
+-- thing the layer has no verb for, so it is read through the same handle.
+local function camera(key, image, place)
+    local ref = API.porcelain.image(image)
+    if not ref then return nil end
+    local width, height = API.assets.image_size(ref)
+    if not width then return nil end
+    return { key = key, image = image, w = width, h = height, opacity = IDLE_OPACITY,
+             place = place, op_label = OPERATION, hit = true, on_op = on_camera_op }
+end
+
+local function corner_item(where)
+    return camera("camera", "camera.png",
+        { kind = "inside", on = "viewport", corner = CORNERS[where], dx = MARGIN, dy = MARGIN })
+end
+
+-- Both icons, held from the start and touched on every describe run, whichever
+-- mode is live: the layer releases an image no run asked for, and a camera
+-- whose mode changes must not pay a decode to come back.
+local function hold_icons()
+    API.porcelain.image("camera.png")
+    API.porcelain.image("camera_small.png")
+end
+
+local function describe(d)
+    local where = API.config.camera
+    hold_icons()
+    if where == "off" then return end
+    local item
+    if where == "report-button" then
+        -- PENDING is not absent: the element resolves at a later fence and the
+        -- layer defers the item until it does. ABSENT is a lane fact -- no
+        -- chat-filter art at all -- already reported on the findings channel;
+        -- the camera goes to a corner rather than nowhere.
+        if API.porcelain.element("report_button").bind ~= "absent" then
+            item = camera("camera_report", "camera_small.png",
+                { kind = "replace", on = "report_button" })
+        else
+            item = corner_item("bottom-right")
+        end
+    else
+        item = corner_item(where)
+    end
+    if item then d.control(item) end
+end
+
+local function tick_pending()
+    local keep = {}
+    for _, shot in ipairs(pending) do
+        shot.ticks_left = shot.ticks_left - 1
+        if shot.ticks_left <= 0 then capture(API, shot.name, shot.directory)
+        else keep[#keep + 1] = shot end
+    end
+    pending = keep
+end
+
 local function wanted(api, ev)
     local kind = KINDS[ev.kind]
     if not kind or not api.config[kind[1]] then return nil end
@@ -104,96 +188,30 @@ local function wanted(api, ev)
     return kind[2]
 end
 
--- One camera control: an owned image child of `parent` at (x, y), sized to the
--- image, armed with the capture operation. Returns nil until the image bytes
--- have decoded; on_asset re-places it then.
-local function place_camera(api, parent, key, image, x, y)
-    if not image then return nil end
-    local width, height = api.assets.image_size(image)
-    if not width then return nil end
-    local control = parent:create_image(key)
-    if not control then return nil end
-    assert(control:set_image(image, width, height))
-    assert(control:set_position(x, y))
-    assert(control:set_opacity(IDLE_OPACITY))
-    assert(control:set_on_op(OPERATION, function(widget)
-        widget:set_opacity(255)
-        capture_now(api)
-    end))
-    assert(control:revalidate())
-    local box = control:bounds()
-    if box then api.core.log("SCREENSHOT_CAMERA", key, box.x, box.y, box.width, box.height) end
-    return control
+function plugin.on_start(api)
+    API = api
+    pending = {}
+    lit_key, lit_frames = nil, 0
+    assert(api.porcelain.open(), "screenshot needs the porcelain layer")
+    hold_icons()
+    api.porcelain.describe(describe)
+    api.porcelain.every_server_tick(tick_pending)
 end
 
-local function corner_position(api, where, width, height)
-    local box = viewport and viewport:position()
-    if not box or not width then return nil end
-    local x = where:find("right") and box.width - width - MARGIN or MARGIN
-    local y = where:find("bottom") and box.height - height - MARGIN or MARGIN
-    return x, y
-end
-
-local function update_controls(api)
-    local where = api.config.camera
-    -- Corner control lives in the viewport.
-    if corner_control then corner_control:remove(); corner_control = nil end
-    if viewport and icon and where ~= "off" and where ~= "report-button" then
-        local width, height = api.assets.image_size(icon)
-        local x, y = corner_position(api, where, width, height)
-        if x then corner_control = place_camera(api, viewport, "camera", icon, x, y) end
-    end
-    -- Report-button mode stands the camera IN PLACE of the native button: a
-    -- REPLACE anchor, which the engine paints and hits instead of the target
-    -- while the target is natively presented, and not at all while it is not.
-    -- The native identity, operation and later server updates stay intact and
-    -- come back when the control is removed, on reset or on plugin teardown.
-    -- A presentation hide plus a positioned sibling was the previous shape,
-    -- and on the mobile toplevel, where the cache hides Report and gives its
-    -- columns to Trade, it painted the camera over the Trade caption.
-    if report_control then report_control:remove(); report_control = nil end
-    if report and where == "report-button" and icon_small then
-        local parent, box = report:parent(), report:position()
-        local width, height = api.assets.image_size(icon_small)
-        if parent and box and width then
-            report_control = place_camera(api, parent, "camera_report", icon_small,
-                box.x + (box.width - width) // 2, box.y + (box.height - height) // 2)
-            if report_control then assert(report_control:set_anchor(report, "replace")) end
+function plugin.on_frame_start(api)
+    if lit_frames > 0 then
+        lit_frames = lit_frames - 1
+        if lit_frames == 0 then
+            api.porcelain.set(lit_key, { opacity = IDLE_OPACITY })
+            lit_key = nil
         end
     end
-end
-
-function plugin.on_start(api)
-    pending = {}
-    icon = api.assets.image("camera.png")
-    icon_small = api.assets.image("camera_small.png")
-    -- UNBOUND removes the control rather than merely forgetting it: a control
-    -- whose anchor target died keeps painting at its last position with a
-    -- native relation and no inherited hide (a floating camera) if its own
-    -- parent survived the remount. Removing a control whose parent died too
-    -- is a harmless stale reference.
-    assert(api.widgets.watch("viewport", function(widget, event)
-        viewport = event.kind == "bound" and widget or nil
-        if event.kind == "unbound" and corner_control then corner_control:remove(); corner_control = nil end
-        update_controls(api)
-    end))
-    assert(api.widgets.watch("report_button", function(widget, event)
-        report = event.kind == "bound" and widget or nil
-        if event.kind == "unbound" and report_control then report_control:remove(); report_control = nil end
-        update_controls(api)
-    end))
-end
-
-function plugin.on_asset(api, ev)
-    if ev.name == "camera.png" or ev.name == "camera_small.png" then
-        icon = icon or api.assets.image("camera.png")
-        icon_small = icon_small or api.assets.image("camera_small.png")
-        update_controls(api)
-    end
+    api.porcelain.fence()
+    api.porcelain.commit()
 end
 
 function plugin.on_config_changed(api, key)
-    if key == "camera" then update_controls(api) end
+    if key == "camera" then api.porcelain.note("config") end
 end
 
 function plugin.on_game_event(api, ev)
@@ -212,27 +230,22 @@ function plugin.on_game_event(api, ev)
 end
 
 function plugin.on_server_tick(api)
-    local keep = {}
-    for _, shot in ipairs(pending) do
-        shot.ticks_left = shot.ticks_left - 1
-        if shot.ticks_left <= 0 then capture(api, shot.name, shot.directory)
-        else keep[#keep + 1] = shot end
-    end
-    pending = keep
+    api.porcelain.tick("server_tick")
 end
 
+-- Raw, not Porcelain_KeyEdge: that verb names five modifier keys by string and
+-- polls key_held at the fence, and this hotkey is an arbitrary key code read
+-- on the press edge.
 function plugin.on_key(api, ev)
     local hotkey = api.config.hotkey
     if hotkey ~= 0 and ev.down and ev.key == hotkey then capture_now(api) end
 end
 
-function plugin.on_stop(api)
+function plugin.on_stop()
+    -- The layer's close removes the control and releases the image; the host
+    -- calls it after this handler returns.
     pending = {}
-    -- Owner teardown removes the owned controls and their anchors; only the
-    -- image handles are ours to release.
-    if icon then api.assets.image_release(icon) end
-    if icon_small then api.assets.image_release(icon_small) end
-    icon, icon_small, viewport, report, corner_control, report_control = nil, nil, nil, nil, nil, nil
+    lit_key, lit_frames = nil, 0
 end
 
 return plugin

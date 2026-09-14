@@ -224,13 +224,18 @@ def main() -> int:
                 errors.append(f"{path.name}: legacy callback {callback}")
 
     screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
+    # The camera is described to the Porcelain layer now: one describe, one
+    # REPLACE placement on the report_button element, one INSIDE placement in
+    # the viewport, and the layer owns every control, watch and image handle.
     for required in (
-        'api.widgets.watch("report_button"',
-        'api.widgets.watch("viewport"',
-        ":create_image(",
-        ":set_image(",
-        ":set_on_op(",
-        ':set_anchor(report, "replace")',
+        "api.porcelain.open(",
+        "api.porcelain.describe(",
+        "api.porcelain.fence(",
+        "api.porcelain.commit(",
+        'porcelain.element("report_button")',
+        'kind = "replace", on = "report_button"',
+        'kind = "inside", on = "viewport"',
+        "d.control(",
         '"report-button"',
         'off|top-left|top-right|bottom-left|bottom-right|report-button',
         "api.assets.screenshot(",
@@ -240,12 +245,21 @@ def main() -> int:
     for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
         if forbidden in screenshot:
             errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
+    # The raw retained verbs are the shape the port replaced. A regression to
+    # any of them is a plugin doing the layer's bookkeeping again: watching
+    # widgets, remembering which control is alive, and re-placing by hand --
+    # which is how the corner camera went stale on a resize.
+    for forbidden in ("api.widgets.watch(", ":create_image(", ":set_anchor(", ":set_on_op(",
+                      "api.assets.image(", "api.assets.image_release("):
+        if forbidden in screenshot:
+            errors.append(f"screenshot.lua: raw retained widget verb back in a Porcelain plugin: {forbidden}")
     # The camera stands in place of the native Report button through a REPLACE
-    # anchor, which follows the target's native visibility both ways. Hiding the
-    # button and positioning a sibling is the shape that painted the camera over
-    # the Trade caption on the mobile toplevel, where the cache hides Report.
-    if "report:set_hidden(" in screenshot:
-        errors.append("screenshot.lua: report button hidden instead of replaced by anchor")
+    # placement, which follows the target's native visibility both ways. Hiding
+    # the button and positioning a sibling is the shape that painted the camera
+    # over the Trade caption on the mobile toplevel, where the cache hides
+    # Report.
+    if "set_hidden(" in screenshot:
+        errors.append("screenshot.lua: report button hidden instead of replaced by a REPLACE placement")
 
     if errors:
         for error in errors:
