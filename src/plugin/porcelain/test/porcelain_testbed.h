@@ -213,6 +213,14 @@ struct Testbed
     int hull_used;
     /** The one element another plugin is holding, or -1. */
     int hull_claimed_element;
+    /*
+     * The world-tile draw, with the one refusal it has. A tile is a place, so
+     * there is no claim arm here -- only the frame's allotment, which a tile
+     * overlay reaches by multiplication because a marker is drawn per tile of
+     * a footprint.
+     */
+    int tile_budget;
+    int tile_used;
 };
 
 /** The single instance. Reset it between scenarios. */

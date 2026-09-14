@@ -659,6 +659,7 @@ warn = nil
 ---@field config_list_add fun(key: string, item: string): boolean Measures before joining; refuses rather than truncating.
 ---@field menu_tag fun(subject: integer, op: integer): integer Subject and intent frozen into the retained row.
 ---@field setting fun(varbit_name: string, inverted?: boolean): boolean Absent is OFF, with one finding across many reads.
+---@field setting_value fun(name: string, absent: integer): integer The same named row as a NUMBER; name is `varbit:x`, `varp:x` or a bare varbit name. `absent` is this feature's OFF answer and is not optional.
 ---@field key_edge fun(config_key: string, fn: fun(down: boolean)): boolean False on a touch lane, with one finding.
 ---@field image fun(name: string): integer?, torirs.AssetStateName
 ---@field image_size fun(name: string): integer?, integer The picture's own size, or nil while it is not READY.
@@ -683,6 +684,7 @@ warn = nil
 ---@field panel_action fun(event: torirs.PanelAction): boolean Forward on_ui_action. False when no described row owns the id.
 ---@field panel_draw fun(node: string): boolean Forward on_ui_draw. False when no described CUSTOM row paints it.
 ---@field hull fun(element_id: integer, rgb: integer|string, alpha?: integer, shape?: 'bounds'|'mesh'): boolean draw.world_hull with both refusals recorded: false means nothing was drawn.
+---@field tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: integer|string, outline_rgb?: integer|string, alpha?: integer): boolean draw.world_tile with its budget refusal recorded: false means the footprint was cut short.
 ---@field finding fun(verb: string, element: string|nil, result: torirs.PorcelainFindingName|integer, detail?: string) This plugin's OWN finding, in the channel Porcelain's verbs already use.
 ---@field menu_untag fun(tag: integer): integer, integer The inverse of menu_tag, so the operations-per-subject constant lives in one place.
 ---@field key_down fun(key: string): boolean Is this key held NOW. The edge form's VALUE vocabulary: a name, a decimal code, or one character.

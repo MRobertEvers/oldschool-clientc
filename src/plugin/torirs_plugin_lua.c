@@ -2616,6 +2616,16 @@ static int lua_porcelain_setting(lua_State* L)
                                                               luaL_checkstring(L, 1), flags));
     return 1;
 }
+/* `absent` is REQUIRED, not optional with a zero default: a caller that left
+ * it out would be stating "this row's off answer is zero" by omission, and for
+ * an inverted row that is the answer that switches the feature on. */
+static int lua_porcelain_setting_value(lua_State* L)
+{
+    lua_pushinteger(L, lua_current_api(L)->porcelain->setting_value(
+                           lua_porcelain(L), luaL_checkstring(L, 1),
+                           (int)luaL_checkinteger(L, 2)));
+    return 1;
+}
 /* ------------------------------------------------------- the overlay verbs */
 
 static int lua_porcelain_draw_context(lua_State* L)
@@ -3231,6 +3241,20 @@ static int lua_porcelain_hull(lua_State* L)
                            lua_porcelain_hull_shape(L, 4)));
     return 1;
 }
+/* The outline colour defaults to the fill, matching draw.world_tile's own
+ * argument order and its own default: one marker in one colour is what every
+ * caller of that verb in this tree asks for. */
+static int lua_porcelain_tile(lua_State* L)
+{
+    struct ToriRS_Graphics* draw = lua_draw_builder(L);
+    uint32_t fill = lua_color_arg(L, 4);
+    uint32_t outline = lua_isnoneornil(L, 5) ? fill : lua_color_arg(L, 5);
+    lua_pushboolean(L, lua_current_api(L)->porcelain->tile(
+                           lua_porcelain(L), draw, (int)luaL_checkinteger(L, 1),
+                           (int)luaL_checkinteger(L, 2), (int)luaL_checkinteger(L, 3), fill,
+                           outline, (int)luaL_optinteger(L, 6, 0)));
+    return 1;
+}
 /* The result names, so a plugin writes `"refused"` and not a bare 4. The
  * integers stay legal: findings() reads results back as integers, and a
  * plugin re-recording one it read must be able to hand it straight back. */
@@ -3324,7 +3348,8 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"require",lua_porcelain_require},{"tier",lua_porcelain_tier},
     {"tiers_from_config",lua_porcelain_tiers_from_config},
     {"config_list_add",lua_porcelain_config_list_add},{"menu_tag",lua_porcelain_menu_tag},
-    {"setting",lua_porcelain_setting},{"key_edge",lua_porcelain_key_edge},
+    {"setting",lua_porcelain_setting},{"setting_value",lua_porcelain_setting_value},
+    {"key_edge",lua_porcelain_key_edge},
     {"image",lua_porcelain_image},{"image_size",lua_porcelain_image_size},
     {"model",lua_porcelain_model},
     {"derived",lua_porcelain_derived},{"when_ready",lua_porcelain_when_ready},
@@ -3338,7 +3363,8 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"panel",lua_porcelain_panel},{"panel_build",lua_porcelain_panel_build},
     {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},
     /* round three */
-    {"hull",lua_porcelain_hull},{"finding",lua_porcelain_finding},
+    {"hull",lua_porcelain_hull},{"tile",lua_porcelain_tile},
+    {"finding",lua_porcelain_finding},
     {"menu_untag",lua_porcelain_menu_untag},{"key_down",lua_porcelain_key_down},
     {"config_list_remove",lua_porcelain_config_list_remove},
     {"config_list_set",lua_porcelain_config_list_set},

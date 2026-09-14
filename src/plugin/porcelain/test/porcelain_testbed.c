@@ -1053,6 +1053,17 @@ fake_varbit(struct ToriRS_Api* api, int id)
     return id;
 }
 
+/* A varp reads back as its id NEGATED, so a test that asked for the wrong kind
+ * gets a different number rather than a plausible one: `varbit:x` and `varp:x`
+ * answering alike is exactly how a kind mix-up survives a suite. */
+static int
+fake_varp(struct ToriRS_Api* api, int id)
+{
+    (void)api;
+    testbed_log("varp %d", id);
+    return -id;
+}
+
 static bool
 fake_key_held(struct ToriRS_Api* api, int key)
 {
@@ -1251,6 +1262,22 @@ fake_graphics_world_hull(struct ToriRS_Graphics* draw, int element_id, uint32_t 
     return TORIRS_RESULT_OK;
 }
 
+/* The world tile, with the host's one refusal: the frame's own allotment. */
+static enum ToriRS_Result
+fake_graphics_world_tile(struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
+                         uint32_t fill_rgb, uint32_t outline_rgb, int alpha)
+{
+    (void)draw;
+    (void)fill_rgb;
+    (void)outline_rgb;
+    (void)alpha;
+    testbed_log("world_tile %d,%d,%d", tile_x, tile_z, level);
+    if( g_testbed.tile_used >= g_testbed.tile_budget )
+        return TORIRS_RESULT_BUDGET;
+    g_testbed.tile_used++;
+    return TORIRS_RESULT_OK;
+}
+
 struct ToriRS_Graphics*
 Testbed_Graphics(struct ToriRS_Rect region, bool valid)
 {
@@ -1258,6 +1285,7 @@ Testbed_Graphics(struct ToriRS_Rect region, bool valid)
     g_testbed_graphics.struct_size = sizeof(g_testbed_graphics);
     g_testbed_graphics.context = fake_graphics_context;
     g_testbed_graphics.world_hull = fake_graphics_world_hull;
+    g_testbed_graphics.world_tile = fake_graphics_world_tile;
     g_testbed.draw_region = region;
     g_testbed.draw_region_valid = valid;
     return &g_testbed_graphics;
@@ -1535,6 +1563,7 @@ Testbed_Reset(void)
      * refusal turns the budget down or names the claimed element. */
     g_testbed.hull_budget = 64;
     g_testbed.hull_claimed_element = -1;
+    g_testbed.tile_budget = 64;
 
     g_testbed.api.widgets.context = &g_testbed;
     g_testbed.api.widgets.find = fake_find;
@@ -1599,6 +1628,7 @@ Testbed_Reset(void)
     g_testbed.api.cache.named_id = fake_named_id;
     g_testbed.api.cache.varbit = fake_varbit;
     g_testbed.api.cache.frame_root = fake_frame_root;
+    g_testbed.api.cache.varp = fake_varp;
 
     g_testbed.api.frame.struct_size = sizeof(g_testbed.api.frame);
     g_testbed.api.frame.surface_native_size = fake_surface_native_size;

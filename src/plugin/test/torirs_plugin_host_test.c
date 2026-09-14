@@ -2783,6 +2783,46 @@ static void test_world_hull_answers_its_refusals(void)
     PluginHost_Free(host);
 }
 
+/*
+ * And the world TILE answers its one.
+ *
+ * The same silence world_hull had, over the verb the budget actually bites: a
+ * marker is drawn per tile of a footprint, so a crowded overlay reaches the
+ * 512-item allotment by multiplication and every tile past it vanished, with
+ * `plugin_draw_allow` logging the truncation and no caller able to read it.
+ * There is no claim arm here -- a tile is a place, so no plugin can hold it.
+ *
+ * MUTATION 1: `return TORIRS_RESULT_OK` from api_draw_tile's budget arm.
+ *   Red: "the tile past the budget answers BUDGET".
+ * MUTATION 2: make v2_builder_world_tile discard api_draw_tile's answer and
+ *   return OK, which is the shipped defect exactly. Red: the same.
+ */
+static int tile_budget_first, tile_budget_last;
+static void tile_budget_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)api;(void)state;
+    tile_budget_first =
+        (int)graphics->world_tile(graphics, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 40);
+    for( int i = 0; i < TORIRS_PLUGIN_DRAW_BUDGET; i++ )
+        tile_budget_last =
+            (int)graphics->world_tile(graphics, 3200 + i, 3200, 0, 0x00ff00u, 0x00ff00u, 40);
+}
+static void test_world_tile_answers_its_refusal(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    struct ToriRS_PluginDef budget={.struct_size=sizeof(budget),.id="tile-budget",.title="Tile",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_world=tile_budget_draw}};
+
+    tile_budget_first=tile_budget_last=-1;
+    CHECK(PluginHost_Register(host,&budget)>=0,"the tile budget fixture registers");
+    PluginHost_Start(host);
+    PluginHost_DrawWorld(host,765,503);
+    CHECK(tile_budget_first==(int)TORIRS_RESULT_OK,"a tile inside the budget answers OK");
+    CHECK(tile_budget_last==(int)TORIRS_RESULT_BUDGET,"the tile past the budget answers BUDGET");
+    PluginHost_Free(host);
+}
+
 static void test_widget_operations(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
@@ -3911,6 +3951,7 @@ main(void)
     test_widget_images();
     test_world_draw_context();
     test_world_hull_answers_its_refusals();
+    test_world_tile_answers_its_refusal();
     test_gameframe_provider();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

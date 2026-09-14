@@ -75,9 +75,12 @@ return { id = 'tile-behavior', on_start = function(host)
     }
     local graphics = { world_tile = function(...)
         calls[#calls + 1] = { ... }
-        -- The pair the api hands back. It is a constant today -- the host's
-        -- api_draw_tile returns void and swallows the budget refusal -- which
-        -- is the gap on_start declares and the reason nothing reads this.
+        -- The pair the api hands back. It stopped being a constant with the
+        -- nxt-highlight port: api_draw_tile answers BUDGET when the frame's
+        -- allotment ran out, so `false` here is now a state a caller can be
+        -- written against. This plugin still does not read it -- @see its
+        -- on_start -- and the drawn-arguments assertions below are what the
+        -- fake exists for.
         return true, 'ok'
     end }
 
@@ -108,15 +111,15 @@ return { id = 'tile-behavior', on_start = function(host)
     end
     assert(next(defaults) == nil, 'every declared row is one of the eleven')
 
-    -- Start declares the one refusal this plugin cannot see, by name, so it is
-    -- an expected finding in every capture instead of a comment.
+    -- Start declares NOTHING, and that is the assertion. It used to declare
+    -- draw_refusal_readout, because the budget refusal was unreadable; the
+    -- nxt-highlight port made it an answer, and a declaration that is no
+    -- longer true is the same failure as an undeclared difference.
     product.on_start(api)
     assert(P.opens == 1, 'on_start opens the porcelain layer exactly once')
     assert(#logs == 0, 'a layer that opened is not worth a line')
-    assert(#declared == 1 and declared[1].feature == 'draw_refusal_readout',
-        'the unreadable draw result is declared, not left unsaid')
-    assert(declared[1].why:find('api_draw_tile', 1, true),
-        'and the declaration names where the refusal is swallowed')
+    assert(#declared == 0,
+        'the draw refusal is readable now, so there is no limitation left to declare')
 
     frame()
     assert(#calls == 3, 'hover, true and destination markers must all draw')
@@ -183,18 +186,19 @@ return { id = 'tile-behavior', on_start = function(host)
     -- a destination is always answered by the snapshot.
     for _ = 1, 60 do frame() end
     assert(#calls == 3, 'the sixtieth frame draws what the first one did')
-    assert(#declared == 1, 'and the declaration is made once, not once a frame')
+    assert(#declared == 0, 'and there is still nothing this lane cannot do')
     assert(#P.capabilities == 0,
         'a destination is always answered by the snapshot: map_flag is not a capability')
 
     -- A host built without the layer, reached the way a re-enable reaches it:
-    -- on_start again. The markers outrank the declaration, so they still draw
-    -- -- and the plugin says so once rather than going quiet.
+    -- on_start again. The markers outrank the layer, so they still draw -- and
+    -- the plugin says so once rather than going quiet, because without the
+    -- layer there is no findings channel for anything it later cannot do.
     P.available = false
     product.on_start(api)
     assert(#logs == 1, 'a host with no porcelain layer is said out loud, once')
     assert(logs[1]:find('porcelain', 1, true), 'and the line names what is missing')
-    assert(#declared == 1, 'there is nowhere to declare the gap, so it is not declared')
+    assert(#declared == 0, 'and still nothing to declare either way')
     frame()
     assert(#calls == 3, 'the markers draw anyway')
 

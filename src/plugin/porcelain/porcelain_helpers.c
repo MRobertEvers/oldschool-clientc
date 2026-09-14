@@ -455,37 +455,166 @@ Porcelain_MenuUntag(uint32_t tag, int* out_subject, int* out_op)
 /* Settings                                                                 */
 /* ------------------------------------------------------------------------ */
 
+/*
+ * Which cache kind a name means, and the bare name under it.
+ *
+ * `varbit:hover_tile` and `varp:cannon_coord` are the spellings the capability
+ * rule already uses (`varbit:<name>` / `varp:<name>` in app_plugin_capability),
+ * so a plugin writes one string for the requirement and for the read. A bare
+ * name is a varbit: that is what every settings row is, and it is the spelling
+ * the shipped builtins already had.
+ */
+static char const*
+porcelain_var_kind(char const* name, char const** out_bare)
+{
+    if( strncmp(name, "varbit:", 7) == 0 )
+    {
+        *out_bare = name + 7;
+        return "varbit";
+    }
+    if( strncmp(name, "varp:", 5) == 0 )
+    {
+        *out_bare = name + 5;
+        return "varp";
+    }
+    *out_bare = name;
+    return "varbit";
+}
+
+static int
+porcelain_var_read(struct Porcelain* porcelain, char const* kind, int id)
+{
+    porcelain->counters.engine_calls++;
+    if( strcmp(kind, "varp") == 0 )
+        return porcelain->api->cache.varp(porcelain->api, id);
+    return porcelain->api->cache.varbit(porcelain->api, id);
+}
+
+/*
+ * The resolved id for (kind, name), resolved at most once per handle.
+ *
+ * What a profile declares is a BOOT fact: `[varbit:bird_nest]` does not move
+ * while the profile is loaded. The shipped bird-nest builtin resolved it on
+ * every ground-item spawn and the cannon one four times on every server tick,
+ * which in a crowded drop zone is a host call per obj that could never answer
+ * differently.
+ *
+ * `id < 0` is memoised with the same force, and that is the half that matters:
+ * a row this profile does not declare is the dat1 lane's normal state, and
+ * re-asking it every tick for the life of the session is the same call with a
+ * worse story.
+ */
+static struct PorcelainVarSlot*
+porcelain_var_slot(struct Porcelain* porcelain, char const* kind, char const* bare)
+{
+    struct PorcelainVarSlot* free_slot = NULL;
+    int id = -1;
+
+    for( int i = 0; i < PORCELAIN_VARS_MAX; i++ )
+    {
+        struct PorcelainVarSlot* slot = &porcelain->vars[i];
+        if( !slot->used )
+        {
+            if( !free_slot )
+                free_slot = slot;
+            continue;
+        }
+        if( strcmp(slot->kind, kind) == 0 && strcmp(slot->name, bare) == 0 )
+            return slot;
+    }
+    if( !free_slot )
+        return NULL;
+
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->cache.named_id(porcelain->api, kind, bare, &id) )
+        id = -1;
+    memset(free_slot, 0, sizeof(*free_slot));
+    free_slot->used = true;
+    Porcelain_CopyString(free_slot->kind, sizeof(free_slot->kind), kind);
+    Porcelain_CopyString(free_slot->name, sizeof(free_slot->name), bare);
+    free_slot->id = id;
+    return free_slot;
+}
+
+/*
+ * A named cache var read as a NUMBER.
+ *
+ * The settings family is not all booleans: the cannon's "low on ammo amount"
+ * is a 0..310 slider and its ammunition count is a varp, so a layer that only
+ * answered on/off left two of the three shipped builtins resolving names and
+ * reading vars by hand -- which is the bookkeeping this verb exists to take
+ * away.
+ *
+ * `absent` is the CALLER's answer for a row the profile does not declare, and
+ * it is always that feature's OFF answer: 0 for a plain row, 1 for an inverted
+ * one, 0 for a count. A value read off a var that does not exist would be a
+ * silent zero, which for the cannon coord reads as "no cannon" and for an
+ * inverted toggle reads as a feature that switched itself on.
+ */
+int
+Porcelain_SettingValue(struct Porcelain* porcelain, char const* name, int absent)
+{
+    char const* bare = NULL;
+    char const* kind;
+    struct PorcelainVarSlot* slot;
+
+    assert(porcelain);
+    assert(name);
+    kind = porcelain_var_kind(name, &bare);
+    assert(bare[0]);
+
+    slot = porcelain_var_slot(porcelain, kind, bare);
+    if( !slot )
+    {
+        /*
+         * The memo table is full. The READ still happens -- refusing it would
+         * make the seventeenth name silently absent, which is the failure this
+         * verb exists to remove -- and it costs the lookup the memo was there
+         * to delete. One finding, coalesced, names the table.
+         */
+        int id = -1;
+        Porcelain_RecordFinding(porcelain, "setting", PORCELAIN_ROLE_EL(bare),
+                                PORCELAIN_FINDING_BUDGET, "named-var memo table full");
+        porcelain->counters.engine_calls++;
+        if( !porcelain->api->cache.named_id(porcelain->api, kind, bare, &id) || id < 0 )
+            return absent;
+        return porcelain_var_read(porcelain, kind, id);
+    }
+    if( slot->id < 0 )
+    {
+        /* Absent is the caller's OFF answer, with ONE finding across many
+         * reads -- the finding table coalesces on (verb, element, result), so
+         * a per-spawn read does not flood. */
+        Porcelain_RecordFinding(porcelain, "setting", PORCELAIN_ROLE_EL(bare),
+                                PORCELAIN_FINDING_ABSENT, bare);
+        return absent;
+    }
+    return porcelain_var_read(porcelain, kind, slot->id);
+}
+
+/*
+ * The same row read as a SWITCH.
+ *
+ * Thirty of the fifty-four desktop toggles in All Settings > Activities carry
+ * `param_1084`, which is a display INVERSION and not a default: the row builder
+ * draws the checkbox as `1 - varbit`, so for those rows a varbit of 0 is a
+ * ticked box and a switched-on feature. That is lane data, and absorbing it
+ * here is what keeps thirty plugins from each spelling the test the wrong way
+ * round.
+ */
 bool
 Porcelain_Setting(struct Porcelain* porcelain, char const* varbit_name, unsigned flags)
 {
-    int id = -1;
+    bool const inverted = (flags & PORCELAIN_SETTING_INVERTED) != 0;
     int value;
 
     assert(porcelain);
     assert(varbit_name);
-
-    /*
-     * ONE lookup, not two. `varbit:<name>` as a capability and `named_id`
-     * over the same name are the same profile row read twice; asking the
-     * capability first would be an engine call that could never change the
-     * answer, and a rule no test could turn red.
-     *
-     * Absent is OFF, with ONE finding across many reads -- the finding table
-     * coalesces on (verb, element, result), so a per-row read does not flood.
-     * A multiplier read off a var that does not exist would be a silent 1.0.
-     */
-    porcelain->counters.engine_calls++;
-    if( !porcelain->api->cache.named_id(porcelain->api, "varbit", varbit_name, &id) || id < 0 )
-    {
-        Porcelain_RecordFinding(porcelain, "setting", PORCELAIN_ROLE_EL(varbit_name),
-                                PORCELAIN_FINDING_ABSENT, varbit_name);
-        return false;
-    }
-    porcelain->counters.engine_calls++;
-    value = porcelain->api->cache.varbit(porcelain->api, id);
-    if( flags & PORCELAIN_SETTING_INVERTED )
-        return value == 0;
-    return value != 0;
+    /* `absent` is this row's OFF answer, which is 1 for an inverted row -- so
+     * both spellings come out false below and a builtin whose switch this
+     * profile does not declare stays switched off. */
+    value = Porcelain_SettingValue(porcelain, varbit_name, inverted ? 1 : 0);
+    return inverted ? value == 0 : value != 0;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -661,6 +790,18 @@ Porcelain_ExpectUnsupported(struct Porcelain* porcelain, char const* feature, ch
         Porcelain_CopyString(slot->why, sizeof(slot->why), why);
         Porcelain_RecordFinding(porcelain, "unsupported", PORCELAIN_ROLE_EL(feature),
                                 PORCELAIN_FINDING_UNSUPPORTED, feature);
+        /*
+         * And the refusals already on the table, in place.
+         *
+         * The only honest moment to declare a lane limitation is the moment the
+         * plugin DISCOVERS it, which is the refusal itself -- `Porcelain_Require`
+         * answering false. Labelling at record time alone meant that refusal
+         * stayed expected=0 for ever and failed the clean gate for telling the
+         * truth, so the only passing shape was to declare unconditionally, on
+         * every lane, including the ones where the feature works. The absence
+         * half has had this arm since round two; @see porcelain_relabel_absence.
+         */
+        Porcelain_RelabelUnsupported(porcelain, feature);
         return;
     }
     Porcelain_RecordFinding(porcelain, "expect_unsupported", PORCELAIN_ROLE_EL(feature),
@@ -1324,6 +1465,46 @@ Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int el
     }
     Porcelain_RecordFinding(porcelain, "world_hull", PORCELAIN_EL(NONE),
                             PORCELAIN_FINDING_REFUSED, "the hull shape is not one of the two");
+    return false;
+}
+
+/*
+ * draw->world_tile, with its one refusal turned into a finding.
+ *
+ * The same silence world_hull had, and worse arithmetic behind it. A tile
+ * marker is drawn PER TILE of a footprint, so a crowded Activities set -- tile
+ * markers, npc highlights and Agility obstacles at once -- reaches the 512-item
+ * frame allotment by multiplication rather than by accident, and every tile
+ * past it vanished with the plugin still reporting itself armed. The host's
+ * `plugin_draw_allow` has logged that for a while; what nothing could do was
+ * READ it, because the v2 builder answered OK unconditionally.
+ *
+ * The budget is the only refusal here: a tile is a place, so there is no
+ * entity whose appearance another plugin could hold.
+ */
+bool
+Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x, int tile_z,
+               int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha)
+{
+    enum ToriRS_Result result;
+
+    assert(porcelain);
+    assert(draw);
+    assert(draw->world_tile);
+
+    porcelain->counters.engine_calls++;
+    result = draw->world_tile(draw, tile_x, tile_z, level, fill_rgb, outline_rgb, alpha);
+    if( result == TORIRS_RESULT_OK )
+        return true;
+    if( result == TORIRS_RESULT_BUDGET )
+    {
+        Porcelain_RecordFinding(porcelain, "world_tile", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_BUDGET,
+                                "the frame's draw budget; the rest of the footprint was dropped");
+        return false;
+    }
+    Porcelain_RecordFinding(porcelain, "world_tile", PORCELAIN_EL(NONE),
+                            PORCELAIN_FINDING_REFUSED, "the host refused the tile");
     return false;
 }
 

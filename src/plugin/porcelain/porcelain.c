@@ -334,6 +334,35 @@ porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement e
     }
 }
 
+/*
+ * The same, for a limitation. Matched on the finding's DETAIL, because that is
+ * where the feature name lands on every route that records an UNSUPPORTED
+ * one -- `require`, `notify` with no notifier, the overlay latch.
+ *
+ * WHAT THIS DOES NOT FIX, said here so nobody relies on it: the TRACE LINE.
+ * A finding is written to stderr once, at birth, and that line carries the
+ * label it had then. Relabelling corrects the table -- what `findings` answers
+ * and what a plugin can read back -- and leaves an `expected=0` line in a
+ * capture that the log-reading gates will still fail on. A plugin whose
+ * limitation must be clean in a CAPTURE has to declare it before the verb that
+ * discovers it; the three nxt builtins do exactly that, and say why.
+ */
+void
+Porcelain_RelabelUnsupported(struct Porcelain* porcelain, char const* feature)
+{
+    assert(porcelain);
+    assert(feature);
+    for( int i = 0; i < PORCELAIN_FINDINGS_MAX; i++ )
+    {
+        struct PorcelainFindingSlot* slot = &porcelain->findings[i];
+        if( !slot->used || slot->pub.result != PORCELAIN_FINDING_UNSUPPORTED )
+            continue;
+        if( strcmp(slot->detail, feature) != 0 )
+            continue;
+        slot->pub.expected = true;
+    }
+}
+
 void
 Porcelain_ExpectAbsent(struct Porcelain* porcelain, struct PorcelainElement element,
                        char const* why)
@@ -2865,8 +2894,10 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .panel_build = Porcelain_PanelBuild,
     .panel_action = Porcelain_PanelAction,
     .panel_draw = Porcelain_PanelDraw,
+    .setting_value = Porcelain_SettingValue,
     /* round three */
     .hull = Porcelain_Hull,
+    .tile = Porcelain_Tile,
     .finding = Porcelain_Finding,
     .menu_untag = Porcelain_MenuUntag,
     .key_down = Porcelain_KeyDown,

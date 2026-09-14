@@ -1172,6 +1172,123 @@ test_setting_absent_is_off(void)
 }
 
 /*
+ * The same named rows read as NUMBERS, and resolved once.
+ *
+ * Three of the five reads the cannon builtin makes are values and two of them
+ * are varps, so a layer whose only named-var verb answered a boolean over a
+ * varbit left a shipped BUILTIN resolving ids and reading vars by hand. That
+ * is the claim the nxt family was ported to test.
+ *
+ * MUTATION 1: make porcelain_var_kind always answer "varbit".
+ *   Red: "a varp is read as a varp" -- the testbed answers a varp as its id
+ *   negated precisely so a kind mix-up cannot look plausible.
+ * MUTATION 2: delete the memo hit in porcelain_var_slot (always resolve).
+ *   Red: "the name is resolved ONCE, not once per read".
+ * MUTATION 3: make the `slot->id < 0` arm read the var anyway.
+ *   Red: "a row this profile does not declare answers the CALLER's off value".
+ * MUTATION 4: make Porcelain_Setting pass 0 as `absent` for an inverted row.
+ *   Red: "an inverted row this profile lacks is OFF, not ON".
+ */
+static void
+test_setting_value_reads_a_number_once(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    int count;
+
+    Testbed_Reset();
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids),
+             "varp:cannon_ammo=3,varp:cannon_coord=3551,varbit:cannon_low_amount=14176");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_SettingValue(porcelain, "varbit:cannon_low_amount", 0) == 14176,
+          "a bare varbit row reads its varbit");
+    CHECK(Porcelain_SettingValue(porcelain, "varp:cannon_ammo", 0) == -3,
+          "a varp is read as a varp");
+    CHECK(Porcelain_SettingValue(porcelain, "cannon_low_amount", 0) == 14176,
+          "and an unprefixed name is a varbit, which is what every settings row is");
+
+    /* Five more reads of the three names. The PROFILE cannot renumber under a
+     * running client, so a second lookup is a host call that could not answer
+     * differently -- and the shipped builtins were making one per ground item
+     * and four per server tick. */
+    Testbed_ClearLog();
+    for( int at = 0; at < 5; at++ )
+    {
+        (void)Porcelain_SettingValue(porcelain, "varp:cannon_ammo", 0);
+        (void)Porcelain_SettingValue(porcelain, "varp:cannon_coord", 0);
+        (void)Porcelain_SettingValue(porcelain, "cannon_low_amount", 0);
+    }
+    CHECK(Testbed_LogCountWith("named_id") == 1,
+          "the name is resolved ONCE, not once per read");
+    CHECK(Testbed_LogCountWith("varp") == 10, "the READS still happen, every time");
+
+    /* Absent is the CALLER's answer, because only the caller knows what off
+     * looks like for its row: 0 for a count, 1 for an inverted toggle. */
+    CHECK(Porcelain_SettingValue(porcelain, "varp:no_such_row", 0) == 0,
+          "a row this profile does not declare answers the CALLER's off value");
+    CHECK(Porcelain_SettingValue(porcelain, "varp:no_such_row", 7) == 7,
+          "whatever the caller said that was");
+    CHECK(!Porcelain_Setting(porcelain, "no_such_toggle", PORCELAIN_SETTING_INVERTED),
+          "an inverted row this profile lacks is OFF, not ON");
+
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 2, "two absent names are two findings, and the reads inside them are one each");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The tile draw's one refusal, which a tile overlay reaches by arithmetic.
+ *
+ * A marker covers size_x * size_z tiles, so the cache-highlight renderer with a
+ * crowded Activities set is many tiles a frame against 512 -- and every tile
+ * past it vanished silently, because api_draw_tile returned void and the v2
+ * builder answered OK whatever the allotment said.
+ *
+ * MUTATION 1: make v2_builder_world_tile return TORIRS_RESULT_OK again (the
+ *   shipped defect exactly). Red: "the tile over the allotment is refused".
+ * MUTATION 2: drop the BUDGET arm in Porcelain_Tile.
+ *   Red: "the finding names the budget".
+ */
+static void
+test_world_tile_budget_reaches_the_plugin(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_Graphics* draw;
+    struct PorcelainFinding findings[8];
+    int count;
+    bool budget = false;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    draw = Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, true);
+
+    /* Three: a 2x2 footprint is four tiles, so the allotment runs out INSIDE
+     * one marker, which is the shape that made the defect invisible -- three
+     * corners of a square drawn and the fourth gone. */
+    g_testbed.tile_budget = 3;
+    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 40),
+          "a tile inside the allotment is drawn");
+    CHECK(Porcelain_Tile(porcelain, draw, 3201, 3200, 0, 0x00ff00u, 0x00ff00u, 40), "and the next");
+    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3201, 0, 0x00ff00u, 0x00ff00u, 40),
+          "and the last one in it");
+    CHECK(!Porcelain_Tile(porcelain, draw, 3201, 3201, 0, 0x00ff00u, 0x00ff00u, 40),
+          "the tile over the allotment is refused");
+    for( int at = 0; at < 20; at++ )
+        (void)Porcelain_Tile(porcelain, draw, 3300 + at, 3300, 0, 0x00ff00u, 0x00ff00u, 40);
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 1, "twenty-one refused tiles in one frame are ONE finding");
+    for( int at = 0; at < count; at++ )
+        if( findings[at].result == PORCELAIN_FINDING_BUDGET &&
+            strcmp(findings[at].verb, "world_tile") == 0 &&
+            strstr(findings[at].detail, "budget") != NULL )
+            budget = true;
+    CHECK(budget, "the finding names the budget");
+    CHECK(findings[0].count == 21, "and counts every tile it swallowed");
+    Porcelain_Close(porcelain);
+}
+
+/*
  * MUTATION: delete the touch branch in Porcelain_KeyEdge. Red: the feature
  * reports itself armed on a lane where input.key_held can never be true.
  */
@@ -2654,6 +2771,41 @@ test_a_limitation_can_be_declared(void)
     CHECK(count == 2, "with its own finding");
     for( int i = 0; i < count; i++ )
         CHECK(findings[i].expected, "and every one of them is declared");
+    Porcelain_Close(porcelain);
+
+    /*
+     * And the other order, which is the only HONEST one.
+     *
+     * A plugin discovers a lane limitation by asking -- Porcelain_Require
+     * answering false IS the discovery -- so the declaration can only come
+     * after the finding that prompted it. Labelling at record time alone left
+     * that first refusal expected=0 for ever, and the only way to pass the
+     * clean gate was to declare unconditionally, on every lane, including the
+     * ones where the feature works. That is a declaration that is false half
+     * the time, which is what the bidirectional rule exists to refuse.
+     *
+     * This fixes the TABLE and not the trace line, which was already written
+     * at birth with the label it had then -- so a plugin that needs its
+     * capture clean still declares before it asks. @see
+     * Porcelain_RelabelUnsupported.
+     *
+     * MUTATION: delete the Porcelain_RelabelUnsupported call in
+     * Porcelain_ExpectUnsupported. Red: "the refusal that PROMPTED the
+     * declaration is covered by it".
+     */
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_Require(porcelain, "highlight_groups", "cache highlights"),
+          "the requirement is what tells the plugin the lane cannot do this");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 1, "and it is one finding");
+    CHECK(!findings[0].expected, "undeclared, at the instant it was recorded");
+    Porcelain_ExpectUnsupported(porcelain, "cache highlights", "no CS2 highlight groups here");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 2, "the declaration is its own finding, as before");
+    for( int i = 0; i < count; i++ )
+        CHECK(findings[i].expected,
+              "the refusal that PROMPTED the declaration is covered by it");
     Porcelain_Close(porcelain);
 }
 
@@ -4822,6 +4974,8 @@ main(void)
     test_keep_relative();
     test_menu_tag();
     test_setting_absent_is_off();
+    test_setting_value_reads_a_number_once();
+    test_world_tile_budget_reaches_the_plugin();
     test_key_edge();
     test_derived_once_per_input();
     test_require_reports_the_feature();

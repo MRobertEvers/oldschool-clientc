@@ -15,6 +15,7 @@
  */
 
 #include "plugin/plugins/nxt_activities.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_host.h"
 
 #include <assert.h>
@@ -47,6 +48,36 @@ struct FakeEngine
 {
     int varbit[FAKE_VARS_MAX];
     int varp[FAKE_VARS_MAX];
+
+    /*
+     * The lane, as the two facts the adapter answers capabilities out of.
+     *
+     * `cs2_lane` is CS2 ui logic plus a declared highlight script;
+     * `profile_declares` is whether the boot profile carries the
+     * `[varbit:]`/`[varp:]` rows at all. Both are BOOT facts in the client and
+     * both are set before PluginHost_Start here, because a capability a plugin
+     * asks at on_start and the host answers later is the exact defect that
+     * made every plugin hear `touch = false` on every lane.
+     */
+    int cs2_lane;
+    int profile_declares;
+
+    /*
+     * What the plugins COST, not just what they produced.
+     *
+     * The ledger's claim about this family is that the layer removes
+     * bookkeeping, and the only way that is checkable is to count the host
+     * calls. `cache_id_calls` is the one that matters: the shipped builtins
+     * resolved a name per ground item and four per server tick, for an answer
+     * the boot profile settled once.
+     */
+    int cache_id_calls;
+    int varbit_reads;
+    int varp_reads;
+
+    /** What one draw_tile call spends of the 512-item frame allotment. One in
+     *  the client; a test that wants the refusal turns it up. */
+    int tile_cost;
 
     int shift_held;
     int hover_ok;
@@ -268,12 +299,14 @@ static int
 fake_varbit(void* u, int id)
 {
     (void)u;
+    g_engine.varbit_reads++;
     return (id >= 0 && id < FAKE_VARS_MAX) ? g_engine.varbit[id] : 0;
 }
 static int
 fake_varp(void* u, int id)
 {
     (void)u;
+    g_engine.varp_reads++;
     return (id >= 0 && id < FAKE_VARS_MAX) ? g_engine.varp[id] : 0;
 }
 /*
@@ -299,12 +332,16 @@ static struct
     { "varp", "cannon_coord", 3551 },
 };
 
+/** The profile's answer, without the accounting -- so the capability below can
+ *  ask the same question the adapter's `RevConfigRefs_Get` does without
+ *  charging the plugins for it. */
 static int
-fake_cache_id(void* u, char const* kind, char const* name)
+fake_profile_id(char const* kind, char const* name)
 {
-    (void)u;
     assert(kind);
     assert(name);
+    if( !g_engine.profile_declares )
+        return -1;
     for( size_t i = 0; i < sizeof(k_fake_cache_ids) / sizeof(k_fake_cache_ids[0]); i++ )
     {
         if( strcmp(k_fake_cache_ids[i].kind, kind) == 0 &&
@@ -314,12 +351,48 @@ fake_cache_id(void* u, char const* kind, char const* name)
     return -1;
 }
 
+static int
+fake_cache_id(void* u, char const* kind, char const* name)
+{
+    (void)u;
+    g_engine.cache_id_calls++;
+    return fake_profile_id(kind, name);
+}
+
+/*
+ * The capability rule, in miniature.
+ *
+ * Three names, and every one of them is an EXPRESSION OVER AN ENGINE FACT --
+ * which ui logic this lane runs, which rows the boot profile declares -- and
+ * never a lane, revision or lineage name. That is the adapter's own rule
+ * (app_plugin_capability), restated here because a fake that answered `true`
+ * to everything would pass a plugin that asked for the wrong thing.
+ *
+ * Unknown names answer false, which is the contract.
+ */
+static int
+fake_capability(void* u, char const* name)
+{
+    (void)u;
+    assert(name);
+    if( strcmp(name, "highlight_groups") == 0 )
+        return g_engine.cs2_lane;
+    if( strncmp(name, "varbit:", 7) == 0 )
+        return fake_profile_id("varbit", name + 7) >= 0;
+    if( strncmp(name, "varp:", 5) == 0 )
+        return fake_profile_id("varp", name + 5) >= 0;
+    return 0;
+}
+
 /** The id this fixture gives `name`; asserts, because a typo would silently
  *  set a var nothing reads and the test would pass for the wrong reason. */
 static int
 fake_id(char const* kind, char const* name)
 {
-    int id = fake_cache_id(NULL, kind, name);
+    /* The profile's answer WITHOUT the accounting: a fixture that charged its
+     * own setup to the plugins' lookup counter would make the memo unmeasurable.
+     * Asserts, because a typo would silently set a var nothing reads. */
+    int id = fake_profile_id(kind, name);
     assert(id >= 0);
     return id;
 }
@@ -351,7 +424,10 @@ fake_draw_tile(
     g_engine.tiles++;
     g_engine.last_tile_rgb = rgb;
     g_engine.last_tile_fill_alpha = fill_alpha;
-    return 1;
+    /* What this primitive spent of the frame's allotment. The host adds the
+     * return value to the plugin's `draw_used`, so a test that wants the
+     * budget refusal makes one tile expensive rather than drawing 512. */
+    return g_engine.tile_cost > 0 ? g_engine.tile_cost : 1;
 }
 static int
 fake_draw_hull(void* u, int element_id, uint32_t rgb, int fill_alpha, int shape)
@@ -934,6 +1010,7 @@ fake_engine(void)
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
+    e.capability = fake_capability;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -1000,9 +1077,34 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
+/*
+ * The frame boundary, not just the counters.
+ *
+ * `PluginHost_FrameStart` is where the per-frame draw allotment resets, and a
+ * suite that never called it was spending ONE budget across its whole run --
+ * which is invisible while every frame draws four tiles and decisive the moment
+ * one of them is about the budget.
+ */
+static uint64_t g_frame;
+
+/* A plugin that wants one npc's APPEARANCE to itself, and paints nothing with
+ * it (`look.hull` stays 0): what is under test is the yielding, not a second
+ * outline in the count. */
 static void
-draw_reset(void)
+claim_holder_start(struct ToriRS_Api* api, void* state)
 {
+    struct ToriRS_EntityAppearance look;
+    (void)state;
+    memset(&look, 0, sizeof(look));
+    look.shape = TORIRS_HULL_MESH;
+    (void)api->game->entity_look(api, "npc:1", &look);
+}
+
+static void
+draw_reset(struct ToriRS_PluginHost* host)
+{
+    PluginHost_FrameStart(host, 1000 + g_frame * 20, g_frame);
+    g_frame++;
     g_engine.tiles = 0;
     g_engine.hulls = 0;
     g_engine.texts = 0;
@@ -1024,6 +1126,17 @@ main(void)
     g_engine.hover_ok = 1;
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
+    /*
+     * The lane, stated BEFORE PluginHost_Start.
+     *
+     * All three builtins ask a capability at on_start now, and on_start is the
+     * only place a requirement can be declared. A fixture that filled these in
+     * afterwards would be reproducing the defect that had every plugin hearing
+     * `touch = false` at start and `true` from frame one with nobody listening.
+     */
+    g_engine.cs2_lane = 1;
+    g_engine.profile_declares = 1;
+    g_engine.tile_cost = 1;
 
     p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
     p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
@@ -1091,7 +1204,7 @@ main(void)
         g_engine.highlights[0].outline_width = 1;
         g_engine.highlights[0].flags = 1 | 4;
 
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.hulls == 1, "a model-flagged item is outlined");
         CHECK(g_engine.tiles == 0, "and its tile is not marked -- no tile flag");
@@ -1106,7 +1219,7 @@ main(void)
         g_engine.highlights[0].outline_width = 1;
         g_engine.highlights[0].flags = 2 | 8;
 
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.hulls == 0, "a tile item has no model to outline");
         CHECK(g_engine.tiles == 1, "its tile is marked");
@@ -1119,7 +1232,7 @@ main(void)
          * reference's predicate is `(flags & bit) && thickness != 0`, and this
          * is clientscript 5198's hovered tile exactly. */
         g_engine.highlights[0].outline_width = 0;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 1, "a fill with no border still draws its tile");
         CHECK(
@@ -1131,14 +1244,14 @@ main(void)
          * opacity's. A renderer that keyed the wash off opacity alone would
          * fill every outline-only group in the cache. */
         g_engine.highlights[0].flags = 2;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.last_tile_fill_alpha == 0, "no tile-fill flag means no wash");
 
         /* ...and an outline flag whose thickness is zero draws nothing at all,
          * so the item stops producing a tile. */
         g_engine.highlights[0].outline_width = 0;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 0, "an outline flag with no thickness draws nothing");
         g_engine.highlights[0].outline_width = 1;
@@ -1146,7 +1259,7 @@ main(void)
         /* A 2x2 subject is marked over its whole footprint. */
         g_engine.highlights[0].size_x = 2;
         g_engine.highlights[0].size_z = 2;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 4, "a 2x2 footprint is four tiles, not one");
 
@@ -1154,16 +1267,64 @@ main(void)
          * re-resolve; a renderer that cached the cursor would draw one frame
          * and then nothing. */
         g_engine.highlight_walks = 0;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.highlight_walks == 2, "the list is walked from the top each frame");
 
+        /*
+         * The frame's allotment, reached INSIDE one marker.
+         *
+         * A 2x2 footprint is four tiles and the host's budget is 512 items, so
+         * a crowded Activities set -- tile markers plus npc highlights plus
+         * Agility obstacles -- gets there by multiplication. Made expensive
+         * here rather than drawn 512 times: what is under test is that the
+         * refusal STOPS the draw, which is the half that used to be invisible
+         * because api_draw_tile returned void and the builder answered OK.
+         *
+         * What this pins is the HOST's truncation reaching the picture. That
+         * the refusal reaches the PLUGIN is a different claim and a different
+         * seam, pinned where the seam is: torirs_plugin_host_test.c
+         * ("the tile past the budget answers BUDGET") over the real v2 builder,
+         * and porcelain_test.c ("the finding names the budget") over the layer.
+         *
+         * MUTATION: delete the `plugin_draw_allow` gate in api_draw_tile.
+         * Red: "the fourth tile of the footprint is over the allotment".
+         */
+        g_engine.tile_cost = 200; /* 200, 400, 600 -- the fourth call is over 512 */
+        draw_reset(host);
+        PluginHost_DrawWorld(host, 765, 503);
+        CHECK(g_engine.tiles == 3, "the fourth tile of the footprint is over the allotment");
+        g_engine.tile_cost = 1;
+
         g_engine.highlight_count = 0;
-        draw_reset();
+        draw_reset(host);
         PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 0 && g_engine.hulls == 0, "an empty list draws nothing");
+
+        /*
+         * And the renderer is NOT gated on its own capability.
+         *
+         * `highlight_groups` answering false means nothing can record a group,
+         * so the walk finds none and the renderer is idle by arithmetic. A gate
+         * would be a second, weaker copy of that fact -- and the day a profile
+         * records groups without declaring the script row, the gate would be
+         * the thing hiding them.
+         *
+         * MUTATION: gate nxt_highlight_draw on the capability. Red: "a resolved
+         * group is drawn whatever the capability says".
+         */
+        g_engine.cs2_lane = 0;
+        g_engine.highlight_count = 1;
+        g_engine.highlights[0].flags = 2 | 8;
+        g_engine.highlights[0].size_x = 1;
+        g_engine.highlights[0].size_z = 1;
+        draw_reset(host);
+        PluginHost_DrawWorld(host, 765, 503);
+        CHECK(g_engine.tiles == 1, "a resolved group is drawn whatever the capability says");
+        g_engine.cs2_lane = 1;
+        g_engine.highlight_count = 0;
     }
 
     /* ---- 258 / 263 / 264 / 266: the npc name rows ------------------------
@@ -1222,6 +1383,51 @@ main(void)
         obj.obj_id = 1511; /* logs */
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 0, "logs under the player are not a nest");
+
+        /*
+         * What a spawn COSTS.
+         *
+         * This is the whole of the layer's claim about this plugin: the name
+         * behind setting 189 is a boot fact, so resolving it per ground item --
+         * two host calls per obj in a busy drop zone -- was a call that could
+         * not answer differently. The READ still happens every time, because
+         * the user can tick the box between two drops.
+         *
+         * MUTATION: delete the memo hit in porcelain_var_slot.
+         * Red: "a spawn costs no name lookup at all".
+         */
+        obj.obj_id = 5073;
+        obj.tile_x = 3210; /* not the player's tile: no notify to coalesce */
+        g_engine.cache_id_calls = 0;
+        g_engine.varbit_reads = 0;
+        for( int at = 0; at < 5; at++ )
+            PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.cache_id_calls == 0, "a spawn costs no name lookup at all");
+        CHECK(g_engine.varbit_reads == 5, "the setting itself is still read every spawn");
+
+        /*
+         * Two nests in one tick are one line; a nest in the NEXT tick is a
+         * second.
+         *
+         * Porcelain_Notify coalesces on (kind, subject) inside a fence, and the
+         * only thing that moves a fence is Porcelain_Fence -- which a plugin
+         * with no description still has to call, or the counter stays at zero
+         * and the coalescing window becomes the whole session.
+         *
+         * MUTATION: delete the Porcelain_Fence call in nxt_bird_nest_tick.
+         * Red: "and a nest on the NEXT tick is a second line".
+         */
+        obj.tile_x = 3200;
+        /* A fence first: the "announced" check above already used this nest's
+         * window, and the point of the pair below is what happens INSIDE one. */
+        PluginHost_ServerTick(host, 899);
+        g_engine.notifies = 0;
+        PluginHost_ObjSpawn(host, &obj);
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 1, "two of the same nest in one tick are one line");
+        PluginHost_ServerTick(host, 900);
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 2, "and a nest on the NEXT tick is a second line");
 
         g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 1;
     }
@@ -1330,12 +1536,177 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "native null coordinate has no ammo events");
 
+        /*
+         * What a quiet tick COSTS.
+         *
+         * Five names behind this builtin, and the shipped one resolved four or
+         * five of them on every server tick for the life of the session. By
+         * here all five have been read at least once, so a tick that changes
+         * nothing must be three reads and no lookups: the coordinate, the ball
+         * count, and the threshold.
+         *
+         * MUTATION: delete the memo hit in porcelain_var_slot.
+         * Red: "a settled tick costs no name lookup at all".
+         */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C80;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.cache_id_calls = 0;
+        g_engine.varp_reads = 0;
+        g_engine.varbit_reads = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.cache_id_calls == 0, "a settled tick costs no name lookup at all");
+        CHECK(g_engine.varp_reads == 2, "the coordinate and the count are read, every tick");
+        CHECK(g_engine.varbit_reads == 1, "and the threshold, because the user can move it");
+
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0;
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 0;
     }
 
     PluginHost_Free(host);
+
+    /*
+     * ---- the baseline renderer YIELDS ------------------------------------
+     *
+     * nxt-highlight holds no claims of its own: it draws what the cache asked
+     * for, and a claim is what a plugin takes when it wants an entity to
+     * itself. The yielding is the host's `draw_hull` gate, so nothing in the
+     * renderer knows -- and before the port nothing COULD know, because
+     * `(void)draw->world_hull(...)` was the only spelling available. Half the
+     * outlines in a mass of tagged npcs would go missing with the renderer
+     * still reporting itself armed.
+     *
+     * The tile half is not claimable: a tile is a place, not a thing, so the
+     * marker stays even when the model is somebody else's.
+     *
+     * MUTATION: drop the `plugin_entity_hull_allowed` test in api_draw_hull.
+     * Red: "the claimed entity's model is not the baseline renderer's to draw".
+     */
+    {
+        struct ToriRS_PluginHost* shared;
+        struct ToriRS_PluginDef holder = {
+            .struct_size = sizeof(holder), .id = "claim-holder", .title = "Holder",
+            .version = "1.0.0",
+            .callbacks = {.struct_size = sizeof(struct ToriRS_PluginCallbacks),
+                          .on_start = claim_holder_start}};
+
+        Porcelain_ResetForTesting();
+        /* The subject: npc slot 1, drawn as element 41, which is the element
+         * the Agility-obstacle group above resolves to. */
+        g_engine.npc_count = 1;
+        memset(&g_engine.npcs[0], 0, sizeof(g_engine.npcs[0]));
+        g_engine.npcs[0].server_slot = 1;
+        g_engine.npcs[0].element_id = 41;
+
+        g_engine.highlight_count = 1;
+        memset(&g_engine.highlights[0], 0, sizeof(g_engine.highlights[0]));
+        g_engine.highlights[0].kind = TORIRS_HIGHLIGHT_NPC;
+        g_engine.highlights[0].element_id = 41;
+        g_engine.highlights[0].tile_x = 3200;
+        g_engine.highlights[0].tile_z = 3200;
+        g_engine.highlights[0].size_x = 1;
+        g_engine.highlights[0].size_z = 1;
+        g_engine.highlights[0].rgb = 0x05F8F8;
+        g_engine.highlights[0].opacity = 60;
+        g_engine.highlights[0].outline_width = 1;
+        g_engine.highlights[0].flags = 1 | 2 | 4 | 8;
+
+        shared = PluginHost_New(&engine);
+        CHECK(PluginHost_Register(shared, &TORIRS_PLUGIN_NXT_HIGHLIGHT) >= 0,
+              "the baseline renderer registers");
+        CHECK(PluginHost_Register(shared, &holder) >= 0, "and so does the plugin that claims");
+        PluginHost_Start(shared);
+        draw_reset(shared);
+        PluginHost_DrawWorld(shared, 765, 503);
+        CHECK(g_engine.hulls == 0,
+              "the claimed entity's model is not the baseline renderer's to draw");
+        CHECK(g_engine.tiles == 1, "but its tile is a place, and nobody can claim a place");
+        PluginHost_Free(shared);
+
+        /* And it comes back the moment the claim goes: the holder is gone with
+         * its host, and the same description draws the same model again. */
+        Porcelain_ResetForTesting();
+        shared = PluginHost_New(&engine);
+        CHECK(PluginHost_Register(shared, &TORIRS_PLUGIN_NXT_HIGHLIGHT) >= 0, "alone this time");
+        PluginHost_Start(shared);
+        draw_reset(shared);
+        PluginHost_DrawWorld(shared, 765, 503);
+        CHECK(g_engine.hulls == 1, "with the claim gone the outline is back");
+        PluginHost_Free(shared);
+
+        g_engine.highlight_count = 0;
+        g_engine.npc_count = 0;
+    }
+
+    /*
+     * ---- a revision whose profile declares none of these rows -------------
+     *
+     * rs289lc has no All Settings panel, so `[varbit:bird_nest]` and the cannon
+     * varps are not there to read. Before the port that was indistinguishable
+     * from a cannon nobody is firing and a box nobody ticked: the builtins kept
+     * resolving names that could never resolve, once per obj and four times per
+     * tick, and said nothing.
+     *
+     * Now each one REQUIRES its row, turns itself off when the answer is no,
+     * and declares the limitation -- and the observable half of that, the half
+     * this fixture can see, is that the feature costs literally nothing.
+     *
+     * MUTATION 1: make nxt_bird_nest_spawn ignore `state->available`.
+     *   Red: "a lane with no bird_nest row costs nothing per ground item".
+     * MUTATION 2: make nxt_cannon_start register the tick unconditionally.
+     *   Red: "a lane with no cannon varps costs nothing per tick".
+     */
+    {
+        struct ToriRS_PluginHost* bare;
+        struct ToriRS_GroundItemSnapshot obj;
+
+        /* Handles are process-wide and the previous host's are closed; a fresh
+         * table keeps the two scenarios independent. */
+        Porcelain_ResetForTesting();
+        memset(&obj, 0, sizeof(obj));
+        obj.obj_id = 5073;
+        obj.tile_x = 3200;
+        obj.tile_z = 3200;
+        obj.level = 0;
+
+        /* Resolved while the profile still declares them: on the bare lane
+         * `fake_id` would answer -1 and its assert is compiled out here. */
+        int const coord_id = fake_id("varp", NXT_VARP_CANNON_COORD);
+        int const ammo_id = fake_id("varp", NXT_VARP_CANNON_AMMO);
+
+        g_engine.varp[coord_id] = 0x0C800C80;
+        g_engine.varp[ammo_id] = 30;
+        g_engine.profile_declares = 0;
+        g_engine.notifies = 0;
+        bare = PluginHost_New(&engine);
+        CHECK(PluginHost_Register(bare, &TORIRS_PLUGIN_NXT_HIGHLIGHT) >= 0, "all three register");
+        CHECK(PluginHost_Register(bare, &TORIRS_PLUGIN_NXT_BIRD_NEST) >= 0, "on any lane");
+        CHECK(PluginHost_Register(bare, &TORIRS_PLUGIN_NXT_CANNON_AMMO) >= 0, "hidden or not");
+        PluginHost_Start(bare);
+
+        g_engine.cache_id_calls = 0;
+        g_engine.varbit_reads = 0;
+        g_engine.varp_reads = 0;
+        for( int at = 0; at < 5; at++ )
+            PluginHost_ObjSpawn(bare, &obj);
+        CHECK(g_engine.cache_id_calls == 0,
+              "a lane with no bird_nest row costs nothing per ground item");
+        CHECK(g_engine.varbit_reads == 0, "and reads no var to decide it");
+        CHECK(g_engine.notifies == 0, "an inverted row that is not there is OFF, never ON");
+
+        for( int at = 0; at < 5; at++ )
+            PluginHost_ServerTick(bare, at + 1);
+        g_engine.varp[ammo_id] = 0;
+        PluginHost_ServerTick(bare, 6);
+        CHECK(g_engine.cache_id_calls == 0, "a lane with no cannon varps costs nothing per tick");
+        CHECK(g_engine.varp_reads == 0, "not even the count");
+        CHECK(g_engine.notifies == 0, "and an empty cannon it cannot see is not an event");
+
+        PluginHost_Free(bare);
+        g_engine.profile_declares = 1;
+    }
+
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

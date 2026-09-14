@@ -52,6 +52,12 @@ extern "C" {
 #define PORCELAIN_OVERLAY_LABELS_MAX 32
 /** Lane limitations one plugin declares. @see Porcelain_ExpectUnsupported */
 #define PORCELAIN_EXPECT_UNSUPPORTED_MAX 8
+/** Named cache vars one plugin resolves. Sixteen: the widest of the shipped
+ *  builtins reads five (two cannon varps and three setting varbits) and the
+ *  All Settings family has thirty rows behind one renderer, so a table sized
+ *  at the current widest would push the next builtin straight into the
+ *  budget finding. @see Porcelain_SettingValue */
+#define PORCELAIN_VARS_MAX 16
 
 /*
  * `ToriRS_MenuRow::pick_kind` for a container cell -- the engine's
@@ -217,6 +223,7 @@ bool Porcelain_TiersFromConfig(struct Porcelain* porcelain, struct PorcelainTier
 bool Porcelain_ConfigListAdd(struct Porcelain* porcelain, char const* key, char const* item);
 uint32_t Porcelain_MenuTag(int subject, int op);
 bool Porcelain_Setting(struct Porcelain* porcelain, char const* varbit_name, unsigned flags);
+int Porcelain_SettingValue(struct Porcelain* porcelain, char const* name, int absent);
 bool Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
                        void* user);
 void Porcelain_NoteKey(struct Porcelain* porcelain, int key, bool down);
@@ -268,6 +275,12 @@ enum PorcelainNativeOverlayState Porcelain_NativeOverlayState(struct Porcelain* 
  *  APPEARANCE. False means nothing was drawn. */
 bool Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
                     uint32_t rgb, int alpha, int shape);
+/** draw->world_tile with its one refusal made loud: BUDGET when the frame's
+ *  allotment ran out. False means nothing was drawn. A tile marker is drawn
+ *  per tile of a footprint, so a crowded Activities set is the one overlay
+ *  that reaches the 512 ceiling by arithmetic rather than by accident. */
+bool Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
+                    int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha);
 /** A plugin's own finding, in the channel Porcelain's verbs already use.
  *  `result` is a PorcelainFindingResult and may not be OK. */
 void Porcelain_Finding(struct Porcelain* porcelain, char const* verb,

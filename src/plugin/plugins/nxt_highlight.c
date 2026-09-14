@@ -1,3 +1,4 @@
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -31,8 +32,24 @@
  * entity claims of its own: a claim is for a plugin that wants an entity to
  * itself, and the cache's highlight groups are the thing a plugin like that
  * is overriding. The host's draw_hull gate does the yielding: an entity whose
- * APPEARANCE another plugin holds is silently skipped here, and comes back the
- * moment that claim goes. Nothing in this file has to know.
+ * APPEARANCE another plugin holds is skipped here, and comes back the moment
+ * that claim goes.
+ *
+ * ## What Porcelain is here for, in a plugin that owns no control
+ *
+ * Nothing in this file describes anything, so there is no reconciler, no
+ * fence and no commit. Two things brought the layer in anyway, and both are
+ * about REFUSALS being readable:
+ *
+ *   - `Porcelain_Hull` and `Porcelain_Tile` answer. `(void)draw->world_hull`
+ *     was the shipped spelling because there was nothing to read; what that
+ *     cost is not an error message, it is half the outlines in a mass of
+ *     tagged npcs, gone, with the renderer still reporting itself armed.
+ *   - `Porcelain_Require` replaces a `core.log` line nothing machine-readable
+ *     ever saw with a finding every capture carries. The capability it asks
+ *     for is the RIGHT one now: `scripts.callbacks` meant "is this the CS2
+ *     lane", which is only the same question as "are there highlight groups"
+ *     while nothing else can record one.
  */
 
 /*
@@ -46,6 +63,19 @@
 #define NXT_HL_TILE_OUTLINE 2
 #define NXT_HL_MODEL_FILL 4
 #define NXT_HL_TILE_FILL 8
+
+/** Named once, because `Porcelain_Require` and `Porcelain_ExpectUnsupported`
+ *  must agree on the string: the declaration is matched against the finding's
+ *  detail, and two spellings would be a declaration that never fires. */
+#define NXT_HL_FEATURE "cache highlights"
+
+/** Its own definition, named before on_start hands it to Porcelain_Open. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+
+struct NxtHighlightState
+{
+    struct Porcelain* porcelain;
+};
 
 /*
  * The reference's rules, not this file's guesses.
@@ -75,14 +105,15 @@ nxt_hl_fill(struct ToriRS_HighlightItem const* item, int flag)
 static void
 nxt_highlight_draw(
     struct ToriRS_Api* api,
-    void* state,
+    void* state_ptr,
     struct ToriRS_Graphics* draw)
 {
+    struct NxtHighlightState* state = state_ptr;
     int iter = -1;
 
-    (void)state;
     assert(api);
     assert(api->game);
+    assert(state);
     assert(draw);
 
     for( ;; )
@@ -111,7 +142,8 @@ nxt_highlight_draw(
          * carry the model bits and still resolve to a bare tile.
          */
         if( item.element_id >= 0 && (model_outline || model_fill) )
-            (void)draw->world_hull(
+            (void)Porcelain_Hull(
+                state->porcelain,
                 draw,
                 item.element_id,
                 item.rgb,
@@ -124,10 +156,19 @@ nxt_highlight_draw(
              * SW corner, and a 2x2 npc marked on one tile looks misplaced
              * rather than partly drawn. Per tile, because draw_tile samples
              * the terrain per tile and that is what keeps a marker coplanar on
-             * a slope. */
+             * a slope.
+             *
+             * This nested loop is also why the frame's 512-item allotment is
+             * reached here by arithmetic rather than by accident, and the
+             * refusal it answers with is the whole reason this call goes
+             * through the layer. Kept going rather than broken out of: the
+             * budget is per FRAME and the finding is coalesced, so the cost of
+             * carrying on is one refused call per tile and the benefit is that
+             * a later item with a claim-free model still gets its hull. */
             for( int dz = 0; dz < item.size_z; dz++ )
                 for( int dx = 0; dx < item.size_x; dx++ )
-                    (void)draw->world_tile(
+                    (void)Porcelain_Tile(
+                        state->porcelain,
                         draw,
                         item.tile_x + dx,
                         item.tile_z + dz,
@@ -140,19 +181,68 @@ nxt_highlight_draw(
 }
 
 /*
- * The groups come from CS2 scripts, so a revision without CS2 has none to
- * draw. Said once at start so a capture on that revision shows the renderer
- * running and explicitly idle rather than silently drawing nothing.
+ * The groups come from CS2 scripts, so a revision without them has none to
+ * draw. Said once, as a FINDING and not a log line: a capture carries findings
+ * and reads no log, and "unavailable" was the one thing about this plugin a
+ * capture could never see.
  */
 static void
-nxt_highlight_start(struct ToriRS_Api* api, void* state)
+nxt_highlight_start(struct ToriRS_Api* api, void* state_ptr)
 {
-    (void)state;
+    struct NxtHighlightState* state = state_ptr;
+
     assert(api);
-    api->core.log(api, "cache highlights: %s",
-        api->core.capability(api, "scripts.callbacks")
-            ? "CS2 highlight groups are drawn as the cache describes them"
-            : "unavailable, this revision has no CS2 highlight groups");
+    assert(state);
+    state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_NXT_HIGHLIGHT, state);
+    assert(state->porcelain);
+
+    /*
+     * `highlight_groups`, not `scripts.callbacks`.
+     *
+     * The old name asked "is this the CS2 lane" and meant "are there highlight
+     * groups", which works exactly as long as nothing else can record one. The
+     * capability is a single expression over engine facts -- CS2 ui logic AND
+     * a profile that declares `[script:highlight_hover_tile]` -- and it lives
+     * in the adapter, where the rule belongs, not in a lane test here.
+     *
+     * The declaration comes BEFORE the requirement, and the order is not
+     * cosmetic: a finding is labelled expected-or-not at the moment it is
+     * RECORDED, and its trace line -- the one every capture reads -- is
+     * written at birth.
+     * `Porcelain_ExpectUnsupported` marks the table afterwards, which fixes
+     * what `Porcelain_Findings` answers and does nothing at all for the line
+     * already in the log. So the lane is asked plainly first and the
+     * limitation stated before the requirement records its refusal. Two
+     * capability calls at boot; @see the port's report.
+     */
+    if( !Porcelain_Has(state->porcelain, "highlight_groups") )
+        Porcelain_ExpectUnsupported(state->porcelain, NXT_HL_FEATURE,
+            "this revision records no CS2 highlight groups, so there is nothing to draw");
+    (void)Porcelain_Require(state->porcelain, "highlight_groups", NXT_HL_FEATURE);
+    /*
+     * The answer is NOT kept and the draw path is NOT gated on it.
+     *
+     * A capability that is false means nothing can record a group, so the walk
+     * below finds none and the renderer is idle by arithmetic. A gate here
+     * would be a second, weaker copy of that fact -- and the day a profile
+     * records groups without declaring the script row, the gate would be the
+     * thing hiding them. The declaration says the feature is off; the empty
+     * list is what makes it off.
+     */
+}
+
+static void
+nxt_highlight_stop(struct ToriRS_Api* api, void* state_ptr)
+{
+    struct NxtHighlightState* state = state_ptr;
+
+    assert(api);
+    assert(state);
+    (void)api;
+    /* Nothing was described and nothing was claimed, so this is the findings
+     * read-out and the handle going back. */
+    Porcelain_Close(state->porcelain);
+    state->porcelain = NULL;
 }
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
@@ -160,12 +250,13 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT = {
     .id = "nxt-highlight",
     .title = "Cache highlights (All Settings)",
     .version = "1.0.0",
-    .state_size = 0,
+    .state_size = sizeof(struct NxtHighlightState),
     .config = NULL,
     .flags = TORIRS_PLUGIN_HIDDEN,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_highlight_start,
+        .on_stop = nxt_highlight_stop,
         .on_draw_world = nxt_highlight_draw,
     },
 };

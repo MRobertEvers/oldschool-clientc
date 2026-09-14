@@ -198,6 +198,27 @@ struct PorcelainExpectUnsupported
     char why[PORCELAIN_DETAIL_MAX];
 };
 
+/*
+ * One named cache var whose id this handle has already resolved.
+ *
+ * The name a profile declares is a boot fact: `[varbit:bird_nest]` does not
+ * move while the profile is loaded, so resolving it again on every ground-item
+ * spawn -- which is what the shipped builtins did -- is a host call that can
+ * never change its answer. `id < 0` is memoised too, and it is the interesting
+ * half: a row this profile does not declare must stay undeclared rather than
+ * be re-asked once per tick for the life of the session.
+ */
+struct PorcelainVarSlot
+{
+    bool used;
+    /** The cache KIND -- "varbit" or "varp" -- and not the spelling the
+     *  caller used, so `bird_nest` and `varbit:bird_nest` share one slot. */
+    char kind[8];
+    char name[PORCELAIN_NAME_MAX];
+    /** The profile's id, or -1 for "this profile does not declare the row". */
+    int id;
+};
+
 /* ---------------------------------------------------------------- assets */
 
 struct PorcelainImageSlot
@@ -476,6 +497,7 @@ struct Porcelain
     struct PorcelainFindingSlot findings[PORCELAIN_FINDINGS_MAX];
     struct PorcelainExpectAbsent expects[PORCELAIN_EXPECT_MAX];
     struct PorcelainExpectUnsupported expect_unsupported[PORCELAIN_EXPECT_UNSUPPORTED_MAX];
+    struct PorcelainVarSlot vars[PORCELAIN_VARS_MAX];
 
     struct PorcelainImageSlot images[PORCELAIN_IMAGES_MAX];
     struct PorcelainModelSlot models[PORCELAIN_MODELS_MAX];
@@ -536,6 +558,13 @@ void Porcelain_FormatElement(struct PorcelainElement element, char* out, size_t 
 
 void Porcelain_RecordFinding(struct Porcelain* porcelain, char const* verb,
                              struct PorcelainElement element, int result, char const* detail);
+/** Mark every UNSUPPORTED finding already recorded against `feature` as
+ *  expected. The absence half has had this since round two
+ *  (porcelain_relabel_absence); without the same arm on this half a plugin
+ *  that declared a limitation the instant it discovered it -- which is the
+ *  only moment it CAN discover one -- still failed the clean gate for the
+ *  finding that told it. @see Porcelain_ExpectUnsupported. */
+void Porcelain_RelabelUnsupported(struct Porcelain* porcelain, char const* feature);
 bool Porcelain_ResolveRole(struct Porcelain* porcelain, struct PorcelainElement element, char* out,
                            size_t capacity);
 struct PorcelainWatch* Porcelain_WatchFor(struct Porcelain* porcelain,

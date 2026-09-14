@@ -2265,6 +2265,8 @@ test-nxt-plugins: $(OBJ_DIR) \
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/porcelain_panel.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)

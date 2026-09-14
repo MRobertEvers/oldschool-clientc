@@ -182,14 +182,22 @@ end
 
 function plugin.on_start(api)
   if not api.porcelain.open() then
-    -- Out loud: without the layer there is no refusal channel at all, so the
-    -- one thing this plugin knows it cannot report goes unsaid. The markers
-    -- outrank the declaration and still draw.
-    api.core.log("tile-indicator-lua: no porcelain layer -- the draw refusal gap is unsaid")
-    return
+    -- Out loud: without the layer there is no findings channel at all, so a
+    -- marker this plugin could not draw would go unsaid. The markers outrank
+    -- the layer and still draw.
+    api.core.log("tile-indicator-lua: no porcelain layer -- a dropped marker would be unsaid")
   end
-  api.porcelain.expect_unsupported("draw_refusal_readout",
-    "world_tile answers OK even when the budget refused it: api_draw_tile returns void")
+  -- There used to be an expect_unsupported("draw_refusal_readout") here. It
+  -- was true: api_draw_tile returned void and the v2 builder answered OK
+  -- whatever the frame allotment said, so a truncated overlay was something
+  -- this plugin could only name, never report. The nxt-highlight port made
+  -- that refusal an ANSWER -- api_draw_tile answers BUDGET and world_tile
+  -- carries it -- so the declaration would now be a false one, and a false
+  -- declaration is exactly what the bidirectional rule exists to catch.
+  --
+  -- What is NOT done here: reporting it. This overlay's shape is that no frame
+  -- costs a single call into the layer, and a per-tile result test that only
+  -- ever matters at the 512th primitive is its owner's call, not this port's.
 end
 
 function plugin.on_draw_world(api, draw)

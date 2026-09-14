@@ -2255,7 +2255,10 @@ v2_builder_world_tile(
     int alpha)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
-    api_draw_tile(
+    /* The host's answer, not a constant. This returned OK unconditionally for
+     * as long as it existed, which made the frame allotment a silent truncation
+     * for every tile overlay in the tree. */
+    return api_draw_tile(
         scope->runtime->context,
         scope->surface_token,
         tile_x,
@@ -2264,7 +2267,6 @@ v2_builder_world_tile(
         outline_rgb,
         fill_rgb,
         v2_alpha(alpha));
-    return TORIRS_RESULT_OK;
 }
 
 static enum ToriRS_Result

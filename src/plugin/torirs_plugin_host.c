@@ -3693,7 +3693,20 @@ plugin_draw_require_world(struct PluginContext* ctx)
         "draw_tile/draw_hull name something in the scene; the screen surfaces have none");
 }
 
-static void
+/*
+ * The SECOND draw verb that answers, and the one the budget actually bites.
+ *
+ * A tile marker is drawn per tile of a footprint -- a 2x2 npc is four calls --
+ * so a crowded Activities set reaches the 512-item allotment by multiplication
+ * rather than by accident, and every tile past it vanished. The line
+ * `plugin_draw_allow` prints is the right line; what was missing is a caller
+ * able to READ the refusal, which is why the tile-indicator port had to declare
+ * the gap as an unsupported feature instead of reporting the event.
+ *
+ * The budget is the only refusal here. A tile is a place, so there is no entity
+ * whose appearance another plugin could hold, and no CONFLICT arm.
+ */
+static enum ToriRS_Result
 api_draw_tile(
     struct PluginContext* ctx,
     void* surface,
@@ -3706,22 +3719,21 @@ api_draw_tile(
 {
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
+        return TORIRS_RESULT_BUDGET;
     ctx->draw_used += ctx->host->engine.draw_tile(
         ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
+    return TORIRS_RESULT_OK;
 }
 
 /*
- * The one draw verb that ANSWERS, because it is the one with a refusal a
- * caller cannot otherwise see.
+ * The draw verb with a refusal that is per ENTITY and not per frame.
  *
- * Every other api_draw_* stays void: their only refusal is the budget, and
+ * Every remaining api_draw_* stays void: their only refusal is the budget, and
  * the budget already announces itself once per frame per plugin. This one
  * also refuses on a CLAIM -- an entity whose APPEARANCE facet another plugin
- * holds -- and that refusal is per entity, not per frame. Tag a species in a
- * mass of npcs with a claim-holding plugin loaded and half the outlines go
- * missing with nobody, plugin or player, able to tell. So both refusals are
- * returned: BUDGET for the allotment, CONFLICT for the claim.
+ * holds. Tag a species in a mass of npcs with a claim-holding plugin loaded and
+ * half the outlines go missing with nobody, plugin or player, able to tell. So
+ * both refusals are returned: BUDGET for the allotment, CONFLICT for the claim.
  */
 static enum ToriRS_Result
 api_draw_hull(

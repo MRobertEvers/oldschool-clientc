@@ -1799,6 +1799,14 @@ struct ToriRS_PorcelainApi
     /** A named varbit read as a setting. Absent is OFF with ONE finding
      *  across many reads. @see PorcelainSettingFlags */
     bool (*setting)(struct Porcelain* porcelain, char const* varbit_name, unsigned flags);
+    /** The same named row read as a NUMBER -- a slider, a count, a coord --
+     *  spelled `varbit:<name>`, `varp:<name>` or a bare name for a varbit.
+     *  `absent` is the CALLER's answer for a row this profile does not
+     *  declare, and it is always that feature's OFF answer: a value read off
+     *  a var that does not exist would be a silent zero. The resolved id is
+     *  memoised for the handle's life -- what a profile declares cannot
+     *  change under it, and the shipped builtins were re-asking per spawn. */
+    int (*setting_value)(struct Porcelain* porcelain, char const* name, int absent);
     /** A key edge named by a config key, whose value may be a name, a decimal
      *  key code or a single character. ABSENT on a touch lane, with one
      *  finding: the feature reports itself off instead of appearing to work.
@@ -1895,6 +1903,12 @@ struct ToriRS_PorcelainApi
      *  False means nothing was drawn and a finding says which refusal. */
     bool (*hull)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
                  uint32_t rgb, int alpha, int shape);
+    /** draw->world_tile with its budget refusal made loud. A tile marker is
+     *  drawn per tile of a footprint, so the 512-item frame allotment is
+     *  reached by multiplication and not by accident; the host has logged
+     *  that for a while and nothing could read it. */
+    bool (*tile)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
+                 int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha);
     /** A plugin's OWN finding, coalesced on (verb, element, result) like
      *  every other. `result` is a PorcelainFindingResult and may not be OK. */
     void (*finding)(struct Porcelain* porcelain, char const* verb,
