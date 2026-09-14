@@ -1419,7 +1419,7 @@ static bool app_script_invalidate(void* user,char const* name)
     struct App* app=user;
     if( App_UiLogic(app)!=APP_UI_LOGIC_CS2 || strcmp(name,"groundItemCaption")!=0 ||
         app->host.script_ground_items_overlay<=0 ) return false;
-    app->ground_items_refresh_all=1;
+    RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
     return true;
 }
 

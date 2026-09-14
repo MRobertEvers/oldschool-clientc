@@ -406,8 +406,8 @@ App_Init(
     app->highlight_last_route = -2;
     app->highlight_last_dest_coord = -2;
     app->highlight_last_mouseover = -2;
-    app->ground_items_dirty_count = 0;
-    app->ground_items_refresh_all = 0;
+    app->ground_items_dirty.count = 0;
+    app->ground_items_dirty.refresh_all = 0;
     app->ground_items_settings_varp[0] = -1;
     app->ground_items_settings_varp[1] = -1;
     app->ground_items_settings_seen[0] = 0;

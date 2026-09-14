@@ -14,6 +14,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
 #include "game/rs_preload.h"
@@ -637,17 +638,6 @@ enum ToriRS_WorldRenderMode
 
 /** 20ms logic cycles in one second — the client's own clock read as wall time. */
 #define APP_LOGIC_CYCLES_PER_SECOND 50
-
-/**
- * Tiles the ground-items overlay driver can queue in one logic tick before it
- * gives up and rebuilds the whole scene instead.
- *
- * Small on purpose. The overflow path is not a failure -- it is the cheaper
- * branch once a tick touches this many piles, because a whole-scene rebuild
- * walks the obj-stack pool once and the per-tile path runs a clientscript per
- * entry. A zone burst on login is exactly that case.
- */
-#define APP_GROUND_ITEMS_DIRTY_MAX 32
 
 /** Raw native states; game/rs_minimap_state.h defines their independent permissions. */
 enum AppMinimapState
@@ -1846,9 +1836,7 @@ struct App
      * than the list holds. It walks every stack in the pool, which is bounded
      * by the scene and is why the list can stay small.
      */
-    int ground_items_dirty[APP_GROUND_ITEMS_DIRTY_MAX];
-    int ground_items_dirty_count;
-    int ground_items_refresh_all;
+    struct RS_GroundItemsDirty ground_items_dirty;
     /** The two carrier varps behind the ground-items settings, resolved from
      *  the revconfig varbits once the varbit table is loaded, and the values
      *  last seen in them. -1 / -1 before the resolve. */

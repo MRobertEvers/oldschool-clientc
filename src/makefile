@@ -593,6 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	game/rs_ground_items_dirty.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	ui/uitree_keyboard_owner.c \
@@ -1639,7 +1640,18 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-worldmap-drag
 	$(MAKE) test-uitree-keyboard-owner
 	$(MAKE) test-async-pending
+	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-world
+
+# The ground-items overlay's dirty set. Its two ways in look the same and are
+# not: overflowing a per-tile mark PROMOTES to a whole-scene walk, while
+# overflowing the walk's own append merely STOPS -- promoting there would
+# restart the walk that is running and a busy scene would never finish one.
+.PHONY: test-ground-items-dirty
+test-ground-items-dirty: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_ground_items_dirty_test.c game/rs_ground_items_dirty.c $(LDFLAGS)
+	./$(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX)
 
 # The two "asked for it, waiting for it" lists. Both fail in ways nothing else
 # in the frame notices: a duplicate queues a second decoder, an overflow makes

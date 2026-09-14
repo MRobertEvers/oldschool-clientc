@@ -94,6 +94,7 @@ EM_JS(
 #include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_ground_items_dirty.h"
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
@@ -4679,7 +4680,7 @@ app_client_triggers_refire(struct App* app)
     RS_OverlayReset(&app->host.overlay);
     /* The pile subjects survive a UI remount just like NPCs and scenery.
      * Rebuild their native CS2 labels at the ordinary ground-items tick. */
-    app->ground_items_refresh_all = 1;
+    RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
     app_client_triggers_world_loaded(app);
 
     pool = &app->world->entities.npc;
@@ -4979,23 +4980,9 @@ app_ground_items_mark(
     assert(world);
     if( world != app->world )
         return;
-    if( app->ground_items_refresh_all )
-        return;
     coord =
         RS_CLIENTOP_COORD(level & 3, world->_base_tile_x + scene_x, world->_base_tile_z + scene_z);
-    for( int i = 0; i < app->ground_items_dirty_count; i++ )
-    {
-        if( app->ground_items_dirty[i] == coord )
-            return;
-    }
-    if( app->ground_items_dirty_count >= APP_GROUND_ITEMS_DIRTY_MAX )
-    {
-        /* Cheaper from here on -- see APP_GROUND_ITEMS_DIRTY_MAX. */
-        app->ground_items_refresh_all = 1;
-        app->ground_items_dirty_count = 0;
-        return;
-    }
-    app->ground_items_dirty[app->ground_items_dirty_count++] = coord;
+    RS_GroundItemsDirty_Mark(&app->ground_items_dirty, coord);
 }
 
 /* Every tile in the scene that currently holds a pile, appended to the dirty
@@ -5020,20 +5007,12 @@ app_ground_items_mark_every_tile(struct App* app)
             stack->grid_position.level & 3,
             app->world->_base_tile_x + stack->grid_position.x,
             app->world->_base_tile_z + stack->grid_position.z);
-        bool seen = false;
-        for( int i = 0; i < app->ground_items_dirty_count; i++ )
-            seen = seen || app->ground_items_dirty[i] == coord;
-        if( seen )
-            continue;
-        if( app->ground_items_dirty_count >= APP_GROUND_ITEMS_DIRTY_MAX )
-        {
-            /* The list is a scratchpad here, not a budget: drain what fits and
-             * come back next tick for the rest. A scene cannot gain piles
-             * faster than 32 a tick without the burst that put them there
-             * having already set refresh_all. */
+        /* The list is a scratchpad here, not a budget: drain what fits and
+         * come back next tick for the rest. A scene cannot gain piles faster
+         * than the list holds without the burst that put them there having
+         * already asked for the whole scene again. */
+        if( !RS_GroundItemsDirty_Append(&app->ground_items_dirty, coord) )
             break;
-        }
-        app->ground_items_dirty[app->ground_items_dirty_count++] = coord;
     }
 }
 
@@ -5103,7 +5082,7 @@ app_ground_items_tick(struct App* app)
     if( !app->world || !app->world->load_complete || App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return;
     if( app_ground_items_settings_moved(app) )
-        app->ground_items_refresh_all = 1;
+        RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
     /* Aux lists 3/4 are the native Ignore/Highlight inputs. A time-window
      * timer notification can be missed; their revisions cannot. */
     for( int i = 0; i < 2; ++i )
@@ -5112,20 +5091,17 @@ app_ground_items_tick(struct App* app)
         if( revision != app->ground_items_aux_seen[i] )
         {
             app->ground_items_aux_seen[i] = revision;
-            app->ground_items_refresh_all = 1;
+            RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
         }
     }
-    if( app->ground_items_refresh_all )
-    {
-        app->ground_items_refresh_all = 0;
+    if( RS_GroundItemsDirty_TakeRefreshAll(&app->ground_items_dirty) )
         app_ground_items_mark_every_tile(app);
-    }
-    if( app->ground_items_dirty_count <= 0 )
+    if( app->ground_items_dirty.count <= 0 )
         return;
     app_cs2_set_active_player(app, app->world->local_pid);
-    for( int i = 0; i < app->ground_items_dirty_count; i++ )
+    for( int i = 0; i < app->ground_items_dirty.count; i++ )
     {
-        int const coord = app->ground_items_dirty[i];
+        int const coord = app->ground_items_dirty.coords[i];
         /* fprintf rather than TORIRS_LOG: the interesting runs are the
          * optimized ones, which -DNDEBUG strips every TORIRS_LOG out of --
          * and "the overlay never appeared" reads identically whether the
@@ -5147,7 +5123,7 @@ app_ground_items_tick(struct App* app)
         RS_CS2_RunScript(
             &app->host, &app->runner, app->host.script_ground_items_overlay, NULL, 0, 0, NULL, 0);
     }
-    app->ground_items_dirty_count = 0;
+    RS_GroundItemsDirty_Clear(&app->ground_items_dirty);
 }
 
 /**
@@ -25215,8 +25191,8 @@ App_WorldRebuildShift(
     /* Every pile is on a different tile now, and some fell off the scene
      * entirely -- so every ground-items overlay has to be rebuilt against the
      * new origin, and the ones with nothing left under them destroyed. */
-    app->ground_items_refresh_all = 1;
-    app->ground_items_dirty_count = 0;
+    RS_GroundItemsDirty_MarkAll(&app->ground_items_dirty);
+    RS_GroundItemsDirty_Clear(&app->ground_items_dirty);
     /* Plugin objects are anchored to ABSOLUTE tiles, which the shift does not
      * move -- so they are torn down here and re-placed against the new origin
      * once the scene is up (app_plugin_objects_rebuild, from the world-loaded
