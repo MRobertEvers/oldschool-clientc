@@ -5974,8 +5974,7 @@ app_debug_overlay_init(struct App* app)
     app->plugin_exec_logged_kind = -1;
 
     app->dbg_visible = 0;
-    app->dbg_frame_head = 0;
-    app->dbg_frame_count = 0;
+    FrameTimeRing_Reset(&app->dbg_frame_times);
     app->dbg_panel = ToriRSChrome_PanelAdd(
         &app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
     app->dbg_frame_row = ToriRSChrome_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
@@ -6064,11 +6063,7 @@ App_NoteFrameTime(
 {
     assert(app);
 
-    app->dbg_frame_us[app->dbg_frame_head] =
-        frame_us > UINT32_MAX ? UINT32_MAX : (uint32_t)frame_us;
-    app->dbg_frame_head = (app->dbg_frame_head + 1) % APP_DEBUG_FRAME_SAMPLES;
-    if( app->dbg_frame_count < APP_DEBUG_FRAME_SAMPLES )
-        app->dbg_frame_count++;
+    FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
 }
 
 uint64_t
@@ -6076,12 +6071,7 @@ App_LastFrameUs(struct App const* app)
 {
     assert(app);
 
-    if( app->dbg_frame_count <= 0 )
-        return 0;
-    /* dbg_frame_head is where the NEXT sample lands, so the newest is the slot
-     * before it, wrapping. */
-    return app->dbg_frame_us
-        [(app->dbg_frame_head + APP_DEBUG_FRAME_SAMPLES - 1) % APP_DEBUG_FRAME_SAMPLES];
+    return FrameTimeRing_NewestUs(&app->dbg_frame_times);
 }
 
 /*
@@ -6139,19 +6129,6 @@ App_SendCommand(
     return true;
 }
 
-/** Mean of the samples held so far, in microseconds. 0 when there are none. */
-static uint32_t
-app_debug_frame_mean_us(struct App const* app)
-{
-    uint64_t total = 0;
-
-    if( app->dbg_frame_count <= 0 )
-        return 0;
-    for( int i = 0; i < app->dbg_frame_count; i++ )
-        total += app->dbg_frame_us[i];
-    return (uint32_t)(total / (uint64_t)app->dbg_frame_count);
-}
-
 /*
  * Toggle the overlay, refresh its readout, rebuild its display list.
  *
@@ -6178,12 +6155,14 @@ app_debug_overlay_tick(
 
     if( app->dbg_visible )
     {
-        uint32_t const mean_us = app_debug_frame_mean_us(app);
+        uint32_t const mean_us = FrameTimeRing_MeanUs(&app->dbg_frame_times);
         char text[TORIRS_CHROME_INPUT_MAX];
 
         /* Two decimals: the samples are microseconds, and rounding a 3.4 ms
-         * frame to "3 ms" throws away the part that moves. */
-        if( app->dbg_frame_count > 0 )
+         * frame to "3 ms" throws away the part that moves. `mean_us` is 0
+         * both for "no samples yet" and for a run of sub-10us frames, and the
+         * readout says "--" for either: there is nothing useful to print. */
+        if( mean_us > 0 )
             snprintf(
                 text,
                 sizeof(text),
@@ -7648,15 +7627,24 @@ App_FlushPendingClientScripts(struct App* app)
     int count;
 
     assert(app);
-    count = app->pending_clientscript_count;
-    if( count <= 0 )
-        return;
-    /* Cleared before dispatching: a script that pushes another (CC_TRIGGEROP's
-     * queue drain reaches this path) must append to an empty list rather than
-     * be run twice by the loop it is inside. */
-    app->pending_clientscript_count = 0;
+    /*
+     * A SNAPSHOT of the count, popped from the front.
+     *
+     * Dispatching a held script can push another -- CC_TRIGGEROP's queue drain
+     * reaches this path -- so this loop is re-entrant, and a script pushed
+     * inside it must wait for the next flush rather than be run by this one.
+     * The snapshot is what says so; the ring is what makes it true without a
+     * 900 KB copy.
+     */
+    count = RS_ClientScriptQueue_Count(&app->pending_clientscripts);
     for( int i = 0; i < count; i++ )
-        app_dispatch_clientscript(app, &app->pending_clientscripts[i]);
+    {
+        struct PktRunClientScript request;
+
+        if( !RS_ClientScriptQueue_Pop(&app->pending_clientscripts, &request) )
+            break;
+        app_dispatch_clientscript(app, &request);
+    }
 }
 
 void
@@ -7674,14 +7662,11 @@ App_RunClientScript(
             (unsigned)request->str_mask);
 
     /* Held, not run — see `pending_clientscripts` in app.h for why, and
-     * `App_FlushPendingClientScripts` for where they go. */
-    if( app->pending_clientscript_count < APP_PENDING_CLIENTSCRIPT_MAX )
-    {
-        if( !app->pending_clientscript_count )
-            app->pending_clientscript_cycle = app->logic_cycle;
-        app->pending_clientscripts[app->pending_clientscript_count++] = *request;
-    }
-    else
+     * `App_FlushPendingClientScripts` for where they go. A full queue runs it
+     * now: degrading to the old ordering is a cosmetic bug, losing a script is
+     * not. */
+    if( !RS_ClientScriptQueue_Hold(
+            &app->pending_clientscripts, request, (uint32_t)app->logic_cycle) )
         app_dispatch_clientscript(app, request);
 }
 
@@ -9086,9 +9071,12 @@ app_pump_net_packets(struct App* app)
      * fence dispatches — except after APP_CLIENTSCRIPT_FENCE_MAX_CYCLES,
      * so a tick cut short by a disconnect cannot strand a script forever.
      */
-    if( drained && app->pending_clientscript_count &&
+    if( drained && RS_ClientScriptQueue_Count(&app->pending_clientscripts) &&
         (!app->server_tick_fence_seen ||
-         app->logic_cycle - app->pending_clientscript_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
+         RS_ClientScriptQueue_FenceOverdue(
+             &app->pending_clientscripts,
+             (uint32_t)app->logic_cycle,
+             APP_CLIENTSCRIPT_FENCE_MAX_CYCLES)) )
     {
         App_FlushPendingClientScripts(app);
         /* Same recovery fence for a connection whose tick was cut short:
@@ -16514,7 +16502,7 @@ App_FrameSettled(struct App const* app)
     assert(app);
     return !app->runner_had_work && !app->runner.frame_settle_pending &&
            !app->exec_runner_had_work && !app->server_tick_open &&
-           app->pending_clientscript_count == 0 && app->host.triggeroplocal_count == 0 &&
+           RS_ClientScriptQueue_Count(&app->pending_clientscripts) == 0 && app->host.triggeroplocal_count == 0 &&
            !app->host.close_modal_requested && app->host.resume_pausebutton_component_id == -1 &&
            app->host.social_send_count == 0;
 }

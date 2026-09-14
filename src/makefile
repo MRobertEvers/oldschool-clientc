@@ -728,6 +728,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
 	net/net_link_watch.c \
+	game/rs_clientscript_queue.c \
+	perf/frame_time_ring.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
@@ -1650,6 +1652,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-settings-pickers
 	$(MAKE) test-net-link-watch
+	$(MAKE) test-clientscript-queue
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-viewport-projection
@@ -1698,6 +1701,18 @@ test-uitree-if-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# Two small containers App used to hold inline: the frame-time ring, whose mean
+# is over the samples HELD and not over the ring, and the clientscript queue,
+# whose flush is RE-ENTRANT -- dispatching a held payload can push another, and
+# the array-and-count this replaced walked an array it was also being appended
+# to, losing entries and running others twice.
+.PHONY: test-clientscript-queue
+test-clientscript-queue: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_clientscript_queue_test.c game/rs_clientscript_queue.c \
+		perf/frame_time_ring.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
 
 # When a session is dead, when to dial again, and when to stop. None of it is
 # observable after the fact -- a session that ends and comes back looks exactly

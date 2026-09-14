@@ -14,6 +14,8 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "game/rs_clientscript_queue.h"
+#include "perf/frame_time_ring.h"
 #include "net/net_link_watch.h"
 #include "ui/settings_pickers.h"
 #include "game/rs_ground_items_dirty.h"
@@ -617,19 +619,6 @@ enum ToriRS_WorldRenderMode
     TORIRS_WORLD_PAINTER = 0,
     TORIRS_WORLD_DEPTH = 1,
 };
-
-/** Frames the developer overlay's frame-time readout averages over. */
-#define APP_DEBUG_FRAME_SAMPLES 10
-
-/**
- * RUNCLIENTSCRIPT payloads one server tick may push before the fence.
- *
- * Measured rather than guessed: the busiest tick in this tree is a panel open
- * (`~pricechecker_open` pushes two, a bank open pushes six), and login's burst
- * is the outlier at just under twenty. 64 leaves that room; past it the script
- * runs immediately, so the cap costs ordering and never a script.
- */
-#define APP_PENDING_CLIENTSCRIPT_MAX 64
 
 /**
  * Logic cycles in one server tick: 600ms of server against a 20ms client
@@ -1906,11 +1895,9 @@ struct App
      *  differences: the loop runs at the pacer's rate whether or not a frame
      *  is drawn, so counting iterations measures the pacer, not the screen. */
     uint64_t frames_rendered;
-    /** Frame durations in microseconds, newest written at dbg_frame_head. */
-    uint32_t dbg_frame_us[APP_DEBUG_FRAME_SAMPLES];
-    int dbg_frame_head;
-    /** Samples written so far, capped at APP_DEBUG_FRAME_SAMPLES. */
-    int dbg_frame_count;
+    /** The last few frame durations, and their mean. See
+     *  perf/frame_time_ring.h. */
+    struct FrameTimeRing dbg_frame_times;
     /** Loc editor: a TORIRS_CHROME_PANEL_MENU in the same dbg_ui instance (so it
      * shares Build/Prims/emit plumbing with the frame-time panel for free).
      * Opened at the loc under the cursor; "Move"/"Rotate" rows re-place it
@@ -2249,9 +2236,11 @@ struct App
      * The payload is a flat POD, so entries are held by value. Overflow runs
      * the script immediately rather than dropping it — degrading to the old
      * ordering is a cosmetic bug, losing a script is not.
+     *
+     * The queue itself is game/rs_clientscript_queue.h, including the backstop
+     * cycle a fence that never arrives is measured against.
      */
-    struct PktRunClientScript pending_clientscripts[APP_PENDING_CLIENTSCRIPT_MAX];
-    int pending_clientscript_count;
+    struct RS_ClientScriptQueue pending_clientscripts;
     /**
      * Has this connection ever sent SERVER_TICK_END?
      *
@@ -2268,9 +2257,6 @@ struct App
      * renderer retains the preceding committed frame while this is set. */
     int server_tick_open;
     int server_tick_open_cycle;
-    /** Logic cycle the oldest held script has been waiting since, so a fence
-     *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
-    int pending_clientscript_cycle;
     /** Set by App_RunOnce once the stable-tree gate has been crossed and the
      *  current host input frame has reached interaction. */
     int input_frame_consumed;

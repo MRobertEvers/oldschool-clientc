@@ -66,7 +66,7 @@ app_logic_tick(struct App* app)
     /* No widget hook may observe a half-applied packet/interface transaction.
      * The next logic tick resumes the serial runner; the shell keeps presenting
      * the preceding committed framebuffer in the meantime. */
-    if( app->exec_runner_had_work || app->server_tick_open || app->pending_clientscript_count > 0 )
+    if( app->exec_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
         return redraw;
 
     /* Rasterize inventory item icons that the server's inv packets left

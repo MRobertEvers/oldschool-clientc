@@ -736,7 +736,7 @@ App_RunOnce(
      * must also enter this pipeline: a paused client has no next logic tick to
      * start it, so publish-only server responses otherwise wait forever. This
      * drains the existing serial protocol queue without advancing simulation. */
-    if( app->exec_runner_had_work || app->server_tick_open || app->pending_clientscript_count > 0 ||
+    if( app->exec_runner_had_work || app->server_tick_open || RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 ||
         (app->net && app->net->packets_head) )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
