@@ -67,7 +67,7 @@ fixture_init(struct DotFixture* fx)
     fx->dots_scene = 4242;
     fx->app.bridge.static_sprite_scene[STATIC_SPRITE_MAPDOTS] = fx->dots_scene;
     /* No flag placed: -1 is the "no destination" sentinel the app resets to. */
-    fx->app.minimap_flag_x = -1;
+    fx->app.minimap.flag_tile_x = -1;
 
     idx = World_PlayerSpawn(fx->app.world, 1, 0, 25, 25, idle);
     {

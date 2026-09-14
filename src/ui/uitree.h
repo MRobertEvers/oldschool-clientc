@@ -1937,6 +1937,24 @@ struct UITreeNodeSpec
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type);
 
+/**
+ * Is this component, or anything above it, hidden or freed?
+ *
+ * The hide flags are per-node and are NOT propagated: hiding a subtree leaves
+ * every descendant's own flag clear and its stale abs_* box intact. So a
+ * caller that reads geometry straight off the flat component array sees a
+ * hidden subtree's boxes as live ones unless it walks up, which is what this
+ * does.
+ *
+ * The walk is bounded at 256 ancestors. A component tree is nowhere near that
+ * deep, so the bound is there to stop a cycle -- which would otherwise hang
+ * the frame rather than draw something wrong.
+ */
+int
+UITree_ComponentHiddenOrOrphaned(
+    struct UITree const* tree,
+    int32_t idx);
+
 struct UITree*
 UITree_New(uint32_t hint);
 

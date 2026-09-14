@@ -18,6 +18,7 @@ void test_plugin_contract_copy(void);
 int g_failures;
 void test_anchor_reorder(void);
 void test_canvas_queries(void);
+void test_canvas_floor_measures(void);
 void test_overlay_retention(void);
 
 int
@@ -66,6 +67,7 @@ main(void)
     test_frame_provide();
     test_plugin_contract_copy();
     test_canvas_queries();
+    test_canvas_floor_measures();
     test_overlay_retention();
     test_dirty_marking();
     test_walk_topology();

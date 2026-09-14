@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
+#include <string.h>
 
 static int
 panel_scaled(int value, int scale, int origin, int* out)
@@ -113,4 +114,51 @@ ToriRSChromePanelDraw_Transform(
     out->clip_w = clip.w;
     out->clip_h = clip.h;
     return 1;
+}
+
+int
+ToriRSChromePanelDraw_ToChromePrim(
+    struct UITreeEntityOverlay const* item,
+    struct ToriRSChromePrim* out)
+{
+    assert(item);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->x = item->x;
+    out->y = item->y;
+    out->w = item->w;
+    out->h = item->h;
+    out->color = item->color & 0x00FFFFFFu;
+    out->trans = item->trans;
+    out->clip.x = item->clip_x;
+    out->clip.y = item->clip_y;
+    out->clip.w = item->clip_w;
+    out->clip.h = item->clip_h;
+
+    switch( item->kind )
+    {
+    case UITREE_ENTITY_OVERLAY_RECT:
+        out->kind = TORIRS_CHROME_PRIM_RECT;
+        out->filled = 1;
+        return 1;
+    case UITREE_ENTITY_OVERLAY_TEXT:
+        out->kind = TORIRS_CHROME_PRIM_TEXT;
+        out->font_slot = TORIRS_CHROME_FONT_BODY;
+        out->baseline = 1;
+        out->text = item->text;
+        return item->text[0] != '\0';
+    case UITREE_ENTITY_OVERLAY_SPRITE:
+        out->kind = TORIRS_CHROME_PRIM_SPRITE;
+        out->sprite_scene_id = item->scene_id;
+        return item->scene_id > 0;
+    case UITREE_ENTITY_OVERLAY_LINE:
+        out->kind = TORIRS_CHROME_PRIM_LINE;
+        out->line_direction = item->line_direction;
+        out->line_width = item->line_width;
+        return 1;
+    default:
+        /* Panel APIs expose rect/line/text/image, not world polygons. */
+        return 0;
+    }
 }

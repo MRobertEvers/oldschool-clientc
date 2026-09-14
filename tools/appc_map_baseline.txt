@@ -1,0 +1,76 @@
+# Translation units outside the APP LAYER that reach into `struct App`.
+#
+# The layer is src/app.c plus every unit under src/app/; they share the struct
+# by design and are exempt.
+#
+# `python3 tools/appc_map.py check` fails on a reach-in that is NOT listed here,
+# and also on a line here that has since become clean. So this file can only
+# shrink: you cannot add a new reach-in without editing it, and you cannot fix
+# one without deleting its line.
+#
+# Two of these are not defects. src/main.c and src/executor_config.c are the
+# process host -- they construct the App and hand it the frame, which is what a
+# host does. Everything else below is a module that was moved out of app.c and
+# kept a pointer back in, and is a candidate for the parameter treatment.
+#
+# Recorded 2026-09-14 at v3 82f3e3e24, before the first Tier 0 extraction.
+#
+# And a second shrink-only number: how many top-level fields `struct App` is
+# allowed to have. The list above cannot see the shape an extraction leaves
+# behind -- a module that forward-declares `struct App` and keeps a pointer
+# includes no header and names no type in a way that grep finds, while the
+# state it should have taken sits in app.h exactly where it was. This number
+# sees that. `check` fails when the struct grows past it AND when it has shrunk
+# below it, so a field cannot creep back in on the space a subsystem freed.
+
+# Raised from 332 by the Porcelain plugin layer. Six fields, and the gate is
+# right to ask: five of them are MEMO, not state, and the sixth is a boot fact.
+#
+#   plugin_frame_role_id + plugin_frame_role_ids_for_count
+#   plugin_facet_ids (refs/roles counts, four var ids, two orb roles, valid)
+#   plugin_sidetab (sixteen roles, sixteen nodes, two generations, valid)
+#   plugin_frame_bound (tree, two generations, valid)
+#     -- each is a table of interned ids with the generation it was interned
+#        for. They exist because the bridge was resolving the same names by
+#        string on every watched element on every layout fence. They belong to
+#        the bridge, and the bridge is a unit of this layer that keeps no state
+#        of its own; giving them a subsystem means giving the bridge one, which
+#        is a larger change than this branch should make.
+#
+#   touch_ui (already present; its RESOLUTION moved, not the field)
+#
+# The honest note: if the bridge is ever given a struct of its own, all five
+# memos go with it and this number comes back down. They are recorded here so
+# that is findable, not forgiven.
+struct-App-fields: 338
+
+src/main.c
+src/executor_config.c
+
+src/bootmanifest/bootmanifest.c
+src/bootmanifest/test/bootmanifest_test.c
+
+src/editor/editor_panel.c
+
+src/game/content_test.c
+src/game/content_test_sailing.c
+src/game/rs_clientcode.c
+src/game/rs_gameproto_exec.c
+src/game/rs_if1_buttons.c
+src/game/rs_ui_slots.c
+src/game/task_exec_entity_info.c
+src/game/task_gameproto_exec.c
+src/game/test/minimap_dots_test.c
+src/game/test/rs_gameproto_exec_test.c
+src/game/test/rs_minimenu_world_test.c
+src/game/test/rs_ui_slots_test.c
+src/game/test/task_exec_entity_info_test.c
+
+src/world/test/wev_rebuild_test.c
+# The composition root of the App layer: construction, teardown and the
+# globals main.c shares. Everything else is a unit under src/app/.
+# Raised from 1255 by the touch-UI boot resolution and the Porcelain table
+# hand-off, both of which belong in the composition root: one resolves a fact
+# about the boot beside the clientscript identity it follows, and the other
+# tells the host which library the CLIENT linked.
+app.c-lines: 1293

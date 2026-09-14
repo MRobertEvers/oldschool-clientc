@@ -600,6 +600,56 @@ PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers
 	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
 
 SRCS = main.c executor_config.c app.c pacer.c \
+	app/app_audio.c \
+	app/app_boot.c \
+	app/app_camera.c \
+	app/app_canvas_layout.c \
+	app/app_chat_focus.c \
+	app/app_chrome.c \
+	app/app_client_trigger.c \
+	app/app_cs2_flush.c \
+	app/app_cs2_scene.c \
+	app/app_debug_ui.c \
+	app/app_entity_sync.c \
+	app/app_frame.c \
+	app/app_host_request.c \
+	app/app_hotkeys.c \
+	app/app_if_events.c \
+	app/app_if_models.c \
+	app/app_loc_editor.c \
+	app/app_lookup.c \
+	app/app_map_editor.c \
+	app/app_minimap.c \
+	app/app_minimenu.c \
+	app/app_net.c \
+	app/app_overlay.c \
+	app/app_overlay_entities.c \
+	app/app_plugin_api.c \
+	app/app_plugin_assets.c \
+	app/app_plugin_bridge.c \
+	app/app_plugin_object.c \
+	app/app_plugin_panel.c \
+	app/app_render.c \
+	app/app_textures.c \
+	app/app_tick.c \
+	app/app_title.c \
+	app/app_ui_host.c \
+	app/app_varp_transforms.c \
+	app/app_viewport.c \
+	app/app_wev.c \
+	app/app_world_apply.c \
+	app/app_world_click.c \
+	app/app_world_edit.c \
+	app/app_world_frame.c \
+	app/app_world_load.c \
+	app/app_world_paint.c \
+	app/app_world_project.c \
+	app/app_world_query.c \
+	app/app_world_rebuild.c \
+	app/app_world_seq.c \
+	app/app_world_spawn.c \
+	app/app_world_sync.c \
+	app/app_worldmap.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
@@ -608,7 +658,29 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	game/rs_ground_items_dirty.c \
+	game/rs_worldmap_drag.c \
+	ui/uitree_if_events.c \
+	ui/uitree_if_store.c \
+	ui/uitree_canvas_floor.c \
+	game/rs_title_session.c \
+	editor/loc_editor_selection.c \
+	render/overlay_stage.c \
+	game/rs_worldmap_view.c \
+	ui/inv_drag.c \
+	ui/minimap_view.c \
+	ui/settings_pickers.c \
+	ui/uitree_keyboard_owner.c \
+	ui/uitree_popup_place.c \
+	engine/async_pending.c \
+	engine/toridraw_element_anim.c \
+	torirs_env_values.c \
+	engine/world_seq_source_toridraw.c \
+	plugin/torirs_plugin_mesh.c \
 	render/torirs_frame.c render/torirs_pick.c \
+	render/torirs_damage_region.c \
+	render/torirs_wedge_camera_path.c \
+	render/torirs_viewport_projection.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c \
@@ -726,6 +798,12 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
+	net/net_link_watch.c \
+	game/rs_clientscript_queue.c \
+	perf/frame_time_ring.c \
+	editor/editor_preview_camera.c \
+	editor/map_editor_ghost.c \
+	render/world_camera_orbit.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
@@ -1626,6 +1704,340 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+# Everything lifted out of app.c so far, plus the boundary gate.
+#
+# Each of these modules exists because it was a self-contained piece of app.c
+# that no test could reach while it was in there. This target is the reason
+# that is now false, and check-app-boundary is what stops it becoming true
+# again. `make -C src appc-map` prints the size and the per-slice table.
+.PHONY: test-app-extracted
+test-app-extracted: check-app-boundary
+	$(MAKE) test-wedge-camera-path
+	$(MAKE) test-damage-region
+	$(MAKE) test-uitree-input-signature
+	$(MAKE) test-plugin-mesh
+	$(MAKE) test-world-seq-source
+	$(MAKE) test-env-values
+	$(MAKE) test-uitree-if-events
+	$(MAKE) test-worldmap-drag
+	$(MAKE) test-uitree-keyboard-owner
+	$(MAKE) test-async-pending
+	$(MAKE) test-ground-items-dirty
+	$(MAKE) test-uitree-popup-place
+	$(MAKE) test-settings-pickers
+	$(MAKE) test-inv-drag
+	$(MAKE) test-minimap-view
+	$(MAKE) test-title-session
+	$(MAKE) test-worldmap-view
+	$(MAKE) test-loc-editor-selection
+	$(MAKE) test-overlay-stage
+	$(MAKE) test-net-link-watch
+	$(MAKE) test-clientscript-queue
+	$(MAKE) test-editor-ghost
+	$(MAKE) test-world-camera
+	$(MAKE) test-uitree-if-store
+	$(MAKE) test-minimap-mapscene
+	$(MAKE) test-viewport-projection
+	$(MAKE) test-inv
+	$(MAKE) test-client-trigger
+	$(MAKE) test-world
+	# The canvas-floor measurements cannot stand alone -- they walk a real
+	# component array -- so they live in the uitree suite.
+	$(MAKE) test-uitree
+	# Likewise the deck transform and the view-rectangle lookup: their fixtures
+	# are a WevConfig and a Worldview registry, so they live in test-wev.
+	$(MAKE) test-wev
+	$(MAKE) test-chat-store
+	$(MAKE) test-npctype-multi
+	$(MAKE) test-varp
+
+# Choosing the world camera's projection from the viewport height. The 2004
+# client has no viewport-derived zoom; recomputing one for it halves the scale,
+# which reads as the camera being twice as far out -- and that is exactly what
+# was reported against rev 289. The order of authority is the fix.
+.PHONY: test-viewport-projection
+test-viewport-projection: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/viewport_projection_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/viewport_projection_test.c render/torirs_viewport_projection.c \
+		torirs_env_values.c $(LDFLAGS)
+	./$(OBJ_DIR)/viewport_projection_test$(PLATFORM_EXE_SUFFIX)
+
+# Plotting a loc's mapscene icon into the baked minimap. Three coordinate
+# conventions meet in one expression -- minimap y grows south, a loc extends
+# north over its length, and a cache sprite is stored cropped -- and getting
+# any of them wrong puts a bank symbol over the building next door.
+.PHONY: test-minimap-mapscene
+test-minimap-mapscene: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/world_builder \
+		-o $(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/minimap_mapscene_test.c engine/world_builder/minimap.c \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX)
+
+# The persistent IF_SET* stores. Keyed, not appended: a component's value is a
+# state, so appending would re-apply an old caption after a new one at the next
+# generation bump -- a quest panel reverting one line on a mount, with nothing
+# in between to blame.
+.PHONY: test-uitree-if-store
+test-uitree-if-store: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# The follow camera's arithmetic: the pitch band, the key velocities, the
+# terrain clamp's asymmetric ease, the distance terms and the camera held
+# across a world reload. Every one is a rule a still frame cannot check -- a
+# camera at the wrong distance looks like a different zoom, a clamp easing the
+# wrong way looks like terrain popping, and wrong velocities just feel heavy.
+.PHONY: test-world-camera
+test-world-camera: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/world_camera_orbit_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/world_camera_orbit_test.c render/world_camera_orbit.c $(LDFLAGS)
+	./$(OBJ_DIR)/world_camera_orbit_test$(PLATFORM_EXE_SUFFIX)
+
+# The map editor's hover ghost and the editor's model-view camera. The ghost is
+# a REAL scene placement, so it evicts whatever held the tile -- forget the
+# occupant and hovering over a door deletes it, restore it on a commit and the
+# old door comes back on top of the new one. The camera shares one zoom between
+# the player's orbit and the fit that frames a new model, and resetting the
+# wrong one makes the well either unturnable or unframed.
+.PHONY: test-editor-ghost
+test-editor-ghost: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/editor_ghost_preview_test.c editor/map_editor_ghost.c \
+		editor/editor_preview_camera.c $(LDFLAGS)
+	./$(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX)
+
+# Two small containers App used to hold inline: the frame-time ring, whose mean
+# is over the samples HELD and not over the ring, and the clientscript queue,
+# whose flush is RE-ENTRANT -- dispatching a held payload can push another, and
+# the array-and-count this replaced walked an array it was also being appended
+# to, losing entries and running others twice.
+.PHONY: test-clientscript-queue
+test-clientscript-queue: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_clientscript_queue_test.c game/rs_clientscript_queue.c \
+		perf/frame_time_ring.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_clientscript_queue_test$(PLATFORM_EXE_SUFFIX)
+
+# When a session is dead, when to dial again, and when to stop. None of it is
+# observable after the fact -- a session that ends and comes back looks exactly
+# like one that was never lost, and one that is dropped while healthy looks
+# like a bad connection, which this client already shipped once when the stall
+# threshold was four seconds. No socket: the policy is run against a clock.
+.PHONY: test-net-link-watch
+test-net-link-watch: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX) \
+		net/test/net_link_watch_test.c net/net_link_watch.c $(LDFLAGS)
+	./$(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX)
+
+# The two All Settings pickers the client builds itself. The cache's op script
+# for a colour swatch or a number field plays a click and returns -- in the
+# reference the picker is the ENGINE's -- so this IS the row's apply, and every
+# rule in it is invisible when it breaks: the wrong commit encoding writes a
+# colour one off the one chosen, and draining the chrome's shared activation
+# latch instead of peeking eats the panel next door's click.
+.PHONY: test-settings-pickers
+test-settings-pickers: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/settings_pickers_test.c ui/settings_pickers.c \
+		ui/uitree_popup_place.c ui/uitree.c ui/uitree_hook.c \
+		ui/uitree_component_options.c engine/torirs_component_hook.c \
+		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# Where an overlay primitive goes. Every push in the client arrives at one
+# function and the open draw window decides the list, so getting it wrong
+# paints a plugin's panel drawing across the game world in panel coordinates,
+# or a health bar above the interfaces instead of under them. Both read as a
+# rendering bug in something else.
+.PHONY: test-overlay-stage
+test-overlay-stage: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/overlay_stage_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/overlay_stage_test.c render/overlay_stage.c $(LDFLAGS)
+	./$(OBJ_DIR)/overlay_stage_test$(PLATFORM_EXE_SUFFIX)
+
+# What the loc editor is pointed at, and what moving it means. These are
+# editing rules, so a wrong one is a map saved with the wrong thing in it: a
+# move recorded from the tile it landed on replays as nothing, and a Reselect
+# that reads the LIVE hover targets whatever the panel is sitting on top of,
+# because reaching the menu row is what moved the cursor there.
+.PHONY: test-loc-editor-selection
+test-loc-editor-selection: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS)
+	./$(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX)
+
+# Which regions of the world map are on screen, and in what order. The set
+# failing leaves a map that ends in a hard line one region short of its own
+# frame. The order failing leaves a map that fills in from the corner while the
+# place the player is looking at stays blank -- the frame's bake and load
+# allowance goes to whatever is visited first, so it has to be the centre.
+.PHONY: test-worldmap-view
+test-worldmap-view: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_worldmap_view_test.c game/rs_worldmap_view.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX)
+
+# Getting from the title screen to the world, once. An automatic submit that
+# fires twice reads as a server that keeps dropping you; a connect in the same
+# tick as its submit reads as a client that ignored the click; and a link that
+# has not been dialled yet sits in exactly the state a refused one does, so
+# without the pending arm the session shows a login failure on the way to a
+# login that succeeds. None of the three leaves anything in a log.
+.PHONY: test-title-session
+test-title-session: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_session_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_title_session_test.c game/rs_title_session.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_title_session_test$(PLATFORM_EXE_SUFFIX)
+
+# The minimap's geometry: where a thing in the world lands on the map, and
+# where on the ground a click on the map points. They are inverses at two
+# different scales and they have to agree, which nothing on screen can tell
+# you: a dot placed by one convention and a click resolved by another draws a
+# map that looks right and walks you somewhere else.
+.PHONY: test-minimap-view
+test-minimap-view: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_view_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/minimap_view_test.c ui/minimap_view.c $(LDFLAGS)
+	./$(OBJ_DIR)/minimap_view_test$(PLATFORM_EXE_SUFFIX)
+
+# When a press on an inventory slot becomes a drag. Two gates -- leave a dead
+# ZONE, and stay down for a dead TIME -- and dropping either one misreads whole
+# classes of gesture with nothing on screen to say so: without the zone a shaky
+# trackpad swaps the items of anyone trying to eat one, and without the time a
+# fast flick rearranges a bank mid-withdrawal. The ghost is deliberately not the
+# promotion; tying it to one is what "items don't dim when the button is down"
+# was.
+.PHONY: test-inv-drag
+test-inv-drag: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/inv_drag_test.c ui/inv_drag.c $(LDFLAGS)
+	./$(OBJ_DIR)/inv_drag_test$(PLATFORM_EXE_SUFFIX)
+
+# Where a settings popup goes beside the row that opened it. Obviously right
+# until a row is near an edge, and then the popup is half off screen or sitting
+# on the swatch being edited. Both pickers did this inline, identically, with
+# two different numbers -- so neither could be checked.
+.PHONY: test-uitree-popup-place
+test-uitree-popup-place: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_popup_place_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_popup_place_test.c ui/uitree_popup_place.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_popup_place_test$(PLATFORM_EXE_SUFFIX)
+
+# The ground-items overlay's dirty set. Its two ways in look the same and are
+# not: overflowing a per-tile mark PROMOTES to a whole-scene walk, while
+# overflowing the walk's own append merely STOPS -- promoting there would
+# restart the walk that is running and a busy scene would never finish one.
+.PHONY: test-ground-items-dirty
+test-ground-items-dirty: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_ground_items_dirty_test.c game/rs_ground_items_dirty.c $(LDFLAGS)
+	./$(OBJ_DIR)/ground_items_dirty_test$(PLATFORM_EXE_SUFFIX)
+
+# The two "asked for it, waiting for it" lists. Both fail in ways nothing else
+# in the frame notices: a duplicate queues a second decoder, an overflow makes
+# a model render untextured forever, a stale entry binds somebody else's
+# animation onto whoever inherited a recycled scene element id.
+.PHONY: test-async-pending
+test-async-pending: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX) \
+		engine/test/async_pending_test.c engine/async_pending.c $(LDFLAGS)
+	./$(OBJ_DIR)/async_pending_test$(PLATFORM_EXE_SUFFIX)
+
+# Who has the keyboard. Every hotkey asks this, and the failure is always a
+# text input the rule does not know about leaving the hotkeys live underneath
+# it -- four times so far, each looking like a different bug. States which
+# sources count, and pins the two traps: stale chat flags on a lane with no
+# chat line, and the interface varc whose UNSET value is -1.
+.PHONY: test-uitree-keyboard-owner
+test-uitree-keyboard-owner: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_keyboard_owner_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_keyboard_owner_test.c ui/uitree_keyboard_owner.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_keyboard_owner_test$(PLATFORM_EXE_SUFFIX)
+
+# Drag to pan the world map. The pan is anchored to where the view was at the
+# grab, not accumulated -- accumulating truncates the sub-tile remainder every
+# frame and the map slides out from under the pointer over a long drag. Also
+# the click/drag split, and the map's own chrome keeping its clicks.
+.PHONY: test-worldmap-drag
+test-worldmap-drag: $(OBJ_DIR) $(OBJ_DIR)/hmap.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_worldmap_drag_test.c game/rs_worldmap_drag.c game/rs_worldmap.c \
+		engine/cache_provider.c engine/torirs_worldmap_from_rscache.c \
+		$(OBJ_DIR)/hmap.o $(LDFLAGS)
+	./$(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX)
+
+# The server's IF_SETEVENTS store: the arming gate for every click. Its failure
+# mode always looks like a different bug -- the interface renders, the
+# right-click row is there (it comes from the cache), and the click does
+# nothing. Covers all five overlap shapes and the dynamic-child addressing.
+.PHONY: test-uitree-if-events
+test-uitree-if-events: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_if_events_test.c ui/uitree_if_events.c ui/uitree.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX)
+
+# The runtime knobs that carry a value. Every way of getting one of these
+# grammars wrong is silent: the wrong spawn id, half a world meshed, a mirrored
+# scene. States what each accepts and, more usefully, what it must refuse.
+.PHONY: test-env-values
+test-env-values: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/env_values_test$(PLATFORM_EXE_SUFFIX) \
+		test/env_values_test.c torirs_env_values.c $(LDFLAGS)
+	./$(OBJ_DIR)/env_values_test$(PLATFORM_EXE_SUFFIX)
+
+# The seq source World reads animation timing through. The defaults decide
+# whether a not-yet-loaded track freezes and waits or races; and the loop length
+# is sum(delay) + 1, not sum(delay + 1) -- the difference is a spotanim that
+# plays, freezes in its base pose, and only then disappears.
+.PHONY: test-world-seq-source
+test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_seq_source_test \
+		engine/test/world_seq_source_toridraw_test.c engine/world_seq_source_toridraw.c \
+		engine/cache_provider.c world/world.c world/entity_pathing.c world/entity_pool.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
+	./$(OBJ_DIR)/world_seq_source_test
+
+# A plugin-authored mesh: the two halves grow independently and keep what was
+# written across every reallocation, and the model built from one is a COPY --
+# re-authoring the mesh must not reach into a model already standing on it.
+.PHONY: test-plugin-mesh
+test-plugin-mesh: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/plugin_mesh_test \
+		plugin/test/plugin_mesh_test.c plugin/torirs_plugin_mesh.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/plugin_mesh_test
+
+# The retained tree's compare-before-bump signatures. The retain mechanism
+# rests on "a value changed => the word changed", and a signature that misses a
+# change leaves a stale descriptor on screen without anything looking wrong.
+.PHONY: test-uitree-input-signature
+test-uitree-input-signature: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_input_signature_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_input_signature_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_input_signature_test$(PLATFORM_EXE_SUFFIX)
+
+# What a retained frame still has to present: the box is the union and clamps
+# onto the canvas, a box that IS the canvas is dropped, rects fold when they
+# touch, and overflowing four poisons the list rather than truncating it.
+.PHONY: test-damage-region
+test-damage-region: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/damage_region_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/damage_region_test.c render/torirs_damage_region.c $(LDFLAGS)
+	./$(OBJ_DIR)/damage_region_test$(PLATFORM_EXE_SUFFIX)
+
+# The scripted capture camera (TORIRS_WEDGE_CAM_PATH): a route parses whole or
+# not at all, the three wrap modes behave at the seam, yaw takes the short way
+# round, and both angles come back inside [0,2048) even out of a spline.
+.PHONY: test-wedge-camera-path
+test-wedge-camera-path: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wedge_camera_path_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/wedge_camera_path_test.c render/torirs_wedge_camera_path.c $(LDFLAGS)
+	./$(OBJ_DIR)/wedge_camera_path_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-pacer
 test-pacer: $(OBJ_DIR)
@@ -2677,7 +3089,7 @@ test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-drop
 test-npctype-multi: $(OBJ_DIR) engine/torirs_npctype_from_rscache.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_npctype_from_rscache_test \
-		engine/torirs_npctype_from_rscache.c \
+		engine/torirs_npctype_from_rscache.c engine/torirs_types.c engine/torirs_component_hook.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	./$(OBJ_DIR)/torirs_npctype_from_rscache_test
 
@@ -3078,7 +3490,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_frame_provide.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -3244,6 +3656,9 @@ test-chat-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chat_store_test \
 		game/rs_chat.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		ui/uitree_frame.c ui/uitree_input.c ui/uitree_minimenu.c ui/uitree_cross.c ui/uitree_hover.c \
+		ui/uitree_ink.c ui/torirs_chrome_inkwell.c ui/uitree_emit.c ui/uitree_inv_view.c ui/uitree_obj_cell.c \
+		ui/uitree_build.c ui/uitree_role.c ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
 		game/test/rs_chat_store_test.c -lm
 	./$(OBJ_DIR)/chat_store_test
@@ -5830,6 +6245,48 @@ test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 # It moves nothing and is safe to run at any time.
 check-kernel-names:
 	python3 $(REPO_ROOT)/tools/kernel_names.py --check
+
+# What may reach into `struct App`, as a check.
+#
+# The APP LAYER is src/app.c plus every unit under src/app/. Its units share
+# `struct App` by design: each is a subsystem of the orchestrator, not a module
+# lifted out of it, and what crosses from one unit to another is declared in
+# app/app_internal.h -- which is the layer's map, and which nothing outside the
+# layer may include.
+#
+# This fails on a .c outside the layer that names App and is not recorded in
+# tools/appc_map_baseline.txt, and equally on a baseline line that has become
+# clean -- so the baseline only shrinks. `.u.c` unity files are exempt: they
+# are textually part of whatever includes them.
+#
+# It also fails when `struct App` has more top-level fields than the baseline
+# records, and when it has fewer -- the list of files cannot see a module that
+# forward-declares App and keeps a pointer, and the field count can.
+#
+# And it fails when app.c itself grows. app.c is the layer's COMPOSITION ROOT:
+# construction, teardown, and the globals main.c shares. A subsystem put there
+# is a subsystem nobody will find, which is how the file reached 36,000 lines
+# the first time.
+#
+# `make -C src appc-map` prints the per-slice coupling table and the field
+# families beneath it: the first is how the extraction order WAS chosen, the
+# second is how it is chosen now. Neither target builds or moves anything.
+.PHONY: check-app-boundary appc-map appc-fields
+check-app-boundary:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py check --root src
+
+appc-map:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py summary --source src/app.c
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py slices --source src/app.c --top 30
+	@echo
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py fields --top 24
+
+# Which unit of the translation unit owns, borrows, or reaches into what. A
+# unit with a full `own` column and an empty `foreign` one is a subsystem that
+# is only declared inside App; one with two own fields and eleven handles is
+# the orchestrator, and it stays.
+appc-fields:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py fields --units
 
 # ---- The kernel suite -------------------------------------------------
 #

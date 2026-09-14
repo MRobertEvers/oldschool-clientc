@@ -193,11 +193,100 @@ test_overlay_full(void)
         "the first overlay is still there");
 }
 
+/*
+ * The three-form walk, narrowest first.
+ *
+ * The ORDER is the whole of the behaviour. A global handler running in place
+ * of a subject-specific one is a fishing spot drawing the generic marker
+ * instead of its own, which reads as the script being wrong rather than the
+ * lookup picking the wrong script.
+ */
+struct lookup_recorder
+{
+    /* Name hashes asked for, in the order they were asked. */
+    int asked[8];
+    int asked_count;
+    /* Answer this hash with this id; every other hash answers -1. */
+    int answer_hash;
+    int answer_id;
+};
+
+static int
+recording_lookup(
+    void* user,
+    int name_hash)
+{
+    struct lookup_recorder* rec = (struct lookup_recorder*)user;
+
+    if( rec->asked_count < (int)(sizeof(rec->asked) / sizeof(rec->asked[0])) )
+        rec->asked[rec->asked_count++] = name_hash;
+    return name_hash == rec->answer_hash ? rec->answer_id : -1;
+}
+
+static void
+test_trigger_script_walk(void)
+{
+    int const trigger = RS_TRIGGER_LOC_ADD;
+    int const subject = 1234;
+    int const category = 7;
+    int const subject_hash = RS_ClientTriggerNameHash(RS_ClientTriggerHashSubject(trigger, subject));
+    int const category_hash =
+        RS_ClientTriggerNameHash(RS_ClientTriggerHashCategory(trigger, category));
+    int const global_hash = RS_ClientTriggerNameHash(RS_ClientTriggerHashGlobal(trigger));
+    struct lookup_recorder rec;
+
+    printf("TEST: the trigger script walk goes narrowest first\n");
+
+    /* A subject handler wins, and the walk stops there -- the other two forms
+     * are never asked for. */
+    rec = (struct lookup_recorder){ .answer_hash = subject_hash, .answer_id = 5110 };
+    CHECK(
+        RS_ClientTriggerScriptFor(trigger, subject, category, recording_lookup, &rec) == 5110,
+        "the subject handler is found");
+    CHECK(rec.asked_count == 1, "the walk kept going after the subject handler");
+    CHECK(rec.asked[0] == subject_hash, "the subject form was not asked first");
+
+    /* No subject handler: the category is asked next, and wins. */
+    rec = (struct lookup_recorder){ .answer_hash = category_hash, .answer_id = 4528 };
+    CHECK(
+        RS_ClientTriggerScriptFor(trigger, subject, category, recording_lookup, &rec) == 4528,
+        "the category handler is found");
+    CHECK(rec.asked_count == 2, "the walk asks exactly two forms for a category hit");
+    CHECK(rec.asked[1] == category_hash, "the category form was not asked second");
+
+    /* Neither: the global form is the last resort. */
+    rec = (struct lookup_recorder){ .answer_hash = global_hash, .answer_id = 99 };
+    CHECK(
+        RS_ClientTriggerScriptFor(trigger, subject, category, recording_lookup, &rec) == 99,
+        "the global handler is found");
+    CHECK(rec.asked_count == 3, "the walk asks all three forms before giving up");
+    CHECK(rec.asked[2] == global_hash, "the global form was not asked last");
+
+    /* Nothing bound anywhere. */
+    rec = (struct lookup_recorder){ .answer_hash = 0x7fffffff, .answer_id = 1 };
+    CHECK(
+        RS_ClientTriggerScriptFor(trigger, subject, category, recording_lookup, &rec) == -1,
+        "an unbound trigger answered a script");
+
+    /*
+     * Category 0 is "uncategorised", not "category zero", so its form is
+     * skipped entirely. Asking for it would be a lookup on every miss for a
+     * hash nothing can ever be published under.
+     */
+    rec = (struct lookup_recorder){ .answer_hash = global_hash, .answer_id = 99 };
+    CHECK(
+        RS_ClientTriggerScriptFor(trigger, subject, 0, recording_lookup, &rec) == 99,
+        "an uncategorised subject did not reach the global form");
+    CHECK(rec.asked_count == 2, "an uncategorised walk asks two forms, not three");
+    CHECK(rec.asked[1] == global_hash, "the category form was asked for category 0");
+}
+
 int
 main(void)
 {
     test_trigger_hashes();
     test_trigger_forms_disjoint();
+    test_trigger_script_walk();
     test_overlay_store();
     test_overlay_full();
     printf("%d checks, %d failures\n", g_checks, g_failures);

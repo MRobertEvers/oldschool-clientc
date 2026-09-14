@@ -155,7 +155,7 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
             server ? server->x : -1, server ? server->z : -1, server ? server->level : -1,
             app->aboard_view, (unsigned long long)app->logic_cycle,
             server ? ToriRSServer_EmbedWorld(embed)->tick : -1,
-            app->orbit_yaw, app->orbit_pitch, app->world_cam_zoom,
+            app->orbit.yaw, app->orbit.pitch, app->world_cam_zoom,
             app->world ? app->world->load_complete : 0, app->world_render_mode);
         struct WorldEntity_Player* player = app->world ? World_PlayerGetByServerPid(app->world, app->esync.local_pid) : NULL;
         int base_x=app->world ? app->world->_base_tile_x : 0;
@@ -519,10 +519,10 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     error("camera pitch must be 128..383; zoom -1000..10000");
                 else
                 {
-                    app->orbit_yaw = app->world_camera.yaw = x & 2047;
-                    app->orbit_pitch = app->world_camera.pitch = z;
+                    app->orbit.yaw = app->world_camera.yaw = x & 2047;
+                    app->orbit.pitch = app->world_camera.pitch = z;
                     app->world_cam_zoom = sub;
-                    app->orbit_yaw_vel = app->orbit_pitch_vel = 0;
+                    app->orbit.yaw_velocity = app->orbit.pitch_velocity = 0;
                     app->need_redraw = 1;
                 }
             }

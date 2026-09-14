@@ -18,6 +18,34 @@
 #include <assert.h>
 
 void
+Wev_DeckBoxInParent(
+    struct Wev const* wev,
+    int deck_size_x_tiles,
+    int deck_size_z_tiles,
+    int parent_base_tile_x,
+    int parent_base_tile_z,
+    struct WevDeckBox* out_box)
+{
+    assert(wev);
+    assert(wev->config);
+    assert(out_box);
+
+    /* Scene-local to the parent: absolute root fine units minus the parent
+     * world's base tile, because that is the space the parent's scene elements
+     * and painter grid live in. */
+    out_box->pos_x = wev->x - (parent_base_tile_x << 7);
+    out_box->pos_z = wev->z - (parent_base_tile_z << 7);
+    out_box->angle = wev->angle;
+    /* Half the deck rectangle, in fine units, plus the config's pivot: the
+     * offset that puts the authored deck's own centre of rotation over the
+     * hull's position rather than over the deck rectangle's corner. */
+    out_box->recenter_x = -(deck_size_x_tiles * 64) - wev->config->pivot_x;
+    out_box->recenter_z = -(deck_size_z_tiles * 64) - wev->config->pivot_z;
+    out_box->size_x_tiles = deck_size_x_tiles;
+    out_box->size_z_tiles = deck_size_z_tiles;
+}
+
+void
 Wev_DeckFromParent(
     struct WevDeckBox const* box,
     int parent_x,

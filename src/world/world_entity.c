@@ -3,6 +3,7 @@
 #include "entity_scenery.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,6 +32,48 @@ void
 WorldEntity_SceneryDebugSetTools(bool active)
 {
     g_scenery_tools_active = active;
+}
+
+uint8_t
+WorldEntity_SceneryApplyPlacementOps(
+    struct WorldEntity_SceneryInfo* info,
+    unsigned op_mask,
+    char const* const* replacements,
+    bool* out_has_action)
+{
+    uint8_t overrides = 0;
+    bool has_action = false;
+
+    assert(info);
+    assert(replacements);
+    assert(out_has_action);
+
+    for( int i = 0; i < 5; i++ )
+    {
+        bool const slot_kept = (op_mask & (1u << i)) != 0;
+        char const* replacement = replacements[i];
+        char const* label = NULL;
+
+        assert(replacement);
+        if( !slot_kept || replacement[0] )
+            overrides |= (uint8_t)(1 << i);
+
+        if( !slot_kept )
+            label = "";
+        else if( replacement[0] != '\0' )
+            label = replacement;
+
+        if( label )
+        {
+            memset(info->actions[i].name, 0, sizeof(info->actions[i].name));
+            snprintf(info->actions[i].name, sizeof(info->actions[i].name), "%s", label);
+        }
+        if( info->actions[i].name[0] != '\0' )
+            has_action = true;
+    }
+
+    *out_has_action = has_action;
+    return overrides;
 }
 
 void

@@ -548,6 +548,73 @@ struct ToriRS_Npctype
     int param_count;
 };
 
+/*
+ * The entity's own facts, for a multinpc, are the RUNG's where it states them
+ * and the SHELL's where it does not.
+ *
+ * A multinpc is one shell record plus a rung per state, and this client
+ * resolves the rung BEFORE it spawns anything (Task_AppSpawn,
+ * Task_ExecNpcInfo) -- so without this the whole entity was built out of the
+ * rung, defaults and all. Rungs are not authored to stand alone: they are
+ * deltas. `verzik_initial_base` states a name, a model, a chathead, two ops and
+ * nothing else, while its shell `verzik_initial` carries `size=5` and
+ * `readyanim=verzik_phase1_idle`. Read straight off the rung, Verzik was size
+ * 1 -- which puts her draw origin at `tile * 128 + 64` instead of
+ * `tile * 128 + 5 * 64`, two tiles south-west of her own dais -- and readyanim
+ * -1, so no sequence ever bound to the element and she sat in the model's bind
+ * pose for the whole of phase one. One record's absent fields, two bugs that
+ * looked unrelated.
+ *
+ * Across this cache the gap is 102 rungs silently size 1 under a shell that
+ * states a size, and 526 silently animation-less under a shell that states a
+ * readyanim. NOTHING here changes a rung that states the field itself: the 49
+ * records whose readyanim genuinely disagrees with their shell keep the rung's,
+ * and no rung anywhere disagrees about size.
+ *
+ * That last point is a deliberate deviation, flagged rather than hidden. The
+ * reference reads these off ONE record -- `npc.type`, the id the WIRE sent,
+ * i.e. the shell -- at both the NPC add and the CHANGETYPE mask (Client.ts
+ * 8344-8353, 8455-8464), and `transform()` is called later and only where the
+ * MODEL, the name and the ops are chosen. By that rule the shell would win
+ * outright and those 49 rungs' readyanims would be dead data. There is no
+ * revision-239 client in this tree to confirm it against, and taking the shell
+ * outright would silently restyle the 674 rungs whose shell states nothing, so
+ * this fills gaps and never overrides. Revisit with a rev-239 deob in hand.
+ *
+ * `turn_speed` is deliberately absent: its default is 32 rather than a
+ * sentinel, so "absent" and "authored 32" are the same value and gap-filling
+ * cannot be expressed for it.
+ */
+struct ToriRS_NpcEntityFacts
+{
+    int size;
+    int readyanim;
+    int walkanim;
+    int walkanim_b;
+    int walkanim_l;
+    int walkanim_r;
+    int turnanim;
+    int runanim;
+    int runanim_b;
+    int runanim_l;
+    int runanim_r;
+};
+
+/**
+ * Fill `out` from the rung, then from the shell wherever the rung said
+ * nothing.
+ *
+ * `shell` may be NULL: an ordinary npc has no shell, and there is nothing to
+ * fill from. It may also BE `drawn`, which every non-multinpc is once the
+ * caller has looked the wire's id up -- that is a short circuit rather than a
+ * rule, since a record can only ever agree with itself.
+ */
+void
+ToriRS_NpctypeEntityFacts(
+    struct ToriRS_Npctype const* drawn,
+    struct ToriRS_Npctype const* shell,
+    struct ToriRS_NpcEntityFacts* out);
+
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).
  * A single model animated by a seq, with recolour/retexture, resize and a
  * 90-degree angle, lit with custom ambient/contrast. Fed to the world as both

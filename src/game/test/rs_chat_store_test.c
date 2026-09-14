@@ -225,6 +225,151 @@ main(void)
         RS_Chat_Free(&chat);
     }
 
+    /* ---- the overhead chat effect colours ---------------------------- */
+    /*
+     * The chat-effects dropdown, on the receiving side. A message carries the
+     * sender's chosen effect and a 150-cycle timer, and this turns the pair
+     * into the ARGB the overhead line is drawn in.
+     *
+     * Nothing downstream checks the number, so a wrong leg is a message that
+     * glows the wrong way round for a second and a half -- which nobody
+     * reports, and which is also exactly what the three glow effects are FOR.
+     * So the boundaries between the legs are written out rather than sampled:
+     * the reference's ramps are additions to a packed RGB, and a rewrite that
+     * unpacks them into channels gets a leg backwards without any single
+     * colour looking obviously wrong.
+     */
+    {
+        /* Argb, so alpha is always opaque and never part of the ramp. */
+        CHECK(
+            (RS_Chat_EffectColourArgb(0, 150, 0) & 0xff000000u) == 0xff000000u,
+            "a chat colour is not opaque");
+
+        /* The six flat colours, which the timer and the cycle cannot move. */
+        CHECK(RS_Chat_EffectColourArgb(0, 150, 0) == 0xffffff00u, "flat 0 is not yellow");
+        CHECK(RS_Chat_EffectColourArgb(1, 3, 77) == 0xffff0000u, "flat 1 is not red");
+        CHECK(RS_Chat_EffectColourArgb(2, 3, 77) == 0xff00ff00u, "flat 2 is not green");
+        CHECK(RS_Chat_EffectColourArgb(3, 3, 77) == 0xff00ffffu, "flat 3 is not cyan");
+        CHECK(RS_Chat_EffectColourArgb(4, 3, 77) == 0xffff00ffu, "flat 4 is not magenta");
+        CHECK(RS_Chat_EffectColourArgb(5, 3, 77) == 0xffffffffu, "flat 5 is not white");
+
+        /* Anything else is yellow, in both directions past the table. An
+         * effect index off the wire is not clamped into the palette -- the
+         * reference falls back, and clamping would silently rename effect 12
+         * to "white". */
+        CHECK(RS_Chat_EffectColourArgb(-1, 75, 5) == 0xffffff00u, "a negative effect is not yellow");
+        CHECK(RS_Chat_EffectColourArgb(12, 75, 5) == 0xffffff00u, "effect 12 is not yellow");
+
+        /*
+         * 6, 7 and 8 FLASH on the scene cycle, not on the message's own life:
+         * every flashing message on screen blinks together, and a message
+         * blinks whether or not it is new. Both halves of the 20-cycle period
+         * and the two edges between them.
+         */
+        CHECK(RS_Chat_EffectColourArgb(6, 150, 0) == 0xffff0000u, "flash 1 starts red");
+        CHECK(RS_Chat_EffectColourArgb(6, 150, 9) == 0xffff0000u, "flash 1 is red through cycle 9");
+        CHECK(RS_Chat_EffectColourArgb(6, 150, 10) == 0xffffff00u, "flash 1 is yellow at cycle 10");
+        CHECK(RS_Chat_EffectColourArgb(6, 150, 19) == 0xffffff00u, "flash 1 is yellow at cycle 19");
+        CHECK(RS_Chat_EffectColourArgb(6, 150, 20) == 0xffff0000u, "flash 1 does not wrap at 20");
+        CHECK(
+            RS_Chat_EffectColourArgb(6, 1, 5) == RS_Chat_EffectColourArgb(6, 149, 5),
+            "a flashing colour moved with the timer");
+        CHECK(RS_Chat_EffectColourArgb(7, 150, 5) == 0xff0000ffu, "flash 2 is blue in its first half");
+        CHECK(RS_Chat_EffectColourArgb(7, 150, 15) == 0xff00ffffu, "flash 2 is cyan in its second");
+        CHECK(RS_Chat_EffectColourArgb(8, 150, 5) == 0xff00b000u, "flash 3 is dark green first");
+        CHECK(RS_Chat_EffectColourArgb(8, 150, 15) == 0xff80ff80u, "flash 3 is pale green second");
+
+        /*
+         * 9, 10 and 11 GLOW across the message's own 150 cycles, in three legs
+         * of 50. The timer counts DOWN, so a fresh message (timer 150) is at
+         * the start of leg one and each leg is entered as the timer passes
+         * 100 and 50. Each leg's first and last colour is written out; those
+         * six numbers per effect are the whole shape of the ramp.
+         */
+
+        /* Glow 1: red -> yellow -> green, green climbing by 5 a cycle. */
+        CHECK(RS_Chat_EffectColourArgb(9, 150, 0) == 0xffff0000u, "glow 1 does not start red");
+        CHECK(
+            RS_Chat_EffectColourArgb(9, 101, 0) == 0xffff0000u + 49 * 1280,
+            "glow 1 leg one does not end just short of yellow");
+        CHECK(RS_Chat_EffectColourArgb(9, 100, 0) == 0xffffff00u, "glow 1 leg two does not start yellow");
+        CHECK(
+            RS_Chat_EffectColourArgb(9, 51, 0) == 0xffffff00u - 49 * 327680,
+            "glow 1 leg two does not end just short of green");
+        CHECK(RS_Chat_EffectColourArgb(9, 50, 0) == 0xff00ff00u, "glow 1 leg three does not start green");
+        CHECK(
+            RS_Chat_EffectColourArgb(9, 1, 0) == 0xff00ff00u + 49 * 5,
+            "glow 1 does not end on green with a trace of blue");
+
+        /* Glow 2: red -> magenta -> blue. */
+        CHECK(RS_Chat_EffectColourArgb(10, 150, 0) == 0xffff0000u, "glow 2 does not start red");
+        CHECK(
+            RS_Chat_EffectColourArgb(10, 101, 0) == 0xffff0000u + 49 * 5,
+            "glow 2 leg one does not end just short of magenta");
+        CHECK(RS_Chat_EffectColourArgb(10, 100, 0) == 0xffff00ffu, "glow 2 leg two does not start magenta");
+        CHECK(
+            RS_Chat_EffectColourArgb(10, 51, 0) == 0xffff00ffu - 49 * 327680,
+            "glow 2 leg two does not end just short of blue");
+        CHECK(RS_Chat_EffectColourArgb(10, 50, 0) == 0xff0000ffu, "glow 2 leg three does not start blue");
+        CHECK(
+            RS_Chat_EffectColourArgb(10, 1, 0) == 0xff0000ffu + 49 * 327680 - 49 * 5,
+            "glow 2's last leg does not climb red while it drops blue");
+
+        /* Glow 3: white -> green -> white, and back down again. */
+        CHECK(RS_Chat_EffectColourArgb(11, 150, 0) == 0xffffffffu, "glow 3 does not start white");
+        CHECK(
+            RS_Chat_EffectColourArgb(11, 101, 0) == 0xffffffffu - 49 * 327685,
+            "glow 3 leg one does not end just short of green");
+        CHECK(RS_Chat_EffectColourArgb(11, 100, 0) == 0xff00ff00u, "glow 3 leg two does not start green");
+        CHECK(
+            RS_Chat_EffectColourArgb(11, 51, 0) == 0xff00ff00u + 49 * 327685,
+            "glow 3 leg two does not end just short of white");
+        CHECK(RS_Chat_EffectColourArgb(11, 50, 0) == 0xffffffffu, "glow 3 leg three does not start white");
+        CHECK(
+            RS_Chat_EffectColourArgb(11, 1, 0) == 0xffffffffu - 49 * 327680,
+            "glow 3 does not end shedding red");
+
+        /* The glows do not move with the scene cycle, which is the difference
+         * between them and the flashes. */
+        CHECK(
+            RS_Chat_EffectColourArgb(9, 75, 0) == RS_Chat_EffectColourArgb(9, 75, 13),
+            "a glowing colour moved with the scene cycle");
+
+        /*
+         * Past the end of the ramp, every glow is yellow: the third leg is
+         * half-open at 150 elapsed, and a timer at or below 0 is a message
+         * that should already be gone. Yellow rather than the ramp's last
+         * colour, because that is the initial value the reference leaves when
+         * no leg matches -- pinned so a rewrite that "tidies" the last leg into
+         * an else does not quietly change it.
+         */
+        /*
+         * And the whole reachable range at once: every effect, every cycle of
+         * the flash period, every cycle of a message's life. Nothing masks the
+         * result, so a ramp that walks out of 24 bits shows up here as a
+         * colour that is no longer opaque -- which is the failure a per-leg
+         * boundary check cannot see, because it happens in the middle of a leg
+         * when a step size is wrong.
+         */
+        {
+            int bad = -1;
+
+            for( int effect = -1; effect <= 12 && bad < 0; effect++ )
+                for( int timer = 0; timer <= 150 && bad < 0; timer++ )
+                    for( int cycle = 0; cycle < 20; cycle++ )
+                        if( RS_Chat_EffectColourArgb(effect, timer, cycle) < 0xff000000u )
+                        {
+                            bad = effect;
+                            break;
+                        }
+            CHECK(bad < 0, "effect %d left the opaque 24-bit range", bad);
+        }
+
+        CHECK(RS_Chat_EffectColourArgb(9, 0, 0) == 0xffffff00u, "an expired glow 1 is not yellow");
+        CHECK(RS_Chat_EffectColourArgb(10, 0, 0) == 0xffffff00u, "an expired glow 2 is not yellow");
+        CHECK(RS_Chat_EffectColourArgb(11, -5, 0) == 0xffffff00u, "an overdue glow 3 is not yellow");
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "chat store: %d failure(s)\n", g_failures);

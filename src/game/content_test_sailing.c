@@ -365,7 +365,7 @@ int ContentTestSailing_PrimaryProc(struct ToriRSServerEmbed* embed, const char* 
     return 1;
 }
 
-/* app_world_height_in's rule, for the harness only: an out-of-scene column has
+/* World_HeightAt's rule, for the harness only: an out-of-scene column has
  * no heightmap and a LINK_BELOW tile samples the level under it. */
 static int sailing_ground_height(struct World* world, int fine_x, int fine_z, int level)
 {
@@ -651,11 +651,11 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
     saved->camera_position = app->world_camera_pos;
     saved->base_x = app->world->_base_tile_x;
     saved->base_z = app->world->_base_tile_z;
-    saved->yaw = app->orbit_yaw; saved->pitch = app->orbit_pitch;
-    saved->yaw_velocity = app->orbit_yaw_vel;
-    saved->pitch_velocity = app->orbit_pitch_vel;
-    saved->orbit_x = app->orbit_x; saved->orbit_z = app->orbit_z;
-    saved->pitch_clamp = app->camera_pitch_clamp;
+    saved->yaw = app->orbit.yaw; saved->pitch = app->orbit.pitch;
+    saved->yaw_velocity = app->orbit.yaw_velocity;
+    saved->pitch_velocity = app->orbit.pitch_velocity;
+    saved->orbit_x = app->orbit.anchor_x; saved->orbit_z = app->orbit.anchor_z;
+    saved->pitch_clamp = app->orbit.pitch_clamp;
     saved->zoom = app->world_cam_zoom;
     saved->unlocked = app->camera_unlocked;
     saved->side_tab = app->slots.side_tab;
@@ -932,11 +932,11 @@ void ContentTestSailing_SettleRestore(struct App* app)
     app->world_camera_pos = saved->camera_position;
     app->world_camera_pos.x += dx;
     app->world_camera_pos.z += dz;
-    app->orbit_yaw = saved->yaw; app->orbit_pitch = saved->pitch;
-    app->orbit_yaw_vel = saved->yaw_velocity;
-    app->orbit_pitch_vel = saved->pitch_velocity;
-    app->orbit_x = saved->orbit_x + dx; app->orbit_z = saved->orbit_z + dz;
-    app->camera_pitch_clamp = saved->pitch_clamp;
+    app->orbit.yaw = saved->yaw; app->orbit.pitch = saved->pitch;
+    app->orbit.yaw_velocity = saved->yaw_velocity;
+    app->orbit.pitch_velocity = saved->pitch_velocity;
+    app->orbit.anchor_x = saved->orbit_x + dx; app->orbit.anchor_z = saved->orbit_z + dz;
+    app->orbit.pitch_clamp = saved->pitch_clamp;
     app->world_cam_zoom = saved->zoom;
     app->sailing_selected_heading=saved->selected_heading;
     app->sailing_selected_until=app->logic_cycle+saved->selected_remaining;

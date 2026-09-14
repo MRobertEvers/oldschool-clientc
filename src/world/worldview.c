@@ -156,3 +156,47 @@ WorldviewRegistry_IsLive(
     assert(id < WORLDVIEW_MAX);
     return reg->views[id].live;
 }
+
+int
+WorldviewRegistry_HomeViewForAbsTile(
+    struct WorldviewRegistry const* reg,
+    int abs_tile_x,
+    int abs_tile_z,
+    int* out_local_x,
+    int* out_local_z)
+{
+    assert(reg);
+    assert(out_local_x);
+    assert(out_local_z);
+
+    /* From 1: the root is the fallback, not a candidate. Its base is 0,0 and
+     * its size is 0, so it would fail both tests below anyway -- starting past
+     * it says that is on purpose. */
+    for( int id = 1; id < WORLDVIEW_MAX; id++ )
+    {
+        struct Worldview const* view;
+
+        if( !WorldviewRegistry_IsLive(reg, id) )
+            continue;
+        view = &reg->views[id];
+        /* base 0,0 is the registration default until REBUILD_WORLDENTITY
+         * names the staging square; a real deck base is never the map
+         * origin. Without this, a view that has been spawned but not yet
+         * rebuilt claims the corner of the world map. */
+        if( view->base_x == 0 && view->base_z == 0 )
+            continue;
+        /* A view with no rectangle needs no test of its own: the half-open
+         * bounds below are empty at size 0 and inverted below it, so they
+         * already refuse every tile. */
+        if( abs_tile_x < view->base_x || abs_tile_x >= view->base_x + view->size_x_tiles )
+            continue;
+        if( abs_tile_z < view->base_z || abs_tile_z >= view->base_z + view->size_z_tiles )
+            continue;
+        *out_local_x = abs_tile_x - view->base_x;
+        *out_local_z = abs_tile_z - view->base_z;
+        return id;
+    }
+    *out_local_x = abs_tile_x;
+    *out_local_z = abs_tile_z;
+    return WORLDVIEW_ROOT;
+}
