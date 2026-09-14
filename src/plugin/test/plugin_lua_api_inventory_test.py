@@ -261,6 +261,30 @@ def main() -> int:
     if "set_hidden(" in screenshot:
         errors.append("screenshot.lua: report button hidden instead of replaced by a REPLACE placement")
 
+    highlighter = (SCRIPT_DIR / "entity_highlighter.lua").read_text(encoding="utf-8")
+    # Three refusals reach this plugin and it used to drop all three: the
+    # route table is full, the joined tag list is past the store's value
+    # ceiling, and the lane has no keyboard frame to answer a reveal key with.
+    # Each has a verb now, and the verb is what reports it.
+    for required in (
+        "api.porcelain.open(",
+        "api.porcelain.menu_add(",
+        "api.porcelain.menu_tag(",
+        'api.porcelain.config_list_add("tags"',
+        'api.porcelain.key_edge("reveal_key"',
+        'api.porcelain.expect_absent("role:reveal_key"',
+        "api.porcelain.fence(",
+        "api.porcelain.commit(",
+    ):
+        if required not in highlighter:
+            errors.append(f"entity_highlighter.lua: missing reported refusal: {required}")
+    # api.menu.add returns a bool nobody read; api.input.key_held answers 0 for
+    # "not held" and for "this lane has no keyboard" alike. Both are the shape
+    # the port replaced, and a regression to either is a refusal going quiet.
+    for forbidden in ("api.menu.add(", "api.input.key_held("):
+        if forbidden in highlighter:
+            errors.append(f"entity_highlighter.lua: raw verb whose refusal is silent: {forbidden}")
+
     if errors:
         for error in errors:
             print(f"lua API inventory: {error}", file=sys.stderr)

@@ -32,11 +32,30 @@ def run_lua_controls(src, out, make_args, selected):
         "hover_order":("tile_indicator.lua",[("function plugin.on_draw_world(api, draw)",
             "function plugin.on_draw_world(api, draw)\n  plugin_draw_player(api, draw)"),
             ("  plugin_draw_player(api, draw)\nend","end")],"hover uses picked level and draws first"),
-        "entity_slot":("entity_highlighter.lua",[("local id = math.floor(sel.tag / 2)",
+        "entity_slot":("entity_highlighter.lua",[("local id = math.floor(sel.tag / TAG_OPS)",
             "local id = api.world.npc_by_slot(7).base_npc_id")],
             "retained Tag must not retarget a recycled NPC slot"),
-        "entity_intent":("entity_highlighter.lua",[("tagged[id] = sel.tag % 2 == 1 or nil",
-            "tagged[id] = not tagged[id] or nil")],"retained Tag preserves its intended operation"),
+        "entity_intent":("entity_highlighter.lua",[
+            ("if sel.tag % TAG_OPS == OP_TAG then tag_add(api, id) else tag_remove(api, id) end",
+             "if not tagged[id] then tag_add(api, id) else tag_remove(api, id) end")],
+            "retained Tag preserves its intended operation"),
+        # The three the Porcelain port added. Each one is a refusal this plugin
+        # used to drop: a reveal key the lane cannot answer, a joined tag list
+        # past the store's ceiling, and the hover pass it must leave at once.
+        "entity_reveal":("entity_highlighter.lua",[
+            ("if not reveal_armed or not reveal_down then return end","if false then return end")],
+            "the rows are not offered while the reveal key is up"),
+        "entity_ceiling":("entity_highlighter.lua",[
+            ('if not api.porcelain.config_list_add("tags", tostring(id)) then return end',
+             'api.porcelain.config_list_add("tags", tostring(id))')],
+            "a value past the ceiling must never reach the store"),
+        "entity_hover":("entity_highlighter.lua",[("if menu.hover_pass then return end",
+            "if false then return end")],"the hover pass is left on the first statement"),
+        # The raw verb the layer replaced: menu.add answers false when the
+        # host-wide route table is full, and this plugin dropped that bool.
+        "entity_menu_verb":("entity_highlighter.lua",[("api.porcelain.menu_add(",
+            "api.menu.add(")],
+            "a Porcelain plugin adds rows through the layer, which reports a refusal"),
         "ground_origin":("ground_items.lua",[("local base_x, base_z = api.world.scene_origin()",
             "local base_x, base_z = nil, nil")],"mid-session enable while moving must immediately draw ground labels"),
         "ground_intent":("ground_items.lua",[("local value = list_set(api.config[key], name, false)",
