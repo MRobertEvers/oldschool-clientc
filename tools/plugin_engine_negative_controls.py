@@ -27,8 +27,8 @@ def run_lua_controls(src, out, make_args, selected):
             "sample_frames = sample_frames + 1")],"FPS must count rendered frames"),
         "work_window":("performance_display.lua",[("recent_total = recent_total - (recent[slot] or 0)",
             "recent_total = recent_total")],"frame time must exclude pacing sleep"),
-        "metric_visibility":("performance_display.lua",[("api.config[metric.visible] and text[metric.key] or \"\"",
-            "text[metric.key]")],"disabled metrics must disappear"),
+        "metric_visibility":("performance_display.lua",[("api.config[metric.visible] and wanted[metric.key] or \"\"",
+            "wanted[metric.key]")],"disabled metrics must disappear"),
         "hover_order":("tile_indicator.lua",[("function plugin.on_draw_world(api, draw)",
             "function plugin.on_draw_world(api, draw)\n  plugin_draw_player(api, draw)"),
             ("  plugin_draw_player(api, draw)\nend","end")],"hover uses picked level and draws first"),
@@ -65,10 +65,17 @@ def run_lua_controls(src, out, make_args, selected):
             "false")],"Unhide one item must preserve wildcard rules and unrelated data"),
         "beam_tick":("_beamprobe.lua",[("function plugin.on_logic_tick(api)",
             "function plugin.on_server_tick(api)")],"beam creation must use the common logic tick"),
-        "screenshot_report_hide":("screenshot.lua",[("assert(report:set_hidden(replace))",
-            "assert(report:set_hidden(false))")],"report-button mode hides only the native button presentation"),
-        "screenshot_corner_margin":("screenshot.lua",[("local x = where:find(\"right\") and box.width - width - MARGIN or MARGIN",
-            "local x = where:find(\"right\") and box.width - width or MARGIN")],"bottom-right corner keeps the margin"),
+        # The plugin no longer hides the native button: it asks for a REPLACE
+        # placement and the layer drops the target's paint and input. So the
+        # control that used to break the hide now breaks the placement KIND,
+        # which is the same property said in the vocabulary that owns it now.
+        "screenshot_report_hide":("screenshot.lua",[("{ kind = \"replace\", on = \"report_button\" }",
+            "{ kind = \"inside\", on = \"report_button\" }")],"the small camera stands in place of the report button through a REPLACE placement"),
+        # The corner arithmetic is the layer's now; what the plugin still owns
+        # is the inset it asks for. Zeroing it puts the camera hard against the
+        # viewport edge, which is what the margin exists to prevent.
+        "screenshot_corner_margin":("screenshot.lua",[("local MARGIN = 6",
+            "local MARGIN = 0")],"bottom-right corner keeps the margin"),
         "screenshot_delay":("screenshot.lua",[("shot.ticks_left = shot.ticks_left - 1",
             "shot.ticks_left = shot.ticks_left")],"level up captures after delay_ticks into its category folder"),
         "probe_labels":("_gicount.lua",[("local report = frames % 300 == 0",
