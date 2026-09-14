@@ -644,7 +644,9 @@ warn = nil
 ---@field count fun(family: string): integer How many members this LANE has. Never a picked number.
 ---@field set fun(key: string, motion: torirs.PorcelainMotion): boolean, torirs.ResultName The direct per-frame path.
 ---@field findings fun(): torirs.PorcelainFinding[]
----@field expect_absent fun(element: string, why: string) on_start only. Fails loudly in BOTH directions.
+---@field expect_absent fun(element: string, why: string) Legal at any time. Fails loudly in BOTH directions.
+---@field expect_unsupported fun(feature: string, why: string) Declare a lane limitation. One expected finding, and every later unsupported finding naming it is expected too.
+---@field note_key fun(key: integer, down: boolean) Forward this plugin's own on_key; key_edge takes the edge from it.
 ---@field has fun(capability: string): boolean
 ---@field require fun(capability: string, feature: string): boolean False turns the feature off and records one finding.
 ---@field tier fun(tiers: torirs.PorcelainTiers, value: integer): integer Strictly greater; a threshold at or below zero disables its tier.
@@ -654,12 +656,14 @@ warn = nil
 ---@field setting fun(varbit_name: string, inverted?: boolean): boolean Absent is OFF, with one finding across many reads.
 ---@field key_edge fun(config_key: string, fn: fun(down: boolean)): boolean False on a touch lane, with one finding.
 ---@field image fun(name: string): integer?, torirs.AssetStateName
+---@field image_size fun(name: string): integer?, integer The picture's own size, or nil while it is not READY.
 ---@field model fun(name: string): nil, torirs.AssetStateName A model handle has no Lua representation; the STATE is the answer.
 ---@field derived fun(key: string, inputs: string, width: integer, height: integer, paint: fun(w: integer, h: integer): integer[]?): integer?, torirs.PorcelainDerivedState
 ---@field when_ready fun(what: string, fn: fun(what: integer)) Comma-separated: game, world, stats, player, derived.
----@field every fun(cadence: torirs.PorcelainCadence, fn: fun())
+---@field every fun(cadence: torirs.PorcelainCadence, fn: fun(elapsed_ms: integer))
 ---@field every_server_tick fun(fn: fun()) Fires on EVERY lane; there is no synthesised cadence.
----@field every_ms fun(milliseconds: integer, fn: fun())
+---@field every_ms fun(milliseconds: integer, fn: fun(elapsed_ms: integer)) Re-registering the same handler RE-INTERVALS it; it does not append.
+---@field cancel_every fun(fn: fun()) Drop the timer registered for this handler.
 ---@field tick fun(cadence: torirs.PorcelainCadence) Forward this plugin's own tick callback.
 ---@field draw_context fun(element?: string): torirs.PorcelainDrawContext? The drawable rect of the pass now running, and an element's box on it.
 ---@field menu_add fun(text: string, action_id: integer): boolean menu.add, with the refusal recorded as a finding.

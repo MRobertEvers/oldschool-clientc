@@ -62,6 +62,8 @@ struct TestbedControl
     ToriRS_WidgetListener op;
     void* op_user;
     char text[128];
+    /** The picture last written to it, so a blank control is readable. */
+    struct ToriRS_ImageRef image;
 };
 
 struct TestbedAsset
@@ -75,6 +77,8 @@ struct TestbedAsset
     bool has_body;
     /** Still held by the plugin: a table that forgot to release shows here. */
     bool held;
+    /** The picture's own size, once it is READY. */
+    int width, height;
 };
 
 struct TestbedConfigRow
@@ -157,6 +161,8 @@ struct TestbedElement* Testbed_Element(char const* role);
 /* Assets ------------------------------------------------------------------ */
 
 void Testbed_DeclareAsset(char const* name, enum ToriRS_AssetState state);
+/** An image asset with a natural size behind it. */
+void Testbed_DeclareImage(char const* name, enum ToriRS_AssetState state, int width, int height);
 /** Land a pending asset, as the loader would. */
 void Testbed_LandAsset(char const* name);
 /** A shipped data file with bytes behind it. */

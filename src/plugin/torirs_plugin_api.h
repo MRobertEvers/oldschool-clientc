@@ -1152,7 +1152,19 @@ enum PorcelainPlacementKind
     PORCELAIN_BESIDE,
     PORCELAIN_AT_ELEMENT,
     PORCELAIN_AT_CANVAS,
-    PORCELAIN_AT_USABLE
+    PORCELAIN_AT_USABLE,
+    /*
+     * A CHILD of the element, in the element's own coordinates, with NO
+     * anchor.
+     *
+     * INSIDE makes a sibling under the target's parent and anchors it OVER,
+     * which REPLACE needs and a corner ornament does not. One live anchor is
+     * what makes UITree_FrameHasDepth true, and the ledger prices that at
+     * 13.5 ms a frame on osrs239 -- so a mode that cost no anchor before the
+     * layer existed must still cost none through it. Corner and offsets are
+     * read exactly as INSIDE reads them.
+     */
+    PORCELAIN_WITHIN
 };
 
 /** INSIDE corners. Carried in PorcelainPlacement::corner_or_side. */
@@ -1245,7 +1257,12 @@ enum PorcelainMotionMask
     PORCELAIN_MOTION_X = 1u << 0,
     PORCELAIN_MOTION_Y = 1u << 1,
     PORCELAIN_MOTION_OPACITY = 1u << 2,
-    PORCELAIN_MOTION_IMAGE = 1u << 3
+    PORCELAIN_MOTION_IMAGE = 1u << 3,
+    /** A per-frame readout is a STRING that changes every frame. Without
+     *  this the direct path could not carry one, and a frame counter had to
+     *  re-describe and invalidate to move a number. */
+    PORCELAIN_MOTION_TEXT = 1u << 4,
+    PORCELAIN_MOTION_RGB = 1u << 5
 };
 
 struct PorcelainMotion
@@ -1253,6 +1270,8 @@ struct PorcelainMotion
     int32_t x, y;
     int opacity;
     char const* image;
+    char const* text;
+    uint32_t rgb;
     /** Which fields above to read. @see PorcelainMotionMask */
     unsigned mask;
 };
@@ -1480,7 +1499,13 @@ enum PorcelainNativeOverlayState
 };
 
 typedef void (*PorcelainDescribeFn)(struct ToriRS_PorcelainDescribe* describe, void* user);
-typedef void (*PorcelainTickFn)(struct ToriRS_Api* api, void* user);
+/*
+ * `elapsed_ms` is the REAL time since this timer last fired, not the interval
+ * it asked for. A frames-per-second figure is drawn_delta * 1000 / elapsed,
+ * and a clock that assumed its nominal interval printed a number that was
+ * wrong by however much the frame budget slipped.
+ */
+typedef void (*PorcelainTickFn)(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms);
 typedef void (*PorcelainReadyFn)(struct ToriRS_Api* api, void* user, unsigned what);
 typedef void (*PorcelainEdgeFn)(struct ToriRS_Api* api, void* user, bool down);
 /** Fill `argb` (w*h pixels) and return true. False is a terminal FAILED. */
@@ -1585,9 +1610,19 @@ struct ToriRS_PorcelainApi
 
     /* ------------------------------------------------------------ findings */
     int (*findings)(struct Porcelain* porcelain, struct PorcelainFinding* out, int capacity);
-    /** on_start only, before the first describe. Bidirectional. */
+    /** Declare that this lane does not have `element`. Legal at any time --
+     *  the honest source is the element STATE, which is PENDING at on_start,
+     *  so a plugin that only wants to excuse a REAL absence must be able to
+     *  say so at the fence where the absence is first reported. Still
+     *  bidirectional: a declared-absent element that BINDS is a failure. */
     void (*expect_absent)(struct Porcelain* porcelain, struct PorcelainElement element,
                           char const* why);
+    /** Declare that `feature` cannot run on this lane. One expected finding,
+     *  and every later UNSUPPORTED finding naming that feature is expected
+     *  too -- which is what makes "declare rather than go quiet" reachable
+     *  for a limitation that is not an element absence known at on_start. */
+    void (*expect_unsupported)(struct Porcelain* porcelain, char const* feature,
+                               char const* why);
     bool (*has)(struct Porcelain* porcelain, char const* capability);
     /** False turns the feature off and records ONE finding naming it. */
     bool (*require)(struct Porcelain* porcelain, char const* capability, char const* feature);
@@ -1609,14 +1644,24 @@ struct ToriRS_PorcelainApi
     /** A named varbit read as a setting. Absent is OFF with ONE finding
      *  across many reads. @see PorcelainSettingFlags */
     bool (*setting)(struct Porcelain* porcelain, char const* varbit_name, unsigned flags);
-    /** A held-key edge named by a config key. ABSENT on a touch lane, with one
-     *  finding: the feature reports itself off instead of appearing to work. */
+    /** A key edge named by a config key, whose value may be a name, a decimal
+     *  key code or a single character. ABSENT on a touch lane, with one
+     *  finding: the feature reports itself off instead of appearing to work.
+     *  The edge comes from note_key, not from a fence poll -- a poll cannot
+     *  see a press that opens and closes inside one frame. */
     bool (*key_edge)(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
                      void* user);
+    /** The plugin forwarding its own on_key. */
+    void (*note_key)(struct Porcelain* porcelain, int key, bool down);
     /** Requested on first use, released after several unused describe runs.
      *  Terminal states are remembered and are one finding. */
     struct ToriRS_ImageRef (*image)(struct Porcelain* porcelain, char const* name,
                                     enum PorcelainAssetState* out_state);
+    /** The picture's own size, so an item can ask for it instead of reaching
+     *  past the layer to api->assets for the handle the layer just gave it.
+     *  False while the asset is not READY. */
+    bool (*image_size)(struct Porcelain* porcelain, char const* name, int* out_width,
+                       int* out_height);
     struct ToriRS_ModelRef (*model)(struct Porcelain* porcelain, char const* name,
                                     enum PorcelainAssetState* out_state);
     /** Painted at most once per (key, hash of inputs). Keys never include a
@@ -1633,7 +1678,12 @@ struct ToriRS_PorcelainApi
     /** == every(PORCELAIN_SERVER_TICK, ...). The server tick fires on every
      *  lane; there is no synthesised cadence. */
     void (*every_server_tick)(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
+    /** Re-registering the same (fn, user) RE-INTERVALS in place; it does not
+     *  append. A user dragging a refresh slider leaked a timer slot per
+     *  change and then hit the budget. */
     void (*every_ms)(struct Porcelain* porcelain, int ms, PorcelainTickFn fn, void* user);
+    /** Drop the timer registered for this (fn, user). */
+    void (*cancel_every)(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
     /** The plugin forwarding its own tick callback. FRAME fires from `fence`
      *  and needs no forwarding. */
     void (*tick)(struct Porcelain* porcelain, enum PorcelainCadence cadence);

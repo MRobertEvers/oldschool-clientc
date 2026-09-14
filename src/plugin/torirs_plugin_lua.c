@@ -1965,11 +1965,13 @@ lua_porcelain_op(struct ToriRS_Api* api, void* user, char const* key)
 }
 
 static void
-lua_porcelain_tick_cb(struct ToriRS_Api* api, void* user)
+lua_porcelain_tick_cb(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
 {
     struct LuaPorcelainCallback* slot = user;
     if( !lua_porcelain_begin(slot, api) ) return;
-    lua_porcelain_end(slot, api, 0, 0, "porcelain.every");
+    /* The REAL elapsed time, which is what a rate divides by. */
+    lua_pushinteger(slot->script->L, (lua_Integer)elapsed_ms);
+    lua_porcelain_end(slot, api, 1, 0, "porcelain.every");
 }
 
 static void
@@ -2389,6 +2391,18 @@ static int lua_porcelain_expect_absent(lua_State* L)
                                                  luaL_checkstring(L, 2));
     return 0;
 }
+static int lua_porcelain_expect_unsupported(lua_State* L)
+{
+    lua_current_api(L)->porcelain->expect_unsupported(lua_porcelain(L), luaL_checkstring(L, 1),
+                                                      luaL_checkstring(L, 2));
+    return 0;
+}
+static int lua_porcelain_note_key(lua_State* L)
+{
+    lua_current_api(L)->porcelain->note_key(lua_porcelain(L), (int)luaL_checkinteger(L, 1),
+                                            lua_toboolean(L, 2) != 0);
+    return 0;
+}
 static int lua_porcelain_has(lua_State* L)
 {
     lua_pushboolean(L, lua_current_api(L)->porcelain->has(lua_porcelain(L),
@@ -2597,6 +2611,16 @@ static int lua_porcelain_image(lua_State* L)
     lua_pushstring(L, lua_porcelain_asset_state_name(state));
     return 2;
 }
+static int lua_porcelain_image_size(lua_State* L)
+{
+    int width = 0, height = 0;
+    if( !lua_current_api(L)->porcelain->image_size(lua_porcelain(L), luaL_checkstring(L, 1),
+                                                   &width, &height) )
+    { lua_pushnil(L); return 1; }
+    lua_pushinteger(L, width);
+    lua_pushinteger(L, height);
+    return 2;
+}
 static int lua_porcelain_model(lua_State* L)
 {
     enum PorcelainAssetState state = PORCELAIN_ASSET_PENDING;
@@ -2667,6 +2691,25 @@ lua_porcelain_cadence_arg(lua_State* L, int index)
     if( strcmp(name, "frame") == 0 ) return PORCELAIN_FRAME;
     luaL_error(L, "unknown porcelain cadence '%s'", name);
     return PORCELAIN_FRAME;
+}
+static int lua_porcelain_cancel_every(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    /* The handler is identified by the slot the registration allocated, so a
+     * cancel names the same function the registration named. */
+    for( int i = 0; i < LUA_PORCELAIN_CALLBACK_MAX; i++ )
+    {
+        struct LuaPorcelainCallback* slot = &script->porcelain_callbacks[i];
+        if( !slot->used )
+            continue;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, slot->ref);
+        if( lua_rawequal(L, 1, -1) )
+            lua_current_api(L)->porcelain->cancel_every(lua_porcelain(L),
+                                                        lua_porcelain_tick_cb, slot);
+        lua_pop(L, 1);
+    }
+    return 0;
 }
 static int lua_porcelain_every(lua_State* L)
 {
@@ -2792,15 +2835,19 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"commit",lua_porcelain_commit},{"relinquish",lua_porcelain_relinquish},
     {"element",lua_porcelain_element},{"count",lua_porcelain_count},
     {"set",lua_porcelain_set},{"findings",lua_porcelain_findings},
-    {"expect_absent",lua_porcelain_expect_absent},{"has",lua_porcelain_has},
+    {"expect_absent",lua_porcelain_expect_absent},
+    {"expect_unsupported",lua_porcelain_expect_unsupported},
+    {"note_key",lua_porcelain_note_key},{"has",lua_porcelain_has},
     {"require",lua_porcelain_require},{"tier",lua_porcelain_tier},
     {"tiers_from_config",lua_porcelain_tiers_from_config},
     {"config_list_add",lua_porcelain_config_list_add},{"menu_tag",lua_porcelain_menu_tag},
     {"setting",lua_porcelain_setting},{"key_edge",lua_porcelain_key_edge},
-    {"image",lua_porcelain_image},{"model",lua_porcelain_model},
+    {"image",lua_porcelain_image},{"image_size",lua_porcelain_image_size},
+    {"model",lua_porcelain_model},
     {"derived",lua_porcelain_derived},{"when_ready",lua_porcelain_when_ready},
     {"every",lua_porcelain_every},{"every_server_tick",lua_porcelain_every_server_tick},
-    {"every_ms",lua_porcelain_every_ms},{"tick",lua_porcelain_tick},
+    {"every_ms",lua_porcelain_every_ms},{"cancel_every",lua_porcelain_cancel_every},
+    {"tick",lua_porcelain_tick},
     {"draw_context",lua_porcelain_draw_context},{"menu_add",lua_porcelain_menu_add},
     {"note_menu",lua_porcelain_note_menu},{"hover",lua_porcelain_hover},
     {"native_overlay",lua_porcelain_native_overlay},{"note_script",lua_porcelain_note_script},

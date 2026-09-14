@@ -276,6 +276,21 @@ porcelain_key_code(char const* name)
         return TORIRS_KEY_TAB;
     if( strcmp(name, "space") == 0 )
         return TORIRS_KEY_SPACE;
+    /*
+     * A key is a NUMBER, and the five names above are a convenience, not the
+     * vocabulary. A hotkey a user can rebind to any key was unreachable while
+     * this understood five strings and nothing else -- the shipped screenshot
+     * hotkey is an arbitrary code, so using this verb would have changed its
+     * behaviour and emitted an unexpected finding on every run.
+     */
+    {
+        char* end = NULL;
+        long const value = strtol(name, &end, 10);
+        if( end != name && *end == '\0' && value > 0 && value < (1 << 30) )
+            return (int)value;
+    }
+    if( name[1] == '\0' )
+        return (unsigned char)name[0];
     return -1;
 }
 
@@ -306,11 +321,71 @@ Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, Porcelain
         Porcelain_CopyString(watch->config_key, sizeof(watch->config_key), config_key);
         watch->fn = fn;
         watch->user = user;
+        watch->code = -1;
         return true;
     }
     Porcelain_RecordFinding(porcelain, "key_edge", PORCELAIN_ROLE_EL(config_key),
                             PORCELAIN_FINDING_BUDGET, "key edge table full");
     return false;
+}
+
+void
+Porcelain_NoteKey(struct Porcelain* porcelain, int key, bool down)
+{
+    assert(porcelain);
+
+    /*
+     * The EDGE, from the press. The fence used to poll input.key_held, which
+     * costs an engine call per watch per frame and cannot see a key that goes
+     * down and up inside one frame -- so a tap was a hotkey that sometimes
+     * did nothing.
+     */
+    for( int i = 0; i < PORCELAIN_KEY_EDGES_MAX; i++ )
+    {
+        struct PorcelainKeyEdgeWatch* watch = &porcelain->key_edges[i];
+        if( !watch->used || watch->code < 0 || watch->code != key )
+            continue;
+        if( down == watch->down )
+            continue;
+        watch->down = down;
+        watch->fn(porcelain->api, watch->user, down);
+    }
+}
+
+/*
+ * A limitation this lane has, said out loud.
+ *
+ * Every UNSUPPORTED finding was expected=0, so a plugin that declared a real
+ * lane limitation FAILED the clean gate for declaring it, and going quiet was
+ * the only way to pass. The declaration is itself one expected finding -- the
+ * point is that the limitation is visible -- and it marks every later
+ * UNSUPPORTED finding that names the same feature, whichever route recorded
+ * it.
+ */
+void
+Porcelain_ExpectUnsupported(struct Porcelain* porcelain, char const* feature, char const* why)
+{
+    assert(porcelain);
+    assert(feature);
+    assert(why);
+
+    for( int i = 0; i < PORCELAIN_EXPECT_UNSUPPORTED_MAX; i++ )
+    {
+        struct PorcelainExpectUnsupported* slot = &porcelain->expect_unsupported[i];
+        if( slot->used && strcmp(slot->feature, feature) == 0 )
+            return;
+        if( slot->used )
+            continue;
+        memset(slot, 0, sizeof(*slot));
+        slot->used = true;
+        Porcelain_CopyString(slot->feature, sizeof(slot->feature), feature);
+        Porcelain_CopyString(slot->why, sizeof(slot->why), why);
+        Porcelain_RecordFinding(porcelain, "unsupported", PORCELAIN_ROLE_EL(feature),
+                                PORCELAIN_FINDING_UNSUPPORTED, feature);
+        return;
+    }
+    Porcelain_RecordFinding(porcelain, "expect_unsupported", PORCELAIN_ROLE_EL(feature),
+                            PORCELAIN_FINDING_BUDGET, "declaration table full");
 }
 
 /* ------------------------------------------------------------------------ */
@@ -410,6 +485,42 @@ Porcelain_Image(struct Porcelain* porcelain, char const* name, enum PorcelainAss
                                     &free_slot->terminal_reported);
     *out_state = free_slot->state;
     return free_slot->ref;
+}
+
+/*
+ * The picture's own size.
+ *
+ * A control that wants to be as big as its picture had to reach past this
+ * layer to api->assets.image_size, on the handle this layer had just handed
+ * it -- the one call that kept the shipped screenshot port's api.assets count
+ * off zero. The size is only knowable once the asset is READY, so this
+ * answers false until then and the item falls back to what it was given.
+ */
+bool
+Porcelain_ImageSize(struct Porcelain* porcelain, char const* name, int* out_width,
+                    int* out_height)
+{
+    enum PorcelainAssetState state = PORCELAIN_ASSET_READY;
+    struct ToriRS_ImageRef ref;
+
+    assert(porcelain);
+    assert(name);
+    assert(out_width);
+    assert(out_height);
+
+    *out_width = 0;
+    *out_height = 0;
+    ref = Porcelain_Image(porcelain, name, &state);
+    if( state != PORCELAIN_ASSET_READY )
+        return false;
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->assets.image_size(porcelain->api, ref, out_width, out_height) )
+    {
+        *out_width = 0;
+        *out_height = 0;
+        return false;
+    }
+    return true;
 }
 
 struct ToriRS_ModelRef
@@ -641,27 +752,66 @@ Porcelain_WhenReady(struct Porcelain* porcelain, unsigned what, PorcelainReadyFn
                             "ready table full");
 }
 
+/*
+ * A timer is identified by its (fn, user), and registering the same pair
+ * again re-states it in place.
+ *
+ * The table is fixed at PORCELAIN_TIMERS_MAX, and an append-only
+ * registration meant a user dragging a refresh-interval slider leaked a slot
+ * per change -- sixteen drags and the readout stopped, with a budget finding
+ * to explain it.
+ */
+static struct PorcelainTimer*
+porcelain_timer_slot(struct Porcelain* porcelain, PorcelainTickFn fn, void* user,
+                     char const* verb)
+{
+    struct PorcelainTimer* free_slot = NULL;
+
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    {
+        struct PorcelainTimer* timer = &porcelain->timers[i];
+        if( timer->used && timer->fn == fn && timer->user == user )
+            return timer;
+        if( !timer->used && !free_slot )
+            free_slot = timer;
+    }
+    if( free_slot )
+        return free_slot;
+    Porcelain_RecordFinding(porcelain, verb, PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
+                            "timer table full");
+    return NULL;
+}
+
 void
 Porcelain_Every(struct Porcelain* porcelain, enum PorcelainCadence cadence, PorcelainTickFn fn,
                 void* user)
 {
+    struct PorcelainTimer* timer;
+
     assert(porcelain);
     assert(fn);
     assert(cadence >= 0 && cadence < PORCELAIN_CADENCE_COUNT);
+    timer = porcelain_timer_slot(porcelain, fn, user, "every");
+    if( !timer )
+        return;
+    memset(timer, 0, sizeof(*timer));
+    timer->used = true;
+    timer->cadence = cadence;
+    timer->fn = fn;
+    timer->user = user;
+}
+
+void
+Porcelain_CancelEvery(struct Porcelain* porcelain, PorcelainTickFn fn, void* user)
+{
+    assert(porcelain);
+    assert(fn);
     for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
     {
         struct PorcelainTimer* timer = &porcelain->timers[i];
-        if( timer->used )
-            continue;
-        memset(timer, 0, sizeof(*timer));
-        timer->used = true;
-        timer->cadence = cadence;
-        timer->fn = fn;
-        timer->user = user;
-        return;
+        if( timer->used && timer->fn == fn && timer->user == user )
+            memset(timer, 0, sizeof(*timer));
     }
-    Porcelain_RecordFinding(porcelain, "every", PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
-                            "timer table full");
 }
 
 void
@@ -676,24 +826,29 @@ Porcelain_EveryServerTick(struct Porcelain* porcelain, PorcelainTickFn fn, void*
 void
 Porcelain_EveryMs(struct Porcelain* porcelain, int milliseconds, PorcelainTickFn fn, void* user)
 {
+    struct PorcelainTimer* timer;
+
     assert(porcelain);
     assert(fn);
     assert(milliseconds > 0);
-    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    timer = porcelain_timer_slot(porcelain, fn, user, "every_ms");
+    if( !timer )
+        return;
+    if( timer->used && timer->is_ms )
     {
-        struct PorcelainTimer* timer = &porcelain->timers[i];
-        if( timer->used )
-            continue;
-        memset(timer, 0, sizeof(*timer));
-        timer->used = true;
-        timer->is_ms = true;
+        /* A re-interval, not a second timer. The next due time moves with it
+         * so a slider dragged shorter takes effect now rather than after the
+         * old interval has run out. */
         timer->milliseconds = milliseconds;
-        timer->fn = fn;
-        timer->user = user;
+        timer->next_due_ms = timer->last_fired_ms + (uint64_t)milliseconds;
         return;
     }
-    Porcelain_RecordFinding(porcelain, "every_ms", PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
-                            "timer table full");
+    memset(timer, 0, sizeof(*timer));
+    timer->used = true;
+    timer->is_ms = true;
+    timer->milliseconds = milliseconds;
+    timer->fn = fn;
+    timer->user = user;
 }
 
 void
@@ -706,7 +861,7 @@ Porcelain_Tick(struct Porcelain* porcelain, enum PorcelainCadence cadence)
         struct PorcelainTimer* timer = &porcelain->timers[i];
         if( !timer->used || timer->is_ms || timer->cadence != cadence )
             continue;
-        timer->fn(porcelain->api, timer->user);
+        timer->fn(porcelain->api, timer->user, 0);
     }
 }
 
@@ -1269,47 +1424,55 @@ Porcelain_HelpersFence(struct Porcelain* porcelain)
             continue;
         if( timer->is_ms )
         {
+            uint64_t elapsed;
             if( now_ms < timer->next_due_ms )
                 continue;
+            /* The REAL elapsed time, not the interval that was asked for: a
+             * frames-per-second figure divides by this, and a clock that
+             * assumed its nominal interval printed a number that was wrong by
+             * however much the frame budget slipped. */
+            elapsed = timer->last_fired_ms ? now_ms - timer->last_fired_ms
+                                           : (uint64_t)timer->milliseconds;
+            timer->last_fired_ms = now_ms;
             timer->next_due_ms = now_ms + (uint64_t)timer->milliseconds;
-            timer->fn(porcelain->api, timer->user);
+            timer->fn(porcelain->api, timer->user, elapsed);
         }
         else if( timer->cadence == PORCELAIN_FRAME )
         {
-            timer->fn(porcelain->api, timer->user);
+            timer->fn(porcelain->api, timer->user, 0);
         }
     }
 
-    /* 4. Key edges. */
+    /* 4. Key bindings. The BINDING is re-read here so a rebind takes effect
+     *    without a reload; the edge itself arrives through Porcelain_NoteKey,
+     *    because a fence poll cannot see a press that opens and closes inside
+     *    one frame and costs an engine call per watch per frame to miss it. */
     for( int i = 0; i < PORCELAIN_KEY_EDGES_MAX; i++ )
     {
         struct PorcelainKeyEdgeWatch* watch = &porcelain->key_edges[i];
         char const* name = NULL;
         int code;
-        bool down;
         if( !watch->used )
             continue;
         porcelain->counters.engine_calls++;
         if( !porcelain->api->config.get_string(porcelain->api, watch->config_key, &name) )
             name = NULL;
         code = porcelain_key_code(name);
-        if( code < 0 )
+        if( code != watch->code && watch->down )
         {
-            if( !watch->absent_reported )
-            {
-                watch->absent_reported = true;
-                Porcelain_RecordFinding(porcelain, "key_edge",
-                                        PORCELAIN_ROLE_EL(watch->config_key),
-                                        PORCELAIN_FINDING_ABSENT, name ? name : "off");
-            }
-            continue;
+            /* The old binding cannot stay down through a rebind. */
+            watch->down = false;
+            watch->fn(porcelain->api, watch->user, false);
         }
-        porcelain->counters.engine_calls++;
-        down = porcelain->api->input.key_held(porcelain->api, code);
-        if( down == watch->down )
+        watch->code = code;
+        if( code >= 0 )
             continue;
-        watch->down = down;
-        watch->fn(porcelain->api, watch->user, down);
+        if( !watch->absent_reported )
+        {
+            watch->absent_reported = true;
+            Porcelain_RecordFinding(porcelain, "key_edge", PORCELAIN_ROLE_EL(watch->config_key),
+                                    PORCELAIN_FINDING_ABSENT, name ? name : "off");
+        }
     }
 
     /* 5. Readiness. Fires once when every named bit holds, and again after a

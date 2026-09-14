@@ -50,6 +50,8 @@ extern "C" {
 #define PORCELAIN_NOTIFY_MAX 16
 /** Native label widgets one overlay latch suppresses. @see find_all */
 #define PORCELAIN_OVERLAY_LABELS_MAX 32
+/** Lane limitations one plugin declares. @see Porcelain_ExpectUnsupported */
+#define PORCELAIN_EXPECT_UNSUPPORTED_MAX 8
 
 /*
  * `ToriRS_MenuRow::pick_kind` for a container cell -- the engine's
@@ -143,6 +145,8 @@ enum ToriRS_Result Porcelain_Set(struct Porcelain* porcelain, char const* key,
 int Porcelain_Findings(struct Porcelain* porcelain, struct PorcelainFinding* out, int capacity);
 void Porcelain_ExpectAbsent(struct Porcelain* porcelain, struct PorcelainElement element,
                             char const* why);
+void Porcelain_ExpectUnsupported(struct Porcelain* porcelain, char const* feature,
+                                 char const* why);
 bool Porcelain_Has(struct Porcelain* porcelain, char const* capability);
 bool Porcelain_Require(struct Porcelain* porcelain, char const* capability, char const* feature);
 
@@ -153,8 +157,11 @@ uint32_t Porcelain_MenuTag(int subject, int op);
 bool Porcelain_Setting(struct Porcelain* porcelain, char const* varbit_name, unsigned flags);
 bool Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
                        void* user);
+void Porcelain_NoteKey(struct Porcelain* porcelain, int key, bool down);
 struct ToriRS_ImageRef Porcelain_Image(struct Porcelain* porcelain, char const* name,
                                        enum PorcelainAssetState* out_state);
+bool Porcelain_ImageSize(struct Porcelain* porcelain, char const* name, int* out_width,
+                         int* out_height);
 struct ToriRS_ModelRef Porcelain_Model(struct Porcelain* porcelain, char const* name,
                                        enum PorcelainAssetState* out_state);
 struct ToriRS_ImageRef Porcelain_Derived(struct Porcelain* porcelain, char const* key,
@@ -168,6 +175,7 @@ void Porcelain_Every(struct Porcelain* porcelain, enum PorcelainCadence cadence,
 void Porcelain_EveryServerTick(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
 void Porcelain_EveryMs(struct Porcelain* porcelain, int milliseconds, PorcelainTickFn fn,
                        void* user);
+void Porcelain_CancelEvery(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
 void Porcelain_Tick(struct Porcelain* porcelain, enum PorcelainCadence cadence);
 
 /* The overlay verbs. An overlay plugin draws, adds menu rows, follows the

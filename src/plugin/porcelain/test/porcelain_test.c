@@ -1195,14 +1195,46 @@ test_key_edge(void)
           "a desktop lane arms the edge");
     fence(porcelain);
     CHECK(edges == 0, "nothing fires while the key is up");
-    g_testbed.key_held = TORIRS_KEY_SHIFT;
-    fence(porcelain);
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, true);
     CHECK(edges == 1, "the press is one edge");
-    fence(porcelain);
-    CHECK(edges == 1, "and holding it is not a second");
-    g_testbed.key_held = 0;
-    fence(porcelain);
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, true);
+    CHECK(edges == 1, "and a repeat of the same press is not a second");
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, false);
     CHECK(edges == 101, "the release is the other edge");
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_ESCAPE, true);
+    CHECK(edges == 101, "and a key this binding does not name is not an edge");
+
+    /*
+     * A press that opens and closes inside one frame IS two edges. The fence
+     * poll this replaced could not see one at all: it sampled key_held once a
+     * frame, so a tap was a hotkey that sometimes did nothing.
+     *
+     * MUTATION: drop the code!=key test in Porcelain_NoteKey. Red: every key
+     * drives every binding.
+     */
+    edges = 0;
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, true);
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, false);
+    CHECK(edges == 101, "a press and release inside one frame is both edges");
+    Porcelain_Close(porcelain);
+
+    /*
+     * A key is a NUMBER; the five names are a convenience. A hotkey a user
+     * can rebind to any key was unreachable while this understood five
+     * strings and nothing else.
+     *
+     * MUTATION: delete the strtol arm in porcelain_key_code. Red: a numeric
+     * binding reads as "off" and reports itself absent.
+     */
+    Testbed_Reset();
+    Testbed_SetConfigString("reveal_key", "119");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    edges = 0;
+    CHECK(Porcelain_KeyEdge(porcelain, "reveal_key", edge_seen, &edges),
+          "a numeric binding arms");
+    fence(porcelain);
+    Porcelain_NoteKey(porcelain, 119, true);
+    CHECK(edges == 1, "and takes the edge for that code");
     Porcelain_Close(porcelain);
 
     Testbed_Reset();
@@ -2014,6 +2046,457 @@ test_notify_coalesces_per_subject(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* The gaps two ports found                                                 */
+/* ------------------------------------------------------------------------ */
+
+static void
+late_image_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    memset(&item, 0, sizeof(item));
+    item.key = "camera";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_REPLACE;
+    item.place.on = PORCELAIN_EL(REPORT_BUTTON);
+    item.w = 20;
+    item.h = 20;
+    describe->control(describe, &item);
+}
+
+/*
+ * A picture that was not ready when the control was made still arrives.
+ *
+ * The property pass resolves an image only when the item is fresh or the NAME
+ * changed, and an asset landing changes neither -- so the control kept the
+ * blank it was created with for the whole session, and both the reference
+ * plugin here and the shipped screenshot port worked round it by refusing to
+ * describe at all until the asset was READY. Every port would have hit it.
+ *
+ * MUTATION: delete the porcelain_refresh_image call in the reconcile. Red:
+ * the picture never reaches the control.
+ */
+static void
+test_a_late_picture_still_arrives(void)
+{
+    struct Porcelain* porcelain;
+    struct TestbedControl const* camera;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("report_button", 400, 470, 60, 20);
+    Testbed_BindElement("report_button");
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_PENDING);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, late_image_describe, NULL);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->live, "the control exists while its picture is still loading");
+
+    Testbed_LandAsset("camera.png");
+    fence(porcelain);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->live, "and it is still there once the asset lands");
+    CHECK(Testbed_LogCountWith("set_image camera") >= 1, "with the picture written to it");
+    CHECK(camera->image.value != 0, "so the control is not blank for ever");
+
+    /* And the settled description still costs nothing: a picture that has
+     * landed is never re-asked. */
+    Porcelain_CountersReset(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    {
+        struct PorcelainCounters counters;
+        Porcelain_CountersRead(porcelain, &counters);
+        CHECK(counters.setters == 0, "a landed picture is not re-written every fence");
+    }
+    Porcelain_Close(porcelain);
+}
+
+static int g_natural_w;
+static int g_natural_h;
+
+static void
+natural_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    memset(&item, 0, sizeof(item));
+    item.key = "camera";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_REPLACE;
+    item.place.on = PORCELAIN_EL(REPORT_BUTTON);
+    item.w = g_natural_w;
+    item.h = g_natural_h;
+    describe->control(describe, &item);
+}
+
+/*
+ * Zero width is the PICTURE's size, which is what the field is documented to
+ * mean. It used to read the TARGET's, so a w=0 camera over an 80x22 report
+ * button was stretched to 80x22 -- and the only way round it was to ask
+ * api->assets for the size of the handle this layer had just handed out.
+ *
+ * MUTATION: drop the Porcelain_ImageSize arm in porcelain_place_box. Red: the
+ * control takes the report button's size.
+ */
+static void
+test_zero_size_is_the_pictures_own(void)
+{
+    struct Porcelain* porcelain;
+    struct TestbedControl const* camera;
+    int width = 0;
+    int height = 0;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("report_button", 400, 470, 80, 22);
+    Testbed_BindElement("report_button");
+    Testbed_DeclareImage("camera.png", TORIRS_ASSET_READY, 26, 23);
+    g_natural_w = 0;
+    g_natural_h = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, natural_describe, NULL);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->width == 26 && camera->height == 23,
+          "a stated size of zero takes the picture's own");
+    CHECK(Porcelain_ImageSize(porcelain, "camera.png", &width, &height),
+          "and the size is askable without reaching past the layer");
+    CHECK(width == 26 && height == 23, "at the same numbers");
+    Porcelain_Close(porcelain);
+
+    /* An explicit size still wins, and a control with no picture still falls
+     * back to what it stands in for. */
+    Testbed_Reset();
+    Testbed_DeclareElement("report_button", 400, 470, 80, 22);
+    Testbed_BindElement("report_button");
+    Testbed_DeclareImage("camera.png", TORIRS_ASSET_READY, 26, 23);
+    g_natural_w = 40;
+    g_natural_h = 40;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, natural_describe, NULL);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->width == 40, "a stated size is still the stated size");
+    Porcelain_Close(porcelain);
+}
+
+static void
+absent_report_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainElementState state;
+    struct PorcelainItem item;
+
+    (void)user;
+    /* Something of this lane's interface HAS resolved: until one element
+     * does, nothing is absent, only early. */
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(CHAT_BAR), &state);
+    if( !Porcelain_Element(describe->porcelain, PORCELAIN_EL(REPORT_BUTTON), &state) )
+        return;
+    memset(&item, 0, sizeof(item));
+    item.key = "camera";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_REPLACE;
+    item.place.on = PORCELAIN_EL(REPORT_BUTTON);
+    item.w = 20;
+    item.h = 20;
+    describe->control(describe, &item);
+}
+
+/*
+ * A lane limitation can be declared where it is FOUND.
+ *
+ * ExpectAbsent was on_start-only, but at on_start every element is PENDING --
+ * so the only declaration a plugin could make was an unconditional one, and
+ * an unconditional declaration failed every lane that HAS the element with
+ * ABSENT_UNEXPECTEDLY_PRESENT. The shipped screenshot port could not call it
+ * at all. Declaring at the fence re-labels the absence already reported.
+ *
+ * MUTATION: delete the porcelain_relabel_absence call. Red: the absence stays
+ * an unexpected finding and the clean gate still fails.
+ */
+static void
+test_an_absence_can_be_declared_when_it_is_found(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    struct PorcelainElementState state;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("chat_bar", 0, 460, 500, 22);
+    Testbed_BindElement("chat_bar");
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, absent_report_describe, NULL);
+    fence(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(!Porcelain_Element(porcelain, PORCELAIN_EL(REPORT_BUTTON), &state),
+          "this lane has no report button");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "and says so, once");
+    CHECK(!findings[0].expected, "unexpected until the plugin declares it");
+
+    Porcelain_ExpectAbsent(porcelain, PORCELAIN_EL(REPORT_BUTTON), "no report button here");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "the declaration adds no finding");
+    CHECK(findings[0].expected, "it marks the one already recorded");
+    CHECK(findings[0].result == PORCELAIN_FINDING_ABSENT_EXPECTED, "as a declared absence");
+    Porcelain_Close(porcelain);
+
+    /* The other direction still bites: a declaration on a lane that HAS the
+     * element is a stale declaration, and stays loud. */
+    Testbed_Reset();
+    Testbed_DeclareElement("report_button", 400, 470, 60, 20);
+    Testbed_BindElement("report_button");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_ExpectAbsent(porcelain, PORCELAIN_EL(REPORT_BUTTON), "stale");
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(REPORT_BUTTON), &state);
+    fence(porcelain);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "a stale declaration is a finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_ABSENT_UNEXPECTEDLY_PRESENT,
+          "and it fails loudly");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A declared limitation that is not an element absence.
+ *
+ * Every UNSUPPORTED finding was expected=0, so a plugin that honestly said
+ * "this lane cannot measure a string" FAILED the clean gate for saying it,
+ * and going quiet was the only way to pass. Two ports hit this independently.
+ *
+ * MUTATION: drop the porcelain_expected_unsupported arm in
+ * Porcelain_RecordFinding. Red: the declared limitation is unexpected.
+ */
+static void
+test_a_limitation_can_be_declared(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    int count;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_ExpectUnsupported(porcelain, "text measure", "no verb measures a string");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 1, "the declaration is itself one finding -- the point is that it shows");
+    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "an unsupported feature");
+    CHECK(findings[0].expected, "and it is expected, so the clean gate still passes");
+
+    /* And it covers a later refusal through a different route: Require
+     * records verb=require, the describe builder records verb=unsupported,
+     * and both carry the feature name as the detail. */
+    CHECK(!Porcelain_Require(porcelain, "text_measure_cap", "text measure"),
+          "a capability this lane does not answer still turns the feature off");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 2, "with its own finding");
+    for( int i = 0; i < count; i++ )
+        CHECK(findings[i].expected, "and every one of them is declared");
+    Porcelain_Close(porcelain);
+}
+
+static void
+within_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    memset(&item, 0, sizeof(item));
+    item.key = "corner";
+    item.image = "camera.png";
+    item.place.kind = *(int*)user ? PORCELAIN_WITHIN : PORCELAIN_INSIDE;
+    item.place.on = PORCELAIN_EL(VIEWPORT);
+    item.place.corner_or_side = PORCELAIN_BOTTOM_RIGHT;
+    item.place.dx = 4;
+    item.place.dy = 4;
+    item.w = 20;
+    item.h = 20;
+    describe->control(describe, &item);
+}
+
+/*
+ * WITHIN is a child of the element with NO anchor.
+ *
+ * INSIDE makes a sibling under the target's parent and anchors it OVER, which
+ * REPLACE needs and a corner ornament does not. One live anchor is what makes
+ * UITree_FrameHasDepth true, and the ledger prices that at 13.5 ms a frame on
+ * osrs239 -- so a corner camera that cost no anchor before the layer existed
+ * paid one for going through it.
+ *
+ * MUTATION: delete the WITHIN arm in porcelain_apply_anchor. Red: the child
+ * takes an anchor.
+ */
+static void
+test_within_is_a_child_with_no_anchor(void)
+{
+    struct Porcelain* porcelain;
+    struct TestbedControl const* corner;
+    int within;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    within = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, within_describe, &within);
+    fence(porcelain);
+    corner = Testbed_Control("corner");
+    CHECK(corner && corner->live, "INSIDE places a corner ornament");
+    CHECK(Testbed_LogCountWith("set_anchor corner") == 1, "and pays an anchor for it");
+    CHECK(corner->x == 4 + 512 - 20 - 4, "in the target's PARENT's coordinates");
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    within = 1;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, within_describe, &within);
+    fence(porcelain);
+    corner = Testbed_Control("corner");
+    CHECK(corner && corner->live, "WITHIN places the same ornament");
+    CHECK(Testbed_LogCountWith("set_anchor corner") == 0, "and pays NO anchor");
+    CHECK(ToriRS_WidgetRefEqual(corner->parent, Testbed_Element("viewport")->ref),
+          "because the element itself is the parent");
+    CHECK(corner->x == 512 - 20 - 4, "so its coordinates are the element's own");
+    Porcelain_Close(porcelain);
+}
+
+static void
+readout_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    memset(&item, 0, sizeof(item));
+    item.key = "fps";
+    item.place.kind = PORCELAIN_INSIDE;
+    item.place.on = PORCELAIN_EL(VIEWPORT);
+    item.place.corner_or_side = PORCELAIN_TOP_LEFT;
+    item.w = 60;
+    item.h = 14;
+    item.text = "--";
+    item.rgb = 0xffff00u;
+    describe->text(describe, &item);
+}
+
+/*
+ * The direct path carries a STRING.
+ *
+ * A per-frame readout IS a string that changes every frame, and the motion
+ * struct carried x, y, opacity and an image -- so moving a number meant
+ * describing and invalidating, a whole reconcile pass to write four
+ * characters.
+ *
+ * MUTATION: delete the PORCELAIN_MOTION_TEXT arm in Porcelain_Set. Red: the
+ * text never moves.
+ */
+static void
+test_the_direct_path_carries_text(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainMotion motion;
+    struct TestbedControl const* fps;
+    struct PorcelainCounters counters;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, readout_describe, NULL);
+    fence(porcelain);
+    fps = Testbed_Control("fps");
+    CHECK(fps && strcmp(fps->text, "--") == 0, "the described readout starts at its placeholder");
+
+    memset(&motion, 0, sizeof(motion));
+    motion.mask = PORCELAIN_MOTION_TEXT | PORCELAIN_MOTION_RGB;
+    motion.text = "61 fps";
+    motion.rgb = 0x00ff00u;
+    CHECK(Porcelain_Set(porcelain, "fps", &motion) == TORIRS_RESULT_OK, "the direct path takes it");
+    fps = Testbed_Control("fps");
+    CHECK(strcmp(fps->text, "61 fps") == 0, "and the string reaches the control");
+
+    /* The same string twice is not a second setter, and the next fence does
+     * not undo it: the applied item carries what the direct path wrote. */
+    Porcelain_CountersReset(porcelain);
+    CHECK(Porcelain_Set(porcelain, "fps", &motion) == TORIRS_RESULT_OK, "restating is legal");
+    fence(porcelain);
+    Porcelain_CountersRead(porcelain, &counters);
+    CHECK(counters.setters == 0, "and costs nothing");
+    CHECK(strcmp(Testbed_Control("fps")->text, "61 fps") == 0,
+          "and the fence does not put the placeholder back");
+    Porcelain_Close(porcelain);
+}
+
+static int g_ticks;
+static uint64_t g_last_elapsed;
+
+static void
+fps_tick(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
+{
+    (void)api;
+    (void)user;
+    g_ticks++;
+    g_last_elapsed = elapsed_ms;
+}
+
+/*
+ * A clock says how long it has actually been, and re-registering it does not
+ * leak a slot.
+ *
+ * A frames-per-second figure is drawn_delta * 1000 / elapsed; a clock that
+ * assumed its nominal interval printed a number wrong by however much the
+ * frame budget slipped. And registration was append-only into a sixteen-slot
+ * table, so a user dragging a refresh-interval slider leaked a slot per
+ * change and then stopped the readout with a budget finding.
+ *
+ * MUTATION: pass timer->milliseconds instead of the measured elapsed. Red:
+ * the tick is told 500 when 900 ms passed.
+ * MUTATION: make porcelain_timer_slot always take a free slot. Red: the
+ * re-interval is a second timer and the table fills.
+ */
+static void
+test_a_clock_is_measured_and_re_intervalled(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[4];
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    g_ticks = 0;
+    g_last_elapsed = 0;
+    Porcelain_EveryMs(porcelain, 500, fps_tick, NULL);
+    g_testbed.frame_ms = 1000;
+    fence(porcelain);
+    CHECK(g_ticks == 1, "the first due tick fires");
+    CHECK(g_last_elapsed == 500, "and is told its interval, having no earlier firing to measure");
+
+    /* The frame budget slipped: 900 ms passed, not the 500 that was asked
+     * for, and a rate that divided by 500 would be almost double. */
+    g_testbed.frame_ms = 1900;
+    fence(porcelain);
+    CHECK(g_ticks == 2, "the next due tick fires");
+    CHECK(g_last_elapsed == 900, "and is told the REAL elapsed time, not the interval");
+
+    /* Seventeen re-registrations into a sixteen-slot table. */
+    for( int i = 0; i < 17; i++ )
+        Porcelain_EveryMs(porcelain, 100 + i, fps_tick, NULL);
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 0,
+          "re-registering the same handler re-intervals it rather than leaking a slot");
+    g_testbed.frame_ms = 3000;
+    fence(porcelain);
+    CHECK(g_ticks == 3, "and there is still exactly one timer");
+
+    Porcelain_CancelEvery(porcelain, fps_tick, NULL);
+    g_testbed.frame_ms = 9000;
+    fence(porcelain);
+    CHECK(g_ticks == 3, "a cancelled clock stops");
+    Porcelain_Close(porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
 
 int
 main(void)
@@ -2054,6 +2537,13 @@ main(void)
     test_native_overlay_latch();
     test_table_is_read_once();
     test_notify_coalesces_per_subject();
+    test_a_late_picture_still_arrives();
+    test_zero_size_is_the_pictures_own();
+    test_an_absence_can_be_declared_when_it_is_found();
+    test_a_limitation_can_be_declared();
+    test_within_is_a_child_with_no_anchor();
+    test_the_direct_path_carries_text();
+    test_a_clock_is_measured_and_re_intervalled();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

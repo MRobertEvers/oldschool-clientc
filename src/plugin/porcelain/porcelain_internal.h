@@ -108,6 +108,11 @@ struct PorcelainAppliedItem
     int32_t live_x, live_y;
     int32_t live_w, live_h;
     struct ToriRS_ImageRef image_ref;
+    /* The state that ref came back with. A PENDING asset resolves to a zero
+     * ref, and nothing in the property pass would ever ask again: the name
+     * did not change and the hash did not change, so the control kept the
+     * blank it was created with for the rest of the session. */
+    enum PorcelainAssetState image_state;
     /* The picture changed but has not reached the engine yet. An owned image
      * control takes its picture AND its box through one set_image, so the two
      * are written together or the fresh control pays two calls: one with a
@@ -170,6 +175,15 @@ struct PorcelainExpectAbsent
     bool reported_present;
 };
 
+/** A declared lane limitation, matched against an UNSUPPORTED finding's
+ *  DETAIL -- which is the feature name on every route that records one. */
+struct PorcelainExpectUnsupported
+{
+    bool used;
+    char feature[PORCELAIN_DETAIL_MAX];
+    char why[PORCELAIN_DETAIL_MAX];
+};
+
 /* ---------------------------------------------------------------- assets */
 
 struct PorcelainImageSlot
@@ -204,6 +218,11 @@ struct PorcelainDerivedSlot
 
 /* ----------------------------------------------------- cadence, readiness */
 
+/*
+ * One timer, keyed on (fn, user). Registering the same pair again re-intervals
+ * it in place: the table is fixed at PORCELAIN_TIMERS_MAX and an append-only
+ * registration leaked a slot every time a user moved a refresh slider.
+ */
 struct PorcelainTimer
 {
     bool used;
@@ -212,6 +231,8 @@ struct PorcelainTimer
     enum PorcelainCadence cadence;
     bool is_ms;
     uint64_t next_due_ms;
+    /** When it last fired, so the callback is told the REAL elapsed time. */
+    uint64_t last_fired_ms;
     PorcelainTickFn fn;
     void* user;
 };
@@ -233,6 +254,9 @@ struct PorcelainKeyEdgeWatch
     void* user;
     bool down;
     bool absent_reported;
+    /** The code the config value last resolved to, re-read at the fence so a
+     *  rebind takes effect without a reload. -1 is "no key bound". */
+    int code;
 };
 
 /* ------------------------------------------------------------- overlays */
@@ -324,6 +348,7 @@ struct Porcelain
 
     struct PorcelainFindingSlot findings[PORCELAIN_FINDINGS_MAX];
     struct PorcelainExpectAbsent expects[PORCELAIN_EXPECT_MAX];
+    struct PorcelainExpectUnsupported expect_unsupported[PORCELAIN_EXPECT_UNSUPPORTED_MAX];
 
     struct PorcelainImageSlot images[PORCELAIN_IMAGES_MAX];
     struct PorcelainModelSlot models[PORCELAIN_MODELS_MAX];

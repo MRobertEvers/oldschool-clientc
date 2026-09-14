@@ -250,6 +250,19 @@ Testbed_LandAsset(char const* name)
 }
 
 void
+Testbed_DeclareImage(char const* name, enum ToriRS_AssetState state, int width, int height)
+{
+    struct TestbedAsset* asset;
+
+    assert(name);
+    Testbed_DeclareAsset(name, state);
+    asset = testbed_asset(name);
+    assert(asset);
+    asset->width = width;
+    asset->height = height;
+}
+
+void
 Testbed_DeclareFile(char const* name, char const* body)
 {
     struct TestbedAsset* asset;
@@ -608,6 +621,7 @@ fake_set_image(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRe
     {
         control->width = width;
         control->height = height;
+        control->image = image;
     }
     return TORIRS_CONTRACT_OK;
 }
@@ -886,6 +900,28 @@ fake_asset_model(struct ToriRS_Api* api, char const* name, struct ToriRS_ModelRe
     if( asset->state == TORIRS_ASSET_READY )
         out->value = asset->value;
     return asset->state;
+}
+
+/* A picture's own size, and only once it is READY -- the real host cannot
+ * answer for an image it has not decoded. */
+static bool
+fake_image_size(struct ToriRS_Api* api, struct ToriRS_ImageRef image, int* out_width,
+                int* out_height)
+{
+    (void)api;
+    testbed_log("image_size #%d", image.value);
+    for( int i = 0; i < TESTBED_ASSETS_MAX; i++ )
+    {
+        struct TestbedAsset const* asset = &g_testbed.assets[i];
+        if( !asset->used || asset->state != TORIRS_ASSET_READY || asset->value != image.value )
+            continue;
+        if( asset->width <= 0 || asset->height <= 0 )
+            return false;
+        *out_width = asset->width;
+        *out_height = asset->height;
+        return true;
+    }
+    return false;
 }
 
 static void
@@ -1194,6 +1230,7 @@ Testbed_Reset(void)
     g_testbed.api.assets.bytes = fake_asset_bytes;
     g_testbed.api.assets.release = fake_asset_release;
     g_testbed.api.assets.image = fake_asset_image;
+    g_testbed.api.assets.image_size = fake_image_size;
     g_testbed.api.assets.model = fake_asset_model;
     g_testbed.api.assets.image_release = fake_image_release;
     g_testbed.api.assets.model_release = fake_model_release;

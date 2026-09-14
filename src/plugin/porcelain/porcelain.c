@@ -156,6 +156,27 @@ Porcelain_FormatElement(struct PorcelainElement element, char* out, size_t capac
 /* Findings                                                                 */
 /* ------------------------------------------------------------------------ */
 
+/*
+ * A declared lane limitation, matched on the finding's DETAIL.
+ *
+ * Every route that records an UNSUPPORTED finding already carries the feature
+ * name there -- Require's `feature`, the describe builder's `reason` -- so one
+ * declaration covers all of them without a second key. Without this, a plugin
+ * that honestly said "this lane cannot do X" failed the clean gate for saying
+ * so, and going quiet was the only way to pass.
+ */
+static bool
+porcelain_expected_unsupported(struct Porcelain* porcelain, char const* detail)
+{
+    if( !detail )
+        return false;
+    for( int i = 0; i < PORCELAIN_EXPECT_UNSUPPORTED_MAX; i++ )
+        if( porcelain->expect_unsupported[i].used &&
+            strcmp(porcelain->expect_unsupported[i].feature, detail) == 0 )
+            return true;
+    return false;
+}
+
 static bool
 porcelain_expected_absence(struct Porcelain* porcelain, struct PorcelainElement element)
 {
@@ -239,7 +260,9 @@ Porcelain_RecordFinding(struct Porcelain* porcelain, char const* verb,
     free_slot->pub.result = result;
     free_slot->pub.expected = result == PORCELAIN_FINDING_ABSENT_EXPECTED ||
                               (result == PORCELAIN_FINDING_ABSENT &&
-                               porcelain_expected_absence(porcelain, element));
+                               porcelain_expected_absence(porcelain, element)) ||
+                              (result == PORCELAIN_FINDING_UNSUPPORTED &&
+                               porcelain_expected_unsupported(porcelain, detail));
     free_slot->pub.first_frame = porcelain->frame;
     free_slot->pub.count = 1;
 
@@ -294,15 +317,41 @@ Porcelain_Findings(struct Porcelain* porcelain, struct PorcelainFinding* out, in
     return written;
 }
 
+/* An absence reported before the declaration arrived becomes the declared
+ * one, in place, keeping its first_frame and its count. */
+static void
+porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement element)
+{
+    for( int i = 0; i < PORCELAIN_FINDINGS_MAX; i++ )
+    {
+        struct PorcelainFindingSlot* slot = &porcelain->findings[i];
+        if( !slot->used || slot->pub.result != PORCELAIN_FINDING_ABSENT )
+            continue;
+        if( Porcelain_ElementKey(slot->pub.element) != Porcelain_ElementKey(element) )
+            continue;
+        slot->pub.result = PORCELAIN_FINDING_ABSENT_EXPECTED;
+        slot->pub.expected = true;
+    }
+}
+
 void
 Porcelain_ExpectAbsent(struct Porcelain* porcelain, struct PorcelainElement element,
                        char const* why)
 {
     assert(porcelain);
     assert(why);
-    /* on_start only. A declaration made after the first describe could not
-     * mark the absence finding it was meant to excuse. */
-    assert(!porcelain->ever_described);
+    /*
+     * Legal at any time, and that is the point. The honest source for "this
+     * lane has no report button" is the element STATE, which is PENDING at
+     * on_start -- so an on_start-only verb could only be called
+     * unconditionally, and an unconditional declaration failed every lane
+     * that HAS the element with ABSENT_UNEXPECTEDLY_PRESENT. A plugin now
+     * declares where the absence is reported, and the already-recorded
+     * finding is re-labelled below rather than left to fail the clean gate.
+     * The other direction still bites: a declared-absent element that BINDS
+     * is a failure, so a stale declaration cannot go quiet.
+     */
+    porcelain_relabel_absence(porcelain, element);
     for( int i = 0; i < PORCELAIN_EXPECT_MAX; i++ )
     {
         struct PorcelainExpectAbsent* slot = &porcelain->expects[i];
@@ -1399,8 +1448,30 @@ porcelain_place_box(struct Porcelain* porcelain, struct PorcelainNormalItem cons
                     struct PorcelainElementState const* target)
 {
     struct ToriRS_WidgetBounds box;
-    int const width = item->width > 0 ? item->width : target->local.width;
-    int const height = item->height > 0 ? item->height : target->local.height;
+    /*
+     * Zero is the PICTURE's own size, which is what the field is documented
+     * to mean; the target's size is the last resort, for a text box and for a
+     * control with no picture at all. It used to read the target's outright,
+     * so a w=0 REPLACE camera stretched to the report button's 80x22 -- and
+     * the only way round it was to ask api->assets for the size of the handle
+     * this layer had just handed out.
+     */
+    int natural_width = 0;
+    int natural_height = 0;
+    int width;
+    int height;
+    /* INSIDE's coordinates are the target's PARENT's; WITHIN's are the
+     * target's own, so its origin is zero. */
+    int const origin_x = item->place.kind == PORCELAIN_WITHIN ? 0 : target->local.x;
+    int const origin_y = item->place.kind == PORCELAIN_WITHIN ? 0 : target->local.y;
+
+    if( item->kind != PORCELAIN_ITEM_TEXT && item->has_image &&
+        (item->width <= 0 || item->height <= 0) )
+        (void)Porcelain_ImageSize(porcelain, item->image.text, &natural_width, &natural_height);
+    width = item->width > 0 ? item->width
+                            : (natural_width > 0 ? natural_width : target->local.width);
+    height = item->height > 0 ? item->height
+                              : (natural_height > 0 ? natural_height : target->local.height);
 
     box.width = width;
     box.height = height;
@@ -1413,28 +1484,29 @@ porcelain_place_box(struct Porcelain* porcelain, struct PorcelainNormalItem cons
         box.y = target->local.y + (target->local.height - height) / 2 + item->place.dy;
         break;
     case PORCELAIN_INSIDE:
+    case PORCELAIN_WITHIN:
         switch( item->place.corner_or_side )
         {
         case PORCELAIN_TOP_RIGHT:
-            box.x = target->local.x + target->local.width - width - item->place.dx;
-            box.y = target->local.y + item->place.dy;
+            box.x = origin_x + target->local.width - width - item->place.dx;
+            box.y = origin_y + item->place.dy;
             break;
         case PORCELAIN_BOTTOM_LEFT:
-            box.x = target->local.x + item->place.dx;
-            box.y = target->local.y + target->local.height - height - item->place.dy;
+            box.x = origin_x + item->place.dx;
+            box.y = origin_y + target->local.height - height - item->place.dy;
             break;
         case PORCELAIN_BOTTOM_RIGHT:
-            box.x = target->local.x + target->local.width - width - item->place.dx;
-            box.y = target->local.y + target->local.height - height - item->place.dy;
+            box.x = origin_x + target->local.width - width - item->place.dx;
+            box.y = origin_y + target->local.height - height - item->place.dy;
             break;
         case PORCELAIN_CENTRE:
-            box.x = target->local.x + (target->local.width - width) / 2 + item->place.dx;
-            box.y = target->local.y + (target->local.height - height) / 2 + item->place.dy;
+            box.x = origin_x + (target->local.width - width) / 2 + item->place.dx;
+            box.y = origin_y + (target->local.height - height) / 2 + item->place.dy;
             break;
         case PORCELAIN_TOP_LEFT:
         default:
-            box.x = target->local.x + item->place.dx;
-            box.y = target->local.y + item->place.dy;
+            box.x = origin_x + item->place.dx;
+            box.y = origin_y + item->place.dy;
             break;
         }
         break;
@@ -1600,6 +1672,34 @@ porcelain_apply_hidden(struct Porcelain* porcelain, struct PorcelainAppliedItem*
 }
 
 /** Create the control and write everything the new item states. */
+/*
+ * The picture a PENDING asset could not give us yet.
+ *
+ * The property pass resolves an image only when the item is fresh or the
+ * NAME changed, and an asset landing changes neither -- so a control created
+ * while its picture was still loading kept the blank it was created with for
+ * the rest of the session, and every port worked round it by refusing to
+ * describe until the asset was READY. Asking again costs one table lookup per
+ * unfinished picture per fence and nothing at all once it has landed.
+ */
+static void
+porcelain_refresh_image(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied)
+{
+    struct ToriRS_ImageRef image;
+    enum PorcelainAssetState state;
+
+    if( !applied->live || applied->item.kind == PORCELAIN_ITEM_TEXT )
+        return;
+    if( !applied->item.has_image || applied->image_state != PORCELAIN_ASSET_PENDING )
+        return;
+    image = Porcelain_Image(porcelain, applied->item.image.text, &state);
+    applied->image_state = state;
+    if( state != PORCELAIN_ASSET_READY || image.value == applied->image_ref.value )
+        return;
+    applied->image_ref = image;
+    applied->image_dirty = true;
+}
+
 static bool
 porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
                       struct PorcelainElementState const* target)
@@ -1609,7 +1709,8 @@ porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
     enum ToriRS_ContractResult result;
 
     if( applied->item.place.kind == PORCELAIN_AT_CANVAS ||
-        applied->item.place.kind == PORCELAIN_AT_USABLE )
+        applied->item.place.kind == PORCELAIN_AT_USABLE ||
+        applied->item.place.kind == PORCELAIN_WITHIN )
     {
         parent = target->ref;
     }
@@ -1714,6 +1815,7 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
          * transparent PNG today. The write itself belongs to the geometry
          * pass, which knows the box. */
         applied->image_ref = image;
+        applied->image_state = state;
         applied->image_dirty = true;
     }
 
@@ -1769,10 +1871,14 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
     if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) )
         return;
     if( applied->item.place.kind == PORCELAIN_AT_CANVAS ||
-        applied->item.place.kind == PORCELAIN_AT_USABLE )
+        applied->item.place.kind == PORCELAIN_AT_USABLE ||
+        applied->item.place.kind == PORCELAIN_WITHIN )
     {
-        /* Nothing to anchor to: the frame root IS the parent, and an anchor
-         * to one's own parent is ANCHOR_INVALID. */
+        /* Nothing to anchor to: the target IS the parent, and an anchor to
+         * one's own parent is ANCHOR_INVALID. WITHIN exists so that a corner
+         * ornament costs no live anchor -- one live anchor makes
+         * UITree_FrameHasDepth true, which the ledger prices at 13.5 ms a
+         * frame on osrs239. */
         applied->anchor_target = anchor;
         return;
     }
@@ -2027,7 +2133,8 @@ porcelain_reconcile(struct Porcelain* porcelain)
             }
             fresh = true;
         }
-        else if( applied->item.hash == wanted->hash )
+        porcelain_refresh_image(porcelain, applied);
+        if( !fresh && applied->item.hash == wanted->hash )
         {
             /* Unchanged hash: NO engine call for any property. Geometry still
              * follows the target, and that costs nothing when it did not
@@ -2352,6 +2459,42 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
             porcelain->dirty = true;
         }
     }
+    /*
+     * Text on the direct path. A per-frame readout IS a string that changes
+     * every frame, and without this the only way to move one was to describe
+     * and invalidate -- a whole reconcile pass to write four characters.
+     * The applied item's copy is updated too, so the next describe with the
+     * same text is still a no-op rather than a setter that undoes this.
+     */
+    if( (motion->mask & PORCELAIN_MOTION_TEXT) && motion->text )
+    {
+        if( strcmp(applied->item.text, motion->text) != 0 )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->counters.setters++;
+            porcelain_note_result(
+                porcelain, "set", applied->item.place.on,
+                widgets->set_text(widgets->context, applied->ref, motion->text), key);
+            Porcelain_CopyString(applied->item.text, sizeof(applied->item.text), motion->text);
+            applied->item.has_text = true;
+            applied->item.hash = porcelain_item_hash(&applied->item);
+            porcelain->dirty = true;
+        }
+    }
+    if( motion->mask & PORCELAIN_MOTION_RGB )
+    {
+        if( motion->rgb != applied->item.rgb )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->counters.setters++;
+            porcelain_note_result(
+                porcelain, "set", applied->item.place.on,
+                widgets->set_text_color(widgets->context, applied->ref, motion->rgb), key);
+            applied->item.rgb = motion->rgb;
+            applied->item.hash = porcelain_item_hash(&applied->item);
+            porcelain->dirty = true;
+        }
+    }
     if( motion->mask & PORCELAIN_MOTION_OPACITY )
     {
         assert(motion->opacity >= 0 && motion->opacity <= 255);
@@ -2550,6 +2693,10 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .every_server_tick = Porcelain_EveryServerTick,
     .every_ms = Porcelain_EveryMs,
     .tick = Porcelain_Tick,
+    .expect_unsupported = Porcelain_ExpectUnsupported,
+    .image_size = Porcelain_ImageSize,
+    .cancel_every = Porcelain_CancelEvery,
+    .note_key = Porcelain_NoteKey,
     .draw_context = Porcelain_DrawContext,
     .menu_add = Porcelain_MenuAdd,
     .note_menu = Porcelain_NoteMenu,
