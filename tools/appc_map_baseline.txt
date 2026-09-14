@@ -1,0 +1,37 @@
+# Translation units outside src/app.c that reach into `struct App`.
+#
+# `python3 tools/appc_map.py check` fails on a reach-in that is NOT listed here,
+# and also on a line here that has since become clean. So this file can only
+# shrink: you cannot add a new reach-in without editing it, and you cannot fix
+# one without deleting its line.
+#
+# Two of these are not defects. src/main.c and src/executor_config.c are the
+# process host -- they construct the App and hand it the frame, which is what a
+# host does. Everything else below is a module that was moved out of app.c and
+# kept a pointer back in, and is a candidate for the parameter treatment.
+#
+# Recorded 2026-09-14 at v3 82f3e3e24, before the first Tier 0 extraction.
+
+src/main.c
+src/executor_config.c
+
+src/bootmanifest/bootmanifest.c
+src/bootmanifest/test/bootmanifest_test.c
+
+src/editor/editor_panel.c
+
+src/game/content_test.c
+src/game/content_test_sailing.c
+src/game/rs_clientcode.c
+src/game/rs_gameproto_exec.c
+src/game/rs_if1_buttons.c
+src/game/rs_ui_slots.c
+src/game/task_exec_entity_info.c
+src/game/task_gameproto_exec.c
+src/game/test/minimap_dots_test.c
+src/game/test/rs_gameproto_exec_test.c
+src/game/test/rs_minimenu_world_test.c
+src/game/test/rs_ui_slots_test.c
+src/game/test/task_exec_entity_info_test.c
+
+src/world/test/wev_rebuild_test.c

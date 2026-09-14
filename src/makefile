@@ -5770,6 +5770,29 @@ test-kernel-matrix: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 check-kernel-names:
 	python3 $(REPO_ROOT)/tools/kernel_names.py --check
 
+# What may reach into `struct App`, as a check.
+#
+# app.c is the orchestrator translation unit and it is large for real reasons
+# -- App_Init, the frame, the tick and the minimenu verb table belong there.
+# What does NOT belong there is a field family plus the dozen functions that
+# own it, and the way that keeps happening is a module being "extracted" while
+# it still takes a `struct App*`, which is a rename.
+#
+# This fails on a .c outside app.c that names App and is not recorded in
+# tools/appc_map_baseline.txt, and equally on a baseline line that has become
+# clean -- so the baseline only shrinks. `.u.c` unity fragments are exempt:
+# they are textually part of whatever includes them.
+#
+# `make -C src appc-map` prints the per-slice coupling table the extraction
+# order is chosen from. Neither target builds or moves anything.
+.PHONY: check-app-boundary appc-map
+check-app-boundary:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py check --root src
+
+appc-map:
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py summary --source src/app.c
+	@cd $(REPO_ROOT) && python3 tools/appc_map.py slices --source src/app.c --top 30
+
 # ---- The kernel suite -------------------------------------------------
 #
 # Every proof the three-stage kernel system rests on, in one target.
