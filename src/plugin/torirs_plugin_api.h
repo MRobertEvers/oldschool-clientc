@@ -1866,6 +1866,24 @@ struct ToriRS_PorcelainApi
      *  False means nothing was drawn and a finding says which refusal. */
     bool (*hull)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
                  uint32_t rgb, int alpha, int shape);
+    /** A plugin's OWN finding, coalesced on (verb, element, result) like
+     *  every other. `result` is a PorcelainFindingResult and may not be OK. */
+    void (*finding)(struct Porcelain* porcelain, char const* verb,
+                    struct PorcelainElement element, int result, char const* detail);
+    /** The inverse of menu_tag. Without it every consumer spells the 16 by
+     *  hand, and raising it would silently re-target every retained row. */
+    void (*menu_untag)(uint32_t tag, int* out_subject, int* out_op);
+    /** Is this key held NOW, asked where the question is asked. `key` is the
+     *  edge form's VALUE vocabulary -- a name, a decimal code, or a single
+     *  character -- not a config key. */
+    bool (*key_down)(struct Porcelain* porcelain, char const* key);
+    /** Take one item out of a stored list. Absent is true and costs no
+     *  write. */
+    bool (*config_list_remove)(struct Porcelain* porcelain, char const* key, char const* item);
+    /** State the whole list: sorted, deduplicated, refused rather than
+     *  truncated. */
+    bool (*config_list_set)(struct Porcelain* porcelain, char const* key,
+                            char const* const* items, int count);
 
     TORIRS_API_V2_MODULE_RESERVED;
 };

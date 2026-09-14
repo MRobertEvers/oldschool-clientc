@@ -3079,6 +3079,85 @@ static int lua_porcelain_hull(lua_State* L)
                            lua_porcelain_hull_shape(L, 4)));
     return 1;
 }
+/* The result names, so a plugin writes `"refused"` and not a bare 4. The
+ * integers stay legal: findings() reads results back as integers, and a
+ * plugin re-recording one it read must be able to hand it straight back. */
+static int lua_porcelain_finding_result(lua_State* L, int index)
+{
+    static struct { char const* name; int value; } const NAMES[] = {
+        {"absent", PORCELAIN_FINDING_ABSENT},
+        {"refused", PORCELAIN_FINDING_REFUSED},
+        {"arbitration_lost", PORCELAIN_FINDING_ARBITRATION_LOST},
+        {"asset_missing", PORCELAIN_FINDING_ASSET_MISSING},
+        {"asset_error", PORCELAIN_FINDING_ASSET_ERROR},
+        {"derived_failed", PORCELAIN_FINDING_DERIVED_FAILED},
+        {"budget", PORCELAIN_FINDING_BUDGET},
+        {"unsupported", PORCELAIN_FINDING_UNSUPPORTED},
+    };
+    if( lua_type(L, index) == LUA_TSTRING )
+    {
+        char const* name = lua_tostring(L, index);
+        for( size_t at = 0; at < sizeof(NAMES) / sizeof(NAMES[0]); at++ )
+            if( strcmp(name, NAMES[at].name) == 0 ) return NAMES[at].value;
+        return luaL_error(L, "unknown finding result '%s'", name);
+    }
+    return lua_enum_integer(L, index, PORCELAIN_FINDING_ABSENT, PORCELAIN_FINDING_UNSUPPORTED,
+                            "finding result");
+}
+static int lua_porcelain_finding(lua_State* L)
+{
+    struct PorcelainElement element;
+    memset(&element, 0, sizeof(element));
+    if( !lua_isnoneornil(L, 2) ) element = lua_porcelain_element_arg(L, 2);
+    lua_current_api(L)->porcelain->finding(lua_porcelain(L), luaL_checkstring(L, 1), element,
+                                           lua_porcelain_finding_result(L, 3),
+                                           luaL_optstring(L, 4, NULL));
+    return 0;
+}
+static int lua_porcelain_menu_untag(lua_State* L)
+{
+    int subject = 0, op = 0;
+    lua_current_api(L)->porcelain->menu_untag((uint32_t)luaL_checkinteger(L, 1), &subject, &op);
+    lua_pushinteger(L, subject);
+    lua_pushinteger(L, op);
+    return 2;
+}
+static int lua_porcelain_key_down(lua_State* L)
+{
+    lua_pushboolean(L, lua_current_api(L)->porcelain->key_down(lua_porcelain(L),
+                                                               luaL_checkstring(L, 1)));
+    return 1;
+}
+static int lua_porcelain_config_list_remove(lua_State* L)
+{
+    lua_pushboolean(L, lua_current_api(L)->porcelain->config_list_remove(
+                           lua_porcelain(L), luaL_checkstring(L, 1), luaL_checkstring(L, 2)));
+    return 1;
+}
+static int lua_porcelain_config_list_set(lua_State* L)
+{
+    char const* items[PORCELAIN_CONFIG_LIST_MAX];
+    char const* key = luaL_checkstring(L, 1);
+    int count = 0;
+    luaL_checktype(L, 2, LUA_TTABLE);
+    for( int at = 1;; at++ )
+    {
+        char const* text;
+        lua_rawgeti(L, 2, at);
+        if( lua_isnil(L, -1) ) { lua_pop(L, 1); break; }
+        text = lua_tostring(L, -1);
+        if( !text ) { lua_pop(L, 1); return luaL_error(L, "config_list_set item %d is not a string", at); }
+        if( count >= PORCELAIN_CONFIG_LIST_MAX )
+        { lua_pop(L, 1); return luaL_error(L, "config_list_set takes at most %d items", PORCELAIN_CONFIG_LIST_MAX); }
+        /* The string stays alive because the table holding it is on the stack
+         * for the whole call; popping only the copy the rawgeti pushed. */
+        items[count++] = text;
+        lua_pop(L, 1);
+    }
+    lua_pushboolean(L, lua_current_api(L)->porcelain->config_list_set(lua_porcelain(L), key,
+                                                                      items, count));
+    return 1;
+}
 
 static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"open",lua_porcelain_open},{"close",lua_porcelain_close},
@@ -3107,7 +3186,10 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"panel",lua_porcelain_panel},{"panel_build",lua_porcelain_panel_build},
     {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},
     /* round three */
-    {"hull",lua_porcelain_hull},
+    {"hull",lua_porcelain_hull},{"finding",lua_porcelain_finding},
+    {"menu_untag",lua_porcelain_menu_untag},{"key_down",lua_porcelain_key_down},
+    {"config_list_remove",lua_porcelain_config_list_remove},
+    {"config_list_set",lua_porcelain_config_list_set},
     {NULL,NULL}
 };
 

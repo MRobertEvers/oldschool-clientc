@@ -139,56 +139,274 @@ porcelain_list_contains(char const* list, char const* item)
     return false;
 }
 
+/*
+ * The three list verbs share ONE model of what a stored list is: the parsed
+ * items, sorted and case-insensitively deduplicated. Add used to join
+ * `current + "," + item`, which is the same list only when the caller adds in
+ * order, and there was no removal verb at all -- so the half of the ledger
+ * row that takes a species OUT of a tag list was a raw config.set with the
+ * plugin's own join, which is the shape config_list_add exists to stop.
+ */
+
+static char
+porcelain_fold(char value)
+{
+    return value >= 'A' && value <= 'Z' ? (char)(value + 32) : value;
+}
+
+static int
+porcelain_ci_compare(char const* left, char const* right)
+{
+    for( size_t at = 0;; at++ )
+    {
+        char const lhs = porcelain_fold(left[at]);
+        char const rhs = porcelain_fold(right[at]);
+        if( lhs != rhs )
+            return lhs < rhs ? -1 : 1;
+        if( !lhs )
+            return 0;
+    }
+}
+
+/** The parsed form. `storage` holds the items NUL-separated; `items` points
+ *  into it. Nothing here allocates: a reconciler that allocates per frame is
+ *  the 2 MB the audit measured. */
+struct PorcelainConfigList
+{
+    char storage[PORCELAIN_CONFIG_VALUE_MAX];
+    char const* items[PORCELAIN_CONFIG_LIST_MAX];
+    int count;
+    /** More items than the table holds. The whole operation is refused:
+     *  storing the prefix would DELETE the rest of the person's list. */
+    bool overflow;
+};
+
+static void
+porcelain_list_parse(struct PorcelainConfigList* list, char const* text)
+{
+    size_t written = 0;
+
+    memset(list, 0, sizeof(*list));
+    while( text && *text )
+    {
+        char const* comma = strchr(text, ',');
+        size_t span = comma ? (size_t)(comma - text) : strlen(text);
+        char const* start = text;
+        bool duplicate = false;
+
+        text = comma ? comma + 1 : NULL;
+        while( span > 0 && *start == ' ' )
+        {
+            start++;
+            span--;
+        }
+        while( span > 0 && start[span - 1] == ' ' )
+            span--;
+        if( span == 0 )
+            continue;
+        if( written + span + 1 > sizeof(list->storage) || list->count >= PORCELAIN_CONFIG_LIST_MAX )
+        {
+            list->overflow = true;
+            return;
+        }
+        memcpy(list->storage + written, start, span);
+        list->storage[written + span] = '\0';
+        for( int at = 0; at < list->count; at++ )
+            if( porcelain_ci_compare(list->items[at], list->storage + written) == 0 )
+                duplicate = true;
+        if( duplicate )
+            continue;
+        list->items[list->count++] = list->storage + written;
+        written += span + 1;
+    }
+}
+
+static void
+porcelain_list_sort(struct PorcelainConfigList* list)
+{
+    for( int at = 1; at < list->count; at++ )
+    {
+        char const* const held = list->items[at];
+        int back = at - 1;
+        while( back >= 0 && porcelain_ci_compare(list->items[back], held) > 0 )
+        {
+            list->items[back + 1] = list->items[back];
+            back--;
+        }
+        list->items[back + 1] = held;
+    }
+}
+
+/*
+ * Sort, MEASURE, join, store.
+ *
+ * Measuring before joining is the rule that must not move: the host's own
+ * setter snprintf-truncates and its validator then accepts the fragment, so a
+ * list cut mid-name stores a WRONG species and reads back as one. Over the
+ * ceiling the stored list is left byte-for-byte as it was.
+ */
+static bool
+porcelain_list_store(struct Porcelain* porcelain, char const* verb, char const* key,
+                     struct PorcelainConfigList* list)
+{
+    char joined[PORCELAIN_CONFIG_VALUE_MAX];
+    size_t needed = 1;
+    size_t written = 0;
+
+    if( list->overflow )
+    {
+        Porcelain_RecordFinding(porcelain, verb, PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET, key);
+        return false;
+    }
+    porcelain_list_sort(list);
+    for( int at = 0; at < list->count; at++ )
+        needed += strlen(list->items[at]) + (at ? 1 : 0);
+    if( needed > sizeof(joined) )
+    {
+        Porcelain_RecordFinding(porcelain, verb, PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET, key);
+        return false;
+    }
+    for( int at = 0; at < list->count; at++ )
+    {
+        size_t const length = strlen(list->items[at]);
+        if( at )
+            joined[written++] = ',';
+        memcpy(joined + written, list->items[at], length);
+        written += length;
+    }
+    joined[written] = '\0';
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->config.set(porcelain->api, key, joined) != TORIRS_RESULT_OK )
+    {
+        Porcelain_RecordFinding(porcelain, verb, PORCELAIN_EL(NONE), PORCELAIN_FINDING_REFUSED,
+                                key);
+        return false;
+    }
+    return true;
+}
+
+static char const*
+porcelain_list_read(struct Porcelain* porcelain, char const* key)
+{
+    char const* current = NULL;
+
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->config.get_string(porcelain->api, key, &current) )
+        return NULL;
+    return current;
+}
+
 bool
 Porcelain_ConfigListAdd(struct Porcelain* porcelain, char const* key, char const* item)
 {
-    char joined[PORCELAIN_CONFIG_VALUE_MAX];
-    char const* current = NULL;
-    size_t needed;
+    struct PorcelainConfigList list;
+    char const* current;
+    size_t const length = strlen(item);
 
     assert(porcelain);
     assert(key);
     assert(item);
     assert(item[0]);
 
-    porcelain->counters.engine_calls++;
-    if( !porcelain->api->config.get_string(porcelain->api, key, &current) )
-        current = NULL;
+    current = porcelain_list_read(porcelain, key);
     if( current && porcelain_list_contains(current, item) )
         return true;
+    porcelain_list_parse(&list, current);
+    if( !list.overflow )
+    {
+        /* The item's own bytes go at the END of the storage, past everything
+         * the parse wrote, so the pointers already handed out stay valid. */
+        size_t used = 0;
+        for( int at = 0; at < list.count; at++ )
+            used += strlen(list.items[at]) + 1;
+        if( used + length + 1 > sizeof(list.storage) || list.count >= PORCELAIN_CONFIG_LIST_MAX )
+        {
+            list.overflow = true;
+        }
+        else
+        {
+            memcpy(list.storage + used, item, length + 1);
+            list.items[list.count++] = list.storage + used;
+        }
+    }
+    return porcelain_list_store(porcelain, "config_list_add", key, &list);
+}
 
-    /* MEASURE BEFORE JOINING. The host's own setter snprintf-truncates and
-     * the validator then accepts the fragment, so a list cut mid-name stores
-     * a WRONG species and reads back as one. Refusing leaves the stored list
-     * exactly as it was. */
-    needed = strlen(item) + 1;
-    if( current && current[0] )
-        needed += strlen(current) + 1;
-    if( needed > sizeof(joined) )
+/*
+ * The other half of the row. Absent is TRUE and costs no write: "this species
+ * is not tagged" is the state the caller asked for, and a set that stores the
+ * same string is a config write, a save and a reconcile for nothing.
+ */
+bool
+Porcelain_ConfigListRemove(struct Porcelain* porcelain, char const* key, char const* item)
+{
+    struct PorcelainConfigList list;
+    char const* current;
+    int kept = 0;
+
+    assert(porcelain);
+    assert(key);
+    assert(item);
+    assert(item[0]);
+
+    current = porcelain_list_read(porcelain, key);
+    if( !current || !porcelain_list_contains(current, item) )
+        return true;
+    porcelain_list_parse(&list, current);
+    for( int at = 0; at < list.count; at++ )
+        if( porcelain_ci_compare(list.items[at], item) != 0 )
+            list.items[kept++] = list.items[at];
+    list.count = kept;
+    return porcelain_list_store(porcelain, "config_list_remove", key, &list);
+}
+
+/*
+ * The whole list at once, for a caller that HAS the set -- a settings page
+ * writing back every ticked row. Without it the only way to state a list was
+ * add-in-a-loop, which cannot express a removal at all and writes the config
+ * once per item.
+ */
+bool
+Porcelain_ConfigListSet(struct Porcelain* porcelain, char const* key, char const* const* items,
+                        int count)
+{
+    struct PorcelainConfigList list;
+    size_t written = 0;
+
+    assert(porcelain);
+    assert(key);
+    assert(count >= 0);
+
+    memset(&list, 0, sizeof(list));
+    /* An empty list is a documented state -- "nothing is tagged" -- and the
+     * caller says it with a NULL array, so the assert comes after. */
+    if( count == 0 )
+        return porcelain_list_store(porcelain, "config_list_set", key, &list);
+    assert(items);
+    for( int at = 0; at < count; at++ )
     {
-        Porcelain_RecordFinding(porcelain, "config_list_add", PORCELAIN_EL(NONE),
-                                PORCELAIN_FINDING_BUDGET, item);
-        return false;
+        size_t length;
+        bool duplicate = false;
+
+        assert(items[at]);
+        length = strlen(items[at]);
+        if( length == 0 )
+            continue;
+        if( written + length + 1 > sizeof(list.storage) || list.count >= PORCELAIN_CONFIG_LIST_MAX )
+        {
+            list.overflow = true;
+            break;
+        }
+        memcpy(list.storage + written, items[at], length + 1);
+        for( int seen = 0; seen < list.count; seen++ )
+            if( porcelain_ci_compare(list.items[seen], list.storage + written) == 0 )
+                duplicate = true;
+        if( duplicate )
+            continue;
+        list.items[list.count++] = list.storage + written;
+        written += length + 1;
     }
-    if( current && current[0] )
-    {
-        size_t const length = strlen(current);
-        memcpy(joined, current, length);
-        joined[length] = ',';
-        memcpy(joined + length + 1, item, strlen(item) + 1);
-    }
-    else
-    {
-        memcpy(joined, item, strlen(item) + 1);
-    }
-    porcelain->counters.engine_calls++;
-    if( porcelain->api->config.set(porcelain->api, key, joined) != TORIRS_RESULT_OK )
-    {
-        Porcelain_RecordFinding(porcelain, "config_list_add", PORCELAIN_EL(NONE),
-                                PORCELAIN_FINDING_REFUSED, key);
-        return false;
-    }
-    return true;
+    return porcelain_list_store(porcelain, "config_list_set", key, &list);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -212,6 +430,25 @@ Porcelain_MenuTag(int subject, int op)
     assert(op >= 0);
     assert(op < PORCELAIN_MENU_TAG_OPS);
     return (uint32_t)subject * (uint32_t)PORCELAIN_MENU_TAG_OPS + (uint32_t)op;
+}
+
+/*
+ * The inverse, which did not exist.
+ *
+ * A verb that only encodes leaves the plugin owning half the encoding: every
+ * consumer wrote `tag / 16` and `tag % 16` with the 16 spelled out, so
+ * raising PORCELAIN_MENU_TAG_OPS would silently re-target every retained menu
+ * row in every shipped plugin -- a Tag row that fires a different operation
+ * on a different subject, with nothing in the build that says so. With the
+ * decoder here the constant is the library's alone.
+ */
+void
+Porcelain_MenuUntag(uint32_t tag, int* out_subject, int* out_op)
+{
+    assert(out_subject);
+    assert(out_op);
+    *out_subject = (int)(tag / (uint32_t)PORCELAIN_MENU_TAG_OPS);
+    *out_op = (int)(tag % (uint32_t)PORCELAIN_MENU_TAG_OPS);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -327,6 +564,48 @@ Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, Porcelain
     Porcelain_RecordFinding(porcelain, "key_edge", PORCELAIN_ROLE_EL(config_key),
                             PORCELAIN_FINDING_BUDGET, "key edge table full");
     return false;
+}
+
+/*
+ * "Is this key down RIGHT NOW", asked once, where the question is asked.
+ *
+ * The edge form is the wrong shape for a question asked at a right-click: to
+ * use it a plugin had to declare a config key it never wanted, fence every
+ * frame, and mirror the edge into a boolean of its own -- up to two engine
+ * calls every frame to answer something asked once per click. This is one
+ * engine call at the click and no state at all.
+ *
+ * `key` is the same vocabulary the edge's CONFIG VALUE uses: a name, a
+ * decimal code, or a single character. A name that resolves to nothing is a
+ * finding and false, never a silent "not held" -- "the modifier is up" and
+ * "there is no such key" look identical to a caller and mean opposite things.
+ */
+bool
+Porcelain_KeyDown(struct Porcelain* porcelain, char const* key)
+{
+    int code;
+
+    assert(porcelain);
+    assert(key);
+
+    /* Same refusal as the edge form, and for the same reason: there is no
+     * keyboard frame on a touch lane, so key_held can never be true there and
+     * a feature gated on one is silently unreachable. */
+    if( Porcelain_Has(porcelain, "touch") )
+    {
+        Porcelain_RecordFinding(porcelain, "key_down", PORCELAIN_ROLE_EL(key),
+                                PORCELAIN_FINDING_ABSENT, "touch lane has no key");
+        return false;
+    }
+    code = porcelain_key_code(key);
+    if( code < 0 )
+    {
+        Porcelain_RecordFinding(porcelain, "key_down", PORCELAIN_ROLE_EL(key),
+                                PORCELAIN_FINDING_ABSENT, key);
+        return false;
+    }
+    porcelain->counters.engine_calls++;
+    return porcelain->api->input.key_held(porcelain->api, code);
 }
 
 void
@@ -1046,6 +1325,29 @@ Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int el
     Porcelain_RecordFinding(porcelain, "world_hull", PORCELAIN_EL(NONE),
                             PORCELAIN_FINDING_REFUSED, "the hull shape is not one of the two");
     return false;
+}
+
+/*
+ * A plugin's OWN finding, in the channel its verbs' findings already use.
+ *
+ * Without this a plugin that fails at something Porcelain has no verb for --
+ * a table row it could not parse, a server fact that never arrived -- writes
+ * a core.log line, which the gate does not read, no plugin can query back,
+ * and nothing coalesces. Two shipped ledger rows are exactly that. `verb`
+ * names what failed; the (verb, element, result) coalescing is the same one,
+ * so a per-frame failure is still one line.
+ */
+void
+Porcelain_Finding(struct Porcelain* porcelain, char const* verb, struct PorcelainElement element,
+                  int result, char const* detail)
+{
+    assert(porcelain);
+    assert(verb);
+    assert(verb[0]);
+    /* OK is not a finding: the table says what is WRONG now, and a plugin
+     * recording successes would push real refusals out of a fixed table. */
+    assert(result != PORCELAIN_FINDING_OK);
+    Porcelain_RecordFinding(porcelain, verb, element, result, detail);
 }
 
 /*

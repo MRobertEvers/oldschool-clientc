@@ -2824,6 +2824,11 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .panel_draw = Porcelain_PanelDraw,
     /* round three */
     .hull = Porcelain_Hull,
+    .finding = Porcelain_Finding,
+    .menu_untag = Porcelain_MenuUntag,
+    .key_down = Porcelain_KeyDown,
+    .config_list_remove = Porcelain_ConfigListRemove,
+    .config_list_set = Porcelain_ConfigListSet,
 };
 
 struct ToriRS_PorcelainApi const*

@@ -132,6 +132,14 @@ extern "C" {
 #define PORCELAIN_CONFIG_VALUE_MAX 192
 
 /*
+ * Items one stored list may hold. Ninety-six is the most a value of
+ * PORCELAIN_CONFIG_VALUE_MAX bytes can express -- one-character items with a
+ * comma between each -- so the table can never be the binding limit and the
+ * refusal is always the value ceiling, which is the one a person can see.
+ */
+#define PORCELAIN_CONFIG_LIST_MAX ((PORCELAIN_CONFIG_VALUE_MAX + 1) / 2)
+
+/*
  * Describe runs after which an image nothing asked for is released. Four and
  * not one because the readiness matrix legitimately drops an image for a
  * fence or two while an element rebinds, and re-requesting it costs a decode.
@@ -231,13 +239,30 @@ void Porcelain_Notify(struct Porcelain* porcelain, char const* kind, int subject
 /** The latch's state, for a test and for a plugin that reports its own. */
 enum PorcelainNativeOverlayState Porcelain_NativeOverlayState(struct Porcelain* porcelain);
 
-/* --- round three: the refusal a port could not read. --- */
+/* --- round three: the refusals a port could not read, and the partners the
+ *     one-way verbs never had. Kept together so a merge is an append. --- */
 
 /** draw->world_hull with its two refusals made loud: BUDGET when the frame's
  *  allotment ran out, ARBITRATION_LOST when another plugin holds the entity's
  *  APPEARANCE. False means nothing was drawn. */
 bool Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
                     uint32_t rgb, int alpha, int shape);
+/** A plugin's own finding, in the channel Porcelain's verbs already use.
+ *  `result` is a PorcelainFindingResult and may not be OK. */
+void Porcelain_Finding(struct Porcelain* porcelain, char const* verb,
+                       struct PorcelainElement element, int result, char const* detail);
+/** The inverse of Porcelain_MenuTag, so the 16 lives in one place. */
+void Porcelain_MenuUntag(uint32_t tag, int* out_subject, int* out_op);
+/** Is this key held NOW. `key` is the edge form's value vocabulary: a name, a
+ *  decimal code or a single character. False with one finding on a touch lane
+ *  and for a key that does not resolve. */
+bool Porcelain_KeyDown(struct Porcelain* porcelain, char const* key);
+/** Take one item out of a stored list. Absent is true and costs no write. */
+bool Porcelain_ConfigListRemove(struct Porcelain* porcelain, char const* key, char const* item);
+/** State the whole list at once: sorted, deduplicated, refused rather than
+ *  truncated over the value ceiling. */
+bool Porcelain_ConfigListSet(struct Porcelain* porcelain, char const* key,
+                             char const* const* items, int count);
 
 /* The describe-builder verbs. Legal only inside a describe run. */
 void Porcelain_Control(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);

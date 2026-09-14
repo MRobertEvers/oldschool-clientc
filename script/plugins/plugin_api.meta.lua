@@ -616,6 +616,7 @@ warn = nil
 ---@alias torirs.PorcelainCorner 'top_left'|'top_right'|'bottom_left'|'bottom_right'|'centre'
 ---@alias torirs.PorcelainSide 'left'|'right'|'above'|'below'
 ---@alias torirs.PorcelainDerivedState 'ready'|'pending'|'failed'
+---@alias torirs.PorcelainFindingName 'absent'|'refused'|'arbitration_lost'|'asset_missing'|'asset_error'|'derived_failed'|'budget'|'unsupported'
 ---@alias torirs.PorcelainFace 'page'|'settings'|'both'
 ---@alias torirs.PorcelainRowKind 'heading'|'paragraph'|'label'|'key_value'|'toggle'|'select'|'button'|'action_row'|'separator'|'progress'|'custom'
 
@@ -680,6 +681,11 @@ warn = nil
 ---@field panel_action fun(event: torirs.PanelAction): boolean Forward on_ui_action. False when no described row owns the id.
 ---@field panel_draw fun(node: string): boolean Forward on_ui_draw. False when no described CUSTOM row paints it.
 ---@field hull fun(element_id: integer, rgb: integer|string, alpha?: integer, shape?: 'bounds'|'mesh'): boolean draw.world_hull with both refusals recorded: false means nothing was drawn.
+---@field finding fun(verb: string, element: string|nil, result: torirs.PorcelainFindingName|integer, detail?: string) This plugin's OWN finding, in the channel Porcelain's verbs already use.
+---@field menu_untag fun(tag: integer): integer, integer The inverse of menu_tag, so the operations-per-subject constant lives in one place.
+---@field key_down fun(key: string): boolean Is this key held NOW. The edge form's VALUE vocabulary: a name, a decimal code, or one character.
+---@field config_list_remove fun(key: string, item: string): boolean Take one item out of a stored list. Absent is true and costs no write.
+---@field config_list_set fun(key: string, items: string[]): boolean State the whole list: sorted, deduplicated, refused rather than truncated.
 
 --- The describe builder, handed to the describe function and legal only
 --- inside it. Items are applied in DESCRIPTION ORDER and a later item is over

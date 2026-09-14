@@ -1861,6 +1861,206 @@ test_a_moved_target_takes_its_control_with_it(void)
     Porcelain_Close(porcelain);
 }
 
+/*
+ * A plugin can record a finding of its own.
+ *
+ * Two shipped ledger rows are core.log lines because it could not: a
+ * NATIVE_BLOCKED coming back from widgets.invoke inside an op callback is the
+ * PLUGIN's result, not one of Porcelain's calls, so the press correctly
+ * stopped and said so where the gate cannot read it.
+ *
+ * MUTATION: make Porcelain_Finding a no-op. Red: no finding.
+ * SECOND MUTATION: drop the coalescing key so the verb is ignored. Red: the
+ * two different verbs collapse into one row.
+ */
+static void
+test_plugin_records_its_own_finding(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    int count;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Finding(porcelain, "invoke", PORCELAIN_ROLE_EL("orb_run"),
+                      PORCELAIN_FINDING_REFUSED, "native blocked");
+    for( int at = 0; at < 9; at++ )
+        Porcelain_Finding(porcelain, "invoke", PORCELAIN_ROLE_EL("orb_run"),
+                          PORCELAIN_FINDING_REFUSED, "native blocked");
+    Porcelain_Finding(porcelain, "prices", PORCELAIN_EL(NONE), PORCELAIN_FINDING_ASSET_MISSING,
+                      "prices.txt");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 2, "two verbs are two findings, and ten of one are still one");
+    CHECK(strcmp(findings[0].verb, "invoke") == 0, "the plugin's own verb is what it said");
+    CHECK(findings[0].count == 10, "coalesced on (verb, element, result) like every other");
+    CHECK(findings[0].element.kind == PORCELAIN_EL_ROLE, "and it names the element it was about");
+    CHECK(strcmp(findings[1].detail, "prices.txt") == 0, "the second carries its own detail");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The menu tag round-trips.
+ *
+ * It only ever encoded, so every consumer spelled the operations-per-subject
+ * constant by hand and raising it would silently re-target every retained
+ * menu row in every shipped plugin.
+ *
+ * MUTATION: make Porcelain_MenuUntag divide by a literal 16 while
+ * PORCELAIN_MENU_TAG_OPS is something else. Red: the round trip.
+ */
+static void
+test_menu_tag_round_trips(void)
+{
+    int subject = -1;
+    int op = -1;
+
+    Porcelain_MenuUntag(Porcelain_MenuTag(1234, 3), &subject, &op);
+    CHECK(subject == 1234, "the subject comes back");
+    CHECK(op == 3, "and so does the operation");
+    Porcelain_MenuUntag(Porcelain_MenuTag(0, 0), &subject, &op);
+    CHECK(subject == 0, "including subject zero");
+    CHECK(op == 0, "and operation zero");
+    Porcelain_MenuUntag(Porcelain_MenuTag(7, PORCELAIN_MENU_TAG_OPS - 1), &subject, &op);
+    CHECK(subject == 7, "and the highest operation does not carry into the subject");
+    CHECK(op == PORCELAIN_MENU_TAG_OPS - 1, "which is what a hand-spelled 16 could not promise");
+}
+
+/*
+ * "Is the reveal key down" is a QUESTION, not a subscription.
+ *
+ * Answering it through the edge form cost a config key the plugin never
+ * wanted, a fence every frame and a mirrored boolean -- up to two engine
+ * calls per frame to answer something asked once per right-click.
+ *
+ * MUTATION: delete the `code < 0` arm in Porcelain_KeyDown. Red: a key name
+ * that resolves to nothing reads as "not held" instead of as a finding.
+ * SECOND MUTATION: delete the touch arm. Red: the touch lane answers from a
+ * keyboard frame it does not have.
+ */
+static void
+test_key_down_is_asked_not_subscribed(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[4];
+    int count;
+    bool absent = false;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    g_testbed.key_held = TORIRS_KEY_SHIFT;
+    CHECK(Porcelain_KeyDown(porcelain, "shift"), "the held key answers true by name");
+    CHECK(!Porcelain_KeyDown(porcelain, "ctrl"), "and a key that is not held answers false");
+    g_testbed.key_held = 119;
+    CHECK(Porcelain_KeyDown(porcelain, "119"), "a decimal code is the same vocabulary");
+    CHECK(!Porcelain_KeyDown(porcelain, "off"), "and 'off' resolves to nothing");
+    count = Porcelain_Findings(porcelain, findings, 4);
+    for( int at = 0; at < count; at++ )
+        if( findings[at].result == PORCELAIN_FINDING_ABSENT &&
+            strcmp(findings[at].verb, "key_down") == 0 )
+            absent = true;
+    CHECK(absent, "which is a finding, not a silent 'the modifier is up'");
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    g_testbed.touch = true;
+    g_testbed.key_held = TORIRS_KEY_SHIFT;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_KeyDown(porcelain, "shift"),
+          "a touch lane has no keyboard frame, so it answers false with a finding");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1, "one finding");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A binding that goes away must not leave the watch holding `down`.
+ *
+ * The fence used to `continue` past an unresolvable key code without clearing
+ * it: a key held when the config went to `off` and still held when it came
+ * back never transitioned again, so the feature stayed dead until the player
+ * released and pressed. There was no test either way, which is why the loop
+ * could be written that way at all.
+ *
+ * MUTATION: move `watch->code = code` above the `code != watch->code` test.
+ * Red: the release across the absent window never fires.
+ */
+static void
+test_key_edge_clears_down_across_an_absent_binding(void)
+{
+    struct Porcelain* porcelain;
+    int edges = 0;
+
+    Testbed_Reset();
+    Testbed_SetConfigString("reveal_key", "shift");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_KeyEdge(porcelain, "reveal_key", edge_seen, &edges), "the edge arms");
+    fence(porcelain);
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, true);
+    CHECK(edges == 1, "the key goes down");
+
+    /* The binding goes away while the key is still held. */
+    edges = 0;
+    Testbed_SetConfigString("reveal_key", "off");
+    fence(porcelain);
+    CHECK(edges == 100, "a binding that goes away releases the key it was holding");
+
+    /* And when it comes back, a fresh press is a fresh edge -- which it could
+     * not be while `down` was still true underneath. */
+    edges = 0;
+    Testbed_SetConfigString("reveal_key", "shift");
+    fence(porcelain);
+    CHECK(edges == 0, "the binding coming back is not itself an edge");
+    Porcelain_NoteKey(porcelain, TORIRS_KEY_SHIFT, true);
+    CHECK(edges == 1, "and the next press fires again");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The stored list is SORTED and deduplicated, and has a removal half.
+ *
+ * `config_list_add` joined `current + "," + item`, which is only the ledger
+ * row's sorted list when the caller happens to add in order; and the removal
+ * half had no verb at all, so a plugin taking a species out of a tag list did
+ * a raw config.set with its own join -- exactly the shape config_list_add
+ * exists to stop.
+ *
+ * MUTATION: delete the porcelain_list_sort call. Red: "sorted, whatever order
+ * they arrived in".
+ * SECOND MUTATION: make Porcelain_ConfigListRemove write when the item was
+ * absent. Red: "an absent item costs no write".
+ */
+static void
+test_config_list_is_a_set(void)
+{
+    struct Porcelain* porcelain;
+    char const* three[3] = {"zamorak", "Guthix", "saradomin"};
+    struct PorcelainCounters counters;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_ConfigListAdd(porcelain, "tags", "zulrah"), "the first add lands");
+    CHECK(Porcelain_ConfigListAdd(porcelain, "tags", "abyssal"), "and so does a second");
+    CHECK(strcmp(Testbed_ConfigString("tags"), "abyssal,zulrah") == 0,
+          "sorted, whatever order they arrived in");
+
+    CHECK(Porcelain_ConfigListRemove(porcelain, "tags", "ZULRAH"),
+          "removal matches case-insensitively, like the duplicate test");
+    CHECK(strcmp(Testbed_ConfigString("tags"), "abyssal") == 0, "and takes only that item out");
+
+    Porcelain_CountersReset(porcelain);
+    CHECK(Porcelain_ConfigListRemove(porcelain, "tags", "never_tagged"),
+          "removing something absent is the state the caller asked for");
+    Porcelain_CountersRead(porcelain, &counters);
+    CHECK(counters.engine_calls == 1, "an absent item costs no write, only the read");
+
+    CHECK(Porcelain_ConfigListSet(porcelain, "tags", three, 3), "the whole list at once");
+    CHECK(strcmp(Testbed_ConfigString("tags"), "Guthix,saradomin,zamorak") == 0,
+          "sorted, with the stored spelling kept");
+    CHECK(Porcelain_ConfigListSet(porcelain, "tags", NULL, 0), "and an empty list is legal");
+    CHECK(strcmp(Testbed_ConfigString("tags"), "") == 0, "it clears the key");
+    Porcelain_Close(porcelain);
+}
+
 static void
 hover_menu_row(struct ToriRS_MenuBuildEvent* menu, bool hover_pass, int obj, int slot,
                int component_id)
@@ -3239,7 +3439,11 @@ test_panel_well_grows_without_a_rebuild(void)
      * host's constant from its own sources -- it is a plugin-side library --
      * so the pin lives here, where the test can see both. Its twin is
      * TORIRS_CHROME_M_CUSTOM_H_MAX in ui/torirs_chrome_metrics.h; the two
-     * were raised together and a well is clipped by whichever is lower. */
+     * were raised together and a well is clipped by whichever is lower --
+     * which is why that twin is now pinned EQUAL to this one by a
+     * _Static_assert in torirs_plugin_bridge.u.c, the one translation unit
+     * that sees both. Until it was, raising one and not the other produced a
+     * row the height the plugin asked for and a picture that was short. */
     CHECK(TORIRS_PANEL_CUSTOM_HEIGHT_MAX >= 650,
           "and the host's own ceiling reaches it: 512 stopped the page growing at box ten");
     CHECK(panel_row("boxes")->height == 650, "and the row is that tall");
@@ -3728,6 +3932,11 @@ main(void)
     test_menu_add_refusal_is_a_finding();
     test_a_moved_target_takes_its_control_with_it();
     test_world_hull_refusals_reach_the_plugin();
+    test_plugin_records_its_own_finding();
+    test_menu_tag_round_trips();
+    test_key_down_is_asked_not_subscribed();
+    test_key_edge_clears_down_across_an_absent_binding();
+    test_config_list_is_a_set();
     test_hover_carries_the_container();
     test_native_overlay_latch();
     test_table_is_read_once();

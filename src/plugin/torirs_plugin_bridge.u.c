@@ -3929,6 +3929,18 @@ _Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
  * both, and the only thing that keeps the mirror honest. */
 _Static_assert((int)PORCELAIN_MENU_PICK_INV_SLOT==(int)UI_MINIMENU_PICK_INV_SLOT,
     "Porcelain's mirrored container-cell pick kind must match the tree's");
+/* A pure table of constants, pulled in here for the one pin below: this is
+ * the translation unit that sees the chrome's ceiling and the panel's. */
+#include "ui/torirs_chrome_metrics.h"
+/* TWO ceilings on the same well, and only one of them was pinned. The host
+ * clamps a CUSTOM row to TORIRS_PANEL_CUSTOM_HEIGHT_MAX and the chrome that
+ * presents it clips at TORIRS_CHROME_M_CUSTOM_H_MAX; a well is cut off by
+ * whichever is LOWER, and the lower one leaves no trace at all -- the row is
+ * the height the plugin asked for and the picture is short. The porcelain
+ * test pins the host's from the plugin side; this is the translation unit
+ * that sees the chrome's too. */
+_Static_assert(TORIRS_CHROME_M_CUSTOM_H_MAX==TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+    "the panel's custom-well ceiling and the chrome's must be raised together");
 
 static struct ToriRS_WidgetRef
 app_widget_ref(struct UITree const* tree, int32_t index)
