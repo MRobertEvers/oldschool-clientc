@@ -121,10 +121,11 @@ end
 function plugin.on_frame_start(api)
     if not opened then return end
     frames = frames + 1
-    api.porcelain.fence()
+    -- open() installs the pump, and this handler runs between its fence and
+    -- its commit, so the probe asks its questions inside a fenced epoch
+    -- without spelling one.
     ask(api)
     if frames > 560 then report(api) end
-    api.porcelain.commit()
 end
 
 return plugin

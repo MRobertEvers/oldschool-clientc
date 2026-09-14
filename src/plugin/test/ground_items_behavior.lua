@@ -399,7 +399,16 @@ return {id='ground-behavior',on_start=function(host)
         for _,item in ipairs(drawn) do if not item.tile then out[#out+1]=item.text end end
         return out
     end
-    local function frame_step() product.on_frame_start(api,{}) end
+    -- The host's pump, modelled. The plugin spells no fence and no commit of
+    -- its own any more: `porcelain.open()` installs them, and the plugin's own
+    -- handler runs BETWEEN the two. The latch's suppression sweep happens at
+    -- the fence, so a test that called only the handler would drive a plugin
+    -- whose latch never swept -- which is exactly the failure this replaced.
+    local function frame_step()
+        api.porcelain.fence()
+        product.on_frame_start(api, {})
+        api.porcelain.commit()
+    end
     local function press(key,down) product.on_key(api,{key=key,down=down}) end
 
     -- ------------------------------------------------------------ lifecycle

@@ -249,8 +249,15 @@ def main() -> int:
     # `fence without commit` budget finding and flushes. That finding is an
     # undeclared PORCELAIN_FINDING line, which is a gate failure on every lane
     # the plugin runs on, so this is checked rather than recommended.
+    #
+    # A probe -- a file whose name begins with an underscore -- is exempt, and
+    # the exemption is narrow on purpose. A probe is not shipped and is not a
+    # plugin: it exists to poke the layer's seams, and the frame probe closes
+    # an epoch BETWEEN each refusal path so the three do not coalesce into one
+    # finding. Forbidding that would be forbidding the measurement. A shipped
+    # plugin has no such reason and gets no such exemption.
     for path in sorted(SCRIPT_DIR.glob("*.lua")):
-        if path == META_SOURCE:
+        if path == META_SOURCE or path.name.startswith("_"):
             continue
         source = strip_line_comments(path.read_text(encoding="utf-8"))
         for hand_written in ("porcelain.fence(", "porcelain.commit(",
@@ -331,8 +338,8 @@ def main() -> int:
         "api.porcelain.tier(",
         "api.porcelain.table(",
         "api.porcelain.notify(",
-        "api.porcelain.fence(",
-        "api.porcelain.commit(",
+        # The fence and the commit are NOT listed: open() installs the pump,
+        # and the forbid list above now bans a plugin from spelling either.
     ):
         if required not in ground:
             errors.append(f"ground_items.lua: missing reported refusal: {required}")

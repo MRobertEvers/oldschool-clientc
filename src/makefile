@@ -601,24 +601,10 @@ endif
 # tried to compile. Only a fresh object directory sees it; a tree that already
 # had the objects from before the list was factored out links happily.
 PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
+		plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-# The Porcelain layer, as one name.
-#
-# Adding a file to the layer has broken the build twice: once for the panel
-# reconciler, once for the frame verbs. Both times the break surfaced as an
-# undefined symbol while linking some unrelated plugin's test, a long way from
-# the file that was added, and both times the fix was to find every rule that
-# had spelled the list out and add one more path to it. Spell it once instead.
-#
-# Defined ABOVE SRCS on purpose: the object list is expanded from SRCS with a
-# simply-expanded assignment, so a name defined further down the file expands
-# to nothing there and the layer silently drops out of the client binary --
-# which is a link error naming four .o files and no source at all.
-PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
 
 SRCS = main.c executor_config.c app.c pacer.c \
 	app/app_audio.c \
@@ -2751,16 +2737,14 @@ plugin-engine-cache-hooks:
 test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.o \
 		plugin/torirs_plugin_lua.c \
 		plugin/test/plugin_lua_test.c plugin/test/performance_display_counters.lua \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c \
 		test-plugin-lua-api-inventory \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -DTORIRS_PLUGIN_LUA_TESTING=1 -I$(LUA_DIR) \
 		-o $(OBJ_DIR)/torirs_plugin_lua_v2_test \
 		plugin/torirs_plugin_lua.c plugin/test/plugin_lua_test.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c \
 		$(OBJ_DIR)/lua_unity.o $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/torirs_plugin_lua_v2_test

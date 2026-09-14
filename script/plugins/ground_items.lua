@@ -777,8 +777,10 @@ end
 -- the paint pass: paint may not schedule native work.
 function plugin.on_frame_start(api)
     if not layer then return end
-    api.porcelain.fence()
-    api.porcelain.commit()
+    -- No fence and no commit here: open() installs the pump, and this handler
+    -- runs BETWEEN the two. Spelling them again would fence an epoch that is
+    -- already fenced, which the layer records as a finding.
+    --
     -- The verb has no state read-out and the fence does not retry it, so the
     -- retry is here. A settled table -- parsed, missing or unreadable -- makes
     -- no engine call at all; only a web lane still fetching costs one.
