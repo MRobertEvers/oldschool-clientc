@@ -76,6 +76,7 @@ EM_JS(
 #include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/world_seq_source_toridraw.h"
 #include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_model_from_rscache.h"
 #include "engine/torirs_model_inst_cache.h"
@@ -12454,30 +12455,6 @@ app_wev_cycle_views(struct App* app)
     }
 }
 
-/* World_SeqSource getters: seq timing resolved from the scene animation
- * registry (ToriDraw_Animation carries the seq-config meta). Unloaded ids
- * return the world_cycle defaults, which freeze that track until the lazy
- * seq load lands (app_request_entity_seq). */
-static struct ToriDraw_Animation*
-app_seq_anim(
-    void* userdata,
-    int seq_id)
-{
-    struct App* app = (struct App*)userdata;
-    if( !app->scene || seq_id < 0 )
-        return NULL;
-    return ToriDraw_SceneAnimationGet(app->scene, seq_id);
-}
-
-static int
-app_seq_frame_count(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->frame_count : 0;
-}
-
 /* Defined with the seq loader further down. */
 static void
 app_request_entity_seq(
@@ -12535,7 +12512,7 @@ app_wev_advance_bobs(struct App* app)
         else
             continue;
 
-        anim = app_seq_anim(app, active);
+        anim = WorldSeqSourceToriDraw_Animation(&app->seq_source, active);
         if( !anim || !anim->skeletal )
         {
             app_request_entity_seq(app, active);
@@ -12560,7 +12537,7 @@ app_wev_advance_bobs(struct App* app)
             wev->anim_start_cycle = app->wevs.clock;
             if( wev->config->anim_id < 0 )
                 continue;
-            anim = app_seq_anim(app, wev->config->anim_id);
+            anim = WorldSeqSourceToriDraw_Animation(&app->seq_source, wev->config->anim_id);
             if( !anim || !anim->skeletal )
             {
                 app_request_entity_seq(app, wev->config->anim_id);
@@ -12588,97 +12565,6 @@ app_wev_advance_bobs(struct App* app)
                 anim->frame_count,
                 wev->bob_y);
     }
-}
-
-static int
-app_seq_frame_duration(
-    void* userdata,
-    int seq_id,
-    int frame)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    /* Skeletal seqs carry no per-frame lengths — their curves are sampled one
-     * tick per client cycle, so every frame is a single cycle long. */
-    if( !anim || !anim->frames || frame < 0 || frame >= anim->frame_count )
-        return 1;
-    return anim->frames[frame].delay > 0 ? anim->frames[frame].delay : 1;
-}
-
-static int
-app_seq_frame_step(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->frame_step : 0;
-}
-
-static int
-app_seq_max_loops(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim && anim->max_loops > 0 ? anim->max_loops : 99;
-}
-
-static int
-app_seq_priority(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->priority : 5;
-}
-
-static int
-app_seq_duplicate_behavior(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->duplicate_behavior : -1;
-}
-
-static int
-app_seq_preanim_move(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->preanim_move : 0;
-}
-
-static int
-app_seq_postanim_move(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->postanim_move : 0;
-}
-
-static int
-app_seq_stretches(
-    void* userdata,
-    int seq_id)
-{
-    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
-    return anim ? anim->stretches : 0;
-}
-
-/* World_SeqSource.spotanim_seq: resolve a spotanim id to its animation seq id so
- * the world can step an entity's attached-graphic frame. -1 when the id is
- * invalid or the spotanimtype is not yet resident (the world then waits). */
-static int
-app_spotanim_seq(
-    void* userdata,
-    int spotanim_id)
-{
-    struct App* app = (struct App*)userdata;
-    struct ToriRS_Spotanimtype* spot =
-        spotanim_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, spotanim_id) : NULL;
-    return spot ? spot->seq : -1;
 }
 
 /* Plot one loc mapscene Pix8 into the baked minimap ARGB (reference drawDetail
@@ -13924,19 +13810,12 @@ App_WorldLoadFinish(struct App* app)
         app_client_triggers_world_loaded(app);
         World_SetHeightFn(app->world, app_world_height, app);
         {
-            struct World_SeqSource seq_source = {
-                .userdata = app,
-                .frame_count = app_seq_frame_count,
-                .frame_duration = app_seq_frame_duration,
-                .frame_step = app_seq_frame_step,
-                .max_loops = app_seq_max_loops,
-                .priority = app_seq_priority,
-                .duplicate_behavior = app_seq_duplicate_behavior,
-                .preanim_move = app_seq_preanim_move,
-                .postanim_move = app_seq_postanim_move,
-                .stretches = app_seq_stretches,
-                .spotanim_seq = app_spotanim_seq,
-            };
+            struct World_SeqSource seq_source;
+            /* Bound here rather than once at boot: the scene and the provider
+             * are what the source reads, and this is the point at which the
+             * world being handed the source has them. */
+            WorldSeqSourceToriDraw_Bind(&app->seq_source, app->scene, app->provider);
+            WorldSeqSourceToriDraw_Fill(&app->seq_source, &seq_source);
             World_SetSeqSource(app->world, &seq_source);
         }
         {
@@ -22539,43 +22418,6 @@ app_world_spawn_projectile_spot_now(
     app->need_redraw = 1;
 }
 
-/* Total client cycles one loop of a seq takes TO PLAY HERE. Drives the
- * free-standing spotanim's single-shot lifetime, so it has to agree with
- * whatever actually steps the frames — which is
- * ToriDraw_AnimationAdvanceObjectCycles, and that implements the rev239
- * `while (cycle > delay) cycle -= delay` walk, not Client-TS MapSpotAnim's
- * `getDuration(frame) + 1` subtraction.
- *
- * The two differ by one cycle per frame. Trace the rev239 walk: from a zero
- * counter the first frame needs delay+1 cycles to trip a STRICT `>`, and it
- * then leaves 1 behind, so every later frame costs exactly its own delay. The
- * loop is therefore sum(delay) + 1 cycles long, where summing (delay + 1) is
- * sum(delay) + frame_count.
- *
- * Overstating it by frame_count - 1 is not harmless: the sequence ends, the
- * element drops its animation and snaps back to the un-posed base model, and
- * the spotanim then sits frozen in that pose until the lifetime finally
- * expires. On a 37-frame splash that is 36 cycles of dead frame — the visible
- * "it plays, then freezes" at the end of every map spotanim.
- *
- * `delay <= 0` counts as 1 because the advance treats it that way. */
-static int
-app_seq_total_duration(
-    struct App* app,
-    int seq_id)
-{
-    int frames = app_seq_frame_count(app, seq_id);
-    int total = 1;
-    if( frames <= 0 )
-        return 1;
-    for( int f = 0; f < frames; f++ )
-    {
-        int delay = app_seq_frame_duration(app, seq_id, f);
-        total += delay > 0 ? delay : 1;
-    }
-    return total > 0 ? total : 1;
-}
-
 /* Free-standing spotanim (reference MapSpotAnim / MAP_ANIM). SYNCHRONOUS — the
  * spotanimtype, its model and its seq must already be resident (Task_AppSpawn
  * awaits them). Builds the transformed model, spawns the world entity with a
@@ -22625,7 +22467,7 @@ app_world_spawn_spotanim_now(
     if( element_id < 0 )
         return;
 
-    lifetime = app_seq_total_duration(app, spot->seq);
+    lifetime = WorldSeqSourceToriDraw_TotalDuration(&app->seq_source, spot->seq);
 
     World_SpotanimSpawn(world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
     app_world_apply_seq(app, element_id, spot->seq);

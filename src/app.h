@@ -9,6 +9,7 @@
 #include "editor/editor_panel.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_model_inst_cache.h"
+#include "engine/world_seq_source_toridraw.h"
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
@@ -805,6 +806,10 @@ struct App
     /* Phase 4b: world sim + builder (needs provider + scene + varps; the
      * World references assets and scene elements by integer id only). */
     struct World* world;
+    /** World_SeqSource binding: which scene's animation registry answers
+     *  "how long is this seq's frame", and which provider resolves a spotanim
+     *  to its seq. Rebound whenever a world is handed the source. */
+    struct WorldSeqSourceToriDraw seq_source;
     struct WorldBuilder* world_builder;
     /**
      * Multi-world view registry (OSRS world entities / sailing — worldview.h).

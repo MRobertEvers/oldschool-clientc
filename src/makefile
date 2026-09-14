@@ -593,6 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	engine/world_seq_source_toridraw.c \
 	plugin/torirs_plugin_mesh.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/torirs_damage_region.c \
@@ -1613,6 +1614,18 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+# The seq source World reads animation timing through. The defaults decide
+# whether a not-yet-loaded track freezes and waits or races; and the loop length
+# is sum(delay) + 1, not sum(delay + 1) -- the difference is a spotanim that
+# plays, freezes in its base pose, and only then disappears.
+.PHONY: test-world-seq-source
+test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_seq_source_test \
+		engine/test/world_seq_source_toridraw_test.c engine/world_seq_source_toridraw.c \
+		engine/cache_provider.c world/world.c world/entity_pathing.c world/entity_pool.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/world_seq_source_test
 
 # A plugin-authored mesh: the two halves grow independently and keep what was
 # written across every reallocation, and the model built from one is a COPY --
