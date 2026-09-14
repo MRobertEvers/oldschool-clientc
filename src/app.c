@@ -5565,7 +5565,9 @@ app_inv_drag_promoted(struct App const* app);
 static int
 app_inv_drag_ghosting(struct App const* app);
 
-/** Convert one retained panel primitive for the in-canvas fallback. */
+/** Convert one retained panel primitive for the in-canvas fallback. The
+ * translation is ToriRSChromePanelDraw_ToChromePrim's; this is the spelling
+ * that asks whether the primitive is showing at all. */
 static int
 app_panel_overlay_to_chrome(
     struct App const* app,
@@ -5573,50 +5575,12 @@ app_panel_overlay_to_chrome(
     struct ToriRSChromePrim* out)
 {
     struct UITreeEntityOverlay visible;
-    struct UITreeEntityOverlay const* item = &visible;
 
     assert(app);
+    assert(out);
     if( !app_plugin_panel_overlay_visible(app, index, &visible) )
         return 0;
-    assert(item);
-    assert(out);
-    memset(out, 0, sizeof(*out));
-    out->x = item->x;
-    out->y = item->y;
-    out->w = item->w;
-    out->h = item->h;
-    out->color = item->color & 0x00FFFFFFu;
-    out->trans = item->trans;
-    out->clip.x = item->clip_x;
-    out->clip.y = item->clip_y;
-    out->clip.w = item->clip_w;
-    out->clip.h = item->clip_h;
-
-    switch( item->kind )
-    {
-    case UITREE_ENTITY_OVERLAY_RECT:
-        out->kind = TORIRS_CHROME_PRIM_RECT;
-        out->filled = 1;
-        return 1;
-    case UITREE_ENTITY_OVERLAY_TEXT:
-        out->kind = TORIRS_CHROME_PRIM_TEXT;
-        out->font_slot = TORIRS_CHROME_FONT_BODY;
-        out->baseline = 1;
-        out->text = item->text;
-        return item->text[0] != '\0';
-    case UITREE_ENTITY_OVERLAY_SPRITE:
-        out->kind = TORIRS_CHROME_PRIM_SPRITE;
-        out->sprite_scene_id = item->scene_id;
-        return item->scene_id > 0;
-    case UITREE_ENTITY_OVERLAY_LINE:
-        out->kind = TORIRS_CHROME_PRIM_LINE;
-        out->line_direction = item->line_direction;
-        out->line_width = item->line_width;
-        return 1;
-    default:
-        /* Panel APIs expose rect/line/text/image, not world polygons. */
-        return 0;
-    }
+    return ToriRSChromePanelDraw_ToChromePrim(&visible, out);
 }
 
 /**
