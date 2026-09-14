@@ -2998,12 +2998,13 @@ test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/xp_orbs.c \
+		plugin/plugins/xp_orbs.c $(PORCELAIN_SRCS) \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
+		$(PORCELAIN_SRCS) \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/xp_orbs_test
 
