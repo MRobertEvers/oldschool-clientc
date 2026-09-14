@@ -5440,14 +5440,20 @@ app_npc_transform_depends_on_varp(
 
         if( !npc || npc->transform_count <= 0 || !npc->transforms )
             return 0;
-        if( varp_id < 0 || npc->transform_varp == varp_id )
+        /* A negative varp is the wildcard this walk alone accepts: "anything
+         * with a transform table at all". Nothing passes it today -- the
+         * change callback always carries a real varp -- but it is what makes
+         * this a walk over rungs rather than a test of one. */
+        if( varp_id < 0 )
             return 1;
-        if( npc->transform_varbit >= 0 && npc->transform_varbit < app->varps.varbit_count )
-        {
-            struct VarBitType const* vb = &app->varps.varbit_types[npc->transform_varbit];
-            if( vb->basevar == varp_id )
-                return 1;
-        }
+        if( VarPManager_TransformDependsOnVarp(
+                &app->varps,
+                npc->transforms,
+                npc->transform_count,
+                npc->transform_varbit,
+                npc->transform_varp,
+                varp_id) )
+            return 1;
         next = VarPManager_ResolveTransform(
             &app->varps,
             npc->transforms,
@@ -5567,18 +5573,17 @@ app_loc_transform_depends_on_varp(
     struct ToriRS_Location const* loc,
     int varp_id)
 {
+    assert(app);
     assert(loc);
-    if( loc->transform_count <= 0 || !loc->transforms )
-        return 0;
-    if( loc->transform_varp == varp_id )
-        return 1;
-    if( loc->transform_varbit >= 0 && loc->transform_varbit < app->varps.varbit_count )
-    {
-        struct VarBitType const* vb = &app->varps.varbit_types[loc->transform_varbit];
-        if( vb->basevar == varp_id )
-            return 1;
-    }
-    return 0;
+    return VarPManager_TransformDependsOnVarp(
+               &app->varps,
+               loc->transforms,
+               loc->transform_count,
+               loc->transform_varbit,
+               loc->transform_varp,
+               varp_id)
+               ? 1
+               : 0;
 }
 
 static void
