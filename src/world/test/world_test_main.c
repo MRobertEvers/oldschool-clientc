@@ -20,6 +20,7 @@ main(void)
     test_scenery();
     test_bridge_levels();
     test_height_at();
+    test_coord_to_scene_tile();
     test_cycle_movers();
     test_delaymove_gate();
     test_walk_keeps_up();

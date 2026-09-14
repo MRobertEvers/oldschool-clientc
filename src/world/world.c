@@ -182,6 +182,42 @@ World_TileFlagGet(
  * A world with no heightmap is a world that has not loaded one yet, which is a
  * legitimate state and answers flat 0. A NULL world is not: every caller knows
  * which world it is asking about. */
+bool
+World_CoordToSceneTile(
+    struct World const* world,
+    int coord,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    int level;
+    int absolute_x;
+    int absolute_z;
+    int tile_x;
+    int tile_z;
+
+    assert(world);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
+
+    if( coord < 0 )
+        return false;
+
+    level = (coord >> 28) & 0x3;
+    absolute_x = (coord >> 14) & 0x3fff;
+    absolute_z = coord & 0x3fff;
+    tile_x = absolute_x - world->_base_tile_x;
+    tile_z = absolute_z - world->_base_tile_z;
+
+    if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size || tile_z >= world->_scene_size )
+        return false;
+    *out_x = tile_x;
+    *out_z = tile_z;
+    *out_level = level;
+    return true;
+}
+
 int
 World_HeightAt(
     struct World const* world,

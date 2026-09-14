@@ -4703,38 +4703,6 @@ app_client_triggers_refire(struct App* app)
  * the part that needs a camera and a scene, and that is here.
  */
 
-/** Split a packed CS2 coord into SCENE tiles. False when the world has no
- *  scene or the tile is outside the loaded window. */
-static bool
-app_overlay_coord_to_scene(
-    struct App const* app,
-    int coord,
-    int* out_x,
-    int* out_z,
-    int* out_level)
-{
-    assert(app);
-    assert(out_x);
-    assert(out_z);
-    assert(out_level);
-
-    if( !app->world || coord < 0 )
-        return false;
-
-    int const level = (coord >> 28) & 0x3;
-    int const abs_x = (coord >> 14) & 0x3fff;
-    int const abs_z = coord & 0x3fff;
-    int const x = abs_x - app->world->_base_tile_x;
-    int const z = abs_z - app->world->_base_tile_z;
-
-    if( x < 0 || z < 0 || x >= app->world->_scene_size || z >= app->world->_scene_size )
-        return false;
-    *out_x = x;
-    *out_z = z;
-    *out_level = level;
-    return true;
-}
-
 /* LOC_FIND (6803): is a loc of this type on this tile, and on which layer.
  * Also the answer to "is that fishing spot still there" -- the scripts call it
  * before every rebuild of the overlay they put on one. */
@@ -4757,7 +4725,9 @@ app_cs2_loc_at_coord(
     assert(out_layer);
     assert(out_name);
 
-    if( !app_overlay_coord_to_scene(app, coord, &x, &z, &level) )
+    /* "Is there a world yet" is this callback's question, not the conversion's:
+     * a clientscript can ask about a coord on the title screen. */
+    if( !app->world || !World_CoordToSceneTile(app->world, coord, &x, &z, &level) )
         return 0;
     scenery = World_SceneryFindByLocId(app->world, x, z, level, loc_type);
     if( !scenery )
@@ -4920,7 +4890,9 @@ app_cs2_coord_in_scene(
     int level;
 
     assert(app);
-    return app_overlay_coord_to_scene(app, coord, &x, &z, &level) ? 1 : 0;
+    if( !app->world )
+        return 0;
+    return World_CoordToSceneTile(app->world, coord, &x, &z, &level) ? 1 : 0;
 }
 
 /*
@@ -4956,7 +4928,7 @@ app_cs2_objs_on_coord(
     assert(app);
     assert(out);
 
-    if( !app_overlay_coord_to_scene(app, coord, &tile_x, &tile_z, &level) )
+    if( !app->world || !World_CoordToSceneTile(app->world, coord, &tile_x, &tile_z, &level) )
         return 0;
     world = app->world;
     pool = &world->entities.obj_stack;
@@ -5244,7 +5216,7 @@ app_overlay_anchor(
         int x;
         int z;
         int level;
-        if( !app_overlay_coord_to_scene(app, item->coord, &x, &z, &level) )
+        if( !app->world || !World_CoordToSceneTile(app->world, item->coord, &x, &z, &level) )
             return out;
         /*
          * A tile has no model, so all three anchors are the tile centre at

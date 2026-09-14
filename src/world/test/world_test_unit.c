@@ -804,6 +804,89 @@ test_height_at(void)
     World_Free(world);
 }
 
+/*
+ * World_CoordToSceneTile: the packed CS2 coord every clientscript and every
+ * server op speaks, turned into the scene tile the scene is indexed by.
+ *
+ * Three fields in one int -- level in bits 28..29, absolute x in 14..27,
+ * absolute z in 0..13 -- and the scene is indexed by NEITHER of those
+ * absolutes, because the world slides under the player as it rebuilds. Get
+ * the shift or the mask wrong and a script's overlay lands on a plausible
+ * wrong tile rather than failing.
+ */
+void
+test_coord_to_scene_tile(void)
+{
+    printf("TEST: World_CoordToSceneTile\n");
+
+    /* A 64-tile scene. The base tile is DERIVED -- World_ResetScene takes zone
+     * centres and the base is the south-west zone times 8 -- so the test reads
+     * it rather than assuming it, which is also the point: nothing may assume
+     * the scene starts at the coord it was centred on. */
+    struct World* world = World_TestMakeReady(64);
+    int base_x = world->_base_tile_x;
+    int base_z = world->_base_tile_z;
+    int tile_x = -1;
+    int tile_z = -1;
+    int level = -1;
+
+    TEST_ASSERT(base_x > 0 && base_z > 0, "the fixture has a base tile");
+
+    /* The scene's own origin. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(world, (base_x << 14) | base_z, &tile_x, &tile_z, &level),
+        "the base tile is in the scene");
+    TEST_ASSERT(tile_x == 0 && tile_z == 0 && level == 0, "the base tile is scene 0,0 level 0");
+
+    /* An interior tile, and the level field, which lives above the x field and
+     * is the one a wrong shift silently folds into it. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (2 << 28) | ((base_x + 10) << 14) | (base_z + 20), &tile_x, &tile_z, &level),
+        "an interior coord is in the scene");
+    TEST_ASSERT(tile_x == 10, "interior x");
+    TEST_ASSERT(tile_z == 20, "interior z");
+    TEST_ASSERT(level == 2, "the level field is read from bits 28..29");
+
+    /* Only two bits of level: 4 wraps to 0 rather than bleeding into x. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (4 << 28) | ((base_x + 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "a level-4 coord still converts");
+    TEST_ASSERT(level == 0, "level is masked to two bits");
+    TEST_ASSERT(tile_x == 1, "a level above 3 did not disturb x");
+
+    /* The far corner is inside; one past it is not. Half-open, because the
+     * scene is scene_size tiles wide and the last index is size - 1. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, ((base_x + 63) << 14) | (base_z + 63), &tile_x, &tile_z, &level),
+        "the far corner is in the scene");
+    TEST_ASSERT(tile_x == 63 && tile_z == 63, "the far corner is scene 63,63");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x + 64) << 14) | base_z, &tile_x, &tile_z, &level),
+        "one tile past the east edge is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z + 64), &tile_x, &tile_z, &level),
+        "one tile past the north edge is outside");
+
+    /* West and south of the base: negative scene tiles, which the scene has no
+     * index for. This is ordinary -- a coord scrolls off as the player walks
+     * -- so it is false, not an error. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x - 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "west of the base tile is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z - 1), &tile_x, &tile_z, &level),
+        "south of the base tile is outside");
+
+    /* A negative coord is the caller's "no coord" sentinel. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, -1, &tile_x, &tile_z, &level), "a negative coord converted");
+
+    World_Free(world);
+}
+
 void
 test_bridge_levels(void)
 {

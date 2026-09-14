@@ -566,6 +566,28 @@ World_HeightAt(
     int level);
 
 /**
+ * Split a packed CS2 coord into SCENE tiles.
+ *
+ * The packed form is the one every clientscript and every server op speaks:
+ * level in bits 28..29, absolute x in 14..27, absolute z in 0..13. What the
+ * scene is indexed by is neither -- it is the tile relative to the world's
+ * base, and the world slides under the player as it rebuilds.
+ *
+ * False when the coord is negative, when no terrain is loaded, or when the
+ * tile is outside the loaded window. That last case is ordinary rather than
+ * exceptional: a coord scrolls off the scene as the player walks, and a
+ * caller that treats "outside" as an error draws a stale row instead of
+ * dropping it.
+ */
+bool
+World_CoordToSceneTile(
+    struct World const* world,
+    int coord,
+    int* out_x,
+    int* out_z,
+    int* out_level);
+
+/**
  * Bridge columns: the three level spaces a loc lives in, and how to travel
  * between them.
  *
