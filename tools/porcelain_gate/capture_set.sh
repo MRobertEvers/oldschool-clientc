@@ -47,7 +47,19 @@ $here/lane.sh $out modern164  $bin 2 gameframe-layout/modern-resizable 0 $M/mani
 $here/lane.sh $out stone601   $bin 0 mobile-gameframe/stone-drawer     1 $M/manifest_osrs239_curses.ini
 $here/lane.sh $out dat1_254   $bin 0 auto                              0 $M/manifest_rs254lc.ini --offline
 
-for t in native548 classic548 classic161 modern164 stone601 dat1_254; do
+# The seventh lane switches layout half way through, and it is here because a
+# regression got past the first six. A port can be byte-identical on every
+# static lane and still lose every control it owns the moment the frame root is
+# replaced: the layer moves a control through its setters and has no arm that
+# re-creates one whose parent died. That is invisible to a capture that never
+# remounts anything.
+#
+# 500 of 620 frames leaves 120 for the description to come back, which is far
+# more than it needs and little enough that a lane costs the same as the others.
+TORIRS_GATE_SIM_CMD='500,layout 2' \
+$here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
+
+for t in native548 classic548 classic161 modern164 stone601 dat1_254 remount164; do
   printf "%-12s exit=%s bounds=%s roles=%s owned=%s\n" $t \
     "$(cat $out/$t/exit-status)" \
     "$(grep -c '^BOUNDS' $out/$t/log.txt)" \

@@ -51,6 +51,7 @@ env_extra=()
     TORIRS_EXIT_BMP=$run/out.bmp \
     TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 \
     ${TORIRS_GATE_SCRIPT_DIR:+TORIRS_SCRIPT_DIR=$TORIRS_GATE_SCRIPT_DIR} \
+    ${TORIRS_GATE_SIM_CMD:+TORIRS_SIM_CMD=$TORIRS_GATE_SIM_CMD} \
     "${env_extra[@]}" \
     $bin --manifest $manifest --windowmode resizable --window 765x503 "$@" \
     > $run/log.txt 2>&1

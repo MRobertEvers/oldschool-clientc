@@ -21,9 +21,23 @@ lane and one for the set, and exits non-zero if any lane failed.
 | `modern164` | 2 | modern-resizable | the resizable provider, where staleness shows |
 | `stone601` | 0 | stone-drawer | the touch provider, `TORIRS_CLIENTTYPE=7` |
 | `dat1_254` | 0 | auto | the CS1/RevConfig lane, offline |
+| `remount164` | 0 | classic-fixed | switches layout at frame 500: does the port survive its parent dying |
 
-Five are CS2 and one is CS1, which is the split that matters: a change that
+Six are CS2 and one is CS1, which is the split that matters: a change that
 works only because it read a dat2 fact fails `dat1_254` and nothing else.
+
+`remount164` exists because a regression got past the other six. A port can be
+byte-identical on every static lane and still lose every control it owns the
+moment the frame root is replaced, because the layer moves a control through
+its setters and had no arm that re-created one whose parent died. Six captures
+that never remount anything cannot see that. This one switches layout half way
+through and leaves 120 frames for the description to come back.
+
+**A set can exit 0 on every lane and still be worthless.** If the embedded
+server refuses a stale script pack the client never gets a root, and the lanes
+exit cleanly having rendered nothing: the tell is the tallies `capture_set.sh`
+prints, where a CS2 lane shows tens of bounds instead of thousands. Read them
+before you read the verdict.
 
 ## What is compared
 
