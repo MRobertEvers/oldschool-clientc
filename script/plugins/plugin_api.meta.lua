@@ -540,8 +540,34 @@ warn = nil
 ---@field input_present boolean Reachable by the native hit test.
 ---@field graphic_token integer Change token for a node that carries art, 0 for one that does not. Never an identity.
 ---@field text_hash integer FNV-1a 64 of a text node's string, 0 for a non-text node.
----@field facets integer Reserved for lane-derived facets; 0 from every current adapter.
+---@field facets integer What the LANE says about this widget, as a mask of api.widgets.facet values. 0 is 'no', never 'unknown'.
+---@field facet torirs.WidgetFacets The same bits already unpacked.
 ---@field incarnation integer The reference's incarnation.
+
+--- What the lane says about a widget, as opposed to what the tree says about the node.
+--- A bit is set only for a widget the facet is about -- `selected` is meaningless on the
+--- compass -- and a facet this revision cannot derive reads false.
+---@class torirs.WidgetFacets
+---@field given boolean A sidebar tab the lane has given the player. Clear means the icon must not be drawn: the click would open nothing.
+---@field selected boolean The sidebar tab currently showing.
+---@field flashing boolean The sidebar tab the game flagged to flash. The flag, not the blink -- the half-second gap is the frame's to draw.
+---@field drawn boolean The minimap or compass surface is permitted to paint. Not `presented`, which is whether this node draws.
+---@field oriented boolean The compass rose is live, so north is readable. Reported on the minimap too: one MINIMAP_TOGGLE mode governs both.
+---@field walkable boolean A click on the minimap walks. Clear in the modes that draw the map and refuse the step.
+---@field active boolean This orb's toggle is on: run is on, or the special attack is armed.
+---@field hidden_by_cutscene boolean A cutscene has folded the gameplay HUD away. Set on every watched widget -- a plugin's own decoration goes with it.
+
+--- The mask constants behind torirs.WidgetState.facets, for code that tests `facets`
+--- directly rather than reading the unpacked `facet` table.
+---@class torirs.WidgetFacetBits
+---@field given integer
+---@field selected integer
+---@field flashing integer
+---@field drawn integer
+---@field oriented integer
+---@field walkable integer
+---@field active integer
+---@field hidden_by_cutscene integer
 
 ---@class torirs.WidgetBindingEvent
 ---@field kind 'bound'|'unbound'|'tree_changed'|'state_changed'
@@ -561,6 +587,7 @@ warn = nil
 ---@field find_all fun(role:string):(torirs.Widget|false)[]? All current matches in the role's own numbering: t[m+1] is member m, false where this frame has no member m; count is one past the highest present. Skip false entries when iterating. ground_item_labels is unavailable without the native CS2 overlay adapter.
 ---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.
 ---@field get fun(component_id:integer):torirs.Widget? Revision-specific lookup.
+---@field facet torirs.WidgetFacetBits The mask constants behind torirs.WidgetState.facets.
 
 ---@class torirs.ScriptRef
 ---@class torirs.ScriptEvent

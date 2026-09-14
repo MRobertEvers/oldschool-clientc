@@ -98,6 +98,54 @@ struct ToriRS_PluginRequirement
 struct ToriRS_WidgetBounds { int32_t x, y, width, height; };
 
 /*
+ * ToriRS_WidgetState::facets -- what the LANE says about this widget, as
+ * opposed to what the tree says about the node.
+ *
+ * Every other field of the state is geometry or presentation the tree can
+ * answer for any node at all. These cannot be: "has the player been given this
+ * tab", "is the run orb lit", "has the server taken the minimap away" are
+ * facts held in varps, varbits, slot state and a MINIMAP_TOGGLE mode, spelled
+ * differently on a dat1 client and a cache one, and a plugin that dresses a
+ * stone or an orb needs them on the same fence as the box it is dressing.
+ *
+ * A bit is set only for a node the facet is ABOUT -- SELECTED is meaningless
+ * on the compass -- and a facet this lane cannot derive reads zero. Zero is
+ * therefore always "no", never "unknown": a lane whose profile declares no
+ * cutscene varbit has no cutscene to hide the HUD for, which is a fact about
+ * the revision and not a gap in the answer.
+ */
+enum ToriRS_WidgetFacet
+{
+    /** A sidebar tab the lane has GIVEN the player: the panel exists and
+     *  nothing has taken it away. A tab this is clear on must not be drawn
+     *  with an icon -- the click would open nothing. */
+    TORIRS_WIDGET_FACET_GIVEN = 1u << 0,
+    /** The sidebar tab currently showing. Exactly one of a frame's tabs. */
+    TORIRS_WIDGET_FACET_SELECTED = 1u << 1,
+    /** The sidebar tab the game has FLAGGED to flash (a tutorial "look at
+     *  your inventory"). The flag, not the blink: the icon's half-second gap
+     *  is the frame's to draw, and a facet that pulsed with it would raise a
+     *  state change twice a second for every watcher. */
+    TORIRS_WIDGET_FACET_FLASHING = 1u << 2,
+    /** The minimap or compass surface is permitted to paint at all. Separate
+     *  from `presented`, which is whether THIS node draws: the server can
+     *  withhold the map while the widget is perfectly visible. */
+    TORIRS_WIDGET_FACET_DRAWN = 1u << 3,
+    /** The compass rose is live, so north is readable. Reported on the
+     *  minimap too: the same MINIMAP_TOGGLE mode governs both. */
+    TORIRS_WIDGET_FACET_ORIENTED = 1u << 4,
+    /** A click on the minimap walks. Clear in the modes that draw the map and
+     *  refuse the step, where a frame must not show a walk cursor. */
+    TORIRS_WIDGET_FACET_WALKABLE = 1u << 5,
+    /** This orb's toggle is on: run is on, or the special attack is armed. */
+    TORIRS_WIDGET_FACET_ACTIVE = 1u << 6,
+    /** A cutscene is running and the lane has folded the gameplay HUD away.
+     *  Set on every watched widget, because it is a fact about the SCREEN --
+     *  a plugin's own decoration has to go with it. */
+    TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE = 1u << 7,
+};
+
+/*
  * Everything a plugin that REPLACES or DECORATES a native widget has to
  * follow: where the widget is, whether it paints, who hid it, whether it can
  * still be clicked, and whether its art or caption changed underneath.
@@ -133,7 +181,8 @@ struct ToriRS_WidgetState
     /** FNV-1a 64 of a text node's current string; zero for a non-text node.
      *  A text node with an empty string hashes to the FNV basis, not zero. */
     uint64_t text_hash;
-    /** Reserved for lane-derived facets. Zero from every current adapter. */
+    /** What the LANE says about this widget: a bitmask of
+     *  enum ToriRS_WidgetFacet. Zero is "no" and never "unknown". */
     uint32_t facets;
     /** The reference's incarnation, so a state that arrived for a replaced
      *  node can be told from one for the node the plugin still holds. */

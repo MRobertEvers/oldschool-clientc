@@ -100,6 +100,8 @@ UITree_HostRequestInputMask(enum UITreeHostRequestKind kind)
 
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return client | world;
+    case UITREE_HOST_GET_MINIMAP_WALK:
+        return client | world;
     case UITREE_HOST_GET_COMPASS_HIDDEN:
         return world;
 
@@ -307,6 +309,14 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
     case UITREE_HOST_GET_MINIMAP_STATE:
     case UITREE_HOST_GET_INV_COUNT_FONT:
+        return -1;
+    /* The one permission whose polarity runs the other way: 0 here would say
+     * the map is inert, which is a state the server has to PUT the session in
+     * (MINIMAP_TOGGLE 1, 2 or 4). A tree with no session has had nothing taken
+     * away -- the same answer its two neighbours give as 0 -- so it says the
+     * click would walk, and the hostless set stays consistent with itself. */
+    case UITREE_HOST_GET_MINIMAP_WALK:
+        return 1;
     /* -1 is "not on the title screen", which 0 could not say: 0 is a real
      * screen (the front menu). */
     case UITREE_HOST_GET_TITLE_SCREEN:

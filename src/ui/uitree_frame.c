@@ -248,6 +248,92 @@ UITree_FrameSlotNativeSize(
     return 1;
 }
 
+/* Is this box a plain pixel rectangle, or arithmetic over its parent's? Every
+ * authored-geometry answer in this file turns on the same test. */
+static int
+frame_box_is_authored_pixels(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( c->position.kind != UIPOS_XY )
+        return 0;
+    if( c->position.x_mode > 0 || c->position.y_mode > 0 )
+        return 0;
+    if( c->position.width_mode > 0 )
+        return 0;
+    return c->position.height_mode <= 0;
+}
+
+int
+UITree_FrameSlotMemberNativeBox(
+    struct UITree const* tree,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct UITreeComponent const* c;
+    int32_t block;
+    int32_t node;
+    int x = 0;
+    int y = 0;
+    int w;
+    int h;
+
+    assert(tree);
+    /* -1 is NativeSize's question and is refused rather than redirected: the
+     * surface as a whole has no offset inside itself to report, and answering
+     * (0,0,w,h) would look like a member that happens to sit at the origin. */
+    if( member < 0 )
+        return 0;
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return 0;
+    block = UITree_FrameSlotNode(tree, slot);
+    if( block < 0 )
+        return 0;
+    node = UITree_FrameSlotMemberNode(tree, slot, member);
+    if( node < 0 )
+        return 0;
+
+    c = &tree->components[node];
+    if( !frame_box_is_authored_pixels(c) )
+        return 0;
+    if( c->position.width <= 0 || c->position.height <= 0 )
+        return 0;
+    w = c->position.width;
+    h = c->position.height;
+
+    /* Up to the block, adding each authored offset. Bounded by the component
+     * count so a cycle a corrupt parent link would make cannot spin here; the
+     * real chains are two or three deep. */
+    for( uint32_t step = 0; node != block; step++ )
+    {
+        if( step >= tree->component_count )
+            return 0;
+        c = &tree->components[node];
+        if( !frame_box_is_authored_pixels(c) )
+            return 0;
+        x += c->position.x;
+        y += c->position.y;
+        node = c->parent;
+        /* The member is not inside the block at all -- a stamp on a node that
+         * hangs off some other container. There is no offset to report. */
+        if( node < 0 )
+            return 0;
+    }
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
 int
 UITree_FrameSlotIndex(
     struct UITreeComponent const* node,

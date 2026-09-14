@@ -1286,6 +1286,47 @@ struct App
 #define APP_FRAME_ROLE_SLOTS 32
     uint16_t plugin_frame_role_id[APP_FRAME_ROLE_SLOTS][1 + 16];
     int plugin_frame_role_ids_for_count;
+    /**
+     * Everything app_plugin_widget_facets has to look up by NAME, resolved
+     * once instead of per watched element per layout fence.
+     *
+     * Two keys because there are two tables behind it and they grow at
+     * different times: `refs_count` is RevConfigRefs, whose rows are the
+     * revision's varbit and varp ids, and `roles_count` is the role table,
+     * where an orb's role is interned. Each id is -1 or 0 for "this revision
+     * does not have it", which the facet reads as a bit that is never set.
+     * @see app_plugin_facet_ids.
+     */
+    struct
+    {
+        int refs_count;
+        int roles_count;
+        int varbit_sidebar_flash;
+        int varbit_cutscene;
+        int varp_run_mode;
+        int varp_special_armed;
+        uint16_t role_orb_run;
+        uint16_t role_orb_spec;
+        uint8_t valid;
+        /**
+         * The tab STONES, which are a different question from the side
+         * panels. The binder stamps a slot tag on the panel a tab opens, so
+         * that is what carries a member number; the stone a plugin re-skins
+         * carries nothing, because on the cache lane its role is derived per
+         * root rather than authored onto the node. So the 14 `sidetab_N`
+         * roles are interned here and resolved to nodes once per publication,
+         * and a node that IS one of them answers its tab's facets.
+         *
+         * Two keys again, and both are needed: the role ids move when the
+         * table grows, the nodes move when the tree is rebuilt or a script
+         * recycles an id.
+         */
+        uint16_t role_sidetab[16];
+        int32_t sidetab_node[16];
+        uint32_t sidetab_generation;
+        uint32_t sidetab_id_generation;
+        uint8_t sidetab_valid;
+    } plugin_facet_ids;
     /** The tree generations the stamps above were computed against; the
      *  binder returns early while neither has moved. */
     struct UITree const* plugin_frame_bound_tree;

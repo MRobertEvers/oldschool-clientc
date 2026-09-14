@@ -6910,6 +6910,15 @@ PluginHost_WidgetStates(struct ToriRS_PluginHost* host)
             continue;
         bool const had = watch->has_last_state;
         struct ToriRS_WidgetState const previous = watch->last_state;
+        /* The lane's own answers, reported the first time they are seen and
+         * whenever they move -- unlike PLUGIN_STATE below, which is silent on
+         * the baseline. A facet bit is the one field of the state a reader
+         * cannot check against the pixels, so the first value is the
+         * interesting one: a tab that was never GIVEN prints once and stays
+         * quiet, which is exactly the run a facet audit is looking for. */
+        if( trace && (!had || previous.facets != state.facets) )
+            TORIRS_REPORT("PLUGIN_FACETS owner=%d role=%s facets=%02x\n", item.owner, role,
+                          state.facets);
         watch->last_state = state;
         watch->has_last_state = true;
         /* The first stamp after a binding is a baseline, not a change: a plugin

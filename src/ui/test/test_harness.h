@@ -66,6 +66,10 @@ struct TestHostState
      * with no session is actually in. */
     int minimap_hidden;
     int compass_hidden;
+    /** The walk permission, not its refusal: a zeroed fixture would otherwise
+     *  report a minimap nobody may click, which no MINIMAP_TOGGLE state that
+     *  also draws the map describes. @see uitree_test_host_walkable. */
+    int minimap_walk_denied;
     /** > 0: GET_IF_EVENTS answers 1 for every com_id divisible by it. */
     int if_events_every;
     /** Scene id GET_MINIMAP_STATE answers with; 0 leaves it at "no baked map",
@@ -149,6 +153,8 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         return st->minimap_hidden;
     case UITREE_HOST_GET_COMPASS_HIDDEN:
         return st->compass_hidden;
+    case UITREE_HOST_GET_MINIMAP_WALK:
+        return !st->minimap_walk_denied;
     case UITREE_HOST_GET_MINIMAP_STATE:
         if( st->minimap_scene_id <= 0 )
             return -1;

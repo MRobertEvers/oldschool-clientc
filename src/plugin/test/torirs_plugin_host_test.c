@@ -3009,6 +3009,30 @@ static void test_widget_states(void)
     row->bounds.height += 5;
     PluginHost_WidgetStates(state_host);
     CHECK(state_events == 7, "the replacement subscription follows its widget from then on");
+
+    /*
+     * The lane's own answers move on their own.
+     *
+     * A tab the player is given, the tab that is selected, a minimap the
+     * server took away: none of them touches the geometry, the hide bits or
+     * the art token, so a pass that compared only those would tell a frame
+     * nothing and it would keep drawing the stone it was told about last. The
+     * facets are part of the difference, and they are the WHOLE difference
+     * here -- nothing else is written between these two passes.
+     */
+    row->facets = TORIRS_WIDGET_FACET_GIVEN;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 8, "a facet moving on its own raises a state event");
+    CHECK(state_last_read.facets == TORIRS_WIDGET_FACET_GIVEN,
+          "the event carries the lane's facet bits");
+    row->facets |= TORIRS_WIDGET_FACET_SELECTED;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 9, "a second facet arriving beside the first is another change");
+    CHECK(state_last_read.facets ==
+              (TORIRS_WIDGET_FACET_GIVEN | TORIRS_WIDGET_FACET_SELECTED),
+          "facets accumulate as a mask rather than replacing one another");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 9, "and an unchanged facet mask raises nothing");
     PluginHost_Free(state_host);
 }
 

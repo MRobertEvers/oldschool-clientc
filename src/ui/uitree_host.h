@@ -208,6 +208,20 @@ enum UITreeHostRequestKind
     UITREE_HOST_GET_MINIMAP_HIDDEN,
     UITREE_HOST_GET_COMPASS_HIDDEN,
     /**
+     * Nonzero when a click on the minimap WALKS (MINIMAP_TOGGLE state 0 or 3).
+     *
+     * The third of the permission set and the only one that was never asked
+     * for through the host: the engine read RS_MinimapPermissions directly at
+     * the one site that needed it. It is a request now because a second reader
+     * arrived -- the widget-state facets -- and two readers of one lane fact
+     * must not each spell it out for themselves.
+     *
+     * Apart from GET_MINIMAP_HIDDEN for the reason stated above it: state 1
+     * draws the map and refuses the walk, so "withheld" and "inert" are
+     * different answers about the same surface.
+     */
+    UITREE_HOST_GET_MINIMAP_WALK,
+    /**
      * Nonzero when the player is in a multi-combat zone (SET_MULTIWAY) and the
      * indicator should draw. The sprite and its place are the widget's, from
      * revconfig; only the answer to "now?" is the host's.

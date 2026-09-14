@@ -3915,23 +3915,223 @@ app_plugin_trace_find_all(
         role, count, list);
 }
 
+static int app_plugin_tab_active(void* user);
+
 /*
- * Lane-derived facets for one node: the single place the revconfig/CS2 lane
- * will later answer "what KIND of thing is this" (a tab stone, an orb, a chat
- * filter) for a plugin that dresses it.
+ * The ids the facets below are spelled with, resolved once.
  *
- * Zero today, and deliberately a function rather than a literal: when the
- * facet table lands it lands HERE, not spread over the state reader, the
- * watch pass and whatever else wants to ask.
+ * Every one of them is a NAME on the way in -- a `[varbit:…]` row, a
+ * `[varp:…]` row, a role -- and a name costs a walk of the ref table with a
+ * strcmp per row, or an intern lookup. The facets run per watched element per
+ * layout fence, which is a hundred lookups a frame for four numbers that
+ * change when a profile is loaded and never again.
+ *
+ * Keyed the way the frame binder keys its own interned role ids: on the SIZE
+ * of each table behind it. A revconfig row or a role can only appear by the
+ * table growing, so a count that has not moved is a table that has not gained
+ * the thing that was missing.
  */
-static uint32_t
-app_plugin_widget_facets(struct App const* app, int32_t idx)
+static void
+app_plugin_facet_ids(struct App* app)
 {
     assert(app);
+    if( app->plugin_facet_ids.valid &&
+        app->plugin_facet_ids.refs_count == app->revconfig_refs.count &&
+        app->plugin_facet_ids.roles_count == app->ui_roles.count )
+        return;
+
+    app->plugin_facet_ids.refs_count = app->revconfig_refs.count;
+    app->plugin_facet_ids.roles_count = app->ui_roles.count;
+    _Static_assert(
+        (int)(sizeof(app->plugin_facet_ids.role_sidetab) /
+              sizeof(app->plugin_facet_ids.role_sidetab[0])) >= UITREE_FRAME_SLOT_NODES_MAX,
+        "the sidetab role cache covers every member a frame slot can have");
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+    {
+        char role[UITREE_ROLE_NAME_MAX];
+        snprintf(role, sizeof(role), "sidetab_%d", tab);
+        app->plugin_facet_ids.role_sidetab[tab] = UITree_RoleFind(&app->ui_roles, role);
+    }
+    app->plugin_facet_ids.sidetab_valid = 0;
+    app->plugin_facet_ids.varbit_sidebar_flash =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sidebar_flash_tab");
+    app->plugin_facet_ids.varbit_cutscene =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "cutscene_status");
+    app->plugin_facet_ids.varp_run_mode =
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "run_mode");
+    app->plugin_facet_ids.varp_special_armed =
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "special_attack_armed");
+    app->plugin_facet_ids.role_orb_run = UITree_RoleFind(&app->ui_roles, "orb_run");
+    app->plugin_facet_ids.role_orb_spec = UITree_RoleFind(&app->ui_roles, "orb_spec");
+    app->plugin_facet_ids.valid = 1;
+}
+
+/*
+ * Which sidebar tab this node IS, or -1.
+ *
+ * The two spellings of one thing, and neither is a fallback for the other: a
+ * 2004 frame's tab is a builtin carrying its number in its own union, and a
+ * cache gameframe's `sideN` is a plain layer the frame binder stamped with a
+ * slot tag and a member number. UITree_FrameSlotIndex already reads both --
+ * this adds only the question it deliberately does not answer, which is
+ * whether the node is a tab at all. @see frame_node_is_slot.
+ */
+/*
+ * Which node each tab STONE is, resolved once per publication.
+ *
+ * Asking the role table per element would be a memo hit per tab per element,
+ * which is a hundred elements' worth of lookups for an answer that changes
+ * when the tree does. The stones move only when the tree is rebuilt or a
+ * script recycles an id, which is exactly what the role memo itself keys on,
+ * so this caches on the same two counters.
+ */
+static void
+app_plugin_facet_sidetab_nodes(struct App* app)
+{
+    assert(app);
+    assert(app->tree);
+    if( app->plugin_facet_ids.sidetab_valid &&
+        app->plugin_facet_ids.sidetab_generation == app->tree->generation &&
+        app->plugin_facet_ids.sidetab_id_generation == app->tree->id_generation )
+        return;
+    app->plugin_facet_ids.sidetab_generation = app->tree->generation;
+    app->plugin_facet_ids.sidetab_id_generation = app->tree->id_generation;
+    app->plugin_facet_ids.sidetab_valid = 1;
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+        app->plugin_facet_ids.sidetab_node[tab] =
+            app->plugin_facet_ids.role_sidetab[tab]
+                ? UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_sidetab[tab])
+                : -1;
+}
+
+/* The stone, by node identity. -1 when this node is not one. */
+static int
+app_plugin_node_stone_tabno(struct App* app, int32_t idx)
+{
+    assert(app);
+    app_plugin_facet_sidetab_nodes(app);
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+        if( app->plugin_facet_ids.sidetab_node[tab] == idx )
+            return tab;
+    return -1;
+}
+
+static int
+app_plugin_node_tabno(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( c->type == UIELEM_BUILTIN_SIDEBAR )
+        return c->u.sidebar.componentno >= 0 ? c->u.sidebar.tabno : -1;
+    if( c->slot_tag != UITREE_SLOT_SIDE_MODAL || !c->frame_member_plus1 )
+        return -1;
+    return (int)c->frame_member_plus1 - 1;
+}
+
+/*
+ * Lane-derived facets for one node: the single place that answers "what does
+ * the GAME say about this thing" for a plugin that dresses it.
+ *
+ * ONE function, and no lane name anywhere in it. What it keys on is what the
+ * profile declared (a varbit row exists or it does not) and what the node
+ * itself carries (its builtin type, its slot stamp, the role it resolves to).
+ * A lane that cannot derive a facet reads zero for it -- which is why the two
+ * spellings of "is this tab hidden" live behind RS_UISlots_TabGiven and the
+ * selection behind app_plugin_tab_active rather than being restated here: each
+ * of those already holds both halves, and a second copy is how the two drift.
+ *
+ * Cost: no tree walk, no strcmp, no snprintf per element beyond the one
+ * RS_UISlots_TabGiven does for a node that is actually a tab. The ids are
+ * app_plugin_facet_ids' single resolution; the orb roles memoise on the tree's
+ * own generations; the minimap permissions are three host requests, the same
+ * three the engine's own minimap and compass ask.
+ */
+static uint32_t
+app_plugin_widget_facets(struct App* app, int32_t idx)
+{
+    struct UITreeComponent const* c;
+    uint32_t facets = 0;
+    int tabno;
+
+    assert(app);
     assert(idx >= 0);
-    (void)app;
-    (void)idx;
-    return 0;
+    assert(app->tree);
+    assert((uint32_t)idx < app->tree->component_count);
+
+    app_plugin_facet_ids(app);
+    c = &app->tree->components[idx];
+
+    /* A fact about the SCREEN, so it is reported on everything: a plugin's
+     * own decoration has to fold away with the HUD it is drawn over. A lane
+     * whose profile declares no cutscene varbit has no cutscene. */
+    if( app->plugin_facet_ids.varbit_cutscene >= 0 &&
+        VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_cutscene) )
+        facets |= TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE;
+
+    /* The panel a tab opens, or the stone that opens it: a plugin dressing
+     * either one is asking about the same tab. */
+    tabno = app_plugin_node_tabno(c);
+    if( tabno < 0 )
+        tabno = app_plugin_node_stone_tabno(app, idx);
+    if( tabno >= 0 )
+    {
+        if( RS_UISlots_TabGiven(app, tabno) )
+            facets |= TORIRS_WIDGET_FACET_GIVEN;
+        if( app_plugin_tab_active(app) == tabno )
+            facets |= TORIRS_WIDGET_FACET_SELECTED;
+        /*
+         * The flash FLAG, not the blink. Two sources and they are not
+         * alternatives: the cache lane flags the tab in a varbit its own
+         * `toplevel_flashicon` reads, and a dat1 lane flags it in TUT_FLASH.
+         *
+         * The off-by-one is the cache script's own: it computes the tab from
+         * `varbit - 1`, which is what makes 0 mean "nothing is flashing"
+         * rather than "tab 0 is". Subtracting it here is the same arithmetic
+         * on the same varbit, not a guess about the encoding.
+         */
+        if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
+        {
+            int const flagged =
+                VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
+            if( flagged == tabno )
+                facets |= TORIRS_WIDGET_FACET_FLASHING;
+        }
+        if( app->slots.flash_tab == tabno )
+            facets |= TORIRS_WIDGET_FACET_FLASHING;
+    }
+
+    if( c->type == UIELEM_BUILTIN_MINIMAP || c->type == UIELEM_BUILTIN_COMPASS )
+    {
+        /* Through the host and not RS_MinimapPermissions, deliberately: the
+         * engine's minimap and compass gate their own paint on exactly these
+         * requests, so the facet and the pixels cannot disagree. */
+        struct UITreeHostRequest req;
+        memset(&req, 0, sizeof(req));
+        req.kind = c->type == UIELEM_BUILTIN_MINIMAP ? UITREE_HOST_GET_MINIMAP_HIDDEN
+                                                     : UITREE_HOST_GET_COMPASS_HIDDEN;
+        if( !UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_DRAWN;
+        memset(&req, 0, sizeof(req));
+        req.kind = UITREE_HOST_GET_COMPASS_HIDDEN;
+        if( !UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_ORIENTED;
+        memset(&req, 0, sizeof(req));
+        req.kind = UITREE_HOST_GET_MINIMAP_WALK;
+        if( UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_WALKABLE;
+    }
+
+    /* An orb's own toggle, and only for the orb it belongs to: the run orb
+     * does not light up because the special is armed. */
+    if( app->plugin_facet_ids.varp_run_mode >= 0 && app->plugin_facet_ids.role_orb_run &&
+        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_run) == idx &&
+        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_run_mode) )
+        facets |= TORIRS_WIDGET_FACET_ACTIVE;
+    if( app->plugin_facet_ids.varp_special_armed >= 0 && app->plugin_facet_ids.role_orb_spec &&
+        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_spec) == idx &&
+        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_special_armed) )
+        facets |= TORIRS_WIDGET_FACET_ACTIVE;
+
+    return facets;
 }
 
 static enum ToriRS_ContractResult

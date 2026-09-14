@@ -6602,6 +6602,8 @@ app_host_request(
         return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_MAP);
     case UITREE_HOST_GET_COMPASS_HIDDEN:
         return !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_DRAW_COMPASS);
+    case UITREE_HOST_GET_MINIMAP_WALK:
+        return (RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) != 0;
     case UITREE_HOST_GET_MULTIWAY:
         return app->multiway == 1;
     case UITREE_HOST_GET_REBOOT_TIMER:

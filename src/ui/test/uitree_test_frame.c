@@ -1258,6 +1258,7 @@ static int32_t g_binder_side3;
 static int32_t g_binder_orbs;
 static int32_t g_binder_adviser;
 static int32_t g_binder_globe;
+static int32_t g_binder_banner;
 
 static void
 stamping_binder(struct UITree* tree, void* user)
@@ -1276,6 +1277,10 @@ stamping_binder(struct UITree* tree, void* user)
      * world-map globe is: orbs member 1. */
     tree->components[g_binder_globe].slot_tag = UITREE_SLOT_ORBS;
     tree->components[g_binder_globe].frame_member_plus1 = 1 + 1;
+    /* And one nested a level deeper than the pack root, as the wiki banner is
+     * on a toplevel that groups it: orbs member 2. */
+    tree->components[g_binder_banner].slot_tag = UITREE_SLOT_ORBS;
+    tree->components[g_binder_banner].frame_member_plus1 = 2 + 1;
 }
 
 static void
@@ -1290,6 +1295,8 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t pack;
     int32_t adviser;
     int32_t globe;
+    int32_t banner_group;
+    int32_t banner;
     int32_t container;
     int32_t blocker;
     int32_t control;
@@ -1322,6 +1329,13 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
      * the pack's own script puts it on a resizable toplevel. */
     globe = UITree_TestPushXy(
         tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 49, 206, 115, 30, 30);
+    /* The wiki banner, a level deeper again: the pack groups it with the art
+     * beside it, so the box the lane authored for the BANNER is 6,7 inside the
+     * group and 8,12 inside that -- neither number on its own places it. */
+    banner_group = UITree_TestPushXy(
+        tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 60, 6, 7, 60, 40);
+    banner = UITree_TestPushXy(
+        tree, banner_group, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 50, 8, 12, 24, 22);
     /* A click-blocker and a control, both root-group layers: chrome. */
     {
         struct UITreeNodeSpec spec;
@@ -1358,7 +1372,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     panel_border = UITree_CcCreate(tree, container, (FRAME_GROUP << 16) | 20, 3, 0);
     TEST_ASSERT(
         chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && globe >= 0 &&
-            blocker >= 0 &&
+            banner_group >= 0 && banner >= 0 && blocker >= 0 &&
             control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0,
         "cache frame fixture with layers builds");
     TEST_ASSERT(
@@ -1376,6 +1390,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_orbs = orbs;
     g_binder_adviser = adviser;
     g_binder_globe = globe;
+    g_binder_banner = banner;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
     UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
@@ -1462,6 +1477,67 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
         "and the whole-role answer is still the block, not the member");
+
+    /*
+     * The member twin of UITree_FrameSlotNativeSize: where inside the BLOCK
+     * the lane authored each member, so a provider that moves the block can
+     * put them back without carrying one toplevel's numbers onto another.
+     *
+     * Asked here deliberately, with the adviser MOVED: the authored answer
+     * must still be the lane's 202,50 and not the 20,20 the provider just
+     * wrote, or a frame reading it to decide where to place is reading its
+     * own answer back.
+     */
+    {
+        int box_x = -1, box_y = -1, box_w = -1, box_h = -1;
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 0, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 202 && box_y == 50 && box_w == 34 && box_h == 34,
+            "a moved member still reports the box the lane authored for it");
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 1, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 206 && box_y == 115 && box_w == 30 && box_h == 30,
+            "and a member of the pack reports its offset inside the block");
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 6 + 8 && box_y == 7 + 12 && box_w == 24 && box_h == 22,
+            "a member nested deeper reports the sum, not the box its own parent gave it");
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 3, NULL, NULL, NULL, NULL),
+            "a member this frame does not have has no box");
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, -1, NULL, NULL, NULL, NULL),
+            "and the surface as a whole is NativeSize's question, not this one");
+        /* A member sized as a PROPORTION of its parent has no pixel box to
+         * report, exactly as UITree_FrameSlotNativeSize refuses one: handing
+         * back `width` would report 40 for a node that is 40% wide. */
+        box_x = box_y = box_w = box_h = -1;
+        tree->components[globe].position.width_mode = 1;
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 1, &box_x, &box_y, &box_w, &box_h) &&
+                box_w == -1,
+            "a proportional member reports nothing rather than a percentage as pixels");
+        tree->components[globe].position.width_mode = 0;
+        /* The same refusal for a container ON THE WAY UP: the sum is only as
+         * meaningful as the least certain term in it. */
+        tree->components[banner_group].position.kind = UIPOS_RELATIVE;
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, NULL, NULL, NULL, NULL),
+            "nor does a member reached through a container whose own box is relative");
+        tree->components[banner_group].position.kind = UIPOS_XY;
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, &box_x, &box_y, NULL, NULL) &&
+                box_x == 14 && box_y == 19,
+            "and answers again once the chain is plain pixels");
+    }
 
     UITree_WidgetResetOwner(tree, PLUGIN_OWNER);
     UITree_FrameRelease(tree);

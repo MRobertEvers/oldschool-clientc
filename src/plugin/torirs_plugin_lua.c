@@ -893,6 +893,24 @@ static int lua_widget_box(lua_State* L, bool local)
     lua_pushinteger(L,box.height);lua_setfield(L,-2,"height");
     return 1;
 }
+/*
+ * The bit names behind ToriRS_WidgetState::facets, in one table so that the
+ * two places Lua meets them -- the booleans on a state result and the
+ * constants under `api.widgets.facet` -- cannot come to differ. A plugin that
+ * reads `st.facet.given` and one that masks `st.facets` against
+ * `api.widgets.facet.GIVEN` are then asking the same question.
+ */
+static struct { char const* name; uint32_t bit; } const LUA_WIDGET_FACETS[] = {
+    {"given", TORIRS_WIDGET_FACET_GIVEN},
+    {"selected", TORIRS_WIDGET_FACET_SELECTED},
+    {"flashing", TORIRS_WIDGET_FACET_FLASHING},
+    {"drawn", TORIRS_WIDGET_FACET_DRAWN},
+    {"oriented", TORIRS_WIDGET_FACET_ORIENTED},
+    {"walkable", TORIRS_WIDGET_FACET_WALKABLE},
+    {"active", TORIRS_WIDGET_FACET_ACTIVE},
+    {"hidden_by_cutscene", TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE},
+};
+
 static int lua_widget_state(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
@@ -912,6 +930,10 @@ static int lua_widget_state(lua_State* L)
     WS_B("native_hidden",v.native_hidden); WS_B("input_present",v.input_present);
     WS_I("graphic_token",v.graphic_token); WS_I("text_hash",v.text_hash);
     WS_I("facets",v.facets); WS_I("incarnation",v.incarnation);
+    lua_createtable(L,0,(int)(sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0])));
+    for(size_t i=0;i<sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0]);i++)
+    { WS_B(LUA_WIDGET_FACETS[i].name,(v.facets&LUA_WIDGET_FACETS[i].bit)!=0); }
+    lua_setfield(L,-2,"facet");
 #undef WS_B
 #undef WS_I
     return 1;
@@ -1791,6 +1813,19 @@ lua_build_api_table(struct LuaScript* script)
             lua_pushlightuserdata(L,script);lua_pushcclosure(L,lua_config_index,1);lua_setfield(L,-2,"__index");
             lua_pushlightuserdata(L,script);lua_pushcclosure(L,lua_config_newindex,1);lua_setfield(L,-2,"__newindex");
             lua_setmetatable(L,-2);
+        }
+        if(strcmp(module->name,"widgets")==0)
+        {
+            /* api.widgets.facet.<name> -- the mask constants, so a plugin can
+             * test widget:state().facets without spelling a bit value that
+             * only the C header knows. */
+            lua_createtable(L,0,(int)(sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0])));
+            for(size_t i=0;i<sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0]);i++)
+            {
+                lua_pushinteger(L,(lua_Integer)LUA_WIDGET_FACETS[i].bit);
+                lua_setfield(L,-2,LUA_WIDGET_FACETS[i].name);
+            }
+            lua_setfield(L,-2,"facet");
         }
         lua_setfield(L,-2,module->name);
     }
