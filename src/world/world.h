@@ -1446,9 +1446,17 @@ World_NpcSetChat(
 
 /* ---- zone-packet world mutations ---- */
 
-/** Ground item stack add: takes ownership of an already-created scene
- * element. One stack entity per (tile, obj) pair; re-adding refreshes the
- * count. Returns the pool index or -1. */
+/**
+ * Ground item stack add: takes ownership of an already-created scene element.
+ * Returns the pool index or -1.
+ *
+ * This ALWAYS allocates. "One stack per (tile, obj) pair" is the caller's
+ * rule, not this one's -- App_WorldObjStackAdd asks World_ObjStackFind first
+ * and refreshes the count on a hit, because it also has a scene element and a
+ * model to keep rather than rebuild. Call this twice with the same obj on the
+ * same tile and the tile is two deep, which is what the CS2 ground-item
+ * opcodes will then report.
+ */
 int
 World_ObjStackAdd(
     struct World* world,
@@ -1486,6 +1494,27 @@ World_ObjStackFind(
     int scene_z,
     int level,
     int obj_id);
+
+/**
+ * How many stacks are piled on a tile, and the `index`-th of them.
+ *
+ * The count is the TOTAL on the tile and is returned whether or not `index`
+ * named one of them -- the CS2 ground-item opcodes ask "how many" and "which"
+ * with the same call, and a walk that stopped at the match would answer the
+ * first question with the second one's answer. `*out_stack` is written only
+ * when `index` is in range, and left alone otherwise.
+ *
+ * Order is pool order, which is the order the stacks were added: the reference
+ * piles a tile's objs in arrival order and its opcodes index into that.
+ */
+int
+World_ObjStackCountAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int index,
+    struct WorldEntity_ObjStack const** out_stack);
 
 /** Pool walk by scene element id (the world pick classifier's entry point). */
 struct WorldEntity_ObjStack*

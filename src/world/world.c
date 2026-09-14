@@ -3024,6 +3024,46 @@ World_ObjStackFind(
     return -1;
 }
 
+int
+World_ObjStackCountAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int index,
+    struct WorldEntity_ObjStack const** out_stack)
+{
+    struct World_EntityPool* pool;
+    int count = 0;
+
+    assert(world);
+    assert(out_stack);
+
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
+
+        /* No element-id test. A stack in this pool has a scene element by
+         * construction -- World_ObjStackAdd takes one, and the one caller
+         * refuses to add without it -- and World_ObjStackFind beside this does
+         * not test for one either. Two walks over the same pool disagreeing
+         * about what is in it is worse than a guard that cannot fire. */
+        if( !stack )
+            continue;
+        if( stack->grid_position.x != scene_x || stack->grid_position.z != scene_z ||
+            stack->grid_position.level != level )
+            continue;
+        if( count == index )
+            *out_stack = stack;
+        /* No break. The return value is the tile's total, and the caller asks
+         * for it with the same call that asks for one entry. */
+        count++;
+    }
+    return count;
+}
+
 struct WorldEntity_ObjStack*
 World_ObjStackGetByElementId(
     struct World* world,

@@ -2919,39 +2919,29 @@ app_cs2_objs_on_coord(
     struct RS_CS2GroundObj* out)
 {
     struct App* app = (struct App*)user;
-    struct World* world;
-    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack const* stack = NULL;
     int tile_x;
     int tile_z;
     int level;
-    int count = 0;
+    int count;
 
     assert(app);
     assert(out);
 
+    /* "Is there a world yet" is this callback's question, not the walk's: a
+     * clientscript can ask about a coord on the title screen. */
     if( !app->world || !World_CoordToSceneTile(app->world, coord, &tile_x, &tile_z, &level) )
         return 0;
-    world = app->world;
-    pool = &world->entities.obj_stack;
-    for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
-         oi = World_EntityPoolNext(pool, oi) )
+
+    count = World_ObjStackCountAt(app->world, tile_x, tile_z, level, index, &stack);
+    if( stack )
     {
-        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
-        if( !stack || stack->element_id < 0 )
-            continue;
-        if( stack->grid_position.x != tile_x || stack->grid_position.z != tile_z ||
-            stack->grid_position.level != level )
-            continue;
-        if( count == index )
-        {
-            out->obj_id = stack->obj_id;
-            out->count = stack->count;
-            out->public_clock = stack->public_clock;
-            out->despawn_clock = stack->despawn_clock;
-            out->owner = stack->owner;
-            out->never_becomes_public = stack->never_becomes_public;
-        }
-        count++;
+        out->obj_id = stack->obj_id;
+        out->count = stack->count;
+        out->public_clock = stack->public_clock;
+        out->despawn_clock = stack->despawn_clock;
+        out->owner = stack->owner;
+        out->never_becomes_public = stack->never_becomes_public;
     }
     return count;
 }

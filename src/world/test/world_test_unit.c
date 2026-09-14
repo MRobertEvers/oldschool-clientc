@@ -3,6 +3,7 @@
 #include "test_harness.h"
 #include "world_pickset.h"
 
+#include "entity_objstack.h"
 #include "entity_scenery.h"
 
 #include <math.h>
@@ -2020,4 +2021,107 @@ test_scenery_placement_ops(void)
     overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x1f, replacements, &has_action);
     TEST_ASSERT(overrides == 0x1f, "not every slot was reached");
     TEST_ASSERT(strcmp(info.actions[4].name, "e") == 0, "the fifth slot was not written");
+}
+
+/*
+ * The pile on a tile: how many stacks are on it, and which one is the nth.
+ *
+ * The CS2 ground-item opcodes ask both questions with the same call, which is
+ * what makes this worth pinning: the return value is the tile's TOTAL, not
+ * "how far the walk got". A walk that stops when it finds the index answers
+ * the count question with the index plus one, and the cache's own scripts read
+ * that count to decide how many rows to draw -- so a three-item pile shows one
+ * row, and the two underneath it are unreachable.
+ *
+ * The other half is that a tile holds one stack per obj id, and the order is
+ * the order they arrived. An opcode indexing into it is indexing into that.
+ */
+void
+test_obj_stack_count_at(void)
+{
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { "Take", "", "", "", "" };
+    struct WorldEntity_ObjStack const* stack;
+    int count;
+
+    printf("TEST: obj stacks on a tile\n");
+
+    /* Three different objs on one tile, one on a tile beside it, and one on
+     * the same tile a level up. */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 10, 50, 50, 0, 995, 1, "Coins", actions) >= 0, "add coins");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 11, 50, 50, 0, 1215, 1, "Dragon dagger", actions) >= 0,
+        "add dagger");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 12, 50, 50, 0, 526, 2, "Bones", actions) >= 0, "add bones");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 13, 51, 50, 0, 995, 1, "Coins", actions) >= 0, "add next door");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 14, 50, 50, 1, 995, 1, "Coins", actions) >= 0, "add upstairs");
+
+    /* The count is the whole pile, whatever index was asked for -- including
+     * an index nobody is standing on. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 3, "the tile's pile is not three deep");
+    TEST_ASSERT(stack && stack->obj_id == 995, "index 0 is not the first thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 2, &stack);
+    TEST_ASSERT(count == 3, "asking for the last entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 526, "index 2 is not the last thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 1, &stack);
+    TEST_ASSERT(count == 3, "asking for a middle entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 1215, "index 1 is not the second thing added");
+    TEST_ASSERT(stack && stack->count == 1, "the stack's own count did not come back");
+
+    /* Past the end: the count still answers, and the out pointer is left
+     * alone rather than being cleared or filled with the last entry. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 3, "an out-of-range index changed the count");
+    TEST_ASSERT(!stack, "an out-of-range index still wrote a stack");
+    count = World_ObjStackCountAt(world, 50, 50, 0, -1, &stack);
+    TEST_ASSERT(count == 3, "a negative index changed the count");
+    TEST_ASSERT(!stack, "a negative index wrote a stack");
+
+    /* Each of the three coordinates is read on its own. The tile next door and
+     * the same tile upstairs each hold exactly one, and neither leaks in. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 51, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile east holds the wrong number");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 1, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile upstairs holds the wrong number");
+    TEST_ASSERT(stack && stack->grid_position.level == 1, "the upstairs stack is not upstairs");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 51, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile north holds something");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 49, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile west holds something");
+
+    /* A tile with nothing on it answers zero and writes nothing. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 3, 3, 0, 0, &stack);
+    TEST_ASSERT(count == 0, "a bare tile holds something");
+    TEST_ASSERT(!stack, "a bare tile wrote a stack");
+
+    /*
+     * Adding the same obj again DEEPENS the pile. "One stack per (tile, obj)"
+     * is the caller's rule -- App_WorldObjStackAdd looks first and refreshes
+     * the count on a hit, because it has a scene element and a model to keep.
+     * World itself just allocates, and the count opcodes report what is there.
+     */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 15, 50, 50, 0, 995, 7, "Coins", actions) >= 0, "re-add coins");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 4, "a second add of the same obj did not deepen the pile");
+    TEST_ASSERT(stack && stack->obj_id == 995 && stack->count == 7, "the second add is not last");
+
+    World_Free(world);
 }
