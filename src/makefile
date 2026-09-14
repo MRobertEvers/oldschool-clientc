@@ -2754,9 +2754,11 @@ test-plugin-lua: $(OBJ_DIR) $(OBJ_DIR)/torirs_plugin_lua.o $(OBJ_DIR)/lua_unity.
 # panel say", and every input to that is an api verb. It reads the real
 # text.ini, so a rebaked atlas whose metrics moved shows up here as a row count
 # that no longer matches.
-test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c plugin/test/item_stats_test.c
+test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c \
+		$(PORCELAIN_SRCS) plugin/test/item_stats_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/item_stats_test \
-		plugin/plugins/item_stats.c plugin/plugins/plugin_draw.c engine/png_decode.c \
+		plugin/plugins/item_stats.c engine/png_decode.c \
+		$(PORCELAIN_SRCS) \
 		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/item_stats_test.c $(LDFLAGS)
 	ITEM_STATS_TEST_BMP=$(OBJ_DIR)/item_stats_test.bmp ./$(OBJ_DIR)/item_stats_test
 

@@ -16,8 +16,22 @@
  * The other half of the result is whether the picture is legible, which no
  * assertion can state: ITEM_STATS_TEST_PNG names a file to write the last
  * composed panel to.
+ *
+ * SINCE THE PORCELAIN PORT there is a second subject, and it needs a fake the
+ * old table of cases did not: the WIDGET TREE. The plugin itself still calls
+ * no widget verb -- the layer does, walking a hovered cell up to a panel it
+ * can name -- so the fake below is three nodes and a role table, and a test
+ * without one would abort on the first hover.
+ *
+ * And a third subject, which is COST. "The tooltip restates itself whenever
+ * what it says would change" is only an improvement if "and never otherwise"
+ * is also true, so the compose count, the layer's own counters and the number
+ * of reads of the game are all pinned rather than described. Those numbers
+ * are written out exactly, not bounded: a fifth engine call a frame should be
+ * a decision somebody made and not a drift nobody noticed.
  */
 
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include "engine/png_decode.h"
@@ -139,11 +153,13 @@ fake_cfg_bool(char const* key)
 
 /* The plugin's own defaults, so the written BMP shows the colour scheme a
  * fresh install draws with rather than a wall of white. */
+static uint32_t g_color_better = 0x33EE33u;
+
 static uint32_t
 fake_cfg_color(char const* key)
 {
     if( strcmp(key, "color_better") == 0 )
-        return 0x33EE33u;
+        return g_color_better;
     if( strcmp(key, "color_better_some_capped") == 0 )
         return 0x9CEE33u;
     if( strcmp(key, "color_better_capped") == 0 )
@@ -184,6 +200,12 @@ fake_asset_find(char const* name)
     return -1;
 }
 
+/* A file this install does not have, and how many times it was asked for.
+ * An absent shipped table is a legitimate install; asking for it once is the
+ * difference between that and a retry storm nobody can see. */
+static char g_asset_denied[32];
+static int g_asset_requests;
+
 static int
 fake_asset_load(char const* name)
 {
@@ -192,6 +214,9 @@ fake_asset_load(char const* name)
     long size;
     int at;
 
+    g_asset_requests++;
+    if( g_asset_denied[0] && strcmp(g_asset_denied, name) == 0 )
+        return 0;
     if( fake_asset_find(name) >= 0 )
         return 1;
     if( g_asset_count >= FAKE_ASSETS_MAX )
@@ -336,14 +361,214 @@ static struct ToriRS_ClientApi g_client_api;
 static struct ToriRS_GameApi g_game_api;
 static void* g_plugin_state;
 
+/* ------------------------------------------------------- the widget tree */
+
+/*
+ * Three nodes, which is all the tree this plugin's one widget question needs.
+ *
+ * "Which container is the hovered cell in" is answered by walking the cell up
+ * to a panel the portable vocabulary can name, so the fake has to be a TREE
+ * and not a lookup: node 1 is the inventory panel, node 2 the bank's, node 3
+ * the root both hang under. A cell reports the panel's own component id,
+ * which is what a minimenu row carries.
+ *
+ * `panel_equipment` is deliberately a role nothing answers, because that is
+ * the shape a real lane has -- no profile in this tree declares a
+ * `panel_bank` at all -- and it is what makes the COST of the container
+ * question visible: an unresolved watch is re-asked at every fence, and
+ * test_container_watch_costs_one_find_a_frame is where that number is pinned.
+ */
+#define FAKE_NODE_INVENTORY 1
+#define FAKE_NODE_BANK 2
+#define FAKE_NODE_ROOT 3
+
+#define FAKE_COMPONENT_INVENTORY ((149 << 16) | 0)
+#define FAKE_COMPONENT_BANK ((12 << 16) | 13)
+
+static int g_widget_finds;
+static int g_widget_gets;
+
+static struct ToriRS_WidgetRef
+fake_ref(int node)
+{
+    struct ToriRS_WidgetRef ref;
+    memset(&ref, 0, sizeof(ref));
+    if( node <= 0 )
+        return ref;
+    ref.opaque[0] = (uint64_t)node;
+    ref.opaque[1] = 1;
+    ref.opaque[2] = 1;
+    return ref;
+}
+
+static int
+fake_node(struct ToriRS_WidgetRef ref)
+{
+    return ToriRS_WidgetRefValid(ref) ? (int)ref.opaque[0] : 0;
+}
+
+/** Which node a role names, or 0 for a role this lane does not have. */
+static int
+fake_role_node(char const* role)
+{
+    if( strcmp(role, "panel_inventory") == 0 )
+        return FAKE_NODE_INVENTORY;
+    if( strcmp(role, "panel_bank") == 0 )
+        return FAKE_NODE_BANK;
+    return 0;
+}
+
+static enum ToriRS_ContractResult
+fake_widget_find(void* ctx, char const* role, struct ToriRS_WidgetRef* out)
+{
+    int const node = fake_role_node(role);
+    (void)ctx;
+    g_widget_finds++;
+    if( !node )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    *out = fake_ref(node);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_widget_get(void* ctx, int32_t component_id, struct ToriRS_WidgetRef* out)
+{
+    (void)ctx;
+    g_widget_gets++;
+    if( component_id == FAKE_COMPONENT_INVENTORY )
+        *out = fake_ref(FAKE_NODE_INVENTORY);
+    else if( component_id == FAKE_COMPONENT_BANK )
+        *out = fake_ref(FAKE_NODE_BANK);
+    else
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_widget_parent(void* ctx, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef* out)
+{
+    int const node = fake_node(ref);
+    (void)ctx;
+    memset(out, 0, sizeof(*out));
+    if( node == FAKE_NODE_INVENTORY || node == FAKE_NODE_BANK )
+        *out = fake_ref(FAKE_NODE_ROOT);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_widget_bounds(void* ctx, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    (void)ctx;
+    memset(out, 0, sizeof(*out));
+    if( !fake_node(ref) )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    out->width = 765;
+    out->height = 503;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_widget_state(void* ctx, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState* out)
+{
+    (void)ctx;
+    if( !fake_node(ref) )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    out->bounds.width = 765;
+    out->bounds.height = 503;
+    out->presented = true;
+    return TORIRS_CONTRACT_OK;
+}
+
+/* One subscriber per role, which is the host's own keying. A new subscription
+ * receives BOUND straight away where the role resolves, exactly as the
+ * contract says it must. */
+#define FAKE_WATCHES_MAX 8
+static struct
+{
+    char role[64];
+    ToriRS_WidgetListener listener;
+    void* user;
+} g_watch[FAKE_WATCHES_MAX];
+
+static enum ToriRS_ContractResult
+fake_widget_watch_state(
+    void* ctx, char const* role, ToriRS_WidgetListener listener, void* user)
+{
+    int free_slot = -1;
+    (void)ctx;
+    for( int i = 0; i < FAKE_WATCHES_MAX; i++ )
+    {
+        if( g_watch[i].listener && strcmp(g_watch[i].role, role) == 0 )
+        {
+            if( !listener )
+                memset(&g_watch[i], 0, sizeof(g_watch[i]));
+            else
+            {
+                g_watch[i].listener = listener;
+                g_watch[i].user = user;
+            }
+            return TORIRS_CONTRACT_OK;
+        }
+        if( !g_watch[i].listener && free_slot < 0 )
+            free_slot = i;
+    }
+    if( !listener )
+        return TORIRS_CONTRACT_OK;
+    if( free_slot < 0 )
+        return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    snprintf(g_watch[free_slot].role, sizeof(g_watch[free_slot].role), "%s", role);
+    g_watch[free_slot].listener = listener;
+    g_watch[free_slot].user = user;
+    {
+        int const node = fake_role_node(role);
+        if( node )
+        {
+            struct ToriRS_WidgetEvent event;
+            memset(&event, 0, sizeof(event));
+            event.type = TORIRS_WIDGET_BOUND;
+            event.widget = fake_ref(node);
+            listener(&g_api, user, &event);
+        }
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static void
+fake_watches_reset(void)
+{
+    memset(g_watch, 0, sizeof(g_watch));
+}
+
+/*
+ * The one capability this plugin asks: does the OPEN CACHE state equipment
+ * bonuses at all? A fake that answered true unconditionally would make the
+ * dat1 case below untestable, and that is the case the shipped table exists
+ * for.
+ */
+static int g_lane_states_bonuses = 1;
+static bool
+fake_capability(struct ToriRS_Api* api, char const* name)
+{
+    (void)api;
+    if( strcmp(name, "item_bonuses") == 0 )
+        return g_lane_states_bonuses != 0;
+    return false;
+}
+
 static bool v2_cfg_bool(struct ToriRS_Api* api, char const* key, bool* out)
 { (void)api; *out = fake_cfg_bool(key) != 0; return true; }
 static bool v2_cfg_color(struct ToriRS_Api* api, char const* key, uint32_t* out)
 { (void)api; *out = fake_cfg_color(key); return true; }
+/* Reads of the GAME, which are not layer calls and so are invisible to the
+ * Porcelain counters. The freshness fix moved this half from once per thirty
+ * frames to once per hovering frame, and that is a trade worth a number. */
+static int g_game_reads;
+
 static bool v2_skill(
     struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     (void)api;
+    g_game_reads++;
     if( skill < 0 || skill >= FAKE_SKILLS ) return false;
     memset(out, 0, sizeof(*out));
     out->struct_size = sizeof(*out);
@@ -354,15 +579,15 @@ static bool v2_skill(
     return true;
 }
 static int v2_run_energy(struct ToriRS_Api* api)
-{ (void)api; return g_client.run_energy; }
+{ (void)api; g_game_reads++; return g_client.run_energy; }
 static int v2_inv_size(struct ToriRS_Api* api, int inv)
 { (void)api; return fake_inv_size(inv); }
 static bool v2_inv_slot(
     struct ToriRS_Api* api, int inv, int slot, int* obj, int* count)
-{ (void)api; return fake_inv_slot(inv, slot, obj, count) != 0; }
+{ (void)api; g_game_reads++; return fake_inv_slot(inv, slot, obj, count) != 0; }
 static bool v2_item_info(
     struct ToriRS_Api* api, int obj, struct ToriRS_ItemInfo* out)
-{ (void)api; return fake_obj_info(obj, out) != 0; }
+{ (void)api; g_game_reads++; return fake_obj_info(obj, out) != 0; }
 static bool v2_pointer(struct ToriRS_Api* api, int* x, int* y)
 { (void)api; return fake_mouse_pos(x, y) != 0; }
 static enum ToriRS_AssetState v2_asset_request(
@@ -443,6 +668,20 @@ api_init(void)
     g_api.assets.image_pixels = v2_image_pixels;
     g_api.assets.image_compose = v2_image_compose;
     g_api.assets.image_release = v2_image_release;
+    /*
+     * The widget verbs, which this plugin never calls and the LAYER does: the
+     * container a hovered cell belongs to is answered by walking the cell up
+     * to a panel, through a watch that the layer subscribes and the host
+     * answers. A test with no widget table would abort the first time a cell
+     * was hovered, which is the whole of the port.
+     */
+    g_api.widgets.find = fake_widget_find;
+    g_api.widgets.get_widget = fake_widget_get;
+    g_api.widgets.parent = fake_widget_parent;
+    g_api.widgets.bounds = fake_widget_bounds;
+    g_api.widgets.state = fake_widget_state;
+    g_api.widgets.watch_state = fake_widget_watch_state;
+    g_api.core.capability = fake_capability;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.run_energy = v2_run_energy;
@@ -470,9 +709,55 @@ tip_rows(void)
     return (g_client.compose_h - TIP_BORDER * 2) / TIP_PITCH;
 }
 
+/*
+ * The instance the host allocates, and the layer handle inside it.
+ *
+ * The handle is the FIRST field of the plugin's state, which is the one thing
+ * this test knows about that state -- and knowing it is what lets the findings
+ * and the counters below be read at all. The same assumption, for the same
+ * reason, as tileind_v2_test.c's TileindStateHead.
+ */
+struct ItemStatsStateHead
+{
+    struct Porcelain* porcelain;
+};
+
+static struct Porcelain*
+handle(void)
+{
+    return ((struct ItemStatsStateHead*)g_plugin_state)->porcelain;
+}
+
+/** Findings this plugin has recorded that it did NOT declare expected. */
+static int
+undeclared_findings(void)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int const count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+    int undeclared = 0;
+
+    for( int i = 0; i < count; i++ )
+        if( !found[i].expected )
+            undeclared++;
+    return undeclared;
+}
+
+/** How many times a finding with this detail was recorded, coalesced. */
+static int
+finding_count(char const* detail)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int const count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+
+    for( int i = 0; i < count; i++ )
+        if( found[i].detail && strcmp(found[i].detail, detail) == 0 )
+            return (int)found[i].count;
+    return 0;
+}
+
 /** One frame: the hover pass names the item, then the canvas draws. */
 static void
-frame(int hovered_obj_id)
+frame_in(int hovered_obj_id, int component_id)
 {
     struct ToriRS_MenuBuildEvent menu;
     struct ToriRS_FrameEvent frame_ev;
@@ -491,7 +776,7 @@ frame(int hovered_obj_id)
         menu.rows[0].npc_slot = -1;
         menu.rows[0].player_pid = -1;
         menu.rows[0].target_id = hovered_obj_id;
-        menu.rows[0].component_id = (149 << 16) | 0;
+        menu.rows[0].component_id = component_id;
         menu.rows[0].slot = 3;
     }
     TORIRS_PLUGIN_ITEM_STATS.callbacks.on_menu_build(&g_api, g_plugin_state, &menu);
@@ -504,6 +789,12 @@ frame(int hovered_obj_id)
     g_client.compose_h = 0;
     g_client.draw_count = 0;
     TORIRS_PLUGIN_ITEM_STATS.callbacks.on_draw_canvas(&g_api, g_plugin_state, &draw);
+}
+
+static void
+frame(int hovered_obj_id)
+{
+    frame_in(hovered_obj_id, FAKE_COMPONENT_INVENTORY);
 }
 
 /** Register an objtype the fake client can answer for. */
@@ -542,9 +833,17 @@ client_reset(void)
     for( int i = 0; i < FAKE_WORN_SLOTS; i++ )
         g_client.worn[i] = -1;
     g_client.run_energy = 100;
+    g_lane_states_bonuses = 1;
+    g_color_better = 0x33EE33u;
+    /* The host keys a subscription by ROLE NAME, and a closed handle's watches
+     * are the host's to forget. Dropping them here is what stops one case's
+     * listener being called with the next case's freed handle. */
+    fake_watches_reset();
+    g_widget_finds = 0;
+    g_widget_gets = 0;
     /* Every case below is about a panel appearing, so the plugin is restarted
-     * with it: the composed panel is cached against the item it was built
-     * from, and a case that reused it would be measuring the previous one. */
+     * with it: the composed panel is cached against what it SAYS, and a case
+     * that reused it would be measuring the previous one. */
     g_plugin_state = calloc(1, TORIRS_PLUGIN_ITEM_STATS.state_size);
     assert(g_plugin_state);
     TORIRS_PLUGIN_ITEM_STATS.callbacks.on_start(&g_api, g_plugin_state);
@@ -559,6 +858,56 @@ test_no_hover(void)
     obj_add(385, "Shark");
     frame(-1);
     TEST_ASSERT(g_client.draw_count == 0, "nothing hovered draws nothing");
+}
+
+/*
+ * An open right-click menu stops the tooltip, which is the reference client's
+ * isMenuOpen() gate arriving for free.
+ *
+ * A right-click build is not a hover: the pointer is over the MENU by then,
+ * and a tooltip that kept following it would be pinned to a cell nobody is
+ * pointing at. The rebuild stops running while the menu is up, so the stash
+ * goes stale inside a frame and the panel stops drawing.
+ */
+static void
+test_an_open_menu_stops_the_tooltip(void)
+{
+    struct ToriRS_MenuBuildEvent menu;
+    struct ToriRS_FrameEvent frame_ev;
+    struct ToriRS_Graphics draw;
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1, "the hover draws");
+
+    /* Two frames of a right-click build and nothing else: the first is still
+     * inside the one-frame liveness window, the second is not. */
+    for( int i = 0; i < 2; i++ )
+    {
+        memset(&frame_ev, 0, sizeof(frame_ev));
+        TORIRS_PLUGIN_ITEM_STATS.callbacks.on_frame_start(&g_api, g_plugin_state, &frame_ev);
+        memset(&menu, 0, sizeof(menu));
+        menu.hover_pass = false;
+        menu.row_count = 1;
+        menu.rows[0].text = "Eat";
+        menu.rows[0].pick_kind = 2;
+        menu.rows[0].target_id = 385;
+        menu.rows[0].component_id = FAKE_COMPONENT_INVENTORY;
+        menu.rows[0].slot = 3;
+        TORIRS_PLUGIN_ITEM_STATS.callbacks.on_menu_build(&g_api, g_plugin_state, &menu);
+        memset(&draw, 0, sizeof(draw));
+        draw.struct_size = sizeof(draw);
+        draw.image = v2_draw_image;
+        draw.context = v2_draw_context;
+        g_client.draw_count = 0;
+        TORIRS_PLUGIN_ITEM_STATS.callbacks.on_draw_canvas(&g_api, g_plugin_state, &draw);
+    }
+    TEST_ASSERT(
+        g_client.draw_count == 0,
+        "and a right-click build is not one, so the panel goes (drew %d)",
+        g_client.draw_count);
 }
 
 static void
@@ -795,6 +1144,11 @@ test_dat1_falls_back_to_the_shipped_table(void)
     struct ToriRS_ItemInfo* scimitar;
 
     client_reset();
+    /* The lane states nothing, which is the ONLY condition under which the
+     * shipped table may answer. It used to be asked per ITEM, so an
+     * OldSchool record that happened to carry no params fell through to a
+     * table baked from a different cache. */
+    g_lane_states_bonuses = 0;
     scimitar = obj_add(1333, "Rune scimitar");
     scimitar->has_bonuses = 0;
     scimitar->wearpos = -1;
@@ -835,6 +1189,340 @@ test_cache_params_beat_the_table(void)
         tip_rows() == 2,
         "the record's one bonus and its heading, not the table's four; got %d",
         tip_rows());
+}
+
+/* ------------------------------------------------- what the port changed */
+
+/*
+ * A bank cell and an inventory cell are two hovers.
+ *
+ * `component_id` and `slot` were captured from the menu row and then never
+ * read once, so both containers keyed on the obj id alone and the second one
+ * was handed the first one's picture. The container is part of the derived
+ * key now; moving between the two composes again.
+ */
+static void
+test_bank_and_inventory_are_two_tooltips(void)
+{
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+
+    frame_in(385, FAKE_COMPONENT_INVENTORY);
+    TEST_ASSERT(g_client.compose_count == 1, "the inventory hover composes once");
+    frame_in(385, FAKE_COMPONENT_INVENTORY);
+    TEST_ASSERT(
+        g_client.compose_count == 1,
+        "and a second frame of the same hover composes nothing (composed %d)",
+        g_client.compose_count);
+    frame_in(385, FAKE_COMPONENT_BANK);
+    TEST_ASSERT(
+        g_client.compose_count == 2,
+        "the same shark in the BANK is a different tooltip (composed %d)",
+        g_client.compose_count);
+    TEST_ASSERT(g_client.draw_count == 1, "and it is drawn");
+}
+
+/*
+ * The tooltip restates itself when what it SAYS changes, under a pointer that
+ * has not moved.
+ *
+ * This is the row the ledger opened against the thirty-frame TTL: a heal
+ * printed against hitpoints that have since drained was wrong for up to half a
+ * second and then flickered to the right answer at a moment unrelated to the
+ * change. Nothing about the hover moves here; only the player does.
+ */
+static void
+test_a_drained_stat_restates_the_tooltip(void)
+{
+    int width_before;
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 99;
+
+    frame(385);
+    TEST_ASSERT(g_client.compose_count == 1, "the first frame composes");
+    width_before = g_client.compose_w;
+    for( int i = 0; i < 40; i++ )
+        frame(385);
+    TEST_ASSERT(
+        g_client.compose_count == 1,
+        "forty frames of a stationary pointer over an unchanging item compose "
+        "nothing more (composed %d)",
+        g_client.compose_count);
+
+    g_client.current[3] = 50; /* the heal lands differently now */
+    frame(385);
+    TEST_ASSERT(
+        g_client.compose_count == 2,
+        "a hitpoint that moved restates the tooltip on the NEXT frame "
+        "(composed %d)",
+        g_client.compose_count);
+
+    /*
+     * And a change that moves NO glyph at all.
+     *
+     * The case above would still pass with the rows left out of the derived
+     * key entirely, because a different number of digits is a different panel
+     * WIDTH and the layer compares the size separately. A colour moves what
+     * the tooltip says and nothing else, so it is the one that pins the rows
+     * themselves -- and it is the ledger's "config change repaints" row,
+     * which used to need a callback to throw the picture away by hand.
+     */
+    width_before = g_client.compose_w;
+    for( int i = 0; i < 10; i++ )
+        frame(385);
+    TEST_ASSERT(g_client.compose_count == 2, "and settles again");
+    g_color_better = 0x00FFFFu;
+    TORIRS_PLUGIN_ITEM_STATS.callbacks.on_config_changed(&g_api, g_plugin_state, "color_better");
+    frame(385);
+    TEST_ASSERT(
+        g_client.compose_count == 3,
+        "an edited colour repaints with no glyph having moved (composed %d)",
+        g_client.compose_count);
+    TEST_ASSERT(
+        g_client.compose_w == width_before,
+        "and the panel is exactly the size it was (%d -> %d)",
+        width_before,
+        g_client.compose_w);
+}
+
+/*
+ * Nothing changing costs nothing.
+ *
+ * Read off the layer's own counters rather than believed: a stand-in the test
+ * wrote itself would pin the stand-in. This plugin owns no control and
+ * describes nothing, so every one of these is zero by construction -- and the
+ * number that is NOT zero by construction is engine_calls, which is what a
+ * per-frame asset re-request or a per-frame capability scan would show up in.
+ */
+static void
+test_steady_state_costs_nothing(void)
+{
+    struct PorcelainCounters counters;
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    frame(385);
+    TEST_ASSERT(g_client.compose_count == 1, "the picture exists");
+
+    Porcelain_CountersReset(handle());
+    g_widget_finds = 0;
+    for( int i = 0; i < 60; i++ )
+        frame(385);
+    Porcelain_CountersRead(handle(), &counters);
+    TEST_ASSERT(g_client.compose_count == 1, "sixty settled frames compose nothing more");
+    TEST_ASSERT(counters.describe_runs == 0, "this plugin describes nothing");
+    TEST_ASSERT(counters.setters == 0, "it owns no control to move");
+    TEST_ASSERT(counters.revalidates == 0, "and asks for no layout");
+    TEST_ASSERT(counters.allocations == 0,
+        "and allocates nothing once the picture is painted (allocated %u)",
+        counters.allocations);
+    /*
+     * FOUR engine calls per frame while a tooltip is up, and the number is
+     * written out rather than bounded so that a fifth is a decision.
+     *
+     *   1  draw->context      -- the pass's own drawable rect, which is the
+     *                            one call the plugin made before the port too
+     *   2  widgets.bounds x2  -- Porcelain_DrawContext derives CANVAS and
+     *                            USABLE off the frame root whether the caller
+     *                            wanted them or not, and this caller wants
+     *                            neither: a tooltip clamps to the pass, not
+     *                            to a placement area
+     *   1  widgets.get_widget -- the hovered cell, for the container question
+     *
+     * A frame with nothing hovered costs none of them: the menu note returns
+     * before the container walk and the draw callback returns before the
+     * context.
+     */
+    TEST_ASSERT(
+        counters.engine_calls == 60 * 4,
+        "a settled hovering frame costs the draw region, the layer's two "
+        "derived boxes and one cell lookup -- nothing else (%u over 60 frames)",
+        counters.engine_calls);
+
+    Porcelain_CountersReset(handle());
+    g_game_reads = 0;
+    for( int i = 0; i < 60; i++ )
+        frame(-1);
+    Porcelain_CountersRead(handle(), &counters);
+    TEST_ASSERT(
+        counters.engine_calls == 0,
+        "and a frame with nothing hovered costs nothing at all (%u over 60)",
+        counters.engine_calls);
+    TEST_ASSERT(
+        g_game_reads == 0,
+        "not one read of the game either (%d over 60)",
+        g_game_reads);
+
+    /*
+     * What the freshness rule COSTS, and it is not an engine call.
+     *
+     * Saying what the tooltip would say is arithmetic over one sample of the
+     * player, and the sample is the twenty-three skills plus the run meter
+     * plus the hovered record. Before the port that ran once every thirty frames and
+     * the panel was wrong in between; now it runs on every frame the pointer
+     * is over a cell, and the EXPENSIVE half -- setting twenty rows of
+     * glyphs into a buffer -- is the one behind the hash. This is the number
+     * that trade is made of, so it is written out rather than described.
+     */
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    frame(385);
+    g_game_reads = 0;
+    for( int i = 0; i < 10; i++ )
+        frame(385);
+    TEST_ASSERT(
+        g_game_reads == 10 * 25,
+        "a hovering frame reads the twenty-three skills, the run meter and the "
+        "hovered record: twenty-five (%d over 10 frames)",
+        g_game_reads);
+}
+
+/*
+ * What the container question COSTS, said as two numbers.
+ *
+ * This is the whole of the lane-read growth the port carries, and it is here
+ * so that it is something a reader can weigh rather than a sentence in a
+ * report. An INVENTORY hover is cheap because the inventory is the first
+ * panel the walk asks about. A BANK hover walks past `panel_equipment` on the
+ * way, and an element the lane does not resolve is re-asked at every fence --
+ * an element that comes back has to be able to bind -- so from the first bank
+ * hover of a session this plugin pays one role lookup a frame for ever.
+ */
+static void
+test_what_the_container_question_costs(void)
+{
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+
+    TEST_ASSERT(g_widget_gets == 0, "before any hover, not one widget is asked for");
+    frame(385);
+    g_widget_gets = 0;
+    g_widget_finds = 0;
+    for( int i = 0; i < 20; i++ )
+        frame(385);
+    TEST_ASSERT(
+        g_widget_gets == 20,
+        "an inventory hover is one component lookup a frame (%d over 20)",
+        g_widget_gets);
+    TEST_ASSERT(
+        g_widget_finds == 0,
+        "and no role lookup at all: the panel that answers is the first one "
+        "the walk asks about (%d)",
+        g_widget_finds);
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    frame_in(385, FAKE_COMPONENT_BANK);
+    g_widget_finds = 0;
+    for( int i = 0; i < 20; i++ )
+        frame_in(385, FAKE_COMPONENT_BANK);
+    TEST_ASSERT(
+        g_widget_finds == 20,
+        "a bank hover leaves one unresolved panel watch behind, and it is "
+        "re-asked once per fence from then on (%d over 20)",
+        g_widget_finds);
+}
+
+/*
+ * A worn item neither source can name is SAID, and the comparison stops.
+ *
+ * On a dat1 world the worn side resolves by name too, and a miss used to
+ * contribute zero -- so an equipped weapon the table has never heard of was
+ * silently treated as bare skin and every delta against it was wrong, with
+ * nothing anywhere to say so.
+ */
+static void
+test_worn_miss_is_a_finding_and_no_rows(void)
+{
+    struct ToriRS_ItemInfo* hovered;
+    struct ToriRS_ItemInfo* worn;
+
+    client_reset();
+    g_lane_states_bonuses = 0;
+    hovered = obj_add(1333, "Rune scimitar");
+    hovered->has_bonuses = 0;
+    hovered->wearpos = -1;
+    worn = obj_add(60001, "Blade of unheardof");
+    worn->has_bonuses = 0;
+    worn->wearpos = -1;
+    g_client.worn[3] = 60001;
+
+    frame(1333);
+    TEST_ASSERT(
+        g_client.draw_count == 0,
+        "no panel is drawn against a worn item nobody can name (drew %d)",
+        g_client.draw_count);
+    TEST_ASSERT(
+        finding_count("Blade of unheardof") == 1,
+        "and the miss is one finding naming the item (%d)",
+        finding_count("Blade of unheardof"));
+
+    for( int i = 0; i < 10; i++ )
+        frame(1333);
+    TEST_ASSERT(
+        finding_count("Blade of unheardof") == 11,
+        "the finding coalesces rather than multiplying into the table (%d)",
+        finding_count("Blade of unheardof"));
+}
+
+/*
+ * An absent shipped file is asked for ONCE.
+ *
+ * The tri-state that was supposed to say so had a branch that could not run:
+ * "absent" was only reachable after the asset had already answered READY, so a
+ * text.ini that was simply not there was re-requested on every frame the
+ * pointer sat over a cell, for the life of the session, silently.
+ */
+static void
+test_a_missing_file_is_one_finding_not_a_retry_storm(void)
+{
+    client_reset();
+    snprintf(g_asset_denied, sizeof(g_asset_denied), "%s", "text.ini");
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+    g_asset_requests = 0;
+
+    for( int i = 0; i < 20; i++ )
+        frame(385);
+    TEST_ASSERT(
+        g_client.draw_count == 0, "with no metrics nothing is drawn (drew %d)", g_client.draw_count);
+    TEST_ASSERT(
+        finding_count("text.ini") == 1,
+        "the absence is one finding (%d)",
+        finding_count("text.ini"));
+    TEST_ASSERT(
+        g_asset_requests == 1,
+        "and the file is asked for once, not twenty times (%d requests)",
+        g_asset_requests);
+    g_asset_denied[0] = '\0';
+}
+
+/*
+ * The four things this client cannot do, said where a capture reads them.
+ *
+ * Each is expected=1, so the clean-findings gate ignores it -- and each stops
+ * being true loudly rather than quietly, which is the half the paragraph at
+ * the top of item_stats.c cannot manage on its own.
+ */
+static void
+test_the_four_absences_are_declared(void)
+{
+    client_reset();
+    TEST_ASSERT(
+        undeclared_findings() == 0,
+        "a plugin that has done nothing yet has nothing to report (%d)",
+        undeclared_findings());
+    TEST_ASSERT(finding_count("item weight") == 1, "weight is declared");
+    TEST_ASSERT(finding_count("magic damage") == 1, "magic damage is declared");
+    TEST_ASSERT(finding_count("potion durations") == 1, "potion durations are declared");
+    TEST_ASSERT(finding_count("spicy stew boost") == 1, "spicy stew is declared");
 }
 
 /*
@@ -920,6 +1608,7 @@ main(void)
     api_init();
 
     test_no_hover();
+    test_an_open_menu_stops_the_tooltip();
     test_unknown_item();
     test_food_heals();
     test_tooltip_clamps_to_draw_canvas();
@@ -934,6 +1623,13 @@ main(void)
     test_two_handed_takes_the_shield_off();
     test_dat1_falls_back_to_the_shipped_table();
     test_cache_params_beat_the_table();
+    test_bank_and_inventory_are_two_tooltips();
+    test_a_drained_stat_restates_the_tooltip();
+    test_steady_state_costs_nothing();
+    test_what_the_container_question_costs();
+    test_worn_miss_is_a_finding_and_no_rows();
+    test_a_missing_file_is_one_finding_not_a_retry_storm();
+    test_the_four_absences_are_declared();
     test_render_sample();
     write_png_stub();
 
