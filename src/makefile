@@ -593,6 +593,8 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	engine/toridraw_element_anim.c \
+	torirs_env_values.c \
 	engine/world_seq_source_toridraw.c \
 	plugin/torirs_plugin_mesh.c \
 	render/torirs_frame.c render/torirs_pick.c \
@@ -1628,7 +1630,17 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-input-signature
 	$(MAKE) test-plugin-mesh
 	$(MAKE) test-world-seq-source
+	$(MAKE) test-env-values
 	$(MAKE) test-world
+
+# The runtime knobs that carry a value. Every way of getting one of these
+# grammars wrong is silent: the wrong spawn id, half a world meshed, a mirrored
+# scene. States what each accepts and, more usefully, what it must refuse.
+.PHONY: test-env-values
+test-env-values: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/env_values_test$(PLATFORM_EXE_SUFFIX) \
+		test/env_values_test.c torirs_env_values.c $(LDFLAGS)
+	./$(OBJ_DIR)/env_values_test$(PLATFORM_EXE_SUFFIX)
 
 # The seq source World reads animation timing through. The defaults decide
 # whether a not-yet-loaded track freezes and waits or races; and the loop length

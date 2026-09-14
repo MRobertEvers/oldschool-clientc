@@ -8,6 +8,7 @@
 #include "game/rs_minimap_state.h"
 #include "log/torirs_log.h"
 #include "torirs_env.h"
+#include "torirs_env_values.h"
 /* Screenshot encoding. Already linked for the cache codecs; the PNG writer
  * rides along, so a plugin capture costs no new dependency. */
 #include "bootmanifest/bootmanifest.h"
@@ -76,6 +77,7 @@ EM_JS(
 #include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/toridraw_element_anim.h"
 #include "engine/world_seq_source_toridraw.h"
 #include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_model_from_rscache.h"
@@ -12793,60 +12795,6 @@ app_world_map_poll(struct App* app)
  * meshing. */
 #define APP_WORLD_MAP_SQUARE_MAX 16
 
-/*
- * Parse TORIRS_WORLD_MAP: "x,z", or up to `max_pairs` such squares separated
- * by ';'. Writes the pairs into `out_chunks` and returns how many.
- *
- * The list form exists because ONE square is 64x64 tiles -- under half the
- * 104x104 scene the live client keeps around the player. Every
- * distance-scaled renderer cost (projection, sort, raster coverage) is
- * therefore understated by a one-square offline scene, which is exactly the
- * cost a scene benchmark is there to measure. Naming a 2x2 block meshes the
- * draw distance the game actually has.
- *
- * Returns 0 -- never a partial read -- for anything it does not fully
- * understand, a list longer than the cap included. Meshing fewer squares than
- * was asked for is invisible in the frame and reads as "the renderer got
- * faster", so the caller keeps its default and says so instead.
- */
-static int
-app_world_map_squares_parse(
-    char const* spec,
-    int* out_chunks,
-    int max_pairs)
-{
-    int count = 0;
-    char const* cursor = spec;
-
-    assert(spec);
-    assert(out_chunks);
-    assert(max_pairs > 0);
-
-    while( count < max_pairs )
-    {
-        int x = 0;
-        int z = 0;
-        int consumed = 0;
-
-        if( sscanf(cursor, " %d , %d%n", &x, &z, &consumed) != 2 )
-            return 0;
-        out_chunks[count * 2] = x;
-        out_chunks[count * 2 + 1] = z;
-        count++;
-        cursor += consumed;
-        while( *cursor == ' ' )
-            cursor++;
-        if( *cursor != ';' )
-            break;
-        cursor++;
-    }
-    while( *cursor == ' ' )
-        cursor++;
-    if( *cursor != '\0' )
-        return 0;
-    return count;
-}
-
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
 static void
 app_world_load_finish_cb(void* userdata)
@@ -12899,7 +12847,7 @@ app_world_load_begin(
              * halfway through must not have already overwritten the manifest
              * square the message below is about to name as the fallback. */
             int parsed_chunks[APP_WORLD_MAP_SQUARE_MAX * 2];
-            int parsed = app_world_map_squares_parse(env, parsed_chunks, APP_WORLD_MAP_SQUARE_MAX);
+            int parsed = ToriRS_EnvChunkList(env, parsed_chunks, APP_WORLD_MAP_SQUARE_MAX);
             if( parsed > 0 )
             {
                 memcpy(chunks, parsed_chunks, sizeof(int) * 2 * (size_t)parsed);
@@ -14126,21 +14074,10 @@ app_world_fov_override(void)
 {
     static int cached = -2;
     if( cached == -2 )
-    {
-        char const* e = getenv("TORIRS_WORLD_FOV");
-        int v;
-        cached = -1;
-        if( e && e[0] != '\0' && sscanf(e, "%d", &v) == 1 && v > 0 )
-        {
-            /* Clamped, not rejected: an out-of-domain angle would otherwise
-             * mirror the world (see TORIDRAW_PROJECTION_FOV_MAX). */
-            if( v < TORIDRAW_PROJECTION_FOV_MIN )
-                v = TORIDRAW_PROJECTION_FOV_MIN;
-            if( v > TORIDRAW_PROJECTION_FOV_MAX )
-                v = TORIDRAW_PROJECTION_FOV_MAX;
-            cached = v;
-        }
-    }
+        cached = ToriRS_EnvFovOverride(
+            getenv("TORIRS_WORLD_FOV"),
+            TORIDRAW_PROJECTION_FOV_MIN,
+            TORIDRAW_PROJECTION_FOV_MAX);
     return cached;
 }
 
@@ -14151,22 +14088,7 @@ app_wedge_scale_mode(void)
 {
     static int cached = -2;
     if( cached == -2 )
-    {
-        char const* e = getenv("TORIRS_WEDGE_SCALE");
-        cached = 0;
-        if( e && e[0] != '\0' )
-        {
-            if( strcmp(e, "0") == 0 || strcmp(e, "off") == 0 )
-                cached = -1;
-            else if( strcmp(e, "1") == 0 || strcmp(e, "auto") == 0 )
-                cached = 0;
-            else
-            {
-                int v = atoi(e);
-                cached = v >= 8 ? v : 0;
-            }
-        }
-    }
+        cached = ToriRS_EnvScaleMode(getenv("TORIRS_WEDGE_SCALE"));
     return cached;
 }
 
@@ -16357,46 +16279,6 @@ app_settle_cs2_frame(struct App* app)
     }
 }
 
-/* Only packets which can change interface/CS2-visible state open a visual
- * server-tick transaction. SERVER_TICK_END is not a universal reply fence:
- * immediate world feedback is also sent between scheduled ticks (the map flag
- * after MOVE_GAMECLICK is the common case). Treating every inbound packet as a
- * tick opener retained the framebuffer until the next 600ms server cycle.
- *
- * This deliberately includes transmit sources as well as direct IF_* writes:
- * a later clientscript in the same tick must observe varp/inventory/stat and
- * social changes as part of the same UI transaction. */
-static int
-app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
-{
-    if( packet_type >= PKT_NAME_IF_OPENCHAT && packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
-        return 1;
-
-    switch( packet_type )
-    {
-    case PKT_NAME_TUT_OPEN:
-    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
-    case PKT_NAME_UPDATE_INV_FULL:
-    case PKT_NAME_UPDATE_INV_PARTIAL:
-    case PKT_NAME_UPDATE_IGNORELIST:
-    case PKT_NAME_CHAT_FILTER_SETTINGS:
-    case PKT_NAME_UPDATE_FRIENDLIST:
-    case PKT_NAME_FRIENDLIST_LOADED:
-    case PKT_NAME_UPDATE_RUNWEIGHT:
-    case PKT_NAME_UPDATE_STAT:
-    case PKT_NAME_UPDATE_RUNENERGY:
-    case PKT_NAME_TRIGGER_ONDIALOGABORT:
-    case PKT_NAME_RUNCLIENTSCRIPT:
-    case PKT_NAME_VARP_SMALL:
-    case PKT_NAME_VARP_LARGE:
-    case PKT_NAME_VARP_SYNC:
-    case PKT_NAME_VARP_RESET:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
 /* --- connection loss and re-establishment -------------------------------
  *
  * The reference shape, from Client-TS `lostCon` (Client.ts:2734) and the deob's
@@ -16907,7 +16789,7 @@ app_pump_net_packets(struct App* app)
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
              * SERVER_TICK_END clears this after its exec task has run. */
-            if( app->server_tick_fence_seen && app_packet_may_mutate_ui(packet.packet_type) &&
+            if( app->server_tick_fence_seen && gameproto_packet_may_mutate_ui(packet.packet_type) &&
                 packet.packet_type != PKT_NAME_SERVER_TICK_END )
             {
                 if( !app->server_tick_open )
@@ -21105,32 +20987,6 @@ app_world_scene_element_create(
     return element_id;
 }
 
-/* A registered animation that can actually pose a model: either a classic
- * frame/framemap track or a skeletal (Animaya) matrix palette. Everything else
- * is the empty sentinel a failed load leaves behind. */
-static int
-app_anim_playable(struct ToriDraw_Animation const* anim)
-{
-    assert(anim);
-    if( anim->frame_count <= 0 )
-        return 0;
-    return (anim->frames && anim->base) || anim->skeletal != NULL;
-}
-
-/* Point a scene element at an animation, selecting the pose path. Skeletal
- * sequences carry no bones, so the element has to be flagged for
- * ToriDraw_ModelAnimateSkeletal instead of the frame animator. */
-static void
-app_element_set_anim(
-    struct ToriDraw_SceneElement* el,
-    struct ToriDraw_Animation* anim)
-{
-    el->animation = anim;
-    el->is_skeletal = anim && anim->skeletal != NULL;
-    el->skeletal_animation = anim ? anim->skeletal : NULL;
-    el->skeletal_play_frames = el->is_skeletal ? anim->frame_count : 0;
-}
-
 /* Advance a newly-bound packet animation over the client cycles its async load
  * consumed. The reference constructs a DynamicObject at LOC_ANIM receipt, so
  * loading is synchronous from its clock's point of view; beginning at frame 0
@@ -21211,13 +21067,13 @@ app_world_try_bind_seq(
      * frame emitter read element->animation, which SetAnimationSeq alone
      * leaves NULL. Skip the empty sentinel (failed seqs). */
     anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
-    if( app_anim_playable(anim) )
+    if( ToriDraw_ElementAnimPlayable(anim) )
     {
         struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
         ToriDraw_SceneElementSetAnimationSeq(app->scene, element_id, seq_id);
         ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
         if( el )
-            app_element_set_anim(el, anim);
+            ToriDraw_ElementSetAnim(el, anim);
         if( app->world )
             app_world_catch_up_object_seq(app, element_id, anim, app->world->cycle - start_cycle);
         if( getenv("TORIRS_ANIM_DEBUG") )
@@ -21400,21 +21256,7 @@ app_npc_wants_zbuffer(
     char const* list = getenv("TORIRS_ZBUFFER_NPCS");
     if( !list )
         return npctype && npctype->zbuffer_model != 0;
-    if( !*list )
-        return false;
-    while( *list )
-    {
-        char* end = NULL;
-        long const id = strtol(list, &end, 10);
-        if( end == list )
-            break;
-        if( id == npc_id )
-            return true;
-        list = (*end == ',') ? end + 1 : end;
-        if( !*list )
-            break;
-    }
-    return false;
+    return ToriRS_EnvIdListHas(list, npc_id);
 }
 
 /**
@@ -25456,40 +25298,6 @@ app_world_spawn_player(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
-/* Read one non-negative integer from an action's comma-separated `a=` payload
- * (`id=…`, `height=…`, and so on). Malformed/absent values keep the default. */
-static int
-app_spawn_arg(
-    int builtin,
-    char const* args,
-    char const* arg_name,
-    char const* env_name)
-{
-    char const* env;
-    int value = builtin;
-    size_t name_len;
-
-    assert(arg_name && env_name);
-    name_len = strlen(arg_name);
-    while( args && *args )
-    {
-        char const* end = strchr(args, ',');
-        size_t len = end ? (size_t)(end - args) : strlen(args);
-        if( len > name_len + 1 && strncmp(args, arg_name, name_len) == 0 && args[name_len] == '=' )
-        {
-            char* parsed_end = NULL;
-            long parsed = strtol(args + name_len + 1, &parsed_end, 0);
-            if( parsed_end != args + name_len + 1 && parsed >= 0 && parsed_end == args + len )
-                value = (int)parsed;
-        }
-        args = end ? end + 1 : NULL;
-    }
-    env = getenv(env_name);
-    if( env )
-        value = (int)strtol(env, NULL, 0);
-    return value;
-}
-
 static void
 app_world_spawn_npc(
     struct App* app,
@@ -25499,7 +25307,8 @@ app_world_spawn_npc(
     char const* args)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
-    task->npc_id = app_spawn_arg(3106 /* OSRS-era "Man" */, args, "id", "TORIRS_SPAWN_NPC");
+    task->npc_id =
+        ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_NPC", 3106 /* OSRS-era "Man" */);
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
@@ -25515,8 +25324,8 @@ app_world_spawn_obj(
     char const* args)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
-    task->obj_id = app_spawn_arg(
-        1265 /* bronze pickaxe: named, with ground ops */, args, "id", "TORIRS_SPAWN_OBJ");
+    task->obj_id = ToriRS_EnvNamedArgOrEnv(
+        args, "id", "TORIRS_SPAWN_OBJ", 1265 /* bronze pickaxe: named, with ground ops */);
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
@@ -25724,10 +25533,10 @@ app_world_spawn_spotanim(
     int level,
     char const* args)
 {
-    int spotanim_id = app_spawn_arg(
-        74 /* a small, visible default effect */, args, "id", "TORIRS_SPAWN_SPOTANIM");
-    int height = app_spawn_arg(92, args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT");
-    int delay = app_spawn_arg(0, args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY");
+    int spotanim_id = ToriRS_EnvNamedArgOrEnv(
+        args, "id", "TORIRS_SPAWN_SPOTANIM", 74 /* a small, visible default effect */);
+    int height = ToriRS_EnvNamedArgOrEnv(args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT", 92);
+    int delay = ToriRS_EnvNamedArgOrEnv(args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY", 0);
     App_WorldSpotanimSpawn(app, tile_x, tile_z, level, spotanim_id, height, delay);
 }
 
@@ -25792,13 +25601,13 @@ app_world_spawn_projectile(
     }
 
     task = app_spawn_task_new(app, APP_SPAWN_PROJECTILE, tile_x, tile_z, level);
-    task->model_id = app_spawn_arg(
-        3081 /* v1 spawn-test spotanim model */, args, "model", "TORIRS_SPAWN_PROJ_MODEL");
-    task->seq_id = app_spawn_arg(
-        659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */,
+    task->model_id = ToriRS_EnvNamedArgOrEnv(
+        args, "model", "TORIRS_SPAWN_PROJ_MODEL", 3081 /* v1 spawn-test spotanim model */);
+    task->seq_id = ToriRS_EnvNamedArgOrEnv(
         args,
         "seq",
-        "TORIRS_SPAWN_PROJ_SEQ");
+        "TORIRS_SPAWN_PROJ_SEQ",
+        659 /* v1 spawn-test spotanim sequence (RUNESCAPE_PROJECTILE_SEQ_ID) */);
     task->src_tile_x = app->proj_src_tile_x;
     task->src_tile_z = app->proj_src_tile_z;
     task->src_level = app->proj_src_tile_level;
@@ -25857,9 +25666,9 @@ app_world_entity_spotanim_test(
     char const* args)
 {
     struct World_EntityPool* pool;
-    int spotanim_id = app_spawn_arg(74, args, "id", "TORIRS_SPAWN_SPOTANIM");
-    int height = app_spawn_arg(92, args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT");
-    int delay = app_spawn_arg(0, args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY");
+    int spotanim_id = ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_SPOTANIM", 74);
+    int height = ToriRS_EnvNamedArgOrEnv(args, "height", "TORIRS_SPAWN_SPOTANIM_HEIGHT", 92);
+    int delay = ToriRS_EnvNamedArgOrEnv(args, "delay", "TORIRS_SPAWN_SPOTANIM_DELAY", 0);
 
     if( !app->world )
         return;
@@ -29955,25 +29764,6 @@ App_SetCanvasSize(
 #if defined(TORIRS_CANVAS_CAPTURE)
 #include "../tools/perf/canvas_chain_capture.u.h"
 #endif
-static int
-component_hidden_or_orphaned(
-    struct UITree const* tree,
-    int32_t idx)
-{
-    int guard;
-    assert(tree);
-    for( guard = 0; idx >= 0 && guard < 256; guard++ )
-    {
-        struct UITreeComponent const* c;
-        assert((uint32_t)idx < tree->component_count);
-        c = &tree->components[idx];
-        if( c->freed || c->behavior.hide || c->mount_hidden || c->frame_hidden )
-            return 1;
-        idx = c->parent;
-    }
-    return 0;
-}
-
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
@@ -30063,7 +29853,7 @@ App_MeasureRightChromeStripWidth(struct App const* app)
          * full-height box — the exact signature this loop looks for. Measuring
          * that column grew the fixed canvas by a panel that was never open. */
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CHROME_STRIP_VISCHECK, 1);
-        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
+        if( UITree_ComponentHiddenOrOrphaned(app->tree, (int32_t)i) )
             continue;
         best = w;
     }
@@ -30174,7 +29964,7 @@ App_MeasureLaneFrameCoreWidth(struct App const* app)
             continue;
         /* Ancestors too, for the reason the strip scan gives: a speculatively
          * baked panel keeps live-looking boxes under a hidden root. */
-        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
+        if( UITree_ComponentHiddenOrOrphaned(app->tree, (int32_t)i) )
             continue;
         best = c->position.abs_w;
     }
@@ -33428,9 +33218,9 @@ app_world_apply_entity_anim_tracks(
         /* Not registered yet: `app_request_entity_seq` above only queues the
          * load, so the first ticks after a spawn legitimately have no
          * animation. That is the caller's condition — the predicate asserts. */
-        if( pa && app_anim_playable(pa) )
+        if( pa && ToriDraw_ElementAnimPlayable(pa) )
         {
-            app_element_set_anim(el, pa);
+            ToriDraw_ElementSetAnim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
             /* The walkmerge blend is a frame-animator operation (it masks
@@ -33461,16 +33251,16 @@ app_world_apply_entity_anim_tracks(
     {
         struct ToriDraw_Animation* sa =
             ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
-        if( sa && app_anim_playable(sa) )
+        if( sa && ToriDraw_ElementAnimPlayable(sa) )
         {
-            app_element_set_anim(el, sa);
+            ToriDraw_ElementSetAnim(el, sa);
             el->anim_seq_id = anim->secondary.anim_id;
             el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
             return;
         }
     }
 
-    app_element_set_anim(el, NULL);
+    ToriDraw_ElementSetAnim(el, NULL);
     el->anim_seq_id = -1;
     el->anim_frame = 0;
 }
