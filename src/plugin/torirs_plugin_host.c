@@ -1411,6 +1411,50 @@ api_slot_native_size(
 }
 
 /*
+ * The authored box of one numbered member of a surface, block-relative.
+ *
+ * `member` is the role's OWN numbering and -1 is refused here rather than
+ * redirected to the whole surface: (0, 0, w, h) would read as a member that
+ * happens to sit at the block's origin, and a frame would seat the globe on
+ * top of the run orb without anything saying so.
+ */
+static int
+api_slot_member_native_box(
+    struct PluginContext* ctx,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    if( !host_game_screen(ctx) )
+        return 0;
+
+    assert(ctx);
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    if( member < 0 )
+        return 0;
+    if( !ctx->host->engine.slot_member_native_box(
+            ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * No range test on the id, unlike the region verbs above: every 32-bit value
@@ -4630,6 +4674,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
     assert(engine->slot_native_size);
+    assert(engine->slot_member_native_box);
     assert(engine->component_rect);
     assert(engine->menu_drop);
     assert(engine->stat);

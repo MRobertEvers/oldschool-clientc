@@ -1387,6 +1387,10 @@ static int lua_frame_selection(lua_State* L)
 }
 static int lua_frame_select(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->frame.select(a,luaL_checkstring(L,1)));return 2; }
 static int lua_frame_invalidate(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);a->frame.invalidate(a);return 0; }
+static int lua_frame_surface_member_native_box(lua_State* L)
+{ struct ToriRS_Api* a=lua_current_api(L);int x,y,w,h;
+  if(!a->frame.surface_member_native_box(a,lua_surface_from_arg(L,1),(int)luaL_checkinteger(L,2),&x,&y,&w,&h)){lua_pushnil(L);return 1;}
+  lua_pushinteger(L,x);lua_pushinteger(L,y);lua_pushinteger(L,w);lua_pushinteger(L,h);return 4; }
 static int lua_frame_surface_native_size(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int w,h;if(!a->frame.surface_native_size(a,lua_surface_from_arg(L,1),&w,&h)){lua_pushnil(L);return 1;}lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
 
 /* --------------------------------------------------------------- api.draw */
@@ -2881,6 +2885,153 @@ static int lua_porcelain_every_ms(lua_State* L)
     lua_current_api(L)->porcelain->every_ms(lua_porcelain(L), ms, lua_porcelain_tick_cb, slot);
     return 0;
 }
+/* ---- frames ----------------------------------------------------------- */
+
+/*
+ * A Lua plugin can describe a frame the same way a C one does. What it cannot
+ * do is PUBLISH an offer: ToriRS_PluginDef.frames is static data and the Lua
+ * definition carries none, so `porcelain.frame` binds a description to an id
+ * the host will only ask for on a runtime that publishes it. The binding is
+ * still worth having from Lua -- it is what the frame probe drives.
+ */
+static int lua_porcelain_frame(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    char const* id = luaL_checkstring(L, 1);
+    char const* canvas = luaL_checkstring(L, 2);
+    int min_w = (int)luaL_checkinteger(L, 3);
+    int min_h = (int)luaL_checkinteger(L, 4);
+    struct LuaPorcelainCallback* slot;
+    int kind;
+
+    luaL_checktype(L, 5, LUA_TFUNCTION);
+    if( strcmp(canvas, "fixed") == 0 ) kind = TORIRS_FRAME_CANVAS_FIXED;
+    else if( strcmp(canvas, "window") == 0 ) kind = TORIRS_FRAME_CANVAS_WINDOW;
+    else return luaL_error(L, "unknown frame canvas '%s'", canvas);
+    if( min_w < 0 || min_h < 0 )
+        return luaL_error(L, "a frame offer's minimum size cannot be negative");
+    if( strlen(id) >= TORIRS_PLUGIN_FRAME_ID_MAX )
+        return luaL_error(L, "frame offer id is too long");
+    slot = lua_porcelain_callback_alloc(L, 5, id);
+    api->porcelain->frame(lua_porcelain(L), id, kind, min_w, min_h,
+                          lua_porcelain_describe_trampoline, slot);
+    return 0;
+}
+
+static int lua_porcelain_frame_event(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    struct ToriRS_GameframeEvent event;
+    char reason[TORIRS_FRAME_REASON_MAX];
+    char const* id;
+    int result;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    memset(&event, 0, sizeof(event));
+    id = lua_table_string(L, 1, "offer_id");
+    if( !id ) return luaL_error(L, "a gameframe event needs an offer_id");
+    reason[0] = '\0';
+    event.offer_id = id;
+    event.active = lua_table_bool(L, 1, "active", true);
+    event.canvas = lua_table_int(L, 1, "canvas", TORIRS_FRAME_CANVAS_WINDOW);
+    event.width = lua_table_int(L, 1, "width", 0);
+    event.height = lua_table_int(L, 1, "height", 0);
+    event.safe.width = event.width;
+    event.safe.height = event.height;
+    lua_raw_getfield(L, 1, "safe");
+    if( lua_istable(L, -1) )
+    {
+        struct ToriRS_Rect const safe = lua_check_rect(L, lua_gettop(L));
+        event.safe.x = safe.x; event.safe.y = safe.y;
+        event.safe.width = safe.width; event.safe.height = safe.height;
+    }
+    lua_pop(L, 1);
+    event.reason = reason;
+    event.reason_capacity = sizeof(reason);
+    result = api->porcelain->frame_event(lua_porcelain(L), &event);
+    lua_pushstring(L, result == TORIRS_FRAME_READY ? "ready"
+                      : result == TORIRS_FRAME_PENDING ? "pending"
+                      : result == TORIRS_FRAME_UNSUPPORTED ? "unsupported" : "error");
+    lua_pushstring(L, reason);
+    return 2;
+}
+
+static void lua_porcelain_push_box(lua_State* L, struct ToriRS_WidgetBounds box)
+{
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, box.x); lua_setfield(L, -2, "x");
+    lua_pushinteger(L, box.y); lua_setfield(L, -2, "y");
+    lua_pushinteger(L, box.width); lua_setfield(L, -2, "width");
+    lua_pushinteger(L, box.height); lua_setfield(L, -2, "height");
+}
+
+static int lua_porcelain_usable(lua_State* L)
+{
+    struct ToriRS_WidgetBounds box;
+    if( !lua_current_api(L)->porcelain->usable(lua_porcelain(L), &box) )
+    { lua_pushnil(L); return 1; }
+    lua_porcelain_push_box(L, box);
+    return 1;
+}
+
+static int lua_porcelain_native_size(lua_State* L)
+{
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    struct ToriRS_WidgetBounds box;
+    if( !lua_current_api(L)->porcelain->native_size(lua_porcelain(L), element, &box) )
+    { lua_pushnil(L); return 1; }
+    lua_porcelain_push_box(L, box);
+    return 1;
+}
+
+static int lua_porcelain_lane_icon(lua_State* L)
+{
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    lua_pushinteger(L, lua_current_api(L)->porcelain->lane_icon(lua_porcelain(L), element));
+    return 1;
+}
+
+static int lua_porcelain_tab_axis_arg(lua_State* L, int index)
+{
+    char const* name = luaL_checkstring(L, index);
+    if( strcmp(name, "rows") == 0 ) return PORCELAIN_TAB_ROWS;
+    if( strcmp(name, "columns") == 0 ) return PORCELAIN_TAB_COLUMNS;
+    return (int)luaL_error(L, "unknown porcelain tab axis '%s'", name);
+}
+
+static int lua_porcelain_tab_group_count(lua_State* L)
+{
+    int axis = lua_porcelain_tab_axis_arg(L, 1);
+    lua_pushinteger(L, lua_current_api(L)->porcelain->tab_group_count(lua_porcelain(L), axis));
+    return 1;
+}
+
+static int lua_porcelain_tab_group(lua_State* L)
+{
+    struct PorcelainElement tabs[PORCELAIN_TAB_MAX];
+    int axis = lua_porcelain_tab_axis_arg(L, 1);
+    int group = (int)luaL_checkinteger(L, 2);
+    int count;
+    if( group < 0 ) return luaL_error(L, "a tab group index cannot be negative");
+    count = lua_current_api(L)->porcelain->tab_group(lua_porcelain(L), axis, group, tabs,
+                                                     PORCELAIN_TAB_MAX);
+    lua_createtable(L, count, 0);
+    for( int i = 0; i < count; i++ )
+    {
+        lua_pushfstring(L, "tab:%s", tabs[i].role ? tabs[i].role : "");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int lua_porcelain_tab_detached(lua_State* L)
+{
+    struct PorcelainElement tab = lua_current_api(L)->porcelain->tab_detached(lua_porcelain(L));
+    if( tab.kind != PORCELAIN_EL_TAB || !tab.role ) { lua_pushnil(L); return 1; }
+    lua_pushfstring(L, "tab:%s", tab.role);
+    return 1;
+}
+
 static int lua_porcelain_tick(lua_State* L)
 {
     lua_current_api(L)->porcelain->tick(lua_porcelain(L), lua_porcelain_cadence_arg(L, 1));
@@ -2917,7 +3068,8 @@ static struct LuaFn const LUA_MENU_FNS[] = {
 };
 static struct LuaFn const LUA_FRAME_FNS[] = {
     {"offer_next",lua_frame_offer_next},{"selection",lua_frame_selection},{"select",lua_frame_select},
-    {"invalidate",lua_frame_invalidate},{"surface_native_size",lua_frame_surface_native_size},{NULL,NULL}
+    {"invalidate",lua_frame_invalidate},{"surface_native_size",lua_frame_surface_native_size},
+    {"surface_member_native_box",lua_frame_surface_member_native_box},{NULL,NULL}
 };
 static struct LuaFn const LUA_DRAW_API_FNS[] = {
     {"project",lua_draw_project},{"element_height",lua_draw_element_height},
@@ -3190,6 +3342,13 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"menu_untag",lua_porcelain_menu_untag},{"key_down",lua_porcelain_key_down},
     {"config_list_remove",lua_porcelain_config_list_remove},
     {"config_list_set",lua_porcelain_config_list_set},
+    /* round four: the frames */
+    {"frame",lua_porcelain_frame},{"frame_event",lua_porcelain_frame_event},
+    {"usable",lua_porcelain_usable},{"native_size",lua_porcelain_native_size},
+    {"lane_icon",lua_porcelain_lane_icon},
+    {"tab_group_count",lua_porcelain_tab_group_count},
+    {"tab_group",lua_porcelain_tab_group},
+    {"tab_detached",lua_porcelain_tab_detached},
     {NULL,NULL}
 };
 

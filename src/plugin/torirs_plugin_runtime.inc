@@ -684,6 +684,26 @@ v2_frame_surface_native_size(
 }
 
 static bool
+v2_frame_surface_member_native_box(
+    struct ToriRS_Api* api,
+    int surface,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const surface_token = v2_surface_slot(surface);
+
+    if( surface_token < 0 )
+        return false;
+    return api_slot_member_native_box(
+               runtime->context, surface_token, member, out_x, out_y, out_width,
+               out_height) != 0;
+}
+
+static bool
 v2_draw_project(
     struct ToriRS_Api* api,
     int fine_x,
@@ -3226,6 +3246,7 @@ v2_runtime_init(
             .select = v2_frame_select,
             .invalidate = v2_frame_invalidate,
             .surface_native_size = v2_frame_surface_native_size,
+            .surface_member_native_box = v2_frame_surface_member_native_box,
         },
         .draw = {
             .struct_size = sizeof(runtime->api.draw),

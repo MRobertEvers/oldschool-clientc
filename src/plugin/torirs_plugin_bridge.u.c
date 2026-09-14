@@ -3781,6 +3781,30 @@ app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
 }
 
 /*
+ * The box the lane gave one numbered member of a surface, block-relative.
+ * @see slot_member_native_box.
+ *
+ * Block-relative, because what a frame does is put the BLOCK somewhere and
+ * what it needs back is where each member sat inside it; the pack a cache
+ * mounts in the block is an intermediate node with a box of its own, and a
+ * parent-relative answer would leave every caller to rediscover and add it.
+ */
+static int
+app_plugin_slot_member_native_box(
+    void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    return UITree_FrameSlotMemberNativeBox(
+        app->tree, slot, member, out_x, out_y, out_w, out_h);
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
@@ -5494,6 +5518,7 @@ app_plugin_engine(struct App* app)
     engine.chat_focus = app_plugin_chat_focus;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.slot_native_size = app_plugin_slot_native_size;
+    engine.slot_member_native_box = app_plugin_slot_member_native_box;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
     engine.frame_activate = app_plugin_frame_activate;

@@ -95,6 +95,27 @@ extern "C" {
  * narrower ceiling the refusal lands on the describe that wrote it.
  */
 #define PORCELAIN_ROW_KEY_MAX TORIRS_PLUGIN_WIDGET_ID_MAX
+/** Frame offers one plugin may describe. gameframe-layout ships three. */
+#define PORCELAIN_FRAME_OFFERS_MAX 4
+/**
+ * Sidebar tabs in the portable vocabulary.
+ *
+ * Fourteen, which is what every revision since 2001 numbers, and sixteen only
+ * so a fifteenth does not need a new constant. This is a VOCABULARY and not a
+ * lane fact: which of the fourteen a lane HAS, and what number it gives each,
+ * are both answered by the profile's `[tabs]` map.
+ */
+#define PORCELAIN_TAB_MAX 16
+/*
+ * Rows or columns one root can run its stones in.
+ *
+ * One per tab, because that is the real ceiling and not a guess: a root that
+ * runs its fourteen stones in a single ROW has fourteen COLUMNS, and both
+ * questions are asked of every root. A smaller number would make the common
+ * desktop root answer a budget finding for arranging its tabs the ordinary
+ * way.
+ */
+#define PORCELAIN_TAB_GROUPS_MAX PORCELAIN_TAB_MAX
 
 /** Handles alive at once. Also the arbitration order: open order. */
 #define PORCELAIN_HANDLES_MAX 32
@@ -339,6 +360,37 @@ struct PorcelainPanelCounters
 };
 void Porcelain_PanelCountersRead(struct Porcelain* porcelain,
                                  struct PorcelainPanelCounters* out);
+/* Frames                                                                   */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * @see ToriRS_PorcelainApi's frames block for the contracts. The split is the
+ * one the two shipped providers already live with: the OFFERS are static data
+ * in ToriRS_PluginDef.frames, and what a provider writes by hand is the
+ * description of each one and the reconcile that takes it back off.
+ */
+void Porcelain_Frame(struct Porcelain* porcelain, char const* offer_id, int canvas,
+                     int min_width, int min_height, PorcelainDescribeFn fn, void* user);
+int Porcelain_FrameEvent(struct Porcelain* porcelain,
+                         struct ToriRS_GameframeEvent const* event);
+bool Porcelain_Usable(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out);
+bool Porcelain_NativeSize(struct Porcelain* porcelain, struct PorcelainElement element,
+                          struct ToriRS_WidgetBounds* out);
+int Porcelain_LaneIcon(struct Porcelain* porcelain, struct PorcelainElement tab);
+int Porcelain_TabGroupCount(struct Porcelain* porcelain, int axis);
+int Porcelain_TabGroup(struct Porcelain* porcelain, int axis, int group,
+                       struct PorcelainElement* out, int capacity);
+struct PorcelainElement Porcelain_TabDetached(struct Porcelain* porcelain);
+
+/**
+ * The tab names the portable vocabulary knows, NULL-terminated.
+ *
+ * A plugin walking the sidebar needs the names before it can ask anything
+ * about them, and the alternative -- every plugin spelling its own fourteen --
+ * is the remap table this layer exists to delete. Which of them this lane HAS
+ * is still a question, answered by Porcelain_Element(TAB(name)).
+ */
+char const* const* Porcelain_TabNames(void);
 
 /* ------------------------------------------------------------------------ */
 /* Not implemented yet                                                      */
@@ -349,13 +401,12 @@ void Porcelain_PanelCountersRead(struct Porcelain* porcelain,
  * its contract, so the port that needs one knows where to read rather than
  * inventing a second shape for it.
  *
- * TODO(plan #api "Frames"): Porcelain_Frame, Porcelain_Usable,
- *   Porcelain_NativeSize, Porcelain_LaneIcon, Porcelain_TabGroupCount,
- *   Porcelain_TabGroup, Porcelain_TabDetached, Porcelain_Unsupported's frame
- *   arm. The USABLE rect is already derived internally (a PRESENTED
- *   LANE_CHROME that spans a full edge, and nothing else), so the verb is a
- *   read-out of work that exists; the rest needs
- *   UITree_FrameSlotMemberNativeBox and the [tabs:<root>] override first.
+ * TODO(plan #api "Frames"): the SCROLLBAR element the gaps table proposes.
+ *   frame_skin_scrollbar is a declared no-op and six shipped assets are dead
+ *   because the chat and sidebar scrollbars are painted by the client's emit
+ *   path rather than by widget nodes; the verb has no engine half to stand
+ *   on until UITree_ScrollbarSkin exists. The rest of the Frames block is
+ *   built -- @see the frames section above.
  *
  * TODO(plan #api "Panels"): what the row model still cannot express, because
  *   the engine half is not there. A CUSTOM well has no secondary-click

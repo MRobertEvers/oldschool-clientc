@@ -584,7 +584,21 @@ struct ToriRS_FrameApi
         int surface,
         int* out_width,
         int* out_height);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
+    /** The box the LANE authored for one numbered MEMBER of `surface`,
+     *  relative to the surface's own block. `member` is the role's own
+     *  numbering, never a position in a list, and -1 is refused: the surface
+     *  as a whole is surface_native_size's question and has no offset inside
+     *  itself to report. False when the lane has no such member or when any
+     *  box between it and the block is a proportion rather than pixels. */
+    bool (*surface_member_native_box)(
+        struct ToriRS_Api* api,
+        int surface,
+        int member,
+        int* out_x,
+        int* out_y,
+        int* out_width,
+        int* out_height);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -1616,6 +1630,21 @@ struct PorcelainRow
     void* user;
 };
 
+/**
+ * Which way a root runs its sidebar tabs. @see ToriRS_PorcelainApi::tab_group
+ *
+ * Both, and not one, because the two shipped roots disagree: 548 and 161 lay
+ * their stones out in horizontal ROWS and 601 stacks them in two vertical
+ * COLUMNS, and a frame that asks the wrong way round gets one group holding
+ * everything. A root answers both questions; the frame asks the one its own
+ * rail is shaped like.
+ */
+enum PorcelainTabAxis
+{
+    PORCELAIN_TAB_ROWS = 0,
+    PORCELAIN_TAB_COLUMNS
+};
+
 typedef void (*PorcelainDescribeFn)(struct ToriRS_PorcelainDescribe* describe, void* user);
 /*
  * `elapsed_ms` is the REAL time since this timer last fired, not the interval
@@ -1884,6 +1913,64 @@ struct ToriRS_PorcelainApi
      *  truncated. */
     bool (*config_list_set)(struct Porcelain* porcelain, char const* key,
                             char const* const* items, int count);
+    /* ---- Frames ---------------------------------------------------------
+     *
+     * A frame provider publishes its offers in ToriRS_PluginDef.frames, as it
+     * always did -- the host resolves auto/native before the provider starts,
+     * so registration order cannot change which offer is asked for. What
+     * these two add is the half the plugins wrote by hand: one describe
+     * function per offer, and a reconcile that owns the release.
+     */
+
+    /** Bind `offer_id` -- an id this plugin's definition publishes -- to the
+     *  description of that frame. Boot only; a second call for the same id
+     *  replaces the binding. `canvas`, `min_width` and `min_height` are what
+     *  the offer said, restated here so a description can be checked against
+     *  the canvas it was written for. */
+    void (*frame)(struct Porcelain* porcelain, char const* offer_id, int canvas,
+                  int min_width, int min_height, PorcelainDescribeFn fn, void* user);
+
+    /** The plugin forwarding its own on_gameframe. Returns a
+     *  ToriRS_FrameBuildResult and writes event->reason.
+     *
+     *  Not installed by the layer: Porcelain is a library reached from the
+     *  plugin's own callbacks and ToriRS_PluginDef is const, so the event is
+     *  handed over rather than intercepted. A RELEASE (event->active false)
+     *  runs a describe that stages nothing, which is what takes the frame's
+     *  moves, hides, skins and owned art back off -- the shipped providers
+     *  both leave a dressing behind on a provider switch because their
+     *  undress runs from on_frame_start and they never get another one. */
+    int (*frame_event)(struct Porcelain* porcelain,
+                       struct ToriRS_GameframeEvent const* event);
+
+    /** The canvas a frame may lay out in: the frame root's box, less a
+     *  LANE_CHROME strip that is PRESENTED and spans a full edge. False
+     *  before anything of this lane has bound. */
+    bool (*usable)(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out);
+
+    /** The box the LANE authored for `element`, before any plugin edit.
+     *
+     *  By ELEMENT and not by a surface number: the plugin-private enum passed
+     *  straight into frame.surface_native_size as the API's TORIRS_SURFACE_*
+     *  is a live defect, and the two numberings differ. A member element
+     *  answers block-relative x and y; a whole surface answers 0, 0. */
+    bool (*native_size)(struct Porcelain* porcelain, struct PorcelainElement element,
+                        struct ToriRS_WidgetBounds* out);
+
+    /** The number THIS lane's own icon set gives `tab`, or -1 where the lane
+     *  numbers no panel there. The files are the frame's own art; what the
+     *  lanes disagree about is the numbering. */
+    int (*lane_icon)(struct Porcelain* porcelain, struct PorcelainElement tab);
+
+    /** How many rows (or columns) of tab stones this root lays out. */
+    int (*tab_group_count)(struct Porcelain* porcelain, int axis);
+    /** The tabs of one group, in the root's own order. Returns how many were
+     *  written; a capacity smaller than the group is a budget finding. */
+    int (*tab_group)(struct Porcelain* porcelain, int axis, int group,
+                     struct PorcelainElement* out, int capacity);
+    /** The tab this root hangs outside every group (164's and 601's logout),
+     *  or an element of kind PORCELAIN_EL_NONE where there is none. */
+    struct PorcelainElement (*tab_detached)(struct Porcelain* porcelain);
 
     TORIRS_API_V2_MODULE_RESERVED;
 };

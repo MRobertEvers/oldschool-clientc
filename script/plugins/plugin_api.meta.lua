@@ -40,6 +40,7 @@ warn = nil
 ---@alias torirs.Verdict boolean|'consume'|nil
 ---@alias torirs.PanelView 'page'|'settings'
 ---@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
+---@alias torirs.FrameBuildResultName 'ready'|'pending'|'unsupported'|'error'
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
 ---@alias torirs.ImageRef integer
 ---@alias torirs.ModelRef integer
@@ -255,6 +256,7 @@ warn = nil
 ---@field select fun(id: string): boolean, torirs.ResultName
 ---@field invalidate fun()
 ---@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
+---@field surface_member_native_box fun(surface: torirs.Surface, member: integer): integer?, integer?, integer?, integer? The authored box of one numbered MEMBER of that surface, relative to the surface's own block. The role's own numbering; -1 is refused.
 
 ---@class torirs.FrameOfferInfo
 ---@field id string Canonical `<plugin-id>/<local-id>`.
@@ -686,6 +688,14 @@ warn = nil
 ---@field key_down fun(key: string): boolean Is this key held NOW. The edge form's VALUE vocabulary: a name, a decimal code, or one character.
 ---@field config_list_remove fun(key: string, item: string): boolean Take one item out of a stored list. Absent is true and costs no write.
 ---@field config_list_set fun(key: string, items: string[]): boolean State the whole list: sorted, deduplicated, refused rather than truncated.
+---@field frame fun(offer_id: string, canvas: 'fixed'|'window', min_width: integer, min_height: integer, fn: fun(d: torirs.PorcelainDescribe)) Bind a description to one offer this plugin's definition publishes. Boot only.
+---@field frame_event fun(event: torirs.GameframeEvent): torirs.FrameBuildResultName, string Forward on_gameframe. A release (active = false) runs a description that stages nothing, which is what takes the frame back off.
+---@field usable fun(): torirs.PorcelainBox? The canvas a frame may lay out in: the frame root less a PRESENTED lane strip spanning a full edge. nil before anything of this lane has bound.
+---@field native_size fun(element: string): torirs.PorcelainBox? The box the LANE authored for that element, before any plugin edit. A member answers block-relative x and y; a whole surface answers 0, 0. nil when the lane states no pixel box.
+---@field lane_icon fun(tab: string): integer This lane's own number for that tab's panel, or -1 where the lane numbers none or mounts none.
+---@field tab_group_count fun(axis: 'rows'|'columns'): integer How many rows or columns of stones this root lays out.
+---@field tab_group fun(axis: 'rows'|'columns', group: integer): string[] The tabs of one group, as element specs, in the root's own order.
+---@field tab_detached fun(): string? The tab this root hangs outside every group, or nil.
 
 --- The describe builder, handed to the describe function and legal only
 --- inside it. Items are applied in DESCRIPTION ORDER and a later item is over

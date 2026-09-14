@@ -25,6 +25,7 @@
 #define TESTBED_CONTROLS_MAX 64
 #define TESTBED_ASSETS_MAX 32
 #define TESTBED_CONFIG_MAX 16
+#define TESTBED_SURFACES_MAX 24
 #define TESTBED_LOG_MAX 512
 #define TESTBED_LOG_LINE 120
 
@@ -117,6 +118,22 @@ struct TestbedPanelRow
     int declared;
 };
 
+/*
+ * One authored surface box, as the LANE states it -- what
+ * frame.surface_native_size and frame.surface_member_native_box answer.
+ *
+ * `member` -1 is the surface as a whole. Declared per scenario rather than
+ * defaulted, because "the lane states no pixel size for this surface" is a
+ * real answer (a proportional box) and has to be reachable in a test.
+ */
+struct TestbedSurface
+{
+    bool used;
+    int surface;
+    int member;
+    int x, y, width, height;
+};
+
 struct Testbed
 {
     struct ToriRS_Api api;
@@ -153,6 +170,10 @@ struct Testbed
     struct TestbedControl controls[TESTBED_CONTROLS_MAX];
     struct TestbedAsset assets[TESTBED_ASSETS_MAX];
     struct TestbedConfigRow config[TESTBED_CONFIG_MAX];
+    struct TestbedSurface surfaces[TESTBED_SURFACES_MAX];
+    /* The gameframe root, as cache.frame_root answers it. A KEY, never a
+     * comparison: it is joined to a tab name and handed to the profile. */
+    int frame_root;
 
     char log[TESTBED_LOG_MAX][TESTBED_LOG_LINE];
     int log_count;
@@ -232,6 +253,13 @@ bool Testbed_AssetHeld(char const* name);
 /** A graphics builder whose context answers `region`, or nothing when
  *  `valid` is false -- the world pass before it set one. */
 struct ToriRS_Graphics* Testbed_Graphics(struct ToriRS_Rect region, bool valid);
+
+/* Surfaces ---------------------------------------------------------------- */
+
+/** State the authored box of a surface (`member` -1) or one of its members. */
+void Testbed_DeclareSurface(int surface, int member, int x, int y, int width, int height);
+/** The gameframe root cache.frame_root answers. */
+void Testbed_SetFrameRoot(int root);
 
 /* Config ------------------------------------------------------------------ */
 

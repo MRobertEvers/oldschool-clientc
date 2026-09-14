@@ -439,6 +439,16 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 0;
 }
 
+/** No member of any surface has an authored box in this fake.
+ *  @see ToriRS_FrameApi::surface_member_native_box. */
+static int
+fake_slot_member_native_box(
+    void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u; (void)slot; (void)member; (void)x; (void)y; (void)w; (void)h;
+    return 0;
+}
+
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
 
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
@@ -903,6 +913,7 @@ main(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.slot_native_size = fake_slot_native_size;
+    e.slot_member_native_box = fake_slot_member_native_box;
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;

@@ -3894,6 +3894,909 @@ test_panel_close_releases_the_pane(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Frames                                                                   */
+/* ------------------------------------------------------------------------ */
+
+struct FrameFixture
+{
+    char const* key;
+    bool unsupported;
+    bool wants_viewport;
+    int runs;
+};
+
+static void
+frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainElementState state;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    if( fixture->unsupported )
+    {
+        describe->unsupported(describe, "this is a desktop frame; choose Stone Drawer");
+        return;
+    }
+    /* The viewport-bind gate every provider opens with. It is also what gives
+     * a canvas placement its frame root: the root is walked up from a bound
+     * element, and a description that watches nothing has no root to hang
+     * from. */
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    memset(&item, 0, sizeof(item));
+    item.key = fixture->key;
+    item.image = "piece.png";
+    if( fixture->wants_viewport )
+    {
+        item.place.kind = PORCELAIN_AT_ELEMENT;
+        item.place.on = PORCELAIN_EL(VIEWPORT);
+    }
+    else
+    {
+        item.place.kind = PORCELAIN_AT_CANVAS;
+    }
+    item.w = 16;
+    item.h = 16;
+    describe->piece(describe, &item);
+}
+
+/* The desktop frame's map housing: a plate over the COMPASS, the later of the
+ * two surfaces it frames, placed beside the MINIMAP. */
+static void
+housing_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    memset(&item, 0, sizeof(item));
+    item.key = fixture->key;
+    item.image = "piece.png";
+    item.place.kind = PORCELAIN_AT_ELEMENT;
+    item.place.on = PORCELAIN_EL(MINIMAP);
+    item.place.depth = PORCELAIN_EL(COMPASS);
+    item.w = 172;
+    item.h = 156;
+    describe->piece(describe, &item);
+}
+
+/* A surround piece at a canvas coordinate that also states a depth target. */
+static void
+canvas_depth_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    memset(&item, 0, sizeof(item));
+    item.key = fixture->key;
+    item.image = "piece.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.depth = PORCELAIN_EL(VIEWPORT);
+    item.w = 32;
+    item.h = 32;
+    describe->piece(describe, &item);
+}
+
+static struct ToriRS_GameframeEvent
+frame_event(char const* id, bool active, int width, int height, char* reason,
+            size_t reason_capacity)
+{
+    struct ToriRS_GameframeEvent event;
+
+    memset(&event, 0, sizeof(event));
+    event.offer_id = id;
+    event.active = active;
+    event.canvas = TORIRS_FRAME_CANVAS_FIXED;
+    event.width = width;
+    event.height = height;
+    event.safe.width = width;
+    event.safe.height = height;
+    event.reason = reason;
+    event.reason_capacity = reason_capacity;
+    return event;
+}
+
+/*
+ * One describe function per offer, and a RELEASE that takes the frame off.
+ *
+ * Mutation: make Porcelain_FrameEvent's release arm return without running
+ * the empty describe and "a release removes every owned control" goes red --
+ * which is the shipped providers' own defect, an undress that runs from
+ * on_frame_start on a provider the host will never start again.
+ */
+static void
+test_frame_offer_describes_and_releases(void)
+{
+    struct FrameFixture classic = {.key = "classic_piece"};
+    struct FrameFixture modern = {.key = "modern_piece"};
+    struct Porcelain* porcelain;
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    frame_describe, &classic);
+    Porcelain_Frame(porcelain, "modern-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    frame_describe, &modern);
+
+    reason[0] = '\0';
+    event = frame_event("classic-fixed", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_READY,
+          "an offer whose description applies answers READY");
+    Porcelain_Commit(Testbed_Api());
+    /* At least one: the fence takes a second pass when registering a watch
+     * inside the run raises BOUND synchronously. What matters here is WHICH
+     * description ran. */
+    CHECK(classic.runs >= 1, "the offer's OWN describe ran");
+    CHECK(modern.runs == 0, "and the other offer's did not");
+    CHECK(Testbed_Control("classic_piece") != NULL, "the described piece exists");
+
+    reason[0] = '\0';
+    event = frame_event("modern-fixed", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_READY,
+          "switching offers re-describes");
+    Porcelain_Commit(Testbed_Api());
+    CHECK(modern.runs >= 1, "the second offer's describe ran");
+    CHECK(Testbed_Control("modern_piece") != NULL, "its piece exists");
+    CHECK(Testbed_Control("classic_piece") == NULL, "and the first offer's is gone");
+
+    reason[0] = '\0';
+    event = frame_event("modern-fixed", false, 765, 503, reason, sizeof(reason));
+    (void)Porcelain_FrameEvent(porcelain, &event);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Testbed_LiveControls() == 0, "a release removes every owned control");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The frame arm of Porcelain_Unsupported: a refusal inside the description
+ * has to reach the host as UNSUPPORTED with the reason, or the lane's own
+ * frame comes down and nothing replaces it.
+ *
+ * Mutation: drop the Porcelain_FrameNoteUnsupported call from
+ * Porcelain_Unsupported and "unsupported inside a frame describe answers
+ * UNSUPPORTED" goes red while the finding still stands -- which is exactly
+ * how a silent refusal looks.
+ */
+static void
+test_frame_unsupported_reaches_the_host(void)
+{
+    struct FrameFixture fixture = {.key = "piece", .unsupported = true};
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    frame_describe, &fixture);
+    reason[0] = '\0';
+    event = frame_event("classic-fixed", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_UNSUPPORTED,
+          "unsupported inside a frame describe answers UNSUPPORTED");
+    CHECK(strcmp(reason, "this is a desktop frame; choose Stone Drawer") == 0,
+          "and writes the reason the host shows");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "with one finding beside it");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * PENDING is re-asked, every fence. The one-shot PENDING nobody re-asked is
+ * the defect that kept the desktop provider from ever coming up.
+ *
+ * Mutation: make porcelain_frame_run_pending return false and "a description
+ * waiting for the scene answers PENDING" goes red -- the host would take the
+ * frame as laid out while nothing had been placed.
+ */
+static void
+test_frame_pending_until_the_lane_binds(void)
+{
+    struct FrameFixture fixture = {.key = "piece", .wants_viewport = true};
+    struct Porcelain* porcelain;
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "stone-drawer", TORIRS_FRAME_CANVAS_WINDOW, 640, 437,
+                    frame_describe, &fixture);
+
+    reason[0] = '\0';
+    event = frame_event("stone-drawer", true, 1280, 720, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_PENDING,
+          "a description waiting for the scene answers PENDING");
+    CHECK(reason[0] != '\0', "and says what it is waiting for");
+    Porcelain_Commit(Testbed_Api());
+
+    Testbed_BindElement("viewport");
+    reason[0] = '\0';
+    event = frame_event("stone-drawer", true, 1280, 720, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_READY,
+          "the next fence re-asks and the frame comes up");
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Testbed_Control("piece") != NULL, "with the piece placed");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * An offer nobody described, and a plugin that describes no frame at all.
+ * Both are refusals with a finding, never a dropped answer: the lane's frame
+ * is already coming down by the time this is asked.
+ *
+ * Mutation: return TORIRS_FRAME_READY from either refusal arm and the checks
+ * below go red.
+ */
+static void
+test_frame_event_refusals(void)
+{
+    struct FrameFixture fixture = {.key = "piece"};
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    reason[0] = '\0';
+    event = frame_event("classic-fixed", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_UNSUPPORTED,
+          "a plugin that described no frame refuses the offer");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "with one finding");
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    frame_describe, &fixture);
+    reason[0] = '\0';
+    event = frame_event("modern-resizable", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_UNSUPPORTED,
+          "an offer id nothing is bound to refuses too");
+    CHECK(strstr(reason, "modern-resizable") != NULL, "and the reason names it");
+    CHECK(fixture.runs == 0, "and no other offer's description was run in its place");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * USABLE subtracts a lane strip only when it is PRESENTED and spans a full
+ * edge. 601's strip is bound, laid out 58x46 and hidden: it cuts nothing, and
+ * a plan that moved the whole frame because the role existed would be wrong
+ * on every capture of that root.
+ *
+ * Mutation: drop the `!watch->state.presented` test in porcelain_usable and
+ * "a hidden strip cuts nothing" goes red.
+ */
+static void
+test_usable_subtracts_only_a_presented_strip(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetBounds usable;
+    struct PorcelainElementState state;
+
+    /* Nothing has bound: there is no frame root and so no canvas to report.
+     * False, not a 0x0 box, because those are different answers. */
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_Usable(porcelain, &usable),
+          "before anything binds there is no usable canvas");
+    Porcelain_Close(porcelain);
+
+    /* The 601 shape: bound, laid out, hidden. */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 0, 0, 800, 500);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareElement("lane_chrome_0", 11, 432, 58, 46);
+    Testbed_BindElement("lane_chrome_0");
+    Testbed_PresentElement("lane_chrome_0", false);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_CHROME_EL(0), &state);
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Usable(porcelain, &usable), "with a frame root there is one");
+    CHECK(usable.width == 800 && usable.height == 500, "a hidden strip cuts nothing");
+    Porcelain_Close(porcelain);
+
+    /* The same full-height strip, hidden. The shape above proves the box
+     * test; this proves the PRESENTED one, and they are different halves:
+     * 601's strip is small enough that the box test alone would spare it, and
+     * a strip that is the right shape and simply not drawn is the case that
+     * moves the whole frame for nothing. */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 0, 0, 800, 500);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareElement("lane_chrome_0", 760, 0, 40, 500);
+    Testbed_BindElement("lane_chrome_0");
+    Testbed_PresentElement("lane_chrome_0", false);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_CHROME_EL(0), &state);
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Usable(porcelain, &usable), "the canvas is answered");
+    CHECK(usable.width == 800,
+          "a strip the right shape to cut an edge still cuts nothing while it is hidden");
+    Porcelain_Close(porcelain);
+
+    /* A presented, full-height strip docked on the right moves that edge in. */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 0, 0, 800, 500);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareElement("lane_chrome_0", 760, 0, 40, 500);
+    Testbed_BindElement("lane_chrome_0");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_CHROME_EL(0), &state);
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Usable(porcelain, &usable), "the canvas is still answered");
+    CHECK(usable.x == 0 && usable.width == 760,
+          "a presented strip that spans a full edge moves that edge in");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * NativeSize is asked by ELEMENT, and that is the whole of the G55 fix: both
+ * shipped providers pass their own private surface enum straight in as the
+ * API's, the two numberings disagree, and CHAT matches by luck.
+ *
+ * Mutation: swap TORIRS_SURFACE_COMPASS and TORIRS_SURFACE_SIDEBAR in
+ * porcelain_surface_of and "COMPASS asks for the compass surface" goes red
+ * with the exact wrong-surface answer the defect produces.
+ */
+static void
+test_native_size_is_asked_by_element(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetBounds box;
+    struct PorcelainFinding findings[8];
+
+    Testbed_Reset();
+    /* Stated so the refusals below cannot pass by accident: an element that
+     * is no surface has to refuse even when surface zero is answerable. */
+    Testbed_DeclareSurface(TORIRS_SURFACE_VIEWPORT, -1, 0, 0, 512, 334);
+    Testbed_DeclareSurface(TORIRS_SURFACE_CHAT, -1, 0, 0, 519, 165);
+    Testbed_DeclareSurface(TORIRS_SURFACE_COMPASS, -1, 0, 0, 33, 33);
+    Testbed_DeclareSurface(TORIRS_SURFACE_ORBS, -1, 0, 0, 207, 197);
+    /* 601's globe: 34x34 inset from the block, where 548 draws it 30x30. */
+    Testbed_DeclareSurface(TORIRS_SURFACE_ORBS, 1, 153, 45, 34, 34);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_NativeSize(porcelain, PORCELAIN_EL(CHAT), &box), "the lane states the chat");
+    CHECK(box.width == 519 && box.height == 165, "at the size the pack authored");
+    CHECK(box.x == 0 && box.y == 0, "a whole surface has no offset inside itself");
+
+    CHECK(Porcelain_NativeSize(porcelain, PORCELAIN_EL(COMPASS), &box),
+          "COMPASS asks for the compass surface");
+    CHECK(box.width == 33, "and gets the compass's own size");
+
+    CHECK(Porcelain_NativeSize(porcelain, PORCELAIN_EL(ORBS), &box), "ORBS is the block");
+    CHECK(box.width == 207 && box.height == 197, "at the block's authored size");
+
+    {
+        struct PorcelainElement const globe = {PORCELAIN_EL_ORBS, 1, NULL};
+        CHECK(Porcelain_NativeSize(porcelain, globe, &box), "ORBS[1] is a member of the block");
+        CHECK(box.x == 153 && box.y == 45, "answered BLOCK-relative");
+        CHECK(box.width == 34 && box.height == 34,
+              "at this root's own size, not the one a different toplevel draws");
+    }
+
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "and none of that is a finding");
+
+    /* A surface the lane states no pixel size for. Not zero: a proportional
+     * box has no pixel count, and the caller has to know it must choose. */
+    CHECK(!Porcelain_NativeSize(porcelain, PORCELAIN_EL(MINIMAP), &box),
+          "a surface with no stated pixel size refuses");
+    /* An element that is no surface at all. */
+    CHECK(!Porcelain_NativeSize(porcelain, PORCELAIN_EL(CANVAS), &box),
+          "and the derived elements are not surfaces");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 2, "each refusal is one finding");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * ORB names a stat orb by profile role; ORBS numbers the members of the
+ * block. They are not the same set -- member 0 of the block is the activity
+ * adviser, not the hitpoints globe -- so ORB has no member box to answer.
+ *
+ * Mutation: return element.member from the PORCELAIN_EL_ORB arm of
+ * porcelain_surface_member and this goes red by answering the adviser's box
+ * for the run orb.
+ */
+static void
+test_orb_kinds_are_not_block_members(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetBounds box;
+
+    Testbed_Reset();
+    Testbed_DeclareSurface(TORIRS_SURFACE_ORBS, -1, 0, 0, 207, 197);
+    Testbed_DeclareSurface(TORIRS_SURFACE_ORBS, 2, 85, 143, 30, 30);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_NativeSize(porcelain, PORCELAIN_ORB_EL(PORCELAIN_ORB_RUN), &box),
+          "a stat orb is not a numbered member of the orb block");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A member the lane does not number is a refusal, and a loud one.
+ *
+ * Mutation: drop the `is_member && member < 0` arm and a tab this lane never
+ * numbered is asked of surface member -1, which is NativeSize's own question
+ * and would answer the whole sidebar as though it were the tab's mount.
+ */
+static void
+test_native_size_member_refusals(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetBounds box;
+
+    Testbed_Reset();
+    Testbed_DeclareSurface(TORIRS_SURFACE_SIDEBAR, -1, 0, 0, 190, 261);
+    Testbed_DeclareSurface(TORIRS_SURFACE_SIDEBAR, 3, 0, 0, 190, 261);
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3 ");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_NativeSize(porcelain, PORCELAIN_TAB_EL("inventory"), &box),
+          "a tab the lane numbers answers with its mount's box");
+    CHECK(box.width == 190 && box.height == 261, "the sidebar's own rectangle");
+    CHECK(!Porcelain_NativeSize(porcelain, PORCELAIN_TAB_EL("clan"), &box),
+          "a tab this lane does not number has no box");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * LaneIcon answers the lane's own number for a tab, and answers -1 for a tab
+ * the lane NUMBERS but does not MOUNT. The two are different questions, and
+ * answering only the first is the recorded defect: a 2004 rail over an
+ * OldSchool lane wearing the 2004 icon set left the live seventh rock bare
+ * and put the ignore face on Friends.
+ *
+ * Mutation: delete the Porcelain_Element check and "a numbered tab the lane
+ * never mounts has no icon" goes red.
+ */
+static void
+test_lane_icon_needs_the_tab_and_the_panel(void)
+{
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3 tab:clan=7 ");
+    Testbed_DeclareElement("sidetab_3", 660, 200, 30, 30);
+    Testbed_BindElement("sidetab_3");
+    /* Declared and never bound: the lane numbers it and mounts nothing. */
+    Testbed_DeclareElement("sidetab_7", 660, 240, 30, 30);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_LaneIcon(porcelain, PORCELAIN_TAB_EL("inventory")) == 3,
+          "a mounted tab answers this lane's own number for it");
+    CHECK(Porcelain_LaneIcon(porcelain, PORCELAIN_TAB_EL("clan")) == -1,
+          "a numbered tab the lane never mounts has no icon");
+    CHECK(Porcelain_LaneIcon(porcelain, PORCELAIN_TAB_EL("music")) == -1,
+          "and a tab this lane does not number at all has none either");
+    Porcelain_Close(porcelain);
+}
+
+/* Four stones, two rows -- the 548/161 shape, with nothing stated. */
+static void
+frames_declare_two_rows(void)
+{
+    Testbed_DeclareElement("sidetab_0", 550, 470, 30, 30);
+    Testbed_BindElement("sidetab_0");
+    Testbed_DeclareElement("sidetab_1", 520, 470, 30, 30);
+    Testbed_BindElement("sidetab_1");
+    Testbed_DeclareElement("sidetab_3", 520, 430, 30, 30);
+    Testbed_BindElement("sidetab_3");
+    Testbed_DeclareElement("sidetab_10", 550, 430, 30, 30);
+    Testbed_BindElement("sidetab_10");
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids),
+             "tab:combat=0 tab:stats=1 tab:inventory=3 tab:logout=10 ");
+}
+
+/*
+ * With no `[tabs:<root>]` section the arrangement is DERIVED from the boxes
+ * the lane's own stones report: a group is a shared row, and within a row the
+ * order is x ascending. That is right on 548, on 161 and on a root the
+ * profile never listed, which is the case the whole design turns on.
+ *
+ * Mutation: sort on `order` alone (drop the group compare from the insertion
+ * sort) and "the top row holds inventory then logout" goes red by mixing the
+ * two rows together.
+ */
+static void
+test_tab_groups_derive_from_the_boxes(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElement group[PORCELAIN_TAB_MAX];
+    int count;
+
+    Testbed_Reset();
+    frames_declare_two_rows();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_TabGroupCount(porcelain, PORCELAIN_TAB_ROWS) == 2,
+          "four stones on two y values are two rows");
+    CHECK(Porcelain_TabGroupCount(porcelain, PORCELAIN_TAB_COLUMNS) == 2,
+          "and on two x values, two columns");
+
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_ROWS, 0, group, PORCELAIN_TAB_MAX);
+    CHECK(count == 2, "the top row holds two stones");
+    CHECK(count == 2 && strcmp(group[0].role, "inventory") == 0 &&
+              strcmp(group[1].role, "logout") == 0,
+          "the top row holds inventory then logout, in screen order");
+
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_ROWS, 1, group, PORCELAIN_TAB_MAX);
+    CHECK(count == 2, "the bottom row holds the other two");
+    CHECK(count == 2 && strcmp(group[0].role, "stats") == 0 &&
+              strcmp(group[1].role, "combat") == 0,
+          "and stats sits left of combat, which walking the tab NUMBERS would reverse");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A root that states its arrangement wins over the derivation, and the root
+ * is a KEY -- `cache.frame_root()` joined to the tab name -- never a compare.
+ * 601 stacks thirteen stones in two columns that a row walk reads as thirteen
+ * rows of one, and 164 hangs logout off the top bar where a row walk puts it
+ * at the head of the run.
+ *
+ * Mutation: ignore the "tabcol"/"tabpos" answers (always take the derived
+ * branch) and the stated order below goes red.
+ */
+static void
+test_tab_groups_take_the_stated_override(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElement group[PORCELAIN_TAB_MAX];
+    struct PorcelainElement detached;
+    int count;
+
+    Testbed_Reset();
+    frames_declare_two_rows();
+    Testbed_SetFrameRoot(601);
+    /* The profile's own rows, keyed <root>:<name>. The boxes above say two
+     * rows; the section says one column in an order the boxes do not have. */
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids),
+             "tab:combat=0 tab:stats=1 tab:inventory=3 tab:logout=10 "
+             "tabcol:601:inventory=0 tabpos:601:inventory=0 "
+             "tabcol:601:combat=0 tabpos:601:combat=1 "
+             "tabcol:601:stats=0 tabpos:601:stats=2 "
+             "tabdetach:601:logout=1 ");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_TabGroupCount(porcelain, PORCELAIN_TAB_COLUMNS) == 1,
+          "the stated arrangement is one column");
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_COLUMNS, 0, group, PORCELAIN_TAB_MAX);
+    CHECK(count == 3, "holding the three tabs it names");
+    CHECK(count == 3 && strcmp(group[0].role, "inventory") == 0 &&
+              strcmp(group[1].role, "combat") == 0 && strcmp(group[2].role, "stats") == 0,
+          "in the order the profile stated, not the one the boxes derive");
+
+    detached = Porcelain_TabDetached(porcelain);
+    CHECK(detached.kind == PORCELAIN_EL_TAB, "the root hangs one tab outside every group");
+    CHECK(detached.role && strcmp(detached.role, "logout") == 0, "and it is logout");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A detached tab is in no group at all, which is what detached MEANS -- and a
+ * root that detaches nothing answers NONE rather than an absent tab.
+ *
+ * Mutation: drop the tabdetach skip in porcelain_tab_seats and logout comes
+ * back into the derived row, which is the hard FRAME_TAB_SCREEN_ORDER table's
+ * own bug.
+ */
+static void
+test_detached_tab_is_in_no_group(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElement group[PORCELAIN_TAB_MAX];
+    struct PorcelainElement detached;
+    int count;
+
+    Testbed_Reset();
+    frames_declare_two_rows();
+    Testbed_SetFrameRoot(164);
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids),
+             "tab:combat=0 tab:stats=1 tab:inventory=3 tab:logout=10 "
+             "tabdetach:164:logout=1 ");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_ROWS, 0, group, PORCELAIN_TAB_MAX);
+    CHECK(count == 1, "the top row is one stone once logout is off it");
+    CHECK(count == 1 && strcmp(group[0].role, "inventory") == 0, "and it is inventory");
+    detached = Porcelain_TabDetached(porcelain);
+    CHECK(detached.role && strcmp(detached.role, "logout") == 0, "logout is the detached one");
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    frames_declare_two_rows();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    detached = Porcelain_TabDetached(porcelain);
+    CHECK(detached.kind == PORCELAIN_EL_NONE,
+          "a root that detaches nothing answers NONE, not an absent tab");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A capacity smaller than the group is a budget finding and a short answer,
+ * never a silently truncated arrangement.
+ *
+ * Mutation: drop the finding and the group comes back short with nothing
+ * saying so -- the stone the frame never draws.
+ */
+static void
+test_tab_group_capacity_is_a_finding(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElement group[1];
+    struct PorcelainFinding findings[8];
+    int count;
+
+    Testbed_Reset();
+    frames_declare_two_rows();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_ROWS, 0, group, 1);
+    CHECK(count == 1, "a short buffer takes what it can");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "and says it was short");
+    CHECK(findings[0].result == PORCELAIN_FINDING_BUDGET, "as a budget finding");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A depth target has to PAINT, not merely resolve.
+ *
+ * The live defect the minimap-orbs port measured 1:1 across the six minimap
+ * states: the desktop frame's housing plate anchors OVER whichever of compass
+ * or minimap RESOLVES, and on the three states that suppress the compass the
+ * plate keeps its own native draw index -- later than the orb column -- and
+ * paints over the whole thing, the lane's own art included.
+ *
+ * Mutation: restore `if( Porcelain_Element(...) ) anchor = depth_state.ref;`
+ * in porcelain_apply_anchor and "a depth target that draws nothing is not
+ * anchored to" goes red with exactly that picture.
+ */
+static void
+test_depth_target_must_paint(void)
+{
+    struct Porcelain* porcelain;
+    struct FrameFixture fixture = {.key = "housing"};
+    struct PorcelainFinding findings[8];
+    struct TestbedControl const* control;
+    struct TestbedElement const* minimap;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("minimap", 550, 4, 146, 151);
+    Testbed_BindElement("minimap");
+    Testbed_DeclareElement("compass", 517, 4, 33, 33);
+    Testbed_BindElement("compass");
+    Testbed_PresentElement("compass", false);
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, housing_describe, &fixture);
+    fence(porcelain);
+
+    control = Testbed_Control("housing");
+    minimap = Testbed_Element("minimap");
+    CHECK(control != NULL, "the housing plate is placed");
+    CHECK(control && minimap && ToriRS_WidgetRefEqual(control->anchor, minimap->ref),
+          "a depth target that draws nothing is not anchored to");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "and the provider is told it lost");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A canvas placement parents to the frame ROOT, which is already after every
+ * subtree the lane mounted inside it. There is nothing for an anchor to add,
+ * and one live anchor switches on the frame's depth handling -- 13.5 ms a
+ * frame by the audit. Accepting `.depth` there and dropping it silently is
+ * how a provider believes it stated an order it did not.
+ *
+ * Mutation: drop the finding in porcelain_push_item and the describe below
+ * reports nothing while its depth statement is discarded.
+ */
+static void
+test_canvas_placement_takes_no_depth(void)
+{
+    struct Porcelain* porcelain;
+    struct FrameFixture fixture = {.key = "surround"};
+    struct PorcelainFinding findings[8];
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, canvas_depth_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_anchor") == 0, "a canvas placement emits no anchor");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1,
+          "and a depth target stated on one is refused rather than dropped");
+    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "as unsupported");
+    Porcelain_Close(porcelain);
+}
+
+
+/*
+ * A TAB's spelling is re-derived while it is unresolved.
+ *
+ * Both lanes NUMBER their tabs -- the 2004 profile's map is derived from its
+ * own `panel_<name>` rows -- so a number answering says nothing about how
+ * this lane spells the stone, and the first ask always lands before the
+ * gameframe exists. Settling on the numbered spelling from the number alone
+ * put every dat1 tab on a role that cannot exist, which reads as fourteen
+ * tabs the lane does not have.
+ *
+ * Mutation: drop the verifying find from porcelain_resolve_tab's numbered
+ * branch, or the re-derivation in porcelain_resolve_pending, and "the 2004
+ * spelling wins once the frame exists" goes red.
+ */
+static void
+test_tab_spelling_is_re_derived(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+
+    /* The dat1 shape: a number from the profile, and a stone spelled
+     * tab_<name> that does not exist yet. */
+    Testbed_Reset();
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3 ");
+    Testbed_DeclareElement("tab_inventory", 660, 200, 30, 30);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "asked on a cold tree the tab is pending, not bound");
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    Testbed_BindElement("tab_inventory");
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "the 2004 spelling wins once the frame exists");
+    CHECK(Testbed_LogCountWith("watch_state sidetab_") == 0,
+          "and nothing was ever watched under a numbered spelling this lane has not got");
+    Porcelain_Close(porcelain);
+
+    /* A tab the lane NUMBERS and does not mount reports its absence under the
+     * name a plugin would have looked for by hand -- the authored spelling,
+     * because that is the one this lane uses for the thirteen it does have. */
+    Testbed_Reset();
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:clan=7 ");
+    Testbed_DeclareElement("tab_inventory", 660, 200, 30, 30);
+    Testbed_BindElement("tab_inventory");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state);
+    (void)Porcelain_Element(porcelain, PORCELAIN_TAB_EL("clan"), &state);
+    for( int i = 0; i < 4; i++ )
+    {
+        Porcelain_Fence(porcelain);
+        Porcelain_Commit(Testbed_Api());
+    }
+    /* The absence is recorded when the description next asks for it: an
+     * element nobody wants is not a finding. */
+    (void)Porcelain_Element(porcelain, PORCELAIN_TAB_EL("clan"), &state);
+    {
+        struct PorcelainFinding findings[8];
+        int const count = Porcelain_Findings(porcelain, findings, 8);
+        CHECK(count == 1, "the tab this lane does not mount is one finding");
+        CHECK(count == 1 && findings[0].result == PORCELAIN_FINDING_ABSENT, "an absence");
+        CHECK(count == 1 && strcmp(findings[0].detail, "tab_clan") == 0,
+              "named the way this lane spells its stones, not by a number it never mounts");
+    }
+    Porcelain_Close(porcelain);
+
+    /* The cache shape: the same number, and a numbered stone that arrives
+     * later. The re-derivation has to reach that one too. */
+    Testbed_Reset();
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3 ");
+    Testbed_DeclareElement("sidetab_3", 660, 200, 30, 30);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    Testbed_BindElement("sidetab_3");
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "and the numbered spelling wins on a lane that mounts one");
+    Porcelain_Close(porcelain);
+}
+
+
+/*
+ * A row is a BAND, not an exact coordinate.
+ *
+ * A 2004 stone is not on a grid: the sideicons carry their own baked offsets,
+ * and the seven stones of rs254lc's top rail report y 171, 171, 171, 172,
+ * 173, 173, 173. Grouping on the exact coordinate reads that one rail as
+ * five rows -- and the order inside them comes out in y order rather than
+ * left to right, which is the account-icon-where-friends-belongs defect
+ * arriving by another door.
+ *
+ * Mutation: band on equality (make the derived arm state extent 0) and both
+ * checks below go red: five rows instead of two, in the wrong order.
+ */
+static void
+test_tab_rows_are_bands_not_coordinates(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElement group[PORCELAIN_TAB_MAX];
+    int count;
+
+    Testbed_Reset();
+    /* rs254lc's own numbers, measured. */
+    Testbed_DeclareElement("tab_combat", 545, 173, 33, 36);
+    Testbed_BindElement("tab_combat");
+    Testbed_DeclareElement("tab_stats", 569, 171, 33, 36);
+    Testbed_BindElement("tab_stats");
+    Testbed_DeclareElement("tab_quests", 598, 171, 33, 36);
+    Testbed_BindElement("tab_quests");
+    Testbed_DeclareElement("tab_inventory", 631, 172, 33, 36);
+    Testbed_BindElement("tab_inventory");
+    Testbed_DeclareElement("tab_friends", 570, 468, 33, 36);
+    Testbed_BindElement("tab_friends");
+    Testbed_DeclareElement("tab_logout", 633, 470, 33, 36);
+    Testbed_BindElement("tab_logout");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+
+    CHECK(Porcelain_TabGroupCount(porcelain, PORCELAIN_TAB_ROWS) == 2,
+          "a rail whose stones sit two pixels apart is one row, not three");
+    count = Porcelain_TabGroup(porcelain, PORCELAIN_TAB_ROWS, 0, group, PORCELAIN_TAB_MAX);
+    CHECK(count == 4, "the top rail holds its four stones");
+    CHECK(count == 4 && strcmp(group[0].role, "combat") == 0 &&
+              strcmp(group[1].role, "stats") == 0 && strcmp(group[2].role, "quests") == 0 &&
+              strcmp(group[3].role, "inventory") == 0,
+          "and they come back left to right, not in y order");
+    Porcelain_Close(porcelain);
+}
+
+
+/*
+ * More offers than the layer holds is a budget finding, never a binding that
+ * quietly replaces another: an offer the host asks for and nothing answers is
+ * the lane's frame coming down with nothing to replace it.
+ *
+ * Mutation: drop the finding in Porcelain_Frame and the fifth offer vanishes
+ * with nothing said.
+ */
+static void
+test_frame_offer_budget(void)
+{
+    struct FrameFixture fixture = {.key = "piece"};
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "one", TORIRS_FRAME_CANVAS_FIXED, 765, 503, frame_describe,
+                    &fixture);
+    Porcelain_Frame(porcelain, "two", TORIRS_FRAME_CANVAS_FIXED, 765, 503, frame_describe,
+                    &fixture);
+    Porcelain_Frame(porcelain, "three", TORIRS_FRAME_CANVAS_FIXED, 765, 503, frame_describe,
+                    &fixture);
+    Porcelain_Frame(porcelain, "four", TORIRS_FRAME_CANVAS_FIXED, 765, 503, frame_describe,
+                    &fixture);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "four offers fit");
+    Porcelain_Frame(porcelain, "five", TORIRS_FRAME_CANVAS_FIXED, 765, 503, frame_describe,
+                    &fixture);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "the fifth is a finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_BUDGET, "a budget one");
+    reason[0] = '\0';
+    event = frame_event("five", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_UNSUPPORTED,
+          "and the offer that did not fit refuses rather than running another's description");
+    Porcelain_Close(porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
 
 int
 main(void)
@@ -3969,6 +4872,24 @@ main(void)
     test_panel_opened_before_the_first_fence();
     test_panel_declaration_owed_after_a_refusal();
     test_panel_close_releases_the_pane();
+    test_frame_offer_describes_and_releases();
+    test_frame_unsupported_reaches_the_host();
+    test_frame_pending_until_the_lane_binds();
+    test_frame_event_refusals();
+    test_usable_subtracts_only_a_presented_strip();
+    test_native_size_is_asked_by_element();
+    test_orb_kinds_are_not_block_members();
+    test_native_size_member_refusals();
+    test_lane_icon_needs_the_tab_and_the_panel();
+    test_tab_groups_derive_from_the_boxes();
+    test_tab_groups_take_the_stated_override();
+    test_detached_tab_is_in_no_group();
+    test_tab_group_capacity_is_a_finding();
+    test_frame_offer_budget();
+    test_depth_target_must_paint();
+    test_canvas_placement_takes_no_depth();
+    test_tab_spelling_is_re_derived();
+    test_tab_rows_are_bands_not_coordinates();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

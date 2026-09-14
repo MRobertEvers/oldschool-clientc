@@ -1173,6 +1173,26 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
     /* A text item has no measurable width: nothing answers a string's extent
      * in the widget's face, so the box is the plugin's to state. */
     assert(kind != PORCELAIN_ITEM_TEXT || (source->w > 0 && source->h > 0));
+    /*
+     * A canvas placement has no depth target, and saying so is worth a
+     * finding rather than a quiet drop.
+     *
+     * AT_CANVAS, AT_USABLE and WITHIN all PARENT: the target is the parent,
+     * a child is already after every subtree inside it, and an anchor to
+     * one's own parent is ANCHOR_INVALID besides. It is also the form worth
+     * wanting -- one live anchor switches on the frame's depth handling,
+     * which the audit priced at 13.5 ms a frame, and a unit with no anchor
+     * cannot be got above by another unit's ordering. Accepting `.depth` on
+     * one and ignoring it is how a provider believes it stated an order it
+     * did not.
+     */
+    if( (source->place.kind == PORCELAIN_AT_CANVAS ||
+         source->place.kind == PORCELAIN_AT_USABLE ||
+         source->place.kind == PORCELAIN_WITHIN) &&
+        source->place.depth.kind > PORCELAIN_EL_NONE )
+        Porcelain_RecordFinding(porcelain, "place", source->place.depth,
+                                PORCELAIN_FINDING_UNSUPPORTED,
+                                "a parenting placement takes no depth target");
 
     if( porcelain->scratch_item_count >= PORCELAIN_ITEMS_MAX )
     {
@@ -1430,6 +1450,7 @@ Porcelain_Unsupported(struct ToriRS_PorcelainDescribe* describe, char const* rea
     assert(reason);
     Porcelain_RecordFinding(porcelain, "unsupported", PORCELAIN_EL(NONE),
                             PORCELAIN_FINDING_UNSUPPORTED, reason);
+    Porcelain_FrameNoteUnsupported(porcelain, reason);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1914,8 +1935,28 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
 
     if( applied->item.place.depth.kind > PORCELAIN_EL_NONE )
     {
-        if( Porcelain_Element(porcelain, applied->item.place.depth, &depth_state) )
+        /*
+         * A depth target has to PAINT, not merely resolve.
+         *
+         * They are different questions and the engine answers the ordering
+         * one with records: a unit anchored OVER a target that emits none
+         * keeps its own native draw index, which is later than everything it
+         * was meant to sit under. That is the live defect the minimap-orbs
+         * port measured 1:1 across the six minimap states -- the desktop
+         * frame's housing plate anchors over whichever of compass or minimap
+         * RESOLVES, and on the three states that suppress the compass the
+         * plate paints over the whole orb column, the lane's own art
+         * included. Falling back to the placement's own element is the same
+         * thing an unbound target already does; the finding is so the
+         * provider learns it lost instead of seeing a rendering bug.
+         */
+        if( !Porcelain_Element(porcelain, applied->item.place.depth, &depth_state) )
+            ;
+        else if( depth_state.presented )
             anchor = depth_state.ref;
+        else
+            Porcelain_RecordFinding(porcelain, "set_anchor", applied->item.place.depth,
+                                    PORCELAIN_FINDING_REFUSED, "the depth target draws nothing");
     }
     relation = applied->item.place.kind == PORCELAIN_REPLACE
                    ? TORIRS_WIDGET_RELATION_REPLACE
@@ -2706,6 +2747,7 @@ Porcelain_Close(struct Porcelain* porcelain)
      * alive for one fence by design, so an outgoing provider that kept its
      * claims would hand the incoming one eight findings instead of a frame. */
     Porcelain_ClaimDropAll(porcelain);
+    Porcelain_FrameForget(porcelain);
     memset(porcelain, 0, sizeof(*porcelain));
 }
 
@@ -2764,6 +2806,7 @@ Porcelain_ResetForTesting(void)
     memset(g_handles, 0, sizeof(g_handles));
     memset(g_claims, 0, sizeof(g_claims));
     Porcelain_PanelResetForTesting();
+    Porcelain_FrameResetForTesting();
     g_handle_count = 0;
     g_epoch = 1;
     g_epoch_dirty = false;
@@ -2829,6 +2872,14 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .key_down = Porcelain_KeyDown,
     .config_list_remove = Porcelain_ConfigListRemove,
     .config_list_set = Porcelain_ConfigListSet,
+    .frame = Porcelain_Frame,
+    .frame_event = Porcelain_FrameEvent,
+    .usable = Porcelain_Usable,
+    .native_size = Porcelain_NativeSize,
+    .lane_icon = Porcelain_LaneIcon,
+    .tab_group_count = Porcelain_TabGroupCount,
+    .tab_group = Porcelain_TabGroup,
+    .tab_detached = Porcelain_TabDetached,
 };
 
 struct ToriRS_PorcelainApi const*

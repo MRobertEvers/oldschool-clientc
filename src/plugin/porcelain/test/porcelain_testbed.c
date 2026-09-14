@@ -965,6 +965,86 @@ fake_named_id(struct ToriRS_Api* api, char const* kind, char const* name, int* o
     return true;
 }
 
+/*
+ * The size the LANE authored, and the box the lane authored for one numbered
+ * member of it. Undeclared is a refusal and not a zero: a surface whose box
+ * is a proportion of its parent has no pixel count to report, and handing
+ * back 0x0 would read as a surface that is there and empty.
+ */
+static struct TestbedSurface const*
+testbed_surface(int surface, int member)
+{
+    for( int i = 0; i < TESTBED_SURFACES_MAX; i++ )
+        if( g_testbed.surfaces[i].used && g_testbed.surfaces[i].surface == surface &&
+            g_testbed.surfaces[i].member == member )
+            return &g_testbed.surfaces[i];
+    return NULL;
+}
+
+static bool
+fake_surface_native_size(struct ToriRS_Api* api, int surface, int* out_w, int* out_h)
+{
+    struct TestbedSurface const* row = testbed_surface(surface, -1);
+
+    (void)api;
+    testbed_log("surface_native_size %d", surface);
+    if( !row )
+        return false;
+    *out_w = row->width;
+    *out_h = row->height;
+    return true;
+}
+
+static bool
+fake_surface_member_native_box(struct ToriRS_Api* api, int surface, int member, int* out_x,
+                               int* out_y, int* out_w, int* out_h)
+{
+    struct TestbedSurface const* row = testbed_surface(surface, member);
+
+    (void)api;
+    testbed_log("surface_member_native_box %d %d", surface, member);
+    if( !row )
+        return false;
+    *out_x = row->x;
+    *out_y = row->y;
+    *out_w = row->width;
+    *out_h = row->height;
+    return true;
+}
+
+static int
+fake_frame_root(struct ToriRS_Api* api)
+{
+    (void)api;
+    testbed_log("frame_root");
+    return g_testbed.frame_root;
+}
+
+void
+Testbed_DeclareSurface(int surface, int member, int x, int y, int width, int height)
+{
+    for( int i = 0; i < TESTBED_SURFACES_MAX; i++ )
+    {
+        if( g_testbed.surfaces[i].used )
+            continue;
+        g_testbed.surfaces[i].used = true;
+        g_testbed.surfaces[i].surface = surface;
+        g_testbed.surfaces[i].member = member;
+        g_testbed.surfaces[i].x = x;
+        g_testbed.surfaces[i].y = y;
+        g_testbed.surfaces[i].width = width;
+        g_testbed.surfaces[i].height = height;
+        return;
+    }
+    assert(0 && "testbed surface table full");
+}
+
+void
+Testbed_SetFrameRoot(int root)
+{
+    g_testbed.frame_root = root;
+}
+
 static int
 fake_varbit(struct ToriRS_Api* api, int id)
 {
@@ -1438,6 +1518,9 @@ Testbed_Reset(void)
     memset(&g_testbed, 0, sizeof(g_testbed));
     g_testbed.screen = TORIRS_SCREEN_GAME;
     g_testbed.next_ref = 100;
+    /* -1 is "no gameframe is open", which is what a root KEY means before
+     * one is. A scenario that cares states its own. */
+    g_testbed.frame_root = -1;
 
     g_testbed.api.struct_size = sizeof(g_testbed.api);
     g_testbed.api.major_version = TORIRS_PLUGIN_API_MAJOR;
@@ -1515,6 +1598,11 @@ Testbed_Reset(void)
     g_testbed.api.cache.struct_size = sizeof(g_testbed.api.cache);
     g_testbed.api.cache.named_id = fake_named_id;
     g_testbed.api.cache.varbit = fake_varbit;
+    g_testbed.api.cache.frame_root = fake_frame_root;
+
+    g_testbed.api.frame.struct_size = sizeof(g_testbed.api.frame);
+    g_testbed.api.frame.surface_native_size = fake_surface_native_size;
+    g_testbed.api.frame.surface_member_native_box = fake_surface_member_native_box;
 
     g_testbed.api.input.struct_size = sizeof(g_testbed.api.input);
     g_testbed.api.input.key_held = fake_key_held;

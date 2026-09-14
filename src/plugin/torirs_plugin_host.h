@@ -295,6 +295,25 @@ struct ToriRS_PluginEngine
         int slot,
         int* out_w,
         int* out_h);
+    /**
+     * The box the LANE authored for one numbered MEMBER of a placeable
+     * surface, relative to the surface's own block. @see
+     * slot_member_native_box.
+     *
+     * The member twin of slot_native_size, and separate because the whole
+     * surface has no offset inside itself to report while a member is nothing
+     * without one: a frame that MOVES the orb block still has to re-seat the
+     * globe and the wiki banner inside it, and 548 draws the globe 30x30
+     * where 601 draws it 34x34.
+     */
+    int (*slot_member_native_box)(
+        void* user,
+        int slot,
+        int member,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
     /** One component's box, by id. @see component_rect. */
     int (*component_rect)(
         void* user,
