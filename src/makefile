@@ -594,6 +594,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
+	render/torirs_damage_region.c \
 	render/torirs_wedge_camera_path.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
@@ -1611,6 +1612,15 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+# What a retained frame still has to present: the box is the union and clamps
+# onto the canvas, a box that IS the canvas is dropped, rects fold when they
+# touch, and overflowing four poisons the list rather than truncating it.
+.PHONY: test-damage-region
+test-damage-region: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/damage_region_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/damage_region_test.c render/torirs_damage_region.c $(LDFLAGS)
+	./$(OBJ_DIR)/damage_region_test$(PLATFORM_EXE_SUFFIX)
 
 # The scripted capture camera (TORIRS_WEDGE_CAM_PATH): a route parses whole or
 # not at all, the three wrap modes behave at the seam, yaw takes the short way

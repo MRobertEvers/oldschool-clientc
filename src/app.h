@@ -30,6 +30,7 @@
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
+#include "render/torirs_damage_region.h"
 #include "plugin/torirs_plugin_host.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_role.h"
@@ -719,19 +720,6 @@ enum AppMinimapState
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
 
-/** Live regions of a retained frame. Four is above the two an in-world frame
- *  actually produces (world, minimap); past that the bounding box is used
- *  instead, which is always correct and only ever does more work. */
-#define APP_DAMAGE_RECT_MAX 4
-
-struct App_DamageRect
-{
-    int x;
-    int y;
-    int w;
-    int h;
-};
-
 struct App
 {
     struct AppConfig cfg;
@@ -1115,7 +1103,7 @@ struct App
     /**
      * Damage rectangle: the union of every region whose pixels can change
      * while the emit list stays byte-identical, in canvas coordinates.
-     * `damage_valid` is 0 when the whole canvas must be treated as damaged.
+     * `damage.valid` is 0 when the whole canvas must be treated as damaged.
      *
      * The retain gate proves the *command list* is unchanged. It does not
      * prove the *pixels* are, and the difference is exactly three things:
@@ -1135,25 +1123,17 @@ struct App
      * by testing the pointers rather than by listing the kinds that set them,
      * so a kind added later cannot quietly opt itself out. @see
      * app_compute_damage.
-     */
-    int damage_valid;
-    int damage_x;
-    int damage_y;
-    int damage_w;
-    int damage_h;
-    /**
-     * The same damage as a small list of rectangles instead of their bounding
-     * box, which is what the present actually wants.
      *
-     * It matters because the two live regions are the world viewport and the
-     * minimap, which sit at opposite ends of the same rows. Their bounding box
-     * swallows the sidebar strip between them and is 240,195 px against the
-     * 193,901 px the two rects actually cover. For reference the Java client,
-     * which keeps a separate PixMap per region, clears 170,048 px and presents
-     * 196,880 px per frame (Client.gameDraw / Client.java:5122).
+     * The region carries the same damage twice, as a bounding box and as up
+     * to four rectangles, because the two answers cost differently: the two
+     * live regions are the world viewport and the minimap, which sit at
+     * opposite ends of the same rows, so their bounding box swallows the
+     * sidebar strip between them and is 240,195 px against the 193,901 px the
+     * two rects actually cover. For reference the Java client, which keeps a
+     * separate PixMap per region, clears 170,048 px and presents 196,880 px
+     * per frame (Client.gameDraw / Client.java:5122).
      */
-    struct App_DamageRect damage_rects[APP_DAMAGE_RECT_MAX];
-    int damage_rect_count;
+    struct ToriRS_DamageRegion damage;
     /**
      * The component the last MODAL sub-interface was mounted on, or -1.
      *
@@ -3903,7 +3883,7 @@ App_Render(
  * Region the last App_Render actually wrote, for a presenter that can copy
  * less than the whole buffer. Returns 0 when the whole canvas must be
  * presented, which is every frame unless damage drawing is on and the frame
- * was retained. @see App::damage_valid.
+ * was retained. @see App::damage.
  */
 int
 App_PresentDamage(
@@ -3922,7 +3902,7 @@ App_PresentDamage(
 int
 App_DamageRects(
     struct App const* app,
-    struct App_DamageRect const** out_rects);
+    struct ToriRS_DamageRect const** out_rects);
 
 /**
  * Build a ToriRS_Frame for the current emit/world state (no rasterization).

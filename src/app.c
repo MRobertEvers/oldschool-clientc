@@ -35413,7 +35413,7 @@ static int g_damage_trace;
  * TORIRS_DAMAGE_RECTS=1: present the live rectangles separately instead of
  * their bounding box.
  *
- * Off, because it measured slower -- see App::damage_rects. Kept switchable
+ * Off, because it measured slower -- see App::damage. Kept switchable
  * rather than deleted so the arm that produced that number still exists.
  */
 static int
@@ -35425,102 +35425,9 @@ app_damage_rects_armed(void)
     return armed;
 }
 
-/* Add one live region to the rect list, folding it into a rect it already
- * touches rather than appending a second copy. Entity overlays carry exactly
- * the world viewport's box, so without this the list is full of duplicates
- * before it reaches the two rects that matter. Overflow is not an error: the
- * caller falls back to the bounding box, which is always correct. */
-static void
-app_damage_rect_add(
-    struct App* app,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    assert(app);
-    if( w <= 0 || h <= 0 )
-        return;
-
-    for( int i = 0; i < app->damage_rect_count; i++ )
-    {
-        struct App_DamageRect* r = &app->damage_rects[i];
-        int rx1 = r->x + r->w;
-        int ry1 = r->y + r->h;
-
-        if( x < rx1 && x + w > r->x && y < ry1 && y + h > r->y )
-        {
-            int nx = x < r->x ? x : r->x;
-            int ny = y < r->y ? y : r->y;
-            int nx1 = x + w > rx1 ? x + w : rx1;
-            int ny1 = y + h > ry1 ? y + h : ry1;
-
-            r->x = nx;
-            r->y = ny;
-            r->w = nx1 - nx;
-            r->h = ny1 - ny;
-            return;
-        }
-    }
-    if( app->damage_rect_count >= APP_DAMAGE_RECT_MAX )
-    {
-        app->damage_rect_count = -1; /* poisoned: too many, use the box */
-        return;
-    }
-    if( app->damage_rect_count < 0 )
-        return;
-    app->damage_rects[app->damage_rect_count].x = x;
-    app->damage_rects[app->damage_rect_count].y = y;
-    app->damage_rects[app->damage_rect_count].w = w;
-    app->damage_rects[app->damage_rect_count].h = h;
-    app->damage_rect_count++;
-}
-
-/* Grow the frame's damage box to cover [x, x+w) x [y, y+h). */
-static void
-app_damage_add(
-    struct App* app,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    int x1;
-    int y1;
-
-    assert(app);
-    if( w <= 0 || h <= 0 )
-        return;
-    x1 = x + w;
-    y1 = y + h;
-    if( !app->damage_valid )
-    {
-        app->damage_x = x;
-        app->damage_y = y;
-        app->damage_w = w;
-        app->damage_h = h;
-        app->damage_valid = 1;
-        return;
-    }
-    if( x < app->damage_x )
-    {
-        app->damage_w += app->damage_x - x;
-        app->damage_x = x;
-    }
-    if( y < app->damage_y )
-    {
-        app->damage_h += app->damage_y - y;
-        app->damage_y = y;
-    }
-    if( x1 > app->damage_x + app->damage_w )
-        app->damage_w = x1 - app->damage_x;
-    if( y1 > app->damage_y + app->damage_h )
-        app->damage_h = y1 - app->damage_y;
-}
-
 /*
  * Decide what this frame is allowed to leave unpresented. @see
- * App::damage_valid.
+ * App::damage.
  *
  * A single box by default, not a region list: the three live areas of an
  * in-world frame (viewport, minimap, the overlays inside them) are adjacent,
@@ -35540,8 +35447,7 @@ app_compute_damage(
 {
     assert(app);
 
-    app->damage_valid = 0;
-    app->damage_rect_count = 0;
+    ToriRS_DamageRegionReset(&app->damage);
     if( !app_damage_armed() || !app->ui_retained_frame )
         return;
 
@@ -35596,84 +35502,21 @@ app_compute_damage(
                 x1 = cx1;
             if( cy1 < y1 )
                 y1 = cy1;
-            app_damage_add(app, x0, y0, x1 - x0, y1 - y0);
-            app_damage_rect_add(app, x0, y0, x1 - x0, y1 - y0);
+            ToriRS_DamageRegionAdd(&app->damage, x0, y0, x1 - x0, y1 - y0);
         }
     }
     g_damage_trace = 0;
 
-    if( !app->damage_valid )
-        return;
-
-    /* Clamp to the canvas; an emitted box may hang off an edge. */
-    if( app->damage_x < 0 )
-    {
-        app->damage_w += app->damage_x;
-        app->damage_x = 0;
-    }
-    if( app->damage_y < 0 )
-    {
-        app->damage_h += app->damage_y;
-        app->damage_y = 0;
-    }
-    if( app->damage_x + app->damage_w > width )
-        app->damage_w = width - app->damage_x;
-    if( app->damage_y + app->damage_h > height )
-        app->damage_h = height - app->damage_y;
-    if( app->damage_w <= 0 || app->damage_h <= 0 )
-        app->damage_valid = 0;
-
-    /* A box that covers the canvas anyway is not worth the extra clip test in
-     * every draw, nor the second BitBlt path. */
-    if( app->damage_valid && app->damage_w >= width && app->damage_h >= height )
-        app->damage_valid = 0;
-
-    if( !app->damage_valid || app->damage_rect_count <= 0 || !app_damage_rects_armed() )
-    {
-        app->damage_rect_count = 0;
-        return;
-    }
-
-    /* Clamp each rect the same way the box was, and drop the whole list if any
-     * of it falls outside -- the box still covers those pixels, so the frame
-     * stays correct, it just does the larger amount of work. */
-    for( int i = 0; i < app->damage_rect_count; i++ )
-    {
-        struct App_DamageRect* r = &app->damage_rects[i];
-
-        if( r->x < 0 )
-        {
-            r->w += r->x;
-            r->x = 0;
-        }
-        if( r->y < 0 )
-        {
-            r->h += r->y;
-            r->y = 0;
-        }
-        if( r->x + r->w > width )
-            r->w = width - r->x;
-        if( r->y + r->h > height )
-            r->h = height - r->y;
-        if( r->w <= 0 || r->h <= 0 )
-        {
-            app->damage_rect_count = 0;
-            return;
-        }
-    }
+    ToriRS_DamageRegionClamp(&app->damage, width, height, app_damage_rects_armed());
 }
 
 int
 App_DamageRects(
     struct App const* app,
-    struct App_DamageRect const** out_rects)
+    struct ToriRS_DamageRect const** out_rects)
 {
     assert(app);
-    assert(out_rects);
-    if( !app->damage_valid || app->damage_rect_count <= 0 )
-        return 0;
-    *out_rects = app->damage_rects;
-    return app->damage_rect_count;
+    return ToriRS_DamageRegionRects(&app->damage, out_rects);
 }
 
 /*
@@ -35733,10 +35576,10 @@ app_damage_note(
     g_damage_stats.frames++;
     if( app->ui_retained_frame )
         g_damage_stats.retained++;
-    if( app->damage_valid )
+    if( app->damage.valid )
     {
         g_damage_stats.damaged++;
-        g_damage_stats.damaged_area += (int64_t)app->damage_w * app->damage_h;
+        g_damage_stats.damaged_area += (int64_t)app->damage.w * app->damage.h;
         g_damage_stats.canvas_area += (int64_t)width * height;
     }
     if( g_damage_stats.frames % 600 == 0 )
@@ -35744,11 +35587,11 @@ app_damage_note(
         app_damage_report_dump();
         TORIRS_REPORT(
             "[damage] box: %d,%d %dx%d valid=%d\n",
-            app->damage_x,
-            app->damage_y,
-            app->damage_w,
-            app->damage_h,
-            app->damage_valid);
+            app->damage.x,
+            app->damage.y,
+            app->damage.w,
+            app->damage.h,
+            app->damage.valid);
         /* Dump the contributing descs on the NEXT frame -- this one has
          * already unioned them. */
         g_damage_trace = 1;
@@ -35768,13 +35611,7 @@ App_PresentDamage(
     assert(out_y);
     assert(out_w);
     assert(out_h);
-    if( !app->damage_valid )
-        return 0;
-    *out_x = app->damage_x;
-    *out_y = app->damage_y;
-    *out_w = app->damage_w;
-    *out_h = app->damage_h;
-    return 1;
+    return ToriRS_DamageRegionBox(&app->damage, out_x, out_y, out_w, out_h);
 }
 
 void

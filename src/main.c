@@ -779,7 +779,7 @@ interactive_render_present(
 
         if( App_PresentDamage(app, &dx, &dy, &dw, &dh) )
         {
-            struct App_DamageRect const* dr;
+            struct ToriRS_DamageRect const* dr;
             int n;
 
             PlatformWindow_SetPresentDamage(platform, dx, dy, dw, dh);
