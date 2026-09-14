@@ -179,6 +179,10 @@ def hidden_of(tail):
 # not of what happened: the frame it was first raised on and how many times it
 # coalesced. Two runs of the same binary disagree about both.
 FINDING_VOLATILE = re.compile(r"\s*\b(?:first_frame|count)=\S+")
+# The subject a coalescing finding happens to name first. Stripped only as a
+# SECOND attempt at matching, never as part of the primary key: two different
+# refusals of the same verb on the same element are still two findings.
+FINDING_DETAIL = re.compile(r"\s*\bdetail=.*?(?=\s+\w+=|$)")
 
 def finding_key(line):
     return FINDING_VOLATILE.sub("", line)
@@ -240,8 +244,22 @@ def compare(before, after, label, expect):
     for k in measured[:6]: print("    = ", k, "same box, measured text differs")
     if gone or new or movedc: bad.append("owned")
     fb, fa = findings(before + "/log.txt"), findings(after + "/log.txt")
-    introduced = [fa[k] for k in fa if k not in fb]
-    carried = [fa[k] for k in fa if k in fb]
+    # A finding whose exact line is in both sides is plainly the same finding.
+    # One that is not may still be: the readout refusal on the remount lane
+    # names whichever of three sibling readouts lost the race that run, so the
+    # same defect reports detail=performance_frame on one capture and
+    # detail=performance_effective on the next. Failing a port for that is the
+    # same mistake as failing it for the frame number, one field along.
+    #
+    # So a line missing from `before` is checked again without its detail, and
+    # counts as carried only if a finding with the same plugin, verb, element
+    # and result was already there. A genuinely new KIND of refusal still has
+    # no match and still fails.
+    kb = {FINDING_DETAIL.sub("", k) for k in fb}
+    introduced = [fa[k] for k in fa
+                  if k not in fb and FINDING_DETAIL.sub("", k) not in kb]
+    carried = [fa[k] for k in fa
+               if k in fb or FINDING_DETAIL.sub("", k) in kb]
     print(f"{label}: unexpected findings {len(introduced)} introduced, "
           f"{len(carried)} already there")
     for l in introduced[:4]: print("    !", l[:150])

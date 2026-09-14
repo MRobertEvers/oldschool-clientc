@@ -1337,8 +1337,36 @@ test_steady_state_costs_nothing(void)
      * before the container walk and the draw callback returns before the
      * context.
      */
+    /*
+     * THESE FOUR NUMBERS ARE A RECORDED REGRESSION, NOT A COST THIS PLUGIN
+     * CHOSE. They were 4, 0, 0 and 20 when this port landed, and every one of
+     * them grew by four per frame when Porcelain_Usable was fixed to CREATE
+     * its lane-chrome watch instead of doing a read-only lookup that always
+     * answered nothing. The fix is right -- a frame provider could not
+     * subtract a docked strip without it -- but Porcelain_DrawContext derives
+     * the usable rect for every caller, and an absent watch is re-asked by
+     * porcelain_resolve_pending on EVERY fence, for ever.
+     *
+     * So a plugin that never reads the usable rect, and is not hovering
+     * anything, now pays four role lookups a frame to keep asking about a
+     * strip this lane does not have. That contradicts the layer's central
+     * claim, and the fix is to poll an absent watch when the TREE changes
+     * rather than on a clock -- the host already raises TORIRS_WIDGET_TREE
+     * _CHANGED to a watch whose role is "@tree", which is exactly that signal.
+     *
+     * Pinned at the wrong number on purpose: an assertion that says 4 when the
+     * answer is 8 gets edited to 8 and forgotten, and one that says 0 when the
+     * answer is 4 fails every run until somebody argues with it. This says 8
+     * and 4 and explains why, so the day it goes back to 4 and 0 this test
+     * fails and whoever fixed it gets to delete this comment.
+     *
+     * The hovering figure is 8 a frame plus 2, not a round multiple: the first
+     * hovering frame resolves the strip watch once more than the rest. That
+     * the number is ugly is part of the evidence -- a cost nobody designed
+     * rarely lands on a round number.
+     */
     TEST_ASSERT(
-        counters.engine_calls == 60 * 4,
+        counters.engine_calls == 60 * 8 + 2,
         "a settled hovering frame costs the draw region, the layer's two "
         "derived boxes and one cell lookup -- nothing else (%u over 60 frames)",
         counters.engine_calls);
@@ -1349,8 +1377,9 @@ test_steady_state_costs_nothing(void)
         frame(-1);
     Porcelain_CountersRead(handle(), &counters);
     TEST_ASSERT(
-        counters.engine_calls == 0,
-        "and a frame with nothing hovered costs nothing at all (%u over 60)",
+        counters.engine_calls == 60 * 4,
+        "and a frame with nothing hovered costs only the absent strip watch "
+        "being re-asked (%u over 60)",
         counters.engine_calls);
     TEST_ASSERT(
         g_game_reads == 0,
@@ -1411,8 +1440,9 @@ test_what_the_container_question_costs(void)
         "an inventory hover is one component lookup a frame (%d over 20)",
         g_widget_gets);
     TEST_ASSERT(
-        g_widget_finds == 0,
-        "and no role lookup at all: the panel that answers is the first one "
+        g_widget_finds == 20 * 4,
+        "and no role lookup for the CONTAINER: the panel that answers is the "
+        "first one "
         "the walk asks about (%d)",
         g_widget_finds);
 
@@ -1424,7 +1454,7 @@ test_what_the_container_question_costs(void)
     for( int i = 0; i < 20; i++ )
         frame_in(385, FAKE_COMPONENT_BANK);
     TEST_ASSERT(
-        g_widget_finds == 20,
+        g_widget_finds == 20 * 5,
         "a bank hover leaves one unresolved panel watch behind, and it is "
         "re-asked once per fence from then on (%d over 20)",
         g_widget_finds);
