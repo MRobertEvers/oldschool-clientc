@@ -27,6 +27,7 @@
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
 #include "game/rs_title_session.h"
+#include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
 #include "net/rev/revpacket.h"
@@ -613,11 +614,34 @@ enum AppScreen
 };
 
 /** One visible map surface region, with its distance from the view centre. */
-struct App_WorldMapVisit
+/** Everything the world map surface owns for the length of a session. */
+struct App_WorldMapView
 {
-    int region_x;
-    int region_y;
-    int distance;
+    /* Per-frame blits, filled by the GET_WORLDMAP_TILES host request and
+     * consumed by the same frame's draw: the visible regions first, then every
+     * map element icon over them. */
+    struct RS_WorldMapTiles tiles;
+    /* Visible regions for this frame, ordered nearest-the-view-centre first —
+     * the order decides who gets the frame's bake and load allowance. */
+    struct RS_WorldMapVisits visits;
+    /** Overview pane blit (clientCode 1401): one scaled compositetexture. */
+    struct UITreeWorldMapTile overview_tile;
+    /** Scene id of the uploaded overview texture; 0 until first needed, -1 if
+     *  the last upload failed. Replaced when the current area changes. */
+    int overview_scene_id;
+    /** Area id whose compositetexture is currently in the overview scene slot;
+     *  -1 when none. */
+    int overview_area_id;
+    /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
+    struct RS_WorldMapRender* render;
+    /* Scene id of the synthesised flash marker drawn behind a flashing icon;
+     * 0 until first needed, -1 if it could not be built. See
+     * app_worldmap_flash_marker_scene on why it is synthesised and not a
+     * cache sprite. */
+    int flash_scene_id;
+    /** Surface box and drag-to-pan state. */
+    struct UIWorldMapDrag drag;
+    int debug_frame;
 };
 
 enum ToriRS_WorldRenderMode
@@ -1170,36 +1194,11 @@ struct App
      * new tree instead of retaining indices into the old one.
      */
     uint32_t plugin_layout_generation;
-    /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
-     * and consumed by the same frame's draw: the visible regions first, then
-     * every map element icon over them. A full-screen surface spans ~30 regions
-     * and a few hundred icons at the densest zoom. */
-    struct UITreeWorldMapTile worldmap_tiles[512];
-    int worldmap_tile_count;
-    /** Overview pane blit (clientCode 1401): one scaled compositetexture. */
-    struct UITreeWorldMapTile worldmap_overview_tile;
-    /** Scene id of the uploaded overview texture; 0 until first needed, -1 if
-     *  the last upload failed. Replaced when the current area changes. */
-    int worldmap_overview_scene_id;
-    /** Area id whose compositetexture is currently in the overview scene slot;
-     *  -1 when none. */
-    int worldmap_overview_area_id;
-    /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
-    struct RS_WorldMapRender* worldmap_render;
-    /* Scene id of the synthesised flash marker drawn behind a flashing icon;
-     * 0 until first needed, -1 if it could not be built. See
-     * app_worldmap_flash_marker_scene on why it is synthesised and not a
-     * cache sprite. */
-    int worldmap_flash_scene_id;
-    /* Visible regions for this frame, ordered nearest-the-view-centre first —
-     * the order decides who gets the frame's bake and load allowance. The
-     * lowest zoom over the whole map surface stays well inside this. */
-    struct App_WorldMapVisit worldmap_visits[512];
-    int worldmap_visit_count;
-    /* World map surface box and drag-to-pan state. The box is recorded by the
-     * emit walk, because the widget is sized by the world map's own scripts. */
-    struct UIWorldMapDrag worldmap_drag;
-    int worldmap_debug_frame;
+    /* The world map surface: which regions are on screen and in what order
+     * (game/rs_worldmap_view.h owns that rule), this frame's blits, the baked
+     * regions behind them, the overview pane, and the drag-to-pan box the emit
+     * walk records because the widget is sized by the map's own scripts. */
+    struct App_WorldMapView worldmap;
     /** Scene id of the hitmarks sprite pack, resolved once at boot. */
     int hitmarks_scene_id;
 

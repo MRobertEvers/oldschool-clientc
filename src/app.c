@@ -1330,10 +1330,10 @@ app_worldmap_flash_marker_scene(struct App* app)
     int const radius = MARKER_SIZE / 2;
     int const core = 7;
 
-    if( app->worldmap_flash_scene_id != 0 )
-        return app->worldmap_flash_scene_id;
+    if( app->worldmap.flash_scene_id != 0 )
+        return app->worldmap.flash_scene_id;
 
-    app->worldmap_flash_scene_id = -1;
+    app->worldmap.flash_scene_id = -1;
     argb = calloc((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb));
     assert(argb);
 
@@ -1361,8 +1361,8 @@ app_worldmap_flash_marker_scene(struct App* app)
     assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID, sprites, 1);
-    app->worldmap_flash_scene_id = UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID;
-    return app->worldmap_flash_scene_id;
+    app->worldmap.flash_scene_id = UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID;
+    return app->worldmap.flash_scene_id;
 }
 
 /* Loc mapfunction / worldmap icon: mapelement id → sprite scene id (dat2).
@@ -10850,9 +10850,9 @@ app_world_mouse_gate(
      * WALKED THE PLAYER, on a screen where the world is not even visible.
      * The box is the same one app_worldmap_drag_tick arms its drag from.
      */
-    if( app->worldmap_drag.box_w > 0 && app->worldmap_drag.box_h > 0 && mouse_x >= app->worldmap_drag.box_x &&
-        mouse_x < app->worldmap_drag.box_x + app->worldmap_drag.box_w && mouse_y >= app->worldmap_drag.box_y &&
-        mouse_y < app->worldmap_drag.box_y + app->worldmap_drag.box_h && app_worldmap_surface_live(app) )
+    if( app->worldmap.drag.box_w > 0 && app->worldmap.drag.box_h > 0 && mouse_x >= app->worldmap.drag.box_x &&
+        mouse_x < app->worldmap.drag.box_x + app->worldmap.drag.box_w && mouse_y >= app->worldmap.drag.box_y &&
+        mouse_y < app->worldmap.drag.box_y + app->worldmap.drag.box_h && app_worldmap_surface_live(app) )
         return 0;
     /* A viewport interface (reference mainModalId) owns the entire viewport
      * rect: buildMinimenu adds that modal's component options there and NEVER

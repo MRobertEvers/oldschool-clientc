@@ -17,6 +17,17 @@
  * @see src/app.c, src/game/rs_worldmap.h
  */
 
+/* rs_worldmap_view.h states the region size itself so it can be tested against
+ * nothing but itself. This is the one place that sees both numbers, so it is
+ * where they are held to being the same one: a drift would offset every region
+ * on the map from the icons drawn over it. */
+_Static_assert(
+    RS_WORLDMAP_REGION_TILES_X == WORLD_MAP_TERRAIN_X,
+    "the world map view's region width must be the world's");
+_Static_assert(
+    RS_WORLDMAP_REGION_TILES_Z == WORLD_MAP_TERRAIN_Z,
+    "the world map view's region depth must be the world's");
+
 static bool
 app_worldmap_push_icon(
     struct App* app,
@@ -28,16 +39,15 @@ app_worldmap_push_icon(
     struct ToriRS_Sprite* sprite;
     struct UITreeWorldMapTile* tile;
     int scene_id;
-    int capacity = (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0]));
 
-    if( app->worldmap_tile_count >= capacity || element_id < 0 )
+    if( app->worldmap.tiles.count >= RS_WORLDMAP_TILES_MAX || element_id < 0 )
         return false;
 
     /* Off-surface icons are not worth a config load. */
-    if( screen_x < app->worldmap_drag.box_x - 32 ||
-        screen_x > app->worldmap_drag.box_x + app->worldmap_drag.box_w + 32 ||
-        screen_y < app->worldmap_drag.box_y - 32 ||
-        screen_y > app->worldmap_drag.box_y + app->worldmap_drag.box_h + 32 )
+    if( screen_x < app->worldmap.drag.box_x - 32 ||
+        screen_x > app->worldmap.drag.box_x + app->worldmap.drag.box_w + 32 ||
+        screen_y < app->worldmap.drag.box_y - 32 ||
+        screen_y > app->worldmap.drag.box_y + app->worldmap.drag.box_h + 32 )
         return false;
 
     /* Warm the mapelement first so category visibility can gate the sprite
@@ -69,49 +79,32 @@ app_worldmap_push_icon(
      * order). Reserve room for both, or the marker would be the last blit that
      * fits and the icon would drop out. */
     if( RS_WorldMap_ShouldFlashIcon(app->host.worldmap, element_id, element->category) &&
-        app->worldmap_tile_count + 1 < capacity )
+        app->worldmap.tiles.count + 1 < RS_WORLDMAP_TILES_MAX )
     {
         int flash_scene = app_worldmap_flash_marker_scene(app);
         if( flash_scene > 0 )
         {
-            tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+            tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
+            assert(tile);
             tile->scene_id = flash_scene;
-            tile->atlas_index = 0;
             tile->w = 30;
             tile->h = 30;
-            tile->scaled = 0;
             tile->x = screen_x - tile->w / 2;
             tile->y = screen_y - tile->h / 2;
         }
     }
 
-    tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+    tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
+    assert(tile);
     tile->scene_id = scene_id;
-    tile->atlas_index = 0;
     tile->w =
         sprite->frames[0].crop_width > 0 ? sprite->frames[0].crop_width : sprite->frames[0].width;
     tile->h = sprite->frames[0].crop_height > 0 ? sprite->frames[0].crop_height
                                                 : sprite->frames[0].height;
-    tile->scaled = 0;
     /* Centred on its tile, like every map icon in the reference. */
     tile->x = screen_x - tile->w / 2;
     tile->y = screen_y - tile->h / 2;
     return true;
-}
-
-/** Nearest first; ties broken by region so the order is stable frame to frame. */
-static int
-app_worldmap_visit_cmp(
-    void const* lhs,
-    void const* rhs)
-{
-    struct App_WorldMapVisit const* a = (struct App_WorldMapVisit const*)lhs;
-    struct App_WorldMapVisit const* b = (struct App_WorldMapVisit const*)rhs;
-    if( a->distance != b->distance )
-        return a->distance < b->distance ? -1 : 1;
-    if( a->region_y != b->region_y )
-        return a->region_y - b->region_y;
-    return a->region_x - b->region_x;
 }
 
 static int
@@ -141,26 +134,18 @@ app_worldmap_build_tiles(
     int display_y;
     int centre_x;
     int centre_y;
-    int min_x;
-    int max_x;
-    int min_y;
-    int max_y;
-    int min_region_x;
-    int max_region_x;
-    int min_region_y;
-    int max_region_y;
 
-    app->worldmap_tile_count = 0;
+    RS_WorldMapTiles_Reset(&app->worldmap.tiles);
     /* Emit-time record of where the tiles were placed this redraw. Click
      * coordinate math reads it; whether the map is open at all is answered by
      * app_worldmap_surface_live, not by this box — emit only runs on redraw
      * frames, and once the interface is hidden it stops writing, so the last
      * rectangle would otherwise outlive the open map. */
-    app->worldmap_drag.box_x = box_x;
-    app->worldmap_drag.box_y = box_y;
-    app->worldmap_drag.box_w = box_w;
-    app->worldmap_drag.box_h = box_h;
-    *req->u.get_worldmap_tiles.out_items = app->worldmap_tiles;
+    app->worldmap.drag.box_x = box_x;
+    app->worldmap.drag.box_y = box_y;
+    app->worldmap.drag.box_w = box_w;
+    app->worldmap.drag.box_h = box_h;
+    *req->u.get_worldmap_tiles.out_items = app->worldmap.tiles.items;
     if( req->u.get_worldmap_tiles.out_background_rgb )
         *req->u.get_worldmap_tiles.out_background_rgb = 0;
 
@@ -215,7 +200,7 @@ app_worldmap_build_tiles(
         static int last_area_id = -1;
         int area_id = area->id;
         if( last_area_id >= 0 && last_area_id != area_id )
-            RS_WorldMapRender_Clear(app->worldmap_render, app->scene);
+            RS_WorldMapRender_Clear(app->worldmap.render, app->scene);
         last_area_id = area_id;
     }
 
@@ -244,7 +229,7 @@ app_worldmap_build_tiles(
                 if( end && *end == ',' )
                     at_frame = strtol(end + 1, NULL, 0);
             }
-            RS_WorldMap_SetZoom(map, (int)(app->worldmap_debug_frame < at_frame ? first : second));
+            RS_WorldMap_SetZoom(map, (int)(app->worldmap.debug_frame < at_frame ? first : second));
         }
     }
 
@@ -263,83 +248,41 @@ app_worldmap_build_tiles(
 
     centre_x = box_x + box_w / 2;
     centre_y = box_y + box_h / 2;
-    RS_WorldMapRender_BeginFrame(app->worldmap_render);
+    RS_WorldMapRender_BeginFrame(app->worldmap.render);
     /* The mapscene pack lives in the bridge's static-sprite registry, which the
      * renderer cannot reach; hand it over before any bake. */
     RS_WorldMapRender_SetMapScenes(
-        app->worldmap_render,
+        app->worldmap.render,
         UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE));
 
-    /* One region of slack each way so a half-visible region at the edge is
-     * still drawn (reference uses the same +/-64 tiles). */
-    min_x = display_x - box_w * WORLD_MAP_TERRAIN_X / (2 * region_px) - WORLD_MAP_TERRAIN_X;
-    max_x = display_x + box_w * WORLD_MAP_TERRAIN_X / (2 * region_px) + WORLD_MAP_TERRAIN_X;
-    min_y = display_y - box_h * WORLD_MAP_TERRAIN_Z / (2 * region_px) - WORLD_MAP_TERRAIN_Z;
-    max_y = display_y + box_h * WORLD_MAP_TERRAIN_Z / (2 * region_px) + WORLD_MAP_TERRAIN_Z;
-
-    min_region_x = min_x / WORLD_MAP_TERRAIN_X;
-    max_region_x = max_x / WORLD_MAP_TERRAIN_X;
-    min_region_y = min_y / WORLD_MAP_TERRAIN_Z;
-    max_region_y = max_y / WORLD_MAP_TERRAIN_Z;
-    if( min_region_x < area->region_low_x )
-        min_region_x = area->region_low_x;
-    if( max_region_x > area->region_high_x )
-        max_region_x = area->region_high_x;
-    if( min_region_y < area->region_low_y )
-        min_region_y = area->region_low_y;
-    if( max_region_y > area->region_high_y )
-        max_region_y = area->region_high_y;
-
-    /*
-     * Visit order is nearest-the-centre first, as the reference sorts its
-     * visible tiles. It decides who gets the frame's bake and asset-load
-     * allowance, and scan order (top-left onwards) spends it on whatever
-     * happens to be scanned first — so a region the view is centred on could
-     * wait behind a whole screenful of edge regions, which is how a pan leaves
-     * tiles unloaded until it has moved past them.
-     */
-    app->worldmap_visit_count = 0;
-    for( int region_y = min_region_y; region_y <= max_region_y; region_y++ )
     {
-        for( int region_x = min_region_x; region_x <= max_region_x; region_x++ )
-        {
-            struct App_WorldMapVisit* visit;
-            int centre_tile_x = region_x * WORLD_MAP_TERRAIN_X + WORLD_MAP_TERRAIN_X / 2;
-            int centre_tile_y = region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z / 2;
-            int dx = centre_tile_x - display_x;
-            int dy = centre_tile_y - display_y;
+        struct RS_WorldMapRegionBounds bounds;
+        struct RS_WorldMapViewport viewport;
 
-            if( app->worldmap_visit_count >=
-                (int)(sizeof(app->worldmap_visits) / sizeof(app->worldmap_visits[0])) )
-                break;
-            visit = &app->worldmap_visits[app->worldmap_visit_count++];
-            visit->region_x = region_x;
-            visit->region_y = region_y;
-            visit->distance = dx * dx + dy * dy;
-        }
+        bounds.low_x = area->region_low_x;
+        bounds.low_y = area->region_low_y;
+        bounds.high_x = area->region_high_x;
+        bounds.high_y = area->region_high_y;
+        viewport.display_tile_x = display_x;
+        viewport.display_tile_z = display_y;
+        viewport.box_w = box_w;
+        viewport.box_h = box_h;
+        viewport.region_px = region_px;
+        RS_WorldMapVisits_Build(&app->worldmap.visits, &bounds, &viewport);
     }
-    qsort(
-        app->worldmap_visits,
-        (size_t)app->worldmap_visit_count,
-        sizeof(app->worldmap_visits[0]),
-        app_worldmap_visit_cmp);
 
-    for( int i = 0; i < app->worldmap_visit_count; i++ )
+    for( int i = 0; i < app->worldmap.visits.count; i++ )
     {
         {
-            int region_x = app->worldmap_visits[i].region_x;
-            int region_y = app->worldmap_visits[i].region_y;
+            int region_x = app->worldmap.visits.items[i].region_x;
+            int region_y = app->worldmap.visits.items[i].region_y;
             struct UITreeWorldMapTile* tile;
             int size = 0;
             int fallback_scene_id = -1;
             int scene_id;
 
-            if( app->worldmap_tile_count >=
-                (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0])) )
-                break;
-
             scene_id = RS_WorldMapRender_RegionSprite(
-                app->worldmap_render,
+                app->worldmap.render,
                 app->provider,
                 app->scene,
                 app->runner.queue,
@@ -357,9 +300,10 @@ app_worldmap_build_tiles(
             if( scene_id < 0 )
                 continue;
 
-            tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+            tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
+            if( !tile )
+                break;
             tile->scene_id = scene_id;
-            tile->atlas_index = 0;
             tile->x = centre_x + (region_x * WORLD_MAP_TERRAIN_X - display_x) * region_px /
                                      WORLD_MAP_TERRAIN_X;
             tile->y =
@@ -377,14 +321,14 @@ app_worldmap_build_tiles(
 
     /* Icons in a second pass, so no later region paints over an earlier
      * region's icons: everything in this list draws in order. */
-    for( int i = 0; i < app->worldmap_visit_count; i++ )
+    for( int i = 0; i < app->worldmap.visits.count; i++ )
     {
         {
-            int region_x = app->worldmap_visits[i].region_x;
-            int region_y = app->worldmap_visits[i].region_y;
+            int region_x = app->worldmap.visits.items[i].region_x;
+            int region_y = app->worldmap.visits.items[i].region_y;
             struct RS_WorldMapRegionIcon const* icons = NULL;
             int scene_id = RS_WorldMapRender_RegionSprite(
-                app->worldmap_render,
+                app->worldmap.render,
                 app->provider,
                 app->scene,
                 app->runner.queue,
@@ -397,7 +341,7 @@ app_worldmap_build_tiles(
             int icon_count =
                 scene_id < 0
                     ? 0
-                    : RS_WorldMapRender_RegionIcons(app->worldmap_render, scene_id, &icons);
+                    : RS_WorldMapRender_RegionIcons(app->worldmap.render, scene_id, &icons);
 
             for( int i = 0; i < icon_count; i++ )
                 app_worldmap_push_icon(
@@ -435,11 +379,10 @@ app_worldmap_build_tiles(
     if( app->hint_arrow.type == APP_HINT_ARROW_COORD )
     {
         int map_x, map_y;
-        int const capacity = (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0]));
 
         /* Plane 0: the hint packet carries no plane, and the world map surface
          * is composited from one anyway. */
-        if( app->worldmap_tile_count < capacity &&
+        if( app->worldmap.tiles.count < RS_WORLDMAP_TILES_MAX &&
             ToriRS_WorldMapArea_Position(
                 area, 0, app->hint_arrow.target, app->hint_arrow.tile_z, &map_x, &map_y) )
         {
@@ -447,9 +390,9 @@ app_worldmap_build_tiles(
             int const x = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X;
             int const y = centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z;
 
-            if( flash_scene > 0 && x > app->worldmap_drag.box_x - 32 &&
-                x < app->worldmap_drag.box_x + app->worldmap_drag.box_w + 32 &&
-                y > app->worldmap_drag.box_y - 32 && y < app->worldmap_drag.box_y + app->worldmap_drag.box_h + 32 )
+            if( flash_scene > 0 && x > app->worldmap.drag.box_x - 32 &&
+                x < app->worldmap.drag.box_x + app->worldmap.drag.box_w + 32 &&
+                y > app->worldmap.drag.box_y - 32 && y < app->worldmap.drag.box_y + app->worldmap.drag.box_h + 32 )
             {
                 /*
                  * The synthesised flash disc, not one of `worldmap_marker_0..8`.
@@ -460,34 +403,49 @@ app_worldmap_build_tiles(
                  * "look here" (see `app_worldmap_flash_marker_scene`), and the
                  * cache names no hint-marker asset to prefer over it.
                  */
-                struct UITreeWorldMapTile* tile = &app->worldmap_tiles[app->worldmap_tile_count++];
+                struct UITreeWorldMapTile* tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
 
+                assert(tile);
                 tile->scene_id = flash_scene;
-                tile->atlas_index = 0;
                 tile->w = 30;
                 tile->h = 30;
-                tile->scaled = 0;
                 tile->x = x - tile->w / 2;
                 tile->y = y - tile->h / 2;
             }
         }
     }
 
-    app->worldmap_debug_frame++;
-    if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
+    app->worldmap.debug_frame++;
+    if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap.debug_frame % 300 == 0 )
     {
         /* Queue depth is the tell for the surface freezing: the runner is
          * serial (one task per IO round trip), so a backlog that climbs every
          * frame means loads are being queued faster than they can retire, and
          * anything newly in view waits behind all of it. */
         int queued = 0;
+        int min_region_x = 0, max_region_x = 0, min_region_y = 0, max_region_y = 0;
         for( struct ToriRS_Task* task = app->runner.queue ? app->runner.queue->head : NULL;
              task && queued < 100000;
              task = task->next )
             queued++;
+        /* Read back off the visit list rather than recomputed: the trace is
+         * here to say what the frame actually asked for, and a second copy of
+         * the bounds arithmetic could disagree with the first. */
+        for( int i = 0; i < app->worldmap.visits.count; i++ )
+        {
+            struct RS_WorldMapVisit const* visit = &app->worldmap.visits.items[i];
+            if( i == 0 || visit->region_x < min_region_x )
+                min_region_x = visit->region_x;
+            if( i == 0 || visit->region_x > max_region_x )
+                max_region_x = visit->region_x;
+            if( i == 0 || visit->region_y < min_region_y )
+                min_region_y = visit->region_y;
+            if( i == 0 || visit->region_y > max_region_y )
+                max_region_y = visit->region_y;
+        }
         TORIRS_ERR(
             "worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
-            "regions x=%d..%d y=%d..%d blits=%d queued_tasks=%d\n",
+            "regions x=%d..%d y=%d..%d visits=%d blits=%d queued_tasks=%d\n",
             display_x,
             display_y,
             RS_WorldMap_Zoom(map),
@@ -497,11 +455,12 @@ app_worldmap_build_tiles(
             max_region_x,
             min_region_y,
             max_region_y,
-            app->worldmap_tile_count,
+            app->worldmap.visits.count,
+            app->worldmap.tiles.count,
             queued);
     }
 
-    return app->worldmap_tile_count;
+    return app->worldmap.tiles.count;
 }
 
 /*
@@ -526,9 +485,9 @@ app_worldmap_ensure_overview_scene(
     assert(area->overview_width > 0);
     assert(area->overview_height > 0);
 
-    if( app->worldmap_overview_area_id == area->id &&
-        app->worldmap_overview_scene_id == UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID )
-        return app->worldmap_overview_scene_id;
+    if( app->worldmap.overview_area_id == area->id &&
+        app->worldmap.overview_scene_id == UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID )
+        return app->worldmap.overview_scene_id;
 
     nbytes = (size_t)area->overview_width * (size_t)area->overview_height * sizeof(*copy);
     copy = malloc(nbytes);
@@ -545,9 +504,9 @@ app_worldmap_ensure_overview_scene(
     assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID, sprites, 1);
-    app->worldmap_overview_scene_id = UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID;
-    app->worldmap_overview_area_id = area->id;
-    return app->worldmap_overview_scene_id;
+    app->worldmap.overview_scene_id = UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID;
+    app->worldmap.overview_area_id = area->id;
+    return app->worldmap.overview_scene_id;
 }
 
 static int
@@ -572,8 +531,8 @@ app_worldmap_build_overview(
     box_w = req->u.get_worldmap_overview.box_w;
     box_h = req->u.get_worldmap_overview.box_h;
 
-    memset(&app->worldmap_overview_tile, 0, sizeof(app->worldmap_overview_tile));
-    *req->u.get_worldmap_overview.out_items = &app->worldmap_overview_tile;
+    memset(&app->worldmap.overview_tile, 0, sizeof(app->worldmap.overview_tile));
+    *req->u.get_worldmap_overview.out_items = &app->worldmap.overview_tile;
     if( req->u.get_worldmap_overview.out_background_rgb )
         *req->u.get_worldmap_overview.out_background_rgb = 0;
 
@@ -594,13 +553,13 @@ app_worldmap_build_overview(
     if( scene_id <= 0 )
         return 0;
 
-    app->worldmap_overview_tile.scene_id = scene_id;
-    app->worldmap_overview_tile.atlas_index = 0;
-    app->worldmap_overview_tile.x = box_x;
-    app->worldmap_overview_tile.y = box_y;
-    app->worldmap_overview_tile.w = box_w;
-    app->worldmap_overview_tile.h = box_h;
-    app->worldmap_overview_tile.scaled = 1;
+    app->worldmap.overview_tile.scene_id = scene_id;
+    app->worldmap.overview_tile.atlas_index = 0;
+    app->worldmap.overview_tile.x = box_x;
+    app->worldmap.overview_tile.y = box_y;
+    app->worldmap.overview_tile.w = box_w;
+    app->worldmap.overview_tile.h = box_h;
+    app->worldmap.overview_tile.scaled = 1;
     return 1;
 }
 
@@ -688,9 +647,9 @@ app_worldmap_click(
     if( scale_fp <= 0 )
         return;
 
-    map_x = display_x + (mouse_x - (app->worldmap_drag.box_x + app->worldmap_drag.box_w / 2)) *
+    map_x = display_x + (mouse_x - (app->worldmap.drag.box_x + app->worldmap.drag.box_w / 2)) *
                             RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
-    map_y = display_y - (mouse_y - (app->worldmap_drag.box_y + app->worldmap_drag.box_h / 2)) *
+    map_y = display_y - (mouse_y - (app->worldmap.drag.box_y + app->worldmap.drag.box_h / 2)) *
                             RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
 
     source =
@@ -771,7 +730,7 @@ app_worldmap_drag_tick(
     drag_input.hover_component_id = app->hover_com_id;
     drag_input.surface_live = app_worldmap_surface_live(app);
 
-    result = UIWorldMapDrag_Tick(&app->worldmap_drag, &drag_input, app->host.worldmap);
+    result = UIWorldMapDrag_Tick(&app->worldmap.drag, &drag_input, app->host.worldmap);
     if( result == UI_WORLDMAP_DRAG_CLICKED )
         app_worldmap_click(app, drag_input.mouse_x, drag_input.mouse_y);
     else if( result == UI_WORLDMAP_DRAG_PANNED )

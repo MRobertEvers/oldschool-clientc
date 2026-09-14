@@ -599,6 +599,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
 	game/rs_title_session.c \
+	game/rs_worldmap_view.c \
 	ui/inv_drag.c \
 	ui/minimap_view.c \
 	ui/settings_pickers.c \
@@ -1660,6 +1661,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-inv-drag
 	$(MAKE) test-minimap-view
 	$(MAKE) test-title-session
+	$(MAKE) test-worldmap-view
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1775,6 +1777,17 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# Which regions of the world map are on screen, and in what order. The set
+# failing leaves a map that ends in a hard line one region short of its own
+# frame. The order failing leaves a map that fills in from the corner while the
+# place the player is looking at stays blank -- the frame's bake and load
+# allowance goes to whatever is visited first, so it has to be the centre.
+.PHONY: test-worldmap-view
+test-worldmap-view: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_worldmap_view_test.c game/rs_worldmap_view.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_worldmap_view_test$(PLATFORM_EXE_SUFFIX)
 
 # Getting from the title screen to the world, once. An automatic submit that
 # fires twice reads as a server that keeps dropping you; a connect in the same

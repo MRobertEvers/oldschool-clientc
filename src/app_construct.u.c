@@ -430,9 +430,9 @@ App_Init(
     app->ground_items_aux_seen[0] = 0;
     app->ground_items_aux_seen[1] = 0;
     app->world_map_scene_id = -1;
-    app->worldmap_render = RS_WorldMapRender_New();
-    app->worldmap_overview_scene_id = 0;
-    app->worldmap_overview_area_id = -1;
+    app->worldmap.render = RS_WorldMapRender_New();
+    app->worldmap.overview_scene_id = 0;
+    app->worldmap.overview_area_id = -1;
     MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.
@@ -1127,8 +1127,8 @@ App_Shutdown(struct App* app)
         app->net = NULL;
     }
     UITree_EmitBufferFree(&app->emit);
-    RS_WorldMapRender_Free(app->worldmap_render);
-    app->worldmap_render = NULL;
+    RS_WorldMapRender_Free(app->worldmap.render);
+    app->worldmap.render = NULL;
     /* Before the host, which points at it. */
     RS_Chat_Free(&app->chat);
     RS_CS2Host_Free(&app->host);
